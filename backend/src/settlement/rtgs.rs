@@ -12,10 +12,19 @@
 //! ```
 //!
 //! The RTGS engine:
-//! 1. Receives payment order (Transaction)
+//! 1. Receives payment order (Transaction) - submitted by bank to RTGS
 //! 2. Checks if sender bank has sufficient liquidity (balance + credit)
 //! 3. If yes: Immediate settlement (debit sender, credit receiver)
-//! 4. If no: Returns InsufficientLiquidity error (caller can queue)
+//! 4. If no: Returns InsufficientLiquidity error (caller queues in Queue 2)
+//!
+//! # Queue Architecture Note
+//!
+//! This module operates on **Queue 2** (central RTGS queue):
+//! - Transactions arrive here AFTER banks decide to submit them
+//! - Settlement is mechanical: check liquidity, settle or queue, retry
+//! - Bank policy decisions (Queue 1) will be added in Phase 4-5
+//!
+//! See `/docs/queue_architecture.md` for the two-queue model.
 //!
 //! # Critical Invariants
 //!
