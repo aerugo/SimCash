@@ -3,8 +3,9 @@
 
 > **Implementation Status (2025-10-27)**:
 > - ✅ Phase 1-2 Complete: Core models (Time, RNG, Agent, Transaction)
-> - ⏳ Phase 3 Planned: RTGS settlement engine (see `/docs/phase3_rtgs_analysis.md`)
-> - 🎯 Phase 4+: LSM, Orchestrator, API layers
+> - ✅ Phase 3 Complete: RTGS + LSM settlement engines (60 tests passing)
+> - ✅ Phase 4a Complete: Queue 1 + Cash Manager Policies (3 baseline policies)
+> - 🎯 Phase 4b Next: Orchestrator Integration (tick loop, arrivals, cost accrual)
 
 ## 1) Executive Summary
 
@@ -298,14 +299,16 @@ pub struct TimeManager {
 
 **Why Rust**: Tight control over tick loop performance; zero-cost time calculations.
 
-#### Orchestrator Module (`backend/src/orchestrator/`)
+#### Orchestrator Module (`backend/src/orchestrator/`) 🎯 Phase 4b
+**Status**: Not yet implemented. Planned for Phase 4b.
+
 **Responsibility**: Main simulation loop and event coordination
 
-**Components**:
+**Target Components** (Phase 4b):
 - `engine.rs`: Tick loop, arrival generation, policy evaluation coordination
 - `mod.rs`: Public API for orchestrator
 
-**Key Operations**:
+**Target Operations** (Phase 4b):
 1. Advance tick
 2. Generate arrivals (via RNG)
 3. Evaluate policies (payment, liquidity, nostro)
@@ -316,54 +319,60 @@ pub struct TimeManager {
 
 **Why Rust**: Orchestrator is the hottest path; runs thousands of ticks per second.
 
-#### Settlement Module (`backend/src/settlement/`) ⏳ Phase 3
-**Status**: Placeholder only. See `/docs/phase3_rtgs_analysis.md` for implementation plan.
+#### Settlement Module (`backend/src/settlement/`) ✅ Phase 3
+**Status**: Complete (Phase 3a: RTGS, Phase 3b: LSM)
 
-**Responsibility**: RTGS settlement logic and central queue management
+**Responsibility**: RTGS settlement logic, central queue management, and Liquidity-Saving Mechanisms
 
-**Target Components** (Phase 3):
-- `rtgs.rs`: T2-style immediate settlement + central queue
-- `queue.rs`: Central RTGS queue management
-- `caps.rs`: Bilateral cap enforcement (Phase 4)
-- `failure.rs`: Settlement failure detection and classification
+**Implemented Components**:
+- `rtgs.rs`: T2-style immediate settlement + central queue (22 tests passing)
+- `lsm.rs`: Liquidity-Saving Mechanism with bilateral netting and cycle detection (15 tests passing)
 - `mod.rs`: Public settlement API
 
-**Target Operations** (Phase 3):
-- Check: `balance + credit_limit >= amount`
-- If yes: debit sender, credit receiver (settlement at central bank)
-- If no: add to **central RTGS queue**
-- Process queue each tick (retry pending transactions)
-- Drop transactions past deadline
+**Implemented Operations**:
+- RTGS settlement: Check `balance + credit_limit >= amount`
+  - If yes: debit sender, credit receiver (immediate settlement)
+  - If no: add to **central RTGS queue**
+- Central queue management: Process queue each tick (retry pending transactions)
+- LSM bilateral netting: Find A↔B offsetting pairs
+- LSM cycle detection: Find multi-party cycles (A→B→C→A)
+- Transaction deadline enforcement: Drop transactions past deadline
+
+**Test Status**:
+- 22 RTGS tests passing
+- 15 LSM tests passing
+- Full settlement pipeline validated
 
 **Why Rust**: Critical path for every transaction; memory safety prevents double-spending bugs.
 
-#### LSM Module (`backend/src/lsm/`) 🎯 Phase 4
-**Status**: Not yet implemented. Planned after Phase 3 completion.
+#### LSM (Integrated into Settlement Module) ✅ Phase 3b
+**Status**: Complete. Implemented as part of `backend/src/settlement/` module.
+
+**Actual Location**: `backend/src/settlement/lsm.rs` (integrated with RTGS)
 
 **Responsibility**: Liquidity-Saving Mechanism (T2-style optimization)
 
-**Target Components** (Phase 4):
-- `bilateral.rs`: A↔B bilateral offsetting
-- `cycle.rs`: Multi-party cycle detection (A→B→C→A)
-- `coordinator.rs`: LSM orchestration, priority handling
-- `mod.rs`: Public LSM API
+**Implemented Components**:
+- Bilateral offsetting: A↔B bilateral netting
+- Cycle detection: Multi-party cycle detection (A→B→C→A)
+- LSM coordinator: Orchestration and priority handling
 
-**Target Algorithms** (Phase 4):
-- Bilateral netting: O(n²) pairwise comparison
-- 3-cycle detection: O(n³) but with pruning
-- 4-cycle detection: O(n⁴) with early termination
-- Batch optimization: Linear programming (future)
+**Implemented Algorithms**:
+- Bilateral netting: O(n²) pairwise comparison ✅
+- 3-cycle detection: O(n³) with pruning ✅
+- 4-cycle detection: O(n⁴) with early termination ✅
+
+**Test Status**: 15 LSM tests passing
 
 **Why Rust**: Graph algorithms are CPU-intensive; Rust's zero-cost iterators shine here.
 
-#### Models Module (`backend/src/models/`) ✅ Phase 1-2 Complete
-**Status**: Implemented. `Agent` and `Transaction` models complete.
+#### Models Module (`backend/src/models/`) ✅ Phase 1-2, Extended in Phase 4a
+**Status**: Core models complete. Extended with Queue 1 in Phase 4a.
 
 **Components**:
 - `transaction.rs`: Transaction state machine ✅ (21 tests passing)
-- `agent.rs`: Agent state (balances, queues, limits) ✅ (17 tests passing)
-- `state.rs`: SimulationState (placeholder, will extend in Phase 3)
-- `enums.rs`: SettlementStatus, DropReason, Priority (future)
+- `agent.rs`: Agent state (balances, queues, limits, Queue 1) ✅ (17 tests passing)
+- `state.rs`: SimulationState with transaction/agent accessors ✅
 - `mod.rs`: Public model exports
 
 **Key Invariants**:
@@ -371,7 +380,11 @@ pub struct TimeManager {
 - All monetary values are i64 (cents/minor units) ✅
 - State transitions are validated ✅
 
-**Phase 3 Note**: `Agent.balance` represents bank's settlement account **at central bank**. No changes needed to Agent model for Phase 3.
+**Phase 3 Implementation**: `Agent.balance` represents bank's settlement account at central bank.
+
+**Phase 4a Extension**: Added Queue 1 (internal bank queue) fields to Agent model:
+- `outgoing_queue`: Vec of transaction IDs awaiting policy decisions
+- Queue accessors for policy evaluation
 
 **Why Rust**: Strong type system prevents invalid states; compile-time guarantees.
 
@@ -399,17 +412,17 @@ pub struct TimeManager {
 
 **Why Rust**: Time management is used throughout the simulation loop.
 
-#### Arrivals Module (`backend/src/arrivals/`) 🎯 Phase 5
-**Status**: Not yet implemented. Planned for Phase 5.
+#### Arrivals Module (`backend/src/arrivals/`) 🎯 Phase 4b
+**Status**: Not yet implemented. Planned for Phase 4b (Orchestrator Integration).
 
 **Responsibility**: Payment arrival generation
 
-**Target Components** (Phase 5):
+**Target Components** (Phase 4b):
 - `distributions.rs`: Normal, exponential, uniform distributions
 - `generator.rs`: Arrival config, agent pool selection
 - `mod.rs`: Public arrival API
 
-**Target Operations** (Phase 5):
+**Target Operations** (Phase 4b):
 - Sample arrival time (exponential/Poisson)
 - Sample amount (normal/uniform)
 - Select sender/receiver from agent pool
@@ -417,15 +430,15 @@ pub struct TimeManager {
 
 **Why Rust**: High-frequency sampling; needs to be very fast.
 
-#### Costs Module (`backend/src/costs/`) 🎯 Phase 5
-**Status**: Not yet implemented. Planned for Phase 5.
+#### Costs Module (`backend/src/costs/`) 🎯 Phase 4b
+**Status**: Not yet implemented. Planned for Phase 4b (Orchestrator Integration).
 
 **Responsibility**: Cost accrual (liquidity, delay, penalty)
 
 **Components**:
 - `accrual.rs`: Per-tick cost calculation
 - `rates.rs`: Overdraft rates, collateral haircuts
-- `mod.rs**: Public cost API
+- `mod.rs`: Public cost API
 
 **Key Operations**:
 - Accrue overdraft cost (peak net debit * rate * time)
@@ -773,45 +786,72 @@ uv run maturin develop --release && uv run pytest
 
 ### Development Phases
 
-**Phase 1: Core Rust Backend** ✅ (Completed)
-- Transaction model
-- Agent model
-- SystemState
-- TimeManager
-- RNG Manager
-- Basic settlement
+**Phase 1-2: Core Rust Backend** ✅ (Completed - 2025-10-27)
+- Transaction model (21 tests)
+- Agent model (17 tests)
+- SimulationState
+- TimeManager (6 tests)
+- RNG Manager (10 tests)
+- Core infrastructure complete
 
-**Phase 2: Settlement & LSM** ✅ (Completed)
-- RTGS settlement
-- Bilateral netting
-- Cycle detection (3-cycles, 4-cycles)
+**Phase 3a: RTGS Settlement** ✅ (Completed - 2025-10-27)
+- Immediate RTGS settlement
+- Central queue management
+- Credit limit enforcement
 - Settlement failure handling
+- 22 RTGS tests passing
 
-**Phase 3: Orchestrator & Arrivals** ✅ (Completed)
-- Tick loop
-- Arrival generation
+**Phase 3b: LSM (Liquidity-Saving Mechanisms)** ✅ (Completed - 2025-10-27)
+- Bilateral netting (A↔B offsets)
+- Cycle detection (3-cycles, 4-cycles)
+- LSM coordinator
+- Priority-aware processing
+- 15 LSM tests passing
+
+**Phase 4a: Queue 1 & Cash Manager Policies** ✅ (Completed - 2025-10-27)
+- Queue 1 (internal bank queues) infrastructure
+- CashManagerPolicy trait interface
+- Three baseline policies (FIFO, Deadline, LiquidityAware)
+- Every-tick re-evaluation semantics
+- 12 policy tests passing
+- **Total: 60 tests passing**
+
+**Phase 4b: Orchestrator Integration** 🎯 (Next - Not Started)
+- Tick loop implementation
+- Arrival generation integration
 - Policy evaluation coordination
-- Cost accrual
+- Cost accrual (liquidity, delay, penalty)
 - Event logging
+- End-to-end simulation tests
 
-**Phase 4: FFI & Python API** ✅ (Completed)
+**Phase 5: Transaction Splitting & Advanced Features** 🔜 (Future)
+- Partial settlement implementation
+- Transaction splitting logic
+- Advanced policy features
+- Collateral management
+- Bilateral caps enforcement
+
+**Phase 6: Policy DSL & LLM Integration** 🔜 (Future)
+- JSON decision tree interpreter (~2,000 lines Rust)
+- LLM Manager service
+- Shadow replay validation
+- Monte Carlo opponent sampling
+- Git-based policy versioning
+- Hot-reload policy updates
+- See `/docs/policy_dsl_design.md` for complete specification
+
+**Phase 7: FFI & Python API** 🔜 (Future)
 - PyO3 bindings
 - Python wrapper
 - FastAPI routes
 - WebSocket streaming
 - Config management
 
-**Phase 5: Testing & Validation** 🚧 (In Progress)
-- Integration tests
-- E2E tests
+**Phase 8: Testing & Production** 🔜 (Future)
+- Comprehensive integration tests
+- E2E API tests
 - Performance benchmarks
-- Determinism verification
-
-**Phase 6: LLM Integration** 🔜 (Future)
-- Policy DSL compiler
-- Shadow replay validation
-- LLM Manager service
-- Git-based policy versioning
+- Production deployment
 
 ---
 
