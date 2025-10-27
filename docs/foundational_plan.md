@@ -9,7 +9,8 @@ This plan outlined the implementation of a **minimal but complete** foundation. 
 **Current Progress**:
 - ✅ **Phase 1-2 Complete**: Time, RNG, Agent, Transaction models
 - ✅ **Phase 3 Complete**: RTGS settlement engine + LSM (Liquidity-Saving Mechanisms)
-- 🎯 **Future Phases**: Orchestrator, API layer, Frontend
+- ✅ **Phase 4a Complete**: Queue 1 (internal bank queues) + Cash Manager Policies
+- 🎯 **Future Phases**: Orchestrator integration, API layer, Frontend, Policy DSL
 
 ---
 
@@ -159,33 +160,158 @@ All frontend features are future work.
 
 ---
 
-### 🎯 Future Phases (After Phase 3)
+### ✅ Phase 4a: Queue 1 & Cash Manager Policies - **COMPLETE** (2025-10-27)
 
-#### Phase 4: Orchestrator & Arrivals
-- Tick loop orchestration
-- Arrival generation (deterministic RNG)
-- Integration: RTGS + LSM coordination
-- Policy evaluation hooks
+**Status**: Implementation complete
+
+**Git commits**:
+- `77d835d` - Phase 4a (Queue 1): Implement internal bank queues and cash manager policies
+- `07138b4` - Fix doc test failures in policy module
+
+**What's Implemented**:
+
+#### Queue 1 Infrastructure ✅
+- **Extended Agent Model**: `backend/src/models/agent.rs`
+  - `outgoing_queue: Vec<String>` - Internal queue for transactions awaiting policy decision
+  - `incoming_expected: Vec<String>` - Expected incoming payments for liquidity forecasting
+  - `last_decision_tick: Option<usize>` - Last policy evaluation tick
+  - `liquidity_buffer: i64` - Target minimum balance to maintain
+  - **New methods** (15+ additions):
+    - `queue_outgoing()`, `remove_from_queue()` - Queue management
+    - `can_afford_to_send()`, `liquidity_pressure()` - Decision factors
+    - `outgoing_queue_size()`, `outgoing_queue_value()` - Analytics
+
+- **Extended SimulationState**: `backend/src/models/state.rs`
+  - Queue 1 accessor methods:
+    - `total_internal_queue_size()` - System-wide queue statistics
+    - `total_internal_queue_value()` - Total queued value
+    - `get_urgent_transactions()` - Find transactions approaching deadlines
+    - `agents_with_queued_transactions()` - Which banks have pending transactions
+    - `agent_queue_value()` - Per-agent queue analysis
+
+#### Cash Manager Policy Framework ✅
+- **Module**: `backend/src/policy/`
+- **Core Trait**: `CashManagerPolicy`
+  ```rust
+  fn evaluate_queue(
+      &mut self,
+      agent: &Agent,
+      state: &SimulationState,
+      tick: usize,
+  ) -> Vec<ReleaseDecision>;
+  ```
+
+- **Decision Types**:
+  - `ReleaseDecision` enum: `SubmitFull`, `SubmitPartial`, `Hold`, `Drop`
+  - `HoldReason` enum: Structured reasons for holding (liquidity, inflows, priority, etc.)
+
+- **Three Baseline Policies** ✅:
+  1. **FifoPolicy** (`fifo.rs`) - Submit all transactions immediately (simplest baseline)
+  2. **DeadlinePolicy** (`deadline.rs`) - Prioritize urgent transactions, hold non-urgent
+  3. **LiquidityAwarePolicy** (`liquidity_aware.rs`) - Preserve liquidity buffer, override for urgency
+
+#### Documentation ✅
+- **Comprehensive Guide**: `docs/queue_architecture.md` (3,200+ lines)
+  - Two-queue architecture explanation
+  - Complete transaction lifecycle diagrams
+  - Policy decision factors enumeration
+  - Integration patterns and code examples
+  - Comparison: Queue 1 (policy) vs Queue 2 (mechanical)
+
+- **Module Documentation**: Full rustdoc for policy module with examples
+
+#### Test Status:
+- **60 tests passing** (0 failures)
+  - 22 RTGS tests (Phase 3a)
+  - 15 LSM tests (Phase 3b)
+  - 12 Policy tests (Phase 4a) - FIFO, Deadline, LiquidityAware
+  - 11 Core model tests
+  - Plus all doc tests
+
+#### Alignment with Two-Queue Architecture:
+- ✅ Queue 1 (internal bank queues) for strategic decisions
+- ✅ Queue 2 (central RTGS queue) for mechanical liquidity retry
+- ✅ Policy evaluation every tick (re-evaluate as conditions change)
+- ✅ Access to agent state, transaction details, system signals
+- ✅ Structured decision types with hold reasons
+- ✅ Foundation for future LLM-driven policy evolution (Phase 6)
+
+#### Current Limitations (Planned for Next Phases):
+- ❌ Not yet integrated into orchestrator tick loop (Phase 4b)
+- ❌ No policy configuration per agent (Phase 4b)
+- ❌ Transaction splitting not implemented (Phase 5)
+- ❌ Arrival processes not integrated (Phase 5)
+- ❌ JSON DSL interpreter deferred (Phase 6)
+
+---
+
+### 🎯 Future Phases (After Phase 4a)
+
+#### Phase 4b: Orchestrator Integration
+- Integrate policies into tick loop
+- Policy configuration per agent
+- Policy decision metrics collection
 - Cost accrual (liquidity, delay, penalties)
+- Arrival generation integration
+- End-to-end simulation tests
 
-#### Phase 5: Python API & FFI
+#### Phase 5: Transaction Splitting & Advanced Features
+- Split transactions (SubmitPartial implementation)
+- Arrival processes (Poisson, time windows)
+- Priority-based queue ordering
+- Timed transactions (T2-style)
+- Cost calculator enhancements
+
+#### Phase 6: Policy DSL & LLM Integration
+- **JSON Decision Tree Format**:
+  - Schema definition and validation
+  - Rust interpreter (~2,000 lines)
+  - Expression language (conditions, computations)
+  - Field enumeration (agent, transaction, system state)
+  - Action types (Release, Hold, Pace, Drop)
+  - Safety validation (cycles, depth limits, division-by-zero)
+  - Hot-reload mechanism
+
+- **LLM Manager Service**:
+  - Policy mutation prompting patterns
+  - Git-based version control for policy evolution
+  - Shadow replay validation (test new policy on historical episodes)
+  - Monte Carlo opponent sampling
+  - Guardband checking (performance regression detection)
+  - Rollback procedures
+
+- **Hybrid Execution**:
+  ```rust
+  pub enum PolicyExecutor {
+      Trait(Box<dyn CashManagerPolicy>),  // Rust policies (fast, hand-coded)
+      Tree(TreeInterpreter),               // JSON DSL (LLM-editable)
+  }
+  ```
+
+- **Migration Path**:
+  - Port 1-2 baseline policies to JSON to validate DSL
+  - Support both execution modes
+  - No breaking changes to existing Rust policies
+
+- **Complete Specification**: See `/docs/policy_dsl_design.md`
+
+**Rationale for Deferring DSL to Phase 6**:
+- Phase 4a trait-based policies allow fast iteration and validation
+- Proves the abstraction works before adding 2,000+ lines of DSL infrastructure
+- DSL needed only when starting RL/LLM-driven policy optimization
+- Can validate JSON schema design now, implement interpreter later
+
+#### Phase 7: Python API & FFI
 - Python FFI wrapper (PyO3 bindings)
 - FastAPI endpoints
 - Configuration loading (YAML → Pydantic → Rust)
 - CLI tool
 
-#### Phase 6+: Frontend & Advanced Features
+#### Phase 8: Frontend & Visualization
 - React visualization
 - WebSocket streaming for real-time updates
-
-**Deferred Features** (beyond Phase 6):
-- Agent policies/decision trees (AI/RL)
-- Advanced cost calculation
-- Split transactions
-- Priority-based queue ordering
-- Timed transactions (T2-style)
-- WebSocket streaming
 - A/B testing framework
+- Performance dashboards
 
 ---
 

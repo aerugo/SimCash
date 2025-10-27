@@ -944,6 +944,389 @@ See `/docs/phase3_rtgs_analysis.md` for:
 
 ---
 
+## 🎯 Policy Framework (Phase 4a - Current Implementation)
+
+**Status**: ✅ Complete (Phase 4a)
+
+**Location**: `/backend/src/policy/`
+
+Cash manager policies control **Queue 1** (internal bank queues) - deciding **when** to submit transactions to the central RTGS system (Queue 2). This is where strategic decision-making happens.
+
+See `/docs/queue_architecture.md` for complete two-queue architecture explanation.
+
+### CashManagerPolicy Trait
+
+All policies implement this trait:
+
+```rust
+use crate::policy::{CashManagerPolicy, ReleaseDecision};
+use crate::{Agent, SimulationState};
+
+pub trait CashManagerPolicy {
+    fn evaluate_queue(
+        &mut self,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+    ) -> Vec<ReleaseDecision>;
+}
+```
+
+**Evaluation Timing**: Policies are called **every tick** for each agent, allowing them to re-evaluate transactions as conditions change.
+
+### ReleaseDecision Types
+
+Policies return decisions for transactions in the agent's internal queue:
+
+```rust
+pub enum ReleaseDecision {
+    /// Submit entire transaction to RTGS now
+    SubmitFull { tx_id: String },
+
+    /// Submit partial amount (Phase 5 - splitting not yet implemented)
+    SubmitPartial { tx_id: String, amount: i64 },
+
+    /// Hold transaction in Queue 1 for later re-evaluation
+    Hold { tx_id: String, reason: HoldReason },
+
+    /// Drop transaction (expired or unviable)
+    Drop { tx_id: String },
+}
+
+pub enum HoldReason {
+    InsufficientLiquidity,
+    AwaitingInflows,
+    LowPriority,
+    NearDeadline { ticks_remaining: usize },
+    Custom(String),
+}
+```
+
+### Baseline Policies (Implemented)
+
+#### 1. FifoPolicy - Immediate Submission
+```rust
+use payment_simulator_core_rs::policy::FifoPolicy;
+
+let mut policy = FifoPolicy::default();
+let decisions = policy.evaluate_queue(agent, &state, tick);
+// Submits all queued transactions immediately (simplest baseline)
+```
+
+**Use case**: No-strategy baseline for comparison
+
+#### 2. DeadlinePolicy - Urgency-Based
+```rust
+use payment_simulator_core_rs::policy::DeadlinePolicy;
+
+let mut policy = DeadlinePolicy::new(5); // Urgent if ≤5 ticks to deadline
+
+let decisions = policy.evaluate_queue(agent, &state, tick);
+// Logic:
+// - If deadline ≤ threshold → SubmitFull
+// - If past deadline → Drop
+// - Otherwise → Hold
+```
+
+**Use case**: Prioritize critical transactions, avoid penalties
+
+#### 3. LiquidityAwarePolicy - Buffer Preservation
+```rust
+use payment_simulator_core_rs::policy::LiquidityAwarePolicy;
+
+let mut policy = LiquidityAwarePolicy::new(100_000); // Keep $1000 buffer
+
+let decisions = policy.evaluate_queue(agent, &state, tick);
+// Logic:
+// - If urgent (≤ threshold) → Submit even if violates buffer
+// - If safe (balance - amount ≥ buffer) → Submit
+// - Otherwise → Hold (preserve liquidity)
+```
+
+**Use case**: Minimize credit usage, balance liquidity vs. deadline penalties
+
+### Decision Context
+
+Policies have access to:
+
+**Agent State** (`agent: &Agent`):
+- `agent.balance()` - Current central bank balance
+- `agent.credit()` - Available credit headroom
+- `agent.liquidity_pressure()` - Stress level (0.0-1.0)
+- `agent.outgoing_queue()` - Queued transaction IDs
+- `agent.incoming_expected()` - Expected inflows
+- `agent.liquidity_buffer()` - Target minimum balance
+
+**Transaction Details** (via `state.get_transaction(tx_id)`):
+- `tx.remaining_amount()` - Amount to settle
+- `tx.deadline_tick()` - Hard deadline
+- `tx.priority()` - Urgency level
+- `tx.sender_id()`, `tx.receiver_id()` - Parties
+
+**System State** (`state: &SimulationState`):
+- `state.total_internal_queue_size()` - All agents' queue sizes
+- `state.get_urgent_transactions(tick, threshold)` - System-wide urgency
+- `state.agents_with_queued_transactions()` - Which banks are congested
+
+**Time** (`tick: usize`):
+- Current tick for deadline calculations
+- Can derive time-to-EoD, time-to-deadline, etc.
+
+### Implementing Custom Policies
+
+```rust
+use payment_simulator_core_rs::policy::{CashManagerPolicy, ReleaseDecision, HoldReason};
+use payment_simulator_core_rs::{Agent, SimulationState};
+
+pub struct CostOptimizingPolicy {
+    credit_rate: f64,      // Overdraft cost per tick
+    delay_penalty: f64,    // Delay cost per tick
+}
+
+impl CashManagerPolicy for CostOptimizingPolicy {
+    fn evaluate_queue(
+        &mut self,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+    ) -> Vec<ReleaseDecision> {
+        let mut decisions = Vec::new();
+
+        for tx_id in agent.outgoing_queue() {
+            let tx = match state.get_transaction(tx_id) {
+                Some(tx) => tx,
+                None => continue,
+            };
+
+            let amount = tx.remaining_amount();
+            let liquidity_shortfall = (amount - agent.balance()).max(0);
+
+            // Calculate costs
+            let credit_cost = liquidity_shortfall as f64 * self.credit_rate;
+            let delay_cost = self.delay_penalty;
+
+            if credit_cost < delay_cost {
+                // Cheaper to draw credit and send
+                decisions.push(ReleaseDecision::SubmitFull {
+                    tx_id: tx_id.clone(),
+                });
+            } else {
+                // Cheaper to wait (re-evaluate next tick)
+                decisions.push(ReleaseDecision::Hold {
+                    tx_id: tx_id.clone(),
+                    reason: HoldReason::Custom("awaiting better liquidity".to_string()),
+                });
+            }
+        }
+
+        decisions
+    }
+}
+```
+
+### Testing Patterns
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+
+    #[test]
+    fn test_policy_holds_when_low_liquidity() {
+        let mut policy = LiquidityAwarePolicy::new(100_000);
+
+        // Agent with 200k balance, 100k buffer requirement
+        let agent = Agent::new("BANK_A".to_string(), 200_000, 0);
+        let mut state = SimulationState::new(vec![agent.clone()]);
+
+        // Transaction for 150k (would leave only 50k < 100k buffer)
+        let tx = Transaction::new(
+            "BANK_A".to_string(),
+            "BANK_B".to_string(),
+            150_000,
+            0,
+            100
+        );
+        let tx_id = tx.id().to_string();
+        state.add_transaction(tx);
+        state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
+
+        let agent = state.get_agent("BANK_A").unwrap();
+        let decisions = policy.evaluate_queue(agent, &state, 5);
+
+        assert_eq!(decisions.len(), 1);
+        assert!(matches!(decisions[0], ReleaseDecision::Hold { .. }));
+    }
+}
+```
+
+**Critical Pattern**: Transactions must be added to state **before** queuing in agents:
+```rust
+// ✅ CORRECT ORDER
+let tx = Transaction::new(...);
+let tx_id = tx.id().to_string();
+state.add_transaction(tx);           // Add to state first
+state.get_agent_mut("A").unwrap().queue_outgoing(tx_id);  // Then queue
+
+// ❌ WRONG - will fail
+agent.queue_outgoing(tx_id);         // Can't queue before adding to state
+state.add_transaction(tx);
+```
+
+### Integration with Simulation Loop (Phase 4b)
+
+Policies will be integrated into the orchestrator tick loop:
+
+```rust
+// 🎯 PHASE 4b TARGET PATTERN (not yet implemented)
+
+pub fn tick(state: &mut SimulationState) -> TickEvents {
+    // 1. Process arrivals (new transactions arrive)
+    generate_arrivals(state);
+
+    // 2. Evaluate policies (Queue 1 decisions)
+    for agent_id in state.agents_with_queued_transactions() {
+        let agent = state.get_agent(agent_id).unwrap();
+        let decisions = agent.policy.evaluate_queue(agent, state, state.time.tick());
+
+        // Execute decisions
+        for decision in decisions {
+            match decision {
+                ReleaseDecision::SubmitFull { tx_id } => {
+                    submit_to_rtgs(state, &tx_id);
+                }
+                ReleaseDecision::Hold { .. } => {
+                    // Remain in Queue 1
+                }
+                ReleaseDecision::Drop { tx_id } => {
+                    drop_transaction(state, &tx_id);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // 3. Process RTGS queue (Queue 2)
+    process_rtgs_queue(state);
+
+    // 4. LSM optimization
+    run_lsm_pass(state);
+
+    // 5. Update costs
+    update_costs(state);
+}
+```
+
+### Current Limitations (Planned for Later Phases)
+
+**Phase 4a (Current)**:
+- ✅ Trait-based policies
+- ✅ Every-tick evaluation
+- ✅ Three baseline implementations
+- ❌ Not yet integrated into simulation loop
+- ❌ No policy configuration per agent
+- ❌ No transaction splitting (SubmitPartial)
+
+**Phase 4b (Next)**:
+- Integrate policies into orchestrator tick loop
+- Add policy selection in configuration
+- Policy decision metrics collection
+
+**Phase 5**:
+- Transaction splitting (SubmitPartial implementation)
+- Arrival process integration
+
+**Phase 6 (DSL Layer)**:
+- JSON decision tree format
+- LLM-driven policy editing
+- See `/docs/policy_dsl_design.md` for detailed specification
+
+---
+
+## 🔮 Future: Policy DSL Layer (Phase 6)
+
+**Status**: 📋 Designed but not implemented
+
+**Why deferred**: Current trait-based implementation allows fast iteration and validation of the abstraction. DSL interpreter adds 2,000+ lines of infrastructure needed only for LLM-driven policy evolution.
+
+### What's Coming in Phase 6
+
+**JSON Decision Tree Format**:
+```json
+{
+  "version": "1.0",
+  "tree_id": "liquidity_aware_policy",
+  "root": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "ticks_to_deadline"},
+      "right": {"value": 5}
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "parameters": {}
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "balance"},
+        "right": {
+          "compute": {
+            "op": "+",
+            "left": {"field": "amount"},
+            "right": {"param": "liquidity_buffer"}
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold"
+      }
+    }
+  },
+  "parameters": {
+    "liquidity_buffer": 100000
+  }
+}
+```
+
+**Key Features**:
+- ✅ LLM-editable (safe JSON manipulation)
+- ✅ Sandboxed interpreter (no code execution)
+- ✅ Hot-reloadable (update policies without recompiling)
+- ✅ Version-controlled (git tracks policy evolution)
+- ✅ Validatable (JSON schema + runtime safety checks)
+
+**Hybrid Execution**: Phase 6 will support BOTH execution modes:
+```rust
+pub enum PolicyExecutor {
+    Trait(Box<dyn CashManagerPolicy>),  // Rust policies (fast, compile-time checked)
+    Tree(TreeInterpreter),               // JSON DSL (LLM-editable)
+}
+```
+
+**Migration Path**: Existing Rust policies will coexist with DSL policies. No breaking changes needed.
+
+**Complete Specification**: See `/docs/policy_dsl_design.md` for:
+- JSON schema definition
+- Rust interpreter architecture
+- Expression language specification
+- LLM integration patterns
+- Shadow replay validation
+- Safety constraints and validation pipeline
+
+**Timeline**: Implement when starting RL/LLM work (Phase 6-7)
+
+---
+
 ## When to Ask for Help
 
 1. **FFI not working?** → Consider using the `ffi-specialist` subagent
