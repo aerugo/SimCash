@@ -1,0 +1,9 @@
+[package]
+name = "payment-simulator-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+# Placeholder - will be implemented in Phase 5
+[dependencies]

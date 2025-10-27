@@ -1,0 +1,94 @@
+# Example Simulation Configuration with Per-Agent Arrivals
+
+# This configuration demonstrates how to model heterogeneous banks with
+# different transaction volumes and sizes using per-agent arrival configs.
+# Save as: config/example-with-arrivals.yaml
+
+simulation:
+  ticks_per_day: 100
+  seed: 12345  # For deterministic replay
+  
+agents:
+  # Large commercial bank - high volume, large transactions
+  - id: BANK_A
+    balance: 10000000  # $100,000.00 in cents
+    credit_limit: 5000000  # $50,000.00 overdraft
+    arrival_config:
+      agent_id: BANK_A
+      rate_per_tick: 8.0  # Average 8 transactions per tick (high volume)
+      distribution_type: lognormal  # Realistic payment distribution
+      amount_mean: 500000  # $5,000.00 average transaction
+      amount_std_dev: 200000  # $2,000.00 standard deviation
+      # Optional: prefer certain counterparties
+      counterparty_weights:
+        BANK_B: 0.5  # 50% of transactions go to BANK_B
+        BANK_C: 0.3  # 30% go to BANK_C
+        BANK_D: 0.2  # 20% go to BANK_D
+  
+  # Medium regional bank - moderate volume
+  - id: BANK_B
+    balance: 5000000  # $50,000.00 in cents
+    credit_limit: 2500000  # $25,000.00 overdraft
+    arrival_config:
+      agent_id: BANK_B
+      rate_per_tick: 4.0  # Average 4 transactions per tick
+      distribution_type: normal
+      amount_mean: 250000  # $2,500.00 average
+      amount_std_dev: 100000  # $1,000.00 std dev
+      # Uniform counterparty selection (no weights specified)
+  
+  # Small community bank - low volume, smaller transactions
+  - id: BANK_C
+    balance: 2000000  # $20,000.00 in cents
+    credit_limit: 1000000  # $10,000.00 overdraft
+    arrival_config:
+      agent_id: BANK_C
+      rate_per_tick: 1.5  # Average 1.5 transactions per tick (low volume)
+      distribution_type: normal
+      amount_mean: 100000  # $1,000.00 average (smaller transactions)
+      amount_std_dev: 30000  # $300.00 std dev
+  
+  # Investment bank - low volume but VERY large transactions
+  - id: BANK_D
+    balance: 20000000  # $200,000.00 in cents
+    credit_limit: 10000000  # $100,000.00 overdraft
+    arrival_config:
+      agent_id: BANK_D
+      rate_per_tick: 0.8  # Average 0.8 transactions per tick (sporadic)
+      distribution_type: lognormal  # Heavy tail for occasional huge transactions
+      amount_mean: 2000000  # $20,000.00 average
+      amount_std_dev: 1000000  # $10,000.00 std dev (high variance)
+      # Optional: time-of-day patterns (more active in morning)
+      time_windows:
+        - start_tick: 0
+          end_tick: 30
+          rate_multiplier: 1.5  # 50% more active in morning
+        - start_tick: 30
+          end_tick: 70
+          rate_multiplier: 1.0  # Normal during day
+        - start_tick: 70
+          end_tick: 100
+          rate_multiplier: 0.5  # Less active in evening
+
+rails:
+  - id: RTGS_DOMESTIC
+    settlement_type: immediate
+    lsm_enabled: true
+    
+costs:
+  overdraft_rate: 0.0001  # 10 bps annualized = 0.01% daily
+  delay_penalty_per_tick: 10  # $0.10 per tick in cents
+  split_fee: 50  # $0.50 per split
+  eod_penalty: 100000  # $1,000.00 for unsettled transactions
+
+# Note: With automatic arrivals configured per agent, you typically don't need
+# initial_transactions. The simulator will generate transactions automatically
+# based on the arrival configs. But you can still include them for testing:
+
+initial_transactions:
+  - sender: BANK_A
+    receiver: BANK_B
+    amount: 100000  # $1,000.00
+    deadline_ticks_ahead: 20
+    priority: 8
+    is_divisible: false
