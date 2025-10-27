@@ -6,6 +6,7 @@
 //!
 //! - **core**: Time management and initialization
 //! - **models**: Domain types (Agent, Transaction, State)
+//! - **policy**: Cash manager policies (Queue 1 decisions)
 //! - **orchestrator**: Main simulation loop
 //! - **settlement**: Settlement engines (RTGS, LSM)
 //! - **rng**: Deterministic random number generation
@@ -20,6 +21,7 @@
 pub mod core;
 pub mod models;
 pub mod orchestrator;
+pub mod policy;
 pub mod rng;
 pub mod settlement;
 
