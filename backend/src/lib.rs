@@ -25,7 +25,11 @@ pub mod settlement;
 
 // Re-exports for convenience
 pub use core::time::TimeManager;
-pub use models::{agent::Agent, transaction::Transaction, state::SimulationState};
+pub use models::{
+    agent::{Agent, AgentError},
+    state::SimulationState,
+    transaction::{Transaction, TransactionError, TransactionStatus},
+};
 pub use orchestrator::Orchestrator;
 pub use rng::RngManager;
 
