@@ -1,0 +1,35 @@
+[package]
+name = "payment-simulator-core-rs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+name = "payment_simulator_core_rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+pyo3 = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[features]
+default = ["pyo3"]
+pyo3 = ["dep:pyo3"]
+
+[[test]]
+name = "test_time"
+path = "tests/test_time.rs"
+
+[[test]]
+name = "test_rng_determinism"
+path = "tests/test_rng_determinism.rs"
+
+[[test]]
+name = "test_agent"
+path = "tests/test_agent.rs"

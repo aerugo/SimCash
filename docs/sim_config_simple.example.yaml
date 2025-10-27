@@ -1,0 +1,56 @@
+# Simple Simulation Configuration (Without Automatic Arrivals)
+
+# This is a minimal configuration for testing the payment simulator.
+# No automatic transaction generation - you manually submit transactions via API.
+# Save as: config/example-simple.yaml
+
+simulation:
+  ticks_per_day: 100
+  seed: 12345  # For deterministic replay
+  
+agents:
+  - id: BANK_A
+    balance: 1000000  # $10,000.00 in cents
+    credit_limit: 500000  # $5,000.00 overdraft
+    
+  - id: BANK_B
+    balance: 1500000  # $15,000.00 in cents
+    credit_limit: 750000  # $7,500.00 overdraft
+    
+  - id: BANK_C
+    balance: 2000000  # $20,000.00 in cents
+    credit_limit: 1000000  # $10,000.00 overdraft
+
+rails:
+  - id: RTGS_DOMESTIC
+    settlement_type: immediate
+    lsm_enabled: true
+    
+costs:
+  overdraft_rate: 0.0001  # 10 bps annualized = 0.01% daily
+  delay_penalty_per_tick: 10  # $0.10 per tick in cents
+  split_fee: 50  # $0.50 per split
+  eod_penalty: 100000  # $1,000.00 for unsettled transactions
+
+# Optional: Initial transactions for testing
+initial_transactions:
+  - sender: BANK_A
+    receiver: BANK_B
+    amount: 100000  # $1,000.00
+    deadline_ticks_ahead: 20
+    priority: 5
+    is_divisible: false
+    
+  - sender: BANK_B
+    receiver: BANK_C
+    amount: 250000  # $2,500.00
+    deadline_ticks_ahead: 30
+    priority: 7
+    is_divisible: true
+    
+  - sender: BANK_C
+    receiver: BANK_A
+    amount: 150000  # $1,500.00
+    deadline_ticks_ahead: 25
+    priority: 6
+    is_divisible: false
