@@ -767,33 +767,439 @@ if !state.rtgs_queue.is_empty() {
 
 ---
 
-## 9. Next Steps After Phase 3
+## 9. Phase 3b: LSM (Liquidity-Saving Mechanisms) - Detailed Plan
 
-### Phase 4: LSM (Liquidity-Saving Mechanisms)
+### 9.1 LSM Overview & Motivation
 
-**Scope**:
-- Bilateral netting (A owes B 100, B owes A 80 → net 20)
-- 3-cycle detection (A→B→C→A)
-- 4-cycle detection (A→B→C→D→A)
-- LSM coordinator (when to invoke, priority handling)
+**From game_concept_doc.md Section 4.3, 6, 7:**
 
-**Prerequisites**:
-- Phase 3 complete ✅ (RTGS + queue)
-- Graph algorithms ready (cycle detection)
+> "**LSM/optimisation** tries **offsetting** and **multilateral cycles/batches** to release queued items with minimal net liquidity."
 
-**Estimated Effort**: 4-5 days
+> "RTGS aims for fast real-time settlement **with reduced liquidity**, so systems run **optimisation procedures** continuously to dissolve queues via offsetting and cycles."
 
-### Phase 5: Orchestrator
+> "LSMs alleviate [gridlock] but still need *feed* of releasable items."
 
-**Scope**:
+**Why LSM Matters**:
+1. **Reduces liquidity requirements** - Banks can settle payments with less available balance
+2. **Prevents gridlock** - Circular dependencies (A→B→C→A) can be resolved without liquidity injection
+3. **Improves efficiency** - T2 studies show LSM "notably reduces delay and liquidity need" (game_concept_doc.md Section 6)
+4. **Core T2 feature** - Continuous queue-dissolving via offsetting & cycles (game_concept_doc.md Appendix A)
+
+**Phase 3b Scope**:
+- ✅ Bilateral offsetting (A↔B payments cancel partially/fully)
+- ✅ Cycle detection and settlement (A→B→C→A, A→B→C→D→A)
+- ✅ LSM coordinator (when to invoke, integration with RTGS queue)
+- ⚠️ Batch optimization under bank caps (optional/future)
+
+### 9.2 LSM Algorithms Design
+
+#### 9.2.1 Bilateral Offsetting (A↔B)
+
+**Concept** (game_concept_doc.md Section 4.3):
+```
+If Bank A owes Bank B 500k AND Bank B owes Bank A 300k
+→ Net: A owes B 200k (settle only the net)
+→ Saves 300k liquidity for both banks
+```
+
+**Algorithm**:
+```rust
+/// Find all bilateral pairs in queue and offset them
+pub fn bilateral_offset(
+    state: &mut SimulationState,
+    tick: usize,
+) -> BilateralOffsetResult {
+    // 1. Build bilateral payment matrix from queue
+    //    Map<(AgentA, AgentB), Vec<TxId>>
+
+    // 2. For each pair (A,B):
+    //    - Calculate sum A→B
+    //    - Calculate sum B→A
+    //    - If both > 0: offset min(sum_AB, sum_BA)
+
+    // 3. Settle offsetting payments:
+    //    - If A→B sum > B→A sum:
+    //      - Settle B→A payments fully
+    //      - Partially settle A→B payments
+    //    - Else vice versa
+
+    // 4. Return statistics on offset value
+}
+```
+
+**Example Test Case** (from test coverage analysis):
+```rust
+// BANK_A: 100k balance, wants to send 500k to B (queued)
+// BANK_B: 100k balance, wants to send 400k to A (queued)
+//
+// Without LSM: Both stuck (bilateral gridlock)
+// With LSM: Offset 400k, A sends net 100k (uses own balance)
+//
+// Result: Both transactions settled, using only 100k liquidity total
+```
+
+**Edge Cases**:
+- Exact balance (500k↔500k) → both settle fully, zero net
+- Multiple transactions in same direction (3 A→B, 2 B→A)
+- Divisible vs indivisible transactions
+- Partial offset when liquidity still insufficient for net
+
+#### 9.2.2 Cycle Detection (A→B→C→A)
+
+**Concept** (game_concept_doc.md Section 4.3):
+```
+If A→B (500k), B→C (500k), C→A (500k) all queued
+→ Detect cycle A→B→C→A
+→ Settle min(500k, 500k, 500k) = 500k on cycle
+→ All 3 transactions settle with ZERO net liquidity!
+```
+
+**Algorithm** (Tarjan's SCC or DFS-based):
+```rust
+/// Detect cycles in queued payment graph
+pub fn detect_cycles(
+    state: &SimulationState,
+    max_cycle_length: usize,
+) -> Vec<Cycle> {
+    // 1. Build directed graph from queued transactions
+    //    Node = Agent, Edge = Transaction (with amount)
+
+    // 2. Run cycle detection (DFS with visited tracking)
+    //    - Find simple cycles (no repeated nodes)
+    //    - Limit to cycles of length 3-5 (configurable)
+
+    // 3. For each cycle found:
+    //    - Calculate min amount on cycle
+    //    - Check if all participants have min liquidity
+    //    - Store cycle metadata (agents, transactions, min_amount)
+
+    // 4. Return cycles sorted by potential value settled
+}
+
+pub struct Cycle {
+    agents: Vec<String>,           // [A, B, C, A]
+    transactions: Vec<String>,      // [tx_ab, tx_bc, tx_ca]
+    min_amount: i64,                // Bottleneck amount
+    total_value: i64,               // Sum of all tx amounts
+}
+```
+
+**Cycle Settlement**:
+```rust
+/// Settle a detected cycle
+pub fn settle_cycle(
+    state: &mut SimulationState,
+    cycle: &Cycle,
+    tick: usize,
+) -> Result<CycleSettlementResult, SettlementError> {
+    // 1. Validate cycle still valid (txs still queued)
+
+    // 2. For each transaction in cycle:
+    //    - If amount == min_amount: settle fully
+    //    - If amount > min_amount: partial settle min_amount
+
+    // 3. Update balances in circular fashion:
+    //    A: -min + min = 0 (net zero)
+    //    B: -min + min = 0
+    //    C: -min + min = 0
+
+    // 4. Remove settled/partially-settled txs from queue
+
+    // 5. Return statistics
+}
+```
+
+**Example Test Case** (game_concept_doc.md Section 11, Test 2):
+```rust
+// Four-bank ring: A→B→C→D→A, each wants to send 500k
+// Each bank has only 100k liquidity
+//
+// Without LSM: Complete gridlock (all 4 queued)
+// With LSM: Detect 4-cycle, settle 500k on cycle
+//           Each bank: -500k + 500k = net 0
+//
+// Result: All 4 transactions settled with ONLY initial 100k each
+```
+
+**Edge Cases**:
+- Multiple cycles (choose which to settle first?)
+- Nested cycles (A→B→C→A, A→C→A)
+- Cycles with unequal amounts (settle min, partially settle rest)
+- Cycle contains indivisible transactions
+
+#### 9.2.3 LSM Coordinator
+
+**Concept**: When and how to invoke LSM procedures
+
+**Decision Points** (game_concept_doc.md Section 3.1, 7):
+```
+1. After queue processing (each tick)
+   → If queue still has items, run LSM pass
+
+2. Priority:
+   → Bilateral offsetting first (cheaper, O(n²))
+   → Cycle detection second (more expensive, exponential worst-case)
+
+3. Iteration:
+   → Bilateral may create new settlement opportunities
+   → Re-run queue processing after LSM
+   → Limit iterations to prevent infinite loops
+```
+
+**Implementation**:
+```rust
+/// LSM coordinator - main entry point
+pub fn run_lsm_pass(
+    state: &mut SimulationState,
+    config: &LsmConfig,
+    tick: usize,
+) -> LsmPassResult {
+    let mut total_settled_value = 0i64;
+    let mut iterations = 0;
+    const MAX_ITERATIONS: usize = 3;
+
+    while iterations < MAX_ITERATIONS && !state.rtgs_queue.is_empty() {
+        iterations += 1;
+
+        // 1. Bilateral offsetting
+        if config.enable_bilateral {
+            let bilateral_result = bilateral_offset(state, tick);
+            total_settled_value += bilateral_result.offset_value;
+
+            // If settlements occurred, retry basic queue processing
+            if bilateral_result.settlements_count > 0 {
+                let queue_result = process_queue(state, tick);
+                total_settled_value += queue_result.settled_value;
+            }
+        }
+
+        // 2. Cycle detection and settlement
+        if config.enable_cycles && !state.rtgs_queue.is_empty() {
+            let cycles = detect_cycles(state, config.max_cycle_length);
+
+            for cycle in cycles.iter().take(config.max_cycles_per_tick) {
+                if let Ok(result) = settle_cycle(state, cycle, tick) {
+                    total_settled_value += result.settled_value;
+                }
+            }
+
+            // Retry queue processing after cycle settlements
+            if !cycles.is_empty() {
+                let queue_result = process_queue(state, tick);
+                total_settled_value += queue_result.settled_value;
+            }
+        }
+
+        // 3. Check if further iteration would help
+        if total_settled_value == 0 {
+            break; // No progress, stop iterating
+        }
+    }
+
+    LsmPassResult {
+        iterations_run: iterations,
+        total_settled_value,
+        final_queue_size: state.queue_size(),
+    }
+}
+```
+
+### 9.3 LSM Test Strategy
+
+**Test Categories**:
+
+1. **Bilateral Offsetting Tests**
+   - Exact bilateral match (500k↔500k)
+   - Asymmetric bilateral (500k↔300k, net 200k)
+   - Multiple transactions same pair (3×100k A→B, 2×100k B→A)
+   - Insufficient liquidity for net (offset 400k, but A can't pay net 100k)
+   - Mixed divisible/indivisible transactions
+
+2. **Cycle Detection Tests**
+   - 3-cycle detection (A→B→C→A)
+   - 4-cycle detection (A→B→C→D→A)
+   - 5-cycle detection
+   - Multiple disjoint cycles
+   - Nested cycles (choose correctly)
+   - Cycle with unequal amounts (partial settlement)
+
+3. **LSM Coordinator Tests**
+   - Bilateral resolves, enables queue processing
+   - Cycle settlement resolves, enables more settlements
+   - Multi-iteration convergence
+   - Max iteration limit prevents infinite loops
+   - Config toggles (disable bilateral, disable cycles)
+
+4. **LSM Ablation Tests** (game_concept_doc.md Section 8, 11)
+   - Same scenario with/without LSM
+   - Measure: queue size, delay, liquidity usage
+   - Validate: LSM reduces all three metrics
+
+### 9.4 Implementation Plan
+
+**Day 1-2: Bilateral Offsetting**
+- [ ] Design bilateral payment matrix data structure
+- [ ] Write bilateral offsetting tests (5 tests)
+- [ ] Implement `bilateral_offset()` function
+- [ ] Implement partial settlement for offsets
+- [ ] Verify tests pass
+
+**Day 3-4: Cycle Detection**
+- [ ] Design payment graph representation
+- [ ] Write cycle detection tests (6 tests)
+- [ ] Implement cycle detection (DFS-based, limit length)
+- [ ] Implement `settle_cycle()` function
+- [ ] Handle partial cycle settlements
+- [ ] Verify tests pass
+
+**Day 5: LSM Coordinator**
+- [ ] Design LsmConfig and result types
+- [ ] Write coordinator tests (4 tests)
+- [ ] Implement `run_lsm_pass()` with iteration
+- [ ] Integration with existing `process_queue()`
+- [ ] Verify tests pass
+
+**Day 6: LSM Ablation & Optimization**
+- [ ] Write ablation study tests (compare LSM on/off)
+- [ ] Implement game_concept_doc.md Section 11 Test 2 (four-bank ring)
+- [ ] Performance optimization (graph caching, early exit)
+- [ ] Documentation
+- [ ] Commit Phase 3b
+
+### 9.5 Module Structure
+
+**New Module**: `backend/src/settlement/lsm.rs`
+
+```rust
+// Bilateral offsetting
+pub fn bilateral_offset(state: &mut SimulationState, tick: usize)
+    -> BilateralOffsetResult;
+
+// Cycle detection
+pub fn detect_cycles(state: &SimulationState, max_length: usize)
+    -> Vec<Cycle>;
+pub fn settle_cycle(state: &mut SimulationState, cycle: &Cycle, tick: usize)
+    -> Result<CycleSettlementResult, SettlementError>;
+
+// Coordinator
+pub fn run_lsm_pass(state: &mut SimulationState, config: &LsmConfig, tick: usize)
+    -> LsmPassResult;
+
+// Configuration
+pub struct LsmConfig {
+    pub enable_bilateral: bool,
+    pub enable_cycles: bool,
+    pub max_cycle_length: usize,      // Default: 4
+    pub max_cycles_per_tick: usize,   // Default: 10
+}
+
+// Results
+pub struct BilateralOffsetResult {
+    pub pairs_found: usize,
+    pub offset_value: i64,
+    pub settlements_count: usize,
+}
+
+pub struct CycleSettlementResult {
+    pub cycle_length: usize,
+    pub settled_value: i64,
+    pub transactions_affected: usize,
+}
+
+pub struct LsmPassResult {
+    pub iterations_run: usize,
+    pub total_settled_value: i64,
+    pub final_queue_size: usize,
+}
+```
+
+### 9.6 Integration with Orchestrator (Future Phase 4)
+
+**Orchestrator tick loop** (extended):
+```rust
+// Each tick
+for new_transaction in arrivals {
+    rtgs::submit_transaction(&mut state, new_transaction, current_tick)?;
+}
+
+// 1. Basic queue processing (FIFO retry)
+let queue_result = rtgs::process_queue(&mut state, current_tick);
+
+// 2. If queue still has items, invoke LSM
+if !state.rtgs_queue.is_empty() {
+    let lsm_result = lsm::run_lsm_pass(&mut state, &lsm_config, current_tick);
+
+    // Log LSM effectiveness
+    metrics.lsm_settled_value += lsm_result.total_settled_value;
+    metrics.lsm_iterations += lsm_result.iterations_run;
+}
+
+// 3. Accrue costs (liquidity, delays, etc.)
+// ...
+```
+
+### 9.7 Performance Considerations
+
+**Complexity**:
+- Bilateral offsetting: O(n²) worst case (all pairs), but typically O(n×m) where m = avg counterparties
+- Cycle detection: Exponential worst case, but limited by max_cycle_length and queue size
+- Typical queue size: 10-50 transactions → acceptable performance
+
+**Optimizations**:
+1. **Early exit**: If no bilateral pairs found, skip cycle detection
+2. **Graph caching**: Build payment graph once, reuse for cycle detection
+3. **Incremental updates**: Only rebuild graph when queue changes significantly
+4. **Cycle length limits**: Default max_cycle_length=4, configurable
+5. **Max cycles per tick**: Limit to top 10 cycles by value
+
+**Benchmarks to add**:
+- Bilateral offsetting on 100 queued transactions
+- Cycle detection on dense payment graph (all-to-all)
+- Full LSM pass on gridlocked scenario (worst case)
+
+### 9.8 Success Criteria
+
+**Functionality**:
+- [ ] Bilateral offsetting correctly identifies and settles A↔B pairs
+- [ ] Cycle detection finds 3-cycles, 4-cycles, 5-cycles
+- [ ] Cycle settlement handles partial settlements correctly
+- [ ] LSM coordinator iterates until convergence or max iterations
+- [ ] Config toggles work (disable bilateral, disable cycles)
+
+**Testing**:
+- [ ] 15+ LSM-specific tests pass
+- [ ] Game concept test plan item 2 (four-bank ring) passes
+- [ ] LSM ablation study shows measurable improvement
+- [ ] All previous tests (128) still pass
+
+**Code Quality**:
+- [ ] Clear documentation of algorithms
+- [ ] Examples in doc comments
+- [ ] Performance benchmarks added
+- [ ] Clippy clean, no unsafe code
+
+**Alignment with T2**:
+- [ ] Continuous optimization (each tick, if queue non-empty)
+- [ ] Bilateral + cycle detection (core LSM features)
+- [ ] Minimal liquidity usage (net settlements)
+- [ ] Gridlock resolution demonstrated
+
+---
+
+## 10. Phase 4: Orchestrator (After Phase 3b)
+
+### Phase 4 Scope
+
+**Orchestrator Module** (`backend/src/orchestrator/`):
 - Tick loop (advance time, process events)
 - Arrival generation (deterministic RNG)
-- Policy evaluation hooks (future)
+- Integration: RTGS + LSM + queue processing
 - Cost accrual (liquidity, delay, penalty)
+- Metrics collection and reporting
 
 **Prerequisites**:
-- Phase 3 complete ✅
-- Phase 4 complete (LSM)
+- Phase 3a complete ✅ (RTGS + queue)
+- Phase 3b complete (LSM)
 
 **Estimated Effort**: 3-4 days
 
