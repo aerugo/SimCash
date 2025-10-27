@@ -40,7 +40,7 @@ use pyo3::prelude::*;
 
 #[cfg(feature = "pyo3")]
 #[pymodule]
-fn payment_simulator_core_rs(_py: Python, m: &PyModule) -> PyResult<()> {
+fn payment_simulator_core_rs(_py: Python, _m: &PyModule) -> PyResult<()> {
     // PyO3 exports will be added in Phase 5
     Ok(())
 }

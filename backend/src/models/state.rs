@@ -3,6 +3,14 @@
 //! Represents the complete state of the payment system simulation.
 //! Contains all agents, transactions, and the central RTGS queue.
 //!
+//! # Queue Architecture Note
+//!
+//! This module implements **Queue 2** (central RTGS queue) from the two-queue architecture:
+//! - **Queue 1** (future): Per-agent internal queues for policy decisions (Phase 4-5)
+//! - **Queue 2** (current): Central bank queue for liquidity-based retry (Phase 3)
+//!
+//! See `/docs/queue_architecture.md` for detailed explanation.
+//!
 //! # Critical Invariants
 //!
 //! 1. **Balance Conservation**: Sum of all agent balances is constant
@@ -42,7 +50,21 @@ pub struct SimulationState {
     transactions: HashMap<String, Transaction>,
 
     /// Central RTGS queue: transaction IDs awaiting settlement
-    /// Transactions are queued when sender has insufficient liquidity
+    ///
+    /// This is **Queue 2** in the two-queue architecture:
+    /// - **Queue 1** (Phase 4-5): Internal agent queues for cash manager policy decisions
+    /// - **Queue 2** (Phase 3): Central bank queue for mechanical liquidity retry ← YOU ARE HERE
+    ///
+    /// Transactions enter this queue when:
+    /// - Submitted to RTGS via settlement functions
+    /// - Sender has insufficient liquidity (balance + credit < amount)
+    ///
+    /// Transactions leave this queue when:
+    /// - Settlement succeeds (liquidity became available via incoming payments)
+    /// - Deadline expires (transaction dropped)
+    /// - LSM finds offsetting opportunities (Phase 3b)
+    ///
+    /// See `/docs/queue_architecture.md` for complete two-queue model explanation.
     rtgs_queue: Vec<String>,
 }
 
@@ -251,8 +273,6 @@ mod tests {
         assert_eq!(state.queue_size(), 1);
         assert_eq!(state.rtgs_queue()[0], tx_id);
     }
-
-    #[test]
 
     #[test]
     fn test_total_balance() {

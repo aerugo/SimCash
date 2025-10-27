@@ -1,117 +1,191 @@
 # Payment Simulator - Foundation Implementation Plan
 
+> **Status Update (2025-10-27)**: Phase 1-3 completed. See implementation status below.
+
 ## Executive Summary
 
-This plan outlines the implementation of a **minimal but complete** foundation that establishes the architecture across all layers (Rust backend, Python API, React frontend, CLI tool) while remaining simple enough to build in 4-6 weeks.
+This plan outlined the implementation of a **minimal but complete** foundation. The goal was to prove the architecture works end-to-end with the simplest possible feature set, then add complexity incrementally.
 
-**Goal**: Prove the architecture works end-to-end with the simplest possible feature set, then add complexity incrementally.
+**Current Progress**:
+- ✅ **Phase 1-2 Complete**: Time, RNG, Agent, Transaction models
+- ✅ **Phase 3 Complete**: RTGS settlement engine + LSM (Liquidity-Saving Mechanisms)
+- 🎯 **Future Phases**: Orchestrator, API layer, Frontend
 
 ---
 
-## Proposed Foundation Scope
+## Implementation Status
 
-### What TO Include (Minimal Viable Architecture)
+### ✅ Phase 1-2: COMPLETED (as of 2025-10-27)
+
+**Git commits**:
+- `23381fe` - Phase 1 & Phase 2 (Agent): Foundation implementation
+- `375c24d` - Phase 2 (Transaction): Complete transaction model implementation
+
+**What's Implemented**:
 
 #### Core Domain (Rust)
-1. **Time Management**
-   - Discrete ticks and days
+1. **Time Management** ✅
+   - Discrete ticks and days (`TimeManager`)
    - Tick advancement
    - Current time queries
+   - **Tests**: 6 passing tests
 
-2. **Agent State**
+2. **Agent State** ✅
    - Agent ID, balance (i64 cents), credit limit
    - Balance updates (debit/credit)
-   - Liquidity checks
+   - Liquidity checks (`can_pay()`, `available_liquidity()`)
+   - **Tests**: 17 passing tests
+   - **Note**: `Agent.balance` represents bank's settlement account **at central bank**
 
-3. **Transactions**
+3. **Transactions** ✅
    - Create transaction (sender, receiver, amount, deadline)
-   - Settlement status (pending/settled/dropped)
-   - Manual settlement (no automatic processing yet)
+   - Settlement status (Pending → PartiallySettled → Settled/Dropped)
+   - Divisible vs. indivisible transactions
+   - Priority levels (0-10)
+   - Builder pattern (`with_priority()`, `divisible()`)
+   - **Tests**: 21 passing tests
 
-4. **Deterministic RNG**
-   - Seeded xorshift64* implementation
-   - Basic random number generation
+4. **Deterministic RNG** ✅
+   - Seeded xorshift64* implementation (`RngManager`)
+   - Deterministic random number generation
    - Seed persistence
+   - **Tests**: 10 passing tests
 
-5. **Orchestrator**
-   - Hold system state (agents, transactions)
-   - Tick advancement
-   - Manual transaction submission
-   - Basic settlement attempt per tick
+5. **Orchestrator** ⏳ Phase 4+ (placeholder only)
+   - Currently: `pub struct Orchestrator;` placeholder
+   - Planned for Phase 4+
 
-6. **Simple Settlement**
-   - RTGS only (immediate settlement if funds available)
-   - No queue, no LSM, no complex logic
-   - Just: "Can I pay this now? Yes/No"
+6. **RTGS Settlement** ⏳ Phase 3 (planned)
+   - Currently: Placeholder in `backend/src/settlement/rtgs.rs`
+   - Planned: See `/docs/phase3_rtgs_analysis.md`
+   - Will implement:
+     - Immediate settlement if liquidity sufficient
+     - Central RTGS queue for insufficient liquidity
+     - Queue retry each tick
+     - Deadline-based transaction dropping
 
-#### Python API Layer
-1. **Configuration**
+#### Python API Layer - 🎯 Future (Phase 4+)
+1. **Configuration** - Not implemented
    - Load YAML config
    - Pydantic validation
    - Convert to Rust format
 
-2. **FFI Wrapper**
+2. **FFI Wrapper** - Not implemented
    - Create orchestrator
    - Submit transactions
    - Advance ticks
    - Query state
 
-3. **FastAPI Endpoints**
+3. **FastAPI Endpoints** - Not implemented
    - POST /simulations/create
    - POST /simulations/tick
    - GET /simulations/state
    - POST /transactions
    - GET /transactions/{id}
 
-4. **Basic Error Handling**
+4. **Basic Error Handling** - Not implemented
    - FFI error conversion
    - HTTP error responses
 
-#### CLI Tool
-1. **Commands**
-   - `create --config <file>` - Create simulation
-   - `tick [--count N]` - Advance N ticks
-   - `submit-tx` - Submit a transaction interactively
-   - `state` - Show current state
-   - `info` - Show configuration
+#### CLI Tool - 🎯 Future (Phase 5+)
+All CLI features are future work.
 
-2. **Output**
-   - Human-readable state display
-   - Tick summaries
-   - Error messages
+#### React Frontend - 🎯 Future (Phase 6+)
+All frontend features are future work.
 
-#### React Frontend
-1. **Core Components**
-   - Dashboard (main view)
-   - AgentCard (show balance, credit)
-   - TransactionList (show all transactions)
-   - ControlPanel (tick button, reset button)
+---
 
-2. **State Management**
-   - React Context for simulation state
-   - Polling API for updates (no WebSocket yet)
+### ✅ Phase 3: RTGS Settlement Engine + LSM - **COMPLETE** (2025-10-27)
 
-3. **Basic Styling**
-   - Simple, clean layout
-   - Color coding for statuses
+**Status**: Implementation complete
 
-### What NOT to Include (Add Later)
+**Git commits**:
+- Phase 3a (RTGS): Complete RTGS settlement with central queue
+- Phase 3b (LSM): Complete liquidity-saving mechanisms
 
-❌ **Deferred to Phase 2+:**
-- Arrival generation (per-agent configs)
-- Transaction queues
-- LSM (Liquidity-Saving Mechanism)
-- Agent policies/decision trees
-- Cost calculation (overdraft, delay penalties)
+**What's Implemented**:
+
+#### Phase 3a: RTGS Settlement Engine ✅
+- **Module**: `backend/src/settlement/rtgs.rs` (571 lines)
+- **Functions**:
+  - `try_settle()` - immediate settlement with balance + credit checks
+  - `try_settle_partial()` - partial settlement for divisible transactions
+  - `submit_transaction()` - submit to RTGS with automatic queuing
+  - `process_queue()` - FIFO retry with deadline expiration
+- **Infrastructure**:
+  - Extended `SimulationState` with `rtgs_queue: Vec<String>`
+  - Error types: `SettlementError`
+  - Result types: `SubmissionResult`, `QueueProcessingResult`
+- **Tests**: **22 passing tests** in `backend/tests/test_rtgs_settlement.rs`
+  - Immediate settlement (balance + credit)
+  - Queue processing (FIFO, deadline expiration)
+  - Liquidity recycling (A→B→C payment chains)
+  - Gridlock formation and resolution
+  - Balance conservation (critical invariant)
+  - Partial settlement for divisible transactions
+
+#### Phase 3b: LSM (Liquidity-Saving Mechanisms) ✅
+- **Module**: `backend/src/settlement/lsm.rs` (598 lines)
+- **Functions**:
+  - `bilateral_offset()` - A↔B payment netting (reduces liquidity requirements)
+  - `detect_cycles()` - DFS-based cycle detection in payment graph
+  - `settle_cycle()` - net-zero cycle settlement (A→B→C→A)
+  - `run_lsm_pass()` - coordinator with multi-iteration optimization
+- **Infrastructure**:
+  - `LsmConfig` with toggles for bilateral/cycles
+  - Result types: `BilateralOffsetResult`, `CycleSettlementResult`, `LsmPassResult`
+  - `Cycle` struct for detected payment cycles
+- **Tests**: **15 passing tests** in `backend/tests/test_lsm.rs`
+  - Bilateral offsetting (exact match, asymmetric, multiple transactions)
+  - Cycle detection (3-cycle, 4-cycle, unequal amounts)
+  - LSM coordinator (bilateral only, cycles only, full optimization)
+  - Four-bank ring test (from game_concept_doc.md Section 11)
+
+#### Test Status:
+- **55 unit/integration tests passing** (0 failures)
+- **42 doc tests passing** (all documentation examples)
+- **Coverage**: All critical paths, edge cases, and invariants
+
+#### Alignment with T2-Style RTGS:
+- ✅ Central bank intermediary model (agents = bank settlement accounts)
+- ✅ Immediate settlement when liquidity sufficient
+- ✅ Central RTGS queue for insufficient liquidity
+- ✅ Intraday credit limits (balance + credit headroom)
+- ✅ FIFO queue processing with deadline expiration
+- ✅ Bilateral offsetting (A↔B netting)
+- ✅ Cycle detection and settlement (3-cycle, 4-cycle)
+- ✅ Net-zero settlement for cycles (minimal liquidity usage)
+- ✅ Gridlock resolution via LSM optimization
+
+---
+
+### 🎯 Future Phases (After Phase 3)
+
+#### Phase 4: Orchestrator & Arrivals
+- Tick loop orchestration
+- Arrival generation (deterministic RNG)
+- Integration: RTGS + LSM coordination
+- Policy evaluation hooks
+- Cost accrual (liquidity, delay, penalties)
+
+#### Phase 5: Python API & FFI
+- Python FFI wrapper (PyO3 bindings)
+- FastAPI endpoints
+- Configuration loading (YAML → Pydantic → Rust)
+- CLI tool
+
+#### Phase 6+: Frontend & Advanced Features
+- React visualization
+- WebSocket streaming for real-time updates
+
+**Deferred Features** (beyond Phase 6):
+- Agent policies/decision trees (AI/RL)
+- Advanced cost calculation
 - Split transactions
-- Priority handling
+- Priority-based queue ordering
+- Timed transactions (T2-style)
 - WebSocket streaming
-- Advanced visualizations
 - A/B testing framework
-- Rollout system
-- Detailed metrics
-
-**Rationale**: These features add significant complexity. Build foundation first, prove architecture, then add features incrementally.
 
 ---
 
