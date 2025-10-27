@@ -71,6 +71,7 @@ use crate::models::agent::Agent;
 use crate::models::state::SimulationState;
 use crate::policy::{CashManagerPolicy, DeadlinePolicy, FifoPolicy, LiquidityAwarePolicy};
 use crate::rng::RngManager;
+use crate::settlement::lsm::LsmConfig;
 use std::collections::HashMap;
 
 // ============================================================================
@@ -104,6 +105,9 @@ pub struct OrchestratorConfig {
 
     /// Cost calculation rates
     pub cost_rates: CostRates,
+
+    /// LSM configuration
+    pub lsm_config: LsmConfig,
 }
 
 /// Per-agent configuration
@@ -302,6 +306,9 @@ pub struct Orchestrator {
     /// Cost calculation rates
     cost_rates: CostRates,
 
+    /// LSM configuration
+    lsm_config: LsmConfig,
+
     /// Accumulated costs per agent
     accumulated_costs: HashMap<String, CostAccumulator>,
 
@@ -370,6 +377,15 @@ impl std::fmt::Display for SimulationError {
 
 impl std::error::Error for SimulationError {}
 
+/// Outcome of a settlement attempt
+#[derive(Debug, Clone, PartialEq)]
+enum SettlementOutcome {
+    /// Transaction settled successfully
+    Settled,
+    /// Transaction queued (insufficient liquidity)
+    Queued,
+}
+
 impl Orchestrator {
     /// Create new orchestrator from configuration
     ///
@@ -388,6 +404,7 @@ impl Orchestrator {
     ///
     /// ```rust
     /// use payment_simulator_core_rs::orchestrator::{Orchestrator, OrchestratorConfig, AgentConfig, PolicyConfig};
+    /// use payment_simulator_core_rs::settlement::lsm::LsmConfig;
     ///
     /// let config = OrchestratorConfig {
     ///     ticks_per_day: 100,
@@ -403,6 +420,7 @@ impl Orchestrator {
     ///         },
     ///     ],
     ///     cost_rates: Default::default(),
+    ///     lsm_config: LsmConfig::default(),
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -466,6 +484,7 @@ impl Orchestrator {
             policies,
             arrival_configs,
             cost_rates: config.cost_rates,
+            lsm_config: config.lsm_config,
             accumulated_costs,
             event_count: 0,
             pending_settlements: Vec::new(),
@@ -540,6 +559,257 @@ impl Orchestrator {
     pub fn all_costs(&self) -> &HashMap<String, CostAccumulator> {
         &self.accumulated_costs
     }
+
+    // ========================================================================
+    // Tick Loop Implementation
+    // ========================================================================
+
+    /// Execute one simulation tick
+    ///
+    /// Implements the complete tick loop integrating all components:
+    /// 1. Generate arrivals (Phase 4b.2 - currently none)
+    /// 2. Evaluate policies (Queue 1 → release decisions)
+    /// 3. Execute settlements (RTGS)
+    /// 4. Process RTGS queue (retry queued transactions)
+    /// 5. Run LSM coordinator (find offsets)
+    /// 6. Accrue costs (Phase 4b.3 - currently minimal)
+    /// 7. Drop expired transactions
+    /// 8. Advance time
+    /// 9. Handle end-of-day if needed
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(TickResult)` - Tick executed successfully
+    /// * `Err(SimulationError)` - Execution failed
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let mut orchestrator = Orchestrator::new(config)?;
+    ///
+    /// for _ in 0..100 {
+    ///     let result = orchestrator.tick()?;
+    ///     println!("Tick {}: {} settlements", result.tick, result.num_settlements);
+    /// }
+    /// ```
+    pub fn tick(&mut self) -> Result<TickResult, SimulationError> {
+        use crate::settlement::{lsm, rtgs};
+
+        let current_tick = self.current_tick();
+        let mut num_settlements = 0;
+        let mut num_lsm_releases = 0;
+
+        // Clear pending settlements from previous tick
+        self.pending_settlements.clear();
+
+        // STEP 1: ARRIVALS (Phase 4b.2 - not implemented yet)
+        let num_arrivals = 0; // TODO: Implement arrival generation
+
+        // STEP 2: POLICY EVALUATION
+        // Get agents with queued transactions (Queue 1)
+        let agents_with_queues: Vec<String> = self
+            .state
+            .agents_with_queued_transactions()
+            .into_iter()
+            .collect();
+
+        for agent_id in agents_with_queues {
+            // Get agent and policy
+            let agent = self
+                .state
+                .get_agent(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            let policy = self
+                .policies
+                .get_mut(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            // Evaluate policy for all transactions in Queue 1
+            let decisions = policy.evaluate_queue(agent, &self.state, current_tick);
+
+            // Process decisions
+            for decision in decisions {
+                use crate::policy::ReleaseDecision;
+
+                match decision {
+                    ReleaseDecision::SubmitFull { tx_id } => {
+                        // Move from Queue 1 to pending settlements
+                        if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                            agent.remove_from_queue(&tx_id);
+                        }
+                        self.pending_settlements.push(tx_id.clone());
+                        self.event_count += 1; // PolicyDecision event (Phase 4b.4)
+                    }
+                    ReleaseDecision::SubmitPartial { .. } => {
+                        // Phase 5: Transaction splitting
+                        // For now, treat as error
+                        return Err(SimulationError::SettlementError(
+                            "Transaction splitting not implemented (Phase 5)".to_string(),
+                        ));
+                    }
+                    ReleaseDecision::Hold { tx_id, .. } => {
+                        // Transaction stays in Queue 1
+                        self.event_count += 1; // PolicyHold event (Phase 4b.4)
+                        // No action needed - transaction remains queued
+                        let _ = tx_id; // Suppress unused warning
+                    }
+                    ReleaseDecision::Drop { tx_id } => {
+                        // Remove from Queue 1, mark as dropped
+                        if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                            agent.remove_from_queue(&tx_id);
+                        }
+                        if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                            tx.drop_transaction(current_tick);
+                        }
+                        self.event_count += 1; // Drop event (Phase 4b.4)
+                    }
+                }
+            }
+        }
+
+        // STEP 3: RTGS SETTLEMENT
+        // Process pending settlements (Queue 1 → RTGS)
+        // Clone to avoid borrow checker issues
+        let pending = self.pending_settlements.clone();
+        for tx_id in pending.iter() {
+            // Try to settle the transaction (already in state)
+            let settlement_result = self.try_settle_transaction(tx_id, current_tick)?;
+
+            match settlement_result {
+                SettlementOutcome::Settled => {
+                    num_settlements += 1;
+                    self.event_count += 1; // Settlement event
+                }
+                SettlementOutcome::Queued => {
+                    // Insufficient liquidity, added to Queue 2 (RTGS queue)
+                    self.event_count += 1; // QueuedRtgs event
+                }
+            }
+        }
+
+        // STEP 4: PROCESS RTGS QUEUE (Queue 2)
+        // Retry queued transactions
+        let queue_result = rtgs::process_queue(&mut self.state, current_tick);
+        num_settlements += queue_result.settled_count;
+
+        // STEP 5: LSM COORDINATOR
+        // Find and release offsetting transactions
+        let lsm_result = lsm::run_lsm_pass(&mut self.state, &self.lsm_config, current_tick);
+        num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
+        num_settlements += num_lsm_releases;
+        self.event_count += num_lsm_releases; // LSM release events
+
+        // STEP 6: COST ACCRUAL (Phase 4b.3 - minimal for now)
+        let total_cost = self.accrue_costs(current_tick);
+
+        // STEP 7: DEADLINE ENFORCEMENT (handled by policies in STEP 2)
+        // Policies drop expired transactions via ReleaseDecision::Drop
+
+        // STEP 8: ADVANCE TIME
+        self.time_manager.advance_tick();
+
+        // STEP 9: END-OF-DAY HANDLING
+        if self.time_manager.is_end_of_day() {
+            self.handle_end_of_day()?;
+        }
+
+        Ok(TickResult {
+            tick: current_tick,
+            num_arrivals,
+            num_settlements,
+            num_lsm_releases,
+            total_cost,
+        })
+    }
+
+    /// Accrue costs for this tick (minimal implementation)
+    ///
+    /// Phase 4b.3 will implement full cost calculation logic.
+    /// For now, just track peak net debit.
+    fn accrue_costs(&mut self, _tick: usize) -> i64 {
+        let total_cost = 0;
+
+        for (agent_id, agent) in self.state.agents() {
+            if let Some(accumulator) = self.accumulated_costs.get_mut(agent_id) {
+                // Track peak net debit
+                accumulator.update_peak_debit(agent.balance());
+
+                // TODO Phase 4b.3: Calculate actual costs
+                // - Overdraft cost (if balance < 0)
+                // - Delay cost (for queued transactions)
+                // - No penalties yet (policies handle deadline drops)
+            }
+        }
+
+        total_cost
+    }
+
+    /// Handle end-of-day processing
+    fn handle_end_of_day(&mut self) -> Result<(), SimulationError> {
+        // TODO Phase 4b: End-of-day processing
+        // - Apply end-of-day penalties for unsettled transactions
+        // - Reset daily counters
+        // - Roll over to next day
+
+        self.event_count += 1; // EndOfDay event
+
+        Ok(())
+    }
+
+    /// Try to settle a transaction that's already in the state
+    ///
+    /// If settlement fails due to insufficient liquidity, queue the transaction.
+    fn try_settle_transaction(
+        &mut self,
+        tx_id: &str,
+        tick: usize,
+    ) -> Result<SettlementOutcome, SimulationError> {
+        // Get transaction details
+        let (sender_id, receiver_id, amount) = {
+            let tx = self
+                .state
+                .get_transaction(tx_id)
+                .ok_or_else(|| SimulationError::TransactionNotFound(tx_id.to_string()))?;
+            (
+                tx.sender_id().to_string(),
+                tx.receiver_id().to_string(),
+                tx.remaining_amount(),
+            )
+        };
+
+        // Check if sender can pay
+        let can_pay = self
+            .state
+            .get_agent(&sender_id)
+            .ok_or_else(|| SimulationError::AgentNotFound(sender_id.clone()))?
+            .can_pay(amount);
+
+        if can_pay {
+            // Settle the transaction
+            {
+                let sender = self.state.get_agent_mut(&sender_id).unwrap();
+                sender
+                    .debit(amount)
+                    .map_err(|e| SimulationError::SettlementError(format!("Debit failed: {}", e)))?;
+            }
+            {
+                let receiver = self.state.get_agent_mut(&receiver_id).unwrap();
+                receiver.credit(amount);
+            }
+            {
+                let tx = self.state.get_transaction_mut(tx_id).unwrap();
+                tx.settle(amount, tick)
+                    .map_err(|e| SimulationError::SettlementError(format!("Settle failed: {}", e)))?;
+            }
+
+            Ok(SettlementOutcome::Settled)
+        } else {
+            // Queue the transaction in RTGS queue (Queue 2)
+            self.state.queue_transaction(tx_id.to_string());
+            Ok(SettlementOutcome::Queued)
+        }
+    }
 }
 
 // Manual Debug implementation (policies don't implement Debug)
@@ -588,6 +858,7 @@ mod tests {
                 },
             ],
             cost_rates: CostRates::default(),
+            lsm_config: LsmConfig::default(),
         }
     }
 
@@ -634,6 +905,7 @@ mod tests {
             rng_seed: 12345,
             agent_configs: vec![],
             cost_rates: CostRates::default(),
+            lsm_config: LsmConfig::default(),
         };
 
         let result = Orchestrator::new(config);
@@ -676,6 +948,7 @@ mod tests {
                 },
             ],
             cost_rates: CostRates::default(),
+            lsm_config: LsmConfig::default(),
         };
 
         let result = Orchestrator::new(config);
