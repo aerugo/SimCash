@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+uuid = { workspace = true }
 pyo3 = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -33,3 +34,7 @@ path = "tests/test_rng_determinism.rs"
 [[test]]
 name = "test_agent"
 path = "tests/test_agent.rs"
+
+[[test]]
+name = "test_transaction"
+path = "tests/test_transaction.rs"

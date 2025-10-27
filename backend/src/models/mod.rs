@@ -6,4 +6,4 @@ pub mod transaction;
 
 // Re-exports
 pub use agent::{Agent, AgentError};
-pub use transaction::{Transaction, TransactionStatus};
+pub use transaction::{Transaction, TransactionError, TransactionStatus};
