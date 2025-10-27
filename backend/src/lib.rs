@@ -32,7 +32,10 @@ pub use models::{
     state::SimulationState,
     transaction::{Transaction, TransactionError, TransactionStatus},
 };
-pub use orchestrator::Orchestrator;
+pub use orchestrator::{
+    AgentConfig, ArrivalConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator,
+    OrchestratorConfig, PolicyConfig, SimulationError, TickResult,
+};
 pub use rng::RngManager;
 pub use settlement::{try_settle, try_settle_partial, SettlementError};
 

@@ -1,4 +1,13 @@
-//! Orchestrator - main simulation loop
+//! Orchestrator - main simulation loop (Phase 4b)
+//!
+//! Implements the complete tick loop integrating all simulation components.
+//!
+//! See `engine.rs` for full implementation.
 
-// Placeholder - will be implemented in Phase 4
-pub struct Orchestrator;
+pub mod engine;
+
+// Re-export main types for convenience
+pub use engine::{
+    AgentConfig, ArrivalConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator,
+    OrchestratorConfig, PolicyConfig, SimulationError, TickResult,
+};
