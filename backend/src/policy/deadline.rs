@@ -30,23 +30,25 @@ use crate::{Agent, SimulationState};
 /// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
 ///
 /// let mut policy = DeadlinePolicy::new(5); // Urgent if deadline within 5 ticks
-/// let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
-///
-/// // Queue two transactions
-/// agent.queue_outgoing("tx_urgent".to_string());
-/// agent.queue_outgoing("tx_later".to_string());
-///
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let mut state = SimulationState::new(vec![agent.clone()]);
 ///
 /// // tx_urgent: deadline at tick 10 (urgent at tick 8: 10 - 8 = 2 < 5)
 /// let tx_urgent = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 10);
+/// let id_urgent = tx_urgent.id().to_string();
 /// state.add_transaction(tx_urgent);
 ///
 /// // tx_later: deadline at tick 50 (not urgent at tick 8: 50 - 8 = 42 > 5)
 /// let tx_later = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 200_000, 0, 50);
+/// let id_later = tx_later.id().to_string();
 /// state.add_transaction(tx_later);
 ///
-/// let decisions = policy.evaluate_queue(&agent, &state, 8);
+/// // Queue transactions
+/// state.get_agent_mut("BANK_A").unwrap().queue_outgoing(id_urgent);
+/// state.get_agent_mut("BANK_A").unwrap().queue_outgoing(id_later);
+///
+/// let agent = state.get_agent("BANK_A").unwrap();
+/// let decisions = policy.evaluate_queue(agent, &state, 8);
 ///
 /// // Should submit urgent, hold non-urgent
 /// assert_eq!(decisions.len(), 2);

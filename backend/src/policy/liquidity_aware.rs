@@ -43,16 +43,17 @@ use crate::{Agent, SimulationState};
 /// let mut policy = LiquidityAwarePolicy::new(100_000);
 ///
 /// // Agent with 200k balance
-/// let mut agent = Agent::new("BANK_A".to_string(), 200_000, 0);
-/// agent.queue_outgoing("tx_001".to_string());
-///
+/// let agent = Agent::new("BANK_A".to_string(), 200_000, 0);
 /// let mut state = SimulationState::new(vec![agent.clone()]);
 ///
 /// // Transaction for 150k (would leave only 50k < 100k buffer)
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 150_000, 0, 100);
+/// let tx_id = tx.id().to_string();
 /// state.add_transaction(tx);
+/// state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 ///
-/// let decisions = policy.evaluate_queue(&agent, &state, 5);
+/// let agent = state.get_agent("BANK_A").unwrap();
+/// let decisions = policy.evaluate_queue(agent, &state, 5);
 ///
 /// // Should hold transaction (preserve buffer)
 /// assert_eq!(decisions.len(), 1);

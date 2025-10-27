@@ -272,14 +272,13 @@ impl SimulationState {
     /// ```
     /// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
     ///
-    /// let mut agents = vec![
-    ///     Agent::new("BANK_A".to_string(), 1_000_000, 0),
-    /// ];
-    /// agents[0].queue_outgoing("tx_001".to_string());
-    ///
+    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000, 0)];
     /// let mut state = SimulationState::new(agents);
+    ///
     /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 500_000, 0, 100);
+    /// let tx_id = tx.id().to_string();
     /// state.add_transaction(tx);
+    /// state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
     ///
     /// assert_eq!(state.total_internal_queue_value(), 500_000);
     /// ```
@@ -311,15 +310,14 @@ impl SimulationState {
     /// ```
     /// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
     ///
-    /// let mut agents = vec![
-    ///     Agent::new("BANK_A".to_string(), 1_000_000, 0),
-    /// ];
-    /// agents[0].queue_outgoing("tx_001".to_string());
-    ///
+    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000, 0)];
     /// let mut state = SimulationState::new(agents);
+    ///
     /// // Transaction with deadline at tick 10
     /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 500_000, 0, 10);
+    /// let tx_id = tx.id().to_string();
     /// state.add_transaction(tx);
+    /// state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
     ///
     /// // At tick 8, with threshold 5, this is urgent (deadline - current = 2 < 5)
     /// let urgent = state.get_urgent_transactions(8, 5);

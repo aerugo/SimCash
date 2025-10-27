@@ -702,6 +702,248 @@ cargo bench
 
 ---
 
+## 🎯 Phase 3+ Target Design: T2-Style RTGS Settlement
+
+**Current Status**: ⏳ Phase 3 implementation planned (see `/docs/phase3_rtgs_analysis.md`)
+
+**What's Already Complete** (Phase 1-2):
+- ✅ `Agent` model with balance and credit_limit
+- ✅ `Transaction` model with status lifecycle
+- ✅ `TimeManager` for discrete time
+- ✅ Deterministic `RngManager`
+
+**What This Section Describes**: Target patterns for Phase 3+ implementation based on T2-style RTGS design from `/docs/game_concept_doc.md`.
+
+### Target: Central Bank Settlement Model
+
+In the T2-style model, settlement happens at the **central bank level**:
+
+```
+Client A → Bank A (internal) → RTGS @ Central Bank → Bank B (internal) → Client B
+```
+
+**Current `Agent` model interpretation for Phase 3**:
+- `Agent.balance` = Bank's settlement account balance **at central bank**
+- `Agent.credit_limit` = Intraday credit headroom (overdraft/collateralized)
+- `Agent.can_pay(amount)` = Checks `balance + credit_limit >= amount`
+
+**Phase 3 will implement**: RTGS settlement engine that operates on these agent balances.
+
+### Target Pattern: RTGS Settlement Function (Phase 3)
+
+```rust
+// ⏳ PHASE 3 TARGET PATTERN
+
+/// Settle payment at RTGS (central bank settlement)
+///
+/// This is the core T2-style settlement operation:
+/// 1. Check sender has sufficient liquidity (balance + credit)
+/// 2. Debit sender's central bank account
+/// 3. Credit receiver's central bank account
+/// 4. Mark transaction as settled
+///
+/// If insufficient liquidity, returns error and no state changes occur.
+pub fn try_settle_rtgs(
+    sender: &mut Agent,
+    receiver: &mut Agent,
+    transaction: &mut Transaction,
+    tick: usize,
+) -> Result<(), SettlementError> {
+    // Validate transaction state
+    if transaction.is_fully_settled() {
+        return Err(SettlementError::AlreadySettled);
+    }
+
+    let amount = transaction.remaining_amount();
+
+    // Check liquidity (balance + credit headroom)
+    if !sender.can_pay(amount) {
+        return Err(SettlementError::InsufficientLiquidity {
+            required: amount,
+            available: sender.available_liquidity(),
+        });
+    }
+
+    // Execute settlement (atomic operation at CB)
+    sender.debit(amount)?;
+    receiver.credit(amount);
+    transaction.settle(amount, tick)?;
+
+    Ok(())
+}
+```
+
+### Target Pattern: Central RTGS Queue (Phase 3)
+
+```rust
+// ⏳ PHASE 3 TARGET PATTERN
+
+/// SimulationState will be extended to include central RTGS queue
+pub struct SimulationState {
+    pub agents: HashMap<String, Agent>,
+    pub transactions: HashMap<String, Transaction>,
+
+    // Phase 3: Central RTGS queue (transactions awaiting liquidity)
+    pub rtgs_queue: Vec<String>,  // Transaction IDs
+
+    // Phase 1 components
+    pub time: TimeManager,
+    pub rng: RngManager,
+}
+
+/// Submit transaction to RTGS (Phase 3)
+///
+/// Attempts immediate settlement. If insufficient liquidity, adds to central queue.
+pub fn submit_to_rtgs(
+    state: &mut SimulationState,
+    transaction: Transaction,
+    tick: usize,
+) -> Result<SubmissionResult, SettlementError> {
+    let tx_id = transaction.id().to_string();
+    state.transactions.insert(tx_id.clone(), transaction);
+
+    // Attempt immediate settlement
+    let sender = state.agents.get_mut(&sender_id)?;
+    let receiver = state.agents.get_mut(&receiver_id)?;
+    let transaction = state.transactions.get_mut(&tx_id).unwrap();
+
+    match try_settle_rtgs(sender, receiver, transaction, tick) {
+        Ok(()) => Ok(SubmissionResult::SettledImmediately { tick }),
+        Err(SettlementError::InsufficientLiquidity { .. }) => {
+            // Add to central queue
+            state.rtgs_queue.push(tx_id);
+            Ok(SubmissionResult::Queued { position: state.rtgs_queue.len() })
+        }
+        Err(e) => Err(e),
+    }
+}
+```
+
+### Target Pattern: Queue Processing (Phase 3)
+
+```rust
+// ⏳ PHASE 3 TARGET PATTERN
+
+/// Process RTGS queue each tick (retry pending transactions)
+pub fn process_rtgs_queue(
+    state: &mut SimulationState,
+    tick: usize,
+) -> QueueProcessingResult {
+    let mut settled_count = 0;
+    let mut settled_value = 0i64;
+    let mut still_pending = Vec::new();
+
+    for tx_id in state.rtgs_queue.drain(..) {
+        let transaction = state.transactions.get_mut(&tx_id).unwrap();
+
+        // Check if past deadline → drop
+        if transaction.is_past_deadline(tick) {
+            transaction.drop_transaction(tick);
+            continue;
+        }
+
+        // Attempt settlement
+        let sender = state.agents.get_mut(transaction.sender_id()).unwrap();
+        let receiver = state.agents.get_mut(transaction.receiver_id()).unwrap();
+
+        match try_settle_rtgs(sender, receiver, transaction, tick) {
+            Ok(()) => {
+                settled_count += 1;
+                settled_value += transaction.amount();
+            }
+            Err(SettlementError::InsufficientLiquidity { .. }) => {
+                // Still can't settle, re-queue
+                still_pending.push(tx_id);
+            }
+            Err(_) => {} // Other errors, don't re-queue
+        }
+    }
+
+    state.rtgs_queue = still_pending;
+
+    QueueProcessingResult {
+        settled_count,
+        settled_value,
+        remaining_queue_size: state.rtgs_queue.len(),
+    }
+}
+```
+
+### Target Pattern: LSM Procedures (Phase 4)
+
+```rust
+// 🎯 PHASE 4 TARGET PATTERN (after Phase 3 complete)
+
+/// Liquidity-Saving Mechanism: Bilateral Offsetting
+///
+/// Find A→B and B→A pairs in queue, settle with minimal net liquidity
+pub fn lsm_bilateral_offset(
+    queue: &[String],
+    transactions: &HashMap<String, Transaction>,
+) -> Vec<OffsetPair> {
+    let mut offsets = Vec::new();
+
+    for i in 0..queue.len() {
+        for j in (i + 1)..queue.len() {
+            let tx_i = &transactions[&queue[i]];
+            let tx_j = &transactions[&queue[j]];
+
+            // Check if A→B and B→A
+            if tx_i.sender_id() == tx_j.receiver_id()
+                && tx_i.receiver_id() == tx_j.sender_id()
+            {
+                let settle_amount = tx_i.remaining_amount().min(tx_j.remaining_amount());
+                offsets.push(OffsetPair {
+                    tx_a: queue[i].clone(),
+                    tx_b: queue[j].clone(),
+                    amount: settle_amount,
+                });
+            }
+        }
+    }
+
+    offsets
+}
+
+/// LSM: Cycle Detection (A→B→C→A)
+///
+/// Find payment cycles that can settle with minimal net liquidity
+pub fn lsm_find_cycles(
+    queue: &[String],
+    transactions: &HashMap<String, Transaction>,
+    max_cycle_length: usize,
+) -> Vec<Cycle> {
+    // Detect cycles of length 3, 4, etc.
+    // Settle cycle with min amount on cycle
+    // This reduces net liquidity needed under gridlock
+
+    vec![] // Implementation in Phase 4
+}
+```
+
+### Key Differences: Current vs. Phase 3+
+
+| Aspect | Current (Phase 1-2) | Phase 3 Target | Phase 4 Target |
+|--------|---------------------|----------------|----------------|
+| **Settlement** | Not implemented | RTGS immediate + queue | + LSM optimization |
+| **Queue** | None | Central RTGS queue | + LSM procedures |
+| **Agent balance** | Simple field | = CB settlement account | + liquidity recycling |
+| **Terminology** | `Agent.balance` | (same, but interpreted as CB account) | (same) |
+
+**Important**: Phase 1-2 code is **correct as-is**. The `Agent` and `Transaction` models don't need changes for Phase 3. They already represent the right concepts (see `/docs/phase3_rtgs_analysis.md` sections 1.1-1.2).
+
+### Next Steps for Phase 3 Implementation
+
+See `/docs/phase3_rtgs_analysis.md` for:
+- Detailed implementation plan
+- Test-driven development approach
+- Complete function signatures
+- Test case specifications
+
+**Timeline**: Phase 3 estimated at 2-3 days (see phase3_rtgs_analysis.md section 5).
+
+---
+
 ## When to Ask for Help
 
 1. **FFI not working?** → Consider using the `ffi-specialist` subagent
