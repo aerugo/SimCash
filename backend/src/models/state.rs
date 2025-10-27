@@ -212,7 +212,7 @@ impl SimulationState {
         self.agents.values().map(|agent| agent.balance()).sum()
     }
 
-    /// Calculate total value in RTGS queue
+    /// Calculate total value in RTGS queue (Queue 2)
     ///
     /// # Returns
     ///
@@ -223,6 +223,163 @@ impl SimulationState {
             .filter_map(|tx_id| self.transactions.get(tx_id))
             .map(|tx| tx.remaining_amount())
             .sum()
+    }
+
+    // =========================================================================
+    // Queue 1 (Internal Bank Queues) Accessor Methods - Phase 4
+    // =========================================================================
+
+    /// Get total number of transactions in all internal queues (Queue 1)
+    ///
+    /// Aggregates across all agents' outgoing_queue.
+    ///
+    /// # Returns
+    ///
+    /// Sum of all agents' internal queue sizes
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use payment_simulator_core_rs::{Agent, SimulationState};
+    ///
+    /// let mut agents = vec![
+    ///     Agent::new("BANK_A".to_string(), 1_000_000, 0),
+    ///     Agent::new("BANK_B".to_string(), 1_000_000, 0),
+    /// ];
+    /// agents[0].queue_outgoing("tx_001".to_string());
+    /// agents[1].queue_outgoing("tx_002".to_string());
+    ///
+    /// let state = SimulationState::new(agents);
+    /// assert_eq!(state.total_internal_queue_size(), 2);
+    /// ```
+    pub fn total_internal_queue_size(&self) -> usize {
+        self.agents
+            .values()
+            .map(|agent| agent.outgoing_queue_size())
+            .sum()
+    }
+
+    /// Get total value in all internal queues (Queue 1)
+    ///
+    /// Aggregates across all agents' outgoing_queue.
+    ///
+    /// # Returns
+    ///
+    /// Sum of remaining amounts for all transactions in Queue 1
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+    ///
+    /// let mut agents = vec![
+    ///     Agent::new("BANK_A".to_string(), 1_000_000, 0),
+    /// ];
+    /// agents[0].queue_outgoing("tx_001".to_string());
+    ///
+    /// let mut state = SimulationState::new(agents);
+    /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 500_000, 0, 100);
+    /// state.add_transaction(tx);
+    ///
+    /// assert_eq!(state.total_internal_queue_value(), 500_000);
+    /// ```
+    pub fn total_internal_queue_value(&self) -> i64 {
+        self.agents
+            .values()
+            .flat_map(|agent| agent.outgoing_queue())
+            .filter_map(|tx_id| self.transactions.get(tx_id))
+            .map(|tx| tx.remaining_amount())
+            .sum()
+    }
+
+    /// Get transactions approaching deadline (urgent transactions)
+    ///
+    /// Scans all agents' internal queues for transactions with deadline
+    /// within `urgency_threshold` ticks from current tick.
+    ///
+    /// # Arguments
+    ///
+    /// * `current_tick` - Current simulation tick
+    /// * `urgency_threshold` - Number of ticks before deadline to consider urgent
+    ///
+    /// # Returns
+    ///
+    /// Vector of (agent_id, transaction_id) pairs for urgent transactions
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+    ///
+    /// let mut agents = vec![
+    ///     Agent::new("BANK_A".to_string(), 1_000_000, 0),
+    /// ];
+    /// agents[0].queue_outgoing("tx_001".to_string());
+    ///
+    /// let mut state = SimulationState::new(agents);
+    /// // Transaction with deadline at tick 10
+    /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 500_000, 0, 10);
+    /// state.add_transaction(tx);
+    ///
+    /// // At tick 8, with threshold 5, this is urgent (deadline - current = 2 < 5)
+    /// let urgent = state.get_urgent_transactions(8, 5);
+    /// assert_eq!(urgent.len(), 1);
+    /// assert_eq!(urgent[0].0, "BANK_A");
+    /// ```
+    pub fn get_urgent_transactions(
+        &self,
+        current_tick: usize,
+        urgency_threshold: usize,
+    ) -> Vec<(String, String)> {
+        let mut urgent = Vec::new();
+
+        for (agent_id, agent) in &self.agents {
+            for tx_id in agent.outgoing_queue() {
+                if let Some(tx) = self.transactions.get(tx_id) {
+                    let ticks_to_deadline = tx.deadline_tick().saturating_sub(current_tick);
+                    if ticks_to_deadline <= urgency_threshold {
+                        urgent.push((agent_id.clone(), tx_id.clone()));
+                    }
+                }
+            }
+        }
+
+        urgent
+    }
+
+    /// Get list of agents with non-empty internal queues
+    ///
+    /// # Returns
+    ///
+    /// Vector of agent IDs that have transactions in Queue 1
+    pub fn agents_with_queued_transactions(&self) -> Vec<String> {
+        self.agents
+            .iter()
+            .filter(|(_, agent)| agent.outgoing_queue_size() > 0)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    /// Get outgoing queue value for specific agent
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent to query
+    ///
+    /// # Returns
+    ///
+    /// Total value in agent's outgoing queue, or 0 if agent not found
+    pub fn agent_queue_value(&self, agent_id: &str) -> i64 {
+        if let Some(agent) = self.agents.get(agent_id) {
+            agent
+                .outgoing_queue()
+                .iter()
+                .filter_map(|tx_id| self.transactions.get(tx_id))
+                .map(|tx| tx.remaining_amount())
+                .sum()
+        } else {
+            0
+        }
     }
 }
 
