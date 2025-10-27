@@ -32,6 +32,7 @@ pub use models::{
 };
 pub use orchestrator::Orchestrator;
 pub use rng::RngManager;
+pub use settlement::{try_settle, try_settle_partial, SettlementError};
 
 // PyO3 exports (when feature enabled)
 #[cfg(feature = "pyo3")]
