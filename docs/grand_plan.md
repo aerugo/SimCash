@@ -1,6 +1,11 @@
 # Payment Simulator - Project Plan
 ## Rust Backend + Python API Architecture
 
+> **Implementation Status (2025-10-27)**:
+> - ✅ Phase 1-2 Complete: Core models (Time, RNG, Agent, Transaction)
+> - ⏳ Phase 3 Planned: RTGS settlement engine (see `/docs/phase3_rtgs_analysis.md`)
+> - 🎯 Phase 4+: LSM, Orchestrator, API layers
+
 ## 1) Executive Summary
 
 ### Purpose
@@ -311,33 +316,39 @@ pub struct TimeManager {
 
 **Why Rust**: Orchestrator is the hottest path; runs thousands of ticks per second.
 
-#### Settlement Module (`backend/src/settlement/`)
-**Responsibility**: RTGS settlement logic and failure handling
+#### Settlement Module (`backend/src/settlement/`) ⏳ Phase 3
+**Status**: Placeholder only. See `/docs/phase3_rtgs_analysis.md` for implementation plan.
 
-**Components**:
-- `core.rs`: Immediate settlement, balance checks
-- `caps.rs`: Bilateral cap enforcement
+**Responsibility**: RTGS settlement logic and central queue management
+
+**Target Components** (Phase 3):
+- `rtgs.rs`: T2-style immediate settlement + central queue
+- `queue.rs`: Central RTGS queue management
+- `caps.rs`: Bilateral cap enforcement (Phase 4)
 - `failure.rs`: Settlement failure detection and classification
 - `mod.rs`: Public settlement API
 
-**Key Operations**:
-- Check balance + credit limit
-- Debit sender, credit receiver
-- Update bilateral ledger
-- Detect and classify failures (insufficient liquidity, cap breach, overdraft limit)
+**Target Operations** (Phase 3):
+- Check: `balance + credit_limit >= amount`
+- If yes: debit sender, credit receiver (settlement at central bank)
+- If no: add to **central RTGS queue**
+- Process queue each tick (retry pending transactions)
+- Drop transactions past deadline
 
 **Why Rust**: Critical path for every transaction; memory safety prevents double-spending bugs.
 
-#### LSM Module (`backend/src/lsm/`)
-**Responsibility**: Liquidity-Saving Mechanism algorithms
+#### LSM Module (`backend/src/lsm/`) 🎯 Phase 4
+**Status**: Not yet implemented. Planned after Phase 3 completion.
 
-**Components**:
-- `bilateral.rs`: Direct pairwise netting
-- `cycle.rs`: Multi-party cycle detection (3-cycles, 4-cycles)
+**Responsibility**: Liquidity-Saving Mechanism (T2-style optimization)
+
+**Target Components** (Phase 4):
+- `bilateral.rs`: A↔B bilateral offsetting
+- `cycle.rs`: Multi-party cycle detection (A→B→C→A)
 - `coordinator.rs`: LSM orchestration, priority handling
 - `mod.rs`: Public LSM API
 
-**Key Algorithms**:
+**Target Algorithms** (Phase 4):
 - Bilateral netting: O(n²) pairwise comparison
 - 3-cycle detection: O(n³) but with pruning
 - 4-cycle detection: O(n⁴) with early termination
@@ -345,46 +356,60 @@ pub struct TimeManager {
 
 **Why Rust**: Graph algorithms are CPU-intensive; Rust's zero-cost iterators shine here.
 
-#### Models Module (`backend/src/models/`)
-**Responsibility**: Core data structures
+#### Models Module (`backend/src/models/`) ✅ Phase 1-2 Complete
+**Status**: Implemented. `Agent` and `Transaction` models complete.
 
 **Components**:
-- `transaction.rs`: Transaction state machine
-- `agent.rs`: Agent state (balances, queues, limits)
-- `state.rs`: SystemState (global ledger)
-- `enums.rs`: SettlementStatus, DropReason, Priority, etc.
+- `transaction.rs`: Transaction state machine ✅ (21 tests passing)
+- `agent.rs`: Agent state (balances, queues, limits) ✅ (17 tests passing)
+- `state.rs`: SimulationState (placeholder, will extend in Phase 3)
+- `enums.rs`: SettlementStatus, DropReason, Priority (future)
 - `mod.rs`: Public model exports
 
 **Key Invariants**:
-- Transactions are immutable after creation (except settlement state)
-- All monetary values are i64 (cents/minor units)
-- State transitions are validated
+- Transactions are immutable after creation (except settlement state) ✅
+- All monetary values are i64 (cents/minor units) ✅
+- State transitions are validated ✅
+
+**Phase 3 Note**: `Agent.balance` represents bank's settlement account **at central bank**. No changes needed to Agent model for Phase 3.
 
 **Why Rust**: Strong type system prevents invalid states; compile-time guarantees.
 
-#### RNG Module (`backend/src/rng/`)
-**Responsibility**: Deterministic random number generation
+#### RNG Module (`backend/src/rng/`) ✅ Phase 1 Complete
+**Status**: Implemented. Deterministic xorshift64* RNG complete.
 
 **Components**:
-- `manager.rs`: `RngManager` using xorshift64*
+- `xorshift.rs`: `RngManager` using xorshift64* ✅ (10 tests passing)
 - `mod.rs`: Public RNG API
 
 **Key Properties**:
-- Seed persistence (state returned after each call)
-- Uniform, exponential, Poisson distributions
-- Deterministic replay (same seed → same sequence)
+- Seed persistence (state returned after each call) ✅
+- Uniform, exponential, Poisson distributions ✅
+- Deterministic replay (same seed → same sequence) ✅
 
 **Why Rust**: RNG must be fast (called on every arrival); no GC pauses.
 
-#### Arrivals Module (`backend/src/arrivals/`)
-**Responsibility**: Payment arrival generation
+#### Core Module (`backend/src/core/`) ✅ Phase 1 Complete
+**Status**: Implemented. Time management complete.
 
 **Components**:
+- `time.rs`: `TimeManager` for discrete ticks/days ✅ (6 tests passing)
+- `init.rs`: State initialization (future)
+- `mod.rs`: Public core API
+
+**Why Rust**: Time management is used throughout the simulation loop.
+
+#### Arrivals Module (`backend/src/arrivals/`) 🎯 Phase 5
+**Status**: Not yet implemented. Planned for Phase 5.
+
+**Responsibility**: Payment arrival generation
+
+**Target Components** (Phase 5):
 - `distributions.rs`: Normal, exponential, uniform distributions
 - `generator.rs`: Arrival config, agent pool selection
 - `mod.rs`: Public arrival API
 
-**Key Operations**:
+**Target Operations** (Phase 5):
 - Sample arrival time (exponential/Poisson)
 - Sample amount (normal/uniform)
 - Select sender/receiver from agent pool
@@ -392,7 +417,9 @@ pub struct TimeManager {
 
 **Why Rust**: High-frequency sampling; needs to be very fast.
 
-#### Costs Module (`backend/src/costs/`)
+#### Costs Module (`backend/src/costs/`) 🎯 Phase 5
+**Status**: Not yet implemented. Planned for Phase 5.
+
 **Responsibility**: Cost accrual (liquidity, delay, penalty)
 
 **Components**:
@@ -830,48 +857,184 @@ uv run maturin develop --release && uv run pytest
 
 ---
 
-## 8) Policy Framework (Future Work)
+## 8) Policy Framework
 
-### Policy DSL (Designed, Not Yet Implemented)
+### Phase 4a: Trait-Based Policies (Implemented - 2025-10-27)
 
-**Payment Policy Example**:
-```python
-def payment_policy(tx, agent_state, signals):
-    if tx.priority == Priority.URGENT:
-        return PaymentAction(splits=1, attempts=[(0, 1.0)])
-    elif tx.priority == Priority.NORMAL:
-        if agent_state.balance > tx.amount:
-            return PaymentAction(splits=1, attempts=[(0, 1.0)])
-        else:
-            return PaymentAction(splits=1, attempts=[(30, 1.0)])
-    else:  # LOW priority
-        return PaymentAction(splits=1, attempts=[(60, 1.0)])
+**Status**: ✅ Complete
+
+Cash manager policies control **Queue 1** (internal bank queues), deciding **when** to submit transactions to the central RTGS system (Queue 2).
+
+**Core Trait**:
+```rust
+pub trait CashManagerPolicy {
+    fn evaluate_queue(
+        &mut self,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+    ) -> Vec<ReleaseDecision>;
+}
 ```
 
-**Liquidity Policy Example**:
-```python
-def liquidity_policy(agent_state, signals):
-    if agent_state.balance < agent_state.min_balance:
-        return LiquidityAction(overdraft_target=agent_state.min_balance * 1.2)
-    else:
-        return LiquidityAction(overdraft_target=agent_state.min_balance)
+**Evaluation Semantics**:
+- Called **every tick** for each agent (not fire-and-forget)
+- Allows re-evaluation as conditions change (liquidity, deadlines, system state)
+- Returns decisions: `SubmitFull`, `SubmitPartial`, `Hold`, `Drop`
+
+**Three Baseline Policies**:
+1. **FifoPolicy**: Submit all transactions immediately (simplest baseline)
+2. **DeadlinePolicy**: Prioritize urgent transactions (deadline-aware)
+3. **LiquidityAwarePolicy**: Preserve liquidity buffer, override for urgency
+
+**Example: Liquidity-Aware Policy**:
+```rust
+impl CashManagerPolicy for LiquidityAwarePolicy {
+    fn evaluate_queue(
+        &mut self,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+    ) -> Vec<ReleaseDecision> {
+        let mut decisions = Vec::new();
+
+        for tx_id in agent.outgoing_queue() {
+            let tx = state.get_transaction(tx_id).unwrap();
+            let amount = tx.remaining_amount();
+            let deadline = tx.deadline_tick();
+            let ticks_remaining = deadline - tick;
+
+            // Urgent: submit regardless of liquidity
+            if ticks_remaining <= self.urgency_threshold {
+                if agent.can_pay(amount) {
+                    decisions.push(ReleaseDecision::SubmitFull {
+                        tx_id: tx_id.clone()
+                    });
+                }
+            }
+            // Safe: maintains liquidity buffer
+            else if agent.balance() - amount >= self.target_buffer {
+                decisions.push(ReleaseDecision::SubmitFull {
+                    tx_id: tx_id.clone()
+                });
+            }
+            // Hold: preserve liquidity for now
+            else {
+                decisions.push(ReleaseDecision::Hold {
+                    tx_id: tx_id.clone(),
+                    reason: HoldReason::InsufficientLiquidity,
+                });
+            }
+        }
+
+        decisions
+    }
+}
 ```
 
-### Policy Validation (Future)
+**Decision Context Available to Policies**:
+- **Agent state**: balance, credit, liquidity_pressure(), outgoing_queue(), expected_inflows
+- **Transaction details**: amount, deadline, priority, sender/receiver
+- **System signals**: total queue sizes, urgent transactions, agent congestion
+- **Time**: current tick, time-to-deadline, time-to-EoD
 
-**Validation Pipeline**:
-1. **Schema check**: AST validation (no forbidden operations)
-2. **Type check**: Static analysis (correct return types)
+**Test Status**: 12 policy tests passing (60 total tests)
+
+**Documentation**: See `/docs/queue_architecture.md` and `/backend/CLAUDE.md`
+
+---
+
+### Phase 6: Policy DSL Layer (Future - Designed But Not Implemented)
+
+**Status**: 📋 Designed, deferred to Phase 6
+
+**Why Deferred**:
+- Phase 4a trait-based implementation allows fast iteration and validation
+- Proves the abstraction works before adding 2,000+ lines of DSL infrastructure
+- DSL needed only when starting RL/LLM-driven policy optimization
+
+**JSON Decision Tree Format (Future)**:
+```json
+{
+  "version": "1.0",
+  "tree_id": "liquidity_aware_policy",
+  "root": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "ticks_to_deadline"},
+      "right": {"value": 5}
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "parameters": {}
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "balance"},
+        "right": {
+          "compute": {
+            "op": "+",
+            "left": {"field": "amount"},
+            "right": {"param": "liquidity_buffer"}
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold"
+      }
+    }
+  },
+  "parameters": {
+    "liquidity_buffer": 100000
+  }
+}
+```
+
+**Key Features (Phase 6)**:
+- LLM-editable (safe JSON manipulation, no code execution)
+- Sandboxed interpreter (~2,000 lines Rust)
+- Hot-reloadable (update policies without recompiling)
+- Version-controlled (git tracks policy evolution)
+- Hybrid execution: support both Rust traits and JSON DSL
+
+**Hybrid Execution**:
+```rust
+pub enum PolicyExecutor {
+    Trait(Box<dyn CashManagerPolicy>),  // Rust policies (fast, compile-time checked)
+    Tree(TreeInterpreter),               // JSON DSL (LLM-editable)
+}
+```
+
+**LLM Manager Service (Phase 6)**:
+- Policy mutation prompting patterns
+- Git-based version control for policy evolution
+- Shadow replay validation (test new policy on historical episodes)
+- Monte Carlo opponent sampling
+- Guardband checking (performance regression detection)
+- Rollback procedures
+
+**Policy Validation Pipeline (Phase 6)**:
+1. **Schema check**: JSON schema validation (structure correctness)
+2. **Safety check**: No cycles, depth limits, division-by-zero protection
 3. **Property test**: Fuzzing (no crashes on edge cases)
 4. **Shadow replay**: Monte Carlo (performance impact estimation)
 5. **Guardband check**: Live deployment (rollback if KPIs degrade)
 
-**Shadow Replay**:
+**Shadow Replay Example (Phase 6)**:
 ```python
 def validate_policy_change(old_policy, new_policy, history, n_samples=100):
     """
     Replay past episodes with new policy, sample opponent behaviors.
-    
+
     Returns:
         (mean_cost_delta, std_cost_delta, pareto_dominated)
     """
@@ -880,13 +1043,15 @@ def validate_policy_change(old_policy, new_policy, history, n_samples=100):
         old_cost = replay_with_policy(episode, old_policy, sample_opponents())
         new_cost = replay_with_policy(episode, new_policy, sample_opponents())
         cost_deltas.append(new_cost - old_cost)
-    
+
     mean_delta = np.mean(cost_deltas)
     std_delta = np.std(cost_deltas)
     pareto_dominated = all(d >= 0 for d in cost_deltas)
-    
+
     return mean_delta, std_delta, pareto_dominated
 ```
+
+**Complete DSL Specification**: See `/docs/policy_dsl_design.md` (to be created)
 
 ---
 
