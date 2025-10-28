@@ -18,6 +18,7 @@
 //! 3. FFI boundary is minimal and safe
 
 // Module declarations
+pub mod arrivals;
 pub mod core;
 pub mod models;
 pub mod orchestrator;
@@ -26,18 +27,20 @@ pub mod rng;
 pub mod settlement;
 
 // Re-exports for convenience
+pub use arrivals::{ArrivalConfig, AmountDistribution};
 pub use core::time::TimeManager;
 pub use models::{
     agent::{Agent, AgentError},
+    event::{Event, EventLog},
     state::SimulationState,
     transaction::{Transaction, TransactionError, TransactionStatus},
 };
 pub use orchestrator::{
-    AgentConfig, ArrivalConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator,
+    AgentConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator,
     OrchestratorConfig, PolicyConfig, SimulationError, TickResult,
 };
 pub use rng::RngManager;
-pub use settlement::{try_settle, try_settle_partial, SettlementError};
+pub use settlement::{try_settle, SettlementError};
 
 // PyO3 exports (when feature enabled)
 #[cfg(feature = "pyo3")]

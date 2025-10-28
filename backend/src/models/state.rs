@@ -111,6 +111,11 @@ impl SimulationState {
         self.agents.get_mut(id)
     }
 
+    /// Get all agent IDs in the simulation
+    pub fn get_all_agent_ids(&self) -> Vec<String> {
+        self.agents.keys().cloned().collect()
+    }
+
     /// Get reference to a transaction by ID
     pub fn get_transaction(&self, id: &str) -> Option<&Transaction> {
         self.transactions.get(id)

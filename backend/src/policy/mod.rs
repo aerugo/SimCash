@@ -60,15 +60,23 @@
 //! // decisions contain Submit/Hold/Drop actions
 //! ```
 
+use crate::orchestrator::CostRates;
 use crate::{Agent, SimulationState};
 
 pub mod deadline;
 pub mod fifo;
 pub mod liquidity_aware;
+pub mod splitting;
+pub mod tree; // Phase 6: JSON decision tree policies
 
 pub use deadline::DeadlinePolicy;
 pub use fifo::FifoPolicy;
 pub use liquidity_aware::LiquidityAwarePolicy;
+pub use splitting::LiquiditySplittingPolicy;
+
+// MockSplittingPolicy is exported to support integration tests
+// It should only be used in test code
+pub use splitting::MockSplittingPolicy;
 
 /// Decision about what to do with a transaction in Queue 1
 #[derive(Debug, Clone, PartialEq)]
@@ -79,11 +87,22 @@ pub enum ReleaseDecision {
     /// May settle immediately if liquidity sufficient, or queue in RTGS.
     SubmitFull { tx_id: String },
 
-    /// Submit partial amount (split transaction)
+    /// Split transaction into multiple parts and submit all children
     ///
-    /// Phase 4 note: Splitting not yet implemented. Reserved for Phase 5.
-    /// When implemented, this will create a new transaction for the partial amount.
-    SubmitPartial { tx_id: String, amount: i64 },
+    /// Creates `num_splits` child transactions from the parent transaction.
+    /// Each child has approximately `parent_amount / num_splits` amount.
+    /// The last child gets any remainder to ensure exact sum.
+    ///
+    /// All child transactions are immediately submitted to RTGS.
+    /// A split friction cost is charged: `split_friction_cost × (num_splits - 1)`
+    ///
+    /// # Phase 5 Implementation
+    /// This enables policies to "pace" large payments by voluntarily splitting
+    /// them into smaller chunks to manage liquidity constraints.
+    SubmitPartial {
+        tx_id: String,
+        num_splits: usize, // Number of equal-sized children to create
+    },
 
     /// Hold transaction in Queue 1 for later
     ///
@@ -171,6 +190,7 @@ pub trait CashManagerPolicy {
     /// * `agent` - Agent whose queue is being evaluated
     /// * `state` - Full simulation state (for querying transactions, other agents)
     /// * `tick` - Current simulation tick
+    /// * `cost_rates` - Read-only access to simulation cost configuration
     ///
     /// # Returns
     ///
@@ -182,10 +202,13 @@ pub trait CashManagerPolicy {
     /// - Multiple Submit decisions can be returned (batch submission)
     /// - Policy can inspect `state` to see RTGS queue size, other agents, etc.
     /// - Agent's `last_decision_tick` is automatically updated by orchestrator
+    /// - Policies can read cost_rates for decision-making but cannot modify them
+    ///   (ensures LLM-safe design where external costs cannot be gamed)
     fn evaluate_queue(
         &mut self,
         agent: &Agent,
         state: &SimulationState,
         tick: usize,
+        cost_rates: &CostRates,
     ) -> Vec<ReleaseDecision>;
 }

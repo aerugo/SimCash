@@ -101,11 +101,19 @@ pub struct Transaction {
     /// Default: 5, Range: 0-10
     priority: u8,
 
-    /// Can the transaction be split into multiple parts?
-    is_divisible: bool,
-
     /// Current status
     status: TransactionStatus,
+
+    /// Parent transaction ID (for split transactions)
+    ///
+    /// When a policy decides to split a large transaction into multiple smaller
+    /// child transactions, each child links back to the parent via this field.
+    /// This enables tracking of split transaction families for cost accounting
+    /// and analysis.
+    ///
+    /// - `None`: This is a regular (non-split) transaction
+    /// - `Some(parent_id)`: This is a child of a split transaction
+    parent_id: Option<String>,
 }
 
 impl Transaction {
@@ -155,8 +163,78 @@ impl Transaction {
             arrival_tick,
             deadline_tick,
             priority: 5, // Default priority
-            is_divisible: false,
             status: TransactionStatus::Pending,
+            parent_id: None,
+        }
+    }
+
+    /// Create a new split transaction (child of a parent transaction)
+    ///
+    /// This constructor is used when a policy decides to split a large transaction
+    /// into multiple smaller child transactions. Each child inherits the parent's
+    /// sender, receiver, and deadline, but has a smaller amount.
+    ///
+    /// # Arguments
+    /// * `sender_id` - Sender agent ID (same as parent)
+    /// * `receiver_id` - Receiver agent ID (same as parent)
+    /// * `amount` - Child transaction amount in cents (must be positive, <= parent amount)
+    /// * `arrival_tick` - Tick when child is created (usually same as parent arrival)
+    /// * `deadline_tick` - Deadline tick (same as parent)
+    /// * `parent_id` - Parent transaction ID
+    ///
+    /// # Panics
+    /// Panics if amount <= 0 or deadline <= arrival
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Transaction;
+    ///
+    /// let parent = Transaction::new(
+    ///     "BANK_A".to_string(),
+    ///     "BANK_B".to_string(),
+    ///     100_000,
+    ///     0,
+    ///     10,
+    /// );
+    ///
+    /// // Split into 2 children
+    /// let child1 = Transaction::new_split(
+    ///     "BANK_A".to_string(),
+    ///     "BANK_B".to_string(),
+    ///     50_000,
+    ///     0,
+    ///     10,
+    ///     parent.id().to_string(),
+    /// );
+    ///
+    /// assert!(child1.is_split());
+    /// assert_eq!(child1.parent_id(), Some(parent.id()));
+    /// ```
+    pub fn new_split(
+        sender_id: String,
+        receiver_id: String,
+        amount: i64,
+        arrival_tick: usize,
+        deadline_tick: usize,
+        parent_id: String,
+    ) -> Self {
+        assert!(amount > 0, "amount must be positive");
+        assert!(
+            deadline_tick > arrival_tick,
+            "deadline must be after arrival"
+        );
+
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            sender_id,
+            receiver_id,
+            amount,
+            remaining_amount: amount,
+            arrival_tick,
+            deadline_tick,
+            priority: 5, // Default priority (can be overridden with builder)
+            status: TransactionStatus::Pending,
+            parent_id: Some(parent_id),
         }
     }
 
@@ -176,25 +254,6 @@ impl Transaction {
     /// ```
     pub fn with_priority(mut self, priority: u8) -> Self {
         self.priority = priority.min(10); // Cap at 10
-        self
-    }
-
-    /// Mark transaction as divisible (builder pattern)
-    ///
-    /// # Example
-    /// ```
-    /// use payment_simulator_core_rs::Transaction;
-    ///
-    /// let tx = Transaction::new(
-    ///     "BANK_A".to_string(),
-    ///     "BANK_B".to_string(),
-    ///     100000,
-    ///     10,
-    ///     50,
-    /// ).divisible();
-    /// ```
-    pub fn divisible(mut self) -> Self {
-        self.is_divisible = true;
         self
     }
 
@@ -243,14 +302,61 @@ impl Transaction {
         self.priority
     }
 
-    /// Check if transaction is divisible
-    pub fn is_divisible(&self) -> bool {
-        self.is_divisible
-    }
-
     /// Get current status
     pub fn status(&self) -> &TransactionStatus {
         &self.status
+    }
+
+    /// Get parent transaction ID (for split transactions)
+    ///
+    /// Returns `Some(parent_id)` if this is a child of a split transaction,
+    /// `None` if this is a regular (non-split) transaction.
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Transaction;
+    ///
+    /// let parent = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 10);
+    /// assert_eq!(parent.parent_id(), None);
+    ///
+    /// let child = Transaction::new_split(
+    ///     "A".to_string(),
+    ///     "B".to_string(),
+    ///     50_000,
+    ///     0,
+    ///     10,
+    ///     parent.id().to_string(),
+    /// );
+    /// assert_eq!(child.parent_id(), Some(parent.id()));
+    /// ```
+    pub fn parent_id(&self) -> Option<&str> {
+        self.parent_id.as_deref()
+    }
+
+    /// Check if this is a split transaction (child of a parent)
+    ///
+    /// Returns `true` if this transaction was created by splitting a larger
+    /// parent transaction, `false` otherwise.
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Transaction;
+    ///
+    /// let parent = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 10);
+    /// assert!(!parent.is_split());
+    ///
+    /// let child = Transaction::new_split(
+    ///     "A".to_string(),
+    ///     "B".to_string(),
+    ///     50_000,
+    ///     0,
+    ///     10,
+    ///     parent.id().to_string(),
+    /// );
+    /// assert!(child.is_split());
+    /// ```
+    pub fn is_split(&self) -> bool {
+        self.parent_id.is_some()
     }
 
     /// Check if transaction is pending
@@ -265,8 +371,27 @@ impl Transaction {
 
     /// Check if transaction is past its deadline
     ///
+    /// Returns `true` if the current tick is **strictly after** the deadline tick.
+    /// Returns `false` if at or before the deadline.
+    ///
+    /// # Boundary Semantics
+    /// - `current_tick < deadline_tick`: Not past deadline (returns `false`)
+    /// - `current_tick == deadline_tick`: **At deadline, still valid** (returns `false`)
+    /// - `current_tick > deadline_tick`: Past deadline (returns `true`)
+    ///
     /// # Arguments
     /// * `current_tick` - Current simulation tick
+    ///
+    /// # Examples
+    /// ```
+    /// use payment_simulator_core_rs::Transaction;
+    ///
+    /// let tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+    ///
+    /// assert!(!tx.is_past_deadline(49)); // Before deadline
+    /// assert!(!tx.is_past_deadline(50)); // At deadline - still valid
+    /// assert!(tx.is_past_deadline(51));  // Past deadline
+    /// ```
     pub fn is_past_deadline(&self, current_tick: usize) -> bool {
         current_tick > self.deadline_tick
     }
@@ -317,36 +442,17 @@ impl Transaction {
             return Err(TransactionError::TransactionDropped);
         }
 
-        // Check if amount exceeds remaining
-        if amount > self.remaining_amount {
+        // Check if amount matches remaining (must settle full amount)
+        if amount != self.remaining_amount {
             return Err(TransactionError::AmountExceedsRemaining {
                 amount,
                 remaining: self.remaining_amount,
             });
         }
 
-        // Check if partial settlement allowed
-        if amount < self.remaining_amount && !self.is_divisible {
-            return Err(TransactionError::IndivisibleTransaction);
-        }
-
-        // Update remaining amount
-        self.remaining_amount -= amount;
-
-        // Update status
-        if self.remaining_amount == 0 {
-            // Fully settled
-            self.status = TransactionStatus::Settled { tick };
-        } else {
-            // Partially settled
-            if matches!(self.status, TransactionStatus::Pending) {
-                // First partial settlement
-                self.status = TransactionStatus::PartiallySettled {
-                    first_settlement_tick: tick,
-                };
-            }
-            // If already PartiallySettled, keep the original first_settlement_tick
-        }
+        // Settle the transaction (full settlement)
+        self.remaining_amount = 0;
+        self.status = TransactionStatus::Settled { tick };
 
         Ok(())
     }

@@ -23,7 +23,6 @@ fn test_transaction_new() {
     assert_eq!(tx.deadline_tick(), 50);
     assert_eq!(tx.status(), &TransactionStatus::Pending);
     assert_eq!(tx.priority(), 5); // Default priority
-    assert!(!tx.is_divisible()); // Default not divisible
     assert!(!tx.id().is_empty()); // Should have a UUID
 }
 
@@ -42,36 +41,6 @@ fn test_transaction_with_priority() {
 }
 
 #[test]
-fn test_transaction_divisible() {
-    let tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    )
-    .divisible();
-
-    assert!(tx.is_divisible());
-}
-
-#[test]
-fn test_transaction_builder_chain() {
-    let tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    )
-    .with_priority(9)
-    .divisible();
-
-    assert_eq!(tx.priority(), 9);
-    assert!(tx.is_divisible());
-}
-
-#[test]
 fn test_transaction_settle_full() {
     let mut tx = Transaction::new(
         "BANK_A".to_string(),
@@ -86,101 +55,6 @@ fn test_transaction_settle_full() {
     assert_eq!(tx.remaining_amount(), 0);
     assert_eq!(tx.status(), &TransactionStatus::Settled { tick: 20 });
     assert!(tx.is_fully_settled());
-}
-
-#[test]
-fn test_transaction_settle_partial() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    )
-    .divisible();
-
-    // Settle 40% of transaction
-    let result = tx.settle(40000, 20);
-    assert!(result.is_ok());
-    assert_eq!(tx.remaining_amount(), 60000);
-    assert_eq!(
-        tx.status(),
-        &TransactionStatus::PartiallySettled {
-            first_settlement_tick: 20
-        }
-    );
-    assert!(!tx.is_fully_settled());
-}
-
-#[test]
-fn test_transaction_settle_multiple_partials() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    )
-    .divisible();
-
-    // First partial settlement
-    tx.settle(30000, 20).unwrap();
-    assert_eq!(tx.remaining_amount(), 70000);
-    assert_eq!(
-        tx.status(),
-        &TransactionStatus::PartiallySettled {
-            first_settlement_tick: 20
-        }
-    );
-
-    // Second partial settlement
-    tx.settle(40000, 25).unwrap();
-    assert_eq!(tx.remaining_amount(), 30000);
-    // Status should still show first settlement tick
-    assert_eq!(
-        tx.status(),
-        &TransactionStatus::PartiallySettled {
-            first_settlement_tick: 20
-        }
-    );
-
-    // Final settlement
-    tx.settle(30000, 30).unwrap();
-    assert_eq!(tx.remaining_amount(), 0);
-    assert_eq!(tx.status(), &TransactionStatus::Settled { tick: 30 });
-}
-
-#[test]
-fn test_transaction_settle_exceeds_remaining() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    )
-    .divisible();
-
-    // Try to settle more than remaining
-    let result = tx.settle(150000, 20);
-    assert!(result.is_err());
-    assert_eq!(tx.remaining_amount(), 100000); // Unchanged
-}
-
-#[test]
-fn test_transaction_settle_indivisible_partial() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    ); // Not divisible
-
-    // Try to partially settle an indivisible transaction
-    let result = tx.settle(50000, 20);
-    assert!(result.is_err());
-    assert_eq!(tx.remaining_amount(), 100000); // Unchanged
 }
 
 #[test]
@@ -223,26 +97,6 @@ fn test_transaction_is_past_deadline() {
     assert!(!tx.is_past_deadline(49));
     assert!(!tx.is_past_deadline(50)); // At deadline is OK
     assert!(tx.is_past_deadline(51)); // Past deadline
-}
-
-#[test]
-fn test_transaction_settled_amount() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    )
-    .divisible();
-
-    assert_eq!(tx.settled_amount(), 0);
-
-    tx.settle(30000, 20).unwrap();
-    assert_eq!(tx.settled_amount(), 30000);
-
-    tx.settle(40000, 25).unwrap();
-    assert_eq!(tx.settled_amount(), 70000);
 }
 
 #[test]
@@ -291,30 +145,6 @@ fn test_transaction_settle_dropped() {
     // Try to settle a dropped transaction
     let result = tx.settle(100000, 50);
     assert!(result.is_err());
-}
-
-#[test]
-fn test_transaction_status_transitions() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    )
-    .divisible();
-
-    // Pending -> PartiallySettled
-    assert_eq!(tx.status(), &TransactionStatus::Pending);
-    tx.settle(40000, 20).unwrap();
-    assert!(matches!(
-        tx.status(),
-        TransactionStatus::PartiallySettled { .. }
-    ));
-
-    // PartiallySettled -> Settled
-    tx.settle(60000, 30).unwrap();
-    assert!(matches!(tx.status(), TransactionStatus::Settled { .. }));
 }
 
 #[test]

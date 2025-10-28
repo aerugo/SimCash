@@ -29,6 +29,7 @@
 //! - Realistic strategic behavior (hold non-urgent when low liquidity)
 
 use super::{CashManagerPolicy, HoldReason, ReleaseDecision};
+use crate::orchestrator::CostRates;
 use crate::{Agent, SimulationState};
 
 /// Liquidity-aware policy: preserve liquidity buffer
@@ -115,7 +116,9 @@ impl CashManagerPolicy for LiquidityAwarePolicy {
         agent: &Agent,
         state: &SimulationState,
         tick: usize,
+        _cost_rates: &CostRates,
     ) -> Vec<ReleaseDecision> {
+        // Note: cost_rates not used by LiquidityAwarePolicy (decision based on liquidity and urgency)
         let mut decisions = Vec::new();
         let current_balance = agent.balance();
 
@@ -181,6 +184,16 @@ mod tests {
     use super::*;
     use crate::Transaction;
 
+    fn create_test_cost_rates() -> CostRates {
+        CostRates {
+            overdraft_bps_per_tick: 0.0001,
+            delay_cost_per_tick_per_cent: 0.00001,
+            eod_penalty_per_transaction: 10000,
+            deadline_penalty: 5000,
+            split_friction_cost: 1000,
+        }
+    }
+
     #[test]
     fn test_liquidity_aware_submits_when_safe() {
         let mut policy = LiquidityAwarePolicy::new(100_000);
@@ -194,7 +207,8 @@ mod tests {
         state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 5);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 5, &cost_rates);
 
         assert_eq!(decisions.len(), 1);
         assert!(matches!(
@@ -216,7 +230,8 @@ mod tests {
         state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 5);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 5, &cost_rates);
 
         assert_eq!(decisions.len(), 1);
         assert!(matches!(decisions[0], ReleaseDecision::Hold { .. }));
@@ -236,7 +251,8 @@ mod tests {
         state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 8);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 8, &cost_rates);
 
         assert_eq!(decisions.len(), 1);
         // Should submit despite buffer violation (urgency override)
@@ -259,7 +275,8 @@ mod tests {
         state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 10);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 10, &cost_rates);
 
         assert_eq!(decisions.len(), 1);
         assert!(matches!(decisions[0], ReleaseDecision::Drop { .. }));
@@ -292,7 +309,8 @@ mod tests {
         agent_mut.queue_outgoing(id_urgent);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 5);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 5, &cost_rates);
 
         assert_eq!(decisions.len(), 3);
 
@@ -323,7 +341,8 @@ mod tests {
         state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 5);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 5, &cost_rates);
 
         assert_eq!(decisions.len(), 1);
         // Should submit (no buffer requirement)

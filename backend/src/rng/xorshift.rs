@@ -129,6 +129,44 @@ impl RngManager {
         // Convert to [0.0, 1.0) by dividing by 2^64
         (value >> 11) as f64 * (1.0 / ((1u64 << 53) as f64))
     }
+
+    /// Sample from Poisson distribution with given rate (lambda)
+    ///
+    /// Uses the Knuth algorithm for Poisson sampling.
+    ///
+    /// # Arguments
+    /// * `lambda` - Rate parameter (expected number of events)
+    ///
+    /// # Returns
+    /// Number of events sampled from Poisson(lambda)
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::RngManager;
+    ///
+    /// let mut rng = RngManager::new(12345);
+    /// let num_arrivals = rng.poisson(2.5); // Expected 2.5 arrivals
+    /// ```
+    pub fn poisson(&mut self, lambda: f64) -> u32 {
+        if lambda <= 0.0 {
+            return 0;
+        }
+
+        // Knuth's algorithm for Poisson sampling
+        let l = (-lambda).exp();
+        let mut k = 0;
+        let mut p = 1.0;
+
+        loop {
+            k += 1;
+            p *= self.next_f64();
+            if p <= l {
+                break;
+            }
+        }
+
+        k - 1
+    }
 }
 
 #[cfg(test)]

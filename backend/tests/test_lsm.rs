@@ -63,7 +63,7 @@ fn test_bilateral_offset_exact_match() {
 
     assert_eq!(result.pairs_found, 1, "Should find 1 bilateral pair");
     assert_eq!(result.offset_value, 500_000, "Should offset 500k");
-    assert!(result.settlements_count >= 2, "Should settle both transactions");
+    assert_eq!(result.settlements_count, 2, "Should settle exactly both transactions");
 
     // Verify balances net to original (net-zero settlement)
     assert_eq!(
@@ -116,45 +116,68 @@ fn test_bilateral_offset_asymmetric() {
 #[test]
 fn test_bilateral_offset_multiple_transactions() {
     // A→B: 3 transactions (200k each = 600k total)
-    // B→A: 2 transactions (200k each = 400k total)
-    // Net: A→B 200k
-    // Give both agents small balances (less than any transaction) to force queuing,
-    // but provide credit limits for bilateral offsetting net flows
+    // B→A: 3 transactions (200k each = 600k total)
+    // Net: 0 (exact match)
+    //
+    // This tests bilateral offsetting with MULTIPLE transactions in each direction,
+    // verifying that the LSM correctly sums up all A→B and all B→A flows before offsetting.
+    //
+    // Key scenario: Both banks have zero liquidity, creating complete gridlock,
+    // but bilateral offsetting should resolve it with net-zero settlement.
+
     let agents = vec![
-        create_agent("BANK_A", 50_000, 250_000),  // Can't pay 200k, but can handle -200k with credit
-        create_agent("BANK_B", 50_000, 250_000),  // Can't pay 200k initially
+        create_agent("BANK_A", 0, 0),  // Zero liquidity
+        create_agent("BANK_B", 0, 0),  // Zero liquidity
     ];
     let mut state = SimulationState::new(agents);
 
-    // A→B transactions
+    // A→B: 3 transactions totaling 600k
     for _ in 0..3 {
         let tx = create_transaction("BANK_A", "BANK_B", 200_000, 0, 100);
         submit_transaction(&mut state, tx, 1).unwrap();
     }
 
-    // B→A transactions
-    for _ in 0..2 {
+    // B→A: 3 transactions totaling 600k
+    for _ in 0..3 {
         let tx = create_transaction("BANK_B", "BANK_A", 200_000, 0, 100);
         submit_transaction(&mut state, tx, 2).unwrap();
     }
 
-    // With 50k balance + 250k credit = 300k available:
-    // - A→B #1 (200k) settles, leaves A with 100k available
-    // - A→B #2, #3 queue (need 200k each, only 100k available)
-    // - B→A #1, #2 both settle (B has enough after first settlement)
-    // So only 2 transactions queue
-    assert_eq!(state.queue_size(), 2, "2 A→B transactions queue");
+    // Verify all 6 transactions queued (gridlock - no liquidity for individual settlements)
+    assert_eq!(state.queue_size(), 6, "All 6 transactions should queue (complete gridlock)");
 
-    // Run bilateral offsetting on the 2 queued A→B transactions
-    // Since there are no queued B→A transactions, no bilateral pair exists
+    // Run bilateral offsetting
     let result = bilateral_offset(&mut state, 5);
 
-    assert_eq!(result.pairs_found, 0, "No bilateral pairs (no B→A in queue)");
-    assert_eq!(result.offset_value, 0, "No offset possible");
-    assert_eq!(result.settlements_count, 0, "No settlements via LSM");
+    // Should find 1 bilateral pair (A↔B)
+    assert_eq!(result.pairs_found, 1, "Should find 1 bilateral pair A↔B");
 
-    // Queue should still have 2 transactions (couldn't be offset)
-    assert_eq!(state.queue_size(), 2, "2 A→B transactions still queued");
+    // Should offset 600k (min of 600k A→B and 600k B→A)
+    assert_eq!(result.offset_value, 600_000, "Should offset 600k (exact match)");
+
+    // Should settle all 6 transactions (3 A→B + 3 B→A)
+    assert_eq!(result.settlements_count, 6, "Should settle all 6 transactions");
+
+    // Verify balances are net-zero (each sent 600k, each received 600k)
+    assert_eq!(
+        state.get_agent("BANK_A").unwrap().balance(),
+        0,
+        "A net zero (sent 600k, received 600k)"
+    );
+    assert_eq!(
+        state.get_agent("BANK_B").unwrap().balance(),
+        0,
+        "B net zero (sent 600k, received 600k)"
+    );
+
+    // Verify all transactions are fully settled
+    for (tx_id, tx) in state.transactions() {
+        assert!(
+            tx.is_fully_settled(),
+            "Transaction {} should be fully settled",
+            tx_id
+        );
+    }
 }
 
 #[test]

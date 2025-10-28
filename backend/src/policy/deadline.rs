@@ -19,6 +19,7 @@
 //! - Realistic cash manager behavior (urgent items first)
 
 use super::{CashManagerPolicy, HoldReason, ReleaseDecision};
+use crate::orchestrator::CostRates;
 use crate::{Agent, SimulationState};
 
 /// Deadline-aware policy: prioritize expiring transactions
@@ -89,7 +90,9 @@ impl CashManagerPolicy for DeadlinePolicy {
         agent: &Agent,
         state: &SimulationState,
         tick: usize,
+        _cost_rates: &CostRates,
     ) -> Vec<ReleaseDecision> {
+        // Note: cost_rates not used by DeadlinePolicy (decision based on urgency only)
         let mut decisions = Vec::new();
 
         for tx_id in agent.outgoing_queue() {
@@ -129,6 +132,16 @@ mod tests {
     use super::*;
     use crate::Transaction;
 
+    fn create_test_cost_rates() -> CostRates {
+        CostRates {
+            overdraft_bps_per_tick: 0.0001,
+            delay_cost_per_tick_per_cent: 0.00001,
+            eod_penalty_per_transaction: 10000,
+            deadline_penalty: 5000,
+            split_friction_cost: 1000,
+        }
+    }
+
     #[test]
     fn test_deadline_submits_urgent() {
         let mut policy = DeadlinePolicy::new(5);
@@ -145,7 +158,8 @@ mod tests {
         state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 8);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 8, &cost_rates);
 
         assert_eq!(decisions.len(), 1);
         assert!(matches!(
@@ -167,7 +181,8 @@ mod tests {
         state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 8);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 8, &cost_rates);
 
         assert_eq!(decisions.len(), 1);
         assert!(matches!(decisions[0], ReleaseDecision::Hold { .. }));
@@ -186,7 +201,8 @@ mod tests {
         state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 10);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 10, &cost_rates);
 
         assert_eq!(decisions.len(), 1);
         assert!(matches!(decisions[0], ReleaseDecision::Drop { .. }));
@@ -216,7 +232,8 @@ mod tests {
         agent_mut.queue_outgoing(id_expired);
 
         let agent = state.get_agent("BANK_A").unwrap();
-        let decisions = policy.evaluate_queue(agent, &state, 8);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(agent, &state, 8, &cost_rates);
 
         assert_eq!(decisions.len(), 3);
 

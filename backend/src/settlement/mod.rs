@@ -64,7 +64,7 @@ pub mod rtgs;
 
 // Re-export public API
 pub use rtgs::{
-    process_queue, submit_transaction, try_settle, try_settle_partial, QueueProcessingResult,
+    process_queue, submit_transaction, try_settle, QueueProcessingResult,
     SettlementError, SubmissionResult,
 };
 
