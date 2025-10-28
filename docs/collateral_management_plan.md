@@ -132,10 +132,36 @@
 
 ### 3.2 Component Responsibilities
 
+**IMPORTANT: Two-Layer Architecture**
+
+Collateral management operates on TWO independent layers:
+
+1. **Policy Layer (STEP 2.5)** - Runs EARLY in tick, BEFORE settlements
+   - **When**: After arrival generation, before RTGS submission
+   - **Purpose**: Strategic, forward-looking collateral decisions
+   - **Trigger**: Policy evaluation (every tick for every agent)
+   - **Decisions**: Based on forecasts, risk appetite, expected flows
+   - **Implementation**: `CashManagerPolicy::evaluate_collateral()`
+   - **Status**: ✅ COMPLETE (Phase 1)
+
+2. **End-of-Tick Manager (STEP 8)** - Runs LATE in tick, AFTER all settlements
+   - **When**: After LSM optimization, before cost accrual
+   - **Purpose**: Automatic cleanup and emergency posting
+   - **Trigger**: Every tick for every agent (mandatory, not policy-dependent)
+   - **Decisions**: Conservative reactive rules (obvious cases only)
+   - **Implementation**: `CollateralManager::manage_collateral()`
+   - **Status**: ❌ NOT IMPLEMENTED (Phase 4)
+
+**Why Two Layers?**
+- Policies can't see final settlement state (they run before settlements)
+- Manager sees final state after all settlements complete
+- Policies = strategic (optional, customizable)
+- Manager = cleanup + emergency (mandatory, uniform)
+
 | Component | Responsibility |
 |-----------|---------------|
-| **Policy** | Strategic collateral decisions based on forecasts, urgency |
-| **End-of-Tick Manager** | Cleanup (withdraw excess), emergency (post for expiring) |
+| **Policy (STEP 2.5)** | Strategic collateral decisions based on forecasts, urgency |
+| **End-of-Tick Manager (STEP 8)** | Cleanup (withdraw excess), emergency (post for expiring) |
 | **Orchestrator** | Execute collateral changes, enforce capacity limits |
 | **Agent** | Track posted collateral, provide capacity info |
 | **Event Log** | Record all collateral changes for analysis |
@@ -938,32 +964,48 @@ pub enum Event {
 
 ## 9. Implementation Phases
 
-### Phase 1: Core Infrastructure (3-4 days)
+### Phase 1: Core Infrastructure ✅ **COMPLETE (2025-10-29)**
 
-**Tasks**:
-1. ✅ Fix Agent.available_liquidity() to include collateral (already done in Part 1)
-2. Add `CollateralDecision` enum and `CollateralReason` enum
-3. Extend `CashManagerPolicy` trait with `evaluate_collateral()` method
-4. Add helper methods to Agent (capacity checks, liquidity gap calculation)
-5. Add `CollateralChange` event type
-6. Update orchestrator to execute collateral decisions
+**Status**: Policy Layer ONLY (End-of-Tick Manager is Phase 4)
+
+**What Was Implemented**:
+1. ✅ Fixed Agent.available_liquidity() to include collateral
+   - Formula: `balance + credit_limit + posted_collateral`
+2. ✅ Added `CollateralDecision` enum (Post/Withdraw/Hold) and `CollateralReason` enum
+3. ✅ Extended `CashManagerPolicy` trait with `evaluate_collateral()` method
+   - Default implementation returns `Hold` (backward compatible)
+4. ✅ Added helper methods to Agent:
+   - `max_collateral_capacity()`, `remaining_collateral_capacity()`
+   - `queue1_liquidity_gap()` - calculates liquidity shortfall
+5. ✅ Added `CollateralPost` and `CollateralWithdraw` events to event log
+6. ✅ Updated orchestrator to execute collateral decisions (STEP 2.5)
+   - Runs after policy evaluation, before RTGS submission
+   - Validates capacity constraints before execution
+   - Logs events with reason and new total
 
 **Files Modified**:
-- `backend/src/policy/mod.rs`
-- `backend/src/models/agent.rs`
-- `backend/src/orchestrator/engine.rs`
-- `backend/src/core/events.rs`
+- `backend/src/policy/mod.rs` - Added types and trait method
+- `backend/src/models/agent.rs` - Fixed liquidity formula, added helpers
+- `backend/src/orchestrator/engine.rs` - Added STEP 2.5 execution logic
+- `backend/src/models/event.rs` - Added collateral events
 
-**Tests**:
-- Unit tests for Agent helper methods
-- Mock policy tests (return Post/Withdraw, verify execution)
-- Orchestrator integration tests (collateral changes reflected in state)
+**Tests** (10 new tests, 134 total passing):
+- ✅ Unit tests for Agent helper methods (capacity, liquidity gap)
+- ✅ Agent collateral post/withdraw cycle tests
+- ✅ Available liquidity includes collateral test
+- ✅ All existing tests still pass (backward compatibility)
 
-**Success Criteria**:
-- Policies can return `CollateralDecision`
-- Orchestrator executes decisions correctly
-- Events logged properly
-- Capacity limits enforced
+**Success Criteria** (ALL MET):
+- ✅ Policies can return `CollateralDecision`
+- ✅ Orchestrator executes decisions correctly
+- ✅ Events logged properly with reason and new total
+- ✅ Capacity limits enforced (validation before execution)
+- ✅ Collateral increases available_liquidity correctly
+
+**What This Phase Does NOT Include**:
+- ❌ End-of-Tick Collateral Manager (Phase 4)
+- ❌ DSL extensions for collateral actions (Phase 2)
+- ❌ `liquidity_aware_with_collateral` policy (Phase 3)
 
 ---
 
@@ -1023,7 +1065,9 @@ pub enum Event {
 
 ---
 
-### Phase 4: End-of-Tick Manager (2 days)
+### Phase 4: End-of-Tick Manager ❌ **NOT STARTED**
+
+**Status**: Future work - implements the automatic/reactive collateral layer
 
 **Tasks**:
 1. Implement `CollateralManager` struct

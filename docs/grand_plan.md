@@ -37,13 +37,14 @@ The Rust core backend is **complete and battle-tested**:
 - **Phase 9 DSL Infrastructure**: Expression evaluator, JSON decision trees, validation pipeline - COMPLETE
 
 **In Progress** 🔄:
-- **Phase 8** (Cost Model): ~60% complete
+- **Phase 8** (Cost Model): ~75% complete
   - ✅ Core structures (CostRates, CostBreakdown, CostAccumulator)
-  - ✅ Cost calculations (4/5 types: liquidity, delay, split friction, deadline)
-  - ❌ Missing: Collateral cost, API exposure, metrics endpoints
+  - ✅ Cost calculations (5/5 types: liquidity, delay, split friction, deadline, collateral)
+  - ✅ Policy-layer collateral management (Phase 1 of collateral plan)
+  - ❌ Missing: API exposure for costs/metrics endpoints
 
 **Next Steps** (12-16 weeks):
-1. 🔄 Complete Phase 8: Add cost/metrics API endpoints, collateral cost (2-3 days remaining)
+1. 🔄 Complete Phase 8: Add cost/metrics API endpoints (2-3 days remaining)
 2. ❌ Phase 10: Data Persistence (DuckDB + Polars, schema-as-code, batch writes) (2 weeks)
 3. ❌ Phase 11: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
 4. ❌ Phase 12: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
@@ -452,9 +453,11 @@ The foundation implementation validated several critical design choices:
 - ✅ Can reproduce any simulation from seed
 - ✅ Performance targets exceeded (1200 ticks/sec vs 1000 target)
 
-### 4.2 Phase 8: Cost Model & Metrics 🔄 **60% COMPLETE**
+### 4.2 Phase 8: Cost Model & Metrics 🔄 **75% COMPLETE**
 
 **Goal**: Implement full cost accounting and KPI tracking — **PARTIALLY ACHIEVED**
+
+**Status Update (2025-10-29)**: All Rust backend cost calculations complete (including collateral). Only Python API layer endpoints remain.
 
 #### What's Complete ✅
 
@@ -464,17 +467,29 @@ The foundation implementation validated several critical design choices:
 - ✅ `CostAccumulator` maintaining cumulative totals (lines 257-300)
 - ✅ Per-agent accumulated costs in orchestrator state
 
-**Cost Calculations** (4 of 5 types operational):
+**Cost Calculations** (5 of 5 types operational):
 1. ✅ **Liquidity Costs**: `calculate_overdraft_cost()` charges per-tick overdraft fees
 2. ✅ **Delay Costs**: `calculate_delay_cost()` charges Queue 1 holding fees
 3. ✅ **Split Friction**: Structure exists with formula `f_s × (N-1)`
 4. ✅ **Deadline/EoD Penalties**: Framework in place, `handle_end_of_day()` implemented
-5. ❌ **Collateral Costs**: NOT implemented (no collateral tracking in Agent model)
+5. ✅ **Collateral Costs**: `calculate_collateral_cost()` accrues opportunity cost per tick
 
 **Cost Accrual Integration**:
 - ✅ `accrue_costs()` called every tick (step 6 of 9-step loop)
 - ✅ Costs accumulated per agent throughout simulation
 - ✅ `total_cost` returned in tick response
+
+**Collateral Management** (Phase 1 of collateral_management_plan.md - Policy Layer):
+- ✅ Agent model has `posted_collateral` field (backend/src/models/agent.rs)
+- ✅ `available_liquidity()` includes collateral: `balance + credit_limit + posted_collateral`
+- ✅ Collateral cost accrues every tick (opportunity cost basis points)
+- ✅ `CollateralDecision` and `CollateralReason` enums in policy layer
+- ✅ `CashManagerPolicy::evaluate_collateral()` method (default returns Hold)
+- ✅ Orchestrator executes collateral decisions (STEP 2.5 of tick loop)
+- ✅ Agent helper methods: `max_collateral_capacity()`, `queue1_liquidity_gap()`
+- ✅ Collateral events logged: `CollateralPost` and `CollateralWithdraw`
+- ✅ 10 comprehensive tests for Agent collateral methods
+- ✅ All 134 tests passing (backward compatible)
 
 #### What's Missing ❌
 
@@ -489,10 +504,12 @@ The foundation implementation validated several critical design choices:
 - ❌ Can't query per-agent cost breakdown via API
 - ❌ No system-wide metrics methods (total arrived, total settled, throughput)
 
-**Collateral Cost**:
-- ❌ Agent model has no `posted_collateral` field
-- ❌ No `calculate_collateral_cost()` function
-- ❌ No collateral opportunity cost accrual
+**Collateral Management** (Phase 4 of collateral_management_plan.md - End-of-Tick Manager):
+- ❌ End-of-Tick automatic collateral manager NOT implemented
+  - Should run after LSM, before cost accrual (STEP 8)
+  - Cleanup logic: Withdraw when Queue 2 empty and Queue 1 can settle without it
+  - Emergency logic: Post when deadline < 2 ticks and liquidity gap exists
+  - See: [docs/collateral_management_plan.md](collateral_management_plan.md) Phase 4
 
 **Testing**:
 - ❌ No tests for cost calculations
@@ -505,32 +522,41 @@ The foundation implementation validated several critical design choices:
 
 #### Remaining Work to Complete Phase 8
 
-**Estimated Effort**: 2-3 days
+**Estimated Effort**: 2-3 days (API layer only - cost calculations complete)
 
-1. **Backend (Rust)**:
-   - Add `posted_collateral` to Agent model
-   - Implement `calculate_collateral_cost()`
+**Backend (Rust)** - COMPLETE ✅:
+- ✅ All 5 cost types implemented and operational
+- ✅ Collateral cost accrues correctly every tick
+- ✅ Policy-layer collateral management (Phase 1 of collateral plan)
+
+**API Layer (Python)** - REMAINING ❌:
+1. **FFI Exposure**:
    - Expose `get_agent_accumulated_costs(agent_id)` via FFI
    - Create `get_system_metrics()` FFI method
 
-2. **API (Python)**:
+2. **FastAPI Endpoints**:
    - Create `/api/simulations/{sim_id}/costs` endpoint
    - Create `/api/simulations/{sim_id}/metrics` endpoint with:
      - Settlement rate (settled/arrived)
      - Average/max delay
      - Queue statistics
      - Liquidity usage by agent
-     - Cost breakdown
+     - Cost breakdown (all 5 types)
    - Add Prometheus `/metrics` endpoint
 
 3. **Testing**:
-   - Unit tests for collateral cost
    - Integration tests for cost queries across FFI
-   - E2E tests via API
+   - E2E tests via API endpoints
 
 4. **Documentation**:
    - Update configuration schema docs
    - Document cost/metrics API endpoints
+
+**Future Enhancements** (Not Phase 8):
+- End-of-Tick Collateral Manager (Phase 4 of collateral_management_plan.md)
+  - Automatic cleanup and emergency posting
+  - Runs after settlements, before costs
+  - Complements policy-layer decisions
 
 ### 4.3 Phase 9 (DSL): Policy Expression Language ✅ **COMPLETE**
 
@@ -843,7 +869,9 @@ $ payment-sim db validate
 
 ### 4.4 Phase 8 Completion: Cost Model API Layer (Week 4 - Remaining)
 
-**Status**: 60% complete (Rust core done, Python API layer needed)
+**Status**: 75% complete (Rust core COMPLETE, Python API layer needed)
+
+**Status Update (2025-10-29)**: All Rust cost calculations complete, including collateral cost accrual and policy-layer collateral management (Phase 1 of collateral_management_plan.md). Only Python API exposure remains.
 
 **Goal**: Expose cost data and metrics via REST API
 
@@ -868,27 +896,250 @@ $ payment-sim db validate
    async def prometheus_metrics() -> Response
    ```
 
-3. **Collateral Cost** (backend/src/models/agent.rs + orchestrator/engine.rs):
-   - Add `posted_collateral: i64` field to AgentState
-   - Implement `calculate_collateral_cost()` function
-   - Integrate into `accrue_costs()` tick step
-
-4. **Testing**:
-   - Unit tests for collateral cost formula
+3. **Testing**:
    - Integration tests for FFI cost queries
    - E2E tests via FastAPI endpoints
 
 **Success Criteria**:
-- ✅ All 5 cost types operational (including collateral)
-- ✅ Can query per-agent costs via `/simulations/{id}/costs`
-- ✅ Can query system-wide metrics via `/simulations/{id}/metrics`
-- ✅ Prometheus `/metrics` endpoint operational
+- ✅ All 5 cost types operational (including collateral) - COMPLETE
+- ❌ Can query per-agent costs via `/simulations/{id}/costs` - API endpoint missing
+- ❌ Can query system-wide metrics via `/simulations/{id}/metrics` - API endpoint missing
+- ❌ Prometheus `/metrics` endpoint operational - Not yet implemented
 
-### 4.5 Phase 9: LLM Manager Integration (Weeks 5-7) ❌ **NOT STARTED**
+### 4.5 Phase 10: Data Persistence (Weeks 5-7) ❌ **NOT STARTED**
+
+**Goal**: Implement DuckDB-based persistence for simulation data with schema-as-code management
+
+**Status**: 0% complete - Planning complete ([docs/persistence_implementation_plan.md](persistence_implementation_plan.md)), implementation not started
+
+**Rationale**: This phase is positioned **after** Phase 8 (Cost Model) and **before** Phase 11 (LLM Manager) because:
+1. Phase 8 cost data needs to be persisted for historical analysis
+2. Phase 11 LLM Manager **requires** persistence infrastructure:
+   - Shadow replay needs historical episode storage
+   - Policy evolution tracking requires database (store v23 → v24 diffs)
+   - Monte Carlo validation samples from episode database
+   - KPI comparison (old policy vs. new policy) queries stored metrics
+
+**Core Innovation**: Pydantic models as single source of truth for database schema. DDL auto-generated, migrations automated, runtime validation prevents schema drift.
+
+#### Implementation Phases
+
+**Phase 10.1: Infrastructure Setup (2-3 days)**
+
+**Deliverables**:
+- DuckDB + Polars dependencies added to `pyproject.toml`
+- Pydantic models for all 5 tables (simulations, transactions, daily_agent_metrics, policy_snapshots, config_archive)
+- DDL auto-generator (Pydantic → SQL CREATE TABLE statements)
+- Migration system (versioned SQL files, automatic application)
+- CLI commands: `payment-sim db init`, `db migrate`, `db validate`, `db create-migration`
+
+**Tasks**:
+1. Create `api/payment_simulator/persistence/` module:
+   - `models.py` - Pydantic schemas with table metadata
+   - `schema_generator.py` - Auto-generate DDL from models
+   - `migrations.py` - Migration manager class
+   - `connection.py` - Database manager with validation
+2. Create `migrations/` directory for versioned SQL files
+3. Add `cli/commands/db.py` for database management commands
+
+**Success Criteria**:
+- Can create database from Pydantic models (`payment-sim db init`)
+- Schema validation detects mismatches (`payment-sim db validate`)
+- Migration system applies changes (`payment-sim db migrate`)
+- Zero manual DDL writing - all auto-generated
+
+---
+
+**Phase 10.2: Transaction Batch Writes (2-3 days)**
+
+**Deliverables**:
+- Rust FFI method: `get_transactions_for_day(day: usize) -> Vec<Dict>`
+- Python batch write integration using Polars DataFrames
+- End-of-day persistence hook in simulation loop
+
+**Tasks**:
+1. **Rust (`backend/src/ffi/orchestrator.rs`)**:
+   ```rust
+   fn get_transactions_for_day(&self, day: usize) -> PyResult<Vec<Py<PyDict>>> {
+       // Return all transactions that arrived/settled/dropped during day
+       // Includes: tx_id, sender, receiver, amount, status, ticks, costs
+   }
+   ```
+
+2. **Python (`api/payment_simulator/cli/commands/run.py`)**:
+   ```python
+   import polars as pl
+   from payment_simulator.persistence import get_connection
+
+   db_conn = get_connection('simulation_data.db')
+
+   for day in range(num_days):
+       # Simulate entire day
+       for tick in range(ticks_per_day):
+           orch.tick()
+
+       # End of day: persist
+       daily_txs = orch.get_transactions_for_day(day)
+       if daily_txs:
+           df = pl.DataFrame(daily_txs)
+           df = df.with_columns(pl.lit(simulation_id).alias("simulation_id"))
+           db_conn.execute("INSERT INTO transactions SELECT * FROM df")
+   ```
+
+**Success Criteria**:
+- 40K transaction batch write completes in <100ms
+- Data survives process restart (query transactions from previous run)
+- Determinism preserved (same seed → same persisted transactions)
+- Zero-copy performance (Polars → DuckDB via Arrow)
+
+---
+
+**Phase 10.3: Agent Metrics Collection (1-2 days)**
+
+**Deliverables**:
+- Rust FFI method: `get_daily_agent_metrics(day: usize) -> Vec<Dict>`
+- Daily metrics tracking in Rust orchestrator
+- Batch write for agent snapshots
+
+**Tasks**:
+1. **Rust (`backend/src/orchestrator/engine.rs`)**:
+   - Add `DailyMetricsCollector` that tracks during tick loop:
+     - `min_balance` / `max_balance` (update on every balance change)
+     - `peak_overdraft` (max negative balance)
+     - `queue1_peak_size` (max queue size during day)
+     - Transaction counts (arrivals, settlements, drops)
+     - Cost accumulations (already tracked in Phase 8)
+   - Reset collector at start of each day
+
+2. **Python persistence**:
+   - Call `orch.get_daily_agent_metrics(day)` at end of day
+   - Create Polars DataFrame, insert to `daily_agent_metrics` table
+
+**Success Criteria**:
+- Agent metrics match tick-by-tick accumulated values
+- Can query: "BANK_A's peak overdraft on day 5 of run X"
+- Fast analytical queries without scanning all transactions
+
+---
+
+**Phase 10.4: Policy Snapshot Tracking (1 day)**
+
+**Deliverables**:
+- Policy snapshot records in database
+- Integration with Phase 9 DSL (track policy file changes)
+- SHA256 hashing for deduplication
+
+**Tasks**:
+1. Record policy snapshots when:
+   - Simulation starts (initial policies)
+   - Policy changes mid-simulation (manual or LLM-managed)
+
+2. Store in `policy_snapshots` table:
+   - `policy_file_path` - Path to JSON (e.g., `backend/policies/BANK_A_policy_v24.json`)
+   - `policy_hash` - SHA256 of JSON content
+   - `created_by` - 'manual', 'llm_manager', 'init'
+   - `validation_status` - For LLM Manager integration (Phase 11)
+
+**Success Criteria**:
+- Can reconstruct: "what policy was BANK_A using on day 3 of run X?"
+- Hash-based deduplication avoids storing identical policies multiple times
+- Provenance tracking: policy v23 → v24 change logged with timestamp
+
+---
+
+**Phase 10.5: Query Interface & Analytics (2-3 days)**
+
+**Deliverables**:
+- Pre-defined analytical query functions
+- CLI query commands
+- Polars DataFrame integration
+
+**Tasks**:
+1. **Create query module** (`api/payment_simulator/persistence/queries.py`):
+   ```python
+   def get_agent_performance(sim_id: str, agent_id: str) -> pl.DataFrame:
+       """Daily agent metrics across simulation."""
+       return conn.execute("""
+           SELECT day, closing_balance, peak_overdraft, total_cost
+           FROM daily_agent_metrics
+           WHERE simulation_id = ? AND agent_id = ?
+           ORDER BY day
+       """, [sim_id, agent_id]).pl()
+
+   def compare_policies(sim1: str, sim2: str, agent: str) -> pl.DataFrame:
+       """Compare policy performance across two runs."""
+       # Returns side-by-side comparison of KPIs
+   ```
+
+2. **CLI integration** (`cli/commands/query.py`):
+   ```bash
+   payment-sim query list-runs
+   payment-sim query show-run <sim_id>
+   payment-sim query agent-metrics <sim_id> <agent_id>
+   payment-sim query compare <sim_id1> <sim_id2>
+   ```
+
+**Success Criteria**:
+- Can query 250M transactions in <1 second for aggregated metrics
+- Polars DataFrames integrate with Jupyter notebooks for analysis
+- CLI provides quick insights without writing SQL
+- Can export to Parquet for external tools (R, Tableau)
+
+#### Dependencies
+
+**Requires**:
+- Phase 8 completion (cost data to persist)
+- Phase 9 DSL (policy JSON files to track)
+
+**Enables**:
+- **Phase 11 (LLM Manager)** - Critical dependency:
+  - Shadow replay queries: `SELECT * FROM simulations WHERE config_hash = ?`
+  - Policy comparison: `SELECT * FROM daily_agent_metrics WHERE simulation_id IN (?, ?)`
+  - Episode sampling: Random sample from `simulations` table
+  - Policy provenance: `SELECT * FROM policy_snapshots WHERE agent_id = ? ORDER BY day`
+
+**Synergy**:
+- Phase 14 (Production) can query database for frontend visualizations
+- Research & publication: Rich dataset for analysis
+
+#### Testing Strategy
+
+**Unit Tests**:
+- Schema validation (Pydantic model → DDL → validation)
+- Migration system (create, apply, rollback)
+- Query correctness (aggregations match expected results)
+
+**Integration Tests**:
+- End-to-end: Run 2-agent, 2-day simulation, verify all data persisted
+- Performance: 40K transaction insert in <100ms
+- Determinism: Same seed produces identical database records
+
+**Load Tests**:
+- 200 agents × 10 days × 200 ticks/day simulation
+- Verify database file size <10 GB (compressed columnar storage)
+- Analytical query on 240M transactions completes in <1s
+
+#### Success Metrics
+
+| Metric | Target | Rationale |
+|--------|--------|-----------|
+| Daily transaction batch write | <100ms | 40K transactions, non-blocking |
+| Daily metrics batch write | <20ms | 200 agent records |
+| Analytical query (1M txs) | <1s | Interactive analysis |
+| Database file size (200 runs) | <10 GB | Columnar compression |
+| Schema change workflow | <5 min | Pydantic update → migration → apply |
+
+**Estimated Effort**: 8-12 days (as detailed in `persistence_implementation_plan.md`)
+
+### 4.6 Phase 11: LLM Manager Integration (Weeks 8-10) ❌ **NOT STARTED**
 
 **Goal**: Asynchronous policy evolution via LLM
 
-**Note**: Phase 9 DSL infrastructure is **complete** (expression evaluator, JSON trees, validation - see Part III Section 4.3). This phase focuses on building the LLM-driven learning loop that uses that DSL.
+**Dependencies**:
+- Phase 9 DSL infrastructure is **complete** (expression evaluator, JSON trees, validation - see Part III Section 4.3)
+- Phase 10 Persistence **required** (provides episode storage for shadow replay, policy version tracking)
+
+**Note**: This phase builds the LLM-driven learning loop that uses the Phase 9 DSL and Phase 10 persistence infrastructure.
 
 #### LLM Manager Service
 **Deliverable**: Separate service for policy improvement
@@ -930,10 +1181,11 @@ $ payment-sim db validate
 **Deliverable**: Re-evaluate historical episodes with new policies
 
 **Tasks**:
-1. **Episode Collection**:
-   - Store deterministic seeds + configs
-   - Track performance metrics (costs, throughput, delays)
-   - Maintain episode history database
+1. **Episode Collection** (uses Phase 10 persistence):
+   - Query `simulations` table for historical episodes
+   - Load deterministic seeds + configs from `config_archive`
+   - Track performance metrics from `daily_agent_metrics` table
+   - Sample episodes from database for Monte Carlo validation
 
 2. **Replay Engine**:
    - Load historical episode (seed + config)
@@ -989,7 +1241,7 @@ $ payment-sim db validate
 
 **Estimated Effort**: 3 weeks
 
-### 4.6 Phase 10: Multi-Rail & Cross-Border (Weeks 8-9) ❌ **NOT STARTED**
+### 4.7 Phase 12: Multi-Rail & Cross-Border (Weeks 11-12) ❌ **NOT STARTED**
 
 **Status**: 0% complete - All work is future
 
@@ -1060,7 +1312,7 @@ $ payment-sim db validate
 
 **Estimated Effort**: 2 weeks (as originally planned)
 
-### 4.7 Phase 11: Shock Scenarios & Resilience (Week 10) ❌ **NOT STARTED**
+### 4.8 Phase 13: Shock Scenarios & Resilience (Week 13) ❌ **NOT STARTED**
 
 **Goal**: Test system under stress conditions
 
@@ -1108,7 +1360,7 @@ $ payment-sim db validate
 
 **Estimated Effort**: 1 week
 
-### 4.8 Phase 12: Production Readiness (Weeks 11-13) ❌ **NOT STARTED**
+### 4.9 Phase 14: Production Readiness (Weeks 14-16) ❌ **NOT STARTED**
 
 **Goal**: Observability, performance, and user experience
 
@@ -1954,7 +2206,7 @@ curl -X POST http://api:8000/simulations/sim_abc123/tick?n=100
 
 ## Part XI: Timeline & Milestones
 
-### 11.1 Phased Rollout (16-Week Plan)
+### 11.1 Phased Rollout (18-20 Week Plan)
 
 **Phase 7: Integration Layer (Weeks 1-3)** ✅ — FFI, Python API, CLI **COMPLETE**
 - ✅ Week 1: PyO3 bindings, FFI tests (24 tests passing)
@@ -1968,50 +2220,67 @@ curl -X POST http://api:8000/simulations/sim_abc123/tick?n=100
 - ❌ Missing: Collateral cost, API exposure, metrics endpoints
 - **Milestone M2**: Accurate cost tracking 🔄 **PARTIAL** (2-3 days remaining)
 
-**Phase 9 (DSL): Policy Expression Language (Weeks 5-7)** ✅ — **COMPLETE**
+**Phase 9: Policy Expression Language (Weeks 5-7)** ✅ — **COMPLETE**
 - ✅ Expression evaluator + decision-tree DSL (~4,880 lines)
 - ✅ Tree executor and validation pipeline
 - ✅ 50+ field accessors, comprehensive testing (940+ lines)
 - **Milestone M3**: DSL infrastructure for LLM-driven evolution ✅ **ACHIEVED**
 
-**Phase 9 (Learning): LLM Manager Integration (Weeks 5-7)** ❌ — **NOT STARTED**
+**Phase 10: Data Persistence (Weeks 5-7)** ❌ — **NOT STARTED**
+- DuckDB + Polars integration (zero-copy Arrow)
+- Pydantic models as schema source of truth
+- Batch writes (transactions, agent metrics, policy snapshots)
+- Migration system + CLI tools (db migrate, db validate)
+- Query interface for analytics
+- **Milestone M4**: Can store/query 250M+ transaction records ❌ **NOT STARTED**
+
+**Phase 11: LLM Manager Integration (Weeks 8-10)** ❌ — **NOT STARTED**
 - LLM manager service (separate process)
-- Shadow replay system
+- Shadow replay system (uses Phase 10 database)
 - Policy proposal generation + validation
 - Multi-agent learning infrastructure
-- **Milestone M4**: Full learning loop operational ❌ **NOT STARTED**
+- **Milestone M5**: Full learning loop operational ❌ **NOT STARTED**
 
-**Phase 10: Multi-Rail & Cross-Border (Weeks 8-9)** ❌ — **NOT STARTED**
+**Phase 12: Multi-Rail & Cross-Border (Weeks 11-12)** ❌ — **NOT STARTED**
 - DNS rail implementation (batch netting)
 - Multi-currency nostro accounts
-- **Milestone M5**: Multi-rail simulations ❌ **NOT STARTED**
+- **Milestone M6**: Multi-rail simulations ❌ **NOT STARTED**
 
-**Phase 11: Shock Scenarios (Week 10)** ❌ — **NOT STARTED**
+**Phase 13: Shock Scenarios (Week 13)** ❌ — **NOT STARTED**
 - Shock module (5 shock types)
 - Shock-aware metrics and analysis
-- **Milestone M6**: Stress testing capability ❌ **NOT STARTED**
+- **Milestone M7**: Stress testing capability ❌ **NOT STARTED**
 
-**Phase 12: Production Readiness (Weeks 11-13)** ❌ — **NOT STARTED**
+**Phase 14: Production Readiness (Weeks 14-16)** ❌ — **NOT STARTED**
 - WebSocket streaming to clients
 - React frontend (dashboard, charts, controls)
 - Prometheus metrics + Grafana dashboards
-- **Milestone M7**: Production deployment ready ❌ **NOT STARTED**
+- **Milestone M8**: Production deployment ready ❌ **NOT STARTED**
 
 ### 11.2 Dependency Graph
 
 ```
-Phase 7 (Integration) ──┬──> Phase 8 (Costs) ──> Phase 9 (LLM Manager)
-                        │                              │
-                        │                              v
-                        └──> Phase 10 (Multi-Rail) ──> Phase 11 (Shocks)
-                                                         │
-                                                         v
-                                                    Phase 12 (Production)
+Phase 7 (Integration) ──┬──> Phase 8 (Costs) ──> Phase 9 (DSL) ──┐
+                        │                                         │
+                        │                                         v
+                        │                                   Phase 10 (Persistence) ──┐
+                        │                                                            │
+                        │                                                            v
+                        │                                                       Phase 11 (LLM Manager)
+                        │                                                            │
+                        │                                                            v
+                        └──> Phase 12 (Multi-Rail) ──> Phase 13 (Shocks) ──> Phase 14 (Production)
 ```
 
-**Critical Path**: 7 → 8 → 9 (learning features depend on costs and DSL)
+**Critical Path**: 7 → 8 → 9 → 10 → 11 (LLM Manager depends on persistence for episode storage and policy tracking)
 
-**Parallel Work**: Phases 10-11 can proceed independently of Phase 9 (multi-rail, shocks)
+**Key Dependencies**:
+- Phase 11 (LLM Manager) **requires** Phase 10 (Persistence):
+  - Shadow replay needs historical episode database
+  - Policy evolution tracking requires `policy_snapshots` table
+  - Monte Carlo validation samples from `simulations` table
+
+**Parallel Work**: Phases 12-13 can proceed independently of Phase 11 (multi-rail, shocks)
 
 ### 11.3 Go/No-Go Decision Points
 
@@ -2021,7 +2290,17 @@ Phase 7 (Integration) ──┬──> Phase 8 (Costs) ──> Phase 9 (LLM Mana
   - Can create/control simulations via API
   - CLI functional for debugging
   - Determinism preserved across FFI boundary
-- **No-Go**: Block Phase 8-13 until resolved
+- **No-Go**: Block Phase 8-14 until resolved
+- **Status**: ✅ **ACHIEVED**
+
+**Milestone M2 (Week 5)**: Cost Model Complete
+- **Go Criteria**:
+  - All cost types implemented (overdraft, delay, deadline, EOD, split)
+  - Cost API endpoints functional
+  - Collateral cost model integrated
+  - Metrics validated against financial formulas
+- **No-Go**: Block Phase 10 (persistence needs complete cost data)
+- **Status**: 🔄 **IN PROGRESS** (90% complete, collateral cost remaining)
 
 **Milestone M3 (Week 7)**: Policy DSL Complete
 - **Go Criteria**:
@@ -2030,21 +2309,47 @@ Phase 7 (Integration) ──┬──> Phase 8 (Costs) ──> Phase 9 (LLM Mana
   - Hot-reload policies without restart
 - **Status**: ✅ **ACHIEVED**
 
-**Milestone M4 (Week 7)**: LLM Manager Operational
+**Milestone M4 (Week 7)**: Data Persistence Complete
+- **Go Criteria**:
+  - Can store 200 runs with 1.2M transactions each
+  - Schema validation prevents drift (Pydantic models as source of truth)
+  - Batch writes complete in <100ms
+  - Query interface operational for analytics
+  - Migration system functional
+- **No-Go**: Block Phase 11 (LLM Manager needs episode database)
+- **Status**: ❌ **NOT STARTED**
+
+**Milestone M5 (Week 10)**: LLM Manager Operational
 - **Go Criteria**:
   - Shadow replay produces valid KPI estimates
   - LLM manager proposes valid policy changes
   - Learning loop functional
+  - Policy evolution tracking via persistence layer
 - **No-Go**: Block production deployment
 - **Status**: ❌ **NOT STARTED**
 
-**Milestone M7 (Week 13)**: Production Ready
+**Milestone M6 (Week 12)**: Multi-Rail Support Complete
+- **Go Criteria**:
+  - RTGS + DNS rails operational
+  - Cross-border corridors functional
+  - Rail-specific policies working
+- **Status**: ❌ **NOT STARTED**
+
+**Milestone M7 (Week 13)**: Shock Scenarios Validated
+- **Go Criteria**:
+  - Outage scenarios produce expected gridlock
+  - Liquidity squeeze stress tests pass
+  - Counterparty failure propagation correct
+- **Status**: ❌ **NOT STARTED**
+
+**Milestone M8 (Week 16)**: Production Ready
 - **Go Criteria**:
   - WebSocket streaming works for 10+ clients
   - Frontend displays all state correctly
   - Performance targets met (>1000 ticks/sec)
   - Monitoring operational (Prometheus + Grafana)
 - **No-Go**: Block public launch
+- **Status**: ❌ **NOT STARTED**
 
 ---
 
@@ -2416,11 +2721,12 @@ This Grand Plan 2.2 provides a comprehensive roadmap from the completed foundati
 
 **Next Immediate Actions**:
 1. **Complete Phase 8** (2-3 days): Add cost/metrics API endpoints, implement collateral cost
-2. **Plan Phase 9 or 10**: Decide priority between LLM Manager integration vs. multi-rail features
+2. **Begin Phase 10** (2 weeks): Data Persistence with DuckDB, Polars, and schema-as-code
+3. **Prepare for Phase 11**: LLM Manager integration (depends on Phase 10 completion)
 
 ---
 
 **Document Status**: Living Document (update as implementation progresses)
 **Maintainer**: Payment Simulator Team
-**Last Updated**: October 28, 2025
-**Version**: 2.3 — Phase 7 Complete, Phase 9 DSL Complete, Phase 8 60% Complete, Roadmap Reorganized
+**Last Updated**: October 29, 2025
+**Version**: 2.4 — Phase 7 Complete, Phase 9 DSL Complete, Phase 8 90% Complete, Phase 10 Persistence Planned

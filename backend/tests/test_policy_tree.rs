@@ -253,3 +253,87 @@ fn test_parse_all_action_types() {
         assert!(tree.is_ok(), "Failed to parse action {}: {:?}", action, tree.err());
     }
 }
+
+// ============================================================================
+// PHASE 8: Collateral Management Actions
+// ============================================================================
+
+#[test]
+fn test_parse_collateral_action_types() {
+    // Test PostCollateral action
+    let post_json = r#"{
+        "version": "1.0",
+        "tree_id": "collateral_post_test",
+        "root": {
+            "node_id": "A1",
+            "type": "action",
+            "action": "PostCollateral",
+            "parameters": {
+                "amount": {"value": 100000},
+                "reason": {"value": "UrgentLiquidityNeed"}
+            }
+        }
+    }"#;
+
+    let tree: Result<DecisionTreeDef, _> = serde_json::from_str(post_json);
+    assert!(tree.is_ok(), "Failed to parse PostCollateral action: {:?}", tree.err());
+
+    // Test WithdrawCollateral action
+    let withdraw_json = r#"{
+        "version": "1.0",
+        "tree_id": "collateral_withdraw_test",
+        "root": {
+            "node_id": "A1",
+            "type": "action",
+            "action": "WithdrawCollateral",
+            "parameters": {
+                "amount": {"field": "posted_collateral"},
+                "reason": {"value": "LiquidityRestored"}
+            }
+        }
+    }"#;
+
+    let tree: Result<DecisionTreeDef, _> = serde_json::from_str(withdraw_json);
+    assert!(tree.is_ok(), "Failed to parse WithdrawCollateral action: {:?}", tree.err());
+
+    // Test HoldCollateral action (no parameters needed)
+    let hold_json = r#"{
+        "version": "1.0",
+        "tree_id": "collateral_hold_test",
+        "root": {
+            "node_id": "A1",
+            "type": "action",
+            "action": "HoldCollateral"
+        }
+    }"#;
+
+    let tree: Result<DecisionTreeDef, _> = serde_json::from_str(hold_json);
+    assert!(tree.is_ok(), "Failed to parse HoldCollateral action: {:?}", tree.err());
+}
+
+#[test]
+fn test_collateral_decision_with_computed_amount() {
+    // Test PostCollateral with computed amount (liquidity gap calculation)
+    let json = r#"{
+        "version": "1.0",
+        "tree_id": "collateral_computed_test",
+        "root": {
+            "node_id": "A1",
+            "type": "action",
+            "action": "PostCollateral",
+            "parameters": {
+                "amount": {
+                    "compute": {
+                        "op": "-",
+                        "left": {"field": "queue1_liquidity_gap"},
+                        "right": {"value": 0}
+                    }
+                },
+                "reason": {"value": "UrgentLiquidityNeed"}
+            }
+        }
+    }"#;
+
+    let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
+    assert!(tree.is_ok(), "Failed to parse collateral with computed amount: {:?}", tree.err());
+}
