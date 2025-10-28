@@ -84,6 +84,24 @@ pub enum Event {
         child_ids: Vec<String>,
     },
 
+    /// Agent posted collateral to increase available liquidity
+    CollateralPost {
+        tick: usize,
+        agent_id: String,
+        amount: i64,
+        reason: String,
+        new_total: i64,
+    },
+
+    /// Agent withdrew collateral to reduce opportunity cost
+    CollateralWithdraw {
+        tick: usize,
+        agent_id: String,
+        amount: i64,
+        reason: String,
+        new_total: i64,
+    },
+
     /// Transaction settled via RTGS
     Settlement {
         tick: usize,
@@ -140,6 +158,8 @@ impl Event {
             Event::PolicyHold { tick, .. } => *tick,
             Event::PolicyDrop { tick, .. } => *tick,
             Event::PolicySplit { tick, .. } => *tick,
+            Event::CollateralPost { tick, .. } => *tick,
+            Event::CollateralWithdraw { tick, .. } => *tick,
             Event::Settlement { tick, .. } => *tick,
             Event::QueuedRtgs { tick, .. } => *tick,
             Event::LsmBilateralOffset { tick, .. } => *tick,
@@ -157,6 +177,8 @@ impl Event {
             Event::PolicyHold { .. } => "PolicyHold",
             Event::PolicyDrop { .. } => "PolicyDrop",
             Event::PolicySplit { .. } => "PolicySplit",
+            Event::CollateralPost { .. } => "CollateralPost",
+            Event::CollateralWithdraw { .. } => "CollateralWithdraw",
             Event::Settlement { .. } => "Settlement",
             Event::QueuedRtgs { .. } => "QueuedRtgs",
             Event::LsmBilateralOffset { .. } => "LsmBilateralOffset",
@@ -188,6 +210,8 @@ impl Event {
             Event::PolicyHold { agent_id, .. } => Some(agent_id),
             Event::PolicyDrop { agent_id, .. } => Some(agent_id),
             Event::PolicySplit { agent_id, .. } => Some(agent_id),
+            Event::CollateralPost { agent_id, .. } => Some(agent_id),
+            Event::CollateralWithdraw { agent_id, .. } => Some(agent_id),
             Event::Settlement { sender_id, .. } => Some(sender_id),
             Event::QueuedRtgs { sender_id, .. } => Some(sender_id),
             Event::CostAccrual { agent_id, .. } => Some(agent_id),

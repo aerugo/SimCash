@@ -65,9 +65,23 @@ pub enum EvalError {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use payment_simulator_core_rs::policy::tree::{Value, EvalContext};
+/// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+/// use std::collections::HashMap;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
+/// let state = SimulationState::new(vec![agent.clone()]);
+/// let context = EvalContext::build(&tx, &agent, &state, 10);
+/// let params = HashMap::new();
+///
 /// let value = Value::Field { field: "balance".to_string() };
-/// let result = evaluate_value(&value, &context, &params)?;
+/// let result = payment_simulator_core_rs::policy::tree::evaluate_value(&value, &context, &params)?;
+/// assert_eq!(result, 1_000_000.0);
+/// # Ok(())
+/// # }
 /// ```
 pub fn evaluate_value(
     value: &Value,
@@ -210,12 +224,26 @@ const FLOAT_EPSILON: f64 = 1e-9;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use payment_simulator_core_rs::policy::tree::{Expression, Value, EvalContext};
+/// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+/// use std::collections::HashMap;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
+/// let state = SimulationState::new(vec![agent.clone()]);
+/// let context = EvalContext::build(&tx, &agent, &state, 10);
+/// let params = HashMap::new();
+///
 /// let expr = Expression::GreaterThan {
 ///     left: Value::Field { field: "balance".to_string() },
 ///     right: Value::Field { field: "amount".to_string() },
 /// };
-/// let result = evaluate_expression(&expr, &context, &params)?;
+/// let result = payment_simulator_core_rs::policy::tree::evaluate_expression(&expr, &context, &params)?;
+/// assert!(result); // 1_000_000 > 100_000
+/// # Ok(())
+/// # }
 /// ```
 pub fn evaluate_expression(
     expr: &Expression,
@@ -313,10 +341,30 @@ const MAX_TREE_DEPTH: usize = 100;
 ///
 /// # Example
 ///
-/// ```ignore
-/// let tree = load_decision_tree("policy.json");
-/// let context = EvalContext::build(&tx, &agent, &state, tick);
+/// ```rust
+/// use payment_simulator_core_rs::policy::tree::{DecisionTreeDef, EvalContext, traverse_tree};
+/// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
+/// let state = SimulationState::new(vec![agent.clone()]);
+/// let context = EvalContext::build(&tx, &agent, &state, 10);
+///
+/// // Simple always-release policy
+/// let json = r#"{
+///   "version": "1.0",
+///   "tree_id": "test_policy",
+///   "root": {
+///     "type": "action",
+///     "node_id": "A1",
+///     "action": "Release"
+///   }
+/// }"#;
+/// let tree: DecisionTreeDef = serde_json::from_str(json)?;
 /// let action_node = traverse_tree(&tree, &context)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn traverse_tree<'a>(
     tree: &'a DecisionTreeDef,
@@ -381,9 +429,29 @@ fn traverse_node<'a>(
 ///
 /// # Example
 ///
-/// ```ignore
-/// let action_node = traverse_tree(&tree, &context)?;
-/// let decision = build_decision(action_node, tx_id, &context, &tree.parameters)?;
+/// ```rust
+/// use payment_simulator_core_rs::policy::tree::{build_decision, TreeNode, ActionType, EvalContext};
+/// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+/// use std::collections::HashMap;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
+/// let tx_id = tx.id().to_string();
+/// let state = SimulationState::new(vec![agent.clone()]);
+/// let context = EvalContext::build(&tx, &agent, &state, 10);
+///
+/// // Create action node directly for testing
+/// let action_node = TreeNode::Action {
+///     node_id: "A1".to_string(),
+///     action: ActionType::Release,
+///     parameters: HashMap::new(),
+/// };
+///
+/// let params = HashMap::new();
+/// let decision = build_decision(&action_node, tx_id, &context, &params)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn build_decision(
     action_node: &TreeNode,
@@ -430,11 +498,52 @@ pub fn build_decision(
             })
         }
 
+        ActionType::Split => {
+            // Same as PaceAndRelease - split transaction into num_splits parts
+            let num_splits = evaluate_action_parameter(action_params, "num_splits", context, params)?;
+            let num_splits_usize = num_splits as usize;
+
+            if num_splits_usize < 2 {
+                return Err(EvalError::InvalidActionParameter(
+                    "num_splits must be >= 2".to_string(),
+                ));
+            }
+
+            Ok(ReleaseDecision::SubmitPartial {
+                tx_id,
+                num_splits: num_splits_usize,
+            })
+        }
+
         ActionType::Hold => {
-            // Optional reason parameter
-            let reason = if let Some(_reason_str) = action_params.get("reason") {
-                // Try to evaluate as string (for now, use Custom)
-                HoldReason::Custom("Policy decision".to_string())
+            use crate::policy::tree::types::ValueOrCompute;
+
+            // Parse reason parameter if provided
+            let reason = if let Some(reason_value) = action_params.get("reason") {
+                // Extract string from ValueOrCompute
+                match reason_value {
+                    ValueOrCompute::Direct { value } => {
+                        if let Some(reason_str) = value.as_str() {
+                            match reason_str {
+                                "InsufficientLiquidity" => HoldReason::InsufficientLiquidity,
+                                "AwaitingInflows" => HoldReason::AwaitingInflows,
+                                "LowPriority" => HoldReason::LowPriority,
+                                "NearDeadline" => {
+                                    // Get ticks_remaining from context
+                                    let ticks_remaining = context
+                                        .get_field("ticks_to_deadline")
+                                        .unwrap_or(0.0)
+                                        .max(0.0) as usize;
+                                    HoldReason::NearDeadline { ticks_remaining }
+                                },
+                                other => HoldReason::Custom(other.to_string()),
+                            }
+                        } else {
+                            HoldReason::Custom("Policy decision".to_string())
+                        }
+                    },
+                    _ => HoldReason::Custom("Policy decision".to_string()),
+                }
             } else {
                 HoldReason::Custom("Policy decision".to_string())
             };

@@ -64,9 +64,17 @@ impl EvalContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// use payment_simulator_core_rs::policy::tree::EvalContext;
+    /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+    ///
+    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
+    /// let state = SimulationState::new(vec![agent.clone()]);
+    ///
     /// let context = EvalContext::build(&tx, &agent, &state, 100);
     /// let balance = context.get_field("balance").unwrap();
+    /// assert_eq!(balance, 1_000_000.0);
     /// ```
     pub fn build(tx: &Transaction, agent: &Agent, state: &SimulationState, tick: usize) -> Self {
         let mut fields = HashMap::new();

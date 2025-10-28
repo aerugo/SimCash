@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "tree_id": "fifo_policy",
+  "description": "FIFO (First-In-First-Out) policy - submits all queued transactions immediately in queue order. This is the simplest baseline policy, equivalent to no policy at all (direct RTGS submission).",
+  "root": {
+    "type": "action",
+    "node_id": "A1",
+    "action": "Release",
+    "parameters": {}
+  },
+  "parameters": {}
+}

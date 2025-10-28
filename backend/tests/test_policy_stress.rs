@@ -46,14 +46,14 @@ fn test_high_frequency_arrivals_single_agent() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -126,14 +126,14 @@ fn test_sustained_high_load_100_ticks() {
                     urgency_threshold: 8,
                 },
                 arrival_config: Some(arrival_config),
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 150_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -208,14 +208,14 @@ fn test_extreme_high_frequency_arrivals() {
                 credit_limit: 100_000_000,
                 policy: PolicyConfig::Fifo, // Simple policy for speed
                 arrival_config: Some(arrival_config),
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 200_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -284,7 +284,7 @@ fn test_50_agent_high_frequency_simulation() {
                 _ => unreachable!(),
             },
             arrival_config: Some(arrival_config.clone()),
-        });
+                posted_collateral: None,        });
     }
 
     let config = OrchestratorConfig {

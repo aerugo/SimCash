@@ -1,0 +1,123 @@
+{
+  "version": "1.0",
+  "tree_id": "liquidity_aware_policy",
+  "description": "Liquidity-aware policy - preserves a target liquidity buffer while prioritizing urgent transactions. Uses different logic for zero vs non-zero buffer cases.",
+  "root": {
+    "type": "condition",
+    "node_id": "N1",
+    "description": "Check if past deadline (deadline <= current tick)",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "deadline_tick"},
+      "right": {"field": "current_tick"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "A1",
+      "action": "Drop",
+      "parameters": {}
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "N2",
+      "description": "Check if urgent (within urgency threshold)",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "ticks_to_deadline"},
+        "right": {"param": "urgency_threshold"}
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "N3",
+        "description": "Check if can physically pay (even if violates buffer)",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "available_liquidity"},
+          "right": {"field": "remaining_amount"}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "A2",
+          "action": "Release",
+          "parameters": {}
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "A3",
+          "action": "Hold",
+          "parameters": {
+            "reason": {"value": "InsufficientLiquidity"}
+          }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "N4",
+        "description": "Check if target_buffer is zero (special case)",
+        "condition": {
+          "op": "==",
+          "left": {"param": "target_buffer"},
+          "right": {"value": 0.0}
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "N5",
+          "description": "Zero buffer: check if can physically pay",
+          "condition": {
+            "op": ">=",
+            "left": {"field": "available_liquidity"},
+            "right": {"field": "remaining_amount"}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "A4",
+            "action": "Release",
+            "parameters": {}
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "A5",
+            "action": "Hold",
+            "parameters": {
+              "reason": {"value": "InsufficientLiquidity"}
+            }
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "N6",
+          "description": "Non-zero buffer: check if would violate buffer",
+          "condition": {
+            "op": "<",
+            "left": {
+              "compute": {
+                "op": "-",
+                "left": {"field": "balance"},
+                "right": {"field": "remaining_amount"}
+              }
+            },
+            "right": {"param": "target_buffer"}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "A6",
+            "action": "Hold",
+            "parameters": {
+              "reason": {"value": "InsufficientLiquidity"}
+            }
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "A7",
+            "action": "Release",
+            "parameters": {}
+          }
+        }
+      }
+    }
+  },
+  "parameters": {
+    "target_buffer": 50000.0,
+    "urgency_threshold": 5.0
+  }
+}

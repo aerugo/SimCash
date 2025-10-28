@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "tree_id": "deadline_policy",
+  "description": "Deadline-aware policy - prioritizes transactions approaching their deadline. Drops expired transactions, submits urgent transactions, and holds non-urgent transactions.",
+  "root": {
+    "type": "condition",
+    "node_id": "N1",
+    "description": "Check if past deadline (deadline <= current tick)",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "deadline_tick"},
+      "right": {"field": "current_tick"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "A1",
+      "action": "Drop",
+      "parameters": {}
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "N2",
+      "description": "Check if urgent (within urgency threshold)",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "ticks_to_deadline"},
+        "right": {"param": "urgency_threshold"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "A2",
+        "action": "Release",
+        "parameters": {}
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "A3",
+        "action": "Hold",
+        "parameters": {
+          "reason": {"value": "NearDeadline"}
+        }
+      }
+    }
+  },
+  "parameters": {
+    "urgency_threshold": 5.0
+  }
+}

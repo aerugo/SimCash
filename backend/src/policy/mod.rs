@@ -36,50 +36,41 @@
 //! }
 //! ```
 //!
-//! # Baseline Policies
+//! # JSON DSL Policies
 //!
-//! Three baseline policies are provided:
-//! 1. **FifoPolicy**: Submit oldest transaction first (simple baseline)
-//! 2. **DeadlinePolicy**: Prioritize transactions approaching deadline
-//! 3. **LiquidityAwarePolicy**: Hold transactions when liquidity is low
+//! All policies are now defined using JSON-based decision trees in the `tree` module.
+//! Use `PolicyConfig` enum with the orchestrator to load policies:
+//!
+//! Available policies:
+//! 1. **Fifo**: Submit oldest transaction first (simple baseline)
+//! 2. **Deadline**: Prioritize transactions approaching deadline
+//! 3. **LiquidityAware**: Hold transactions when liquidity is low
+//! 4. **MockSplitting**: Test-only policy that always splits
+//! 5. **LiquiditySplitting**: Intelligent splitting based on liquidity
 //!
 //! # Example Usage
 //!
-//! ```
-//! use payment_simulator_core_rs::policy::{LiquidityAwarePolicy, CashManagerPolicy};
-//! use payment_simulator_core_rs::{Agent, SimulationState, CostRates};
+//! See integration tests in `/backend/tests/` for complete examples of using
+//! PolicyConfig with the orchestrator.
 //!
-//! let mut policy = LiquidityAwarePolicy::new(100_000); // Keep 100k buffer
-//! let agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
-//! let state = SimulationState::new(vec![agent]);
-//! let cost_rates = CostRates::default();
+//! Policies are loaded automatically via the factory pattern:
 //!
-//! let decisions = policy.evaluate_queue(
-//!     state.get_agent("BANK_A").unwrap(),
-//!     &state,
-//!     5,
-//!     &cost_rates,
-//! );
-//! // decisions contain Submit/Hold/Drop actions
+//! ```rust
+//! use payment_simulator_core_rs::orchestrator::PolicyConfig;
+//!
+//! // Configure liquidity-aware policy
+//! let policy_config = PolicyConfig::LiquidityAware {
+//!     target_buffer: 100_000,
+//!     urgency_threshold: 5,
+//! };
+//! // Orchestrator automatically loads policies/liquidity_aware.json
+//! // and injects these parameters
 //! ```
 
 use crate::orchestrator::CostRates;
 use crate::{Agent, SimulationState};
 
-pub mod deadline;
-pub mod fifo;
-pub mod liquidity_aware;
-pub mod splitting;
-pub mod tree; // Phase 6: JSON decision tree policies
-
-pub use deadline::DeadlinePolicy;
-pub use fifo::FifoPolicy;
-pub use liquidity_aware::LiquidityAwarePolicy;
-pub use splitting::LiquiditySplittingPolicy;
-
-// MockSplittingPolicy is exported to support integration tests
-// It should only be used in test code
-pub use splitting::MockSplittingPolicy;
+pub mod tree; // JSON decision tree policies (DSL-based)
 
 /// Decision about what to do with a transaction in Queue 1
 #[derive(Debug, Clone, PartialEq)]
@@ -134,6 +125,58 @@ pub enum HoldReason {
 
     /// Approaching deadline but not yet urgent
     NearDeadline { ticks_remaining: usize },
+
+    /// Custom policy-specific reason
+    Custom(String),
+}
+
+/// Decision about collateral management
+///
+/// Policies can return this to indicate whether to post or withdraw collateral.
+/// This enables dynamic collateral management based on liquidity needs, deadlines,
+/// and cost optimization.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CollateralDecision {
+    /// Post additional collateral to increase available liquidity
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Amount of collateral to post (cents)
+    /// * `reason` - Why collateral is being posted
+    Post { amount: i64, reason: CollateralReason },
+
+    /// Withdraw collateral to reduce opportunity cost
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Amount of collateral to withdraw (cents)
+    /// * `reason` - Why collateral is being withdrawn
+    Withdraw { amount: i64, reason: CollateralReason },
+
+    /// Hold current collateral level (no change)
+    Hold,
+}
+
+/// Reason for posting or withdrawing collateral
+#[derive(Debug, Clone, PartialEq)]
+pub enum CollateralReason {
+    /// Urgent transactions need liquidity immediately
+    UrgentLiquidityNeed,
+
+    /// Preemptive posting to prepare for upcoming liquidity needs
+    PreemptivePosting,
+
+    /// Liquidity has been restored, no longer need collateral
+    LiquidityRestored,
+
+    /// End-of-day cleanup (withdraw unused collateral)
+    EndOfDayCleanup,
+
+    /// Emergency posting due to imminent deadline
+    DeadlineEmergency,
+
+    /// Optimizing cost trade-offs
+    CostOptimization,
 
     /// Custom policy-specific reason
     Custom(String),
@@ -215,4 +258,42 @@ pub trait CashManagerPolicy: Send + Sync {
         tick: usize,
         cost_rates: &CostRates,
     ) -> Vec<ReleaseDecision>;
+
+    /// Evaluate collateral management decision
+    ///
+    /// Called once per tick for each agent (after queue evaluation).
+    /// Returns a decision about whether to post, withdraw, or hold collateral.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent` - Agent whose collateral is being evaluated
+    /// * `state` - Full simulation state (for querying transactions, Queue 2, etc.)
+    /// * `tick` - Current simulation tick
+    /// * `cost_rates` - Read-only access to simulation cost configuration
+    ///
+    /// # Returns
+    ///
+    /// CollateralDecision (Post/Withdraw/Hold) with reason and amount
+    ///
+    /// # Default Implementation
+    ///
+    /// Returns `CollateralDecision::Hold`, making collateral management optional.
+    /// Existing policies continue working without modification (backward compatible).
+    ///
+    /// # Notes
+    ///
+    /// - Policies can read cost_rates to balance collateral cost vs other costs
+    /// - Can inspect Queue 2 to see pending transactions with imminent deadlines
+    /// - Should consider current balance, credit usage, and liquidity pressure
+    /// - Amount must be positive; orchestrator validates capacity constraints
+    fn evaluate_collateral(
+        &mut self,
+        _agent: &Agent,
+        _state: &SimulationState,
+        _tick: usize,
+        _cost_rates: &CostRates,
+    ) -> CollateralDecision {
+        // Default: no collateral management (backward compatible)
+        CollateralDecision::Hold
+    }
 }

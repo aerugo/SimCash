@@ -58,10 +58,34 @@ const MAX_TREE_DEPTH: usize = 100;
 ///
 /// # Example
 ///
-/// ```ignore
-/// let tree = load_decision_tree("policy.json")?;
-/// let sample_context = EvalContext::build(&sample_tx, &sample_agent, &state, 0);
-/// validate_tree(&tree, &sample_context)?;
+/// ```rust
+/// use payment_simulator_core_rs::policy::tree::{DecisionTreeDef, EvalContext, validate_tree};
+/// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
+/// let state = SimulationState::new(vec![agent.clone()]);
+/// let sample_context = EvalContext::build(&tx, &agent, &state, 0);
+///
+/// let json = r#"{
+///   "version": "1.0",
+///   "tree_id": "valid_policy",
+///   "root": {
+///     "type": "action",
+///     "node_id": "A1",
+///     "action": "Release"
+///   }
+/// }"#;
+/// let tree: DecisionTreeDef = serde_json::from_str(json)?;
+///
+/// // validate_tree returns Result<(), Vec<ValidationError>>
+/// match validate_tree(&tree, &sample_context) {
+///     Ok(()) => println!("Tree is valid"),
+///     Err(errors) => panic!("Validation failed: {} errors", errors.len()),
+/// }
+/// # Ok(())
+/// # }
 /// ```
 pub fn validate_tree(tree: &DecisionTreeDef, sample_context: &EvalContext) -> ValidationResult {
     let mut errors = Vec::new();

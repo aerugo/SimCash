@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "tree_id": "mock_splitting_policy",
+  "description": "Mock splitting policy - always splits transactions into fixed number of parts (testing only)",
+  "root": {
+    "type": "action",
+    "node_id": "A1",
+    "action": "Split",
+    "parameters": {
+      "num_splits": {
+        "param": "num_splits"
+      }
+    }
+  },
+  "parameters": {
+    "num_splits": 2.0
+  }
+}
