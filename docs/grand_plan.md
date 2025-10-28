@@ -389,10 +389,6 @@ The foundation implementation validated several critical design choices:
 
 **Test Coverage**: 107+ total tests (60+ Rust + 24 FFI + 23 API)
 
----
-
-## Part IV: Roadmap to Full Vision
-
 ### 4.1 Phase 7: Integration Layer ✅ **COMPLETE**
 
 **Goal**: Connect Rust core to Python API and CLI tools — **ACHIEVED**
@@ -449,6 +445,10 @@ The foundation implementation validated several critical design choices:
 - ✅ CLI is usable for debugging simulations
 - ✅ Can reproduce any simulation from seed
 - ✅ Performance targets exceeded (1200 ticks/sec vs 1000 target)
+
+----
+
+## Part IV: Roadmap to Full Vision
 
 ### 4.2 Phase 8: Cost Model & Metrics (Week 4)
 
