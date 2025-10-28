@@ -18,7 +18,7 @@
 //! All policies implement the `CashManagerPolicy` trait:
 //! ```rust
 //! use payment_simulator_core_rs::policy::{CashManagerPolicy, ReleaseDecision};
-//! use payment_simulator_core_rs::{Agent, SimulationState};
+//! use payment_simulator_core_rs::{Agent, SimulationState, CostRates};
 //!
 //! struct MyPolicy;
 //!
@@ -28,6 +28,7 @@
 //!         agent: &Agent,
 //!         state: &SimulationState,
 //!         tick: usize,
+//!         cost_rates: &CostRates,
 //!     ) -> Vec<ReleaseDecision> {
 //!         // Decision logic here
 //!         vec![]
@@ -46,16 +47,18 @@
 //!
 //! ```
 //! use payment_simulator_core_rs::policy::{LiquidityAwarePolicy, CashManagerPolicy};
-//! use payment_simulator_core_rs::{Agent, SimulationState};
+//! use payment_simulator_core_rs::{Agent, SimulationState, CostRates};
 //!
 //! let mut policy = LiquidityAwarePolicy::new(100_000); // Keep 100k buffer
 //! let agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
 //! let state = SimulationState::new(vec![agent]);
+//! let cost_rates = CostRates::default();
 //!
 //! let decisions = policy.evaluate_queue(
 //!     state.get_agent("BANK_A").unwrap(),
 //!     &state,
-//!     5
+//!     5,
+//!     &cost_rates,
 //! );
 //! // decisions contain Submit/Hold/Drop actions
 //! ```
@@ -158,7 +161,7 @@ pub enum HoldReason {
 ///
 /// ```
 /// use payment_simulator_core_rs::policy::{CashManagerPolicy, ReleaseDecision, HoldReason};
-/// use payment_simulator_core_rs::{Agent, SimulationState};
+/// use payment_simulator_core_rs::{Agent, SimulationState, CostRates};
 ///
 /// struct AlwaysSubmitPolicy;
 ///
@@ -168,6 +171,7 @@ pub enum HoldReason {
 ///         agent: &Agent,
 ///         _state: &SimulationState,
 ///         _tick: usize,
+///         _cost_rates: &CostRates,
 ///     ) -> Vec<ReleaseDecision> {
 ///         // Submit all queued transactions immediately
 ///         agent.outgoing_queue()
@@ -179,7 +183,7 @@ pub enum HoldReason {
 ///     }
 /// }
 /// ```
-pub trait CashManagerPolicy {
+pub trait CashManagerPolicy: Send + Sync {
     /// Evaluate internal queue and decide what to submit to RTGS
     ///
     /// Called once per tick for each agent. Returns a vector of decisions

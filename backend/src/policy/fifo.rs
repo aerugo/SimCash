@@ -24,7 +24,7 @@ use crate::{Agent, SimulationState};
 ///
 /// ```
 /// use payment_simulator_core_rs::policy::{FifoPolicy, CashManagerPolicy};
-/// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+/// use payment_simulator_core_rs::{Agent, SimulationState, Transaction, CostRates};
 ///
 /// let mut policy = FifoPolicy;
 /// let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
@@ -32,7 +32,8 @@ use crate::{Agent, SimulationState};
 /// agent.queue_outgoing("tx_002".to_string());
 ///
 /// let state = SimulationState::new(vec![agent.clone()]);
-/// let decisions = policy.evaluate_queue(&agent, &state, 5);
+/// let cost_rates = CostRates::default();
+/// let decisions = policy.evaluate_queue(&agent, &state, 5, &cost_rates);
 ///
 /// assert_eq!(decisions.len(), 2); // Submit both transactions
 /// ```

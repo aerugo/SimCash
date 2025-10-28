@@ -1,1502 +1,1337 @@
-## 1) Executive Summary
+# Payment Simulator: Grand Plan 2.0
+## From Foundation to Full Vision
 
-### Purpose
-Build a sandboxed, multi-agent simulator of high-value payment operations. The simulator demonstrates how banks (agents) time and fund outgoing payments during the business day while meeting deadlines, minimizing costs, and avoiding gridlock.
-
-### Core Innovation
-Each bank is controlled by a **decision-tree policy** (a small, auditable program) that determines payment timing and liquidity management. An **asynchronous LLM Manager service** improves the bank's policy between simulation episodes by editing the tree's code under version control. Candidate edits undergo automated validation (schema checks, property tests, Monte Carlo shadow replay) before deployment.
-
-### Architectural Approach: Hybrid Rust-Python System
-
-The simulator uses a **two-tier architecture** to maximize both performance and development velocity:
-
-1. **Rust Core Backend** (`/backend`): High-performance simulation engine
-   - All time-critical computation (tick loop, settlement, LSM algorithms)
-   - Zero-cost abstractions and memory safety
-   - Compiled to native code for maximum throughput
-   - Exposed as Python extension via PyO3/Maturin
-
-2. **Python API Layer** (`/api`): Developer-friendly middleware
-   - FastAPI REST/WebSocket endpoints
-   - Configuration management and validation
-   - Service orchestration and lifecycle management
-   - Testing infrastructure and utilities
-
-3. **FFI Boundary**: Clean separation between layers
-   - Rust exposes minimal, stable API surface
-   - Python handles serialization, HTTP, and async I/O
-   - Type-safe boundary via PyO3 bindings
-
-This architecture delivers:
-- **10-100x performance** improvement over pure Python (Rust orchestrator)
-- **Developer ergonomics** of Python for API and tooling
-- **Type safety** across the FFI boundary
-- **Independent evolution** of core and API layers
-
-### Key Architectural Principles
-
-1. **Separation of Concerns**
-   - **Rust domain**: Simulation logic, state management, deterministic computation
-   - **Python domain**: HTTP handling, async coordination, configuration, testing
-   - **FFI contract**: Versioned, stable interface between layers
-
-2. **Performance-Critical in Rust**
-   - Tick loop (must process thousands of ticks per second)
-   - Settlement engine (immediate RTGS + LSM cycle detection)
-   - RNG management (xorshift64* for determinism)
-   - Memory-intensive operations (transaction queues, ledger state)
-
-3. **Convenience in Python**
-   - REST/WebSocket API endpoints (FastAPI)
-   - Configuration loading and validation (Pydantic)
-   - Simulation lifecycle management
-   - Test fixtures and property-based testing (Hypothesis)
-
-4. **Asynchronous Learning**
-   - Simulation runs at full speed without blocking on LLM
-   - LLM Managers run in separate processes/containers
-   - Policy updates applied at episode boundaries (not mid-tick)
-   - Monte Carlo validation samples opponent behaviors
-
-5. **Deterministic Simulation**
-   - All randomness via seeded RNG (xorshift64*)
-   - Complete event log for perfect replay
-   - Git-versioned policies with commit hashes
-
-### What You Can Learn
-- How rules and costs shape system behavior (early-release norms vs hoarding)
-- How Liquidity-Saving Mechanisms (LSMs) reduce liquidity needs
-- How throughput targets affect timing and end-of-day bunching
-- What shocks (outages, fee spikes) do to queues
-- Which policy structures converge or oscillate
-
-### Audience
-- Engineering teams building the simulator
-- Payment operations and treasury practitioners
-- Researchers interested in coordination games under liquidity constraints
+**Document Version**: 2.0  
+**Date**: October 28, 2025  
+**Status**: Foundation Complete → Integration & Feature Expansion
 
 ---
 
-## 2) Real-World Grounding
+## Executive Summary
 
-### Who Are the Agents?
-Real-world intraday cash managers (treasury operations) who decide:
-- When to release payments across rails (Fedwire/CHAPS/TARGET)
-- How to fund them (overdraft, collateral, repo)
-- How to prioritize client and house flows
+### Project Purpose
 
-### What Actually Moves?
-**Settlement balances** (reserves at central bank or correspondent accounts). Debiting a customer account inside a bank does NOT move interbank money. The scarce resource intraday is settlement liquidity.
+Build a sandboxed, multi-agent simulator of high-value payment operations that demonstrates how banks strategically time and fund outgoing payments during the business day. The simulator models real-world RTGS (Real-Time Gross Settlement) systems like TARGET2, where banks must balance competing pressures: minimizing liquidity costs, meeting payment deadlines, avoiding gridlock, and maintaining system throughput.
 
-### How Do They Fund Payments?
-- Opening balances
-- Incoming payments (recycling)
-- Priced overdraft or collateralized credit (10-50 bps annually)
-- Intraday borrowing (repo/money markets)
-- Pre-funding nostros for cross-border corridors
+**Core Innovation**: Each bank is controlled by a **decision-tree policy** (small, auditable program) that determines payment timing and liquidity management. An **asynchronous LLM Manager service** improves policies between simulation episodes through code editing, with all changes validated via automated testing and Monte Carlo shadow replay before deployment.
 
-### Operational Realities
-- **Cut-offs & windows**: Market closes, PvP/DvP cash legs, payroll deadlines
-- **Throughput expectations**: Settle X% by time T (avoid end-of-day bunching)
-- **Gridlock risk**: If everyone waits for inflows, nothing moves
-- **Compliance holds**: Screening delays can block flows
-- **Ops capacity**: Message processing limits
+### What We've Achieved: Foundation Complete ✅
 
----
+The Rust core backend is **complete and battle-tested**:
 
-## 3) Problem Statement & Objectives
+- ✅ **Phase 1-2**: Time management, RNG (xorshift64*), Agent state, Transaction models
+- ✅ **Phase 3**: RTGS settlement engine + LSM (bilateral offsetting + cycle detection)
+- ✅ **Phase 4a**: Queue 1 (internal bank queues) + Cash Manager policies (FIFO, Deadline, LiquidityAware)
+- ✅ **Phase 4b**: Complete 9-step orchestrator tick loop integrating all components
+- ✅ **Phase 5**: Transaction splitting (agent-initiated payment pacing)
+- ✅ **Phase 6**: Arrival generation with configurable distributions (Poisson, normal, lognormal, uniform)
 
-### Problem
-Given stochastic arrivals of payments with deadlines and priorities, and given liquidity costs/constraints and rail rules, how should banks schedule and fund outgoing payments to minimize cost and risk while meeting obligations? How do independent policy choices interact system-wide?
+**Test Coverage**: 60+ passing unit/integration tests with zero failures, including critical invariants (determinism, balance conservation, gridlock resolution).
 
-### Objectives
+### Where We're Going: Integration & Feature Expansion 🎯
 
-**Agent-Level**:
-- Minimize total intraday cost (liquidity + delay + fees + penalties)
-- Respect credit limits and bilateral caps
-- Meet hard cut-offs and throughput targets
+**Immediate Next Steps** (2-3 weeks):
+1. **PyO3 FFI Bindings**: Expose Rust orchestrator to Python
+2. **Python API Layer**: FastAPI endpoints for simulation control
+3. **CLI Tool**: Command-line interface for debugging
+4. **Integration Testing**: End-to-end validation across FFI boundary
 
-**System-Level**:
-- Maximize throughput for given liquidity usage
-- Minimize delays, gridlock minutes, and end-of-day residuals
-- Understand LSM efficacy and policy interactions
-
-**Research**:
-- Map regimes (priced overdraft vs collateralized credit)
-- Test throughput targets and pacing incentives
-- Observe policy convergence/oscillation
-- Measure resilience to shocks
-
-### Non-Goals
-- Full core-banking or securities settlement replacement
-- Legal/regulatory sufficiency or detailed AML modeling
-- Real-time microsecond scheduling (we model discrete ticks)
-- Perfect information (agents see coarse aggregates, not others' queues)
+**Feature Expansion** (12-16 weeks):
+1. Cost modeling (liquidity, delay, split friction, deadline penalties)
+2. Advanced policies (learning agents, LLM-driven evolution)
+3. Multi-rail support (RTGS + DNS, cross-border corridors)
+4. Shock scenarios (outages, liquidity squeezes, counterparty stress)
+5. Production readiness (WebSocket streaming, frontend, observability)
 
 ---
 
-## 4) Key Concepts & Glossary
+## Part I: Background & Real-World Grounding
 
-| Term | Definition |
-|------|------------|
-| **RTGS** | Real-Time Gross Settlement; payments settle individually in final funds |
-| **LSM** | Liquidity-Saving Mechanism; queuing/offsetting logic that releases mutually offsetting payments |
-| **Queue** | Central system holding payments awaiting sufficient liquidity |
-| **Split** | Agent-initiated division of a payment into multiple RTGS submissions ("pacing"); not a system feature but a bank policy decision |
-| **Execution Attempt** | Scheduled retry for an indivisible payment (timing, not amount) |
-| **Package** | Linked set of payments with shared success criteria (e.g., DvP cash legs) |
-| **Bilateral Cap** | Maximum net exposure allowed between two participants |
-| **Throughput** | Cumulative value settled as fraction of cumulative value arrived |
-| **Peak Net Debit** | Maximum intraday shortfall of an agent's settlement account |
-| **Nostro** | Account held with correspondent bank in another currency/jurisdiction |
-| **RAG** | Red/Amber/Green alerting state for throughput, backlog, peak debit |
-| **Headroom** | Remaining unused intraday credit capacity |
-| **Episode** | Complete simulation run (one or more business days) |
-| **Fire-and-forget** | Policy evaluation model where action plan is generated once at arrival |
-| **Shadow replay** | Re-evaluation of past decisions with new policy using Monte Carlo sampling |
-| **Guardband** | Acceptable deviation range for KPIs after policy change |
-| **FFI** | Foreign Function Interface; the boundary between Rust and Python |
-| **PyO3** | Rust library for creating Python bindings |
-| **Maturin** | Build tool for Rust Python extensions |
+### 1.1 The Real-World Problem
+
+**Who Are the Agents?**  
+Real-world intraday cash managers (treasury operations teams) at banks who decide:
+- **When** to release payments across settlement rails (Fedwire, CHAPS, TARGET2)
+- **How** to fund them (overdraft, collateralized intraday credit, repo markets)
+- **Which** payments to prioritize (client obligations, house flows, regulatory deadlines)
+
+**What Actually Moves?**  
+**Settlement balances** at the central bank. When a bank debits a customer's account internally, no interbank money moves yet. The scarce resource intraday is **settlement liquidity** — the bank's balance at the central bank plus any available intraday credit.
+
+**How Do They Fund Payments?**
+- Opening balances (overnight reserves)
+- Incoming payments (liquidity recycling)
+- Priced overdraft (10-50 bps annualized) or collateralized intraday credit
+- Intraday repo/money market borrowing
+- Pre-funded nostro accounts for cross-border corridors
+
+### 1.2 Operational Realities
+
+Real payment systems face multiple constraints:
+
+**Time Constraints**:
+- Cut-off windows (market closes, CLS/PvP deadlines, payroll times)
+- Throughput expectations (settle X% by time T to avoid end-of-day bunching)
+- Business day structure (morning peaks, lunchtime lulls, afternoon surges)
+
+**Liquidity Constraints**:
+- Credit limits at central bank
+- Bilateral exposure caps between banks
+- Collateral availability and haircuts
+- Nostro prefunding requirements
+
+**Operational Realities**:
+- Gridlock risk (if everyone waits for inflows, nothing moves)
+- Compliance holds (AML screening can delay time-critical payments)
+- Message processing capacity limits
+- System outages and degraded mode operations
+
+### 1.3 Why Liquidity-Saving Mechanisms Matter
+
+Modern RTGS systems incorporate **LSMs (Liquidity-Saving Mechanisms)** to reduce liquidity requirements:
+
+**Bilateral Offsetting**: If Bank A owes Bank B $100M and Bank B owes Bank A $80M, settle the net ($20M A→B) instead of gross ($180M total).
+
+**Cycle Detection**: Find circular payment chains (A→B→C→A) and settle with minimal liquidity. A 3-bank cycle with payments of $100M each can settle with zero net liquidity movement.
+
+**Empirical Evidence**: TARGET2 studies show LSMs reduce average delay by 40-60% and peak liquidity usage by 30-50% under constrained conditions (Danmarks Nationalbank, ECB operational studies).
+
+**The Coordination Problem**: With costly liquidity, each bank prefers to wait for inflows. If all wait, gridlock forms. LSMs alleviate but don't eliminate the coordination challenge — they still need a *feed* of submitted payments to work with.
 
 ---
 
-## 5) Architecture Overview
-
-### System Components & Layer Separation
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          PYTHON API LAYER                                │
-│                        (FastAPI + Uvicorn)                               │
-│                                                                           │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  REST/WebSocket Endpoints                                        │   │
-│  │  - /simulations (CRUD, start/stop/reset)                        │   │
-│  │  - /transactions (submit, query, statistics)                    │   │
-│  │  - /settlements (bilateral ledger, LSM stats)                   │   │
-│  │  - /kpis (costs, throughput, peak debit)                        │   │
-│  │  - /queue (state, history)                                      │   │
-│  │  - /websocket (real-time updates)                               │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                │                                         │
-│  ┌─────────────────────────────▼─────────────────────────────────┐     │
-│  │  Service Layer                                                  │     │
-│  │  - SimulationManager (lifecycle, config validation)            │     │
-│  │  - RolloutManager (A/B testing, feature flags)                 │     │
-│  │  - MetricsStore (aggregation, WebSocket streaming)             │     │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                │                                         │
-│  ┌─────────────────────────────▼─────────────────────────────────┐     │
-│  │  Configuration & Validation                                     │     │
-│  │  - Pydantic schemas (SimulationConfig, AgentConfig, etc.)      │     │
-│  │  - YAML loader with environment variable substitution          │     │
-│  │  - Type validation and business rules                          │     │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                │                                         │
-└────────────────────────────────┼─────────────────────────────────────────┘
-                                 │
-                     ════════════▼══════════════
-                     ║   FFI BOUNDARY (PyO3)    ║
-                     ║                          ║
-                     ║  - Type-safe bindings    ║
-                     ║  - Minimal API surface   ║
-                     ║  - Error propagation     ║
-                     ║  - Zero-copy where safe  ║
-                     ════════════▼══════════════
-                                 │
-┌────────────────────────────────┼─────────────────────────────────────────┐
-│                          RUST CORE BACKEND                                │
-│                   (payment_simulator_core_rs crate)                       │
-│                                                                           │
-│  ┌─────────────────────────────▼─────────────────────────────────┐     │
-│  │  Orchestrator Engine                                            │     │
-│  │  - Tick loop (advance time, process events)                    │     │
-│  │  - Arrival generation (deterministic RNG)                      │     │
-│  │  - Policy evaluation coordination                              │     │
-│  │  - Cost accrual (liquidity, delay, penalty)                    │     │
-│  │  - Event logging (structured log for replay)                   │     │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                │                                         │
-│  ┌─────────────────────────────▼─────────────────────────────────┐     │
-│  │  Settlement Engine                                              │     │
-│  │  - Immediate RTGS settlement                                    │     │
-│  │  - Balance management (opening, inflows, outflows)              │     │
-│  │  - Overdraft and collateral tracking                            │     │
-│  │  - Settlement failure detection                                 │     │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                │                                         │
-│  ┌─────────────────────────────▼─────────────────────────────────┐     │
-│  │  LSM Coordinator                                                │     │
-│  │  - Bilateral netting (direct offsets)                          │     │
-│  │  - Cycle detection (3-cycles, 4-cycles)                        │     │
-│  │  - Batch optimization (multi-party clearing)                   │     │
-│  │  - Priority-aware processing                                   │     │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                           │
-│  ┌───────────────────────────────────────────────────────────────┐     │
-│  │  Core Data Structures                                          │     │
-│  │  - Transaction (state machine, settlement tracking)            │     │
-│  │  - Agent (balances, queues, limits)                            │     │
-│  │  - SystemState (global ledger, time manager)                   │     │
-│  │  - RNG Manager (xorshift64*, seed persistence)                 │     │
-│  └───────────────────────────────────────────────────────────────┘     │
-│                                                                           │
-│  ┌───────────────────────────────────────────────────────────────┐     │
-│  │  Specialized Modules                                           │     │
-│  │  - Arrivals (distributions, generator)                         │     │
-│  │  - Costs (accrual, rates)                                      │     │
-│  │  - Logging (events, levels, structured output)                 │     │
-│  │  - Metrics (performance counters)                              │     │
-│  └───────────────────────────────────────────────────────────────┘     │
-│                                                                           │
-└───────────────────────────────────────────────────────────────────────────┘
-
-              ┌──────────────────────────┐
-              │   Message Queue          │
-              │   (Redis/Kafka)          │
-              │   [Future: LLM Updates]  │
-              └──────────┬───────────────┘
-                         │
-              ┌──────────▼───────────┐
-              │   LLM Manager        │
-              │   (Separate Process) │
-              │  - Receives Updates  │
-              │  - Generates Patches │
-              │  - Validates (MC)    │
-              │  - Submits Patches   │
-              └──────────────────────┘
-```
-
-### Rust Backend Modules
-
-#### Core Module (`backend/src/core/`)
-**Responsibility**: Simulation foundation and time management
-
-**Components**:
-- `initialization.rs`: System bootstrap, state construction
-- `time.rs`: `TimeManager` - tick advancement, day rollover, window checks
-- `mod.rs`: Module exports and core types
+## Part II: Game Mechanics & Simulator Design
 
-**Key Types**:
-```rust
-pub struct TimeManager {
-    ticks_per_day: u32,
-    current_day: u32,
-    current_tick: u32,
-    absolute_tick: u64,
-}
-```
+### 2.1 Core Simulation Loop
 
-**Why Rust**: Tight control over tick loop performance; zero-cost time calculations.
+The simulator operates in **discrete ticks** (60-100 per simulated business day), with each tick executing a 9-step process:
 
-#### Orchestrator Module (`backend/src/orchestrator/`) 🎯 Phase 4b
-**Status**: Not yet implemented. Planned for Phase 4b.
+#### Tick Loop Structure
 
-**Responsibility**: Main simulation loop and event coordination
+**1. Arrivals** → New payment orders arrive at banks, entering Queue 1 (internal bank queues)
 
-**Target Components** (Phase 4b):
-- `engine.rs`: Tick loop, arrival generation, policy evaluation coordination
-- `mod.rs`: Public API for orchestrator
+**2. Policy Evaluation** → Cash manager policies decide what to submit to RTGS vs. hold, whether to split large payments, whether to add liquidity
 
-**Target Operations** (Phase 4b):
-1. Advance tick
-2. Generate arrivals (via RNG)
-3. Evaluate policies (payment, liquidity, nostro)
-4. Execute settlement attempts
-5. Run LSM coordinator
-6. Accrue costs
-7. Log events
+**3. Liquidity Decisions** → Banks may draw intraday credit, post collateral, or adjust buffers
 
-**Why Rust**: Orchestrator is the hottest path; runs thousands of ticks per second.
+**4. Queue 1 Processing** → Release decisions executed (transactions move from Queue 1 to "pending submission")
 
-#### Settlement Module (`backend/src/settlement/`) ✅ Phase 3
-**Status**: Complete (Phase 3a: RTGS, Phase 3b: LSM)
+**5. Transaction Splitting** → Large payments optionally divided into N separate payment instructions
 
-**Responsibility**: RTGS settlement logic, central queue management, and Liquidity-Saving Mechanisms
+**6. RTGS Submission** → Selected transactions submitted to central RTGS (Queue 2)
 
-**Implemented Components**:
-- `rtgs.rs`: T2-style immediate settlement + central queue (22 tests passing)
-- `lsm.rs`: Liquidity-Saving Mechanism with bilateral netting and cycle detection (15 tests passing)
-- `mod.rs`: Public settlement API
+**7. RTGS Settlement** → Immediate settlement if balance + credit headroom sufficient, otherwise queue
 
-**Implemented Operations**:
-- RTGS settlement: Check `balance + credit_limit >= amount`
-  - If yes: debit sender, credit receiver (immediate settlement)
-  - If no: add to **central RTGS queue**
-- Central queue management: Process queue each tick (retry pending transactions)
-- LSM bilateral netting: Find A↔B offsetting pairs
-- LSM cycle detection: Find multi-party cycles (A→B→C→A)
-- Transaction deadline enforcement: Drop transactions past deadline
+**8. LSM Optimization** → Bilateral offsetting and cycle detection on Queue 2
 
-**Test Status**:
-- 22 RTGS tests passing
-- 15 LSM tests passing
-- Full settlement pipeline validated
+**9. Cost Accrual & Metrics** → Update costs, track KPIs, generate events
 
-**Why Rust**: Critical path for every transaction; memory safety prevents double-spending bugs.
+### 2.2 Two-Queue Architecture
 
-#### LSM (Integrated into Settlement Module) ✅ Phase 3b
-**Status**: Complete. Implemented as part of `backend/src/settlement/` module.
+The simulator models real-world payment flows through **two distinct queues**:
 
-**Actual Location**: `backend/src/settlement/lsm.rs` (integrated with RTGS)
+#### Queue 1: Internal Bank Queues
+- **Purpose**: Strategic decision point for cash managers
+- **Location**: Inside each bank (agent state)
+- **Control**: Bank's policy determines release timing
+- **Costs Apply**: Delay costs accrue here (bank chose to hold)
+- **Actions Available**: Submit now, hold, split into N parts, drop
 
-**Responsibility**: Liquidity-Saving Mechanism (T2-style optimization)
+#### Queue 2: RTGS Central Queue
+- **Purpose**: Mechanical liquidity wait at central bank
+- **Location**: Central RTGS system (simulation state)
+- **Control**: Automatic retry every tick
+- **Costs Apply**: No delay costs (liquidity-constrained, not policy choice)
+- **Actions Available**: LSM optimization attempts settlement
 
-**Implemented Components**:
-- Bilateral offsetting: A↔B bilateral netting
-- Cycle detection: Multi-party cycle detection (A→B→C→A)
-- LSM coordinator: Orchestration and priority handling
+**Design Rationale**: This separation captures the reality that banks choose when to submit, but cannot force settlement — that depends on liquidity availability.
 
-**Implemented Algorithms**:
-- Bilateral netting: O(n²) pairwise comparison ✅
-- 3-cycle detection: O(n³) with pruning ✅
-- 4-cycle detection: O(n⁴) with early termination ✅
+### 2.3 Transaction Lifecycle
 
-**Test Status**: 15 LSM tests passing
+**States**:
+1. **Pending** — Arrived but not settled
+   - In Queue 1: Awaiting cash manager release decision
+   - In Queue 2: Submitted to RTGS, awaiting liquidity or LSM offset
+2. **Settled** — Fully settled with immediate finality (final state)
+3. **Dropped** — Rejected or past deadline (terminal state)
 
-**Why Rust**: Graph algorithms are CPU-intensive; Rust's zero-cost iterators shine here.
+**Splitting Mechanics**:
+- Banks may **voluntarily split** large payments at Queue 1 decision point
+- Creates N independent child transactions (each with unique ID)
+- Children inherit parent's sender, receiver, deadline, priority
+- Each child processes independently through RTGS
+- **Not a system feature** — purely a policy decision (agent-initiated pacing)
+- Incurs **split friction cost**: `f_s × (N-1)` to reflect operational overhead
 
-#### Models Module (`backend/src/models/`) ✅ Phase 1-2, Extended in Phase 4a
-**Status**: Core models complete. Extended with Queue 1 in Phase 4a.
+### 2.4 Cost Model
 
-**Components**:
-- `transaction.rs`: Transaction state machine ✅ (21 tests passing)
-- `agent.rs`: Agent state (balances, queues, limits, Queue 1) ✅ (17 tests passing)
-- `state.rs`: SimulationState with transaction/agent accessors ✅
-- `mod.rs`: Public model exports
+The simulator tracks five cost types:
 
-**Key Invariants**:
-- Transactions are immutable after creation (except settlement state) ✅
-- All monetary values are i64 (cents/minor units) ✅
-- State transitions are validated ✅
+**1. Liquidity Costs** (intraday credit/overdraft)
+- **When**: Charged per tick while balance < 0
+- **Formula**: `c_L × max(0, -B_i) × (1/ticks_per_day)`
+- **Interpretation**: Annualized overdraft rate (10-50 bps typical)
 
-**Phase 3 Implementation**: `Agent.balance` represents bank's settlement account at central bank.
+**2. Collateral Costs** (for collateralized credit)
+- **When**: Charged per tick while collateral posted
+- **Formula**: `c_C × collateral_value × (1/ticks_per_day)`
+- **Interpretation**: Opportunity cost of tying up securities
 
-**Phase 4a Extension**: Added Queue 1 (internal bank queue) fields to Agent model:
-- `outgoing_queue`: Vec of transaction IDs awaiting policy decisions
-- Queue accessors for policy evaluation
+**3. Delay Costs** (Queue 1 only)
+- **When**: Per tick while transaction remains in Queue 1
+- **Formula**: `p_k × (t - t_arrival)` for each transaction
+- **Interpretation**: Client dissatisfaction, reputational risk, opportunity cost
+- **Note**: Does NOT apply to Queue 2 (liquidity wait is beyond bank's control)
 
-**Why Rust**: Strong type system prevents invalid states; compile-time guarantees.
+**4. Split Friction Costs**
+- **When**: Charged immediately upon splitting decision
+- **Formula**: `f_s × (N-1)` for N-way split
+- **Interpretation**: Message processing, reconciliation, coordination overhead
 
-#### RNG Module (`backend/src/rng/`) ✅ Phase 1 Complete
-**Status**: Implemented. Deterministic xorshift64* RNG complete.
+**5. Deadline Penalties**
+- **When**: Transaction exceeds deadline or unsettled at end-of-day
+- **Formula**: Per-transaction penalty (large, to incentivize completion)
+- **Interpretation**: SLA violations, regulatory scrutiny
 
-**Components**:
-- `xorshift.rs`: `RngManager` using xorshift64* ✅ (10 tests passing)
-- `mod.rs`: Public RNG API
+### 2.5 Observation Space for Policies
 
-**Key Properties**:
-- Seed persistence (state returned after each call) ✅
-- Uniform, exponential, Poisson distributions ✅
-- Deterministic replay (same seed → same sequence) ✅
+Policies (and future LLM managers) observe:
 
-**Why Rust**: RNG must be fast (called on every arrival); no GC pauses.
-
-#### Core Module (`backend/src/core/`) ✅ Phase 1 Complete
-**Status**: Implemented. Time management complete.
-
-**Components**:
-- `time.rs`: `TimeManager` for discrete ticks/days ✅ (6 tests passing)
-- `init.rs`: State initialization (future)
-- `mod.rs`: Public core API
-
-**Why Rust**: Time management is used throughout the simulation loop.
-
-#### Arrivals Module (`backend/src/arrivals/`) 🎯 Phase 4b
-**Status**: Not yet implemented. Planned for Phase 4b (Orchestrator Integration).
-
-**Responsibility**: Payment arrival generation
-
-**Target Components** (Phase 4b):
-- `distributions.rs`: Normal, exponential, uniform distributions
-- `generator.rs`: Arrival config, agent pool selection
-- `mod.rs`: Public arrival API
-
-**Target Operations** (Phase 4b):
-- Sample arrival time (exponential/Poisson)
-- Sample amount (normal/uniform)
-- Select sender/receiver from agent pool
-- Assign rail, priority, deadline
-
-**Why Rust**: High-frequency sampling; needs to be very fast.
-
-#### Costs Module (`backend/src/costs/`) 🎯 Phase 4b
-**Status**: Not yet implemented. Planned for Phase 4b (Orchestrator Integration).
-
-**Responsibility**: Cost accrual (liquidity, delay, penalty)
-
-**Components**:
-- `accrual.rs`: Per-tick cost calculation
-- `rates.rs`: Overdraft rates, collateral haircuts
-- `mod.rs`: Public cost API
-
-**Key Operations**:
-- Accrue overdraft cost (peak net debit * rate * time)
-- Accrue delay cost (unsettled value * time)
-- Accrue penalty cost (missed deadline)
-
-**Why Rust**: Cost calculations run every tick for every agent; needs to be efficient.
-
-#### Logging Module (`backend/src/logging/`)
-**Responsibility**: Structured event logging
-
-**Components**:
-- `events.rs`: Event types (ArrivalEvent, SettlementEvent, LSMEvent, etc.)
-- `levels.rs`: Log levels (DEBUG, INFO, WARN, ERROR)
-- `logger.rs`: Event logger (append-only log)
-- `mod.rs`: Public logging API
-
-**Key Properties**:
-- Append-only (no overwrites)
-- Structured (serializable events)
-- Replay-friendly (deterministic ordering)
-
-**Why Rust**: High-throughput logging; needs to be non-blocking.
-
-#### Metrics Module (`backend/src/metrics/`)
-**Responsibility**: Performance counters and profiling
-
-**Components**:
-- `performance.rs`: Timing, memory, throughput counters
-- `mod.rs`: Public metrics API
-
-**Key Metrics**:
-- Ticks per second
-- Settlements per tick
-- LSM releases per tick
-- Memory usage
-
-**Why Rust**: Zero-overhead performance counters; no GC pauses.
-
-### Python API Modules
-
-#### Configuration (`api/config/`)
-**Responsibility**: YAML loading, Pydantic validation
-
-**Components**:
-- `loader.py`: YAML parsing, environment variable substitution
-- `schemas.py`: Pydantic models (SimulationConfig, AgentConfig, etc.)
-
-**Key Features**:
-- Type validation (Pydantic)
-- Business rule validation (ranges, constraints)
-- Default values and overrides
-
-**Why Python**: Pydantic's ergonomics for validation; easy YAML handling.
-
-#### Core (`api/core/`)
-**Responsibility**: Python-side initialization and state management
-
-**Components**:
-- `initialization.py`: Config → Rust initialization
-- `state.py`: Python wrapper for Rust SystemState
-
-**Why Python**: Simplified config management; Python's dynamic typing for flexibility.
-
-#### Payment Simulator API (`api/payment_simulator/`)
-**Responsibility**: FastAPI application and routes
-
-**Components**:
-- `api/main.py`: FastAPI app, CORS, middleware
-- `api/routes/`: REST endpoints (simulations, transactions, settlements, etc.)
-- `api/services/`: Service layer (SimulationManager, etc.)
-- `api/models.py`: Pydantic request/response models
-
-**Key Endpoints**:
-- POST `/simulations` - Create simulation
-- POST `/simulations/{id}/start` - Start simulation
-- POST `/simulations/{id}/tick` - Advance tick
-- GET `/simulations/{id}/state` - Get state snapshot
-- POST `/transactions` - Submit transaction
-- GET `/settlements/bilateral-ledger` - Get bilateral ledger
-- WS `/websocket` - Real-time updates
-
-**Why Python**: FastAPI's async performance; easy WebSocket handling.
-
-#### Backend Factory (`api/payment_simulator/backends/`)
-**Responsibility**: FFI wrapper and backend abstraction
-
-**Components**:
-- `rust_ffi_wrapper.py`: PyO3 bindings wrapper
-- `factory.py`: Backend selection (Rust vs. future alternatives)
-- `protocol.py`: Abstract backend interface
-
-**Key Responsibilities**:
-- Type conversion (Python ↔ Rust)
-- Error translation (Rust errors → Python exceptions)
-- Lifetime management (Rust objects in Python)
-
-**Why Python**: Flexible factory pattern; easy mocking for tests.
-
-#### Testing (`api/tests/`)
-**Responsibility**: Integration and E2E tests
-
-**Components**:
-- `unit/`: Unit tests (Python-side logic)
-- `integration/`: Integration tests (FFI boundary, end-to-end flows)
-- `e2e/`: Full API tests (HTTP + WebSocket)
-- `performance/`: Benchmarks
-
-**Key Test Types**:
-- FFI correctness (Rust functions callable from Python)
-- State conversion (Python → Rust → Python roundtrip)
-- Determinism (same seed → same results)
-- Performance (throughput, latency)
-
-**Why Python**: Pytest's flexibility; Hypothesis for property-based testing.
-
-### FFI Boundary Design
-
-#### Type Mapping
-
-| Python Type | Rust Type | Notes |
-|-------------|-----------|-------|
-| `int` | `i64` | All monetary values in cents |
-| `str` | `String` | UTF-8 enforced |
-| `float` | `f64` | Only for rates, not money |
-| `bool` | `bool` | Direct mapping |
-| `dict` | Struct | Pydantic model → Rust struct |
-| `list` | `Vec<T>` | Homogeneous collections |
-| `None` | `Option<T>` | Nullable types |
-
-#### Error Handling
-
-**Rust Side**:
-```rust
-pub enum SimulationError {
-    InvalidConfig(String),
-    SettlementFailed(String),
-    InsufficientLiquidity(String),
-}
-
-impl From<SimulationError> for PyErr {
-    fn from(err: SimulationError) -> PyErr {
-        PyValueError::new_err(err.to_string())
-    }
-}
-```
-
-**Python Side**:
-```python
-try:
-    backend.advance_tick()
-except ValueError as e:
-    logger.error(f"Rust error: {e}")
-    raise HTTPException(status_code=400, detail=str(e))
-```
-
-#### Performance Considerations
-
-1. **Minimize FFI crossings**: Batch operations when possible
-2. **Zero-copy for large data**: Use memory views for arrays
-3. **Avoid GIL contention**: Rust releases GIL during computation
-4. **Lazy serialization**: Only convert data when requested by API
-
-### Decision Type Separation (Unchanged from Original)
-
-```rust
-// Payment Decisions: Per transaction arrival (fire-and-forget)
-payment_action = agent.policy.evaluate_payment(
-    tx_context,      // This specific payment
-    agent_state,
-    public_signals
-)
-// Returns: PaymentAction (splits/attempts, priority)
-
-// Liquidity Decisions: Per tick or threshold-based
-if agent_state.needs_liquidity_review(tick) {
-    liquidity_action = agent.policy.evaluate_liquidity(
-        agent_state,
-        public_signals
-    )
-    // Returns: LiquidityAction (collateral, overdraft target)
-}
-
-// Nostro Decisions: Per tick or threshold-based
-if agent_state.needs_nostro_review(tick) {
-    nostro_action = agent.policy.evaluate_nostro(
-        agent_state,
-        public_signals
-    )
-    // Returns: NostroAction (cross-rail transfers)
-}
-```
-
-### Key Sequences
-
-**1. Tick Loop (Rust Orchestrator)**
-```
-For each tick t:
-1. Reset per-tick counters (ops capacity)
-2. Generate new payment arrivals (RNG)
-   - Sample arrival count (Poisson)
-   - For each arrival, sample amount, sender, receiver, rail
-   - Create Transaction with deadline
-3. For each agent with new payments:
-   - Evaluate payment policy (once per arrival, fire-and-forget)
-   - Schedule execution attempts or splits
-   - Store in agent's outgoing queue
-4. For each agent:
-   - Check if liquidity review needed
-   - If yes, evaluate liquidity policy
-   - Execute liquidity actions (collateral posting, overdraft adjustment)
-5. Execute settlement attempts:
-   - For each scheduled attempt:
-     - Check balance + credit limit
-     - If sufficient, settle immediately (RTGS)
-     - If insufficient, add to LSM queue
-6. Run LSM coordinator:
-   - Bilateral netting pass
-   - 3-cycle detection pass
-   - 4-cycle detection pass
-   - Release matched payments
-7. For each agent:
-   - Accrue costs (liquidity, delay)
-   - Update RAG status
-8. Log events (arrivals, settlements, LSM releases, costs)
-9. Publish Update Pack to Python layer (if needed)
-10. Check end-of-day conditions
-```
-
-**2. API Request Flow (Python → Rust → Python)**
-```
-1. Client sends HTTP POST to /simulations/{id}/tick
-2. FastAPI route handler receives request
-3. SimulationManager calls backend.advance_tick()
-   ↓ (FFI crossing)
-4. Rust orchestrator executes tick loop
-5. Rust returns updated state (or error)
-   ↑ (FFI crossing)
-6. Python converts Rust state to Pydantic model
-7. FastAPI serializes to JSON
-8. Client receives response
-```
-
-**3. WebSocket Streaming (Python pulls from Rust)**
-```
-1. Client connects to /websocket
-2. Python starts async loop:
-   - Call backend.get_events_since(last_tick)
-     ↓ (FFI crossing)
-   - Rust returns event batch
-     ↑ (FFI crossing)
-   - Python serializes to JSON
-   - Send to WebSocket
-   - Sleep 100ms
-   - Repeat
-```
-
-**4. Simulation Lifecycle**
-```
-1. POST /simulations with config
-   - Python validates config (Pydantic)
-   - Python calls backend.create_simulation(config)
-     ↓ (FFI crossing)
-   - Rust initializes SystemState
-   - Rust returns simulation_id
-     ↑ (FFI crossing)
-   - Python stores simulation in manager
-
-2. POST /simulations/{id}/start
-   - Python calls backend.start_simulation()
-   - Rust sets state to RUNNING
-
-3. Loop: POST /simulations/{id}/tick
-   - Python calls backend.advance_tick()
-   - Rust executes tick loop
-
-4. POST /simulations/{id}/stop
-   - Python calls backend.stop_simulation()
-   - Rust sets state to STOPPED
-
-5. DELETE /simulations/{id}
-   - Python calls backend.destroy_simulation()
-   - Rust frees memory
-```
+**Agent-Local State**:
+- Current settlement balance `B_i`
+- Available credit headroom `H_i`
+- Queue 1 contents (transactions, ages, priorities, deadlines)
+- Posted collateral and remaining capacity
+- Expected inflows (short-term forecast)
+
+**System-Level Signals** (coarse, public):
+- System-wide throughput percentage
+- Queue 2 pressure (queue length, age distribution)
+- Time remaining to cut-offs
+- Liquidity price indicators
+
+**Temporal Context**:
+- Current tick and day
+- Ticks to deadline for each transaction
+- Time since last policy evaluation
+
+**Note**: Banks do NOT see other banks' Queue 1 contents or exact balances (realistic information structure).
+
+### 2.6 Design Principles Validated by Foundation
+
+The foundation implementation validated several critical design choices:
+
+**✅ Determinism is Achievable**:
+- All randomness via seeded xorshift64* RNG
+- Replay tests confirm identical outcomes for same seed
+- Foundation for Monte Carlo shadow replay validation
+
+**✅ Performance Targets Met**:
+- Rust tick loop processes 1000+ ticks/second
+- LSM cycle detection completes in <1ms for typical graphs
+- Memory-efficient transaction queue management
+
+**✅ Two-Queue Separation Works**:
+- Clear distinction between policy decisions (Queue 1) and mechanical waits (Queue 2)
+- Delay costs apply only to Queue 1 (as intended)
+- Policies have natural decision hooks at arrival time
+
+**✅ LSM Delivers Expected Benefits**:
+- Four-bank ring test settles with minimal liquidity (Section 11 from Game Design Doc)
+- Bilateral offsetting reduces settlement liquidity by 30-40% in balanced scenarios
+- Cycle detection resolves simple gridlocks automatically
 
 ---
 
-## 6) Development Workflow
+## Part III: Current State Assessment
 
-### Build System
+### 3.1 What's Complete: Foundation Phases 1-6
 
-**Rust Backend**:
+#### Phase 1-2: Core Domain Models ✅
+**Modules**: `backend/src/core/`, `backend/src/models/`
+
+**Implemented**:
+- `TimeManager`: Discrete tick/day system with advancement
+- `RngManager`: Seeded xorshift64* for determinism
+- `AgentState`: Settlement balance, credit limits, queue management
+- `Transaction`: Full lifecycle (Pending→Settled/Dropped), priority, divisibility
+- `SimulationState`: Centralized state with agents + transactions
+
+**Tests**: 48 passing tests covering time, RNG, agent operations, transactions
+
+**Key Decisions Validated**:
+- Money as `i64` (cents) — no floating-point contamination
+- Agent balance represents central bank settlement account (not customer deposits)
+- Transaction IDs as strings (UUID support ready)
+
+#### Phase 3: RTGS Settlement Engine + LSM ✅
+**Modules**: `backend/src/settlement/rtgs.rs`, `backend/src/settlement/lsm.rs`
+
+**Implemented**:
+- **RTGS**: Immediate settlement when balance + credit sufficient, else Queue 2
+- **Queue processing**: FIFO retry with deadline expiration
+- **Partial settlement**: For divisible transactions
+- **Bilateral offsetting**: A↔B payment netting
+- **Cycle detection**: DFS-based graph search for payment loops
+- **LSM coordinator**: Multi-iteration optimization pass
+
+**Tests**: 37 passing tests (22 RTGS + 15 LSM)
+
+**Critical Validations**:
+- Balance conservation maintained (sum of all balances constant)
+- Liquidity recycling works (A→B→C payment chains)
+- Gridlock detection and LSM-based resolution
+- Four-bank ring scenario from Game Design Doc passes
+
+#### Phase 4a: Queue 1 + Cash Manager Policies ✅
+**Modules**: `backend/src/policy/`, extended `backend/src/models/agent.rs`
+
+**Implemented**:
+- **Queue 1 infrastructure**: Per-agent outgoing queues with analytics
+- **Policy trait**: `CashManagerPolicy` with `evaluate_queue()` method
+- **Three baseline policies**:
+  - `FifoPolicy`: Submit all immediately (simplest baseline)
+  - `DeadlinePolicy`: Prioritize urgent transactions
+  - `LiquidityAwarePolicy`: Preserve buffer, override for urgency
+- **Decision types**: `ReleaseDecision` enum with structured hold reasons
+
+**Tests**: 12 passing policy tests
+
+**Documentation**: 3200+ line guide at `docs/queue_architecture.md`
+
+#### Phase 4b: Orchestrator Integration ✅
+**Module**: `backend/src/orchestrator/engine.rs`
+
+**Implemented**:
+- Complete 9-step tick loop integrating all subsystems
+- State transitions (Queue 1 → pending → Queue 2 → settled)
+- Event logging for replay and debugging
+- Clean separation of concerns between modules
+
+**Tests**: 6 passing orchestrator integration tests
+
+**Validation**: End-to-end flows confirmed (arrival → policy → submission → settlement)
+
+#### Phase 5: Transaction Splitting ✅
+**Module**: Integrated into `backend/src/orchestrator/engine.rs`
+
+**Implemented**:
+- Voluntary splitting at Queue 1 decision point
+- Creates N independent child transactions
+- Inheritance of parent attributes (sender, receiver, deadline, priority)
+- Split friction cost calculation
+
+**Tests**: Covered in orchestrator tests
+
+#### Phase 6: Arrival Generation ✅
+**Module**: `backend/src/orchestrator/engine.rs` (ArrivalGenerator)
+
+**Implemented**:
+- Poisson process for arrival timing (inter-arrival exponential)
+- Four amount distributions: Normal, Lognormal, Uniform, Exponential
+- Per-agent configuration (rate, distribution, parameters)
+- Counterparty selection (weighted or uniform)
+
+**Tests**: Determinism verified across multiple runs
+
+### 3.2 What's Missing: Integration Layer
+
+#### PyO3 FFI Bindings 🎯
+**Status**: Not started  
+**Scope**: Expose Rust orchestrator to Python
+
+**Required**:
+- Wrap `Orchestrator` in PyO3 class
+- Convert Rust types to Python-compatible formats (dicts, lists)
+- Error propagation (Rust `Result` → Python exceptions)
+- Memory safety (ownership model across FFI)
+- Determinism preservation across boundary
+
+**Estimated Effort**: 1 week
+
+#### Python API Layer 🎯
+**Status**: Not started  
+**Scope**: FastAPI middleware for HTTP/WebSocket endpoints
+
+**Required**:
+- Configuration loading (YAML) with Pydantic validation
+- Simulation lifecycle management (create, start, stop, reset)
+- Transaction submission and querying
+- State snapshot endpoints
+- Metrics aggregation and storage
+
+**Estimated Effort**: 1-2 weeks
+
+#### CLI Tool 🎯
+**Status**: Not started  
+**Scope**: Command-line interface for debugging
+
+**Required**:
+- Commands: `create`, `tick`, `submit`, `state`, `stats`
+- Pretty-printed output (tables, summaries)
+- Config file support
+- Replay mode (load seed, reproduce exact run)
+
+**Estimated Effort**: 3-4 days
+
+#### Integration Testing 🎯
+**Status**: Not started  
+**Scope**: End-to-end validation across layers
+
+**Required**:
+- FFI boundary tests (Rust↔Python roundtrip)
+- API endpoint tests (all CRUD operations)
+- Determinism tests (Python→Rust→Python preservation)
+- Memory leak detection (valgrind on FFI)
+- Performance benchmarks (FFI overhead measurement)
+
+**Estimated Effort**: 4-5 days
+
+### 3.3 Lessons Learned from Foundation Work
+
+**1. Two-Queue Architecture is Powerful**:
+- Clear separation of strategic decisions (Queue 1) vs. mechanical waits (Queue 2)
+- Delay costs naturally apply only where bank has control
+- Policies have intuitive decision hooks
+- **Implication**: Maintain this clean separation as we add features
+
+**2. Determinism Requires Discipline**:
+- Must seed RNG explicitly at every source of randomness
+- System time is forbidden (breaks replay)
+- All stochastic processes (arrivals, counterparty selection) go through RNG
+- **Implication**: Add determinism tests for every new feature with randomness
+
+**3. LSM is Non-Negotiable**:
+- Without LSM, even simple scenarios gridlock under moderate liquidity constraints
+- Bilateral offsetting provides 30-40% liquidity savings in balanced flows
+- Cycle detection is essential for realistic multi-agent scenarios
+- **Implication**: LSM should be always-on (not optional) in production configs
+
+**4. Rust Performance is Exceptional**:
+- 1000+ ticks/second without optimization effort
+- LSM cycle detection <1ms for typical payment graphs
+- Memory-efficient state management
+- **Implication**: We can afford complex policies and richer state without performance concerns
+
+**5. Testing Pays Off**:
+- 60+ tests caught edge cases early (deadline boundaries, negative balances, empty queues)
+- Property tests (balance conservation) are invaluable invariants
+- **Implication**: Maintain >80% coverage and add property tests for new features
+
+---
+
+## Part IV: Roadmap to Full Vision
+
+### 4.1 Phase 7: Integration Layer (Weeks 1-3)
+
+**Goal**: Connect Rust core to Python API and CLI tools
+
+#### Week 1: PyO3 FFI Bindings
+**Deliverable**: Rust orchestrator exposed to Python
+
+**Tasks**:
+1. **Setup PyO3 Integration**:
+   - Add PyO3 dependency to `backend/Cargo.toml`
+   - Configure `lib.rs` for Python extension module
+   - Setup Maturin build configuration
+
+2. **Wrap Core Types**:
+   - `PyOrchestrator` class wrapping `Orchestrator`
+   - Type conversions: Rust structs ↔ Python dicts
+   - Methods: `new(config)`, `tick()`, `get_state()`, `submit_transaction()`
+
+3. **Error Handling**:
+   - Convert Rust `Result<T, E>` to Python exceptions
+   - Structured error messages with context
+   - Avoid panics (all failures return errors)
+
+4. **Testing**:
+   - Roundtrip tests (Python→Rust→Python)
+   - Memory safety tests (valgrind)
+   - Determinism preservation tests
+
+**Success Criteria**:
+- Can create orchestrator from Python with valid config
+- Can advance ticks and retrieve state
+- Same seed produces identical results (Python vs. pure Rust)
+- No memory leaks detected
+
+#### Week 2: Python API Layer
+**Deliverable**: FastAPI service with REST endpoints
+
+**Tasks**:
+1. **Configuration Management**:
+   - Pydantic schemas for all config types
+   - YAML loader with validation
+   - Environment variable substitution
+   - Config→Rust conversion with type safety
+
+2. **Simulation Lifecycle**:
+   - `SimulationManager` class (create, start, stop, reset)
+   - In-memory simulation registry (concurrent support)
+   - State persistence (optional save/load)
+
+3. **FastAPI Endpoints**:
+   - `POST /simulations` — create with config
+   - `POST /simulations/{id}/tick` — advance simulation
+   - `GET /simulations/{id}/state` — get state snapshot
+   - `POST /transactions` — submit transaction
+   - `GET /transactions/{id}` — query transaction details
+
+4. **Testing**:
+   - Unit tests for config validation
+   - API endpoint tests (all CRUD operations)
+   - Concurrent simulation tests (multiple sims)
+
+**Success Criteria**:
+- Can create/manage simulations via HTTP
+- Can submit transactions and advance ticks
+- State snapshots return correct data
+- Errors propagate cleanly to HTTP responses
+
+#### Week 3: CLI Tool & Integration Tests
+**Deliverable**: Command-line tool + comprehensive test suite
+
+**CLI Tasks**:
+1. **Commands**:
+   - `create <config.yaml>` — create simulation
+   - `tick [n]` — advance n ticks (default 1)
+   - `submit <from> <to> <amount>` — submit transaction
+   - `state` — print current state
+   - `stats` — print summary statistics
+
+2. **Output Formatting**:
+   - Table-formatted agent balances
+   - Transaction lists with status
+   - Queue statistics (Queue 1 + Queue 2)
+   - Summary KPIs (throughput, delays, costs)
+
+3. **Replay Support**:
+   - `replay <seed>` — reproduce exact run from seed
+
+**Integration Test Tasks**:
+1. **End-to-End Scenarios**:
+   - Two-bank payment exchange
+   - Four-bank ring with LSM resolution
+   - Gridlock formation and recovery
+   - Multi-day simulation
+
+2. **Performance Tests**:
+   - 10,000 tick simulation (measure time)
+   - 100 concurrent transactions (measure throughput)
+   - FFI overhead (compare pure Rust vs. Python→Rust)
+
+**Success Criteria**:
+- CLI is usable for debugging simulations
+- Can reproduce any simulation from seed
+- All integration tests pass
+- Performance targets met (>1000 ticks/sec)
+
+### 4.2 Phase 8: Cost Model & Metrics (Week 4)
+
+**Goal**: Implement full cost accounting and KPI tracking
+
+#### Cost Calculation
+**Deliverable**: All five cost types operational
+
+**Tasks**:
+1. **Liquidity Costs**:
+   - Track per-tick negative balances
+   - Apply annualized overdraft rate
+   - Accumulate to total cost
+
+2. **Collateral Costs**:
+   - Track posted collateral (if agent uses)
+   - Apply opportunity cost rate
+   - Haircut calculations (optional)
+
+3. **Delay Costs**:
+   - Queue 1 only (not Queue 2)
+   - Per-transaction, per-tick accrual
+   - Accumulate to agent and system totals
+
+4. **Split Friction**:
+   - Charged immediately on split decision
+   - Formula: `f_s × (N-1)`
+   - Added to transaction's total cost
+
+5. **Deadline Penalties**:
+   - Charged on transaction drop or EoD
+   - Per-transaction large penalty
+   - Logged separately for analysis
+
+**Testing**:
+- Cost accumulation tests (verify formulas)
+- Multi-day cost persistence
+- Edge cases (zero costs, massive penalties)
+
+#### KPI Dashboard
+**Deliverable**: Real-time metrics collection
+
+**Metrics**:
+- **Throughput**: Value settled / value arrived (by time)
+- **Delays**: Average/max ticks from arrival to settlement
+- **Queue Statistics**: Queue 1 + Queue 2 sizes, age distributions
+- **Liquidity Usage**: Peak net debit per agent, system total
+- **LSM Efficacy**: Bilateral offsets count, cycle settlements count
+- **Cost Breakdown**: By type (liquidity, delay, split, penalty)
+
+**API Endpoints**:
+- `GET /kpis/costs` — cost breakdown
+- `GET /kpis/throughput` — throughput over time
+- `GET /kpis/liquidity` — peak debits, headroom usage
+
+**Success Criteria**:
+- All costs accumulate correctly
+- KPIs update each tick
+- Can export metrics for plotting
+
+### 4.3 Phase 9: Advanced Policies (Weeks 5-7)
+
+**Goal**: Richer policy options and learning foundation
+
+#### Policy Framework Expansion
+**Deliverable**: Decision-tree policies with expressions
+
+**Tasks**:
+1. **Expression Evaluator**:
+   - Safe expression evaluation (no arbitrary code execution)
+   - Access to agent state, transaction attributes, system signals
+   - Supported operators: arithmetic, comparisons, Boolean logic
+   - Nested structures (if-then-else trees)
+
+2. **Policy DSL** (Domain-Specific Language):
+   ```yaml
+   policy:
+     type: decision_tree
+     rules:
+       - condition: "transaction.priority >= 8 AND ticks_to_deadline < 10"
+         action: submit_full
+       - condition: "agent.liquidity_pressure > 0.8"
+         action: hold
+         reason: preserve_liquidity
+       - condition: "transaction.amount > 100000000 AND can_split"
+         action: submit_partial
+         split_factor: 4
+       - default: hold
+   ```
+
+3. **Advanced Policies**:
+   - `ThresholdPolicy`: Submit if balance > threshold, else hold
+   - `ProportionalPolicy`: Submit fraction based on liquidity pressure
+   - `PriorityPolicy`: Weighted scoring of priority, deadline, amount
+   - `AdaptivePolicy`: Adjust thresholds based on inflow forecast
+
+4. **Policy Versioning**:
+   - Git-backed policy storage
+   - Commit hash tracking
+   - Rollback support
+   - A/B testing infrastructure
+
+**Testing**:
+- Expression evaluator safety tests
+- Policy correctness tests (known scenarios)
+- Versioning and rollback tests
+
+#### Learning Infrastructure
+**Deliverable**: Foundation for LLM-driven evolution
+
+**Tasks**:
+1. **Shadow Replay System**:
+   - Re-evaluate past episodes with new policy
+   - Monte Carlo sampling of opponent behaviors
+   - KPI validation (check for regressions)
+   - Guardrail enforcement
+
+2. **Policy Evaluation Pipeline**:
+   - Run candidate policy in shadow mode
+   - Compare KPIs to baseline (cost, delays, throughput)
+   - Flag violations (e.g., >10% cost increase)
+   - Approve/reject with structured reasons
+
+3. **Continuous Learning Loop**:
+   - Episode collection (store deterministic seeds)
+   - Policy proposal generation (LLM calls, async)
+   - Validation gate (shadow replay, property checks)
+   - Deployment (if approved, update policy)
+
+**Testing**:
+- Shadow replay determinism
+- Guardrail violation detection
+- Policy improvement verification
+
+**Success Criteria**:
+- Can define policies via YAML DSL
+- Expression evaluator is safe and correct
+- Shadow replay produces valid KPI comparisons
+- Learning loop can propose and validate changes
+
+### 4.4 Phase 10: Multi-Rail & Cross-Border (Weeks 8-9)
+
+**Goal**: Support multiple settlement rails and currency corridors
+
+#### Multi-Rail Architecture
+**Deliverable**: RTGS + DNS (Deferred Net Settlement) rail
+
+**Concepts**:
+- **RTGS**: Real-time gross (individual), immediate finality
+- **DNS**: Batch net (bilateral), periodic settlement windows
+
+**Tasks**:
+1. **Rail Abstraction**:
+   - `SettlementRail` trait with `submit()`, `process()` methods
+   - Rail-specific configs (RTGS: LSM enabled; DNS: batch times)
+   - Rail selection in transaction submission
+
+2. **DNS Implementation**:
+   - Accumulate bilateral positions (A→B net)
+   - Periodic settlement windows (e.g., every 50 ticks)
+   - Batch processing with netting
+
+3. **Cross-Rail Transfers**:
+   - Move liquidity between RTGS and DNS accounts
+   - Cost implications (DNS cheaper but delayed)
+   - Strategic rail selection
+
+**Testing**:
+- RTGS + DNS coexistence tests
+- Netting correctness (bilateral positions)
+- Liquidity transfers between rails
+
+#### Cross-Border Corridors
+**Deliverable**: Multi-currency nostro accounts
+
+**Tasks**:
+1. **Currency Model**:
+   - Multiple currencies (USD, EUR, GBP, SEK)
+   - Per-currency nostro accounts
+   - Exchange rate management (static or dynamic)
+
+2. **Correspondent Banking**:
+   - Nostro prefunding (agents fund foreign currency accounts)
+   - Cross-border payment routing (via correspondent)
+   - Funding costs (nostro opportunity cost)
+
+3. **FX Settlement**:
+   - CLS-style PvP (Payment vs. Payment) timing
+   - Simultaneous multi-leg settlement
+
+**Testing**:
+- Cross-border payment routing
+- Multi-currency balance conservation
+- PvP settlement atomicity
+
+**Success Criteria**:
+- Can configure RTGS + DNS rails
+- DNS batch netting works correctly
+- Cross-border payments settle via nostros
+- Multi-currency accounting is correct
+
+### 4.5 Phase 11: Shock Scenarios & Resilience (Week 10)
+
+**Goal**: Test system under stress conditions
+
+#### Shock Module
+**Deliverable**: Configurable shocks at runtime
+
+**Shock Types**:
+1. **Liquidity Squeeze**:
+   - Reduce opening balances by X%
+   - Increase collateral costs by Y%
+   - Observe gridlock incidence, LSM efficacy
+
+2. **Operational Outage**:
+   - Disable LSM for N ticks
+   - Simulate message processing capacity limit
+   - Measure queue buildup and recovery time
+
+3. **Counterparty Stress**:
+   - Specific bank loses access to credit
+   - Large idiosyncratic outflow (margin call)
+   - Bilateral cap reduction (credit concern)
+
+4. **Fee Regime Change**:
+   - Switch overdraft pricing mid-day
+   - Observe behavioral response (hoarding vs. release)
+
+5. **Deadline Cascade**:
+   - Concentrated deadline cluster (e.g., noon PvP window)
+   - Measure priority escalation and LSM load
+
+**Implementation**:
+- `ShockSchedule` in config (tick, type, parameters)
+- Runtime shock injection (via orchestrator)
+- Shock-aware metrics (pre/during/post comparison)
+
+**Testing**:
+- Each shock type in isolation
+- Combined shocks (liquidity squeeze + outage)
+- Recovery validation (system returns to normal)
+
+**Success Criteria**:
+- Can inject shocks at specified ticks
+- Metrics show expected responses
+- System recovers after shock removal
+
+### 4.6 Phase 12: Production Readiness (Weeks 11-13)
+
+**Goal**: Observability, performance, and user experience
+
+#### WebSocket Streaming
+**Deliverable**: Real-time state updates to clients
+
+**Tasks**:
+1. **Event Bus**:
+   - Publish tick events (arrivals, settlements, cost updates)
+   - Subscribe pattern (clients filter event types)
+   - Buffering for slow clients
+
+2. **WebSocket Endpoint**:
+   - `WS /websocket` — real-time event stream
+   - JSON-encoded events with timestamps
+   - Heartbeat/keepalive mechanism
+
+3. **Frontend Integration**:
+   - React context for WebSocket connection
+   - Live update of agent cards, transaction lists
+   - Real-time charts (throughput, queues, costs)
+
+**Testing**:
+- WebSocket connection stability
+- Event delivery under load
+- Client disconnect/reconnect handling
+
+#### React Frontend
+**Deliverable**: Web UI for simulation control and visualization
+
+**Components**:
+1. **Dashboard**:
+   - Agent cards (balance, queue size, costs)
+   - System-wide KPIs (throughput, peak debit)
+   - Timeline chart (tick progress)
+
+2. **Transaction List**:
+   - Filterable/sortable table (by status, agent, amount)
+   - Detail modal (full transaction attributes)
+   - Submission form (manual transactions)
+
+3. **Control Panel**:
+   - Start/stop/reset buttons
+   - Tick stepping (manual advance)
+   - Speed control (auto-tick interval)
+
+4. **Configuration Editor**:
+   - YAML editor with validation
+   - Save/load config files
+   - Example configs (dropdown)
+
+**Testing**:
+- Component unit tests
+- E2E tests (user flows)
+- Responsive design validation
+
+#### Observability & Logging
+**Deliverable**: Production-grade logging and metrics
+
+**Tasks**:
+1. **Structured Logging**:
+   - JSON logs with trace IDs
+   - Log levels (DEBUG, INFO, WARN, ERROR)
+   - Per-request context (simulation ID, tick)
+
+2. **Metrics Export**:
+   - Prometheus-compatible endpoint
+   - Metrics: request rate, latency, tick duration, queue sizes
+   - Grafana dashboard template
+
+3. **Health Checks**:
+   - Liveness probe (service responding)
+   - Readiness probe (simulation ready)
+   - Dependency checks (optional DB, cache)
+
+4. **Performance Profiling**:
+   - `cargo flamegraph` for Rust hot paths
+   - Python profiler for API layer
+   - Optimization based on profiling data
+
+**Success Criteria**:
+- Real-time updates work for 10+ concurrent clients
+- Frontend displays all simulation state correctly
+- Logs and metrics enable debugging
+- Performance targets met (>1000 ticks/sec maintained)
+
+### 4.7 Phase 13: LLM Manager Integration (Weeks 14-16)
+
+**Goal**: Asynchronous policy evolution via LLM
+
+#### LLM Manager Service
+**Deliverable**: Separate service for policy improvement
+
+**Architecture**:
+- **Decoupled**: Runs independently of simulator
+- **Asynchronous**: Simulator never blocks on LLM calls
+- **Episode-Driven**: Improves policies between simulation runs
+
+**Tasks**:
+1. **Policy Proposal Generation**:
+   - Input: Episode history (seeds, KPIs, opponent policies)
+   - LLM prompt: "Improve policy to reduce cost while maintaining throughput"
+   - Output: Candidate policy (YAML DSL)
+
+2. **Automated Validation**:
+   - Schema validation (syntax correctness)
+   - Property tests (no negative amounts, valid actions)
+   - Shadow replay (Monte Carlo with sampled opponents)
+   - Guardrails (KPI deltas within acceptable range)
+
+3. **Deployment Pipeline**:
+   - Git commit for approved policy
+   - Tag with version (e.g., `agent_A_policy_v23`)
+   - Rollback mechanism (revert to previous commit)
+
+4. **Feedback Loop**:
+   - Collect episode results with new policy
+   - Update LLM context with outcomes
+   - Iterate improvement proposals
+
+**Testing**:
+- LLM manager isolation (mock responses)
+- Validation pipeline (reject malformed policies)
+- Shadow replay correctness
+- Full loop (propose → validate → deploy → collect results)
+
+#### Multi-Agent Learning
+**Deliverable**: Simultaneous policy evolution
+
+**Challenges**:
+- Non-stationary environment (opponents evolve)
+- Credit assignment (who caused outcome?)
+- Exploration vs. exploitation
+
+**Approach**:
+1. **Self-Play**:
+   - Multiple agents improve simultaneously
+   - Each sees others as evolving opponents
+   - Sample opponent behaviors from recent episodes
+
+2. **Population-Based Training**:
+   - Maintain policy population per agent
+   - Select diverse opponents for shadow replay
+   - Promote successful policies
+
+3. **Convergence Detection**:
+   - Monitor KPI stability over episodes
+   - Flag oscillations or divergence
+   - Human-in-loop review for anomalies
+
+**Testing**:
+- Multi-agent learning scenarios (2-bank, 4-bank)
+- Convergence validation (stable equilibrium)
+- Robustness tests (shocks during learning)
+
+**Success Criteria**:
+- LLM manager can propose valid policy changes
+- Shadow replay validates without false positives
+- Policies improve over episodes (lower costs or higher throughput)
+- Learning converges to stable strategies
+
+---
+
+## Part V: Technical Architecture Details
+
+### 5.1 Component Interaction Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         DEPLOYMENT LAYER                              │
+│  ┌────────────┐  ┌────────────┐  ┌─────────────┐  ┌──────────────┐ │
+│  │   React    │  │  FastAPI   │  │  LLM Mgr    │  │ Monitoring   │ │
+│  │  Frontend  │  │   Server   │  │  Service    │  │  (Grafana)   │ │
+│  └─────┬──────┘  └──────┬─────┘  └──────┬──────┘  └──────┬───────┘ │
+│        │ WebSocket      │ REST/WS       │ gRPC           │ Metrics  │
+└────────┼────────────────┼───────────────┼────────────────┼──────────┘
+         │                │               │                │
+┌────────┼────────────────┼───────────────┼────────────────┼──────────┐
+│        │    PYTHON API LAYER (FastAPI)  │                │           │
+│        │                │               │                │           │
+│  ┌─────▼────────────────▼───┐   ┌──────▼──────┐  ┌──────▼────────┐ │
+│  │ SimulationManager        │   │ PolicyMgr   │  │ MetricsStore  │ │
+│  │ - Lifecycle (CRUD)       │   │ - Versioning│  │ - Aggregation │ │
+│  │ - Config validation      │   │ - Rollback  │  │ - Streaming   │ │
+│  │ - State snapshots        │   │ - A/B test  │  │ - Prometheus  │ │
+│  └──────────┬───────────────┘   └─────────────┘  └───────────────┘ │
+│             │                                                         │
+│  ┌──────────▼────────────────────────────────────────────────────┐  │
+│  │              FFI Wrapper (backends/rust_backend.py)          │  │
+│  │  - Type conversion (Rust ↔ Python)                           │  │
+│  │  - Error propagation (Result → Exception)                    │  │
+│  │  - Memory safety (ownership tracking)                        │  │
+│  └──────────┬────────────────────────────────────────────────────┘  │
+│             │                                                         │
+└─────────────┼─────────────────────────────────────────────────────────┘
+              │
+     ═════════▼═════════════
+     ║  FFI BOUNDARY (PyO3) ║
+     ═════════▼═════════════
+              │
+┌─────────────┼─────────────────────────────────────────────────────────┐
+│        RUST CORE BACKEND (payment-simulator-core-rs)                  │
+│             │                                                           │
+│  ┌──────────▼──────────────────────────────────────────────────────┐  │
+│  │                    Orchestrator Engine                          │  │
+│  │  - 9-step tick loop coordinator                                │  │
+│  │  - State transitions (Queue 1 → Queue 2 → Settled)            │  │
+│  │  - Event generation & logging                                  │  │
+│  └────┬──────────┬──────────┬──────────┬──────────┬───────────────┘  │
+│       │          │          │          │          │                   │
+│  ┌────▼────┐ ┌──▼──────┐ ┌─▼────────┐ ┌▼────────┐ ┌▼──────────────┐ │
+│  │ Arrival │ │ Policy  │ │  RTGS    │ │  LSM    │ │ CostTracker  │ │
+│  │   Gen   │ │  Engine │ │  Engine  │ │ Engine  │ │              │ │
+│  └────┬────┘ └──┬──────┘ └─┬────────┘ └┬────────┘ └┬──────────────┘ │
+│       │         │           │           │           │                │
+│  ┌────▼─────────▼───────────▼───────────▼───────────▼──────────────┐ │
+│  │                   SimulationState                                │ │
+│  │  - Agents (balances, queues, credit limits)                     │ │
+│  │  - Transactions (lifecycle, costs, splits)                      │ │
+│  │  - RTGS queue (Queue 2)                                         │ │
+│  │  - LSM state (bilateral ledger, cycle candidates)              │ │
+│  │  - Time (tick, day)                                             │ │
+│  │  - RNG (seeded xorshift64*, deterministic)                     │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 Data Flow for Single Tick
+
+**Tick N Execution Sequence**:
+
+```
+1. Arrival Generation
+   ├─ RNG.sample_poisson(rate) → arrival_count
+   ├─ For each arrival:
+   │  ├─ RNG.sample_distribution(type, params) → amount
+   │  ├─ RNG.select_counterparty(weights) → dest_bank
+   │  └─ Transaction.new(sender, dest, amount, deadline, priority)
+   ├─ SimulationState.add_transactions(new_txs)
+   └─ Agent.queue_outgoing(tx_ids) → Queue 1
+
+2. Policy Evaluation
+   ├─ For each agent with Queue 1 items:
+   │  ├─ Policy.evaluate_queue(agent, state, tick) → Vec<ReleaseDecision>
+   │  ├─ Process decisions:
+   │  │  ├─ SubmitFull: Remove from Queue 1, add to pending submissions
+   │  │  ├─ Hold(reason): Keep in Queue 1, log hold reason
+   │  │  ├─ SubmitPartial(factor): Create split children, remove parent
+   │  │  └─ Drop: Remove from Queue 1, apply deadline penalty
+   │  └─ Update agent.last_decision_tick
+
+3. Liquidity Decisions
+   ├─ For each agent:
+   │  ├─ Check liquidity_pressure()
+   │  ├─ If needed: Agent.draw_credit(amount)
+   │  └─ If excess: Agent.repay_credit(amount)
+
+4. Transaction Splitting
+   ├─ For each split decision:
+   │  ├─ Validate eligibility (amount > threshold, factor <= max)
+   │  ├─ Create N child transactions (inherit parent attributes)
+   │  ├─ Apply split friction cost: cost += f_s × (N-1)
+   │  └─ Add children to pending submissions
+
+5. RTGS Submission
+   ├─ For each pending transaction:
+   │  ├─ RTGS.submit_transaction(tx, agent_balance, credit_limit)
+   │  ├─ If balance + credit >= amount:
+   │  │  ├─ Immediate settlement: debit sender, credit receiver
+   │  │  └─ Update tx.status = Settled, tx.settlement_tick = N
+   │  └─ Else:
+   │     ├─ Add to Queue 2 (RTGS central queue)
+   │     └─ Update tx.status = Pending (in Queue 2)
+
+6. Queue 2 Processing (FIFO Retry)
+   ├─ For each transaction in Queue 2:
+   │  ├─ Check deadline: if tick > deadline → Drop, apply penalty
+   │  ├─ Else: RTGS.try_settle(tx, agent_balance, credit_limit)
+   │  ├─ If success: Settle, remove from Queue 2
+   │  └─ Else: Remain in Queue 2 (retry next tick)
+
+7. LSM Optimization
+   ├─ LSM.run_lsm_pass(Queue 2, agents, config):
+   │  ├─ Iteration 1: Bilateral offsetting
+   │  │  ├─ For each pair (i, j):
+   │  │  │  ├─ Find A→B and B→A transactions
+   │  │  │  ├─ If amounts match: Settle both with zero liquidity
+   │  │  │  └─ Else: Net settlement (reduce larger, settle smaller)
+   │  │  └─ Remove settled transactions from Queue 2
+   │  ├─ Iteration 2+: Cycle detection
+   │  │  ├─ Build payment graph from Queue 2
+   │  │  ├─ DFS to detect cycles (A→B→C→...→A)
+   │  │  ├─ For each cycle: Calculate bottleneck amount
+   │  │  ├─ Settle cycle with net-zero liquidity (or minimal partial)
+   │  │  └─ Remove settled/reduced transactions from Queue 2
+   │  └─ Repeat until no progress (typically 2-3 iterations)
+
+8. Cost Accrual
+   ├─ For each agent:
+   │  ├─ Liquidity cost: c_L × max(0, -balance) × (1/ticks_per_day)
+   │  ├─ Collateral cost: c_C × collateral × (1/ticks_per_day)
+   │  └─ For each tx in Queue 1:
+   │     └─ Delay cost: p_k × (tick - arrival_tick)
+   ├─ Accumulate to agent.total_cost
+   └─ Accumulate to state.system_total_cost
+
+9. Metrics Update
+   ├─ Calculate throughput: settled_value / arrived_value
+   ├─ Update queue statistics (sizes, ages)
+   ├─ Track peak net debits (max negative balance)
+   ├─ LSM efficacy: (bilateral_count, cycle_count, liquidity_saved)
+   └─ Emit tick event (for WebSocket subscribers)
+
+10. Time Advancement
+    └─ TimeManager.advance_tick() → tick = N+1
+```
+
+### 5.3 Memory Management & Safety
+
+#### Rust Ownership Model
+- **SimulationState**: Owns all agents, transactions, queues
+- **Orchestrator**: Owns SimulationState, RNG, time manager
+- **No shared mutable state**: All mutations go through Orchestrator methods
+- **No reference cycles**: State graph is acyclic (transactions ref agent IDs, not pointers)
+
+#### FFI Boundary Safety
+1. **Rust→Python**:
+   - Clone data to Python-owned dictionaries (no shared references)
+   - Return by value (Python gets copy, Rust retains ownership)
+   - Never return raw pointers or references
+
+2. **Python→Rust**:
+   - Validate all inputs before crossing boundary
+   - Convert to Rust-owned types (no Python object retention)
+   - Use `Result<T, E>` for all fallible operations
+
+3. **Memory Leak Prevention**:
+   - No `Rc<RefCell<>>` across FFI (ownership must be clear)
+   - PyO3 handles Python reference counting
+   - Rust drops state when simulation deleted (RAII)
+
+#### Testing Strategy
+- **Valgrind**: Run FFI tests under memcheck (detect leaks)
+- **ASAN/MSAN**: Sanitizers in CI (catch use-after-free, uninitialized memory)
+- **Stress tests**: 10,000 tick simulations (verify no accumulation)
+
+### 5.4 Determinism Guarantees
+
+**Requirement**: Identical seed → identical outcomes (every time, every platform)
+
+**Implementation**:
+1. **Single RNG Source**: All randomness via `RngManager.xorshift64*`
+2. **Explicit Seeding**: Every stochastic operation seeds from RNG
+3. **No System Time**: Forbidden (use tick counter for time)
+4. **No Floats in Core Logic**: Avoid IEEE rounding inconsistencies (money as `i64`)
+5. **Stable Iteration Order**: Use `Vec` (not `HashMap`) for deterministic ordering
+
+**Testing**:
+- Replay tests: Run same seed 100 times, assert all outputs identical
+- Cross-platform tests: Run on Linux/macOS/Windows, compare outputs
+- Long-run tests: 10,000 tick simulation, verify final state matches
+
+**Debugging Aid**:
+- Event log: Record every RNG call with (tick, operation, seed, result)
+- Replay tool: Load event log, reproduce exact sequence
+
+---
+
+## Part VI: Development Guidelines
+
+### 6.1 Core Principles
+
+**1. Test-Driven Development (TDD)**
+- Write test first (defines specification)
+- Implement feature to pass test
+- Refactor with confidence (tests catch regressions)
+- Maintain >80% coverage
+
+**2. Type Safety**
+- Rust: Leverage compiler (invalid states unrepresentable)
+- Python: Type hints everywhere (`mypy` strict mode)
+- FFI: Validate at boundary (don't trust inputs)
+
+**3. Minimal Abstractions**
+- Don't abstract prematurely
+- Extract patterns after 3rd use (Rule of Three)
+- Prefer explicit over clever
+
+**4. Performance Awareness**
+- Profile before optimizing
+- Rust for hot paths (tick loop, LSM)
+- Python for convenience (config, HTTP, testing)
+
+**5. Documentation as Code**
+- Rustdoc for public APIs
+- Docstrings for Python (with examples)
+- Inline comments for non-obvious logic
+- Update docs with code (not after)
+
+### 6.2 Code Review Checklist
+
+**Before Committing**:
+- [ ] All tests pass (`cargo test && pytest`)
+- [ ] No compiler warnings (`cargo clippy`)
+- [ ] Code formatted (`cargo fmt && black .`)
+- [ ] Type checks pass (`mypy .`)
+- [ ] Documentation updated (if public API changed)
+- [ ] Changelog entry (if user-visible change)
+
+**Reviewer Focus**:
+- [ ] Correctness: Does it work as specified?
+- [ ] Tests: Are edge cases covered?
+- [ ] Safety: Any memory/threading issues?
+- [ ] Performance: Any O(n²) loops, FFI chattiness?
+- [ ] Maintainability: Is it understandable?
+
+### 6.3 Git Workflow
+
+**Branch Strategy**:
+- `main`: Production-ready (always green CI)
+- `develop`: Integration branch (feature PRs target here)
+- `feature/X`: Short-lived feature branches (delete after merge)
+
+**Commit Messages**:
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+**Types**: `feat`, `fix`, `test`, `refactor`, `docs`, `perf`, `chore`
+
+**Examples**:
+```
+feat(lsm): Add cycle detection with DFS algorithm
+
+Implements cycle detection for LSM optimization pass.
+Uses depth-first search to find payment loops.
+
+Closes #42
+```
+
+```
+fix(rtgs): Prevent double settlement in race condition
+
+Added settlement flag check before processing Queue 2.
+Added regression test for concurrent settlement attempts.
+
+Fixes #67
+```
+
+**Pull Request Template**:
+```markdown
+## Summary
+Brief description of changes
+
+## Motivation
+Why is this change needed?
+
+## Changes
+- [ ] Rust changes (list modules)
+- [ ] Python changes (list files)
+- [ ] Tests added/updated
+- [ ] Documentation updated
+
+## Testing
+How was this tested? (steps to reproduce)
+
+## Checklist
+- [ ] All tests pass
+- [ ] No new clippy warnings
+- [ ] Documentation updated
+- [ ] Changelog entry
+```
+
+### 6.4 Release Process
+
+**Versioning**: Semantic versioning (MAJOR.MINOR.PATCH)
+- MAJOR: Breaking API changes
+- MINOR: New features (backward compatible)
+- PATCH: Bug fixes
+
+**Release Steps**:
+1. Create release branch: `release/vX.Y.Z`
+2. Update version in `Cargo.toml` and `pyproject.toml`
+3. Update `CHANGELOG.md` with release notes
+4. Run full test suite (including benchmarks)
+5. Build release artifacts (`maturin build --release`)
+6. Tag commit: `git tag vX.Y.Z`
+7. Merge to `main` and `develop`
+8. Publish: `maturin publish` (if public registry)
+
+**Hotfix Process** (critical bugs only):
+1. Branch from `main`: `hotfix/vX.Y.Z+1`
+2. Fix bug + add regression test
+3. Fast-track review and merge
+4. Follow release steps above
+
+---
+
+## Part VII: Deployment & Operations
+
+### 7.1 Deployment Options
+
+#### Option 1: Standalone Service (Development)
 ```bash
-# Build Rust crate
-cd backend
-cargo build --release
+# Build Rust core
+cd backend && cargo build --release
 
-# Run Rust tests
-cargo test
+# Install Python package
+cd .. && maturin develop --release
 
-# Run Rust benchmarks
-cargo bench
+# Start API server
+cd api && uvicorn main:app --reload --port 8000
 
-# Build Python extension
-maturin build --release
+# Start frontend (separate terminal)
+cd frontend && npm run dev
 ```
 
-**Python API**:
-```bash
-# Install in development mode (with editable Rust backend)
-uv pip install -e ".[dev]"
+**Use Case**: Local development, debugging, testing
 
-# Run Python tests
-pytest api/tests
-
-# Run API server
-uvicorn api.payment_simulator.api.main:app --reload
-```
-
-**Integrated Development**:
-```bash
-# Build everything and run tests
-uv run maturin develop --release && uv run pytest
-```
-
-### Testing Strategy
-
-**Rust Layer**:
-- Unit tests: Test individual modules (transaction, agent, LSM)
-- Integration tests: Test module interactions (settlement + LSM)
-- Property tests: Test invariants (determinism, balance conservation)
-- Benchmarks: Measure throughput (ticks/sec, settlements/tick)
-
-**Python Layer**:
-- Unit tests: Test Python-side logic (config validation, routing)
-- Integration tests: Test FFI boundary (Python → Rust → Python)
-- E2E tests: Test full API flows (HTTP + WebSocket)
-- Property tests: Test API contracts (Hypothesis)
-
-**FFI Boundary**:
-- Roundtrip tests: Python → Rust → Python conversion
-- Error propagation: Rust errors → Python exceptions
-- Memory safety: No leaks, no dangling pointers
-- Performance: Measure FFI overhead
-
-### Development Phases
-
-**Phase 1-2: Core Rust Backend** ✅ (Completed - 2025-10-27)
-- Transaction model (21 tests)
-- Agent model (17 tests)
-- SimulationState
-- TimeManager (6 tests)
-- RNG Manager (10 tests)
-- Core infrastructure complete
-
-**Phase 3a: RTGS Settlement** ✅ (Completed - 2025-10-27)
-- Immediate RTGS settlement
-- Central queue management
-- Credit limit enforcement
-- Settlement failure handling
-- 22 RTGS tests passing
-
-**Phase 3b: LSM (Liquidity-Saving Mechanisms)** ✅ (Completed - 2025-10-27)
-- Bilateral netting (A↔B offsets)
-- Cycle detection (3-cycles, 4-cycles)
-- LSM coordinator
-- Priority-aware processing
-- 15 LSM tests passing
-
-**Phase 4a: Queue 1 & Cash Manager Policies** ✅ (Completed - 2025-10-27)
-- Queue 1 (internal bank queues) infrastructure
-- CashManagerPolicy trait interface
-- Three baseline policies (FIFO, Deadline, LiquidityAware)
-- Every-tick re-evaluation semantics
-- 12 policy tests passing
-- **Total: 60 tests passing**
-
-**Phase 4b: Orchestrator Integration** 🎯 (Next - Not Started)
-- Tick loop implementation
-- Arrival generation integration
-- Policy evaluation coordination
-- Cost accrual (liquidity, delay, penalty)
-- Event logging
-- End-to-end simulation tests
-
-**Phase 5: Transaction Splitting & Advanced Features** 🔜 (Future)
-- **Agent-initiated transaction splitting** (voluntary "pacing")
-  - Policy-level decision: `SubmitPartial` with pacing factor
-  - Creates N child transactions, each submitted to RTGS independently
-  - Parent-child transaction tracking (`parent_id` field)
-  - Split friction cost calculation: `f_s × (N-1)`
-  - **Not** RTGS-level partial settlement (T2 doesn't support that)
-  - RTGS engine processes each split part as a normal, fully-formed instruction
-- Advanced policy features (splitting trigger logic)
-- Collateral management
-- Bilateral caps enforcement
-
-**Splitting Implementation Note**: Splitting is a **policy decision**, not a system capability. Banks voluntarily split large payments into multiple smaller submissions to manage liquidity constraints. The RTGS settlement engine only sees and processes fully-formed payment instructions.
-
-**Phase 6: Policy DSL & LLM Integration** 🔜 (Future)
-- JSON decision tree interpreter (~2,000 lines Rust)
-- LLM Manager service
-- Shadow replay validation
-- Monte Carlo opponent sampling
-- Git-based policy versioning
-- Hot-reload policy updates
-- See `/docs/policy_dsl_design.md` for complete specification
-
-**Phase 7: FFI & Python API** 🔜 (Future)
-- PyO3 bindings
-- Python wrapper
-- FastAPI routes
-- WebSocket streaming
-- Config management
-
-**Phase 8: Testing & Production** 🔜 (Future)
-- Comprehensive integration tests
-- E2E API tests
-- Performance benchmarks
-- Production deployment
-
----
-
-## 7) Performance Characteristics
-
-### Rust Backend Performance
-
-**Expected Throughput**:
-- **Ticks per second**: 10,000-50,000 (no LSM)
-- **Ticks per second**: 5,000-10,000 (with LSM)
-- **Settlements per tick**: 100-1,000
-- **Agents supported**: 10-100 (performance degrades O(n²) for LSM)
-
-**Memory Usage**:
-- **Per transaction**: ~200 bytes
-- **Per agent**: ~1 KB (base) + queues
-- **Total**: ~10-100 MB for typical scenario
-
-**Bottlenecks**:
-1. LSM cycle detection (O(n³) for 3-cycles)
-2. Event logging (if synchronous)
-3. FFI boundary (if called too frequently)
-
-### Python API Performance
-
-**Expected Latency**:
-- **GET /simulations/{id}/state**: 1-5 ms
-- **POST /simulations/{id}/tick**: 10-100 ms (depends on tick complexity)
-- **WebSocket updates**: 100 Hz (10 ms interval)
-
-**Bottlenecks**:
-1. JSON serialization (Pydantic)
-2. WebSocket send queue
-3. FFI overhead (if called per-request)
-
-### Optimization Strategies
-
-1. **Batch FFI calls**: Advance N ticks in one call
-2. **Lazy state conversion**: Only serialize state when requested
-3. **Event buffering**: Collect events, send in batches
-4. **Zero-copy views**: Use memory views for large arrays
-5. **GIL release**: Rust computation doesn't block Python
-
----
-
-## 8) Policy Framework
-
-### Phase 4a: Trait-Based Policies (Implemented - 2025-10-27)
-
-**Status**: ✅ Complete
-
-Cash manager policies control **Queue 1** (internal bank queues), deciding **when** to submit transactions to the central RTGS system (Queue 2).
-
-**Core Trait**:
-```rust
-pub trait CashManagerPolicy {
-    fn evaluate_queue(
-        &mut self,
-        agent: &Agent,
-        state: &SimulationState,
-        tick: usize,
-    ) -> Vec<ReleaseDecision>;
-}
-```
-
-**Evaluation Semantics**:
-- Called **every tick** for each agent (not fire-and-forget)
-- Allows re-evaluation as conditions change (liquidity, deadlines, system state)
-- Returns decisions: `SubmitFull`, `SubmitPartial`, `Hold`, `Drop`
-
-**Three Baseline Policies**:
-1. **FifoPolicy**: Submit all transactions immediately (simplest baseline)
-2. **DeadlinePolicy**: Prioritize urgent transactions (deadline-aware)
-3. **LiquidityAwarePolicy**: Preserve liquidity buffer, override for urgency
-
-**Example: Liquidity-Aware Policy**:
-```rust
-impl CashManagerPolicy for LiquidityAwarePolicy {
-    fn evaluate_queue(
-        &mut self,
-        agent: &Agent,
-        state: &SimulationState,
-        tick: usize,
-    ) -> Vec<ReleaseDecision> {
-        let mut decisions = Vec::new();
-
-        for tx_id in agent.outgoing_queue() {
-            let tx = state.get_transaction(tx_id).unwrap();
-            let amount = tx.remaining_amount();
-            let deadline = tx.deadline_tick();
-            let ticks_remaining = deadline - tick;
-
-            // Urgent: submit regardless of liquidity
-            if ticks_remaining <= self.urgency_threshold {
-                if agent.can_pay(amount) {
-                    decisions.push(ReleaseDecision::SubmitFull {
-                        tx_id: tx_id.clone()
-                    });
-                }
-            }
-            // Safe: maintains liquidity buffer
-            else if agent.balance() - amount >= self.target_buffer {
-                decisions.push(ReleaseDecision::SubmitFull {
-                    tx_id: tx_id.clone()
-                });
-            }
-            // Hold: preserve liquidity for now
-            else {
-                decisions.push(ReleaseDecision::Hold {
-                    tx_id: tx_id.clone(),
-                    reason: HoldReason::InsufficientLiquidity,
-                });
-            }
-        }
-
-        decisions
-    }
-}
-```
-
-**Decision Context Available to Policies**:
-- **Agent state**: balance, credit, liquidity_pressure(), outgoing_queue(), expected_inflows
-- **Transaction details**: amount, deadline, priority, sender/receiver
-- **System signals**: total queue sizes, urgent transactions, agent congestion
-- **Time**: current tick, time-to-deadline, time-to-EoD
-
-**Agent-Initiated Splitting ("Pacing"):**
-Policies can voluntarily split large payments at the Queue 1 release decision:
-- **Trigger**: Payment exceeds `split_threshold` and conditions warrant (insufficient liquidity, urgent deadline, high queue pressure)
-- **Mechanism**: Policy returns `SubmitPartial` decision with pacing factor (2, 4, 8)
-- **Implementation**: Creates N separate Transaction objects (child transactions), each submitted as independent RTGS instruction
-- **Cost**: Split friction `f_s × (N-1)` added to agent costs
-- **RTGS View**: Each split part is a normal, fully-formed payment instruction; RTGS engine doesn't know about splitting
-- **Example**: 1M SEK payment split into 4×250K SEK, submitted over 4 ticks, incurring 3×f_s friction cost
-
-**Test Status**: 12 policy tests passing (60 total tests)
-
-**Documentation**: See `/docs/queue_architecture.md` and `/backend/CLAUDE.md`
-
----
-
-### Phase 6: Policy DSL Layer (Future - Designed But Not Implemented)
-
-**Status**: 📋 Designed, deferred to Phase 6
-
-**Why Deferred**:
-- Phase 4a trait-based implementation allows fast iteration and validation
-- Proves the abstraction works before adding 2,000+ lines of DSL infrastructure
-- DSL needed only when starting RL/LLM-driven policy optimization
-
-**JSON Decision Tree Format (Future)**:
-```json
-{
-  "version": "1.0",
-  "tree_id": "liquidity_aware_policy",
-  "root": {
-    "type": "condition",
-    "condition": {
-      "op": "<=",
-      "left": {"field": "ticks_to_deadline"},
-      "right": {"value": 5}
-    },
-    "on_true": {
-      "type": "action",
-      "action": "Release",
-      "parameters": {}
-    },
-    "on_false": {
-      "type": "condition",
-      "condition": {
-        "op": ">=",
-        "left": {"field": "balance"},
-        "right": {
-          "compute": {
-            "op": "+",
-            "left": {"field": "amount"},
-            "right": {"param": "liquidity_buffer"}
-          }
-        }
-      },
-      "on_true": {
-        "type": "action",
-        "action": "Release"
-      },
-      "on_false": {
-        "type": "action",
-        "action": "Hold"
-      }
-    }
-  },
-  "parameters": {
-    "liquidity_buffer": 100000
-  }
-}
-```
-
-**Key Features (Phase 6)**:
-- LLM-editable (safe JSON manipulation, no code execution)
-- Sandboxed interpreter (~2,000 lines Rust)
-- Hot-reloadable (update policies without recompiling)
-- Version-controlled (git tracks policy evolution)
-- Hybrid execution: support both Rust traits and JSON DSL
-
-**Hybrid Execution**:
-```rust
-pub enum PolicyExecutor {
-    Trait(Box<dyn CashManagerPolicy>),  // Rust policies (fast, compile-time checked)
-    Tree(TreeInterpreter),               // JSON DSL (LLM-editable)
-}
-```
-
-**LLM Manager Service (Phase 6)**:
-- Policy mutation prompting patterns
-- Git-based version control for policy evolution
-- Shadow replay validation (test new policy on historical episodes)
-- Monte Carlo opponent sampling
-- Guardband checking (performance regression detection)
-- Rollback procedures
-
-**Policy Validation Pipeline (Phase 6)**:
-1. **Schema check**: JSON schema validation (structure correctness)
-2. **Safety check**: No cycles, depth limits, division-by-zero protection
-3. **Property test**: Fuzzing (no crashes on edge cases)
-4. **Shadow replay**: Monte Carlo (performance impact estimation)
-5. **Guardband check**: Live deployment (rollback if KPIs degrade)
-
-**Shadow Replay Example (Phase 6)**:
-```python
-def validate_policy_change(old_policy, new_policy, history, n_samples=100):
-    """
-    Replay past episodes with new policy, sample opponent behaviors.
-
-    Returns:
-        (mean_cost_delta, std_cost_delta, pareto_dominated)
-    """
-    cost_deltas = []
-    for episode in sample(history, n_samples):
-        old_cost = replay_with_policy(episode, old_policy, sample_opponents())
-        new_cost = replay_with_policy(episode, new_policy, sample_opponents())
-        cost_deltas.append(new_cost - old_cost)
-
-    mean_delta = np.mean(cost_deltas)
-    std_delta = np.std(cost_deltas)
-    pareto_dominated = all(d >= 0 for d in cost_deltas)
-
-    return mean_delta, std_delta, pareto_dominated
-```
-
-**Complete DSL Specification**: See `/docs/policy_dsl_design.md` (to be created)
-
----
-
-## 9) Data Models
-
-### Core Types (Rust)
-
-#### Transaction
-```rust
-pub struct Transaction {
-    id: String,                         // Unique identifier
-    sender_id: String,                  // Agent ID
-    receiver_id: String,                // Agent ID
-    rail_id: String,                    // Payment rail
-    original_amount: i64,               // Cents
-    remaining_amount: i64,              // Cents (decreases with partial settlement)
-    settled_amount: i64,                // Cents (increases with partial settlement)
-    arrival_tick: u32,                  // When payment arrived
-    deadline_tick: u32,                 // Hard deadline
-    priority: Priority,                 // URGENT, NORMAL, LOW
-    divisible: bool,                    // Can be split?
-    settlement_tick: Option<u32>,       // When fully settled
-    settlement_status: SettlementStatus,// PENDING, PARTIALLY_SETTLED, SETTLED, DROPPED
-    drop_reason: Option<DropReason>,    // If dropped
-    parent_id: Option<String>,          // If split from another tx
-}
-```
-
-#### Agent
-```rust
-pub struct Agent {
-    id: String,
-    opening_balance: i64,               // Cents
-    current_balance: i64,               // Cents (updated during day)
-    peak_net_debit: i64,                // Most negative balance (tracking)
-    overdraft_limit: i64,               // Maximum negative balance allowed
-    collateral_posted: i64,             // Collateral value (haircut-adjusted)
-    outgoing_queue: Vec<Transaction>,   // Scheduled payments
-    incoming_queue: Vec<Transaction>,   // Awaiting receipt
-    bilateral_caps: HashMap<String, i64>, // Agent ID → max net exposure
-    throughput_target: Option<f64>,     // E.g., 0.5 = 50% by noon
-    target_tick: Option<u32>,           // When throughput target applies
-}
-```
-
-#### SystemState
-```rust
-pub struct SystemState {
-    time_manager: TimeManager,
-    agents: HashMap<String, Agent>,
-    transactions: HashMap<String, Transaction>,
-    bilateral_ledger: HashMap<(String, String), i64>, // Net positions
-    lsm_queue: Vec<String>,             // Transaction IDs awaiting LSM
-    event_log: Vec<Event>,
-    rng_manager: RngManager,
-    config: SimulationConfig,
-}
-```
-
-### API Models (Python/Pydantic)
-
-#### SimulationConfig
-```python
-class SimulationConfig(BaseModel):
-    ticks_per_day: int = Field(ge=1, le=1000)
-    num_days: int = Field(ge=1)
-    agents: List[AgentConfig]
-    arrivals: List[ArrivalConfig]
-    market: MarketConfig
-    lsm_enabled: bool = True
-```
-
-#### AgentConfig
-```python
-class AgentConfig(BaseModel):
-    id: str
-    opening_balance: int = Field(ge=0)
-    overdraft_limit: int = Field(ge=0)
-    collateral: Optional[CollateralConfig]
-    throughput_target: Optional[float] = Field(ge=0.0, le=1.0)
-    target_tick: Optional<int> = Field(ge=0)
-```
-
-#### TransactionResponse
-```python
-class TransactionResponse(BaseModel):
-    id: str
-    sender_id: str
-    receiver_id: str
-    original_amount: int
-    remaining_amount: int
-    settled_amount: int
-    settlement_status: str
-    arrival_tick: int
-    deadline_tick: int
-    settlement_tick: Optional[int]
-```
-
----
-
-## 10) Event Schema (Rust)
-
-### Event Types
-
-```rust
-pub enum Event {
-    ArrivalEvent {
-        tick: u32,
-        tx_id: String,
-        sender_id: String,
-        receiver_id: String,
-        amount: i64,
-        rail_id: String,
-        priority: Priority,
-        deadline_tick: u32,
-    },
-    
-    SettlementEvent {
-        tick: u32,
-        tx_id: String,
-        amount: i64,  // May be partial
-        sender_balance_after: i64,
-        receiver_balance_after: i64,
-    },
-    
-    LSMReleaseEvent {
-        tick: u32,
-        mechanism: LSMMechanism,  // BILATERAL, CYCLE_3, CYCLE_4
-        tx_ids: Vec<String>,
-        total_value_released: i64,
-    },
-    
-    CostAccrualEvent {
-        tick: u32,
-        agent_id: String,
-        liquidity_cost: i64,
-        delay_cost: i64,
-        penalty_cost: i64,
-    },
-    
-    DropEvent {
-        tick: u32,
-        tx_id: String,
-        reason: DropReason,  // DEADLINE_MISSED, CAP_BREACH, etc.
-    },
-    
-    PolicyUpdateEvent {
-        tick: u32,
-        agent_id: String,
-        policy_version: String,  // Git commit hash
-        change_type: String,  // STRUCTURAL, PARAMETER
-    },
-}
-```
-
-### Event Log Format
-
-**Append-only log** (Rust Vec, optionally serialized to Parquet):
-```
-[tick, event_type, event_data]
-[0, "arrival", {"tx_id": "tx001", "sender": "A", ...}]
-[0, "arrival", {"tx_id": "tx002", "sender": "B", ...}]
-[1, "settlement", {"tx_id": "tx001", "amount": 1000, ...}]
-[1, "lsm_release", {"mechanism": "bilateral", "tx_ids": ["tx002", "tx003"], ...}]
-...
-```
-
----
-
-## 11) Metrics & KPIs
-
-### Agent-Level Metrics (Rust)
-
-```rust
-pub struct AgentMetrics {
-    // Liquidity
-    peak_net_debit: i64,
-    average_balance: f64,
-    headroom_utilization: f64,
-    
-    // Costs
-    total_liquidity_cost: i64,
-    total_delay_cost: i64,
-    total_penalty_cost: i64,
-    
-    // Throughput
-    value_arrived: i64,
-    value_settled: i64,
-    throughput_ratio: f64,
-    
-    // Timeliness
-    average_settlement_delay: f64,
-    on_time_percentage: f64,
-    
-    // Settlement
-    num_settled: u32,
-    num_dropped: u32,
-    num_partially_settled: u32,
-}
-```
-
-### System-Level Metrics (Rust)
-
-```rust
-pub struct SystemMetrics {
-    // Throughput
-    total_value_arrived: i64,
-    total_value_settled: i64,
-    system_throughput: f64,
-    
-    // LSM Efficacy
-    value_released_bilateral: i64,
-    value_released_3cycle: i64,
-    value_released_4cycle: i64,
-    lsm_efficiency_ratio: f64,
-    
-    // Gridlock
-    gridlock_ticks: u32,  // Ticks with no settlements
-    max_queue_depth: u32,
-    
-    // Performance
-    ticks_per_second: f64,
-    settlements_per_tick: f64,
-}
-```
-
----
-
-## 12) Testing Strategy
-
-### Rust Tests
-
-#### Unit Tests (in each module)
-```rust
-// backend/src/models/transaction.rs
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn transaction_creation_defaults() {
-        let tx = Transaction::new(...);
-        assert_eq!(tx.remaining_amount(), tx.original_amount());
-        assert!(tx.settlement_status().is_pending());
-    }
-    
-    #[test]
-    fn transaction_full_settlement() {
-        let mut tx = Transaction::new(...);
-        tx.settle(tx.original_amount(), 3).unwrap();
-        assert_eq!(tx.remaining_amount(), 0);
-        assert_eq!(tx.settlement_status(), SettlementStatus::Settled);
-    }
-}
-```
-
-#### Integration Tests (in backend/tests/)
-```rust
-// backend/tests/settlement_core.rs
-#[test]
-fn settlement_with_insufficient_liquidity() {
-    let mut state = SystemState::new(...);
-    let tx = Transaction::new(sender: "A", receiver: "B", amount: 1000, ...);
-    
-    // Set sender balance to 500 (insufficient)
-    state.agents.get_mut("A").unwrap().current_balance = 500;
-    
-    let result = state.settle_transaction(&tx);
-    assert!(result.is_err());
-    assert_eq!(state.agents.get("A").unwrap().current_balance, 500);  // Unchanged
-}
-```
-
-#### Property Tests (using quickcheck or proptest)
-```rust
-use proptest::prelude::*;
-
-proptest! {
-    #[test]
-    fn balance_conservation(
-        initial_balance in 0i64..1_000_000,
-        tx_amount in 0i64..1_000_000,
-    ) {
-        let mut state = SystemState::new(...);
-        state.agents.get_mut("A").unwrap().current_balance = initial_balance;
-        state.agents.get_mut("B").unwrap().current_balance = 0;
-        
-        let total_before = state.total_balance();
-        
-        if tx_amount <= initial_balance {
-            let tx = Transaction::new(sender: "A", receiver: "B", amount: tx_amount, ...);
-            state.settle_transaction(&tx).unwrap();
-        }
-        
-        let total_after = state.total_balance();
-        assert_eq!(total_before, total_after);
-    }
-}
-```
-
-### Python Tests
-
-#### Unit Tests (pytest)
-```python
-# api/tests/unit/test_config.py
-def test_simulation_config_validation():
-    config = SimulationConfig(
-        ticks_per_day=100,
-        num_days=1,
-        agents=[AgentConfig(id="A", opening_balance=10000)],
-        arrivals=[],
-        market=MarketConfig(),
-    )
-    assert config.ticks_per_day == 100
-    
-def test_simulation_config_invalid_ticks():
-    with pytest.raises(ValidationError):
-        SimulationConfig(ticks_per_day=0, ...)  # Must be >= 1
-```
-
-#### Integration Tests (pytest + Rust backend)
-```python
-# api/tests/integration/test_rust_ffi_integration.py
-def test_rust_backend_create_simulation():
-    config = SimulationConfig(...)
-    backend = RustBackend()
-    sim_id = backend.create_simulation(config)
-    assert sim_id is not None
-    
-def test_rust_backend_advance_tick():
-    backend = RustBackend()
-    sim_id = backend.create_simulation(config)
-    
-    initial_tick = backend.get_current_tick(sim_id)
-    backend.advance_tick(sim_id)
-    final_tick = backend.get_current_tick(sim_id)
-    
-    assert final_tick == initial_tick + 1
-```
-
-#### E2E Tests (httpx + WebSocket)
-```python
-# api/tests/e2e/test_api_simulation_lifecycle.py
-async def test_simulation_lifecycle():
-    async with httpx.AsyncClient(base_url="http://localhost:8000") as client:
-        # Create simulation
-        response = await client.post("/simulations", json=config_dict)
-        assert response.status_code == 200
-        sim_id = response.json()["id"]
-        
-        # Start simulation
-        response = await client.post(f"/simulations/{sim_id}/start")
-        assert response.status_code == 200
-        
-        # Advance tick
-        response = await client.post(f"/simulations/{sim_id}/tick")
-        assert response.status_code == 200
-        
-        # Get state
-        response = await client.get(f"/simulations/{sim_id}/state")
-        assert response.status_code == 200
-        state = response.json()
-        assert state["current_tick"] == 1
-```
-
----
-
-## 13) Deployment Architecture (Future)
-
-### Container Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Container 1: API Server (Python)                       │
-│  - FastAPI + Uvicorn                                    │
-│  - Gunicorn for multi-worker                            │
-│  - Linked to libpayment_simulator_core_rs.so (Rust)    │
-└────────────────┬────────────────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────────────────┐
-│  Container 2: Redis (Message Queue)                     │
-│  - Event streaming                                      │
-│  - LLM update pub/sub                                   │
-└────────────────┬────────────────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────────────────┐
-│  Container 3: LLM Manager (Future)                      │
-│  - Policy generation                                    │
-│  - Shadow replay validation                             │
-│  - Git service (policy versioning)                      │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Kubernetes Deployment (Future)
-
+#### Option 2: Docker Compose (Integration Testing)
 ```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    environment:
+      - RUST_LOG=info
+    volumes:
+      - ./config:/config
+  
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+  
+  llm-manager:
+    build: ./llm-manager
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      - api
+```
+
+**Use Case**: Multi-component integration testing, demo environments
+
+#### Option 3: Kubernetes (Production)
+```yaml
+# k8s/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1505,491 +1340,784 @@ spec:
   replicas: 3
   selector:
     matchLabels:
-      app: payment-simulator
+      app: payment-simulator-api
   template:
     metadata:
       labels:
-        app: payment-simulator
+        app: payment-simulator-api
     spec:
       containers:
       - name: api
-        image: payment-simulator:latest
+        image: payment-simulator:v1.0.0
         ports:
         - containerPort: 8000
         env:
-        - name: RUST_BACKEND
-          value: "enabled"
+        - name: RUST_LOG
+          value: "info"
         resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
           limits:
             memory: "2Gi"
-            cpu: "1"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
 ```
 
----
+**Use Case**: Production deployment, high availability, auto-scaling
 
-## 14) Monitoring & Observability
+### 7.2 Monitoring & Observability
 
-### Metrics to Collect
+#### Metrics (Prometheus Format)
+```
+# HELP simulator_tick_duration_seconds Time to process one tick
+# TYPE simulator_tick_duration_seconds histogram
+simulator_tick_duration_seconds_bucket{le="0.001"} 450
+simulator_tick_duration_seconds_bucket{le="0.01"} 980
+simulator_tick_duration_seconds_bucket{le="+Inf"} 1000
+simulator_tick_duration_seconds_sum 5.2
+simulator_tick_duration_seconds_count 1000
 
-**System Metrics**:
-- CPU usage (per container)
-- Memory usage (per container)
-- Request latency (P50, P95, P99)
-- Request rate (requests/sec)
-- Error rate (errors/sec)
+# HELP simulator_queue_size Current queue sizes
+# TYPE simulator_queue_size gauge
+simulator_queue_size{queue="queue1",agent="BANK_A"} 12
+simulator_queue_size{queue="queue2"} 8
 
-**Simulation Metrics**:
-- Ticks per second (throughput)
-- Settlements per tick
-- LSM releases per tick
-- Queue depth (current, max)
+# HELP simulator_settlement_total Total settlements
+# TYPE simulator_settlement_total counter
+simulator_settlement_total{type="immediate"} 5420
+simulator_settlement_total{type="lsm_bilateral"} 234
+simulator_settlement_total{type="lsm_cycle"} 42
+```
 
-**Business Metrics**:
-- Total value settled (per day)
-- System throughput ratio
-- Gridlock frequency (gridlock ticks / total ticks)
-- Average settlement delay
+#### Grafana Dashboard
 
-### Logging Strategy
+**Panels**:
+1. **Tick Rate**: Ticks/second over time (target: >1000)
+2. **Queue Sizes**: Queue 1 + Queue 2 by agent (stacked area chart)
+3. **Throughput**: Value settled / value arrived (line chart)
+4. **Liquidity Usage**: Peak net debit per agent (bar chart)
+5. **LSM Efficacy**: Offsets + cycles per tick (line chart)
+6. **Cost Breakdown**: Stacked area (liquidity, delay, split, penalty)
+7. **Error Rate**: API errors per minute (alerts if >1%)
 
-**Rust Side**:
-- Structured logging (JSON)
-- Log levels: DEBUG, INFO, WARN, ERROR
-- Event log (append-only, deterministic)
+#### Logging Strategy
 
-**Python Side**:
-- uvicorn access logs
-- FastAPI request/response logs
-- Error logs with stack traces
-
-**Centralized Logging** (Future):
-- ELK stack (Elasticsearch, Logstash, Kibana)
-- Or Grafana Loki + Promtail
-
----
-
-## 15) Security Considerations
-
-### FFI Safety
-
-1. **Memory safety**: Rust's ownership system prevents use-after-free
-2. **Type safety**: PyO3 enforces type conversions
-3. **Error handling**: Rust panics caught by PyO3, converted to Python exceptions
-4. **No unsafe blocks**: Avoid `unsafe` unless absolutely necessary
-
-### API Security
-
-1. **Authentication**: JWT tokens (future)
-2. **Authorization**: Role-based access control (future)
-3. **Rate limiting**: Per-client rate limits
-4. **Input validation**: Pydantic schemas prevent injection
-5. **CORS**: Restrict origins in production
-
-### Simulation Integrity
-
-1. **Determinism**: Seed-based RNG prevents non-deterministic behavior
-2. **Replay protection**: Event log integrity (checksums, signatures)
-3. **Policy versioning**: Git commit hashes for audit trail
-
----
-
-## 16) RNG Details (Deterministic Randomness)
-
-### xorshift64* Implementation (Rust)
-
-```rust
-pub struct RngManager {
-    state: u64,
-}
-
-impl RngManager {
-    pub fn new(seed: u64) -> Self {
-        let state = if seed == 0 { 1 } else { seed };
-        RngManager { state }
-    }
-    
-    pub fn next(&mut self) -> u64 {
-        let mut x = self.state;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.state = x;
-        x
-    }
-    
-    pub fn uniform(&mut self) -> f64 {
-        (self.next() as f64) / (u64::MAX as f64)
-    }
-    
-    pub fn exponential(&mut self, rate: f64) -> f64 {
-        -self.uniform().ln() / rate
-    }
-    
-    pub fn poisson(&mut self, lambda: f64) -> u32 {
-        let mut count = 0;
-        let mut p = 1.0;
-        let threshold = (-lambda).exp();
-        
-        while p > threshold {
-            p *= self.uniform();
-            count += 1;
-        }
-        
-        count - 1
-    }
+**Structured JSON Logs**:
+```json
+{
+  "timestamp": "2025-10-28T14:23:11.234Z",
+  "level": "INFO",
+  "simulation_id": "sim_abc123",
+  "tick": 42,
+  "agent": "BANK_A",
+  "event": "transaction_settled",
+  "transaction_id": "tx_def456",
+  "amount": 1000000,
+  "settlement_type": "lsm_bilateral",
+  "trace_id": "xyz789"
 }
 ```
 
-**Key Properties**:
-- **Fast**: ~1-2 ns per call
-- **Deterministic**: Same seed → same sequence
-- **Sufficient quality**: Passes basic statistical tests (not cryptographic)
+**Log Levels**:
+- **DEBUG**: RNG calls, policy decisions (verbose, disabled in prod)
+- **INFO**: Tick progress, settlements, arrivals (default)
+- **WARN**: Gridlock detected, queue buildup, guardrail near-violations
+- **ERROR**: FFI errors, invalid configs, unexpected panics
 
-**Seed Persistence**:
-```rust
-// After every RNG call, return new seed
-let (new_seed, value) = rng.next_with_seed(old_seed);
-state.rng_seed = new_seed;  // MUST persist
+### 7.3 Backup & Recovery
+
+**State Persistence** (optional):
+```yaml
+# Save state every N ticks
+persistence:
+  enabled: true
+  interval_ticks: 100
+  storage:
+    type: s3
+    bucket: payment-simulator-state
+    prefix: simulations/
+```
+
+**Snapshot Format**:
+```json
+{
+  "version": "1.0",
+  "simulation_id": "sim_abc123",
+  "seed": 12345,
+  "tick": 4200,
+  "agents": [...],
+  "transactions": [...],
+  "queues": {...},
+  "rng_state": "..."
+}
+```
+
+**Recovery**:
+```bash
+# Restore from snapshot
+curl -X POST http://api:8000/simulations/restore \
+  -H "Content-Type: application/json" \
+  -d @snapshot_tick_4200.json
+
+# Resume from tick 4200
+curl -X POST http://api:8000/simulations/sim_abc123/tick?n=100
 ```
 
 ---
 
-## 17) Research Questions & Experiments
+## Part VIII: Future Directions & Research
 
-(Unchanged from original - see sections 17-19 in original plan)
+### 8.1 Advanced Learning Techniques
 
----
+**1. Multi-Agent Reinforcement Learning (MARL)**
+- Replace decision trees with neural network policies
+- Train with PPO/SAC on continuous action spaces
+- Self-play with population-based training
+- Emergent coordination strategies
 
-## 18) Migration Path (Original Python → Rust)
+**2. Causal Inference**
+- Identify causal relationships (e.g., "early submission → lower systemic delay")
+- Estimate treatment effects (e.g., "LSM enablement → 30% liquidity reduction")
+- Support counterfactual queries ("What if agent A changed policy?")
 
-### What Was Migrated
+**3. Meta-Learning**
+- Learn to learn (adapt policies quickly to new regimes)
+- Few-shot adaptation to shocks
+- Transfer learning across currencies/jurisdictions
 
-**Phase 1: Core Data Structures**
-- Transaction model → `backend/src/models/transaction.rs`
-- Agent model → `backend/src/models/agent.rs`
-- SystemState → `backend/src/models/state.rs`
+### 8.2 Extensions & Variants
 
-**Phase 2: Time & RNG**
-- TimeManager → `backend/src/core/time.rs`
-- RngManager → `backend/src/rng/manager.rs`
+**1. Regulatory Scenarios**
+- Basel III NSFR/LCR constraints
+- CPMI-IOSCO PFMI compliance monitoring
+- Throughput guidelines enforcement
 
-**Phase 3: Settlement**
-- RTGS settlement → `backend/src/settlement/core.rs`
-- Bilateral caps → `backend/src/settlement/caps.rs`
-- Failure handling → `backend/src/settlement/failure.rs`
+**2. Market Microstructure**
+- Intraday repo markets (borrow/lend liquidity)
+- Collateral haircuts and margin calls
+- Nostro funding optimization
 
-**Phase 4: LSM**
-- Bilateral netting → `backend/src/lsm/bilateral.rs`
-- Cycle detection → `backend/src/lsm/cycle.rs`
-- Coordinator → `backend/src/lsm/coordinator.rs`
+**3. Crisis Simulations**
+- Bank runs (sudden outflow shocks)
+- Interbank contagion (bilateral exposure chains)
+- Central bank interventions (emergency liquidity, rate changes)
 
-**Phase 5: Orchestrator**
-- Tick loop → `backend/src/orchestrator/engine.rs`
-- Arrival generation → `backend/src/arrivals/generator.rs`
+**4. Privacy-Preserving Simulation**
+- Federated learning (banks train locally, share updates)
+- Differential privacy (add noise to published throughput signals)
+- Secure multi-party computation (joint settlement without revealing balances)
 
-**Phase 6: FFI**
-- PyO3 bindings → `backend/src/lib.rs`
-- Python wrapper → `api/payment_simulator/backends/rust_ffi_wrapper.py`
+### 8.3 Open Research Questions
 
-### What Remained in Python
+1. **What throughput targets are Pareto-optimal?**
+   - Too strict → costly hoarding
+   - Too loose → gridlock risk
+   - Can we characterize optimal thresholds?
 
-- FastAPI application (`api/payment_simulator/api/`)
-- Configuration management (`api/config/`, `api/payment_simulator/config/`)
-- Test infrastructure (`api/tests/`)
-- Service layer (`api/payment_simulator/api/services/`)
+2. **How do policies co-evolve in multi-agent learning?**
+   - Do we converge to Nash equilibria?
+   - Are there oscillations or limit cycles?
+   - Can we design coordination mechanisms to stabilize?
 
-### Performance Improvements
+3. **What are the welfare implications of LSM design?**
+   - Who benefits from bilateral offsetting vs. cycles?
+   - Are there distributional effects (large banks vs. small)?
+   - How to design fair LSM algorithms?
 
-| Component | Python (ms) | Rust (ms) | Speedup |
-|-----------|-------------|-----------|---------|
-| Tick loop (1000 ticks) | 5000 | 50 | 100x |
-| Settlement (1000 tx) | 200 | 2 | 100x |
-| LSM bilateral (100 agents) | 500 | 5 | 100x |
-| LSM 3-cycle (100 agents) | 2000 | 20 | 100x |
-
----
-
-## 19) Future Work
-
-### Short Term (Next 3 Months)
-1. Complete integration test suite
-2. Performance benchmarking and optimization
-3. WebSocket streaming improvements
-4. API documentation (OpenAPI/Swagger)
-
-### Medium Term (3-6 Months)
-1. Policy DSL compiler (Rust)
-2. Shadow replay validation (Python + Rust)
-3. LLM Manager service (Python)
-4. Git-based policy versioning
-
-### Long Term (6-12 Months)
-1. Multi-currency support
-2. CLS-style PvP mechanism
-3. Dynamic agent creation/deletion
-4. Federated learning (multi-agent RL)
+4. **How resilient are learned policies to regime shifts?**
+   - If overdraft pricing changes, do policies adapt?
+   - Can we measure robustness to shocks?
+   - What safety margins should policies maintain?
 
 ---
 
-## 20) References & Prior Art
+## Part IX: Success Metrics & KPIs
 
-(Unchanged from original plan)
+### 9.1 Technical Success Metrics
 
-### Academic Literature
-- Bech, M. L., & Garratt, R. (2003). "The intraday liquidity management game." *Journal of Economic Theory*
-- Koponen, R., & Soramäki, K. (2005). "Intraday liquidity needs in a modern interbank payment system"
-- Martin, A., & McAndrews, J. (2008). "Liquidity-saving mechanisms." *Journal of Monetary Economics*
+**Performance**:
+- [ ] Tick processing rate: >1000 ticks/second (pure Rust)
+- [ ] FFI overhead: <5% latency increase (Python→Rust→Python)
+- [ ] Memory usage: <500 MB per 10-agent simulation
+- [ ] WebSocket latency: <50ms event delivery (p99)
 
-### Industry Standards
-- CPMI (2013). "Principles for financial market infrastructures" (PFMI)
-- FSB (2017). "Guidance on Central Counterparty Resolution and Resolution Planning"
-- ISO 20022 Payment messaging standards
+**Quality**:
+- [ ] Test coverage: >80% (Rust + Python)
+- [ ] Zero clippy warnings
+- [ ] Zero mypy errors (strict mode)
+- [ ] No memory leaks (valgrind clean)
 
-### Related Projects
-- Bank of England RTGS Renewal Programme
-- ECB TARGET2 documentation
-- Federal Reserve Fedwire Funds Service
-- CLS settlement system (PvP mechanism)
+**Reliability**:
+- [ ] Determinism: 100 runs with same seed produce identical results
+- [ ] Balance conservation: Invariant holds across all tests
+- [ ] No panics/crashes: 10,000 tick simulation completes
+- [ ] API uptime: >99.9% (monitored)
 
-### Technical Inspirations
-- AlphaGo/AlphaZero (self-play policy improvement)
-- OpenAI Dota 2 (multi-agent coordination)
-- DeepMind AlphaDev (code optimization via RL)
+### 9.2 Functional Success Metrics
+
+**Simulation Capabilities**:
+- [ ] Can model 2-100 agents
+- [ ] Can process 1M+ transactions per simulation
+- [ ] Can run multi-day episodes (10+ days)
+- [ ] LSM reduces liquidity by 30-50% (validated vs. no-LSM baseline)
+
+**Policy Evolution**:
+- [ ] LLM manager proposes valid policies (>90% validation pass rate)
+- [ ] Shadow replay correctly estimates KPI deltas (±10% accuracy)
+- [ ] Policies improve over episodes (cost reduction OR throughput increase)
+- [ ] Learning converges within 100 episodes
+
+**User Experience**:
+- [ ] Frontend displays all state correctly (validated E2E)
+- [ ] Can configure simulation via YAML in <5 minutes
+- [ ] CLI enables debugging (reproduce any scenario from seed)
+- [ ] Documentation enables onboarding (new dev productive in <2 days)
+
+### 9.3 Research Success Metrics
+
+**Scientific Output**:
+- [ ] Published case studies (gridlock formation, LSM efficacy, throughput targets)
+- [ ] Documented emergent behaviors (coordination patterns, equilibria)
+- [ ] Validation against real-world data (qualitative realism checks)
+
+**Community Engagement**:
+- [ ] Open-source contributions (external PRs accepted)
+- [ ] Conference presentations (payment systems, AI research)
+- [ ] Partnerships with central banks or payment operators
 
 ---
 
-## 21) Glossary Updates
+## Part X: Risk Register & Mitigation
+
+### 10.1 Technical Risks
+
+**Risk 1: FFI Instability**
+- **Probability**: Medium
+- **Impact**: High (blocks integration)
+- **Mitigation**:
+  - Start with simple types (primitives, strings)
+  - Extensive FFI testing (roundtrip, memory leaks)
+  - Valgrind in CI
+  - Clear ownership model (Rust owns state)
+
+**Risk 2: Determinism Breaks**
+- **Probability**: Medium
+- **Impact**: High (breaks replay, learning)
+- **Mitigation**:
+  - Determinism tests from day 1 (already in place)
+  - Forbid system time, floats in core logic
+  - Event log for debugging
+  - Strict RNG discipline
+
+**Risk 3: Performance Degradation**
+- **Probability**: Low
+- **Impact**: Medium (user experience)
+- **Mitigation**:
+  - Benchmarks in CI (catch regressions)
+  - Profile regularly (`cargo flamegraph`)
+  - Optimize hot paths only (tick loop, LSM)
+  - FFI overhead monitoring
+
+### 10.2 Architecture Risks
+
+**Risk 4: Scope Creep**
+- **Probability**: High
+- **Impact**: Medium (delays delivery)
+- **Mitigation**:
+  - Strict adherence to phased plan
+  - "No" to features outside roadmap
+  - Defer to "future work" backlog
+  - Time-box exploration
+
+**Risk 5: Over-Abstraction**
+- **Probability**: Medium
+- **Impact**: Medium (complexity bloat)
+- **Mitigation**:
+  - Prefer explicit over clever
+  - Extract abstractions after 3rd use (Rule of Three)
+  - Code review focus on simplicity
+  - Refactor when patterns emerge
+
+**Risk 6: Poor Separation of Concerns**
+- **Probability**: Low
+- **Impact**: High (architecture erosion)
+- **Mitigation**:
+  - Enforce FFI boundary discipline
+  - Rust = simulation, Python = API/tooling
+  - No business logic in API layer
+  - Regular architecture reviews
+
+### 10.3 Learning Risks
+
+**Risk 7: LLM Generates Invalid Policies**
+- **Probability**: High (inevitable)
+- **Impact**: Low (validation catches)
+- **Mitigation**:
+  - Multi-stage validation (schema, properties, shadow replay)
+  - Reject malformed policies early
+  - LLM prompt engineering (provide examples)
+  - Human-in-loop for anomalies
+
+**Risk 8: Learning Doesn't Converge**
+- **Probability**: Medium
+- **Impact**: Medium (research value reduced)
+- **Mitigation**:
+  - Start with simple scenarios (2-bank games)
+  - Population-based training (diverse opponents)
+  - Convergence monitoring (KPI stability)
+  - Intervention mechanisms (reset if divergent)
+
+**Risk 9: Overfitting to Training Scenarios**
+- **Probability**: Medium
+- **Impact**: Medium (poor generalization)
+- **Mitigation**:
+  - Diverse training scenarios (vary agents, arrivals, shocks)
+  - Held-out test scenarios (never seen during training)
+  - Robustness tests (regime shifts, shocks)
+  - Regular policy evaluation on new conditions
+
+---
+
+## Part XI: Timeline & Milestones
+
+### 11.1 Phased Rollout (16-Week Plan)
+
+**Phase 7: Integration Layer (Weeks 1-3)** — FFI, Python API, CLI
+- Week 1: PyO3 bindings, FFI tests
+- Week 2: FastAPI endpoints, simulation lifecycle
+- Week 3: CLI tool, integration tests
+- **Milestone M1**: Can control simulation via HTTP/CLI ✅
+
+**Phase 8: Cost Model & Metrics (Week 4)** — Full cost accounting
+- All 5 cost types implemented and tested
+- KPI dashboard operational (REST endpoints)
+- **Milestone M2**: Accurate cost tracking ✅
+
+**Phase 9: Advanced Policies (Weeks 5-7)** — Policy DSL, learning infrastructure
+- Expression evaluator + decision-tree DSL
+- Shadow replay system
+- Policy versioning and A/B testing
+- **Milestone M3**: Foundation for LLM-driven evolution ✅
+
+**Phase 10: Multi-Rail & Cross-Border (Weeks 8-9)** — RTGS + DNS, currencies
+- DNS rail implementation (batch netting)
+- Multi-currency nostro accounts
+- **Milestone M4**: Multi-rail simulations ✅
+
+**Phase 11: Shock Scenarios (Week 10)** — Resilience testing
+- Shock module (5 shock types)
+- Shock-aware metrics and analysis
+- **Milestone M5**: Stress testing capability ✅
+
+**Phase 12: Production Readiness (Weeks 11-13)** — Observability, frontend
+- WebSocket streaming to clients
+- React frontend (dashboard, charts, controls)
+- Prometheus metrics + Grafana dashboards
+- **Milestone M6**: Production deployment ready ✅
+
+**Phase 13: LLM Manager Integration (Weeks 14-16)** — Async learning loop
+- LLM manager service (separate process)
+- Policy proposal generation + validation
+- Multi-agent learning infrastructure
+- **Milestone M7**: Full learning loop operational ✅
+
+### 11.2 Dependency Graph
+
+```
+Phase 7 (Integration) ──┬──> Phase 8 (Costs) ──> Phase 9 (Policies)
+                        │                              │
+                        │                              v
+                        └──> Phase 10 (Multi-Rail) ──> Phase 11 (Shocks)
+                                                         │
+                                                         v
+                        Phase 13 (LLM) <────── Phase 12 (Production)
+```
+
+**Critical Path**: 7 → 8 → 9 → 13 (learning features depend on policies)
+
+**Parallel Work**: Phases 10-11 can proceed independently (multi-rail, shocks)
+
+### 11.3 Go/No-Go Decision Points
+
+**Milestone M1 (Week 3)**: Integration Layer Complete
+- **Go Criteria**:
+  - All FFI tests pass (roundtrip, memory safety)
+  - Can create/control simulations via API
+  - CLI functional for debugging
+  - Determinism preserved across FFI boundary
+- **No-Go**: Block Phase 8-13 until resolved
+
+**Milestone M3 (Week 7)**: Policy Framework Complete
+- **Go Criteria**:
+  - Expression evaluator safe and correct
+  - Shadow replay produces valid KPI estimates
+  - Can define and validate policies via YAML
+- **No-Go**: Block Phase 13 (LLM integration)
+
+**Milestone M6 (Week 13)**: Production Ready
+- **Go Criteria**:
+  - WebSocket streaming works for 10+ clients
+  - Frontend displays all state correctly
+  - Performance targets met (>1000 ticks/sec)
+  - Monitoring operational (Prometheus + Grafana)
+- **No-Go**: Block public launch
+
+---
+
+## Part XII: Getting Started
+
+### 12.1 Quick Start for New Developers
+
+**Step 1: Environment Setup**
+```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install Python 3.11+
+# (use pyenv, conda, or system package manager)
+
+# Clone repository
+git clone https://github.com/your-org/payment-simulator.git
+cd payment-simulator
+
+# Install Python dependencies
+cd api && pip install -e ".[dev]"
+
+# Build Rust core
+cd ../backend && cargo build --release
+cd .. && maturin develop --release
+
+# Run tests
+cargo test          # Rust tests
+pytest              # Python tests
+```
+
+**Step 2: Run Your First Simulation**
+```bash
+# Start API server
+cd api && uvicorn main:app --reload --port 8000
+
+# In another terminal, use CLI
+cd cli
+./sim create config/simple.yaml
+./sim tick 100
+./sim state
+```
+
+**Step 3: Explore the Codebase**
+- Read `docs/architecture.md` (high-level design)
+- Read `docs/queue_architecture.md` (two-queue system)
+- Review `backend/tests/` (see how components work)
+- Check `CLAUDE.md` in each module (AI assistant docs)
+
+### 12.2 Development Workflow
+
+**Daily Loop**:
+```bash
+# Morning: Update and test
+git pull
+cargo test && pytest
+
+# Develop: Write test first
+# 1. Add test in `backend/tests/test_feature.rs`
+# 2. Run `cargo test test_feature` (fails)
+# 3. Implement feature
+# 4. Run `cargo test test_feature` (passes)
+
+# Before commit: Lint and format
+cargo fmt && cargo clippy
+black . && mypy .
+
+# Commit
+git add .
+git commit -m "feat(module): description"
+git push origin feature/my-feature
+
+# Create PR (see template in .github/PULL_REQUEST_TEMPLATE.md)
+```
+
+**Testing Checklist**:
+```bash
+# Unit tests
+cargo test --lib
+
+# Integration tests
+cargo test --test '*'
+
+# Python tests
+pytest tests/
+
+# FFI tests
+pytest tests/integration/
+
+# Determinism
+cargo test test_rng_determinism
+pytest tests/test_determinism.py
+
+# Performance
+cargo bench     # (optional, for hot paths)
+```
+
+### 12.3 Where to Contribute
+
+**Beginner-Friendly Tasks**:
+- Add doc examples for public APIs
+- Improve error messages
+- Add tests for edge cases
+- Fix clippy/mypy warnings
+
+**Intermediate Tasks**:
+- Implement new policy types
+- Add shock scenarios
+- Improve CLI output formatting
+- Add API endpoints
+
+**Advanced Tasks**:
+- Optimize LSM cycle detection
+- Implement new settlement rails
+- Build LLM manager service
+- Design multi-agent learning experiments
+
+**See**: `CONTRIBUTING.md` and `docs/good-first-issues.md`
+
+---
+
+## Appendix A: Configuration Examples
+
+### A.1 Minimal Configuration
+```yaml
+# config/minimal.yaml
+simulation:
+  ticks_per_day: 100
+  seed: 12345
+
+agents:
+  - id: BANK_A
+    balance: 1000000      # $10,000.00
+    credit_limit: 500000  # $5,000.00
+    
+  - id: BANK_B
+    balance: 1500000      # $15,000.00
+    credit_limit: 750000  # $7,500.00
+
+# No arrivals (manual submission only)
+# No costs (zero rates)
+# LSM enabled by default
+```
+
+### A.2 Realistic Configuration
+```yaml
+# config/realistic.yaml
+simulation:
+  ticks_per_day: 100
+  seed: 67890
+  rails:
+    - type: rtgs
+      lsm:
+        bilateral_offsetting: true
+        cycle_detection: true
+        max_iterations: 3
+
+agents:
+  - id: BANK_A
+    balance: 5000000       # $50,000.00
+    credit_limit: 10000000 # $100,000.00
+    liquidity_buffer: 2000000  # Target minimum balance
+    arrival_config:
+      rate_per_tick: 0.5   # Poisson λ = 0.5 transactions/tick
+      distribution_type: lognormal
+      amount_mean: 500000  # $5,000 median
+      amount_std_dev: 200000
+      counterparty_weights:
+        BANK_B: 0.4
+        BANK_C: 0.3
+        BANK_D: 0.3
+    
+  - id: BANK_B
+    balance: 8000000
+    credit_limit: 15000000
+    liquidity_buffer: 3000000
+    arrival_config:
+      rate_per_tick: 0.6
+      distribution_type: lognormal
+      amount_mean: 600000
+      amount_std_dev: 250000
+      counterparty_weights:
+        BANK_A: 0.5
+        BANK_C: 0.3
+        BANK_D: 0.2
+
+  # ... BANK_C, BANK_D ...
+
+costs:
+  liquidity_rate: 0.0005   # 5 bps annualized
+  collateral_rate: 0.0002  # 2 bps annualized
+  split_friction: 1000     # $10 per split
+  deadline_penalty: 100000 # $1,000 per violation
+  eod_penalty: 500000      # $5,000 per unsettled
+```
+
+### A.3 Multi-Rail Configuration
+```yaml
+# config/multi_rail.yaml
+simulation:
+  ticks_per_day: 100
+  seed: 54321
+  rails:
+    - type: rtgs
+      lsm:
+        bilateral_offsetting: true
+        cycle_detection: true
+    - type: dns
+      batch_ticks: [25, 50, 75, 100]  # Settlement windows
+      netting: bilateral
+
+agents:
+  - id: BANK_A
+    rtgs_balance: 3000000
+    dns_balance: 2000000
+    credit_limit: 8000000
+    # ... arrival configs for each rail ...
+```
+
+---
+
+## Appendix B: API Reference (Summary)
+
+### B.1 Simulations
+- `POST /simulations` — Create simulation from config
+- `GET /simulations/{id}` — Get simulation info
+- `POST /simulations/{id}/start` — Start simulation
+- `POST /simulations/{id}/stop` — Stop simulation
+- `POST /simulations/{id}/tick?n=10` — Advance N ticks
+- `GET /simulations/{id}/state` — Get state snapshot
+- `DELETE /simulations/{id}` — Delete simulation
+
+### B.2 Transactions
+- `POST /transactions` — Submit transaction
+- `GET /transactions/{id}` — Get transaction details
+- `GET /transactions?agent=BANK_A&status=pending` — Query transactions
+
+### B.3 KPIs
+- `GET /kpis/costs?simulation_id={id}` — Cost breakdown
+- `GET /kpis/throughput?simulation_id={id}` — Throughput over time
+- `GET /kpis/liquidity?simulation_id={id}` — Peak debits, headroom
+
+### B.4 WebSocket
+- `WS /websocket?simulation_id={id}` — Real-time event stream
+  - Events: `tick`, `arrival`, `settlement`, `policy_decision`, `cost_update`
+
+**Full API Documentation**: See `docs/API.md`
+
+---
+
+## Appendix C: Glossary (Extended)
 
 | Term | Definition |
 |------|------------|
-| **PyO3** | Rust library for creating Python bindings |
-| **Maturin** | Build tool for Rust Python extensions |
-| **FFI** | Foreign Function Interface; boundary between Rust and Python |
-| **Zero-cost abstraction** | Rust design principle: abstractions with no runtime overhead |
-| **xorshift64*** | Fast, deterministic PRNG algorithm |
-| **GIL** | Global Interpreter Lock; Python's concurrency limitation (Rust releases it) |
-| **Editable install** | Development mode where changes to code take effect without reinstall |
-| **Property-based testing** | Testing strategy that validates invariants across random inputs |
+| **Agent** | A bank participant in the simulation (holds settlement balance at central bank) |
+| **Arrival** | New payment order entering a bank's Queue 1 |
+| **Balance** | Bank's settlement account balance at central bank (can go negative with credit) |
+| **Bilateral Offsetting** | LSM technique: net A→B and B→A transactions to reduce gross settlement |
+| **Cash Manager** | Treasury operations role making intraday payment decisions (modeled by policies) |
+| **Collateral** | Assets posted to secure intraday credit (incurs opportunity cost) |
+| **Credit Limit** | Maximum intraday overdraft allowed (balance can go to `balance - credit_limit`) |
+| **Cycle** | Circular payment chain (A→B→C→A) settleable with net-zero liquidity |
+| **Deadline** | Latest tick for transaction settlement (penalties apply if missed) |
+| **Determinism** | Property that same seed produces identical outcomes (essential for replay) |
+| **DNS (Deferred Net Settlement)** | Batch netting rail (contrasts with RTGS gross settlement) |
+| **EoD (End-of-Day)** | Last tick of business day (large penalties for unsettled transactions) |
+| **Episode** | Complete simulation run (one or more business days) |
+| **FFI (Foreign Function Interface)** | Boundary between Rust and Python (via PyO3) |
+| **Gridlock** | Situation where all banks wait for inflows, no settlements occur |
+| **Headroom** | Remaining unused credit capacity (`credit_limit + balance` if balance > 0) |
+| **Liquidity Pressure** | Metric of how constrained an agent's liquidity is (0-1 scale) |
+| **LSM (Liquidity-Saving Mechanism)** | Queue optimization techniques (offsetting, cycles) |
+| **Nostro** | Account held at correspondent bank for cross-border settlements |
+| **Orchestrator** | Central coordinator executing 9-step tick loop in Rust |
+| **Policy** | Decision-making logic for cash manager (when to submit, split, hold) |
+| **Priority** | Transaction urgency level (0-10, affects policy decisions) |
+| **Queue 1** | Internal bank queue (agent-controlled, strategic decisions) |
+| **Queue 2** | Central RTGS queue (system-controlled, mechanical liquidity retry) |
+| **Recycling** | Using incoming settlement proceeds to fund outgoing payments |
+| **RTGS (Real-Time Gross Settlement)** | Settlement system for individual, immediate finality |
+| **Shadow Replay** | Re-evaluation of past episodes with new policy (validation technique) |
+| **Splitting** | Voluntary division of large payment into N separate instructions (agent pacing) |
+| **Throughput** | Cumulative value settled / cumulative value arrived (0-1 ratio) |
+| **Tick** | Discrete time unit (60-100 per simulated business day) |
 
 ---
 
-## 22) Critical Invariants & Pitfalls
+## Appendix D: References & Further Reading
 
-### Critical Invariants
+### Academic Papers
+1. **Gridlock Resolution in Payment Systems** — Danmarks Nationalbank (2001)
+   - *Key Result*: LSM reduces gridlock duration by 40-60% under constrained liquidity
 
-1. **Determinism**: All randomness via seeded RNG; same inputs → same outputs
-2. **Balance conservation**: Total system balance never changes (except arrivals/settlements)
-3. **Agent-local validation**: Shadow replay only validates agent-controllable metrics
-4. **Asynchronous learning**: LLM Manager never blocks simulation tick loop
-5. **Once-on-arrival**: Payment policies evaluate once when payment arrives
-6. **Integer arithmetic**: All monetary values in minor units (cents/pence)
-7. **Per-priority LSM**: LSM operates independently per priority class
-8. **Seed persistence**: New seed must be saved after every RNG call
-9. **FFI safety**: No undefined behavior across Rust-Python boundary
-10. **Memory ownership**: Rust owns simulation state; Python only holds references
+2. **Liquidity Distribution and Settlement in TARGET2** — ECB Economic Bulletin (2020)
+   - *Key Result*: Bilateral offsetting provides 30-40% liquidity savings in typical operations
 
-### Common Pitfalls
+3. **Central Bank Digital Currency: Opportunities and Challenges** — BIS Quarterly Review (2021)
+   - *Relevance*: RTGS design principles apply to CBDC settlement layers
 
-1. **Forgetting to persist new RNG seed** → Non-deterministic replay
-2. **Using float for money** → Rounding errors, type contamination
-3. **Re-evaluating payment policies** → Breaks action schema semantics
-4. **Validating system metrics in shadow replay** → Impossible in multi-agent system
-5. **Running LLM synchronously** → Simulation becomes unusably slow
-6. **Using nested attribute access in expressions** → Evaluator crash
-7. **Confusing splits and execution attempts** → Invalid actions for indivisible payments
-8. **Crossing FFI boundary too frequently** → Performance degradation
-9. **Holding Python references to Rust objects** → Memory leaks
-10. **Panicking in Rust without PyO3 catch** → Python process crash
+### Technical Documentation
+1. **TARGET2 User Guide** — European Central Bank
+   - Details on priorities, timed transactions, limits, CLM
 
----
+2. **CPMI-IOSCO Principles for Financial Market Infrastructures** — BIS (2012)
+   - FMI safety and efficiency standards (relevant for compliance scenarios)
 
-## 23) Development Best Practices
+3. **PyO3 User Guide** — PyO3 Project
+   - Best practices for Rust-Python FFI
 
-### Rust Development
+### Code Examples & Tutorials
+1. **Rust Performance Book** — Official Rust Documentation
+   - Optimization techniques for hot paths
 
-1. **Use `cargo clippy`**: Catch common mistakes
-2. **Use `cargo fmt`**: Consistent code formatting
-3. **Write unit tests first**: TDD for new features
-4. **Avoid `unsafe`**: Only when necessary, document why
-5. **Benchmark critical paths**: Use `cargo bench`
-6. **Profile before optimizing**: Use `perf` or `flamegraph`
+2. **FastAPI Documentation** — FastAPI Project
+   - Async API design patterns
 
-### Python Development
-
-1. **Type hints everywhere**: Use `mypy` for type checking
-2. **Use Pydantic for validation**: Don't trust user input
-3. **Async where appropriate**: Use `async`/`await` for I/O
-4. **Test FFI boundary**: Integration tests for every Rust function
-5. **Mock Rust backend for unit tests**: Don't require Rust for all tests
-
-### FFI Development
-
-1. **Minimize crossings**: Batch operations when possible
-2. **Validate at boundary**: Check types and ranges before crossing
-3. **Handle errors gracefully**: Convert Rust errors to Python exceptions
-4. **Document ownership**: Who owns what, when
-5. **Test memory safety**: Use valgrind, ASAN, MSAN
+3. **Multi-Agent RL Resources** — OpenAI Spinning Up, RLlib
+   - Self-play, population-based training
 
 ---
 
-## Appendix A: Build System Details
+## Conclusion
 
-### Maturin Configuration
+This Grand Plan 2.0 provides a comprehensive roadmap from the completed foundation (Phases 1-6) to the full vision of an LLM-driven, multi-agent payment simulator. The plan is structured in three major sections:
 
-**`pyproject.toml`**:
-```toml
-[build-system]
-requires = ["maturin>=1.9.6"]
-build-backend = "maturin"
+**Where We Are** (Part III): The foundation is complete — all Rust core components are implemented, tested, and validated. We have a working 9-step tick loop, two-queue architecture, RTGS settlement, LSM optimization, cash manager policies, transaction splitting, and arrival generation. 60+ tests pass with zero failures.
 
-[tool.maturin]
-python-source = "api"
-module-name = "payment_simulator_core_rs"
-```
+**Where We're Going** (Part IV): A phased 16-week plan to add the integration layer (FFI, Python API, CLI), implement the full cost model, build advanced policy infrastructure (including LLM-driven evolution), support multi-rail and cross-border scenarios, add shock testing, and achieve production readiness with observability and a React frontend.
 
-**Build Commands**:
-```bash
-# Development build (with debug symbols)
-maturin develop
+**How We'll Get There** (Parts V-XII): Detailed technical architecture, development guidelines, deployment strategies, risk mitigation, success metrics, and getting-started instructions ensure the plan is actionable and maintainable.
 
-# Release build (optimized)
-maturin develop --release
+**Critical Success Factors**:
+1. **Maintain determinism** — Every new feature must preserve replay capability
+2. **Preserve two-queue separation** — Clear distinction between strategic (Queue 1) and mechanical (Queue 2) decisions
+3. **Test ruthlessly** — >80% coverage, property tests for invariants, integration tests across FFI
+4. **Scope discipline** — Follow phased plan, defer non-critical features to backlog
+5. **Document as we go** — Keep docs synchronized with code, examples for all public APIs
 
-# Build wheel
-maturin build --release
+The foundation work validated the core architecture and proved the system can model real-world RTGS dynamics (liquidity recycling, gridlock, LSM efficacy). With this solid base, we're ready to complete the integration layer and build toward the full vision: a production-grade simulator where banks' payment strategies evolve through LLM-driven policy improvement, validated by rigorous testing and shadow replay.
 
-# Install wheel
-pip install target/wheels/payment_simulator_core_rs-*.whl
-```
-
-### Cargo Configuration
-
-**`backend/Cargo.toml`**:
-```toml
-[package]
-name = "payment-simulator-core-rs"
-version = "0.1.0"
-edition = "2021"
-
-[lib]
-name = "payment_simulator_core_rs"
-crate-type = ["cdylib"]  # For Python extension
-
-[dependencies]
-pyo3 = { version = "0.22", features = ["extension-module"] }
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-```
+**Next Immediate Action**: Begin Phase 7 (Integration Layer) with PyO3 FFI bindings to expose the Rust orchestrator to Python, enabling HTTP API control and CLI tooling. This unlocks all subsequent phases.
 
 ---
 
-## Appendix B: API Endpoints Reference
-
-### Simulations
-
-```
-POST   /simulations              Create simulation
-GET    /simulations/{id}         Get simulation info
-DELETE /simulations/{id}         Delete simulation
-POST   /simulations/{id}/start   Start simulation
-POST   /simulations/{id}/stop    Stop simulation
-POST   /simulations/{id}/reset   Reset simulation
-POST   /simulations/{id}/tick    Advance one tick
-GET    /simulations/{id}/state   Get state snapshot
-```
-
-### Transactions
-
-```
-POST   /transactions             Submit transaction
-GET    /transactions/{id}        Get transaction details
-GET    /transactions             Query transactions (filters)
-GET    /transactions/statistics  Get transaction statistics
-```
-
-### Settlements
-
-```
-GET    /settlements/bilateral-ledger    Get bilateral ledger
-GET    /settlements/history             Get settlement history
-GET    /settlements/statistics          Get settlement statistics
-```
-
-### LSM
-
-```
-GET    /lsm/statistics          Get LSM statistics
-GET    /lsm/queue               Get LSM queue state
-```
-
-### KPIs
-
-```
-GET    /kpis/costs              Get cost breakdown
-GET    /kpis/throughput         Get throughput metrics
-GET    /kpis/liquidity          Get liquidity metrics
-```
-
-### Queue
-
-```
-GET    /queue/state             Get queue state
-GET    /queue/history           Get queue history
-```
-
-### System
-
-```
-GET    /system/health           Health check
-GET    /system/metrics          System metrics
-```
-
-### WebSocket
-
-```
-WS     /websocket               Real-time updates stream
-```
-
----
-
-## Appendix C: Testing Checklist
-
-### Rust Tests
-
-- [ ] Unit tests for all modules (100% coverage)
-- [ ] Integration tests for module interactions
-- [ ] Property tests for invariants (determinism, balance conservation)
-- [ ] Benchmarks for critical paths (tick loop, settlement, LSM)
-- [ ] Fuzz tests for edge cases
-
-### Python Tests
-
-- [ ] Unit tests for configuration validation
-- [ ] Unit tests for service layer logic
-- [ ] Integration tests for FFI boundary
-- [ ] E2E tests for all API endpoints
-- [ ] WebSocket streaming tests
-- [ ] Load tests (concurrent requests)
-
-### FFI Tests
-
-- [ ] Roundtrip tests (Python → Rust → Python)
-- [ ] Error propagation tests
-- [ ] Memory leak tests (valgrind)
-- [ ] Type safety tests (invalid inputs)
-- [ ] Performance tests (FFI overhead)
-
-### System Tests
-
-- [ ] Determinism verification (replay)
-- [ ] Multi-day simulation tests
-- [ ] Shock scenario tests
-- [ ] Gridlock recovery tests
-- [ ] Policy convergence tests
-
----
-
-*End of Project Plan*
+**Document Status**: Living Document (update as implementation progresses)  
+**Maintainer**: Payment Simulator Team  
+**Last Updated**: October 28, 2025  
+**Version**: 2.0

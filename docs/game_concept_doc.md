@@ -1,12 +1,4 @@
-# RTGS-First Game Design Doc (T2-style, Riksbank context)
-
-> **Scope.** This spec rewrites the simulator around a realistic **generic RTGS** flow modeled on **T2**: commercial banks settle interbank payments individually and with immediate finality in **central bank money**, with queues and **liquidity-saving/optimisation** procedures available to economize liquidity. We assume **Sveriges riksbank** operates its high-value **RIX-RTGS** on the T2 platform for SEK (consistent with the Riksbank’s stated plan to connect to T2). ([European Central Bank][1])
-
-```
-Client A → Bank A (internal debit) → RTGS @ Central Bank (A debited, B credited) → Bank B (internal credit) → Client B
-```
-
-RTGS is the *only* place where interbank value moves; everything before/after is the banks’ internal ledgers. ([European Central Bank][1])
+# RTGS-First Game Design Doc
 
 ## 1) Purpose & core loop
 

@@ -72,7 +72,7 @@ pub enum TransactionError {
 ///     100000, // $1,000.00 in cents
 ///     10,     // arrival_tick
 ///     50,     // deadline_tick
-/// ).with_priority(8).divisible();
+/// ).with_priority(8);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
@@ -416,15 +416,12 @@ impl Transaction {
     ///     100000,
     ///     10,
     ///     50,
-    /// ).divisible();
+    /// );
     ///
-    /// // Partial settlement
-    /// tx.settle(40000, 20).unwrap();
-    /// assert_eq!(tx.remaining_amount(), 60000);
-    ///
-    /// // Final settlement
-    /// tx.settle(60000, 30).unwrap();
+    /// // Must settle full remaining amount
+    /// tx.settle(100000, 20).unwrap();
     /// assert!(tx.is_fully_settled());
+    /// assert_eq!(tx.remaining_amount(), 0);
     /// ```
     pub fn settle(&mut self, amount: i64, tick: usize) -> Result<(), TransactionError> {
         // Validate amount
