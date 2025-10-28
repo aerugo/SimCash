@@ -26,7 +26,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 credit_limit: 500_000,      // $5,000
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 2_000_000, // $20,000
@@ -36,7 +36,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
                     urgency_threshold: 5,     // 5 ticks before deadline
                 },
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -319,14 +319,14 @@ fn test_orchestrator_lsm_bilateral_offset() {
                 credit_limit: 0,          // No credit
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000, // Only $1,000
                 credit_limit: 0,          // No credit
                 policy: PolicyConfig::Fifo, // Use FIFO to ensure submission
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -523,14 +523,14 @@ fn test_orchestrator_automatic_arrivals() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 10_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-            },
+                posted_collateral: None,            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -577,13 +577,14 @@ fn test_orchestrator_arrival_determinism() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 5_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None, // No arrivals for BANK_B
+                posted_collateral: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -642,21 +643,21 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_C".to_string(),
                 opening_balance: 50_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -731,14 +732,14 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-            },
+                posted_collateral: None,            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-            },
+                posted_collateral: None,            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),

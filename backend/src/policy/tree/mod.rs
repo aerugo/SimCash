@@ -14,8 +14,8 @@
 // - executor.rs: PolicyExecutor enum (unified interface for Trait + Tree)
 
 pub mod context;
-pub mod equivalence_tests; // Phase 6.18: Validate JSON ≡ Trait policies
 pub mod executor;
+pub mod factory; // Phase 3: Policy factory for orchestrator integration
 pub mod interpreter;
 pub mod scenario_tests; // Real-world scenario tests for policy evaluation
 pub mod types;
@@ -24,6 +24,7 @@ pub mod validation;
 // Re-export main types for convenience
 pub use context::{ContextError, EvalContext};
 pub use executor::{TreePolicy, TreePolicyError};
+pub use factory::create_policy; // Phase 3: Policy factory function
 pub use interpreter::{
     build_decision, evaluate_computation, evaluate_expression, evaluate_value, traverse_tree,
     EvalError,

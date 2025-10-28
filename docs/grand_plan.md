@@ -1,9 +1,9 @@
 # Payment Simulator: Grand Plan 2.0
 ## From Foundation to Full Vision
 
-**Document Version**: 2.2
-**Date**: October 28, 2025
-**Status**: Foundation + Integration + Policy DSL Complete → Cost Model & Feature Expansion
+**Document Version**: 2.4
+**Date**: October 29, 2025
+**Status**: Foundation + Integration + Policy DSL Complete → Cost Model, Persistence & LLM Integration
 
 ---
 
@@ -42,13 +42,13 @@ The Rust core backend is **complete and battle-tested**:
   - ✅ Cost calculations (4/5 types: liquidity, delay, split friction, deadline)
   - ❌ Missing: Collateral cost, API exposure, metrics endpoints
 
-**Next Steps** (10-14 weeks):
-1. ✅ Complete Phase 8: Add cost/metrics API endpoints, collateral cost
-2. ❌ Phase 9 (Learning): Shadow replay, policy evolution, LLM integration (deferred to Phase 13)
-3. ❌ Phase 10: Multi-rail support (RTGS + DNS, cross-border corridors)
-4. ❌ Phase 11: Shock scenarios (outages, liquidity squeezes, counterparty stress)
-5. ❌ Phase 12: Production readiness (WebSocket streaming, frontend, observability)
-6. ❌ Phase 13: LLM Manager Integration (asynchronous policy evolution)
+**Next Steps** (12-16 weeks):
+1. 🔄 Complete Phase 8: Add cost/metrics API endpoints, collateral cost (2-3 days remaining)
+2. ❌ Phase 10: Data Persistence (DuckDB + Polars, schema-as-code, batch writes) (2 weeks)
+3. ❌ Phase 11: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
+4. ❌ Phase 12: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
+5. ❌ Phase 13: Shock scenarios (outages, liquidity squeezes, counterparty stress) (1 week)
+6. ❌ Phase 14: Production readiness (WebSocket streaming, frontend, observability) (3 weeks)
 
 ---
 
@@ -626,10 +626,216 @@ The following features were designed in Phase 9 but intentionally deferred:
 - Automated deployment (git commit + restart)
 - **Reason**: This IS the LLM Manager system (Phase 13)
 
-**Architectural Decision**: Phase 9 focused on building safe, sandboxed DSL infrastructure that works independently. Phase 13 will add the LLM integration layer that USES this DSL. This separation allows:
+**Architectural Decision**: Phase 9 focused on building safe, sandboxed DSL infrastructure that works independently. Phase 11 will add the LLM integration layer that USES this DSL. This separation allows:
 1. Testing and validating DSL before adding LLM complexity
 2. Using the DSL for manual policy development
 3. Hot-reloading policies without LLM involvement
+
+### 4.4 Phase 10: Data Persistence ❌ **NOT STARTED**
+
+**Goal**: Implement file-based data persistence for simulation runs, transactions, agent states, and policy evolution.
+
+**Status**: 0% complete - Planning complete, implementation not started
+
+**Implementation Plan**: See [docs/persistence_implementation_plan.md](persistence_implementation_plan.md) for complete specification.
+
+#### Why Persistence is Critical
+
+**Enables Phase 11 (LLM Manager)**:
+- Shadow replay requires historical episode storage (deterministic seeds + results)
+- Policy evolution needs version tracking (store diffs between policy v23 → v24)
+- LLM Manager validates improvements by comparing KPIs across stored episodes
+- Monte Carlo validation samples from episode database
+
+**Research & Analysis**:
+- Store 200+ simulation runs with 1.2M transactions each = 240M+ transaction records
+- Query agent performance across runs ("which policies performed best under liquidity stress?")
+- Track policy evolution over time ("how did BANK_A's policy improve from v1 to v30?")
+
+#### Technology Stack
+
+**Database**: DuckDB
+- File-based (single `simulation_data.db` file)
+- Columnar storage (fast analytical queries on 250M+ rows)
+- Zero-copy integration with Polars via Apache Arrow
+
+**DataFrame Library**: Polars
+- Faster than Pandas (Rust-based, SIMD optimized)
+- Native Arrow format (zero-copy to/from DuckDB)
+- Lazy evaluation for complex query chains
+
+**Schema Management**: Pydantic Models as Source of Truth
+- Auto-generate DDL from Pydantic models
+- Versioned migration system (numbered SQL files)
+- Runtime validation prevents schema drift
+- CLI tools: `payment-sim db migrate`, `payment-sim db validate`
+
+#### Data Model
+
+**Five Core Tables**:
+
+1. **simulations** - Simulation run metadata
+   - Config hash, seed, performance metrics, completion status
+   - Enables queries: "show all 200-agent runs with seed 12345"
+
+2. **transactions** - Every transaction across all runs
+   - Full lifecycle (arrival_tick, settlement_tick, status, costs)
+   - Granular analysis: "transaction delay distribution by priority level"
+
+3. **daily_agent_metrics** - Agent state snapshots per day
+   - Balance stats (min/max/opening/closing), queue sizes, cost breakdown
+   - Fast queries without scanning millions of transactions
+   - Example: "BANK_A's peak overdraft on day 5 of run X?"
+
+4. **policy_snapshots** - Policy version tracking
+   - File path to JSON policy, SHA256 hash, creation timestamp
+   - Who created: 'manual', 'llm_manager', 'init'
+   - Enables policy provenance: "what policy was BANK_A using on day 3?"
+
+5. **config_archive** - Full config snapshots
+   - Enables exact reproduction of any run
+   - Deduplication by config hash
+
+**Schema Example** (Pydantic model auto-generates DDL):
+```python
+class TransactionRecord(BaseModel):
+    simulation_id: str
+    tx_id: str
+    sender_id: str
+    receiver_id: str
+    amount: int  # cents
+    arrival_tick: int
+    settlement_tick: Optional[int]
+    status: TransactionStatus  # 'pending', 'settled', 'dropped'
+    queue1_ticks: int
+    delay_cost: int
+
+    class Config:
+        table_name = "transactions"
+        primary_key = ["simulation_id", "tx_id"]
+        indexes = [
+            ("idx_tx_sim_sender", ["simulation_id", "sender_id"]),
+            ("idx_tx_status", ["status"]),
+        ]
+```
+
+#### Persistence Strategy
+
+**Batch Writes at End of Each Day**:
+- Not real-time (would slow simulation 10-50x)
+- Accumulate full day's data in memory (200 ticks worth)
+- Write all at once: 40K transactions in <100ms via Polars → DuckDB
+
+**Workflow**:
+```python
+for day in range(num_days):
+    # Simulate entire day (200 ticks)
+    for tick in range(ticks_per_day):
+        orch.tick()
+
+    # End of day: persist
+    daily_txs = orch.get_transactions_for_day(day)  # FFI call
+    df = pl.DataFrame(daily_txs)  # Polars DataFrame
+    conn.execute("INSERT INTO transactions SELECT * FROM df")  # Zero-copy
+```
+
+**FFI Extensions Needed**:
+- `get_transactions_for_day(day)` → List of transaction dicts
+- `get_daily_agent_metrics(day)` → List of agent metric dicts
+- Rust maintains full state, clones data to Python at end of day
+
+#### Schema Synchronization
+
+**Problem**: How to keep database schema in sync with evolving Pydantic models?
+
+**Solution**: Pydantic models as single source of truth
+1. Developer updates Pydantic model (adds field)
+2. Run `payment-sim db create-migration add_my_field`
+3. Edit generated migration SQL
+4. Run `payment-sim db migrate` (applies migration)
+5. Runtime validation ensures schema matches models
+
+**Example** (adding `settlement_type` field):
+```python
+# 1. Update model
+class TransactionRecord(BaseModel):
+    # ... existing fields ...
+    settlement_type: Optional[str] = None  # NEW: 'immediate', 'lsm_bilateral', 'lsm_cycle'
+
+# 2. Create migration
+$ payment-sim db create-migration add_settlement_type
+
+# 3. Edit migrations/002_add_settlement_type.sql
+ALTER TABLE transactions ADD COLUMN settlement_type VARCHAR;
+
+# 4. Apply
+$ payment-sim db migrate
+
+# 5. Validate (automatic on connection)
+$ payment-sim db validate
+✓ Schema validation passed
+```
+
+#### Implementation Phases
+
+**5-Phase Rollout** (8-12 days total):
+
+1. **Infrastructure** (2-3 days):
+   - DuckDB + Polars dependencies
+   - Pydantic models with metadata
+   - DDL auto-generator from models
+   - Migration system
+   - CLI commands (`db init`, `db migrate`, `db validate`)
+
+2. **Transaction Batch Writes** (2-3 days):
+   - Rust FFI: `get_transactions_for_day()`
+   - Python: Convert to Polars, insert to DuckDB
+   - Test: 40K transactions in <100ms
+
+3. **Agent Metrics Collection** (1-2 days):
+   - Rust: Track daily min/max balance, queue sizes, costs
+   - FFI: `get_daily_agent_metrics()`
+   - Python: Batch insert agent snapshots
+
+4. **Policy Snapshot Tracking** (1 day):
+   - Record policy changes (initial + mid-simulation updates)
+   - Store file path + SHA256 hash
+   - Integrate with Phase 9 DSL
+
+5. **Query Interface** (2-3 days):
+   - Pre-defined analytical queries returning Polars DataFrames
+   - CLI: `payment-sim query list-runs`, `payment-sim query agent-metrics`
+   - Export to Parquet for external analysis
+
+#### Success Criteria
+
+**Functional Requirements**:
+- ✅ Can store 200 runs × 1.2M transactions = 240M+ records
+- ✅ Can query transaction-level details for any run
+- ✅ Can track policy evolution across runs (v1 → v30)
+- ✅ Can export data to Polars/Parquet for external tools
+- ✅ Survives process crashes (data committed after each day)
+- ✅ Determinism preserved (same seed = same persisted data)
+
+**Performance Targets**:
+- Daily transaction batch write: <100ms (40K transactions)
+- Daily metrics batch write: <20ms (200 agent records)
+- Analytical query (1M txs): <1 second (interactive analysis)
+- Database file size (200 runs): <10 GB (compressed columnar storage)
+- Memory overhead: <50 MB (minimal impact on simulation)
+
+**Integration with Phase 11**:
+- ✅ Provides episode storage for shadow replay
+- ✅ Tracks policy versions for LLM Manager validation
+- ✅ Stores KPIs for comparing old vs. new policies
+- ✅ Enables Monte Carlo sampling from historical runs
+
+#### What's Deferred
+
+**Not Included in Phase 10**:
+- Real-time streaming to database (use WebSocket in Phase 14)
+- External database (PostgreSQL, etc.) - file-based DuckDB only
+- Distributed/sharded storage - single file sufficient for scope
 
 ----
 
@@ -678,40 +884,110 @@ The following features were designed in Phase 9 but intentionally deferred:
 - ✅ Can query system-wide metrics via `/simulations/{id}/metrics`
 - ✅ Prometheus `/metrics` endpoint operational
 
-### 4.5 Phase 9 Completion: Learning Infrastructure (Weeks 5-7 - Deferred to Phase 13)
+### 4.5 Phase 9: LLM Manager Integration (Weeks 5-7) ❌ **NOT STARTED**
 
-**Status**: DSL infrastructure 100% complete, learning loop deferred
+**Goal**: Asynchronous policy evolution via LLM
 
-**Note**: The Policy DSL (expression evaluator, JSON trees, validation) is **complete and operational**. The remaining Phase 9 work (shadow replay, policy evolution, LLM integration) has been intentionally deferred to **Phase 13: LLM Manager Integration**.
+**Note**: Phase 9 DSL infrastructure is **complete** (expression evaluator, JSON trees, validation - see Part III Section 4.3). This phase focuses on building the LLM-driven learning loop that uses that DSL.
 
-**Rationale**: The DSL can be used independently for manual policy development and hot-reloading. Adding LLM integration requires additional service infrastructure that's better implemented as Phase 13.
+#### LLM Manager Service
+**Deliverable**: Separate service for policy improvement
 
-**What's Already Done** ✅:
-- Expression evaluator (safe, sandboxed)
-- JSON decision tree format
-- Tree execution engine
-- Validation pipeline
-- 50+ field accessors
-- Comprehensive testing (940+ lines)
+**Architecture**:
+- **Decoupled**: Runs independently of simulator
+- **Asynchronous**: Simulator never blocks on LLM calls
+- **Episode-Driven**: Improves policies between simulation runs
 
-**What's Deferred to Phase 13** (LLM Manager Service):
-1. **Shadow Replay System**:
-   - Re-evaluate past episodes with new policy
-   - Monte Carlo opponent sampling
-   - KPI delta estimation
+**Tasks**:
+1. **Policy Proposal Generation**:
+   - Input: Episode history (seeds, KPIs, opponent policies)
+   - LLM prompt: "Improve policy to reduce cost while maintaining throughput"
+   - Output: Candidate policy (JSON DSL)
 
-2. **Policy Evolution Pipeline**:
-   - Async LLM policy generation
-   - Multi-stage validation (schema, properties, shadow replay)
-   - Guardrail enforcement
-   - Automated deployment
+2. **Automated Validation**:
+   - Schema validation (syntax correctness)
+   - Property tests (no negative amounts, valid actions)
+   - Shadow replay (Monte Carlo with sampled opponents)
+   - Guardrails (KPI deltas within acceptable range)
 
-3. **Continuous Learning Loop**:
-   - Episode collection infrastructure
-   - Policy version management (git integration)
-   - Feedback loop (performance tracking)
+3. **Deployment Pipeline**:
+   - Git commit for approved policy
+   - Tag with version (e.g., `agent_A_policy_v23`)
+   - Rollback mechanism (revert to previous commit)
 
-**Current Capability**: You can manually create/edit JSON policies and hot-reload them. LLM automation will be added in Phase 13.
+4. **Feedback Loop**:
+   - Collect episode results with new policy
+   - Update LLM context with outcomes
+   - Iterate improvement proposals
+
+**Testing**:
+- LLM manager isolation (mock responses)
+- Validation pipeline (reject malformed policies)
+- Shadow replay correctness
+- Full loop (propose → validate → deploy → collect results)
+
+#### Shadow Replay System
+**Deliverable**: Re-evaluate historical episodes with new policies
+
+**Tasks**:
+1. **Episode Collection**:
+   - Store deterministic seeds + configs
+   - Track performance metrics (costs, throughput, delays)
+   - Maintain episode history database
+
+2. **Replay Engine**:
+   - Load historical episode (seed + config)
+   - Swap in new policy for target agent
+   - Re-run simulation deterministically
+   - Collect KPIs for comparison
+
+3. **Monte Carlo Validation**:
+   - Sample opponent behaviors from recent episodes
+   - Run candidate policy against diverse opponents
+   - Estimate expected KPI improvements
+   - Calculate confidence intervals
+
+4. **Guardrail Enforcement**:
+   - Check KPI deltas against thresholds (e.g., <10% cost increase)
+   - Flag regressions or anomalies
+   - Automatic rejection of unsafe policies
+
+#### Multi-Agent Learning
+**Deliverable**: Simultaneous policy evolution
+
+**Challenges**:
+- Non-stationary environment (opponents evolve)
+- Credit assignment (who caused outcome?)
+- Exploration vs. exploitation
+
+**Approach**:
+1. **Self-Play**:
+   - Multiple agents improve simultaneously
+   - Each sees others as evolving opponents
+   - Sample opponent behaviors from recent episodes
+
+2. **Population-Based Training**:
+   - Maintain policy population per agent
+   - Select diverse opponents for shadow replay
+   - Promote successful policies
+
+3. **Convergence Detection**:
+   - Monitor KPI stability over episodes
+   - Flag oscillations or divergence
+   - Human-in-loop review for anomalies
+
+**Testing**:
+- Multi-agent learning scenarios (2-bank, 4-bank)
+- Convergence validation (stable equilibrium)
+- Robustness tests (shocks during learning)
+
+**Success Criteria**:
+- LLM manager can propose valid policy changes
+- Shadow replay validates without false positives
+- Policies improve over episodes (lower costs or higher throughput)
+- Learning converges to stable strategies
+
+**Estimated Effort**: 3 weeks
 
 ### 4.6 Phase 10: Multi-Rail & Cross-Border (Weeks 8-9) ❌ **NOT STARTED**
 
@@ -918,85 +1194,6 @@ The following features were designed in Phase 9 but intentionally deferred:
 - Frontend displays all simulation state correctly
 - Logs and metrics enable debugging
 - Performance targets met (>1000 ticks/sec maintained)
-
-**Estimated Effort**: 3 weeks
-
-### 4.9 Phase 13: LLM Manager Integration (Weeks 14-16) ❌ **NOT STARTED**
-
-**Goal**: Asynchronous policy evolution via LLM
-
-#### LLM Manager Service
-**Deliverable**: Separate service for policy improvement
-
-**Architecture**:
-- **Decoupled**: Runs independently of simulator
-- **Asynchronous**: Simulator never blocks on LLM calls
-- **Episode-Driven**: Improves policies between simulation runs
-
-**Tasks**:
-1. **Policy Proposal Generation**:
-   - Input: Episode history (seeds, KPIs, opponent policies)
-   - LLM prompt: "Improve policy to reduce cost while maintaining throughput"
-   - Output: Candidate policy (YAML DSL)
-
-2. **Automated Validation**:
-   - Schema validation (syntax correctness)
-   - Property tests (no negative amounts, valid actions)
-   - Shadow replay (Monte Carlo with sampled opponents)
-   - Guardrails (KPI deltas within acceptable range)
-
-3. **Deployment Pipeline**:
-   - Git commit for approved policy
-   - Tag with version (e.g., `agent_A_policy_v23`)
-   - Rollback mechanism (revert to previous commit)
-
-4. **Feedback Loop**:
-   - Collect episode results with new policy
-   - Update LLM context with outcomes
-   - Iterate improvement proposals
-
-**Testing**:
-- LLM manager isolation (mock responses)
-- Validation pipeline (reject malformed policies)
-- Shadow replay correctness
-- Full loop (propose → validate → deploy → collect results)
-
-#### Multi-Agent Learning
-**Deliverable**: Simultaneous policy evolution
-
-**Challenges**:
-- Non-stationary environment (opponents evolve)
-- Credit assignment (who caused outcome?)
-- Exploration vs. exploitation
-
-**Approach**:
-1. **Self-Play**:
-   - Multiple agents improve simultaneously
-   - Each sees others as evolving opponents
-   - Sample opponent behaviors from recent episodes
-
-2. **Population-Based Training**:
-   - Maintain policy population per agent
-   - Select diverse opponents for shadow replay
-   - Promote successful policies
-
-3. **Convergence Detection**:
-   - Monitor KPI stability over episodes
-   - Flag oscillations or divergence
-   - Human-in-loop review for anomalies
-
-**Testing**:
-- Multi-agent learning scenarios (2-bank, 4-bank)
-- Convergence validation (stable equilibrium)
-- Robustness tests (shocks during learning)
-
-**Success Criteria**:
-- LLM manager can propose valid policy changes
-- Shadow replay validates without false positives
-- Policies improve over episodes (lower costs or higher throughput)
-- Learning converges to stable strategies
-
-**Note on Phase 9 Deferred Work**: This phase incorporates the shadow replay system, policy evolution pipeline, and continuous learning loop that were originally designed as part of Phase 9 but intentionally deferred. The Phase 9 DSL infrastructure (expression evaluator, tree executor, validation) is already complete and provides the foundation for this LLM integration work.
 
 **Estimated Effort**: 3 weeks
 
@@ -1771,51 +1968,50 @@ curl -X POST http://api:8000/simulations/sim_abc123/tick?n=100
 - ❌ Missing: Collateral cost, API exposure, metrics endpoints
 - **Milestone M2**: Accurate cost tracking 🔄 **PARTIAL** (2-3 days remaining)
 
-**Phase 9: Policy DSL (Weeks 5-7)** ✅ — **DSL INFRASTRUCTURE COMPLETE**
+**Phase 9 (DSL): Policy Expression Language (Weeks 5-7)** ✅ — **COMPLETE**
 - ✅ Expression evaluator + decision-tree DSL (~4,880 lines)
 - ✅ Tree executor and validation pipeline
 - ✅ 50+ field accessors, comprehensive testing (940+ lines)
-- ❌ Shadow replay, policy evolution → Deferred to Phase 13
-- **Milestone M3**: Foundation for LLM-driven evolution ✅ **DSL ACHIEVED**
+- **Milestone M3**: DSL infrastructure for LLM-driven evolution ✅ **ACHIEVED**
+
+**Phase 9 (Learning): LLM Manager Integration (Weeks 5-7)** ❌ — **NOT STARTED**
+- LLM manager service (separate process)
+- Shadow replay system
+- Policy proposal generation + validation
+- Multi-agent learning infrastructure
+- **Milestone M4**: Full learning loop operational ❌ **NOT STARTED**
 
 **Phase 10: Multi-Rail & Cross-Border (Weeks 8-9)** ❌ — **NOT STARTED**
 - DNS rail implementation (batch netting)
 - Multi-currency nostro accounts
-- **Milestone M4**: Multi-rail simulations ❌ **NOT STARTED**
+- **Milestone M5**: Multi-rail simulations ❌ **NOT STARTED**
 
 **Phase 11: Shock Scenarios (Week 10)** ❌ — **NOT STARTED**
 - Shock module (5 shock types)
 - Shock-aware metrics and analysis
-- **Milestone M5**: Stress testing capability ❌ **NOT STARTED**
+- **Milestone M6**: Stress testing capability ❌ **NOT STARTED**
 
 **Phase 12: Production Readiness (Weeks 11-13)** ❌ — **NOT STARTED**
 - WebSocket streaming to clients
 - React frontend (dashboard, charts, controls)
 - Prometheus metrics + Grafana dashboards
-- **Milestone M6**: Production deployment ready ❌ **NOT STARTED**
-
-**Phase 13: LLM Manager Integration (Weeks 14-16)** ❌ — **NOT STARTED**
-- LLM manager service (separate process)
-- Shadow replay system (from Phase 9)
-- Policy proposal generation + validation
-- Multi-agent learning infrastructure
-- **Milestone M7**: Full learning loop operational ❌ **NOT STARTED**
+- **Milestone M7**: Production deployment ready ❌ **NOT STARTED**
 
 ### 11.2 Dependency Graph
 
 ```
-Phase 7 (Integration) ──┬──> Phase 8 (Costs) ──> Phase 9 (Policies)
+Phase 7 (Integration) ──┬──> Phase 8 (Costs) ──> Phase 9 (LLM Manager)
                         │                              │
                         │                              v
                         └──> Phase 10 (Multi-Rail) ──> Phase 11 (Shocks)
                                                          │
                                                          v
-                        Phase 13 (LLM) <────── Phase 12 (Production)
+                                                    Phase 12 (Production)
 ```
 
-**Critical Path**: 7 → 8 → 9 → 13 (learning features depend on policies)
+**Critical Path**: 7 → 8 → 9 (learning features depend on costs and DSL)
 
-**Parallel Work**: Phases 10-11 can proceed independently (multi-rail, shocks)
+**Parallel Work**: Phases 10-11 can proceed independently of Phase 9 (multi-rail, shocks)
 
 ### 11.3 Go/No-Go Decision Points
 
@@ -1827,14 +2023,22 @@ Phase 7 (Integration) ──┬──> Phase 8 (Costs) ──> Phase 9 (Policies
   - Determinism preserved across FFI boundary
 - **No-Go**: Block Phase 8-13 until resolved
 
-**Milestone M3 (Week 7)**: Policy Framework Complete
+**Milestone M3 (Week 7)**: Policy DSL Complete
 - **Go Criteria**:
   - Expression evaluator safe and correct
-  - Shadow replay produces valid KPI estimates
-  - Can define and validate policies via YAML
-- **No-Go**: Block Phase 13 (LLM integration)
+  - Can define and validate policies via JSON DSL
+  - Hot-reload policies without restart
+- **Status**: ✅ **ACHIEVED**
 
-**Milestone M6 (Week 13)**: Production Ready
+**Milestone M4 (Week 7)**: LLM Manager Operational
+- **Go Criteria**:
+  - Shadow replay produces valid KPI estimates
+  - LLM manager proposes valid policy changes
+  - Learning loop functional
+- **No-Go**: Block production deployment
+- **Status**: ❌ **NOT STARTED**
+
+**Milestone M7 (Week 13)**: Production Ready
 - **Go Criteria**:
   - WebSocket streaming works for 10+ clients
   - Frontend displays all state correctly
@@ -2173,10 +2377,10 @@ This Grand Plan 2.2 provides a comprehensive roadmap from the completed foundati
 
 **Where We're Going** (Part IV):
 - Complete Phase 8 (cost/metrics API layer)
-- Build multi-rail support (RTGS + DNS, cross-border)
-- Add shock scenarios and resilience testing
-- Achieve production readiness (WebSocket, frontend, observability)
-- Integrate LLM Manager for autonomous policy evolution (includes Phase 9 deferred work: shadow replay, learning loop)
+- **Phase 9: LLM Manager Integration** (shadow replay, policy evolution, multi-agent learning)
+- Phase 10: Multi-rail support (RTGS + DNS, cross-border)
+- Phase 11: Shock scenarios and resilience testing
+- Phase 12: Production readiness (WebSocket, frontend, observability)
 
 **How We'll Get There** (Parts V-XII): Detailed technical architecture, development guidelines, deployment strategies, risk mitigation, success metrics, and getting-started instructions ensure the plan is actionable and maintainable.
 
@@ -2212,11 +2416,11 @@ This Grand Plan 2.2 provides a comprehensive roadmap from the completed foundati
 
 **Next Immediate Actions**:
 1. **Complete Phase 8** (2-3 days): Add cost/metrics API endpoints, implement collateral cost
-2. **Plan Phase 10 or 13**: Decide priority between multi-rail features vs. LLM integration
+2. **Plan Phase 9 or 10**: Decide priority between LLM Manager integration vs. multi-rail features
 
 ---
 
 **Document Status**: Living Document (update as implementation progresses)
 **Maintainer**: Payment Simulator Team
 **Last Updated**: October 28, 2025
-**Version**: 2.2 — Phase 7 Complete, Phase 9 DSL Complete, Phase 8 60% Complete
+**Version**: 2.3 — Phase 7 Complete, Phase 9 DSL Complete, Phase 8 60% Complete, Roadmap Reorganized

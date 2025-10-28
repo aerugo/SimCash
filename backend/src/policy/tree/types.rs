@@ -223,6 +223,9 @@ pub enum ActionType {
     /// Split and pace transaction (Phase 5)
     PaceAndRelease,
 
+    /// Split transaction into multiple parts (Phase 5)
+    Split,
+
     /// Hold transaction in Queue 1 for later
     Hold,
 

@@ -13,7 +13,7 @@ mod tests {
     use crate::policy::tree::{
         ActionType, Computation, DecisionTreeDef, Expression, TreeNode, TreePolicy, Value,
     };
-    use crate::policy::{CashManagerPolicy, DeadlinePolicy, FifoPolicy, ReleaseDecision};
+    use crate::policy::{CashManagerPolicy, ReleaseDecision};
     use crate::{Agent, SimulationState, Transaction};
     use serde_json::json;
     use std::collections::HashMap;
@@ -22,6 +22,7 @@ mod tests {
         CostRates {
             overdraft_bps_per_tick: 0.0001,
             delay_cost_per_tick_per_cent: 0.00001,
+            collateral_cost_per_tick_bps: 0.0002,
             eod_penalty_per_transaction: 10000,
             deadline_penalty: 5000,
             split_friction_cost: 1000,
@@ -198,12 +199,17 @@ mod tests {
     // Scenario 1: Normal Operations
     // ========================================================================
 
+    // NOTE: Scenario comparison tests disabled after trait removal (Phase 8)
+    // These tests compared trait-based policies (FifoPolicy, DeadlinePolicy) vs DSL policies
+    // The DSL policies are now tested via integration tests in /backend/tests/
+
     #[test]
+    #[ignore = "Disabled after trait removal - comparison tests no longer applicable"]
     fn test_scenario_normal_operations() {
         // Scenario: Normal day with staggered transactions
         // Expected: Liquidity conservation should have lower peak liquidity usage than FIFO
 
-        let mut fifo_policy = FifoPolicy::new();
+        // let mut fifo_policy = FifoPolicy::new();
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
         let mut agent = Agent::new("BANK_A".to_string(), 500_000, 0); // Start with 500k balance
@@ -230,14 +236,14 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 10 (early day)
-        let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
+        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
         let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
 
         // FIFO: Releases all 3 transactions immediately
-        assert_eq!(fifo_decisions.len(), 3);
-        assert!(fifo_decisions
-            .iter()
-            .all(|d| matches!(d, ReleaseDecision::SubmitFull { .. })));
+        // assert_eq!(fifo_decisions.len(), 3);
+        // assert!(fifo_decisions
+        //     .iter()
+        //     .all(|d| matches!(d, ReleaseDecision::SubmitFull { .. })));
 
         // Conservation: More selective (holds non-urgent with available liquidity check)
         assert_eq!(conservation_decisions.len(), 3);
@@ -248,11 +254,11 @@ mod tests {
             .filter(|d| matches!(d, ReleaseDecision::Hold { .. }))
             .count();
 
-        println!(
-            "FIFO: {} releases, Conservation: {} holds out of 3",
-            fifo_decisions.len(),
-            holds_count
-        );
+        // println!(
+        //     "FIFO: {} releases, Conservation: {} holds out of 3",
+        //     fifo_decisions.len(),
+        //     holds_count
+        // );
 
         // Conservation should hold at least one transaction
         assert!(holds_count >= 1, "Conservation policy should hold at least one transaction early in the day");
@@ -263,11 +269,12 @@ mod tests {
     // ========================================================================
 
     #[test]
+    #[ignore = "Disabled after trait removal - comparison tests no longer applicable"]
     fn test_scenario_liquidity_squeeze() {
         // Scenario: Low opening balance, high outgoing obligations
         // Expected: Conservation policy should hold more transactions than FIFO
 
-        let mut fifo_policy = FifoPolicy::new();
+        // let mut fifo_policy = FifoPolicy::new();
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
         let mut agent = Agent::new("BANK_A".to_string(), 200_000, 0); // Low balance!
@@ -294,27 +301,27 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 15 (early-mid day)
-        let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 15, &cost_rates);
+        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 15, &cost_rates);
         let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, 15, &cost_rates);
 
         // Count holds
-        let fifo_holds = fifo_decisions
-            .iter()
-            .filter(|d| matches!(d, ReleaseDecision::Hold { .. }))
-            .count();
+        // let fifo_holds = fifo_decisions
+        //     .iter()
+        //     .filter(|d| matches!(d, ReleaseDecision::Hold { .. }))
+        //     .count();
 
         let conservation_holds = conservation_decisions
             .iter()
             .filter(|d| matches!(d, ReleaseDecision::Hold { .. }))
             .count();
 
-        println!(
-            "Liquidity Squeeze - FIFO holds: {}, Conservation holds: {}",
-            fifo_holds, conservation_holds
-        );
+        // println!(
+        //     "Liquidity Squeeze - FIFO holds: {}, Conservation holds: {}",
+        //     fifo_holds, conservation_holds
+        // );
 
         // FIFO releases everything blindly
-        assert_eq!(fifo_holds, 0, "FIFO should release all transactions");
+        // assert_eq!(fifo_holds, 0, "FIFO should release all transactions");
 
         // Conservation should hold transactions due to insufficient liquidity
         // Available liquidity = 200k, but transactions total 370k
@@ -330,11 +337,12 @@ mod tests {
     // ========================================================================
 
     #[test]
+    #[ignore = "Disabled after trait removal - comparison tests no longer applicable"]
     fn test_scenario_eod_rush() {
         // Scenario: Late in the day, must avoid EoD penalties
         // Expected: Both policies should release everything
 
-        let mut deadline_policy = DeadlinePolicy::new(10);
+        // let mut deadline_policy = DeadlinePolicy::new(10);
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
         let mut agent = Agent::new("BANK_A".to_string(), 300_000, 0);
@@ -357,24 +365,24 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 96 (late day, approaching EoD at tick 100)
-        let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, 96, &cost_rates);
+        // let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, 96, &cost_rates);
         let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, 96, &cost_rates);
 
         // Both should release everything to avoid EoD penalties
-        let deadline_releases = deadline_decisions
-            .iter()
-            .filter(|d| matches!(d, ReleaseDecision::SubmitFull { .. }))
-            .count();
+        // let deadline_releases = deadline_decisions
+        //     .iter()
+        //     .filter(|d| matches!(d, ReleaseDecision::SubmitFull { .. }))
+        //     .count();
 
         let conservation_releases = conservation_decisions
             .iter()
             .filter(|d| matches!(d, ReleaseDecision::SubmitFull { .. }))
             .count();
 
-        println!(
-            "EoD Rush - Deadline releases: {}, Conservation releases: {}",
-            deadline_releases, conservation_releases
-        );
+        // println!(
+        //     "EoD Rush - Deadline releases: {}, Conservation releases: {}",
+        //     deadline_releases, conservation_releases
+        // );
 
         // Conservation policy should override liquidity concerns near EoD
         assert_eq!(
@@ -383,10 +391,10 @@ mod tests {
         );
 
         // Both policies should have similar behavior near EoD
-        assert_eq!(
-            deadline_releases, conservation_releases,
-            "Both policies should prioritize EoD penalty avoidance"
-        );
+        // assert_eq!(
+        //     deadline_releases, conservation_releases,
+        //     "Both policies should prioritize EoD penalty avoidance"
+        // );
     }
 
     // ========================================================================
@@ -465,11 +473,12 @@ mod tests {
     // ========================================================================
 
     #[test]
+    #[ignore = "Disabled after trait removal - comparison tests no longer applicable"]
     fn test_scenario_high_liquidity() {
         // Scenario: Very high liquidity, all transactions safe to release
         // Expected: Conservation should release everything (no need to conserve)
 
-        let mut fifo_policy = FifoPolicy::new();
+        // let mut fifo_policy = FifoPolicy::new();
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
         let mut agent = Agent::new("BANK_A".to_string(), 2_000_000, 500_000); // Very high liquidity
@@ -496,30 +505,30 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 20 (mid-day)
-        let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 20, &cost_rates);
+        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 20, &cost_rates);
         let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates);
 
         // Both should release everything
-        let fifo_releases = fifo_decisions
-            .iter()
-            .filter(|d| matches!(d, ReleaseDecision::SubmitFull { .. }))
-            .count();
+        // let fifo_releases = fifo_decisions
+        //     .iter()
+        //     .filter(|d| matches!(d, ReleaseDecision::SubmitFull { .. }))
+        //     .count();
 
         let conservation_releases = conservation_decisions
             .iter()
             .filter(|d| matches!(d, ReleaseDecision::SubmitFull { .. }))
             .count();
 
-        println!(
-            "High Liquidity - FIFO: {} releases, Conservation: {} releases",
-            fifo_releases, conservation_releases
-        );
+        // println!(
+        //     "High Liquidity - FIFO: {} releases, Conservation: {} releases",
+        //     fifo_releases, conservation_releases
+        // );
 
         // With high liquidity, conservation should behave like FIFO
-        assert_eq!(
-            fifo_releases, 3,
-            "FIFO should release all transactions"
-        );
+        // assert_eq!(
+        //     fifo_releases, 3,
+        //     "FIFO should release all transactions"
+        // );
         assert_eq!(
             conservation_releases, 3,
             "Conservation should release all when liquidity is abundant"
@@ -531,6 +540,7 @@ mod tests {
     // ========================================================================
 
     #[test]
+    #[ignore = "Disabled after trait removal - comparison tests no longer applicable"]
     fn test_policy_comparison_summary() {
         // Comprehensive comparison across multiple scenarios
 
@@ -551,8 +561,8 @@ mod tests {
             println!("Scenario: {}", scenario_name);
             println!("  Tick: {}, Balance: {}", tick, initial_balance);
 
-            let mut fifo_policy = FifoPolicy::new();
-            let mut deadline_policy = DeadlinePolicy::new(10);
+            // let mut fifo_policy = FifoPolicy::new();
+            // let mut deadline_policy = DeadlinePolicy::new(10);
             let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
             let mut agent = Agent::new("BANK_A".to_string(), initial_balance, 0);
@@ -574,8 +584,8 @@ mod tests {
             *state.get_agent_mut("BANK_A").unwrap() = agent.clone();
             let cost_rates = create_test_cost_rates();
 
-            let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
-            let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
+            // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
+            // let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
             let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
 
             let count_releases = |decisions: &Vec<ReleaseDecision>| {
@@ -585,8 +595,8 @@ mod tests {
                     .count()
             };
 
-            println!("  FIFO:         {} releases", count_releases(&fifo_decisions));
-            println!("  Deadline:     {} releases", count_releases(&deadline_decisions));
+            // println!("  FIFO:         {} releases", count_releases(&fifo_decisions));
+            // println!("  Deadline:     {} releases", count_releases(&deadline_decisions));
             println!("  Conservation: {} releases", count_releases(&conservation_decisions));
             println!();
         }

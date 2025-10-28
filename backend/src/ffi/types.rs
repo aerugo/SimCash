@@ -118,6 +118,7 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         credit_limit,
         policy,
         arrival_config,
+        posted_collateral: None, // TODO: Parse from Python config if provided
     })
 }
 
@@ -311,6 +312,12 @@ fn parse_cost_rates(py_costs: &Bound<'_, PyDict>) -> PyResult<CostRates> {
             .map(|v| v.extract())
             .transpose()?
             .unwrap_or(0.0001),
+
+        collateral_cost_per_tick_bps: py_costs
+            .get_item("collateral_cost_per_tick_bps")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or(0.0002),
 
         eod_penalty_per_transaction: py_costs
             .get_item("eod_penalty_per_transaction")?

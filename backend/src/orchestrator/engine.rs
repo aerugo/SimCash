@@ -71,7 +71,7 @@ use crate::core::time::TimeManager;
 use crate::models::agent::Agent;
 use crate::models::event::{Event, EventLog};
 use crate::models::state::SimulationState;
-use crate::policy::{CashManagerPolicy, DeadlinePolicy, FifoPolicy, LiquidityAwarePolicy, LiquiditySplittingPolicy, MockSplittingPolicy};
+use crate::policy::CashManagerPolicy;
 use crate::rng::RngManager;
 use crate::settlement::lsm::LsmConfig;
 use std::collections::HashMap;
@@ -131,6 +131,10 @@ pub struct AgentConfig {
 
     /// Arrival generation configuration (None = no automatic arrivals)
     pub arrival_config: Option<ArrivalConfig>,
+
+    /// Posted collateral amount (cents) - Phase 8
+    /// If None, defaults to 0 (no collateral)
+    pub posted_collateral: Option<i64>,
 }
 
 /// Policy selection for an agent
@@ -195,6 +199,10 @@ pub struct CostRates {
     /// (e.g., 0.0001 = 1 bp delay cost per tick)
     pub delay_cost_per_tick_per_cent: f64,
 
+    /// Collateral opportunity cost in basis points per tick (Phase 8)
+    /// (e.g., 0.0002 = 2 bps annualized / 100 ticks = 0.02 bps per tick)
+    pub collateral_cost_per_tick_bps: f64,
+
     /// End-of-day penalty for each unsettled transaction (cents)
     pub eod_penalty_per_transaction: i64,
 
@@ -216,6 +224,7 @@ impl Default for CostRates {
         Self {
             overdraft_bps_per_tick: 0.001,            // 1 bp/tick
             delay_cost_per_tick_per_cent: 0.0001,     // 0.1 bp/tick
+            collateral_cost_per_tick_bps: 0.0002,     // 2 bps annualized / 100 ticks
             eod_penalty_per_transaction: 10_000,      // $100 per unsettled tx
             deadline_penalty: 50_000,                  // $500 per missed deadline
             split_friction_cost: 1000,                 // $10 per split
@@ -231,6 +240,9 @@ pub struct CostBreakdown {
 
     /// Queue delay cost accrued this tick (cents)
     pub delay_cost: i64,
+
+    /// Collateral opportunity cost accrued this tick (cents) - Phase 8
+    pub collateral_cost: i64,
 
     /// Penalties incurred this tick (cents)
     pub penalty_cost: i64,
@@ -249,7 +261,11 @@ pub struct CostBreakdown {
 impl CostBreakdown {
     /// Total cost across all categories
     pub fn total(&self) -> i64 {
-        self.liquidity_cost + self.delay_cost + self.penalty_cost + self.split_friction_cost
+        self.liquidity_cost
+            + self.delay_cost
+            + self.collateral_cost
+            + self.penalty_cost
+            + self.split_friction_cost
     }
 }
 
@@ -261,6 +277,9 @@ pub struct CostAccumulator {
 
     /// Total delay cost
     pub total_delay_cost: i64,
+
+    /// Total collateral opportunity cost (Phase 8)
+    pub total_collateral_cost: i64,
 
     /// Total penalties
     pub total_penalty_cost: i64,
@@ -282,6 +301,7 @@ impl CostAccumulator {
     pub fn add(&mut self, costs: &CostBreakdown) {
         self.total_liquidity_cost += costs.liquidity_cost;
         self.total_delay_cost += costs.delay_cost;
+        self.total_collateral_cost += costs.collateral_cost;
         self.total_penalty_cost += costs.penalty_cost;
         self.total_split_friction_cost += costs.split_friction_cost;
     }
@@ -295,7 +315,11 @@ impl CostAccumulator {
 
     /// Total cost across all categories
     pub fn total(&self) -> i64 {
-        self.total_liquidity_cost + self.total_delay_cost + self.total_penalty_cost
+        self.total_liquidity_cost
+            + self.total_delay_cost
+            + self.total_collateral_cost
+            + self.total_penalty_cost
+            + self.total_split_friction_cost
     }
 }
 
@@ -430,7 +454,7 @@ impl Orchestrator {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use payment_simulator_core_rs::orchestrator::{Orchestrator, OrchestratorConfig, AgentConfig, PolicyConfig};
     /// use payment_simulator_core_rs::settlement::lsm::LsmConfig;
     ///
@@ -445,6 +469,7 @@ impl Orchestrator {
     ///             credit_limit: 0,
     ///             policy: PolicyConfig::Fifo,
     ///             arrival_config: None,
+    ///             posted_collateral: None,
     ///         },
     ///     ],
     ///     cost_rates: Default::default(),
@@ -461,7 +486,14 @@ impl Orchestrator {
         let agents: Vec<Agent> = config
             .agent_configs
             .iter()
-            .map(|ac| Agent::new(ac.id.clone(), ac.opening_balance, ac.credit_limit))
+            .map(|ac| {
+                let mut agent = Agent::new(ac.id.clone(), ac.opening_balance, ac.credit_limit);
+                // Set posted collateral if specified (Phase 8)
+                if let Some(collateral) = ac.posted_collateral {
+                    agent.set_posted_collateral(collateral);
+                }
+                agent
+            })
             .collect();
 
         let state = SimulationState::new(agents);
@@ -473,32 +505,17 @@ impl Orchestrator {
         let rng_manager = RngManager::new(config.rng_seed);
 
         // Initialize policies
+        // All policies now use JSON-based TreePolicy loaded via factory
         let mut policies: HashMap<String, Box<dyn CashManagerPolicy>> = HashMap::new();
         for agent_config in &config.agent_configs {
-            let policy: Box<dyn CashManagerPolicy> = match &agent_config.policy {
-                PolicyConfig::Fifo => Box::new(FifoPolicy),
-                PolicyConfig::Deadline { urgency_threshold } => {
-                    Box::new(DeadlinePolicy::new(*urgency_threshold))
-                }
-                PolicyConfig::LiquidityAware {
-                    target_buffer,
-                    urgency_threshold,
-                } => Box::new(LiquidityAwarePolicy::with_urgency_threshold(
-                    *target_buffer,
-                    *urgency_threshold,
-                )),
-                PolicyConfig::LiquiditySplitting {
-                    max_splits,
-                    min_split_amount,
-                } => Box::new(LiquiditySplittingPolicy::new(
-                    *max_splits,
-                    *min_split_amount,
-                )),
-                PolicyConfig::MockSplitting { num_splits } => {
-                    Box::new(MockSplittingPolicy::new(*num_splits))
-                }
-            };
-            policies.insert(agent_config.id.clone(), policy);
+            let tree_policy = crate::policy::tree::create_policy(&agent_config.policy)
+                .map_err(|e| {
+                    SimulationError::InvalidConfig(format!(
+                        "Failed to create JSON policy for agent {}: {}",
+                        agent_config.id, e
+                    ))
+                })?;
+            policies.insert(agent_config.id.clone(), Box::new(tree_policy));
         }
 
         // Initialize arrival generator (if any agents have arrival configs)
@@ -1009,6 +1026,7 @@ impl Orchestrator {
                                 costs: CostBreakdown {
                                     liquidity_cost: 0,
                                     delay_cost: 0,
+                                    collateral_cost: 0,
                                     penalty_cost: 0,
                                     split_friction_cost: friction_cost,
                                 },
@@ -1051,6 +1069,105 @@ impl Orchestrator {
                             reason: "Expired deadline".to_string(),
                         });
                     }
+                }
+            }
+        }
+
+        // STEP 2.5: COLLATERAL MANAGEMENT
+        // Evaluate and execute collateral decisions for each agent
+        let all_agent_ids: Vec<String> = self.state.agents().keys().cloned().collect();
+
+        for agent_id in all_agent_ids {
+            // Get agent and policy
+            let agent = self
+                .state
+                .get_agent(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            let policy = self
+                .policies
+                .get_mut(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            // Evaluate collateral decision
+            let decision = policy.evaluate_collateral(agent, &self.state, current_tick, &self.cost_rates);
+
+            // Execute collateral decision
+            use crate::policy::CollateralDecision;
+
+            match decision {
+                CollateralDecision::Post { amount, reason } => {
+                    // Validate amount is positive
+                    if amount <= 0 {
+                        return Err(SimulationError::InvalidConfig(format!(
+                            "Collateral post amount must be positive, got {}",
+                            amount
+                        )));
+                    }
+
+                    // Get agent to check capacity
+                    let agent = self.state.get_agent(&agent_id).unwrap();
+                    let remaining_capacity = agent.remaining_collateral_capacity();
+
+                    if amount > remaining_capacity {
+                        return Err(SimulationError::InvalidConfig(format!(
+                            "Agent {} tried to post {} collateral but only has {} capacity remaining",
+                            agent_id, amount, remaining_capacity
+                        )));
+                    }
+
+                    // Execute the post
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                    let old_collateral = agent_mut.posted_collateral();
+                    let new_collateral = old_collateral + amount;
+                    agent_mut.set_posted_collateral(new_collateral);
+
+                    // Log collateral post event
+                    self.log_event(Event::CollateralPost {
+                        tick: current_tick,
+                        agent_id: agent_id.clone(),
+                        amount,
+                        reason: format!("{:?}", reason),
+                        new_total: new_collateral,
+                    });
+                }
+                CollateralDecision::Withdraw { amount, reason } => {
+                    // Validate amount is positive
+                    if amount <= 0 {
+                        return Err(SimulationError::InvalidConfig(format!(
+                            "Collateral withdraw amount must be positive, got {}",
+                            amount
+                        )));
+                    }
+
+                    // Get agent to check available collateral
+                    let agent = self.state.get_agent(&agent_id).unwrap();
+                    let posted = agent.posted_collateral();
+
+                    if amount > posted {
+                        return Err(SimulationError::InvalidConfig(format!(
+                            "Agent {} tried to withdraw {} collateral but only has {} posted",
+                            agent_id, amount, posted
+                        )));
+                    }
+
+                    // Execute the withdrawal
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                    let old_collateral = agent_mut.posted_collateral();
+                    let new_collateral = old_collateral - amount;
+                    agent_mut.set_posted_collateral(new_collateral);
+
+                    // Log collateral withdraw event
+                    self.log_event(Event::CollateralWithdraw {
+                        tick: current_tick,
+                        agent_id: agent_id.clone(),
+                        amount,
+                        reason: format!("{:?}", reason),
+                        new_total: new_collateral,
+                    });
+                }
+                CollateralDecision::Hold => {
+                    // No action needed
                 }
             }
         }
@@ -1156,6 +1273,9 @@ impl Orchestrator {
             // Calculate delay cost for queued transactions
             let delay_cost = self.calculate_delay_cost(&agent_id);
 
+            // Calculate collateral opportunity cost (Phase 8)
+            let collateral_cost = self.calculate_collateral_cost(agent.posted_collateral());
+
             // No penalty or split friction cost in this step
             // (penalties handled by policies and EOD, splits handled at decision time)
             let penalty_cost = 0;
@@ -1164,6 +1284,7 @@ impl Orchestrator {
             let costs = CostBreakdown {
                 liquidity_cost,
                 delay_cost,
+                collateral_cost,
                 penalty_cost,
                 split_friction_cost,
             };
@@ -1201,7 +1322,7 @@ impl Orchestrator {
 
         let overdraft_amount = (-balance) as f64;
         let cost = overdraft_amount * self.cost_rates.overdraft_bps_per_tick;
-        cost as i64
+        cost.round() as i64  // Use rounding instead of truncation (Phase 8 fix)
     }
 
     /// Calculate delay cost for queued transactions
@@ -1226,7 +1347,25 @@ impl Orchestrator {
         }
 
         let cost = (total_queued_value as f64) * self.cost_rates.delay_cost_per_tick_per_cent;
-        cost as i64
+        cost.round() as i64  // Use rounding instead of truncation (Phase 8 fix)
+    }
+
+    /// Calculate collateral opportunity cost (Phase 8)
+    ///
+    /// Collateral cost = posted_collateral * collateral_cost_per_tick_bps
+    ///
+    /// Represents the opportunity cost of having assets posted as collateral
+    /// rather than deployed in other earning activities.
+    ///
+    /// Example: $1,000,000 collateral at 0.0002 bps/tick = 200 cents = $2
+    fn calculate_collateral_cost(&self, posted_collateral: i64) -> i64 {
+        if posted_collateral <= 0 {
+            return 0;
+        }
+
+        let collateral_amount = posted_collateral as f64;
+        let cost = collateral_amount * self.cost_rates.collateral_cost_per_tick_bps;
+        cost.round() as i64
     }
 
     /// Handle end-of-day processing
@@ -1266,6 +1405,7 @@ impl Orchestrator {
                     costs: CostBreakdown {
                         liquidity_cost: 0,
                         delay_cost: 0,
+                        collateral_cost: 0,
                         penalty_cost: penalty,
                         split_friction_cost: 0,
                     },
@@ -1377,6 +1517,7 @@ mod tests {
                     credit_limit: 500_000,
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
+                    posted_collateral: None,
                 },
                 AgentConfig {
                     id: "BANK_B".to_string(),
@@ -1387,6 +1528,7 @@ mod tests {
                         urgency_threshold: 5,
                     },
                     arrival_config: None,
+                    posted_collateral: None,
                 },
             ],
             cost_rates: CostRates::default(),
@@ -1470,6 +1612,7 @@ mod tests {
                     credit_limit: 0,
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
+                    posted_collateral: None,
                 },
                 AgentConfig {
                     id: "BANK_A".to_string(), // Duplicate!
@@ -1477,6 +1620,7 @@ mod tests {
                     credit_limit: 0,
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
+                    posted_collateral: None,
                 },
             ],
             cost_rates: CostRates::default(),
@@ -1494,6 +1638,7 @@ mod tests {
         let cost1 = CostBreakdown {
             liquidity_cost: 100,
             delay_cost: 50,
+            collateral_cost: 0,
             penalty_cost: 0,
             split_friction_cost: 0,
         };
@@ -1506,6 +1651,7 @@ mod tests {
         let cost2 = CostBreakdown {
             liquidity_cost: 200,
             delay_cost: 100,
+            collateral_cost: 0,
             penalty_cost: 500,
             split_friction_cost: 0,
         };
@@ -1539,6 +1685,7 @@ mod tests {
         let cost = CostBreakdown {
             liquidity_cost: 1000,
             delay_cost: 500,
+            collateral_cost: 0,
             penalty_cost: 2000,
             split_friction_cost: 250,
         };

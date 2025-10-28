@@ -35,18 +35,25 @@ pub enum TreePolicyError {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
 /// use payment_simulator_core_rs::policy::tree::TreePolicy;
 ///
-/// // Load from JSON file
-/// let mut policy = TreePolicy::from_file("policies/deadline_policy.json")?;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// // Create from inline JSON
+/// let json = r#"{
+///   "version": "1.0",
+///   "tree_id": "simple_policy",
+///   "root": {
+///     "type": "action",
+///     "node_id": "A1",
+///     "action": "Release"
+///   }
+/// }"#;
 ///
-/// // Or create from DecisionTreeDef
-/// let tree = serde_json::from_str(json_string)?;
-/// let mut policy = TreePolicy::new(tree)?;
-///
-/// // Use like any other policy
-/// let decisions = policy.evaluate_queue(&agent, &state, tick);
+/// let policy = TreePolicy::from_json(json)?;
+/// // Use like any other CashManagerPolicy
+/// # Ok(())
+/// # }
 /// ```
 pub struct TreePolicy {
     /// Decision tree definition
@@ -67,9 +74,23 @@ impl TreePolicy {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let tree = serde_json::from_str::<DecisionTreeDef>(json_string)?;
-    /// let policy = TreePolicy::new(tree)?;
+    /// ```rust
+    /// use payment_simulator_core_rs::policy::tree::{TreePolicy, DecisionTreeDef};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let json = r#"{
+    ///   "version": "1.0",
+    ///   "tree_id": "test_policy",
+    ///   "root": {
+    ///     "type": "action",
+    ///     "node_id": "A1",
+    ///     "action": "Release"
+    ///   }
+    /// }"#;
+    /// let tree: DecisionTreeDef = serde_json::from_str(json)?;
+    /// let policy = TreePolicy::new(tree);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn new(tree: DecisionTreeDef) -> Self {
         Self {
@@ -90,8 +111,14 @@ impl TreePolicy {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust,no_run
+    /// use payment_simulator_core_rs::policy::tree::TreePolicy;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Requires actual JSON file to exist
     /// let policy = TreePolicy::from_file("policies/my_policy.json")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, TreePolicyError> {
         let contents = std::fs::read_to_string(path)?;
@@ -111,9 +138,22 @@ impl TreePolicy {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let json = r#"{"version": "1.0", ...}"#;
+    /// ```rust
+    /// use payment_simulator_core_rs::policy::tree::TreePolicy;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let json = r#"{
+    ///   "version": "1.0",
+    ///   "tree_id": "fifo_policy",
+    ///   "root": {
+    ///     "type": "action",
+    ///     "node_id": "A1",
+    ///     "action": "Release"
+    ///   }
+    /// }"#;
     /// let policy = TreePolicy::from_json(json)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn from_json(json: &str) -> Result<Self, TreePolicyError> {
         let tree: DecisionTreeDef = serde_json::from_str(json)?;
@@ -149,6 +189,49 @@ impl TreePolicy {
     /// Get tree version
     pub fn version(&self) -> &str {
         &self.tree.version
+    }
+
+    /// Override tree parameters
+    ///
+    /// Allows runtime parameter injection from configuration.
+    /// This is used to customize policies without modifying JSON files.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - HashMap of parameter names to new values
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use payment_simulator_core_rs::policy::tree::TreePolicy;
+    /// use std::collections::HashMap;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let json = r#"{
+    ///   "version": "1.0",
+    ///   "tree_id": "parameterized_policy",
+    ///   "root": {
+    ///     "type": "action",
+    ///     "node_id": "A1",
+    ///     "action": "Release"
+    ///   },
+    ///   "parameters": {
+    ///     "urgency_threshold": 5.0
+    ///   }
+    /// }"#;
+    /// let mut policy = TreePolicy::from_json(json)?;
+    ///
+    /// // Override parameters at runtime
+    /// let mut params = HashMap::new();
+    /// params.insert("urgency_threshold".to_string(), 10.0);
+    /// policy.with_parameters(params);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_parameters(&mut self, params: std::collections::HashMap<String, f64>) {
+        for (key, value) in params {
+            self.tree.parameters.insert(key, value);
+        }
     }
 }
 
@@ -250,6 +333,7 @@ mod tests {
         CostRates {
             overdraft_bps_per_tick: 0.0001,
             delay_cost_per_tick_per_cent: 0.00001,
+            collateral_cost_per_tick_bps: 0.0002,
             eod_penalty_per_transaction: 10000,
             deadline_penalty: 5000,
             split_friction_cost: 1000,
