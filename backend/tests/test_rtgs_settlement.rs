@@ -174,121 +174,6 @@ fn test_cannot_settle_already_settled_transaction() {
 }
 
 // ============================================================================
-// Partial Settlement Tests (Divisible Transactions)
-// ============================================================================
-
-#[test]
-fn test_partial_settlement_divisible_transaction() {
-    // BANK_A has 300,000, wants to send 1,000,000 (divisible)
-    let mut sender = create_test_agent("BANK_A", 300_000, 0);
-    let mut receiver = create_test_agent("BANK_B", 0, 0);
-    let mut transaction = create_test_transaction("BANK_A", "BANK_B", 1_000_000, 0, 100)
-        .divisible(); // Mark as divisible
-
-    // Try to settle what we can (300,000)
-    let result = payment_simulator_core_rs::settlement::try_settle_partial(
-        &mut sender,
-        &mut receiver,
-        &mut transaction,
-        300_000,
-        5,
-    );
-
-    assert!(result.is_ok(), "Partial settlement should succeed");
-
-    // Check balances
-    assert_eq!(sender.balance(), 0, "Sender used all available balance");
-    assert_eq!(receiver.balance(), 300_000, "Receiver got partial amount");
-
-    // Check transaction state
-    assert!(!transaction.is_fully_settled(), "Not fully settled yet");
-    assert!(
-        matches!(
-            transaction.status(),
-            TransactionStatus::PartiallySettled { .. }
-        ),
-        "Should be partially settled"
-    );
-    assert_eq!(transaction.remaining_amount(), 700_000, "700k still pending");
-    assert_eq!(transaction.settled_amount(), 300_000, "300k settled");
-}
-
-#[test]
-fn test_full_settlement_after_partial() {
-    // Start with partial settlement
-    let mut sender = create_test_agent("BANK_A", 300_000, 0);
-    let mut receiver = create_test_agent("BANK_B", 0, 0);
-    let mut transaction = create_test_transaction("BANK_A", "BANK_B", 1_000_000, 0, 100)
-        .divisible();
-
-    // Partial settlement of 300k
-    payment_simulator_core_rs::settlement::try_settle_partial(
-        &mut sender,
-        &mut receiver,
-        &mut transaction,
-        300_000,
-        5,
-    )
-    .unwrap();
-
-    // Now sender receives 700k
-    sender.credit(700_000);
-    assert_eq!(sender.balance(), 700_000);
-
-    // Complete the settlement
-    let result = payment_simulator_core_rs::settlement::try_settle(
-        &mut sender,
-        &mut receiver,
-        &mut transaction,
-        10,
-    );
-
-    assert!(result.is_ok(), "Final settlement should succeed");
-
-    // All balances settled
-    assert_eq!(sender.balance(), 0, "Sender used all liquidity");
-    assert_eq!(receiver.balance(), 1_000_000, "Receiver got full amount");
-
-    // Transaction fully settled
-    assert!(transaction.is_fully_settled());
-    assert_eq!(transaction.remaining_amount(), 0);
-    assert_eq!(transaction.settled_amount(), 1_000_000);
-}
-
-#[test]
-fn test_indivisible_transaction_must_settle_fully() {
-    // Transaction is NOT divisible - must settle all or nothing
-    let mut sender = create_test_agent("BANK_A", 300_000, 0);
-    let mut receiver = create_test_agent("BANK_B", 0, 0);
-    let mut transaction = create_test_transaction("BANK_A", "BANK_B", 500_000, 0, 100);
-    // Note: NOT calling .divisible(), so it's indivisible by default
-
-    assert!(
-        !transaction.is_divisible(),
-        "Transaction should be indivisible"
-    );
-
-    // Try partial settlement - should fail or be rejected
-    let result = payment_simulator_core_rs::settlement::try_settle_partial(
-        &mut sender,
-        &mut receiver,
-        &mut transaction,
-        300_000,
-        5,
-    );
-
-    // Should error because indivisible
-    assert!(
-        result.is_err(),
-        "Cannot partially settle indivisible transaction"
-    );
-
-    // Balances unchanged
-    assert_eq!(sender.balance(), 300_000);
-    assert_eq!(receiver.balance(), 0);
-}
-
-// ============================================================================
 // Balance Conservation Tests (Critical Invariant)
 // ============================================================================
 
@@ -456,7 +341,11 @@ fn test_submit_transaction_queues_on_insufficient_liquidity() {
 
     // Verify transaction in queue
     assert_eq!(state.queue_size(), 1, "Queue should have 1 transaction");
-    assert_eq!(state.rtgs_queue()[0], tx_id, "Transaction ID should be in queue");
+    assert_eq!(
+        state.rtgs_queue().get(0).unwrap(),
+        &tx_id,
+        "Transaction ID should be in queue"
+    );
 
     // Verify transaction still pending
     let tx_state = state.get_transaction(&tx_id).unwrap();
@@ -589,9 +478,14 @@ fn test_queue_fifo_ordering() {
     );
 
     // Verify queue order: tx2, tx3
-    assert_eq!(state.rtgs_queue()[0], tx2_id, "tx2 should be first in queue");
     assert_eq!(
-        state.rtgs_queue()[1], tx3_id,
+        state.rtgs_queue().get(0).unwrap(),
+        &tx2_id,
+        "tx2 should be first in queue"
+    );
+    assert_eq!(
+        state.rtgs_queue().get(1).unwrap(),
+        &tx3_id,
         "tx3 should be second in queue"
     );
 

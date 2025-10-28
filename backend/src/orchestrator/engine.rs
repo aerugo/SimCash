@@ -66,10 +66,12 @@
 //! }
 //! ```
 
+use crate::arrivals::{ArrivalConfig, ArrivalGenerator, AmountDistribution};
 use crate::core::time::TimeManager;
 use crate::models::agent::Agent;
+use crate::models::event::{Event, EventLog};
 use crate::models::state::SimulationState;
-use crate::policy::{CashManagerPolicy, DeadlinePolicy, FifoPolicy, LiquidityAwarePolicy};
+use crate::policy::{CashManagerPolicy, DeadlinePolicy, FifoPolicy, LiquidityAwarePolicy, LiquiditySplittingPolicy, MockSplittingPolicy};
 use crate::rng::RngManager;
 use crate::settlement::lsm::LsmConfig;
 use std::collections::HashMap;
@@ -152,29 +154,32 @@ pub enum PolicyConfig {
         /// Number of ticks before deadline to override buffer rule
         urgency_threshold: usize,
     },
+
+    /// Liquidity-aware splitting policy (Phase 5)
+    ///
+    /// Intelligently splits large payments when liquidity is constrained.
+    /// Balances split friction cost against liquidity and deadline urgency.
+    LiquiditySplitting {
+        /// Maximum number of splits allowed per transaction
+        max_splits: usize,
+        /// Minimum amount per split (don't create tiny splits)
+        min_split_amount: i64,
+    },
+
+    /// Mock splitting policy for testing (Phase 5)
+    ///
+    /// Always splits transactions into fixed number of parts.
+    /// Used in tests to verify splitting mechanics.
+    ///
+    /// NOTE: Available in all builds to support integration testing,
+    /// but should only be used in test code.
+    MockSplitting {
+        /// Number of splits to create for every transaction
+        num_splits: usize,
+    },
 }
 
-/// Arrival generation configuration (placeholder for Phase 4b.2)
-///
-/// Specifies how transactions arrive for this agent during simulation.
-/// Full implementation in `/backend/src/arrivals/mod.rs` (Phase 4b.2).
-#[derive(Debug, Clone)]
-pub struct ArrivalConfig {
-    /// Rate parameter for Poisson distribution (expected arrivals per tick)
-    pub rate_per_tick: f64,
-
-    /// Minimum transaction amount (cents)
-    pub amount_min: i64,
-
-    /// Maximum transaction amount (cents)
-    pub amount_max: i64,
-
-    /// Counterparty selection weights (AgentId → weight)
-    pub counterparty_weights: HashMap<String, f64>,
-
-    /// Deadline range (min_ticks_ahead, max_ticks_ahead)
-    pub deadline_range: (usize, usize),
-}
+// ArrivalConfig is now imported from crate::arrivals module
 
 /// Cost calculation rates
 ///
@@ -195,6 +200,15 @@ pub struct CostRates {
 
     /// Penalty for missing deadline (cents per transaction)
     pub deadline_penalty: i64,
+
+    /// Split friction cost per split (cents)
+    ///
+    /// When a transaction is split into N parts, the cost is:
+    /// split_friction_cost × (N-1)
+    ///
+    /// This represents the operational overhead of creating and processing
+    /// multiple payment instructions instead of a single instruction.
+    pub split_friction_cost: i64,
 }
 
 impl Default for CostRates {
@@ -204,12 +218,13 @@ impl Default for CostRates {
             delay_cost_per_tick_per_cent: 0.0001,     // 0.1 bp/tick
             eod_penalty_per_transaction: 10_000,      // $100 per unsettled tx
             deadline_penalty: 50_000,                  // $500 per missed deadline
+            split_friction_cost: 1000,                 // $10 per split
         }
     }
 }
 
 /// Cost breakdown for a single tick or agent
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CostBreakdown {
     /// Overdraft cost accrued this tick (cents)
     pub liquidity_cost: i64,
@@ -219,12 +234,22 @@ pub struct CostBreakdown {
 
     /// Penalties incurred this tick (cents)
     pub penalty_cost: i64,
+
+    /// Transaction splitting friction cost (cents)
+    ///
+    /// When a policy decides to split a transaction into N parts,
+    /// a friction cost is charged using the formula: f_s × (N-1)
+    /// where f_s is the per-split friction rate (split_friction_cost).
+    ///
+    /// This represents the operational overhead of creating and
+    /// processing multiple smaller payments instead of one large payment.
+    pub split_friction_cost: i64,
 }
 
 impl CostBreakdown {
     /// Total cost across all categories
     pub fn total(&self) -> i64 {
-        self.liquidity_cost + self.delay_cost + self.penalty_cost
+        self.liquidity_cost + self.delay_cost + self.penalty_cost + self.split_friction_cost
     }
 }
 
@@ -239,6 +264,9 @@ pub struct CostAccumulator {
 
     /// Total penalties
     pub total_penalty_cost: i64,
+
+    /// Total split friction cost
+    pub total_split_friction_cost: i64,
 
     /// Peak net debit observed (most negative balance)
     pub peak_net_debit: i64,
@@ -255,6 +283,7 @@ impl CostAccumulator {
         self.total_liquidity_cost += costs.liquidity_cost;
         self.total_delay_cost += costs.delay_cost;
         self.total_penalty_cost += costs.penalty_cost;
+        self.total_split_friction_cost += costs.split_friction_cost;
     }
 
     /// Update peak net debit if current balance is more negative
@@ -300,8 +329,8 @@ pub struct Orchestrator {
     /// Per-agent policy executors
     policies: HashMap<String, Box<dyn CashManagerPolicy>>,
 
-    /// Arrival configurations (None = no automatic arrivals)
-    arrival_configs: HashMap<String, ArrivalConfig>,
+    /// Arrival generator for automatic transaction creation
+    arrival_generator: Option<ArrivalGenerator>,
 
     /// Cost calculation rates
     cost_rates: CostRates,
@@ -313,8 +342,7 @@ pub struct Orchestrator {
     accumulated_costs: HashMap<String, CostAccumulator>,
 
     /// Event log (all simulation events)
-    /// Phase 4b.4 will define Event enum
-    event_count: usize, // Placeholder until Event enum implemented
+    event_log: EventLog,
 
     /// Transaction IDs to attempt settlement this tick
     pending_settlements: Vec<String>,
@@ -459,17 +487,38 @@ impl Orchestrator {
                     *target_buffer,
                     *urgency_threshold,
                 )),
+                PolicyConfig::LiquiditySplitting {
+                    max_splits,
+                    min_split_amount,
+                } => Box::new(LiquiditySplittingPolicy::new(
+                    *max_splits,
+                    *min_split_amount,
+                )),
+                PolicyConfig::MockSplitting { num_splits } => {
+                    Box::new(MockSplittingPolicy::new(*num_splits))
+                }
             };
             policies.insert(agent_config.id.clone(), policy);
         }
 
-        // Initialize arrival configs
-        let mut arrival_configs = HashMap::new();
+        // Initialize arrival generator (if any agents have arrival configs)
+        let mut arrival_configs_map = HashMap::new();
         for agent_config in &config.agent_configs {
             if let Some(arrival_cfg) = &agent_config.arrival_config {
-                arrival_configs.insert(agent_config.id.clone(), arrival_cfg.clone());
+                arrival_configs_map.insert(agent_config.id.clone(), arrival_cfg.clone());
             }
         }
+
+        let arrival_generator = if !arrival_configs_map.is_empty() {
+            let all_agent_ids: Vec<String> = config
+                .agent_configs
+                .iter()
+                .map(|ac| ac.id.clone())
+                .collect();
+            Some(ArrivalGenerator::new(arrival_configs_map, all_agent_ids))
+        } else {
+            None
+        };
 
         // Initialize cost accumulators
         let mut accumulated_costs = HashMap::new();
@@ -482,11 +531,11 @@ impl Orchestrator {
             time_manager,
             rng_manager,
             policies,
-            arrival_configs,
+            arrival_generator,
             cost_rates: config.cost_rates,
             lsm_config: config.lsm_config,
             accumulated_costs,
-            event_count: 0,
+            event_log: EventLog::new(),
             pending_settlements: Vec::new(),
             next_tx_id: 1,
         })
@@ -545,9 +594,24 @@ impl Orchestrator {
         &self.state
     }
 
+    /// Get mutable reference to simulation state
+    ///
+    /// # Safety
+    ///
+    /// This is primarily for testing. Direct state mutation bypasses
+    /// orchestrator invariants. Use with caution.
+    pub fn state_mut(&mut self) -> &mut SimulationState {
+        &mut self.state
+    }
+
     /// Get total events logged
     pub fn event_count(&self) -> usize {
-        self.event_count
+        self.event_log.len()
+    }
+
+    /// Get reference to event log
+    pub fn event_log(&self) -> &EventLog {
+        &self.event_log
     }
 
     /// Get accumulated costs for an agent
@@ -558,6 +622,15 @@ impl Orchestrator {
     /// Get all accumulated costs
     pub fn all_costs(&self) -> &HashMap<String, CostAccumulator> {
         &self.accumulated_costs
+    }
+
+    // ========================================================================
+    // Event Logging
+    // ========================================================================
+
+    /// Log an event to the event log
+    fn log_event(&mut self, event: Event) {
+        self.event_log.log(event);
     }
 
     // ========================================================================
@@ -597,13 +670,52 @@ impl Orchestrator {
 
         let current_tick = self.current_tick();
         let mut num_settlements = 0;
-        let mut num_lsm_releases = 0;
 
         // Clear pending settlements from previous tick
         self.pending_settlements.clear();
 
-        // STEP 1: ARRIVALS (Phase 4b.2 - not implemented yet)
-        let num_arrivals = 0; // TODO: Implement arrival generation
+        // STEP 1: ARRIVALS
+        // Generate new transactions according to arrival configurations
+        let mut num_arrivals = 0;
+        let mut arrival_events = Vec::new();
+
+        if let Some(generator) = &mut self.arrival_generator {
+            // Get all agent IDs that have arrival configs
+            let agent_ids: Vec<String> = self.state.get_all_agent_ids();
+
+            for agent_id in agent_ids {
+                // Generate arrivals for this agent
+                let new_transactions = generator.generate_for_agent(&agent_id, current_tick, &mut self.rng_manager);
+                num_arrivals += new_transactions.len();
+
+                // Add transactions to state and queue them
+                for tx in new_transactions {
+                    let tx_id = tx.id().to_string();
+
+                    // Collect arrival event for logging (after generator is done)
+                    arrival_events.push(Event::Arrival {
+                        tick: current_tick,
+                        tx_id: tx_id.clone(),
+                        sender_id: tx.sender_id().to_string(),
+                        receiver_id: tx.receiver_id().to_string(),
+                        amount: tx.amount(),
+                        deadline: tx.deadline_tick(),
+                    });
+
+                    self.state.add_transaction(tx);
+
+                    // Queue in the sender's outgoing queue (Queue 1)
+                    if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                        agent.queue_outgoing(tx_id);
+                    }
+                }
+            }
+        }
+
+        // Log arrival events (after generator is done to avoid borrow checker issues)
+        for event in arrival_events {
+            self.log_event(event);
+        }
 
         // STEP 2: POLICY EVALUATION
         // Get agents with queued transactions (Queue 1)
@@ -626,7 +738,8 @@ impl Orchestrator {
                 .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
 
             // Evaluate policy for all transactions in Queue 1
-            let decisions = policy.evaluate_queue(agent, &self.state, current_tick);
+            // Pass cost_rates for policy decision-making (read-only, external)
+            let decisions = policy.evaluate_queue(agent, &self.state, current_tick, &self.cost_rates);
 
             // Process decisions
             for decision in decisions {
@@ -639,20 +752,110 @@ impl Orchestrator {
                             agent.remove_from_queue(&tx_id);
                         }
                         self.pending_settlements.push(tx_id.clone());
-                        self.event_count += 1; // PolicyDecision event (Phase 4b.4)
+
+                        // Log policy submit event
+                        self.log_event(Event::PolicySubmit {
+                            tick: current_tick,
+                            agent_id: agent_id.clone(),
+                            tx_id,
+                        });
                     }
-                    ReleaseDecision::SubmitPartial { .. } => {
-                        // Phase 5: Transaction splitting
-                        // For now, treat as error
-                        return Err(SimulationError::SettlementError(
-                            "Transaction splitting not implemented (Phase 5)".to_string(),
-                        ));
+                    ReleaseDecision::SubmitPartial { tx_id, num_splits } => {
+                        // Phase 5: Transaction splitting implementation
+
+                        // Validate num_splits
+                        if num_splits < 2 {
+                            return Err(SimulationError::SettlementError(
+                                format!("num_splits must be >= 2, got {}", num_splits)
+                            ));
+                        }
+
+                        // Get parent transaction
+                        let parent_tx = self.state.get_transaction(&tx_id)
+                            .ok_or_else(|| SimulationError::SettlementError(
+                                format!("Transaction {} not found for splitting", tx_id)
+                            ))?
+                            .clone();
+
+                        // Remove parent from Queue 1 (will be replaced by children)
+                        if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                            agent.remove_from_queue(&tx_id);
+                        }
+
+                        // Calculate child amounts (equal splits with remainder in last)
+                        let total_amount = parent_tx.amount();
+                        let base_amount = total_amount / num_splits as i64;
+                        let remainder = total_amount % num_splits as i64;
+
+                        // Create child transactions
+                        let mut child_ids = Vec::new();
+                        for i in 0..num_splits {
+                            let child_amount = if i == num_splits - 1 {
+                                base_amount + remainder // Last child gets remainder
+                            } else {
+                                base_amount
+                            };
+
+                            // Create child transaction
+                            let mut child = crate::models::Transaction::new_split(
+                                parent_tx.sender_id().to_string(),
+                                parent_tx.receiver_id().to_string(),
+                                child_amount,
+                                parent_tx.arrival_tick(),
+                                parent_tx.deadline_tick(),
+                                tx_id.clone(),
+                            );
+
+                            // Preserve parent's priority
+                            child = child.with_priority(parent_tx.priority());
+
+                            let child_id = child.id().to_string();
+                            child_ids.push(child_id.clone());
+
+                            // Add child to state and pending settlements
+                            self.state.add_transaction(child);
+                            self.pending_settlements.push(child_id);
+                        }
+
+                        // Calculate and charge split friction cost
+                        let friction_cost = self.cost_rates.split_friction_cost * (num_splits as i64 - 1);
+
+                        if friction_cost > 0 {
+                            if let Some(accumulator) = self.accumulated_costs.get_mut(&agent_id) {
+                                accumulator.total_split_friction_cost += friction_cost;
+                            }
+
+                            // Log friction cost event
+                            self.log_event(Event::CostAccrual {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                costs: CostBreakdown {
+                                    liquidity_cost: 0,
+                                    delay_cost: 0,
+                                    penalty_cost: 0,
+                                    split_friction_cost: friction_cost,
+                                },
+                            });
+                        }
+
+                        // Log policy split event
+                        self.log_event(Event::PolicySplit {
+                            tick: current_tick,
+                            agent_id: agent_id.clone(),
+                            tx_id,
+                            num_splits,
+                            child_ids,
+                        });
                     }
-                    ReleaseDecision::Hold { tx_id, .. } => {
+                    ReleaseDecision::Hold { tx_id, reason } => {
                         // Transaction stays in Queue 1
-                        self.event_count += 1; // PolicyHold event (Phase 4b.4)
-                        // No action needed - transaction remains queued
-                        let _ = tx_id; // Suppress unused warning
+                        // Log policy hold event
+                        self.log_event(Event::PolicyHold {
+                            tick: current_tick,
+                            agent_id: agent_id.clone(),
+                            tx_id,
+                            reason: format!("{:?}", reason),
+                        });
                     }
                     ReleaseDecision::Drop { tx_id } => {
                         // Remove from Queue 1, mark as dropped
@@ -662,7 +865,14 @@ impl Orchestrator {
                         if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
                             tx.drop_transaction(current_tick);
                         }
-                        self.event_count += 1; // Drop event (Phase 4b.4)
+
+                        // Log policy drop event
+                        self.log_event(Event::PolicyDrop {
+                            tick: current_tick,
+                            agent_id: agent_id.clone(),
+                            tx_id,
+                            reason: "Expired deadline".to_string(),
+                        });
                     }
                 }
             }
@@ -673,17 +883,37 @@ impl Orchestrator {
         // Clone to avoid borrow checker issues
         let pending = self.pending_settlements.clone();
         for tx_id in pending.iter() {
+            // Get transaction details for event logging
+            let (sender_id, receiver_id, amount) = {
+                let tx = self.state.get_transaction(tx_id)
+                    .ok_or_else(|| SimulationError::TransactionNotFound(tx_id.clone()))?;
+                (tx.sender_id().to_string(), tx.receiver_id().to_string(), tx.remaining_amount())
+            };
+
             // Try to settle the transaction (already in state)
             let settlement_result = self.try_settle_transaction(tx_id, current_tick)?;
 
             match settlement_result {
                 SettlementOutcome::Settled => {
                     num_settlements += 1;
-                    self.event_count += 1; // Settlement event
+
+                    // Log settlement event
+                    self.log_event(Event::Settlement {
+                        tick: current_tick,
+                        tx_id: tx_id.clone(),
+                        sender_id,
+                        receiver_id,
+                        amount,
+                    });
                 }
                 SettlementOutcome::Queued => {
                     // Insufficient liquidity, added to Queue 2 (RTGS queue)
-                    self.event_count += 1; // QueuedRtgs event
+                    // Log queued event
+                    self.log_event(Event::QueuedRtgs {
+                        tick: current_tick,
+                        tx_id: tx_id.clone(),
+                        sender_id,
+                    });
                 }
             }
         }
@@ -696,9 +926,12 @@ impl Orchestrator {
         // STEP 5: LSM COORDINATOR
         // Find and release offsetting transactions
         let lsm_result = lsm::run_lsm_pass(&mut self.state, &self.lsm_config, current_tick);
-        num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
+        let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
-        self.event_count += num_lsm_releases; // LSM release events
+
+        // TODO: Log detailed LSM events
+        // Currently the LSM module doesn't return enough details for proper event logging
+        // Would need to track which specific transactions were settled via LSM
 
         // STEP 6: COST ACCRUAL (Phase 4b.3 - minimal for now)
         let total_cost = self.accrue_costs(current_tick);
@@ -723,36 +956,158 @@ impl Orchestrator {
         })
     }
 
-    /// Accrue costs for this tick (minimal implementation)
+    /// Accrue costs for this tick
     ///
-    /// Phase 4b.3 will implement full cost calculation logic.
-    /// For now, just track peak net debit.
-    fn accrue_costs(&mut self, _tick: usize) -> i64 {
-        let total_cost = 0;
+    /// Calculates and accumulates:
+    /// - Overdraft costs (basis points per tick on negative balance)
+    /// - Delay costs (cost per tick per cent of queued value)
+    ///
+    /// Penalties for dropped transactions are handled in policy evaluation.
+    /// End-of-day penalties are handled in handle_end_of_day().
+    fn accrue_costs(&mut self, tick: usize) -> i64 {
+        let mut total_cost = 0;
 
-        for (agent_id, agent) in self.state.agents() {
-            if let Some(accumulator) = self.accumulated_costs.get_mut(agent_id) {
-                // Track peak net debit
+        // Collect agent IDs first to avoid borrow checker issues
+        let agent_ids: Vec<String> = self.state.agents().keys().cloned().collect();
+
+        for agent_id in agent_ids {
+            let agent = self.state.get_agent(&agent_id).unwrap();
+
+            // Calculate overdraft cost (liquidity cost)
+            let liquidity_cost = self.calculate_overdraft_cost(agent.balance());
+
+            // Calculate delay cost for queued transactions
+            let delay_cost = self.calculate_delay_cost(&agent_id);
+
+            // No penalty or split friction cost in this step
+            // (penalties handled by policies and EOD, splits handled at decision time)
+            let penalty_cost = 0;
+            let split_friction_cost = 0;
+
+            let costs = CostBreakdown {
+                liquidity_cost,
+                delay_cost,
+                penalty_cost,
+                split_friction_cost,
+            };
+
+            // Accumulate costs
+            if let Some(accumulator) = self.accumulated_costs.get_mut(&agent_id) {
+                accumulator.add(&costs);
                 accumulator.update_peak_debit(agent.balance());
+            }
 
-                // TODO Phase 4b.3: Calculate actual costs
-                // - Overdraft cost (if balance < 0)
-                // - Delay cost (for queued transactions)
-                // - No penalties yet (policies handle deadline drops)
+            total_cost += costs.total();
+
+            // Log cost accrual event if there are any costs
+            if costs.total() > 0 {
+                self.log_event(Event::CostAccrual {
+                    tick,
+                    agent_id: agent_id.clone(),
+                    costs,
+                });
             }
         }
 
         total_cost
     }
 
-    /// Handle end-of-day processing
-    fn handle_end_of_day(&mut self) -> Result<(), SimulationError> {
-        // TODO Phase 4b: End-of-day processing
-        // - Apply end-of-day penalties for unsettled transactions
-        // - Reset daily counters
-        // - Roll over to next day
+    /// Calculate overdraft cost for a given balance
+    ///
+    /// Overdraft cost = max(0, -balance) * overdraft_bps_per_tick
+    ///
+    /// Example: -$500,000 balance at 0.001 bps/tick = 500 basis points = $5
+    fn calculate_overdraft_cost(&self, balance: i64) -> i64 {
+        if balance >= 0 {
+            return 0;
+        }
 
-        self.event_count += 1; // EndOfDay event
+        let overdraft_amount = (-balance) as f64;
+        let cost = overdraft_amount * self.cost_rates.overdraft_bps_per_tick;
+        cost as i64
+    }
+
+    /// Calculate delay cost for queued transactions
+    ///
+    /// Delay cost = sum of (queued transaction values) * delay_cost_per_tick_per_cent
+    ///
+    /// Only counts transactions in Queue 1 (agent's internal queue).
+    /// RTGS queue delays are not penalized (waiting for liquidity is expected).
+    fn calculate_delay_cost(&self, agent_id: &str) -> i64 {
+        let agent = match self.state.get_agent(agent_id) {
+            Some(a) => a,
+            None => return 0,
+        };
+
+        let mut total_queued_value = 0;
+
+        // Sum up value of all transactions in Queue 1
+        for tx_id in agent.outgoing_queue() {
+            if let Some(tx) = self.state.get_transaction(tx_id) {
+                total_queued_value += tx.remaining_amount();
+            }
+        }
+
+        let cost = (total_queued_value as f64) * self.cost_rates.delay_cost_per_tick_per_cent;
+        cost as i64
+    }
+
+    /// Handle end-of-day processing
+    ///
+    /// Applies penalties for unsettled transactions at end of day.
+    /// Each agent pays eod_penalty_per_transaction for each unsettled transaction
+    /// in their Queue 1 (internal queue).
+    fn handle_end_of_day(&mut self) -> Result<(), SimulationError> {
+        let current_tick = self.current_tick();
+        let current_day = self.current_day();
+
+        let mut total_penalties = 0;
+
+        // Collect agent IDs to avoid borrow checker issues
+        let agent_ids: Vec<String> = self.state.agents().keys().cloned().collect();
+
+        for agent_id in agent_ids {
+            let agent = self.state.get_agent(&agent_id).unwrap();
+
+            // Count unsettled transactions in Queue 1
+            let unsettled_count = agent.outgoing_queue().len();
+
+            if unsettled_count > 0 {
+                // Calculate penalty
+                let penalty = (unsettled_count as i64) * self.cost_rates.eod_penalty_per_transaction;
+                total_penalties += penalty;
+
+                // Accumulate penalty cost
+                if let Some(accumulator) = self.accumulated_costs.get_mut(&agent_id) {
+                    accumulator.total_penalty_cost += penalty;
+                }
+
+                // Log cost accrual event for EOD penalty
+                self.log_event(Event::CostAccrual {
+                    tick: current_tick,
+                    agent_id: agent_id.clone(),
+                    costs: CostBreakdown {
+                        liquidity_cost: 0,
+                        delay_cost: 0,
+                        penalty_cost: penalty,
+                        split_friction_cost: 0,
+                    },
+                });
+            }
+        }
+
+        // Count total unsettled transactions across all queues
+        let unsettled_count = self.state.queue_size() + self.state.total_internal_queue_size();
+
+        // Log end-of-day event
+        self.log_event(Event::EndOfDay {
+            tick: current_tick,
+            day: current_day,
+            unsettled_count,
+            total_penalties,
+        });
+
+        // TODO: Reset daily counters if needed for multi-day simulations
 
         Ok(())
     }
@@ -820,7 +1175,7 @@ impl std::fmt::Debug for Orchestrator {
             .field("current_day", &self.current_day())
             .field("num_agents", &self.state.num_agents())
             .field("num_transactions", &self.state.num_transactions())
-            .field("event_count", &self.event_count)
+            .field("event_count", &self.event_count())
             .finish()
     }
 }
@@ -963,6 +1318,7 @@ mod tests {
             liquidity_cost: 100,
             delay_cost: 50,
             penalty_cost: 0,
+            split_friction_cost: 0,
         };
 
         acc.add(&cost1);
@@ -974,6 +1330,7 @@ mod tests {
             liquidity_cost: 200,
             delay_cost: 100,
             penalty_cost: 500,
+            split_friction_cost: 0,
         };
 
         acc.add(&cost2);
@@ -1006,8 +1363,9 @@ mod tests {
             liquidity_cost: 1000,
             delay_cost: 500,
             penalty_cost: 2000,
+            split_friction_cost: 250,
         };
 
-        assert_eq!(cost.total(), 3500);
+        assert_eq!(cost.total(), 3750); // 1000 + 500 + 2000 + 250
     }
 }

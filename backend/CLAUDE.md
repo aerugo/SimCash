@@ -297,7 +297,6 @@ pub struct Transaction {
     pub arrival_tick: usize,
     pub deadline_tick: usize,
     pub priority: u8,
-    pub is_divisible: bool,
     pub status: TransactionStatus,
 }
 
@@ -318,18 +317,12 @@ impl Transaction {
             arrival_tick,
             deadline_tick,
             priority: 5, // Default
-            is_divisible: false, // Default
             status: TransactionStatus::Pending,
         }
     }
-    
+
     pub fn with_priority(mut self, priority: u8) -> Self {
         self.priority = priority;
-        self
-    }
-    
-    pub fn divisible(mut self) -> Self {
-        self.is_divisible = true;
         self
     }
 }
@@ -341,7 +334,7 @@ let tx = Transaction::new(
     100000,
     10,
     50,
-).with_priority(8).divisible();
+).with_priority(8);
 ```
 
 ### Pattern 2: State Access with HashMap

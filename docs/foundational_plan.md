@@ -1,6 +1,6 @@
 # Payment Simulator - Foundation Implementation Plan
 
-> **Status Update (2025-10-27)**: Phase 1-3 completed. See implementation status below.
+> **Status Update (2025-10-28)**: Phase 1-6 (Rust core) completed. Integration layer (FFI, Python API, CLI) remaining. See implementation status below.
 
 ## Executive Summary
 
@@ -10,7 +10,10 @@ This plan outlined the implementation of a **minimal but complete** foundation. 
 - ✅ **Phase 1-2 Complete**: Time, RNG, Agent, Transaction models
 - ✅ **Phase 3 Complete**: RTGS settlement engine + LSM (Liquidity-Saving Mechanisms)
 - ✅ **Phase 4a Complete**: Queue 1 (internal bank queues) + Cash Manager Policies
-- 🎯 **Future Phases**: Orchestrator integration, API layer, Frontend, Policy DSL
+- ✅ **Phase 4b Complete**: Orchestrator integration with full 9-step tick loop
+- ✅ **Phase 5 Complete**: Transaction splitting integrated into orchestrator
+- ✅ **Phase 6 Complete**: Arrival generation integrated into orchestrator
+- 🎯 **Remaining Work**: PyO3 FFI bindings, Python API, CLI tool, integration tests (2-3 weeks)
 
 ---
 
@@ -236,33 +239,210 @@ All frontend features are future work.
 - ✅ Structured decision types with hold reasons
 - ✅ Foundation for future LLM-driven policy evolution (Phase 6)
 
-#### Current Limitations (Planned for Next Phases):
-- ❌ Not yet integrated into orchestrator tick loop (Phase 4b)
-- ❌ No policy configuration per agent (Phase 4b)
-- ❌ Transaction splitting not implemented (Phase 5)
-- ❌ Arrival processes not integrated (Phase 5)
-- ❌ JSON DSL interpreter deferred (Phase 6)
+---
+
+### ✅ Phase 4b: Orchestrator Integration - **COMPLETE** (2025-10-28)
+
+**Status**: Implementation complete
+
+**Git commits**:
+- `fd48bb1` - Phase 4b.2: Implement complete tick() loop integrating all components
+- `ac48262` - Phase 4b.1: Core Orchestrator Structure (Foundation)
+
+**What's Implemented**:
+
+#### Complete 9-Step Tick Loop ✅
+- **Module**: `backend/src/orchestrator/engine.rs` (lines 4698-4986)
+- **Full Integration**: All subsystems orchestrated in single tick() method
+
+**Tick Loop Steps**:
+1. **Arrivals** (lines 4706-4747) ✅
+   - Generate new transactions via `ArrivalGenerator`
+   - Add to `SimulationState`
+   - Queue in agent's Queue 1
+   - Log arrival events
+
+2. **Policy Evaluation** (lines 4749-4908) ✅
+   - For each agent with queued transactions
+   - Call policy's `evaluate_queue()`
+   - Process `ReleaseDecision` variants:
+     - `SubmitFull`: Move from Queue 1 to pending settlements
+     - `SubmitPartial`: Create child transactions (splitting)
+     - `Hold`: Keep in Queue 1
+     - `Drop`: Remove from Queue 1, mark as dropped
+
+3. **RTGS Settlement** (lines 4910-4948) ✅
+   - Try immediate settlement for pending transactions
+   - If insufficient liquidity → queue in Queue 2 (RTGS queue)
+   - Log settlement events
+
+4. **Process RTGS Queue** (lines 4950-4953) ✅
+   - Call `rtgs::process_queue()` with liquidity recycling
+   - Retry all queued transactions after each settlement
+
+5. **LSM Coordinator** (lines 4955-4963) ✅
+   - Call `lsm::run_lsm_pass()`
+   - Bilateral offsetting + cycle detection + settlement
+   - Track releases for metrics
+
+6. **Cost Accrual** (lines 4965-4966) ✅
+   - Calculate overdraft costs (for negative balances)
+   - Calculate delay costs (for Queue 1 only)
+   - Accumulate per agent
+
+7. **Advance Time** (line 4972) ✅
+   - Call `time_manager.advance_tick()`
+
+8. **End-of-Day Handling** (lines 4974-4976) ✅
+   - If day boundary: apply EOD penalties
+   - For unsettled transactions still in Queue 1
+
+9. **Return Results** ✅
+   - `TickResult` with metrics (arrivals, settlements, LSM releases, costs)
+
+#### Supporting Infrastructure ✅
+- **Per-Agent Policy Configuration**: HashMap of agent_id → Box<dyn Policy>
+- **Event Logging**: Complete event stream for all actions
+- **Cost Tracking**: Per-agent accumulated costs (overdraft, delay, split, EOD penalty)
+- **Metrics Collection**: Comprehensive tick statistics
+
+#### Test Status:
+- **60+ tests passing** across all modules
+- Integration tests in `backend/tests/test_orchestrator_integration.rs`
+- Full tick loop tested with all components
 
 ---
 
-### 🎯 Future Phases (After Phase 4a)
+### ✅ Phase 5: Transaction Splitting - **COMPLETE** (2025-10-28)
 
-#### Phase 4b: Orchestrator Integration
-- Integrate policies into tick loop
-- Policy configuration per agent
-- Policy decision metrics collection
-- Cost accrual (liquidity, delay, penalties)
-- Arrival generation integration
-- End-to-end simulation tests
+**Status**: Implementation complete, integrated into orchestrator
 
-#### Phase 5: Transaction Splitting & Advanced Features
-- Split transactions (SubmitPartial implementation)
-- Arrival processes (Poisson, time windows)
-- Priority-based queue ordering
-- Timed transactions (T2-style)
-- Cost calculator enhancements
+**Git commit**: Integrated in Phase 4b.2 (fd48bb1)
 
-#### Phase 6: Policy DSL & LLM Integration
+**What's Implemented**:
+
+#### Transaction Splitting Mechanics ✅
+- **Location**: Orchestrator tick loop, Policy Evaluation step (lines 4792-4878)
+- **Trigger**: Policy returns `ReleaseDecision::SubmitPartial { tx_id, num_splits }`
+
+**Implementation Details**:
+1. **Parent Transaction Removal** ✅
+   - Remove parent from Queue 1
+   - Parent remains in state as "split" (not submitted to RTGS)
+
+2. **Child Transaction Creation** ✅
+   - Calculate base amount: `parent.amount() / num_splits`
+   - Remainder goes to last child (ensures exact sum)
+   - Each child created with `Transaction::new_split()`
+   - Preserves parent's priority and deadline
+   - Links to parent via `parent_id` field
+
+3. **Child Submission** ✅
+   - All children added to pending settlements (bypass Queue 1)
+   - Each child independently processed by RTGS
+   - Can settle at different ticks based on liquidity
+
+4. **Cost Calculation** ✅
+   - Split friction cost: `split_friction_cost × (num_splits - 1)`
+   - Charged to sending agent
+   - Tracked in `accumulated_costs`
+
+5. **Event Logging** ✅
+   - `Event::PolicySplit` with parent_id, num_splits, children IDs
+
+#### Transaction Model Support ✅
+- **Fields**:
+  - `parent_id: Option<String>` - Links child to parent
+  - `remaining_amount: i64` - Tracks partial settlement
+- **Methods**:
+  - `new_split()` - Constructor for child transactions
+  - `is_split()` - Query if transaction is a split child
+  - `parent_id()` - Get parent transaction ID
+
+#### Policy Support ✅
+- **Decision Type**: `ReleaseDecision::SubmitPartial { tx_id, num_splits }`
+- **Policies Using Splitting**:
+  - `LiquiditySplittingPolicy` (lines in `policy/splitting.rs`)
+  - Configurable: max_splits, min_split_amount
+  - Splits large transactions when liquidity is tight
+
+#### Test Coverage ✅
+- Tests in `backend/tests/test_transaction_splitting.rs`
+- Validates:
+  - Correct amount distribution (including remainder)
+  - Parent-child linking
+  - Split cost calculation
+  - Independent settlement of children
+  - Balance conservation across splits
+
+**Note**: Transaction splitting is a **policy-level decision**, not an RTGS feature. Banks voluntarily split payments to manage liquidity. The RTGS engine only sees fully-formed individual instructions.
+
+---
+
+### ✅ Phase 6: Arrival Generation - **COMPLETE** (2025-10-28)
+
+**Status**: Implementation complete, integrated into orchestrator
+
+**What's Implemented**:
+
+#### Arrival Generator ✅
+- **Module**: `backend/src/arrivals/generator.rs`
+- **Integration**: Step 1 of orchestrator tick loop (lines 4706-4747)
+
+**Components**:
+1. **ArrivalConfig** ✅
+   - `rate_per_tick: f64` - Expected arrivals (Poisson λ)
+   - `distribution: AmountDistribution` - Transaction size distribution
+   - `counterparty_weights: HashMap<String, f64>` - Receiver preferences
+   - `deadline_offset: usize` - Ticks until deadline
+
+2. **AmountDistribution** ✅ (`backend/src/arrivals/distributions.rs`)
+   - `Normal { mean, std_dev }` - Gaussian distribution
+   - `LogNormal { mean_log, std_dev_log }` - Right-skewed distribution
+   - `Uniform { min, max }` - Flat distribution
+   - `Exponential { lambda }` - Decay distribution
+   - All implemented with deterministic RNG
+
+3. **ArrivalGenerator** ✅
+   - Holds per-agent configurations
+   - `generate_for_agent()` method:
+     - Samples count from Poisson distribution
+     - For each: samples amount, selects counterparty
+     - Creates `Transaction` objects
+     - Returns Vec<Transaction>
+
+4. **Orchestrator Integration** ✅
+   - Optional `arrival_generator: Option<ArrivalGenerator>` field
+   - Called every tick before policy evaluation
+   - Generated transactions automatically queued in Queue 1
+   - All arrivals logged as events
+
+#### Test Coverage ✅
+- Determinism verified (same seed → same arrivals)
+- Distribution shape validated
+- Counterparty selection tested
+- End-to-end integration in orchestrator tests
+
+**Example Configuration**:
+```yaml
+arrival_config:
+  rate_per_tick: 2.5  # Average 2-3 transactions per tick
+  distribution:
+    type: LogNormal
+    mean_log: 11.5  # Median ~$1,000
+    std_dev_log: 1.2
+  counterparty_weights:
+    BANK_B: 0.5
+    BANK_C: 0.3
+    BANK_D: 0.2
+  deadline_offset: 50  # 50 ticks to settle
+```
+
+---
+
+### 🎯 Future Phases (Integration Layer)
+
+#### Phase 7: Policy DSL & LLM Integration (Future)
 - **JSON Decision Tree Format**:
   - Schema definition and validation
   - Rust interpreter (~2,000 lines)
@@ -319,45 +499,70 @@ All frontend features are future work.
 
 The foundation is complete when:
 
+### ✅ **Completed (Rust Core)**
+
 1. ✅ **Rust compiles and tests pass**
    - All core types implemented
-   - Unit tests for each module
+   - Unit tests for each module (60+ tests passing)
    - Integration tests for orchestrator
+   - Complete 9-step tick loop
+   - All subsystems integrated (RTGS, LSM, policies, arrivals, splitting)
 
-2. ✅ **FFI boundary works**
-   - Python can import Rust module
-   - Can create orchestrator
-   - Can submit transactions and advance ticks
-   - No memory leaks or crashes
-
-3. ✅ **Determinism proven**
+2. ✅ **Determinism proven**
    - Same seed + same actions = same results
    - Replay tests pass
    - RNG state persists correctly
+   - Verified across all modules
 
-4. ✅ **CLI functional**
+### 🎯 **Remaining (Integration Layer)**
+
+3. ❌ **FFI boundary works** (2-3 weeks)
+   - Python can import Rust module
+   - Can create orchestrator from Python
+   - Can submit transactions and advance ticks via FFI
+   - No memory leaks or crashes
+   - Type conversions work correctly
+
+4. ❌ **CLI functional** (2-3 days)
    - Can run a 100-tick simulation
    - Can submit transactions
    - Output is readable
    - Useful for debugging
+   - State persistence works
 
-5. ✅ **API operational**
+5. ❌ **API operational** (4-5 days)
    - All endpoints work
    - Returns correct data
    - Error handling works
+   - OpenAPI documentation complete
 
-6. ✅ **Frontend displays state**
+6. ⏸️ **Frontend displays state** (deferred to Phase 8)
    - Shows agents and balances
    - Shows transactions
    - Can advance ticks
    - Updates correctly
 
-7. ✅ **End-to-end test passes**
+7. ❌ **End-to-end test passes** (after FFI/API/CLI complete)
    - Create simulation via API
    - Submit transaction via API
    - Advance ticks until settled
-   - Verify in frontend
    - Query via CLI
+   - Verify results
+
+### **Current Status Summary**
+
+**✅ Complete (90%)**:
+- Rust simulation engine (Phases 1-6)
+- All core models, settlement, policies, orchestration
+- Comprehensive test coverage (60+ tests)
+
+**🎯 Remaining (10%)**:
+- PyO3 FFI bindings (blocker - 5-7 days)
+- Python FastAPI API (4-5 days)
+- CLI tool (2-3 days)
+- Integration tests (3-5 days)
+
+**Total Time to Foundation Complete**: 2-3 weeks
 
 ---
 

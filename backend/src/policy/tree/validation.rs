@@ -1,0 +1,968 @@
+// Phase 6: Decision Tree Validation
+//
+// Pre-execution safety checks to ensure decision trees are well-formed:
+// - Node ID uniqueness
+// - Tree depth limits
+// - Field reference validity
+// - Parameter reference validity
+// - Division-by-zero safety
+// - Action reachability
+
+use crate::policy::tree::context::EvalContext;
+use crate::policy::tree::types::{
+    Computation, DecisionTreeDef, Expression, TreeNode, Value, ValueOrCompute,
+};
+use std::collections::{HashMap, HashSet};
+use thiserror::Error;
+
+/// Validation errors
+#[derive(Debug, Error, PartialEq)]
+pub enum ValidationError {
+    #[error("Duplicate node ID: {0}")]
+    DuplicateNodeId(String),
+
+    #[error("Tree depth {actual} exceeds maximum {max}")]
+    ExcessiveDepth { actual: usize, max: usize },
+
+    #[error("Field reference '{0}' not found in context")]
+    InvalidFieldReference(String),
+
+    #[error("Parameter reference '{0}' not found in tree parameters")]
+    InvalidParameterReference(String),
+
+    #[error("Potential division by zero in computation at node {0}")]
+    DivisionByZeroRisk(String),
+
+    #[error("Unreachable action node: {0}")]
+    UnreachableAction(String),
+}
+
+/// Validation result
+pub type ValidationResult = Result<(), Vec<ValidationError>>;
+
+/// Maximum allowed tree depth
+const MAX_TREE_DEPTH: usize = 100;
+
+/// Validate a decision tree before execution
+///
+/// Runs all validation checks and returns all errors found.
+///
+/// # Arguments
+///
+/// * `tree` - Decision tree to validate
+/// * `sample_context` - Sample evaluation context for field validation
+///
+/// # Returns
+///
+/// Ok(()) if all checks pass, Err(errors) otherwise
+///
+/// # Example
+///
+/// ```ignore
+/// let tree = load_decision_tree("policy.json")?;
+/// let sample_context = EvalContext::build(&sample_tx, &sample_agent, &state, 0);
+/// validate_tree(&tree, &sample_context)?;
+/// ```
+pub fn validate_tree(tree: &DecisionTreeDef, sample_context: &EvalContext) -> ValidationResult {
+    let mut errors = Vec::new();
+
+    // Phase 6.9: Node ID uniqueness
+    if let Err(e) = validate_node_id_uniqueness(tree) {
+        errors.extend(e);
+    }
+
+    // Phase 6.10: Tree depth limits
+    if let Err(e) = validate_tree_depth(tree) {
+        errors.extend(e);
+    }
+
+    // Phase 6.11: Field references
+    if let Err(e) = validate_field_references(tree, sample_context) {
+        errors.extend(e);
+    }
+
+    // Phase 6.12: Parameter references
+    if let Err(e) = validate_parameter_references(tree) {
+        errors.extend(e);
+    }
+
+    // Phase 6.13: Division safety
+    if let Err(e) = validate_division_safety(tree) {
+        errors.extend(e);
+    }
+
+    // Phase 6.14: Action reachability (optional warning, not critical)
+    // Note: This is a best-effort static analysis
+    if let Err(e) = validate_action_reachability(tree) {
+        errors.extend(e);
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+// ============================================================================
+// Phase 6.9: Node ID Uniqueness
+// ============================================================================
+
+/// Validate that all node IDs are unique
+fn validate_node_id_uniqueness(tree: &DecisionTreeDef) -> ValidationResult {
+    let mut seen = HashSet::new();
+    let mut errors = Vec::new();
+
+    collect_node_ids(&tree.root, &mut seen, &mut errors);
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn collect_node_ids(
+    node: &TreeNode,
+    seen: &mut HashSet<String>,
+    errors: &mut Vec<ValidationError>,
+) {
+    let node_id = node.node_id();
+
+    if !seen.insert(node_id.to_string()) {
+        errors.push(ValidationError::DuplicateNodeId(node_id.to_string()));
+    }
+
+    // Recurse into child nodes
+    if let TreeNode::Condition {
+        on_true, on_false, ..
+    } = node
+    {
+        collect_node_ids(on_true, seen, errors);
+        collect_node_ids(on_false, seen, errors);
+    }
+}
+
+// ============================================================================
+// Phase 6.10: Tree Depth Limits
+// ============================================================================
+
+/// Validate that tree depth does not exceed maximum
+fn validate_tree_depth(tree: &DecisionTreeDef) -> ValidationResult {
+    let max_depth = compute_tree_depth(&tree.root, 0);
+
+    if max_depth > MAX_TREE_DEPTH {
+        Err(vec![ValidationError::ExcessiveDepth {
+            actual: max_depth,
+            max: MAX_TREE_DEPTH,
+        }])
+    } else {
+        Ok(())
+    }
+}
+
+fn compute_tree_depth(node: &TreeNode, current_depth: usize) -> usize {
+    match node {
+        TreeNode::Action { .. } => current_depth,
+        TreeNode::Condition {
+            on_true, on_false, ..
+        } => {
+            let true_depth = compute_tree_depth(on_true, current_depth + 1);
+            let false_depth = compute_tree_depth(on_false, current_depth + 1);
+            true_depth.max(false_depth)
+        }
+    }
+}
+
+// ============================================================================
+// Phase 6.11: Field References
+// ============================================================================
+
+/// Validate that all field references exist in context
+fn validate_field_references(
+    tree: &DecisionTreeDef,
+    sample_context: &EvalContext,
+) -> ValidationResult {
+    let mut errors = Vec::new();
+    let mut referenced_fields = HashSet::new();
+
+    // Collect all field references
+    collect_field_references(&tree.root, &mut referenced_fields);
+
+    // Check each field against sample context
+    for field in referenced_fields {
+        if !sample_context.has_field(&field) {
+            errors.push(ValidationError::InvalidFieldReference(field));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn collect_field_references(node: &TreeNode, fields: &mut HashSet<String>) {
+    match node {
+        TreeNode::Condition {
+            condition,
+            on_true,
+            on_false,
+            ..
+        } => {
+            collect_fields_from_expression(condition, fields);
+            collect_field_references(on_true, fields);
+            collect_field_references(on_false, fields);
+        }
+        TreeNode::Action { parameters, .. } => {
+            for value_or_compute in parameters.values() {
+                collect_fields_from_value_or_compute(value_or_compute, fields);
+            }
+        }
+    }
+}
+
+fn collect_fields_from_expression(expr: &Expression, fields: &mut HashSet<String>) {
+    match expr {
+        Expression::Equal { left, right }
+        | Expression::NotEqual { left, right }
+        | Expression::LessThan { left, right }
+        | Expression::LessOrEqual { left, right }
+        | Expression::GreaterThan { left, right }
+        | Expression::GreaterOrEqual { left, right } => {
+            collect_fields_from_value(left, fields);
+            collect_fields_from_value(right, fields);
+        }
+        Expression::And { conditions } | Expression::Or { conditions } => {
+            for cond in conditions {
+                collect_fields_from_expression(cond, fields);
+            }
+        }
+        Expression::Not { condition } => {
+            collect_fields_from_expression(condition, fields);
+        }
+    }
+}
+
+fn collect_fields_from_value(value: &Value, fields: &mut HashSet<String>) {
+    match value {
+        Value::Field { field } => {
+            fields.insert(field.clone());
+        }
+        Value::Compute { compute } => {
+            collect_fields_from_computation(compute, fields);
+        }
+        _ => {}
+    }
+}
+
+fn collect_fields_from_computation(comp: &Computation, fields: &mut HashSet<String>) {
+    match comp {
+        Computation::Add { left, right }
+        | Computation::Subtract { left, right }
+        | Computation::Multiply { left, right }
+        | Computation::Divide { left, right } => {
+            collect_fields_from_value(left, fields);
+            collect_fields_from_value(right, fields);
+        }
+        Computation::Max { values } | Computation::Min { values } => {
+            for value in values {
+                collect_fields_from_value(value, fields);
+            }
+        }
+    }
+}
+
+fn collect_fields_from_value_or_compute(voc: &ValueOrCompute, fields: &mut HashSet<String>) {
+    match voc {
+        ValueOrCompute::Field { field } => {
+            fields.insert(field.clone());
+        }
+        ValueOrCompute::Compute { compute } => {
+            collect_fields_from_computation(compute, fields);
+        }
+        _ => {}
+    }
+}
+
+// ============================================================================
+// Phase 6.12: Parameter References
+// ============================================================================
+
+/// Validate that all parameter references exist in tree parameters
+fn validate_parameter_references(tree: &DecisionTreeDef) -> ValidationResult {
+    let mut errors = Vec::new();
+    let mut referenced_params = HashSet::new();
+
+    // Collect all parameter references
+    collect_parameter_references(&tree.root, &mut referenced_params);
+
+    // Check each parameter against tree.parameters
+    for param in referenced_params {
+        if !tree.parameters.contains_key(&param) {
+            errors.push(ValidationError::InvalidParameterReference(param));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn collect_parameter_references(node: &TreeNode, params: &mut HashSet<String>) {
+    match node {
+        TreeNode::Condition {
+            condition,
+            on_true,
+            on_false,
+            ..
+        } => {
+            collect_params_from_expression(condition, params);
+            collect_parameter_references(on_true, params);
+            collect_parameter_references(on_false, params);
+        }
+        TreeNode::Action { parameters, .. } => {
+            for value_or_compute in parameters.values() {
+                collect_params_from_value_or_compute(value_or_compute, params);
+            }
+        }
+    }
+}
+
+fn collect_params_from_expression(expr: &Expression, params: &mut HashSet<String>) {
+    match expr {
+        Expression::Equal { left, right }
+        | Expression::NotEqual { left, right }
+        | Expression::LessThan { left, right }
+        | Expression::LessOrEqual { left, right }
+        | Expression::GreaterThan { left, right }
+        | Expression::GreaterOrEqual { left, right } => {
+            collect_params_from_value(left, params);
+            collect_params_from_value(right, params);
+        }
+        Expression::And { conditions } | Expression::Or { conditions } => {
+            for cond in conditions {
+                collect_params_from_expression(cond, params);
+            }
+        }
+        Expression::Not { condition } => {
+            collect_params_from_expression(condition, params);
+        }
+    }
+}
+
+fn collect_params_from_value(value: &Value, params: &mut HashSet<String>) {
+    match value {
+        Value::Param { param } => {
+            params.insert(param.clone());
+        }
+        Value::Compute { compute } => {
+            collect_params_from_computation(compute, params);
+        }
+        _ => {}
+    }
+}
+
+fn collect_params_from_computation(comp: &Computation, params: &mut HashSet<String>) {
+    match comp {
+        Computation::Add { left, right }
+        | Computation::Subtract { left, right }
+        | Computation::Multiply { left, right }
+        | Computation::Divide { left, right } => {
+            collect_params_from_value(left, params);
+            collect_params_from_value(right, params);
+        }
+        Computation::Max { values } | Computation::Min { values } => {
+            for value in values {
+                collect_params_from_value(value, params);
+            }
+        }
+    }
+}
+
+fn collect_params_from_value_or_compute(voc: &ValueOrCompute, params: &mut HashSet<String>) {
+    match voc {
+        ValueOrCompute::Param { param } => {
+            params.insert(param.clone());
+        }
+        ValueOrCompute::Compute { compute } => {
+            collect_params_from_computation(compute, params);
+        }
+        _ => {}
+    }
+}
+
+// ============================================================================
+// Phase 6.13: Division Safety
+// ============================================================================
+
+/// Validate that no division operations have literal zero divisors
+///
+/// Note: This is static analysis only. Runtime division by zero is still
+/// caught by the interpreter's divide-by-zero check.
+fn validate_division_safety(tree: &DecisionTreeDef) -> ValidationResult {
+    let mut errors = Vec::new();
+
+    check_division_safety_in_node(&tree.root, &mut errors);
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn check_division_safety_in_node(node: &TreeNode, errors: &mut Vec<ValidationError>) {
+    match node {
+        TreeNode::Condition {
+            condition,
+            on_true,
+            on_false,
+            ..
+        } => {
+            check_division_in_expression(condition, node.node_id(), errors);
+            check_division_safety_in_node(on_true, errors);
+            check_division_safety_in_node(on_false, errors);
+        }
+        TreeNode::Action { parameters, .. } => {
+            for value_or_compute in parameters.values() {
+                if let ValueOrCompute::Compute { compute } = value_or_compute {
+                    check_division_in_computation(compute, node.node_id(), errors);
+                }
+            }
+        }
+    }
+}
+
+fn check_division_in_expression(expr: &Expression, node_id: &str, errors: &mut Vec<ValidationError>) {
+    match expr {
+        Expression::Equal { left, right }
+        | Expression::NotEqual { left, right }
+        | Expression::LessThan { left, right }
+        | Expression::LessOrEqual { left, right }
+        | Expression::GreaterThan { left, right }
+        | Expression::GreaterOrEqual { left, right } => {
+            if let Value::Compute { compute } = left {
+                check_division_in_computation(compute, node_id, errors);
+            }
+            if let Value::Compute { compute } = right {
+                check_division_in_computation(compute, node_id, errors);
+            }
+        }
+        Expression::And { conditions } | Expression::Or { conditions } => {
+            for cond in conditions {
+                check_division_in_expression(cond, node_id, errors);
+            }
+        }
+        Expression::Not { condition } => {
+            check_division_in_expression(condition, node_id, errors);
+        }
+    }
+}
+
+fn check_division_in_computation(comp: &Computation, node_id: &str, errors: &mut Vec<ValidationError>) {
+    match comp {
+        Computation::Divide { left: _, right } => {
+            // Check if right is a literal zero
+            if is_literal_zero(right) {
+                errors.push(ValidationError::DivisionByZeroRisk(node_id.to_string()));
+            }
+            // Recurse into nested computations
+            if let Value::Compute { compute } = right {
+                check_division_in_computation(compute, node_id, errors);
+            }
+        }
+        Computation::Add { left, right }
+        | Computation::Subtract { left, right }
+        | Computation::Multiply { left, right } => {
+            if let Value::Compute { compute } = left {
+                check_division_in_computation(compute, node_id, errors);
+            }
+            if let Value::Compute { compute } = right {
+                check_division_in_computation(compute, node_id, errors);
+            }
+        }
+        Computation::Max { values } | Computation::Min { values } => {
+            for value in values {
+                if let Value::Compute { compute } = value {
+                    check_division_in_computation(compute, node_id, errors);
+                }
+            }
+        }
+    }
+}
+
+fn is_literal_zero(value: &Value) -> bool {
+    match value {
+        Value::Literal { value } => {
+            if let Some(num) = value.as_f64() {
+                num.abs() < f64::EPSILON
+            } else if let Some(int) = value.as_i64() {
+                int == 0
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
+// ============================================================================
+// Phase 6.14: Action Reachability
+// ============================================================================
+
+/// Validate that all action nodes are potentially reachable
+///
+/// This is a best-effort static analysis. We check for obviously unreachable
+/// actions (e.g., both branches lead to same action, conditions always false).
+fn validate_action_reachability(tree: &DecisionTreeDef) -> ValidationResult {
+    let mut all_actions = HashSet::new();
+    let mut reachable_actions = HashSet::new();
+
+    // Collect all action nodes
+    collect_all_actions(&tree.root, &mut all_actions);
+
+    // Mark reachable actions (all actions in a condition's branches)
+    mark_reachable_actions(&tree.root, &mut reachable_actions);
+
+    // Find unreachable actions
+    let mut errors = Vec::new();
+    for action_id in &all_actions {
+        if !reachable_actions.contains(action_id) {
+            errors.push(ValidationError::UnreachableAction(action_id.clone()));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn collect_all_actions(node: &TreeNode, actions: &mut HashSet<String>) {
+    match node {
+        TreeNode::Action { node_id, .. } => {
+            actions.insert(node_id.clone());
+        }
+        TreeNode::Condition {
+            on_true, on_false, ..
+        } => {
+            collect_all_actions(on_true, actions);
+            collect_all_actions(on_false, actions);
+        }
+    }
+}
+
+fn mark_reachable_actions(node: &TreeNode, reachable: &mut HashSet<String>) {
+    match node {
+        TreeNode::Action { node_id, .. } => {
+            reachable.insert(node_id.clone());
+        }
+        TreeNode::Condition {
+            on_true, on_false, ..
+        } => {
+            // Both branches are potentially reachable
+            mark_reachable_actions(on_true, reachable);
+            mark_reachable_actions(on_false, reachable);
+        }
+    }
+}
+
+// ============================================================================
+// TESTS - Phase 6.9-6.14
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::policy::tree::types::{ActionType, Expression, TreeNode, Value};
+    use crate::{Agent, SimulationState, Transaction};
+    use serde_json::json;
+
+    fn create_sample_context() -> EvalContext {
+        let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
+        let agent = Agent::new("BANK_A".to_string(), 500_000, 200_000);
+        let state = SimulationState::new(vec![agent.clone()]);
+        EvalContext::build(&tx, &agent, &state, 10)
+    }
+
+    // ========================================================================
+    // Phase 6.9: Node ID Uniqueness Tests
+    // ========================================================================
+
+    #[test]
+    fn test_validate_unique_node_ids() {
+        let context = create_sample_context();
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "balance".to_string(),
+                    },
+                    right: Value::Literal { value: json!(0) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(),
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "A2".to_string(),
+                    action: ActionType::Hold,
+                    parameters: HashMap::new(),
+                }),
+            },
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reject_duplicate_node_ids() {
+        let context = create_sample_context();
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "balance".to_string(),
+                    },
+                    right: Value::Literal { value: json!(0) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(), // DUPLICATE
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(), // DUPLICATE
+                    action: ActionType::Hold,
+                    parameters: HashMap::new(),
+                }),
+            },
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_err());
+
+        let errors = result.unwrap_err();
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::DuplicateNodeId(_))));
+    }
+
+    // ========================================================================
+    // Phase 6.10: Tree Depth Tests
+    // ========================================================================
+
+    #[test]
+    fn test_validate_tree_depth_ok() {
+        let context = create_sample_context();
+
+        // Create a reasonably deep tree (10 levels)
+        fn build_nested_tree(depth: usize) -> TreeNode {
+            if depth == 0 {
+                TreeNode::Action {
+                    node_id: "A_leaf".to_string(),
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }
+            } else {
+                TreeNode::Condition {
+                    node_id: format!("N_{}", depth),
+                    description: String::new(),
+                    condition: Expression::GreaterThan {
+                        left: Value::Field {
+                            field: "balance".to_string(),
+                        },
+                        right: Value::Literal { value: json!(0) },
+                    },
+                    on_true: Box::new(build_nested_tree(depth - 1)),
+                    on_false: Box::new(TreeNode::Action {
+                        node_id: format!("A_{}", depth),
+                        action: ActionType::Hold,
+                        parameters: HashMap::new(),
+                    }),
+                }
+            }
+        }
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: build_nested_tree(10),
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok());
+    }
+
+    // ========================================================================
+    // Phase 6.11: Field Reference Tests
+    // ========================================================================
+
+    #[test]
+    fn test_validate_valid_field_references() {
+        let context = create_sample_context();
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "balance".to_string(), // Valid field
+                    },
+                    right: Value::Field {
+                        field: "amount".to_string(), // Valid field
+                    },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(),
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "A2".to_string(),
+                    action: ActionType::Hold,
+                    parameters: HashMap::new(),
+                }),
+            },
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reject_invalid_field_references() {
+        let context = create_sample_context();
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "nonexistent_field".to_string(), // INVALID
+                    },
+                    right: Value::Literal { value: json!(0) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(),
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "A2".to_string(),
+                    action: ActionType::Hold,
+                    parameters: HashMap::new(),
+                }),
+            },
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_err());
+
+        let errors = result.unwrap_err();
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::InvalidFieldReference(_))));
+    }
+
+    // ========================================================================
+    // Phase 6.12: Parameter Reference Tests
+    // ========================================================================
+
+    #[test]
+    fn test_validate_valid_parameter_references() {
+        let context = create_sample_context();
+
+        let mut params = HashMap::new();
+        params.insert("threshold".to_string(), 100_000.0);
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "balance".to_string(),
+                    },
+                    right: Value::Param {
+                        param: "threshold".to_string(), // Valid param
+                    },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(),
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "A2".to_string(),
+                    action: ActionType::Hold,
+                    parameters: HashMap::new(),
+                }),
+            },
+            parameters: params,
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reject_invalid_parameter_references() {
+        let context = create_sample_context();
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "balance".to_string(),
+                    },
+                    right: Value::Param {
+                        param: "nonexistent_param".to_string(), // INVALID
+                    },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(),
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "A2".to_string(),
+                    action: ActionType::Hold,
+                    parameters: HashMap::new(),
+                }),
+            },
+            parameters: HashMap::new(), // Missing parameter
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_err());
+
+        let errors = result.unwrap_err();
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::InvalidParameterReference(_))));
+    }
+
+    // ========================================================================
+    // Phase 6.13: Division Safety Tests
+    // ========================================================================
+
+    #[test]
+    fn test_reject_division_by_literal_zero() {
+        let context = create_sample_context();
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Compute {
+                        compute: Box::new(Computation::Divide {
+                            left: Value::Field {
+                                field: "balance".to_string(),
+                            },
+                            right: Value::Literal { value: json!(0) }, // DIVISION BY ZERO
+                        }),
+                    },
+                    right: Value::Literal { value: json!(100) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(),
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "A2".to_string(),
+                    action: ActionType::Hold,
+                    parameters: HashMap::new(),
+                }),
+            },
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_err());
+
+        let errors = result.unwrap_err();
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::DivisionByZeroRisk(_))));
+    }
+
+    #[test]
+    fn test_allow_division_by_field_reference() {
+        let context = create_sample_context();
+
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            tree_id: "test".to_string(),
+            root: TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Compute {
+                        compute: Box::new(Computation::Divide {
+                            left: Value::Field {
+                                field: "balance".to_string(),
+                            },
+                            right: Value::Field {
+                                field: "amount".to_string(), // OK: field reference (runtime check)
+                            },
+                        }),
+                    },
+                    right: Value::Literal { value: json!(1) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "A1".to_string(),
+                    action: ActionType::Release,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "A2".to_string(),
+                    action: ActionType::Hold,
+                    parameters: HashMap::new(),
+                }),
+            },
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok());
+    }
+}

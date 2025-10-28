@@ -1,8 +1,15 @@
 # Per-Agent Arrival Configurations
 
+> **Implementation Status**: 🎯 Phase 5 Feature (not yet implemented)
+>
+> This document describes the **target design** for arrival generation.
+>
+> **Current Status** (Phase 1-2): Basic models complete, no arrival generation yet.
+> **Next Steps**: Phase 3 (RTGS settlement), Phase 4 (LSM), then Phase 5 (arrivals).
+
 ## Overview
 
-Per-agent arrival configurations allow you to model **heterogeneous banks** in the payment simulator. Different banks can have:
+Per-agent arrival configurations will allow you to model **heterogeneous banks** in the payment simulator. Different banks can have:
 
 1. **Different transaction volumes** (large vs small banks)
 2. **Different transaction sizes** (investment banks vs retail banks)

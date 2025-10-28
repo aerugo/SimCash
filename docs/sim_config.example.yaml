@@ -1,19 +1,27 @@
 # Example Simulation Configuration with Per-Agent Arrivals
-
-# This configuration demonstrates how to model heterogeneous banks with
-# different transaction volumes and sizes using per-agent arrival configs.
-# Save as: config/example-with-arrivals.yaml
+#
+# ⚠️  IMPLEMENTATION STATUS: Phase 5+ (not yet implemented)
+#
+# This document shows the TARGET configuration format with automatic arrivals.
+#
+# Current Status (Phase 1-2): Basic models implemented
+# Phase 3 (planned): RTGS settlement engine
+# Phase 4 (planned): LSM implementation
+# Phase 5 (planned): Arrival generation + orchestrator
+#
+# This config will be usable once Phase 5 is complete.
 
 simulation:
   ticks_per_day: 100
   seed: 12345  # For deterministic replay
   
 agents:
+  # Each agent represents a bank's settlement account at the central bank
   # Large commercial bank - high volume, large transactions
   - id: BANK_A
-    balance: 10000000  # $100,000.00 in cents
-    credit_limit: 5000000  # $50,000.00 overdraft
-    arrival_config:
+    balance: 10000000       # Opening balance at CB in cents ($100,000.00)
+    credit_limit: 5000000   # Intraday credit headroom in cents ($50,000.00)
+    arrival_config:         # Phase 5 feature: automatic transaction generation
       agent_id: BANK_A
       rate_per_tick: 8.0  # Average 8 transactions per tick (high volume)
       distribution_type: lognormal  # Realistic payment distribution

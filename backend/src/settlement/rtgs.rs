@@ -50,9 +50,6 @@ pub enum SettlementError {
     #[error("Transaction has been dropped")]
     Dropped,
 
-    #[error("Cannot partially settle indivisible transaction")]
-    IndivisibleTransaction,
-
     #[error("Agent error: {0}")]
     AgentError(#[from] AgentError),
 
@@ -131,92 +128,6 @@ pub fn try_settle(
 
     // Execute settlement (atomic operation)
     // If debit fails (shouldn't happen after can_pay check), no credit occurs
-    sender.debit(amount)?;
-    receiver.credit(amount);
-    transaction.settle(amount, tick)?;
-
-    Ok(())
-}
-
-/// Attempt partial settlement of a divisible transaction
-///
-/// For divisible transactions, this allows settling a portion of the total amount.
-/// This is useful when sender has some liquidity but not enough for the full amount.
-///
-/// # Arguments
-///
-/// * `sender` - Sending bank's agent
-/// * `receiver` - Receiving bank's agent
-/// * `transaction` - Payment transaction (must be divisible)
-/// * `amount` - Amount to settle (must be > 0 and <= remaining_amount)
-/// * `tick` - Current simulation tick
-///
-/// # Returns
-///
-/// - `Ok(())` if partial settlement succeeded
-/// - `Err(SettlementError::IndivisibleTransaction)` if transaction is not divisible
-/// - `Err(SettlementError::InsufficientLiquidity)` if sender can't pay even partial amount
-///
-/// # Example
-///
-/// ```rust
-/// use payment_simulator_core_rs::{Agent, Transaction};
-/// use payment_simulator_core_rs::settlement::try_settle_partial;
-///
-/// let mut sender = Agent::new("BANK_A".to_string(), 300_000, 0);
-/// let mut receiver = Agent::new("BANK_B".to_string(), 0, 0);
-/// let mut transaction = Transaction::new(
-///     "BANK_A".to_string(),
-///     "BANK_B".to_string(),
-///     1_000_000,
-///     0,
-///     100,
-/// ).divisible(); // Mark as divisible
-///
-/// // Settle partial amount
-/// let result = try_settle_partial(&mut sender, &mut receiver, &mut transaction, 300_000, 5);
-/// assert!(result.is_ok());
-/// assert_eq!(sender.balance(), 0);
-/// assert_eq!(receiver.balance(), 300_000);
-/// assert_eq!(transaction.remaining_amount(), 700_000);
-/// ```
-pub fn try_settle_partial(
-    sender: &mut Agent,
-    receiver: &mut Agent,
-    transaction: &mut Transaction,
-    amount: i64,
-    tick: usize,
-) -> Result<(), SettlementError> {
-    // Check if transaction is divisible
-    if !transaction.is_divisible() {
-        return Err(SettlementError::IndivisibleTransaction);
-    }
-
-    // Validate transaction state
-    if transaction.is_fully_settled() {
-        return Err(SettlementError::AlreadySettled);
-    }
-
-    if matches!(transaction.status(), TransactionStatus::Dropped { .. }) {
-        return Err(SettlementError::Dropped);
-    }
-
-    // Validate amount
-    assert!(amount > 0, "Partial settlement amount must be positive");
-    assert!(
-        amount <= transaction.remaining_amount(),
-        "Partial amount cannot exceed remaining amount"
-    );
-
-    // Check liquidity for partial amount
-    if !sender.can_pay(amount) {
-        return Err(SettlementError::InsufficientLiquidity {
-            required: amount,
-            available: sender.available_liquidity(),
-        });
-    }
-
-    // Execute partial settlement (atomic operation)
     sender.debit(amount)?;
     receiver.credit(amount);
     transaction.settle(amount, tick)?;
@@ -536,35 +447,5 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(sender.balance(), 300_000); // Unchanged
         assert_eq!(receiver.balance(), 0); // Unchanged
-    }
-
-    #[test]
-    fn test_partial_settlement() {
-        let mut sender = create_agent("A", 300_000, 0);
-        let mut receiver = create_agent("B", 0, 0);
-        let mut tx = create_transaction("A", "B", 1_000_000, 0, 100).divisible();
-
-        let result = try_settle_partial(&mut sender, &mut receiver, &mut tx, 300_000, 5);
-
-        assert!(result.is_ok());
-        assert_eq!(sender.balance(), 0);
-        assert_eq!(receiver.balance(), 300_000);
-        assert_eq!(tx.remaining_amount(), 700_000);
-        assert!(!tx.is_fully_settled());
-    }
-
-    #[test]
-    fn test_cannot_partial_settle_indivisible() {
-        let mut sender = create_agent("A", 300_000, 0);
-        let mut receiver = create_agent("B", 0, 0);
-        let mut tx = create_transaction("A", "B", 500_000, 0, 100);
-        // Not divisible
-
-        let result = try_settle_partial(&mut sender, &mut receiver, &mut tx, 300_000, 5);
-
-        assert!(matches!(
-            result,
-            Err(SettlementError::IndivisibleTransaction)
-        ));
     }
 }

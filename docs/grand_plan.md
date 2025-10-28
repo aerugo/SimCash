@@ -1,12 +1,3 @@
-# Payment Simulator - Project Plan
-## Rust Backend + Python API Architecture
-
-> **Implementation Status (2025-10-27)**:
-> - ✅ Phase 1-2 Complete: Core models (Time, RNG, Agent, Transaction)
-> - ✅ Phase 3 Complete: RTGS + LSM settlement engines (60 tests passing)
-> - ✅ Phase 4a Complete: Queue 1 + Cash Manager Policies (3 baseline policies)
-> - 🎯 Phase 4b Next: Orchestrator Integration (tick loop, arrivals, cost accrual)
-
 ## 1) Executive Summary
 
 ### Purpose
@@ -151,7 +142,7 @@ Given stochastic arrivals of payments with deadlines and priorities, and given l
 | **RTGS** | Real-Time Gross Settlement; payments settle individually in final funds |
 | **LSM** | Liquidity-Saving Mechanism; queuing/offsetting logic that releases mutually offsetting payments |
 | **Queue** | Central system holding payments awaiting sufficient liquidity |
-| **Split** | Division of a divisible payment into multiple amounts (some rails disallow) |
+| **Split** | Agent-initiated division of a payment into multiple RTGS submissions ("pacing"); not a system feature but a bank policy decision |
 | **Execution Attempt** | Scheduled retry for an indivisible payment (timing, not amount) |
 | **Package** | Linked set of payments with shared success criteria (e.g., DvP cash legs) |
 | **Bilateral Cap** | Maximum net exposure allowed between two participants |
@@ -825,11 +816,18 @@ uv run maturin develop --release && uv run pytest
 - End-to-end simulation tests
 
 **Phase 5: Transaction Splitting & Advanced Features** 🔜 (Future)
-- Partial settlement implementation
-- Transaction splitting logic
-- Advanced policy features
+- **Agent-initiated transaction splitting** (voluntary "pacing")
+  - Policy-level decision: `SubmitPartial` with pacing factor
+  - Creates N child transactions, each submitted to RTGS independently
+  - Parent-child transaction tracking (`parent_id` field)
+  - Split friction cost calculation: `f_s × (N-1)`
+  - **Not** RTGS-level partial settlement (T2 doesn't support that)
+  - RTGS engine processes each split part as a normal, fully-formed instruction
+- Advanced policy features (splitting trigger logic)
 - Collateral management
 - Bilateral caps enforcement
+
+**Splitting Implementation Note**: Splitting is a **policy decision**, not a system capability. Banks voluntarily split large payments into multiple smaller submissions to manage liquidity constraints. The RTGS settlement engine only sees and processes fully-formed payment instructions.
 
 **Phase 6: Policy DSL & LLM Integration** 🔜 (Future)
 - JSON decision tree interpreter (~2,000 lines Rust)
@@ -977,6 +975,15 @@ impl CashManagerPolicy for LiquidityAwarePolicy {
 - **Transaction details**: amount, deadline, priority, sender/receiver
 - **System signals**: total queue sizes, urgent transactions, agent congestion
 - **Time**: current tick, time-to-deadline, time-to-EoD
+
+**Agent-Initiated Splitting ("Pacing"):**
+Policies can voluntarily split large payments at the Queue 1 release decision:
+- **Trigger**: Payment exceeds `split_threshold` and conditions warrant (insufficient liquidity, urgent deadline, high queue pressure)
+- **Mechanism**: Policy returns `SubmitPartial` decision with pacing factor (2, 4, 8)
+- **Implementation**: Creates N separate Transaction objects (child transactions), each submitted as independent RTGS instruction
+- **Cost**: Split friction `f_s × (N-1)` added to agent costs
+- **RTGS View**: Each split part is a normal, fully-formed payment instruction; RTGS engine doesn't know about splitting
+- **Example**: 1M SEK payment split into 4×250K SEK, submitted over 4 ticks, incurring 3×f_s friction cost
 
 **Test Status**: 12 policy tests passing (60 total tests)
 

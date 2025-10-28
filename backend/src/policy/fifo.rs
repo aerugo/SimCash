@@ -15,6 +15,7 @@
 //! - Testing and validation
 
 use super::{CashManagerPolicy, ReleaseDecision};
+use crate::orchestrator::CostRates;
 use crate::{Agent, SimulationState};
 
 /// FIFO policy: submit all transactions immediately
@@ -56,8 +57,10 @@ impl CashManagerPolicy for FifoPolicy {
         agent: &Agent,
         _state: &SimulationState,
         _tick: usize,
+        _cost_rates: &CostRates,
     ) -> Vec<ReleaseDecision> {
         // Submit all transactions in queue order (FIFO)
+        // Note: cost_rates not used by FIFO (submits all immediately)
         agent
             .outgoing_queue()
             .iter()
@@ -72,6 +75,16 @@ impl CashManagerPolicy for FifoPolicy {
 mod tests {
     use super::*;
 
+    fn create_test_cost_rates() -> CostRates {
+        CostRates {
+            overdraft_bps_per_tick: 0.0001,
+            delay_cost_per_tick_per_cent: 0.00001,
+            eod_penalty_per_transaction: 10000,
+            deadline_penalty: 5000,
+            split_friction_cost: 1000,
+        }
+    }
+
     #[test]
     fn test_fifo_submits_all() {
         let mut policy = FifoPolicy::new();
@@ -82,7 +95,8 @@ mod tests {
         agent.queue_outgoing("tx_003".to_string());
 
         let state = SimulationState::new(vec![agent.clone()]);
-        let decisions = policy.evaluate_queue(&agent, &state, 5);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(&agent, &state, 5, &cost_rates);
 
         assert_eq!(decisions.len(), 3);
         assert!(matches!(
@@ -105,7 +119,8 @@ mod tests {
         let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 
         let state = SimulationState::new(vec![agent.clone()]);
-        let decisions = policy.evaluate_queue(&agent, &state, 5);
+        let cost_rates = create_test_cost_rates();
+        let decisions = policy.evaluate_queue(&agent, &state, 5, &cost_rates);
 
         assert_eq!(decisions.len(), 0);
     }
