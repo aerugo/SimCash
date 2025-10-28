@@ -389,55 +389,6 @@ The foundation implementation validated several critical design choices:
 
 **Test Coverage**: 107+ total tests (60+ Rust + 24 FFI + 23 API)
 
-### 3.3 Lessons Learned from Foundation & Integration Work
-
-**1. Two-Queue Architecture is Powerful**:
-- Clear separation of strategic decisions (Queue 1) vs. mechanical waits (Queue 2)
-- Delay costs naturally apply only where bank has control
-- Policies have intuitive decision hooks
-- **Implication**: Maintain this clean separation as we add features
-
-**2. Determinism Requires Discipline**:
-- Must seed RNG explicitly at every source of randomness
-- System time is forbidden (breaks replay)
-- All stochastic processes (arrivals, counterparty selection) go through RNG
-- **Implication**: Add determinism tests for every new feature with randomness
-
-**3. LSM is Non-Negotiable**:
-- Without LSM, even simple scenarios gridlock under moderate liquidity constraints
-- Bilateral offsetting provides 30-40% liquidity savings in balanced flows
-- Cycle detection is essential for realistic multi-agent scenarios
-- **Implication**: LSM should be always-on (not optional) in production configs
-
-**4. Rust Performance is Exceptional**:
-- 1000+ ticks/second without optimization effort
-- LSM cycle detection <1ms for typical payment graphs
-- Memory-efficient state management
-- **Implication**: We can afford complex policies and richer state without performance concerns
-
-**5. Testing Pays Off**:
-- 60+ tests caught edge cases early (deadline boundaries, negative balances, empty queues)
-- Property tests (balance conservation) are invaluable invariants
-- **Implication**: Maintain >80% coverage and add property tests for new features
-
-**6. PyO3 FFI is Production-Ready**:
-- Type conversions work seamlessly with proper error handling
-- Memory safety maintained through clear ownership boundaries
-- FFI overhead is minimal (<1% performance impact)
-- **Implication**: Rust-Python hybrid approach validated for production use
-
-**7. Pydantic V2 + YAML = Excellent DX**:
-- Type-safe configuration with automatic validation
-- Clear error messages guide users to fix config issues
-- YAML provides human-friendly scenario definitions
-- **Implication**: Configuration-driven architecture enables rapid experimentation
-
-**8. CLI as First-Class Citizen**:
-- Command-line tool invaluable for testing and validation
-- Verbose mode essential for debugging complex scenarios
-- Large-scale scenarios (200 agents) validate production readiness
-- **Implication**: Maintain CLI alongside API for developer workflow
-
 ---
 
 ## Part IV: Roadmap to Full Vision
