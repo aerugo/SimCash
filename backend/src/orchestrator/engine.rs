@@ -625,6 +625,183 @@ impl Orchestrator {
     }
 
     // ========================================================================
+    // State Query Methods (Phase 7: FFI Integration)
+    // ========================================================================
+
+    /// Get current balance for an agent
+    ///
+    /// Returns the agent's settlement account balance in cents.
+    /// Negative balance indicates overdraft usage.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// * `Some(balance)` - Agent's current balance (cents)
+    /// * `None` - Agent not found
+    pub fn get_agent_balance(&self, agent_id: &str) -> Option<i64> {
+        self.state.get_agent(agent_id).map(|a| a.balance())
+    }
+
+    /// Get size of agent's internal queue (Queue 1)
+    ///
+    /// Returns the number of transactions waiting in the agent's
+    /// outgoing queue for policy decisions.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// * `Some(size)` - Number of transactions in Queue 1
+    /// * `None` - Agent not found
+    pub fn get_queue1_size(&self, agent_id: &str) -> Option<usize> {
+        self.state.get_agent(agent_id).map(|a| a.outgoing_queue_size())
+    }
+
+    /// Get size of RTGS central queue (Queue 2)
+    ///
+    /// Returns the number of transactions waiting in the RTGS
+    /// central queue for liquidity to become available.
+    pub fn get_queue2_size(&self) -> usize {
+        self.state.queue_size()
+    }
+
+    /// Get list of all agent identifiers
+    ///
+    /// Returns all agent IDs configured in the simulation.
+    /// Useful for iterating over agents to query their state.
+    pub fn get_agent_ids(&self) -> Vec<String> {
+        self.state.get_all_agent_ids()
+    }
+
+    // ========================================================================
+    // Transaction Submission (Phase 7: External Transaction Injection)
+    // ========================================================================
+
+    /// Submit a transaction for processing
+    ///
+    /// Creates a new transaction and queues it in the sender's internal queue (Queue 1).
+    /// The transaction will be processed by the sender's policy during the next tick.
+    ///
+    /// # Arguments
+    ///
+    /// * `sender_id` - ID of the sending agent
+    /// * `receiver_id` - ID of the receiving agent
+    /// * `amount` - Transaction amount in cents (must be > 0)
+    /// * `deadline_tick` - Tick by which transaction must settle (or be dropped)
+    /// * `priority` - Priority level (0-10, higher = more urgent)
+    /// * `divisible` - Whether transaction can be split into parts
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(transaction_id)` - Unique ID of the created transaction
+    /// * `Err(SimulationError)` - Validation failed
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - Sender or receiver doesn't exist
+    /// - Amount is zero or negative
+    /// - Deadline is in the past (before current tick)
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let mut orchestrator = Orchestrator::new(config)?;
+    ///
+    /// let tx_id = orchestrator.submit_transaction(
+    ///     "BANK_A",
+    ///     "BANK_B",
+    ///     100_000,  // $1,000.00
+    ///     50,       // Deadline at tick 50
+    ///     5,        // Medium priority
+    ///     false,    // Not divisible
+    /// )?;
+    ///
+    /// println!("Created transaction: {}", tx_id);
+    /// ```
+    pub fn submit_transaction(
+        &mut self,
+        sender_id: &str,
+        receiver_id: &str,
+        amount: i64,
+        deadline_tick: usize,
+        priority: u8,
+        divisible: bool,
+    ) -> Result<String, SimulationError> {
+        // Validate sender exists
+        if !self.state.agents().contains_key(sender_id) {
+            return Err(SimulationError::AgentNotFound(sender_id.to_string()));
+        }
+
+        // Validate receiver exists
+        if !self.state.agents().contains_key(receiver_id) {
+            return Err(SimulationError::AgentNotFound(receiver_id.to_string()));
+        }
+
+        // Validate amount
+        if amount <= 0 {
+            return Err(SimulationError::InvalidConfig(format!(
+                "Transaction amount must be positive, got {}",
+                amount
+            )));
+        }
+
+        // Validate deadline is not in the past
+        let current_tick = self.current_tick();
+        if deadline_tick <= current_tick {
+            return Err(SimulationError::InvalidConfig(format!(
+                "Transaction deadline {} is in the past (current tick: {})",
+                deadline_tick, current_tick
+            )));
+        }
+
+        // Create transaction (Transaction::new() generates its own UUID)
+        let mut tx = crate::models::Transaction::new(
+            sender_id.to_string(),
+            receiver_id.to_string(),
+            amount,
+            current_tick,      // Arrival tick = current tick
+            deadline_tick,
+        );
+
+        // Set priority
+        tx = tx.with_priority(priority);
+
+        // TODO(Phase 7): Store divisibility flag on Transaction
+        // Currently, the Transaction struct doesn't have a divisible field.
+        // Policies check divisibility from ArrivalConfig, but externally-submitted
+        // transactions don't have a way to store this flag yet.
+        // For now, we accept the parameter but don't use it.
+        let _ = divisible; // Suppress unused warning
+
+        // Add transaction to state
+        let tx_id_clone = tx.id().to_string();
+        self.state.add_transaction(tx);
+
+        // Queue in sender's outgoing queue (Queue 1)
+        if let Some(agent) = self.state.get_agent_mut(sender_id) {
+            agent.queue_outgoing(tx_id_clone.clone());
+        }
+
+        // Log submission event
+        self.log_event(Event::Arrival {
+            tick: current_tick,
+            tx_id: tx_id_clone.clone(),
+            sender_id: sender_id.to_string(),
+            receiver_id: receiver_id.to_string(),
+            amount,
+            deadline: deadline_tick,
+        });
+
+        Ok(tx_id_clone)
+    }
+
+    // ========================================================================
     // Event Logging
     // ========================================================================
 

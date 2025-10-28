@@ -1,0 +1,31 @@
+[build-system]
+requires = ["maturin>=1.9.6"]
+build-backend = "maturin"
+
+[project]
+name = "payment-simulator"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "httpx>=0.25.0",  # For TestClient
+    "typer>=0.9.0",   # CLI framework
+    "rich>=13.0.0",   # Terminal formatting
+    "shellingham>=1.5.0",  # Shell detection for completion
+]
+
+[project.scripts]
+payment-sim = "payment_simulator.cli.main:app"
+
+[tool.maturin]
+module-name = "payment_simulator._core"
+manifest-path = "../backend/Cargo.toml"
+features = ["pyo3"]

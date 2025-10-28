@@ -42,13 +42,17 @@ pub use orchestrator::{
 pub use rng::RngManager;
 pub use settlement::{try_settle, SettlementError};
 
+// FFI module (when feature enabled)
+#[cfg(feature = "pyo3")]
+pub mod ffi;
+
 // PyO3 exports (when feature enabled)
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 
 #[cfg(feature = "pyo3")]
 #[pymodule]
-fn payment_simulator_core_rs(_py: Python, _m: &PyModule) -> PyResult<()> {
-    // PyO3 exports will be added in Phase 5
+fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ffi::orchestrator::PyOrchestrator>()?;
     Ok(())
 }

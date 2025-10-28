@@ -28,11 +28,12 @@ use crate::{Agent, SimulationState};
 ///
 /// ```
 /// use payment_simulator_core_rs::policy::{DeadlinePolicy, CashManagerPolicy};
-/// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+/// use payment_simulator_core_rs::{Agent, SimulationState, Transaction, CostRates};
 ///
 /// let mut policy = DeadlinePolicy::new(5); // Urgent if deadline within 5 ticks
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let mut state = SimulationState::new(vec![agent.clone()]);
+/// let cost_rates = CostRates::default();
 ///
 /// // tx_urgent: deadline at tick 10 (urgent at tick 8: 10 - 8 = 2 < 5)
 /// let tx_urgent = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 10);
@@ -49,7 +50,7 @@ use crate::{Agent, SimulationState};
 /// state.get_agent_mut("BANK_A").unwrap().queue_outgoing(id_later);
 ///
 /// let agent = state.get_agent("BANK_A").unwrap();
-/// let decisions = policy.evaluate_queue(agent, &state, 8);
+/// let decisions = policy.evaluate_queue(agent, &state, 8, &cost_rates);
 ///
 /// // Should submit urgent, hold non-urgent
 /// assert_eq!(decisions.len(), 2);

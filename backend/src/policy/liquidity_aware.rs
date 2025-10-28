@@ -38,7 +38,7 @@ use crate::{Agent, SimulationState};
 ///
 /// ```
 /// use payment_simulator_core_rs::policy::{LiquidityAwarePolicy, CashManagerPolicy};
-/// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+/// use payment_simulator_core_rs::{Agent, SimulationState, Transaction, CostRates};
 ///
 /// // Policy: keep at least 100k balance
 /// let mut policy = LiquidityAwarePolicy::new(100_000);
@@ -46,6 +46,7 @@ use crate::{Agent, SimulationState};
 /// // Agent with 200k balance
 /// let agent = Agent::new("BANK_A".to_string(), 200_000, 0);
 /// let mut state = SimulationState::new(vec![agent.clone()]);
+/// let cost_rates = CostRates::default();
 ///
 /// // Transaction for 150k (would leave only 50k < 100k buffer)
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 150_000, 0, 100);
@@ -54,7 +55,7 @@ use crate::{Agent, SimulationState};
 /// state.get_agent_mut("BANK_A").unwrap().queue_outgoing(tx_id);
 ///
 /// let agent = state.get_agent("BANK_A").unwrap();
-/// let decisions = policy.evaluate_queue(agent, &state, 5);
+/// let decisions = policy.evaluate_queue(agent, &state, 5, &cost_rates);
 ///
 /// // Should hold transaction (preserve buffer)
 /// assert_eq!(decisions.len(), 1);
