@@ -231,6 +231,16 @@ pub enum ActionType {
 
     /// Drop transaction (expired or unviable)
     Drop,
+
+    // Phase 8: Collateral Management Actions
+    /// Post collateral to increase available liquidity
+    PostCollateral,
+
+    /// Withdraw collateral to reduce opportunity costs
+    WithdrawCollateral,
+
+    /// Take no action on collateral (keep current level)
+    HoldCollateral,
 }
 
 // ============================================================================

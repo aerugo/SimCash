@@ -41,6 +41,9 @@ pub enum EvalError {
     #[error("Invalid action parameter type: {0}")]
     InvalidActionParameter(String),
 
+    #[error("Invalid action type: {0}")]
+    InvalidActionType(String),
+
     #[error("Context error: {0}")]
     ContextError(#[from] ContextError),
 }
@@ -552,6 +555,16 @@ pub fn build_decision(
         }
 
         ActionType::Drop => Ok(ReleaseDecision::Drop { tx_id }),
+
+        // Phase 8: Collateral actions are not valid in payment decision context
+        // These should only appear in collateral-specific decision trees
+        ActionType::PostCollateral
+        | ActionType::WithdrawCollateral
+        | ActionType::HoldCollateral => Err(EvalError::InvalidActionType(format!(
+            "Collateral action {:?} cannot be used in payment release decision tree. \
+             Collateral actions require separate tree evaluation.",
+            action
+        ))),
     }
 }
 

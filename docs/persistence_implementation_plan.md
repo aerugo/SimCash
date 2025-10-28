@@ -1188,6 +1188,979 @@ def test_large_batch_write_performance():
 
 ---
 
+### 4.4 Test-Driven Development Approach
+
+This section outlines how to apply TDD (Test-Driven Development) principles throughout the implementation of the persistence feature. Following TDD ensures correctness, maintainability, and confidence in the schema synchronization system.
+
+#### TDD Principles for Persistence
+
+**Red-Green-Refactor Cycle**:
+1. **Red**: Write a failing test that defines desired behavior
+2. **Green**: Write minimal code to make the test pass
+3. **Refactor**: Improve code quality while keeping tests green
+
+**Key TDD Rules for This Feature**:
+- Write tests BEFORE implementation code
+- Each test should verify ONE specific behavior
+- Tests should fail for the right reason (not syntax errors)
+- No production code without a failing test first
+- Keep tests fast (<10ms for unit tests)
+- Integration tests can be slower but should complete in <1s
+
+---
+
+#### Phase 1: Infrastructure (TDD Workflow)
+
+**Goal**: Build schema management foundation with tests driving design.
+
+**Test Order** (each test written before implementation):
+
+**1. Test Pydantic Model Metadata**
+```python
+# api/tests/unit/test_persistence_models.py
+
+def test_transaction_record_has_table_metadata():
+    """Verify Pydantic model includes table configuration."""
+    # RED: Write test first, model doesn't exist yet
+    from payment_simulator.persistence.models import TransactionRecord
+
+    assert hasattr(TransactionRecord, 'Config')
+    assert hasattr(TransactionRecord.Config, 'table_name')
+    assert TransactionRecord.Config.table_name == 'transactions'
+    assert hasattr(TransactionRecord.Config, 'primary_key')
+    assert TransactionRecord.Config.primary_key == ['simulation_id', 'tx_id']
+
+# GREEN: Now implement TransactionRecord with Config class
+# REFACTOR: Extract TableConfig base class if needed
+```
+
+**2. Test DDL Generation**
+```python
+# api/tests/unit/test_schema_generator.py
+
+def test_generate_ddl_from_simple_model():
+    """DDL generator converts Pydantic model to SQL."""
+    # RED: Write test, generator doesn't exist
+    from pydantic import BaseModel, Field
+    from payment_simulator.persistence.schema_generator import generate_create_table_ddl
+
+    class SimpleModel(BaseModel):
+        id: int
+        name: str
+        amount: int
+
+        class Config:
+            table_name = 'simple_table'
+            primary_key = ['id']
+
+    ddl = generate_create_table_ddl(SimpleModel)
+
+    assert 'CREATE TABLE IF NOT EXISTS simple_table' in ddl
+    assert 'id BIGINT' in ddl
+    assert 'name VARCHAR' in ddl
+    assert 'amount BIGINT' in ddl
+    assert 'PRIMARY KEY (id)' in ddl
+
+# GREEN: Implement generate_create_table_ddl()
+# REFACTOR: Extract type mapping logic
+```
+
+**3. Test Optional Field Handling**
+```python
+def test_ddl_handles_optional_fields():
+    """Optional fields should allow NULL."""
+    # RED: Test fails because NULL handling not implemented
+    from typing import Optional
+
+    class ModelWithOptional(BaseModel):
+        required_field: str
+        optional_field: Optional[str] = None
+
+        class Config:
+            table_name = 'test_optional'
+            primary_key = ['required_field']
+
+    ddl = generate_create_table_ddl(ModelWithOptional)
+
+    # Required field has NOT NULL
+    assert 'required_field VARCHAR NOT NULL' in ddl
+    # Optional field allows NULL
+    assert 'optional_field VARCHAR' in ddl
+    assert 'optional_field VARCHAR NOT NULL' not in ddl
+
+# GREEN: Add Optional detection logic to generator
+# REFACTOR: Clean up type introspection code
+```
+
+**4. Test Enum Field Handling**
+```python
+def test_ddl_converts_enums_to_varchar():
+    """Enum fields should map to VARCHAR."""
+    # RED: Enum handling not implemented
+    from enum import Enum
+
+    class Status(str, Enum):
+        PENDING = 'pending'
+        COMPLETED = 'completed'
+
+    class ModelWithEnum(BaseModel):
+        status: Status
+
+        class Config:
+            table_name = 'test_enum'
+            primary_key = ['status']
+
+    ddl = generate_create_table_ddl(ModelWithEnum)
+    assert 'status VARCHAR' in ddl
+
+# GREEN: Add Enum detection to type mapper
+```
+
+**5. Test Index Generation**
+```python
+def test_generate_indexes_from_model():
+    """Indexes defined in model metadata should generate DDL."""
+    # RED: Index generation not implemented
+    from payment_simulator.persistence.schema_generator import generate_create_indexes_ddl
+
+    class ModelWithIndexes(BaseModel):
+        id: int
+        user_id: int
+        created_at: str
+
+        class Config:
+            table_name = 'test_indexes'
+            primary_key = ['id']
+            indexes = [
+                ('idx_user', ['user_id']),
+                ('idx_user_time', ['user_id', 'created_at']),
+            ]
+
+    index_statements = generate_create_indexes_ddl(ModelWithIndexes)
+
+    assert len(index_statements) == 2
+    assert any('idx_user ON test_indexes (user_id)' in stmt for stmt in index_statements)
+    assert any('idx_user_time ON test_indexes (user_id, created_at)' in stmt for stmt in index_statements)
+
+# GREEN: Implement generate_create_indexes_ddl()
+```
+
+**6. Test Schema Validation**
+```python
+def test_validate_schema_detects_missing_column():
+    """Validator should detect when database missing a column."""
+    # RED: Validation not implemented
+    import duckdb
+    from payment_simulator.persistence.schema_generator import validate_table_schema
+
+    conn = duckdb.connect(':memory:')
+    conn.execute("""
+        CREATE TABLE transactions (
+            simulation_id VARCHAR NOT NULL,
+            tx_id VARCHAR NOT NULL
+            -- Missing 'amount' column
+        )
+    """)
+
+    class TransactionModel(BaseModel):
+        simulation_id: str
+        tx_id: str
+        amount: int
+
+        class Config:
+            table_name = 'transactions'
+            primary_key = ['simulation_id', 'tx_id']
+
+    is_valid, errors = validate_table_schema(conn, TransactionModel)
+
+    assert not is_valid
+    assert len(errors) > 0
+    assert any('amount' in err.lower() for err in errors)
+
+# GREEN: Implement validate_table_schema()
+# REFACTOR: Make error messages more descriptive
+```
+
+**7. Test Migration Manager**
+```python
+def test_migration_manager_tracks_applied_versions():
+    """Migration manager should record applied migrations."""
+    # RED: MigrationManager doesn't exist
+    import duckdb
+    from pathlib import Path
+    from payment_simulator.persistence.migrations import MigrationManager
+
+    conn = duckdb.connect(':memory:')
+    migrations_dir = Path('/tmp/test_migrations')
+    migrations_dir.mkdir(exist_ok=True)
+
+    manager = MigrationManager(conn, migrations_dir)
+
+    # Initially no migrations applied
+    applied = manager.get_applied_versions()
+    assert len(applied) == 0
+
+    # Apply a migration
+    manager.apply_migration(1, "initial schema", "CREATE TABLE test (id INT);")
+
+    # Now version 1 is tracked
+    applied = manager.get_applied_versions()
+    assert 1 in applied
+
+# GREEN: Implement MigrationManager class
+```
+
+**TDD Summary for Phase 1**:
+- Write 15-20 unit tests covering all schema generator edge cases
+- Each test drives a small piece of functionality
+- Run tests continuously: `pytest -x` (stop on first failure)
+- Achieve >95% coverage for schema management code
+
+---
+
+#### Phase 2: Transaction Batch Writes (TDD Workflow)
+
+**Goal**: Test batch write performance and correctness.
+
+**Test Order**:
+
+**1. Test FFI Method Returns Transaction Data**
+```python
+# api/tests/unit/test_ffi_transactions.py
+
+def test_get_transactions_for_day_returns_dicts():
+    """FFI method should return transactions as list of dicts."""
+    # RED: Method doesn't exist in orchestrator
+    from payment_simulator.backends import Orchestrator
+
+    config = create_minimal_config()
+    orch = Orchestrator.new(config)
+
+    # Simulate a day
+    for _ in range(10):
+        orch.tick()
+
+    # Get transactions for day 0
+    daily_txs = orch.get_transactions_for_day(0)
+
+    assert isinstance(daily_txs, list)
+    assert all(isinstance(tx, dict) for tx in daily_txs)
+
+    # Check required fields present
+    if daily_txs:
+        tx = daily_txs[0]
+        assert 'simulation_id' in tx
+        assert 'tx_id' in tx
+        assert 'amount' in tx
+        assert 'status' in tx
+
+# GREEN: Implement get_transactions_for_day() in Rust FFI
+```
+
+**2. Test Transaction Data Validates Against Pydantic Model**
+```python
+def test_ffi_transaction_validates_with_pydantic():
+    """FFI output should validate with TransactionRecord model."""
+    # RED: FFI might return wrong types or missing fields
+    from payment_simulator.backends import Orchestrator
+    from payment_simulator.persistence.models import TransactionRecord
+
+    orch = Orchestrator.new(create_minimal_config())
+    for _ in range(10):
+        orch.tick()
+
+    daily_txs = orch.get_transactions_for_day(0)
+
+    # Each transaction should validate
+    for tx_dict in daily_txs:
+        tx_record = TransactionRecord(**tx_dict)  # Should not raise ValidationError
+        assert tx_record.amount >= 0
+        assert tx_record.simulation_id
+
+# GREEN: Fix FFI to return correct types
+# REFACTOR: Add type conversion helper in FFI layer
+```
+
+**3. Test Polars DataFrame Creation**
+```python
+def test_create_polars_dataframe_from_transactions():
+    """Should convert transaction dicts to Polars DataFrame."""
+    # RED: Conversion logic doesn't exist
+    import polars as pl
+    from payment_simulator.persistence.writers import create_transaction_dataframe
+
+    transactions = [
+        {
+            'simulation_id': 'test-001',
+            'tx_id': 'tx-001',
+            'sender_id': 'A',
+            'receiver_id': 'B',
+            'amount': 100000,
+            'status': 'settled',
+            # ... all required fields
+        },
+        # ... more transactions
+    ]
+
+    df = create_transaction_dataframe(transactions)
+
+    assert isinstance(df, pl.DataFrame)
+    assert len(df) == len(transactions)
+    assert 'simulation_id' in df.columns
+    assert df['amount'].dtype == pl.Int64
+
+# GREEN: Implement create_transaction_dataframe()
+```
+
+**4. Test DuckDB Insert Via Polars**
+```python
+def test_insert_transactions_via_polars_arrow():
+    """DuckDB should accept Polars DataFrame via Arrow zero-copy."""
+    # RED: Insert logic not implemented
+    import duckdb
+    import polars as pl
+    from payment_simulator.persistence.writers import write_transactions
+
+    conn = duckdb.connect(':memory:')
+    # Create schema
+    init_database(conn)
+
+    transactions = [create_sample_transaction(i) for i in range(100)]
+
+    write_transactions(conn, transactions)
+
+    # Verify data inserted
+    count = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+    assert count == 100
+
+    # Verify data correctness
+    first_tx = conn.execute("SELECT * FROM transactions LIMIT 1").fetchone()
+    assert first_tx is not None
+
+# GREEN: Implement write_transactions()
+```
+
+**5. Test Batch Write Performance**
+```python
+def test_batch_write_40k_transactions_under_100ms():
+    """Performance requirement: 40K inserts in <100ms."""
+    # RED: Might be too slow initially
+    import duckdb
+    import time
+    from payment_simulator.persistence.writers import write_transactions
+
+    conn = duckdb.connect(':memory:')
+    init_database(conn)
+
+    # Generate 40K transactions (typical day for 200 agents)
+    transactions = [create_sample_transaction(i) for i in range(40_000)]
+
+    start = time.perf_counter()
+    write_transactions(conn, transactions)
+    duration = time.perf_counter() - start
+
+    assert duration < 0.1, f"Batch write took {duration:.3f}s, expected <0.1s"
+
+# GREEN: If slow, optimize (use Arrow, disable indexes during insert, etc.)
+# REFACTOR: Add bulk insert optimization
+```
+
+**6. Test Determinism Preserved**
+```python
+def test_persistence_preserves_determinism():
+    """Same seed should produce identical database contents."""
+    # RED: Might break determinism with DB operations
+    import duckdb
+    from payment_simulator.backends import Orchestrator
+
+    config = create_test_config_with_seed(12345)
+
+    # Run 1
+    orch1 = Orchestrator.new(config)
+    for _ in range(100):
+        orch1.tick()
+    txs1 = orch1.get_transactions_for_day(0)
+
+    # Run 2 (same seed)
+    orch2 = Orchestrator.new(config)
+    for _ in range(100):
+        orch2.tick()
+    txs2 = orch2.get_transactions_for_day(0)
+
+    # Transactions should be identical
+    assert len(txs1) == len(txs2)
+    for tx1, tx2 in zip(txs1, txs2):
+        assert tx1['tx_id'] == tx2['tx_id']
+        assert tx1['amount'] == tx2['amount']
+        assert tx1['status'] == tx2['status']
+
+# GREEN: Ensure no non-deterministic operations in persistence
+```
+
+**TDD Summary for Phase 2**:
+- 10-15 tests covering FFI, DataFrame conversion, bulk inserts
+- Performance tests define success criteria
+- Determinism tests prevent regressions
+
+---
+
+#### Phase 3: Agent Metrics (TDD Workflow)
+
+**Goal**: Test daily agent metrics collection and persistence.
+
+**Test Order**:
+
+**1. Test Daily Metrics Collection**
+```python
+# api/tests/unit/test_agent_metrics.py
+
+def test_collect_daily_metrics_for_agent():
+    """Should collect opening/closing balance, costs, counts."""
+    # RED: Metrics collection doesn't exist
+    from payment_simulator.backends import Orchestrator
+
+    orch = Orchestrator.new(create_test_config())
+
+    # Simulate a day
+    for _ in range(100):
+        orch.tick()
+
+    metrics = orch.get_daily_agent_metrics(day=0)
+
+    assert isinstance(metrics, list)
+    assert len(metrics) > 0  # At least one agent
+
+    agent_metric = metrics[0]
+    assert 'agent_id' in agent_metric
+    assert 'opening_balance' in agent_metric
+    assert 'closing_balance' in agent_metric
+    assert 'total_cost' in agent_metric
+
+# GREEN: Implement get_daily_agent_metrics() in Rust
+```
+
+**2. Test Metrics Validate With Pydantic**
+```python
+def test_agent_metrics_validate_with_model():
+    """FFI metrics should validate with DailyAgentMetricsRecord."""
+    # RED: FFI might return wrong types
+    from payment_simulator.persistence.models import DailyAgentMetricsRecord
+
+    orch = Orchestrator.new(create_test_config())
+    for _ in range(100):
+        orch.tick()
+
+    metrics = orch.get_daily_agent_metrics(0)
+
+    for metric_dict in metrics:
+        # Should not raise ValidationError
+        record = DailyAgentMetricsRecord(**metric_dict)
+        assert record.day == 0
+        assert record.closing_balance >= record.min_balance
+
+# GREEN: Fix FFI type conversions
+```
+
+**3. Test Metrics Persistence**
+```python
+def test_persist_daily_agent_metrics():
+    """Should write agent metrics to database."""
+    # RED: Writer function doesn't exist
+    import duckdb
+    from payment_simulator.persistence.writers import write_agent_metrics
+
+    conn = duckdb.connect(':memory:')
+    init_database(conn)
+
+    metrics = [
+        {
+            'simulation_id': 'test-001',
+            'agent_id': 'BANK_A',
+            'day': 0,
+            'opening_balance': 1000000,
+            'closing_balance': 950000,
+            # ... all fields
+        },
+        # ... more agents
+    ]
+
+    write_agent_metrics(conn, metrics)
+
+    count = conn.execute("SELECT COUNT(*) FROM daily_agent_metrics").fetchone()[0]
+    assert count == len(metrics)
+
+# GREEN: Implement write_agent_metrics()
+```
+
+**4. Test Metrics Consistency**
+```python
+def test_metrics_sum_to_transaction_totals():
+    """Agent metrics should be consistent with transaction data."""
+    # RED: Might have calculation bugs
+    import duckdb
+
+    conn = duckdb.connect(':memory:')
+    init_database(conn)
+
+    # Run simulation and persist both transactions and metrics
+    run_test_simulation_with_persistence(conn, days=2, agents=3)
+
+    # Sum transaction counts for BANK_A on day 0
+    tx_sent = conn.execute("""
+        SELECT COUNT(*) FROM transactions
+        WHERE simulation_id = 'test-001'
+          AND sender_id = 'BANK_A'
+          AND arrival_day = 0
+    """).fetchone()[0]
+
+    # Should match agent metrics
+    metrics_sent = conn.execute("""
+        SELECT num_sent FROM daily_agent_metrics
+        WHERE simulation_id = 'test-001'
+          AND agent_id = 'BANK_A'
+          AND day = 0
+    """).fetchone()[0]
+
+    assert tx_sent == metrics_sent
+
+# GREEN: Fix calculation bugs in Rust metrics collector
+```
+
+**TDD Summary for Phase 3**:
+- 8-10 tests for metrics collection, validation, persistence
+- Cross-validation tests ensure consistency
+
+---
+
+#### Phase 4: Policy Snapshots (TDD Workflow)
+
+**Goal**: Test policy version tracking.
+
+**Test Order**:
+
+**1. Test Policy Snapshot Creation**
+```python
+# api/tests/unit/test_policy_snapshots.py
+
+def test_create_policy_snapshot_record():
+    """Should create policy snapshot with hash and file path."""
+    # RED: Snapshot creation logic doesn't exist
+    from payment_simulator.persistence.policy_tracking import create_policy_snapshot
+
+    snapshot = create_policy_snapshot(
+        simulation_id='test-001',
+        agent_id='BANK_A',
+        day=0,
+        policy_json='{"type": "fifo"}',
+        created_by='init'
+    )
+
+    assert snapshot['simulation_id'] == 'test-001'
+    assert snapshot['agent_id'] == 'BANK_A'
+    assert snapshot['policy_hash'] is not None
+    assert len(snapshot['policy_hash']) == 64  # SHA256
+
+# GREEN: Implement create_policy_snapshot()
+```
+
+**2. Test Policy Deduplication By Hash**
+```python
+def test_identical_policies_have_same_hash():
+    """Identical policies should deduplicate via hash."""
+    # RED: Hash calculation might vary
+    from payment_simulator.persistence.policy_tracking import compute_policy_hash
+
+    policy_json = '{"type": "fifo", "threshold": 1000}'
+
+    hash1 = compute_policy_hash(policy_json)
+    hash2 = compute_policy_hash(policy_json)
+
+    assert hash1 == hash2
+
+# GREEN: Implement deterministic hash function
+```
+
+**3. Test Policy File Management**
+```python
+def test_save_policy_to_file():
+    """Should save policy JSON to versioned file."""
+    # RED: File management doesn't exist
+    from payment_simulator.persistence.policy_tracking import save_policy_file
+    from pathlib import Path
+
+    policy_json = '{"type": "liquidity_aware"}'
+
+    file_path = save_policy_file(
+        agent_id='BANK_A',
+        version='v1',
+        policy_json=policy_json,
+        base_dir=Path('/tmp/test_policies')
+    )
+
+    assert file_path.exists()
+    assert file_path.name == 'BANK_A_policy_v1.json'
+    assert file_path.read_text() == policy_json
+
+# GREEN: Implement save_policy_file()
+```
+
+**TDD Summary for Phase 4**:
+- 5-7 tests for policy tracking, hashing, file management
+- Integration with Phase 9 DSL infrastructure
+
+---
+
+#### Phase 5: Query Interface (TDD Workflow)
+
+**Goal**: Test analytical query functions.
+
+**Test Order**:
+
+**1. Test Agent Performance Query**
+```python
+# api/tests/unit/test_queries.py
+
+def test_query_agent_performance():
+    """Should return agent metrics over time."""
+    # RED: Query function doesn't exist
+    import duckdb
+    from payment_simulator.persistence.queries import get_agent_performance
+
+    conn = duckdb.connect(':memory:')
+    init_database(conn)
+    seed_test_data(conn)
+
+    df = get_agent_performance(conn, 'test-001', 'BANK_A')
+
+    assert len(df) > 0
+    assert 'day' in df.columns
+    assert 'closing_balance' in df.columns
+    assert 'total_cost' in df.columns
+
+# GREEN: Implement get_agent_performance()
+```
+
+**2. Test Settlement Rate Query**
+```python
+def test_query_settlement_rate_by_day():
+    """Should calculate settlement rate per day."""
+    # RED: Aggregation query doesn't exist
+    from payment_simulator.persistence.queries import get_settlement_rate_by_day
+
+    conn = duckdb.connect(':memory:')
+    init_database(conn)
+    seed_test_data(conn)
+
+    df = get_settlement_rate_by_day(conn, 'test-001')
+
+    assert len(df) > 0
+    assert 'day' in df.columns
+    assert 'settlement_rate' in df.columns
+    assert all(0 <= rate <= 1 for rate in df['settlement_rate'])
+
+# GREEN: Implement get_settlement_rate_by_day()
+```
+
+**3. Test Query Performance**
+```python
+def test_aggregate_query_on_1m_transactions_fast():
+    """Aggregate queries should complete in <1 second."""
+    # RED: Might be slow without indexes
+    import duckdb
+    import time
+    from payment_simulator.persistence.queries import get_daily_transaction_summary
+
+    conn = duckdb.connect(':memory:')
+    init_database(conn)
+    seed_large_dataset(conn, num_transactions=1_000_000)
+
+    start = time.perf_counter()
+    df = get_daily_transaction_summary(conn, 'test-001')
+    duration = time.perf_counter() - start
+
+    assert duration < 1.0, f"Query took {duration:.2f}s, expected <1s"
+
+# GREEN: Add indexes to optimize queries
+```
+
+**TDD Summary for Phase 5**:
+- 10-15 tests for each query function
+- Performance benchmarks define acceptable latency
+- Edge case tests (empty data, single row, etc.)
+
+---
+
+#### Integration Testing Strategy
+
+**End-to-End TDD Workflow**:
+
+```python
+# api/tests/integration/test_full_persistence.py
+
+def test_complete_simulation_persistence_workflow():
+    """Full workflow: run simulation, persist, query, verify."""
+    # RED: Write this test BEFORE integrating all pieces
+    import duckdb
+    from pathlib import Path
+    from payment_simulator.backends import Orchestrator
+    from payment_simulator.persistence.connection import DatabaseManager
+    from payment_simulator.persistence.writers import (
+        write_transactions,
+        write_agent_metrics,
+    )
+    from payment_simulator.persistence.queries import get_agent_performance
+
+    # Setup
+    db_path = Path('/tmp/test_full_persistence.db')
+    if db_path.exists():
+        db_path.unlink()
+
+    db_manager = DatabaseManager(db_path)
+    db_manager.setup()
+    conn = db_manager.conn
+
+    # Run simulation
+    config = create_test_config(agents=5, days=3, ticks_per_day=100)
+    orch = Orchestrator.new(config)
+
+    for day in range(3):
+        # Simulate day
+        for _ in range(100):
+            orch.tick()
+
+        # Persist data
+        daily_txs = orch.get_transactions_for_day(day)
+        write_transactions(conn, daily_txs)
+
+        daily_metrics = orch.get_daily_agent_metrics(day)
+        write_agent_metrics(conn, daily_metrics)
+
+    # Query and verify
+    agent_perf = get_agent_performance(conn, config['simulation_id'], 'BANK_A')
+
+    assert len(agent_perf) == 3  # 3 days
+    assert 'closing_balance' in agent_perf.columns
+
+    # Verify determinism
+    sim_record = conn.execute("""
+        SELECT rng_seed, total_ticks_executed
+        FROM simulations
+        WHERE simulation_id = ?
+    """, [config['simulation_id']]).fetchone()
+
+    assert sim_record[0] == config['seed']
+    assert sim_record[1] == 300  # 3 days × 100 ticks
+
+# GREEN: Integrate all phases to make this pass
+# REFACTOR: Extract reusable test fixtures
+```
+
+---
+
+#### TDD Best Practices for This Feature
+
+**1. Test Naming Convention**
+```python
+# Good test names:
+def test_ddl_generation_handles_optional_fields()
+def test_batch_write_40k_transactions_under_100ms()
+def test_schema_validation_detects_missing_column()
+
+# Bad test names:
+def test_ddl()  # Too vague
+def test_performance()  # What aspect?
+def test_1()  # Meaningless
+```
+
+**2. Test Organization**
+```
+api/tests/
+├── unit/
+│   ├── test_persistence_models.py       # Pydantic models
+│   ├── test_schema_generator.py         # DDL generation
+│   ├── test_migrations.py               # Migration system
+│   ├── test_ffi_transactions.py         # FFI data extraction
+│   ├── test_agent_metrics.py            # Metrics collection
+│   ├── test_policy_snapshots.py         # Policy tracking
+│   └── test_queries.py                  # Query interface
+├── integration/
+│   ├── test_full_persistence.py         # End-to-end workflow
+│   ├── test_determinism.py              # Determinism verification
+│   └── test_large_dataset.py            # Stress testing
+└── performance/
+    ├── test_batch_write_benchmarks.py   # Performance baselines
+    └── test_query_benchmarks.py         # Query performance
+```
+
+**3. Running Tests During Development**
+```bash
+# Run single test file (fast feedback)
+pytest api/tests/unit/test_schema_generator.py -v
+
+# Run with coverage
+pytest api/tests/unit/ --cov=payment_simulator.persistence --cov-report=term-missing
+
+# Run in watch mode (auto-rerun on file change)
+pytest-watch api/tests/unit/
+
+# Run only failed tests
+pytest --lf
+
+# Run integration tests separately (slower)
+pytest api/tests/integration/ -v -s
+```
+
+**4. Test Data Fixtures**
+```python
+# api/tests/conftest.py
+
+import pytest
+import duckdb
+from pathlib import Path
+
+@pytest.fixture
+def in_memory_db():
+    """Provide clean in-memory database for each test."""
+    conn = duckdb.connect(':memory:')
+    from payment_simulator.persistence.connection import DatabaseManager
+    manager = DatabaseManager(conn)
+    manager.initialize_schema()
+    yield conn
+    conn.close()
+
+@pytest.fixture
+def sample_transactions():
+    """Generate sample transaction data."""
+    return [
+        {
+            'simulation_id': 'test-001',
+            'tx_id': f'tx-{i:04d}',
+            'sender_id': 'BANK_A',
+            'receiver_id': 'BANK_B',
+            'amount': 100000,
+            'status': 'settled',
+            # ... all fields
+        }
+        for i in range(100)
+    ]
+
+@pytest.fixture
+def test_orchestrator():
+    """Provide configured orchestrator for testing."""
+    from payment_simulator.backends import Orchestrator
+    config = create_minimal_config()
+    return Orchestrator.new(config)
+```
+
+**5. Mocking Strategy**
+```python
+# Mock expensive operations in unit tests
+
+def test_write_transactions_calls_polars_correctly(mocker):
+    """Unit test: verify Polars DataFrame creation without DB."""
+    # RED: Write test that mocks DuckDB connection
+    mock_conn = mocker.Mock()
+
+    from payment_simulator.persistence.writers import write_transactions
+
+    transactions = [{'tx_id': 'test', 'amount': 100}]
+    write_transactions(mock_conn, transactions)
+
+    # Verify execute was called
+    assert mock_conn.execute.called
+
+    # Verify correct SQL pattern
+    call_args = mock_conn.execute.call_args[0][0]
+    assert 'INSERT INTO transactions' in call_args
+
+# GREEN: Implement write_transactions()
+```
+
+**6. Property-Based Testing**
+```python
+# Use Hypothesis for schema validation edge cases
+
+from hypothesis import given, strategies as st
+
+@given(
+    field_name=st.text(min_size=1, max_size=50),
+    py_type=st.sampled_from([str, int, float, bool]),
+)
+def test_type_mapping_never_fails(field_name, py_type):
+    """DDL generator should handle any valid Python type."""
+    from payment_simulator.persistence.schema_generator import python_type_to_sql_type
+
+    sql_type = python_type_to_sql_type(py_type)
+
+    assert isinstance(sql_type, str)
+    assert len(sql_type) > 0
+    assert sql_type in ['VARCHAR', 'BIGINT', 'DOUBLE', 'BOOLEAN']
+```
+
+---
+
+#### Success Metrics for TDD Approach
+
+| Metric | Target | Why |
+|--------|--------|-----|
+| Test coverage | >90% | Confidence in schema management |
+| Unit test speed | <10ms avg | Fast feedback loop |
+| Integration test speed | <1s each | Reasonable CI time |
+| Tests written first | 100% | True TDD discipline |
+| Test-to-code ratio | 2:1 | Comprehensive coverage |
+| Failing tests before code | Yes | Red-green-refactor |
+
+---
+
+#### Daily TDD Workflow Example
+
+**Day 1: Phase 1 Infrastructure**
+```bash
+# Morning: Write tests for DDL generation
+09:00 - Write test_generate_ddl_from_simple_model() [RED]
+09:15 - Implement generate_create_table_ddl() [GREEN]
+09:30 - Refactor type mapping logic [REFACTOR]
+09:45 - Write test_ddl_handles_optional_fields() [RED]
+10:00 - Implement Optional detection [GREEN]
+10:15 - Write test_ddl_converts_enums_to_varchar() [RED]
+10:30 - Implement Enum handling [GREEN]
+
+# Afternoon: Write tests for validation
+14:00 - Write test_validate_schema_detects_missing_column() [RED]
+14:20 - Implement validate_table_schema() [GREEN]
+14:40 - Write test_validate_schema_detects_extra_columns() [RED]
+14:55 - Enhance validation logic [GREEN]
+15:10 - Refactor validation to use descriptive errors [REFACTOR]
+
+# End of day: Run full test suite
+17:00 - pytest api/tests/unit/ --cov
+17:05 - Fix any failing tests
+17:10 - Commit: "feat: DDL generation and schema validation"
+```
+
+**Key Point**: Never commit failing tests. Always end day with green tests.
+
+---
+
+#### Troubleshooting TDD Issues
+
+**Problem**: Test is hard to write
+- **Solution**: Design issue. Rethink API before implementing.
+
+**Problem**: Test takes too long to run
+- **Solution**: Use mocks for unit tests, move slow tests to integration suite.
+
+**Problem**: Not sure what to test next
+- **Solution**: Follow implementation plan phases. Test public APIs, then internals.
+
+**Problem**: Tests are brittle (break on refactoring)
+- **Solution**: Test behavior, not implementation details. Use fixtures.
+
+**Problem**: Don't know if test is correct
+- **Solution**: Make it fail first. Verify it fails for the right reason.
+
+---
+
 ## Part V: CLI Commands for Schema Management
 
 **File**: `api/payment_simulator/cli/commands/db.py`
@@ -1423,8 +2396,9 @@ This approach scales from initial development through hundreds of simulation run
 
 ---
 
-**Document Status**: Ready for Implementation
+**Document Status**: Ready for Implementation (TDD methodology included)
 **Last Updated**: 2025-10-29
 **Author**: Payment Simulator Team
 **Technology Stack**: DuckDB + Polars + Pydantic (schema-as-code)
-**Next Action**: Begin Phase 1 implementation
+**Development Approach**: Test-Driven Development (Red-Green-Refactor)
+**Next Action**: Begin Phase 1 implementation with test-first approach
