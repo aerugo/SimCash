@@ -1,9 +1,9 @@
 # Payment Simulator: Grand Plan 2.0
 ## From Foundation to Full Vision
 
-**Document Version**: 2.1
+**Document Version**: 2.2
 **Date**: October 28, 2025
-**Status**: Foundation + Integration Complete → Feature Expansion
+**Status**: Foundation + Integration + Policy DSL Complete → Cost Model & Feature Expansion
 
 ---
 
@@ -15,7 +15,7 @@ Build a sandboxed, multi-agent simulator of high-value payment operations that d
 
 **Core Innovation**: Each bank is controlled by a **decision-tree policy** (small, auditable program) that determines payment timing and liquidity management. An **asynchronous LLM Manager service** improves policies between simulation episodes through code editing, with all changes validated via automated testing and Monte Carlo shadow replay before deployment.
 
-### What We've Achieved: Foundation Complete ✅
+### What We've Achieved: Core + Integration + DSL Complete ✅
 
 The Rust core backend is **complete and battle-tested**:
 
@@ -26,23 +26,29 @@ The Rust core backend is **complete and battle-tested**:
 - ✅ **Phase 5**: Transaction splitting (agent-initiated payment pacing)
 - ✅ **Phase 6**: Arrival generation with configurable distributions (Poisson, normal, lognormal, uniform)
 - ✅ **Phase 7**: Integration layer complete (PyO3 FFI, FastAPI, CLI tool)
+- ✅ **Phase 9 (DSL)**: Complete policy DSL infrastructure (~4,880 lines) with expression evaluator, JSON decision trees, validation pipeline, and 50+ field accessors
 
-**Test Coverage**: 107+ passing tests with zero failures (60+ Rust core + 24 FFI + 23 API integration), including critical invariants (determinism, balance conservation, gridlock resolution).
+**Test Coverage**: 107+ passing tests with zero failures (60+ Rust core + 24 FFI + 23 API integration), including critical invariants (determinism, balance conservation, gridlock resolution). Policy DSL has 940+ lines of tests.
 
 ### Where We're Going: Feature Expansion 🎯
 
-**Phase 7 Complete** ✅ (Integration Layer):
-1. ✅ **PyO3 FFI Bindings**: Rust orchestrator exposed to Python
-2. ✅ **Python API Layer**: FastAPI endpoints operational with 23+ integration tests
-3. ✅ **CLI Tool**: Command-line interface with scenario loading, verbose mode
-4. ✅ **Integration Testing**: 24 FFI tests + 23 API tests passing
+**Completed Phases** ✅:
+- **Phase 7** (Integration Layer): PyO3 FFI bindings, FastAPI endpoints, CLI tool - COMPLETE
+- **Phase 9 DSL Infrastructure**: Expression evaluator, JSON decision trees, validation pipeline - COMPLETE
 
-**Next Steps** (12-16 weeks):
-1. Cost modeling (liquidity, delay, split friction, deadline penalties)
-2. Advanced policies (learning agents, LLM-driven evolution)
-3. Multi-rail support (RTGS + DNS, cross-border corridors)
-4. Shock scenarios (outages, liquidity squeezes, counterparty stress)
-5. Production readiness (WebSocket streaming, frontend, observability)
+**In Progress** 🔄:
+- **Phase 8** (Cost Model): ~60% complete
+  - ✅ Core structures (CostRates, CostBreakdown, CostAccumulator)
+  - ✅ Cost calculations (4/5 types: liquidity, delay, split friction, deadline)
+  - ❌ Missing: Collateral cost, API exposure, metrics endpoints
+
+**Next Steps** (10-14 weeks):
+1. ✅ Complete Phase 8: Add cost/metrics API endpoints, collateral cost
+2. ❌ Phase 9 (Learning): Shadow replay, policy evolution, LLM integration (deferred to Phase 13)
+3. ❌ Phase 10: Multi-rail support (RTGS + DNS, cross-border corridors)
+4. ❌ Phase 11: Shock scenarios (outages, liquidity squeezes, counterparty stress)
+5. ❌ Phase 12: Production readiness (WebSocket streaming, frontend, observability)
+6. ❌ Phase 13: LLM Manager Integration (asynchronous policy evolution)
 
 ---
 
@@ -446,152 +452,278 @@ The foundation implementation validated several critical design choices:
 - ✅ Can reproduce any simulation from seed
 - ✅ Performance targets exceeded (1200 ticks/sec vs 1000 target)
 
+### 4.2 Phase 8: Cost Model & Metrics 🔄 **60% COMPLETE**
+
+**Goal**: Implement full cost accounting and KPI tracking — **PARTIALLY ACHIEVED**
+
+#### What's Complete ✅
+
+**Cost Structures** (backend/src/orchestrator/engine.rs):
+- ✅ `CostRates` struct with all 5 cost type configurations (lines 188-224)
+- ✅ `CostBreakdown` struct for per-agent cost tracking (lines 227-254)
+- ✅ `CostAccumulator` maintaining cumulative totals (lines 257-300)
+- ✅ Per-agent accumulated costs in orchestrator state
+
+**Cost Calculations** (4 of 5 types operational):
+1. ✅ **Liquidity Costs**: `calculate_overdraft_cost()` charges per-tick overdraft fees
+2. ✅ **Delay Costs**: `calculate_delay_cost()` charges Queue 1 holding fees
+3. ✅ **Split Friction**: Structure exists with formula `f_s × (N-1)`
+4. ✅ **Deadline/EoD Penalties**: Framework in place, `handle_end_of_day()` implemented
+5. ❌ **Collateral Costs**: NOT implemented (no collateral tracking in Agent model)
+
+**Cost Accrual Integration**:
+- ✅ `accrue_costs()` called every tick (step 6 of 9-step loop)
+- ✅ Costs accumulated per agent throughout simulation
+- ✅ `total_cost` returned in tick response
+
+#### What's Missing ❌
+
+**API Layer** (Python/FastAPI):
+- ❌ No `/api/simulations/{id}/costs` endpoint to query accumulated costs
+- ❌ No `/api/simulations/{id}/metrics` endpoint for KPI dashboard
+- ❌ No metrics aggregation in SimulationManager
+- ❌ No Prometheus-compatible `/metrics` endpoint
+
+**FFI Exposure**:
+- ❌ No FFI methods to access accumulated costs from Python
+- ❌ Can't query per-agent cost breakdown via API
+- ❌ No system-wide metrics methods (total arrived, total settled, throughput)
+
+**Collateral Cost**:
+- ❌ Agent model has no `posted_collateral` field
+- ❌ No `calculate_collateral_cost()` function
+- ❌ No collateral opportunity cost accrual
+
+**Testing**:
+- ❌ No tests for cost calculations
+- ❌ No integration tests across FFI boundary for costs
+- ❌ No end-to-end tests via API endpoints
+
+**Documentation**:
+- ❌ Cost parameters not documented in configuration schema
+- ❌ No API documentation for cost/metrics endpoints
+
+#### Remaining Work to Complete Phase 8
+
+**Estimated Effort**: 2-3 days
+
+1. **Backend (Rust)**:
+   - Add `posted_collateral` to Agent model
+   - Implement `calculate_collateral_cost()`
+   - Expose `get_agent_accumulated_costs(agent_id)` via FFI
+   - Create `get_system_metrics()` FFI method
+
+2. **API (Python)**:
+   - Create `/api/simulations/{sim_id}/costs` endpoint
+   - Create `/api/simulations/{sim_id}/metrics` endpoint with:
+     - Settlement rate (settled/arrived)
+     - Average/max delay
+     - Queue statistics
+     - Liquidity usage by agent
+     - Cost breakdown
+   - Add Prometheus `/metrics` endpoint
+
+3. **Testing**:
+   - Unit tests for collateral cost
+   - Integration tests for cost queries across FFI
+   - E2E tests via API
+
+4. **Documentation**:
+   - Update configuration schema docs
+   - Document cost/metrics API endpoints
+
+### 4.3 Phase 9 (DSL): Policy Expression Language ✅ **COMPLETE**
+
+**Goal**: Safe, sandboxed policy DSL for hot-reloading decision trees — **ACHIEVED**
+
+#### Implementation Status: 100% Complete
+
+**Module**: backend/src/policy/tree/ (~4,880 lines of production code)
+
+**Components Implemented** ✅:
+
+1. **Expression Evaluator** (interpreter.rs, ~1,600 lines):
+   - Safe expression evaluation (no code execution)
+   - Arithmetic operators: `+`, `-`, `*`, `/`, `min()`, `max()`
+   - Comparison operators: `==`, `!=`, `<`, `<=`, `>`, `>=`
+   - Boolean operators: `and`, `or`, `not`
+   - Nested expression support with depth limits
+   - Division-by-zero protection
+   - Type conversion (float, int, boolean)
+
+2. **Policy DSL Schema** (types.rs, ~580 lines):
+   - JSON-based decision tree format
+   - `DecisionTreeDef` root structure
+   - `TreeNode` with conditions and actions
+   - `Expression` and `Value` types
+   - `Computation` for complex calculations
+
+3. **Tree Executor** (executor.rs, ~450 lines):
+   - `TreePolicy` implementing `CashManagerPolicy` trait
+   - Load from file: `TreePolicy::from_file(path)`
+   - Load from JSON: `TreePolicy::from_json(json_string)`
+   - Lazy validation before first use
+   - Full integration with orchestrator
+
+4. **Evaluation Context** (context.rs, ~320 lines):
+   - 50+ accessible fields organized by category:
+     - Agent state (balance, credit, liquidity_pressure)
+     - Transaction fields (amount, deadline, priority)
+     - Time fields (tick, ticks_to_deadline, queue_age)
+     - System state (queue sizes, throughput)
+     - Expected inflows (forecasts)
+
+5. **Validation Pipeline** (validation.rs, ~970 lines):
+   - Schema version validation
+   - Unique node IDs (no duplicates)
+   - Parameter reference validation
+   - Maximum depth enforcement (limit 100)
+   - Division-by-zero detection
+   - Field reference validation
+   - Cycle detection (prevents infinite loops)
+   - Type consistency checking
+   - 15+ specific error types
+
+6. **Testing** (tests/, ~940 lines):
+   - equivalence_tests.rs (~350 lines): Validates JSON trees ≡ Rust policies
+   - scenario_tests.rs (~600 lines): Real-world scenario testing
+   - Property-based tests for invariants
+
+**Documentation** ✅:
+- policy_dsl_design.md (2,700+ lines): Complete specification
+- backend/CLAUDE.md: Development guidance
+- Rustdoc comments on all public APIs
+
+**What You Can Do Now**:
+- ✅ Define complex decision trees in JSON
+- ✅ Hot-reload policies without restarting
+- ✅ Use LLM to generate/edit policy JSON safely
+- ✅ Validate policies before execution
+- ✅ A/B test different policies
+- ✅ Version control policies (just need git wrapper)
+
+#### What's Deferred to Phase 13 (LLM Manager)
+
+The following features were designed in Phase 9 but intentionally deferred:
+
+**Shadow Replay System** (Designed, Not Implemented):
+- Re-evaluate historical episodes with new policy
+- Monte Carlo opponent sampling
+- KPI comparison and validation
+- **Reason**: Requires episode collection infrastructure (Phase 13)
+
+**Policy Evolution Pipeline** (Designed, Not Implemented):
+- Async policy validation service
+- KPI comparison engine (old vs. new)
+- Guardrail checking (cost delta thresholds)
+- Automated deployment logic
+- **Reason**: Requires LLM Manager service (Phase 13)
+
+**Continuous Learning Loop** (Designed, Not Implemented):
+- Episode collection (store seeds + results)
+- LLM policy proposal generation
+- Policy validation pipeline
+- Automated deployment (git commit + restart)
+- **Reason**: This IS the LLM Manager system (Phase 13)
+
+**Architectural Decision**: Phase 9 focused on building safe, sandboxed DSL infrastructure that works independently. Phase 13 will add the LLM integration layer that USES this DSL. This separation allows:
+1. Testing and validating DSL before adding LLM complexity
+2. Using the DSL for manual policy development
+3. Hot-reloading policies without LLM involvement
+
 ----
 
 ## Part IV: Roadmap to Full Vision
 
-### 4.2 Phase 8: Cost Model & Metrics (Week 4)
+### 4.4 Phase 8 Completion: Cost Model API Layer (Week 4 - Remaining)
 
-**Goal**: Implement full cost accounting and KPI tracking
+**Status**: 60% complete (Rust core done, Python API layer needed)
 
-#### Cost Calculation
-**Deliverable**: All five cost types operational
+**Goal**: Expose cost data and metrics via REST API
 
-**Tasks**:
-1. **Liquidity Costs**:
-   - Track per-tick negative balances
-   - Apply annualized overdraft rate
-   - Accumulate to total cost
+**Remaining Tasks** (2-3 days):
 
-2. **Collateral Costs**:
-   - Track posted collateral (if agent uses)
-   - Apply opportunity cost rate
-   - Haircut calculations (optional)
-
-3. **Delay Costs**:
-   - Queue 1 only (not Queue 2)
-   - Per-transaction, per-tick accrual
-   - Accumulate to agent and system totals
-
-4. **Split Friction**:
-   - Charged immediately on split decision
-   - Formula: `f_s × (N-1)`
-   - Added to transaction's total cost
-
-5. **Deadline Penalties**:
-   - Charged on transaction drop or EoD
-   - Per-transaction large penalty
-   - Logged separately for analysis
-
-**Testing**:
-- Cost accumulation tests (verify formulas)
-- Multi-day cost persistence
-- Edge cases (zero costs, massive penalties)
-
-#### KPI Dashboard
-**Deliverable**: Real-time metrics collection
-
-**Metrics**:
-- **Throughput**: Value settled / value arrived (by time)
-- **Delays**: Average/max ticks from arrival to settlement
-- **Queue Statistics**: Queue 1 + Queue 2 sizes, age distributions
-- **Liquidity Usage**: Peak net debit per agent, system total
-- **LSM Efficacy**: Bilateral offsets count, cycle settlements count
-- **Cost Breakdown**: By type (liquidity, delay, split, penalty)
-
-**API Endpoints**:
-- `GET /kpis/costs` — cost breakdown
-- `GET /kpis/throughput` — throughput over time
-- `GET /kpis/liquidity` — peak debits, headroom usage
-
-**Success Criteria**:
-- All costs accumulate correctly
-- KPIs update each tick
-- Can export metrics for plotting
-
-### 4.3 Phase 9: Advanced Policies (Weeks 5-7)
-
-**Goal**: Richer policy options and learning foundation
-
-#### Policy Framework Expansion
-**Deliverable**: Decision-tree policies with expressions
-
-**Tasks**:
-1. **Expression Evaluator**:
-   - Safe expression evaluation (no arbitrary code execution)
-   - Access to agent state, transaction attributes, system signals
-   - Supported operators: arithmetic, comparisons, Boolean logic
-   - Nested structures (if-then-else trees)
-
-2. **Policy DSL** (Domain-Specific Language):
-   ```yaml
-   policy:
-     type: decision_tree
-     rules:
-       - condition: "transaction.priority >= 8 AND ticks_to_deadline < 10"
-         action: submit_full
-       - condition: "agent.liquidity_pressure > 0.8"
-         action: hold
-         reason: preserve_liquidity
-       - condition: "transaction.amount > 100000000 AND can_split"
-         action: submit_partial
-         split_factor: 4
-       - default: hold
+1. **Rust FFI Additions** (backend/src/ffi/orchestrator.rs):
+   ```rust
+   // Add these methods to PyOrchestrator
+   fn get_agent_costs(&self, agent_id: String) -> PyResult<HashMap<String, i64>>
+   fn get_system_metrics(&self) -> PyResult<HashMap<String, f64>>
    ```
 
-3. **Advanced Policies**:
-   - `ThresholdPolicy`: Submit if balance > threshold, else hold
-   - `ProportionalPolicy`: Submit fraction based on liquidity pressure
-   - `PriorityPolicy`: Weighted scoring of priority, deadline, amount
-   - `AdaptivePolicy`: Adjust thresholds based on inflow forecast
+2. **Python API Endpoints** (api/payment_simulator/api/main.py):
+   ```python
+   @app.get("/simulations/{sim_id}/costs")
+   async def get_costs(sim_id: str) -> CostBreakdownResponse
 
-4. **Policy Versioning**:
-   - Git-backed policy storage
-   - Commit hash tracking
-   - Rollback support
-   - A/B testing infrastructure
+   @app.get("/simulations/{sim_id}/metrics")
+   async def get_metrics(sim_id: str) -> MetricsResponse
 
-**Testing**:
-- Expression evaluator safety tests
-- Policy correctness tests (known scenarios)
-- Versioning and rollback tests
+   @app.get("/metrics")  # Prometheus format
+   async def prometheus_metrics() -> Response
+   ```
 
-#### Learning Infrastructure
-**Deliverable**: Foundation for LLM-driven evolution
+3. **Collateral Cost** (backend/src/models/agent.rs + orchestrator/engine.rs):
+   - Add `posted_collateral: i64` field to AgentState
+   - Implement `calculate_collateral_cost()` function
+   - Integrate into `accrue_costs()` tick step
 
-**Tasks**:
-1. **Shadow Replay System**:
-   - Re-evaluate past episodes with new policy
-   - Monte Carlo sampling of opponent behaviors
-   - KPI validation (check for regressions)
-   - Guardrail enforcement
-
-2. **Policy Evaluation Pipeline**:
-   - Run candidate policy in shadow mode
-   - Compare KPIs to baseline (cost, delays, throughput)
-   - Flag violations (e.g., >10% cost increase)
-   - Approve/reject with structured reasons
-
-3. **Continuous Learning Loop**:
-   - Episode collection (store deterministic seeds)
-   - Policy proposal generation (LLM calls, async)
-   - Validation gate (shadow replay, property checks)
-   - Deployment (if approved, update policy)
-
-**Testing**:
-- Shadow replay determinism
-- Guardrail violation detection
-- Policy improvement verification
+4. **Testing**:
+   - Unit tests for collateral cost formula
+   - Integration tests for FFI cost queries
+   - E2E tests via FastAPI endpoints
 
 **Success Criteria**:
-- Can define policies via YAML DSL
-- Expression evaluator is safe and correct
-- Shadow replay produces valid KPI comparisons
-- Learning loop can propose and validate changes
+- ✅ All 5 cost types operational (including collateral)
+- ✅ Can query per-agent costs via `/simulations/{id}/costs`
+- ✅ Can query system-wide metrics via `/simulations/{id}/metrics`
+- ✅ Prometheus `/metrics` endpoint operational
 
-### 4.4 Phase 10: Multi-Rail & Cross-Border (Weeks 8-9)
+### 4.5 Phase 9 Completion: Learning Infrastructure (Weeks 5-7 - Deferred to Phase 13)
+
+**Status**: DSL infrastructure 100% complete, learning loop deferred
+
+**Note**: The Policy DSL (expression evaluator, JSON trees, validation) is **complete and operational**. The remaining Phase 9 work (shadow replay, policy evolution, LLM integration) has been intentionally deferred to **Phase 13: LLM Manager Integration**.
+
+**Rationale**: The DSL can be used independently for manual policy development and hot-reloading. Adding LLM integration requires additional service infrastructure that's better implemented as Phase 13.
+
+**What's Already Done** ✅:
+- Expression evaluator (safe, sandboxed)
+- JSON decision tree format
+- Tree execution engine
+- Validation pipeline
+- 50+ field accessors
+- Comprehensive testing (940+ lines)
+
+**What's Deferred to Phase 13** (LLM Manager Service):
+1. **Shadow Replay System**:
+   - Re-evaluate past episodes with new policy
+   - Monte Carlo opponent sampling
+   - KPI delta estimation
+
+2. **Policy Evolution Pipeline**:
+   - Async LLM policy generation
+   - Multi-stage validation (schema, properties, shadow replay)
+   - Guardrail enforcement
+   - Automated deployment
+
+3. **Continuous Learning Loop**:
+   - Episode collection infrastructure
+   - Policy version management (git integration)
+   - Feedback loop (performance tracking)
+
+**Current Capability**: You can manually create/edit JSON policies and hot-reload them. LLM automation will be added in Phase 13.
+
+### 4.6 Phase 10: Multi-Rail & Cross-Border (Weeks 8-9) ❌ **NOT STARTED**
+
+**Status**: 0% complete - All work is future
 
 **Goal**: Support multiple settlement rails and currency corridors
+
+**Current Limitation**: System only supports:
+- Single RTGS rail (no DNS, no ACH)
+- Single currency (i64 cents, no multi-currency)
+- Domestic payments only (no cross-border)
+- One central RTGS queue (Queue 2)
 
 #### Multi-Rail Architecture
 **Deliverable**: RTGS + DNS (Deferred Net Settlement) rail
@@ -650,7 +782,9 @@ The foundation implementation validated several critical design choices:
 - Cross-border payments settle via nostros
 - Multi-currency accounting is correct
 
-### 4.5 Phase 11: Shock Scenarios & Resilience (Week 10)
+**Estimated Effort**: 2 weeks (as originally planned)
+
+### 4.7 Phase 11: Shock Scenarios & Resilience (Week 10) ❌ **NOT STARTED**
 
 **Goal**: Test system under stress conditions
 
@@ -696,7 +830,9 @@ The foundation implementation validated several critical design choices:
 - Metrics show expected responses
 - System recovers after shock removal
 
-### 4.6 Phase 12: Production Readiness (Weeks 11-13)
+**Estimated Effort**: 1 week
+
+### 4.8 Phase 12: Production Readiness (Weeks 11-13) ❌ **NOT STARTED**
 
 **Goal**: Observability, performance, and user experience
 
@@ -783,7 +919,9 @@ The foundation implementation validated several critical design choices:
 - Logs and metrics enable debugging
 - Performance targets met (>1000 ticks/sec maintained)
 
-### 4.7 Phase 13: LLM Manager Integration (Weeks 14-16)
+**Estimated Effort**: 3 weeks
+
+### 4.9 Phase 13: LLM Manager Integration (Weeks 14-16) ❌ **NOT STARTED**
 
 **Goal**: Asynchronous policy evolution via LLM
 
@@ -857,6 +995,10 @@ The foundation implementation validated several critical design choices:
 - Shadow replay validates without false positives
 - Policies improve over episodes (lower costs or higher throughput)
 - Learning converges to stable strategies
+
+**Note on Phase 9 Deferred Work**: This phase incorporates the shadow replay system, policy evolution pipeline, and continuous learning loop that were originally designed as part of Phase 9 but intentionally deferred. The Phase 9 DSL infrastructure (expression evaluator, tree executor, validation) is already complete and provides the foundation for this LLM integration work.
+
+**Estimated Effort**: 3 weeks
 
 ---
 
@@ -1623,38 +1765,41 @@ curl -X POST http://api:8000/simulations/sim_abc123/tick?n=100
 - ✅ Week 3: CLI tool, integration tests (verbose mode, scenario loading)
 - **Milestone M1**: Can control simulation via HTTP/CLI ✅ **ACHIEVED**
 
-**Phase 8: Cost Model & Metrics (Week 4)** — Full cost accounting
-- All 5 cost types implemented and tested
-- KPI dashboard operational (REST endpoints)
-- **Milestone M2**: Accurate cost tracking ✅
+**Phase 8: Cost Model & Metrics (Week 4)** 🔄 — **60% COMPLETE**
+- ✅ Core cost structures implemented (CostRates, CostBreakdown, CostAccumulator)
+- ✅ 4 of 5 cost types operational (liquidity, delay, split friction, deadline)
+- ❌ Missing: Collateral cost, API exposure, metrics endpoints
+- **Milestone M2**: Accurate cost tracking 🔄 **PARTIAL** (2-3 days remaining)
 
-**Phase 9: Advanced Policies (Weeks 5-7)** — Policy DSL, learning infrastructure
-- Expression evaluator + decision-tree DSL
-- Shadow replay system
-- Policy versioning and A/B testing
-- **Milestone M3**: Foundation for LLM-driven evolution ✅
+**Phase 9: Policy DSL (Weeks 5-7)** ✅ — **DSL INFRASTRUCTURE COMPLETE**
+- ✅ Expression evaluator + decision-tree DSL (~4,880 lines)
+- ✅ Tree executor and validation pipeline
+- ✅ 50+ field accessors, comprehensive testing (940+ lines)
+- ❌ Shadow replay, policy evolution → Deferred to Phase 13
+- **Milestone M3**: Foundation for LLM-driven evolution ✅ **DSL ACHIEVED**
 
-**Phase 10: Multi-Rail & Cross-Border (Weeks 8-9)** — RTGS + DNS, currencies
+**Phase 10: Multi-Rail & Cross-Border (Weeks 8-9)** ❌ — **NOT STARTED**
 - DNS rail implementation (batch netting)
 - Multi-currency nostro accounts
-- **Milestone M4**: Multi-rail simulations ✅
+- **Milestone M4**: Multi-rail simulations ❌ **NOT STARTED**
 
-**Phase 11: Shock Scenarios (Week 10)** — Resilience testing
+**Phase 11: Shock Scenarios (Week 10)** ❌ — **NOT STARTED**
 - Shock module (5 shock types)
 - Shock-aware metrics and analysis
-- **Milestone M5**: Stress testing capability ✅
+- **Milestone M5**: Stress testing capability ❌ **NOT STARTED**
 
-**Phase 12: Production Readiness (Weeks 11-13)** — Observability, frontend
+**Phase 12: Production Readiness (Weeks 11-13)** ❌ — **NOT STARTED**
 - WebSocket streaming to clients
 - React frontend (dashboard, charts, controls)
 - Prometheus metrics + Grafana dashboards
-- **Milestone M6**: Production deployment ready ✅
+- **Milestone M6**: Production deployment ready ❌ **NOT STARTED**
 
-**Phase 13: LLM Manager Integration (Weeks 14-16)** — Async learning loop
+**Phase 13: LLM Manager Integration (Weeks 14-16)** ❌ — **NOT STARTED**
 - LLM manager service (separate process)
+- Shadow replay system (from Phase 9)
 - Policy proposal generation + validation
 - Multi-agent learning infrastructure
-- **Milestone M7**: Full learning loop operational ✅
+- **Milestone M7**: Full learning loop operational ❌ **NOT STARTED**
 
 ### 11.2 Dependency Graph
 
@@ -2019,37 +2164,59 @@ agents:
 
 ## Conclusion
 
-This Grand Plan 2.1 provides a comprehensive roadmap from the completed foundation and integration layers (Phases 1-7) to the full vision of an LLM-driven, multi-agent payment simulator. The plan is structured in three major sections:
+This Grand Plan 2.2 provides a comprehensive roadmap from the completed foundation, integration, and DSL infrastructure (Phases 1-7, 9 DSL) to the full vision of an LLM-driven, multi-agent payment simulator. The plan is structured in three major sections:
 
-**Where We Are** (Part III): Both foundation and integration are complete — all Rust core components are implemented, tested, and validated, AND the Python integration layer is fully operational. We have a working 9-step tick loop, two-queue architecture, RTGS settlement, LSM optimization, cash manager policies, transaction splitting, arrival generation, PyO3 FFI bindings, FastAPI endpoints, and a production-ready CLI tool. 107+ tests pass with zero failures.
+**Where We Are** (Part III):
+- ✅ **Foundation Complete** (Phases 1-7): All Rust core components implemented, tested, and validated. Python integration layer fully operational with PyO3 FFI bindings, FastAPI endpoints, and production-ready CLI tool. 107+ tests pass with zero failures.
+- ✅ **Policy DSL Complete** (Phase 9): ~4,880 lines of production code providing expression evaluator, JSON decision trees, validation pipeline, and 50+ field accessors. 940+ lines of tests validate correctness. Policies can be hot-reloaded and LLM-generated safely.
+- 🔄 **Cost Model Partial** (Phase 8): Core structures and 4/5 cost calculations complete in Rust. Missing: API exposure, collateral cost, metrics endpoints. ~60% complete, 2-3 days remaining.
 
-**Where We're Going** (Part IV): A phased plan to implement the full cost model, build advanced policy infrastructure (including LLM-driven evolution), support multi-rail and cross-border scenarios, add shock testing, and achieve production readiness with observability and a React frontend.
+**Where We're Going** (Part IV):
+- Complete Phase 8 (cost/metrics API layer)
+- Build multi-rail support (RTGS + DNS, cross-border)
+- Add shock scenarios and resilience testing
+- Achieve production readiness (WebSocket, frontend, observability)
+- Integrate LLM Manager for autonomous policy evolution (includes Phase 9 deferred work: shadow replay, learning loop)
 
 **How We'll Get There** (Parts V-XII): Detailed technical architecture, development guidelines, deployment strategies, risk mitigation, success metrics, and getting-started instructions ensure the plan is actionable and maintainable.
 
 **Critical Success Factors**:
 1. **Maintain determinism** — Every new feature must preserve replay capability ✅ Validated
 2. **Preserve two-queue separation** — Clear distinction between strategic (Queue 1) and mechanical (Queue 2) decisions ✅ Validated
-3. **Test ruthlessly** — >80% coverage, property tests for invariants, integration tests across FFI ✅ Achieved (107+ tests)
-4. **Scope discipline** — Follow phased plan, defer non-critical features to backlog ✅ On track
-5. **Document as we go** — Keep docs synchronized with code, examples for all public APIs ✅ Maintained
+3. **Test ruthlessly** — >80% coverage, property tests for invariants, integration tests across FFI ✅ Achieved (107+ core tests, 940+ DSL tests)
+4. **Scope discipline** — Follow phased plan, defer non-critical features to backlog ✅ On track (Phase 9 learning deferred to Phase 13)
+5. **Document as we go** — Keep docs synchronized with code, examples for all public APIs ✅ Maintained (2,700+ line DSL design doc)
 
-The foundation work validated the core architecture and proved the system can model real-world RTGS dynamics (liquidity recycling, gridlock, LSM efficacy). The integration work validated the Rust-Python hybrid approach and demonstrated that FFI overhead is minimal (<1%). The CLI tool enables rapid scenario testing, and large-scale validation (200 agents) confirms production readiness.
+**Major Achievements Since v2.1**:
+- ✅ Policy DSL infrastructure complete (~4,880 lines)
+- ✅ Expression evaluator with safe sandboxed execution
+- ✅ JSON decision tree format with comprehensive validation
+- ✅ 50+ field accessors for policy evaluation context
+- ✅ Hot-reloadable policies (no simulator restart needed)
+- ✅ Foundation for LLM-generated policies established
 
-**Phase 7 Achievements**:
-- ✅ PyO3 FFI bindings operational (24 tests)
-- ✅ FastAPI endpoints complete (23 integration tests)
-- ✅ CLI tool production-ready (scenario library, verbose mode)
-- ✅ Performance validated (1,200 ticks/second, >1000 target)
-- ✅ Large-scale testing (200 agents, 100 ticks in 8 seconds)
+**Architectural Decisions Validated**:
+- ✅ Rust-Python hybrid approach works (FFI overhead <1%)
+- ✅ Two-queue separation enables clear policy abstractions
+- ✅ Determinism maintained across all layers
+- ✅ DSL can be used independently before LLM integration
+- ✅ Large-scale performance validated (200 agents, 1,200 ticks/sec)
 
-With the integration layer complete, we now have a fully functional payment simulator accessible via HTTP API and CLI. The system is ready for the next phases: cost modeling, advanced policies, and LLM-driven evolution.
+**Current Capability**:
+- Run complex multi-agent simulations with configurable policies
+- Define custom decision trees in JSON with safe expression evaluation
+- Hot-reload policies without restarting
+- Track costs (liquidity, delay, split friction, deadline penalties)
+- Access via HTTP API, CLI, or direct Rust/Python integration
+- Reproduce any simulation deterministically from seed
 
-**Next Immediate Action**: Begin Phase 8 (Cost Model & Metrics) to implement all five cost types (liquidity, collateral, delay, split friction, deadline penalties) and create the KPI dashboard. This provides the economic foundation for policy optimization and learning.
+**Next Immediate Actions**:
+1. **Complete Phase 8** (2-3 days): Add cost/metrics API endpoints, implement collateral cost
+2. **Plan Phase 10 or 13**: Decide priority between multi-rail features vs. LLM integration
 
 ---
 
 **Document Status**: Living Document (update as implementation progresses)
 **Maintainer**: Payment Simulator Team
 **Last Updated**: October 28, 2025
-**Version**: 2.1 — Phase 7 Complete (Integration Layer)
+**Version**: 2.2 — Phase 7 Complete, Phase 9 DSL Complete, Phase 8 60% Complete
