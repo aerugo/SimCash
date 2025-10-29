@@ -296,4 +296,11 @@ pub trait CashManagerPolicy: Send + Sync {
         // Default: no collateral management (backward compatible)
         CollateralDecision::Hold
     }
+
+    /// Enable downcasting to concrete types (for accessing TreePolicy-specific methods)
+    ///
+    /// This method allows the orchestrator to downcast trait objects to their
+    /// concrete types (e.g., TreePolicy) to access specialized methods like
+    /// `evaluate_strategic_collateral()` and `evaluate_end_of_tick_collateral()`.
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }

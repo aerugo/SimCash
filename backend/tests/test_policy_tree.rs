@@ -15,8 +15,8 @@ fn test_parse_minimal_tree() {
     // Simplest valid tree: single condition, two actions
     let json = r#"{
         "version": "1.0",
-        "tree_id": "minimal_test",
-        "root": {
+        "policy_id": "minimal_test",
+        "payment_tree": {
             "node_id": "N1",
             "type": "condition",
             "condition": {
@@ -35,6 +35,8 @@ fn test_parse_minimal_tree() {
                 "action": "Hold"
             }
         },
+        "strategic_collateral_tree": null,
+        "end_of_tick_collateral_tree": null,
         "parameters": {}
     }"#;
 
@@ -43,8 +45,11 @@ fn test_parse_minimal_tree() {
 
     let tree = tree.unwrap();
     assert_eq!(tree.version, "1.0");
-    assert_eq!(tree.tree_id, "minimal_test");
-    assert!(matches!(tree.root, TreeNode::Condition { .. }));
+    assert_eq!(tree.policy_id, "minimal_test");
+    assert!(tree.payment_tree.is_some());
+    if let Some(ref payment_tree) = tree.payment_tree {
+        assert!(matches!(payment_tree, TreeNode::Condition { .. }));
+    }
 }
 
 #[test]
@@ -52,8 +57,8 @@ fn test_parse_nested_conditions() {
     // Multi-level tree with nested conditions
     let json = r#"{
         "version": "1.0",
-        "tree_id": "nested_test",
-        "root": {
+        "policy_id": "nested_test",
+        "payment_tree": {
             "node_id": "N1",
             "type": "condition",
             "condition": {
@@ -97,8 +102,8 @@ fn test_parse_with_computations() {
     // Tree with arithmetic computations in conditions
     let json = r#"{
         "version": "1.0",
-        "tree_id": "computation_test",
-        "root": {
+        "policy_id": "computation_test",
+        "payment_tree": {
             "node_id": "N1",
             "type": "condition",
             "condition": {
@@ -133,8 +138,8 @@ fn test_parse_with_computations() {
 fn test_reject_invalid_json() {
     // Missing required field 'version'
     let json = r#"{
-        "tree_id": "invalid",
-        "root": {
+        "policy_id": "invalid",
+        "payment_tree": {
             "node_id": "N1",
             "type": "action",
             "action": "Hold"
@@ -160,8 +165,8 @@ fn test_parse_all_expression_types() {
     for (op, _name) in operators {
         let json = format!(r#"{{
             "version": "1.0",
-            "tree_id": "test_{}",
-            "root": {{
+            "policy_id": "test_{}",
+            "payment_tree": {{
                 "node_id": "N1",
                 "type": "condition",
                 "condition": {{
@@ -181,8 +186,8 @@ fn test_parse_all_expression_types() {
     // Test logical operators
     let logical_json = r#"{
         "version": "1.0",
-        "tree_id": "logical_test",
-        "root": {
+        "policy_id": "logical_test",
+        "payment_tree": {
             "node_id": "N1",
             "type": "condition",
             "condition": {
@@ -241,8 +246,8 @@ fn test_parse_all_action_types() {
     for action in actions {
         let json = format!(r#"{{
             "version": "1.0",
-            "tree_id": "action_test_{}",
-            "root": {{
+            "policy_id": "action_test_{}",
+            "payment_tree": {{
                 "node_id": "A1",
                 "type": "action",
                 "action": "{}"
@@ -263,8 +268,8 @@ fn test_parse_collateral_action_types() {
     // Test PostCollateral action
     let post_json = r#"{
         "version": "1.0",
-        "tree_id": "collateral_post_test",
-        "root": {
+        "policy_id": "collateral_post_test",
+        "payment_tree": {
             "node_id": "A1",
             "type": "action",
             "action": "PostCollateral",
@@ -281,8 +286,8 @@ fn test_parse_collateral_action_types() {
     // Test WithdrawCollateral action
     let withdraw_json = r#"{
         "version": "1.0",
-        "tree_id": "collateral_withdraw_test",
-        "root": {
+        "policy_id": "collateral_withdraw_test",
+        "payment_tree": {
             "node_id": "A1",
             "type": "action",
             "action": "WithdrawCollateral",
@@ -299,8 +304,8 @@ fn test_parse_collateral_action_types() {
     // Test HoldCollateral action (no parameters needed)
     let hold_json = r#"{
         "version": "1.0",
-        "tree_id": "collateral_hold_test",
-        "root": {
+        "policy_id": "collateral_hold_test",
+        "payment_tree": {
             "node_id": "A1",
             "type": "action",
             "action": "HoldCollateral"
@@ -316,8 +321,8 @@ fn test_collateral_decision_with_computed_amount() {
     // Test PostCollateral with computed amount (liquidity gap calculation)
     let json = r#"{
         "version": "1.0",
-        "tree_id": "collateral_computed_test",
-        "root": {
+        "policy_id": "collateral_computed_test",
+        "payment_tree": {
             "node_id": "A1",
             "type": "action",
             "action": "PostCollateral",

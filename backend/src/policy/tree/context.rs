@@ -156,6 +156,9 @@ impl EvalContext {
         fields.insert("headroom".to_string(), headroom as f64);
 
         // Queue 2 (RTGS) pressure fields
+        // Total size of Queue 2 (all agents)
+        fields.insert("queue2_size".to_string(), state.rtgs_queue().len() as f64);
+
         let queue2_count = state.rtgs_queue()
             .iter()
             .filter(|tx_id| {
