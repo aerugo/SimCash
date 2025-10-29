@@ -13,16 +13,36 @@ use std::collections::HashMap;
 /// Complete decision tree definition
 ///
 /// This is the root object deserialized from JSON policy files.
+/// Phase 8.2: Extended to support three separate decision trees:
+/// - payment_tree: Payment release decisions (Queue 1 → Queue 2)
+/// - strategic_collateral_tree: Strategic collateral decisions (STEP 2.5)
+/// - end_of_tick_collateral_tree: Reactive collateral cleanup (STEP 8)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionTreeDef {
     /// Schema version (currently "1.0")
     pub version: String,
 
-    /// Unique identifier for this tree
-    pub tree_id: String,
+    /// Unique identifier for this policy
+    pub policy_id: String,
 
-    /// Root node of the decision tree
-    pub root: TreeNode,
+    /// Optional human-readable description
+    #[serde(default)]
+    pub description: Option<String>,
+
+    /// Payment release decision tree (Queue 1 → Queue 2 decisions)
+    /// Optional to allow collateral-only policies
+    #[serde(default)]
+    pub payment_tree: Option<TreeNode>,
+
+    /// Strategic collateral decision tree (Layer 1, STEP 2.5)
+    /// Runs before settlements, forward-looking, policy-based
+    #[serde(default)]
+    pub strategic_collateral_tree: Option<TreeNode>,
+
+    /// End-of-tick collateral decision tree (Layer 2, STEP 8)
+    /// Runs after settlements, reactive cleanup
+    #[serde(default)]
+    pub end_of_tick_collateral_tree: Option<TreeNode>,
 
     /// Named parameters (thresholds, constants)
     #[serde(default)]
@@ -291,8 +311,8 @@ mod tests {
     fn test_tree_def_deserialization_simple() {
         let json = r#"{
             "version": "1.0",
-            "tree_id": "test",
-            "root": {
+            "policy_id": "test",
+            "payment_tree": {
                 "node_id": "A1",
                 "type": "action",
                 "action": "Release"
@@ -301,8 +321,9 @@ mod tests {
 
         let tree: DecisionTreeDef = serde_json::from_str(json).unwrap();
         assert_eq!(tree.version, "1.0");
-        assert_eq!(tree.tree_id, "test");
-        assert!(tree.root.is_action());
+        assert_eq!(tree.policy_id, "test");
+        assert!(tree.payment_tree.is_some());
+        assert!(tree.payment_tree.unwrap().is_action());
     }
 
     // ============================================================================
@@ -314,8 +335,8 @@ mod tests {
         // Simplest valid tree: single condition, two actions
         let json = r#"{
             "version": "1.0",
-            "tree_id": "minimal_test",
-            "root": {
+            "policy_id": "minimal_test",
+            "payment_tree": {
                 "node_id": "N1",
                 "type": "condition",
                 "condition": {
@@ -346,8 +367,9 @@ mod tests {
 
         let tree = tree.unwrap();
         assert_eq!(tree.version, "1.0");
-        assert_eq!(tree.tree_id, "minimal_test");
-        assert!(matches!(tree.root, TreeNode::Condition { .. }));
+        assert_eq!(tree.policy_id, "minimal_test");
+        assert!(tree.payment_tree.is_some());
+        assert!(matches!(tree.payment_tree.as_ref().unwrap(), TreeNode::Condition { .. }));
     }
 
     #[test]
@@ -355,8 +377,8 @@ mod tests {
         // Multi-level tree with nested conditions
         let json = r#"{
             "version": "1.0",
-            "tree_id": "nested_test",
-            "root": {
+            "policy_id": "nested_test",
+            "payment_tree": {
                 "node_id": "N1",
                 "type": "condition",
                 "condition": {
@@ -404,8 +426,8 @@ mod tests {
         // Tree with arithmetic computations in conditions
         let json = r#"{
             "version": "1.0",
-            "tree_id": "computation_test",
-            "root": {
+            "policy_id": "computation_test",
+            "payment_tree": {
                 "node_id": "N1",
                 "type": "condition",
                 "condition": {
@@ -444,8 +466,8 @@ mod tests {
     fn test_reject_invalid_json() {
         // Missing required field 'version'
         let json = r#"{
-            "tree_id": "invalid",
-            "root": {
+            "policy_id": "invalid",
+            "payment_tree": {
                 "node_id": "N1",
                 "type": "action",
                 "action": "Hold"
@@ -472,8 +494,8 @@ mod tests {
             let json = format!(
                 r#"{{
                 "version": "1.0",
-                "tree_id": "test_{}",
-                "root": {{
+                "policy_id": "test_{}",
+                "payment_tree": {{
                     "node_id": "N1",
                     "type": "condition",
                     "condition": {{
@@ -500,8 +522,8 @@ mod tests {
         // Test logical operators
         let logical_json = r#"{
             "version": "1.0",
-            "tree_id": "logical_test",
-            "root": {
+            "policy_id": "logical_test",
+            "payment_tree": {
                 "node_id": "N1",
                 "type": "condition",
                 "condition": {
@@ -571,8 +593,8 @@ mod tests {
             let json = format!(
                 r#"{{
                 "version": "1.0",
-                "tree_id": "action_test_{}",
-                "root": {{
+                "policy_id": "action_test_{}",
+                "payment_tree": {{
                     "node_id": "A1",
                     "type": "action",
                     "action": "{}"

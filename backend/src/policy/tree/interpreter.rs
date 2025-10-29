@@ -44,6 +44,9 @@ pub enum EvalError {
     #[error("Invalid action type: {0}")]
     InvalidActionType(String),
 
+    #[error("Invalid tree: {0}")]
+    InvalidTree(String),
+
     #[error("Context error: {0}")]
     ContextError(#[from] ContextError),
 }
@@ -357,8 +360,8 @@ const MAX_TREE_DEPTH: usize = 100;
 /// // Simple always-release policy
 /// let json = r#"{
 ///   "version": "1.0",
-///   "tree_id": "test_policy",
-///   "root": {
+///   "policy_id": "test_policy",
+///   "payment_tree": {
 ///     "type": "action",
 ///     "node_id": "A1",
 ///     "action": "Release"
@@ -373,7 +376,36 @@ pub fn traverse_tree<'a>(
     tree: &'a DecisionTreeDef,
     context: &EvalContext,
 ) -> Result<&'a TreeNode, EvalError> {
-    traverse_node(&tree.root, context, &tree.parameters, 0)
+    // For backward compatibility, traverse payment_tree by default
+    let root = tree.payment_tree.as_ref()
+        .ok_or_else(|| EvalError::InvalidTree("payment_tree is not defined".to_string()))?;
+    traverse_node(root, context, &tree.parameters, 0)
+}
+
+/// Traverse the strategic collateral tree to reach an action node.
+///
+/// Returns the terminal action node reached.
+/// Returns error if strategic_collateral_tree is not defined.
+pub fn traverse_strategic_collateral_tree<'a>(
+    tree: &'a DecisionTreeDef,
+    context: &EvalContext,
+) -> Result<&'a TreeNode, EvalError> {
+    let root = tree.strategic_collateral_tree.as_ref()
+        .ok_or_else(|| EvalError::InvalidTree("strategic_collateral_tree is not defined".to_string()))?;
+    traverse_node(root, context, &tree.parameters, 0)
+}
+
+/// Traverse the end-of-tick collateral tree to reach an action node.
+///
+/// Returns the terminal action node reached.
+/// Returns error if end_of_tick_collateral_tree is not defined.
+pub fn traverse_end_of_tick_collateral_tree<'a>(
+    tree: &'a DecisionTreeDef,
+    context: &EvalContext,
+) -> Result<&'a TreeNode, EvalError> {
+    let root = tree.end_of_tick_collateral_tree.as_ref()
+        .ok_or_else(|| EvalError::InvalidTree("end_of_tick_collateral_tree is not defined".to_string()))?;
+    traverse_node(root, context, &tree.parameters, 0)
 }
 
 /// Internal recursive tree traversal with depth tracking
