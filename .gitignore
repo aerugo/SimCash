@@ -38,6 +38,14 @@ ENV/
 .DS_Store
 Thumbs.db
 
+# DuckDB databases (test and development)
+*.db
+*.db.wal
+*.duckdb
+*.duckdb.wal
+test_data/
+api/test_databases/
+
 # Test coverage
 htmlcov/
 .coverage
