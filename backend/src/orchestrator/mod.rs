@@ -8,6 +8,6 @@ pub mod engine;
 
 // Re-export main types for convenience
 pub use engine::{
-    AgentConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator,
+    AgentConfig, CostAccumulator, CostBreakdown, CostRates, DailyMetrics, Orchestrator,
     OrchestratorConfig, PolicyConfig, SimulationError, TickResult,
 };

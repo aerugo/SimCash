@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use crate::orchestrator::Orchestrator as RustOrchestrator;
-use super::types::{parse_orchestrator_config, tick_result_to_py, transaction_to_py};
+use super::types::{agent_metrics_to_py, parse_orchestrator_config, tick_result_to_py, transaction_to_py};
 
 /// Python wrapper for Rust Orchestrator
 ///
@@ -323,6 +323,59 @@ impl PyOrchestrator {
         for tx in transactions {
             let tx_dict = transaction_to_py(py, tx, &simulation_id, ticks_per_day)?;
             py_list.append(tx_dict)?;
+        }
+
+        Ok(py_list.into())
+    }
+
+    /// Get daily agent metrics for a specific day (Phase 3: Agent Metrics Collection)
+    ///
+    /// Returns metrics for all agents for the specified day, including balance tracking,
+    /// transaction counts, queue sizes, and costs.
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - Day number (0-indexed)
+    ///
+    /// # Returns
+    ///
+    /// List of dictionaries, each containing metrics for one agent.
+    /// Each dictionary matches the schema of DailyAgentMetricsRecord Pydantic model.
+    ///
+    /// Returns empty list if the day hasn't been completed yet or doesn't exist.
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// from payment_simulator._core import Orchestrator
+    /// import polars as pl
+    ///
+    /// # Run simulation for 1 day
+    /// orch = Orchestrator.new(config)
+    /// for _ in range(100):  # 100 ticks per day
+    ///     orch.tick()
+    ///
+    /// # Get metrics for day 0
+    /// daily_metrics = orch.get_daily_agent_metrics(0)
+    ///
+    /// # Convert to Polars DataFrame
+    /// df = pl.DataFrame(daily_metrics)
+    ///
+    /// # Write to DuckDB
+    /// conn.execute("INSERT INTO daily_agent_metrics SELECT * FROM df")
+    /// ```
+    fn get_daily_agent_metrics(&self, py: Python, day: usize) -> PyResult<Py<PyList>> {
+        // Get metrics from Rust orchestrator
+        let metrics = self.inner.get_daily_agent_metrics(day);
+
+        // Get simulation ID for metrics
+        let simulation_id = self.inner.simulation_id();
+
+        // Convert each metrics record to Python dict
+        let py_list = PyList::empty(py);
+        for m in metrics {
+            let metrics_dict = agent_metrics_to_py(py, m, &simulation_id)?;
+            py_list.append(metrics_dict)?;
         }
 
         Ok(py_list.into())

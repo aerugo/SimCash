@@ -475,3 +475,69 @@ pub fn transaction_to_py(
 
     Ok(dict.into())
 }
+
+/// Convert DailyMetrics to Python dict (Phase 3: Agent Metrics Collection)
+///
+/// Maps all fields from DailyMetrics to Python dict matching
+/// the DailyAgentMetricsRecord Pydantic schema.
+///
+/// # Arguments
+///
+/// * `py` - Python interpreter handle
+/// * `metrics` - Daily metrics to convert
+/// * `simulation_id` - Simulation identifier
+///
+/// # Returns
+///
+/// PyDict with all fields from DailyAgentMetricsRecord
+pub fn agent_metrics_to_py(
+    py: Python,
+    metrics: &crate::orchestrator::DailyMetrics,
+    simulation_id: &str,
+) -> PyResult<Py<PyDict>> {
+    let dict = PyDict::new(py);
+
+    // Identity
+    dict.set_item("simulation_id", simulation_id)?;
+    dict.set_item("agent_id", &metrics.agent_id)?;
+    dict.set_item("day", metrics.day)?;
+
+    // Balance metrics
+    dict.set_item("opening_balance", metrics.opening_balance)?;
+    dict.set_item("closing_balance", metrics.closing_balance)?;
+    dict.set_item("min_balance", metrics.min_balance)?;
+    dict.set_item("max_balance", metrics.max_balance)?;
+
+    // Credit usage
+    dict.set_item("credit_limit", metrics.credit_limit)?;
+    dict.set_item("peak_overdraft", metrics.peak_overdraft)?;
+
+    // Collateral management (Phase 8)
+    dict.set_item("opening_posted_collateral", metrics.opening_posted_collateral)?;
+    dict.set_item("closing_posted_collateral", metrics.closing_posted_collateral)?;
+    dict.set_item("peak_posted_collateral", metrics.peak_posted_collateral)?;
+    dict.set_item("collateral_capacity", metrics.collateral_capacity)?;
+    dict.set_item("num_collateral_posts", metrics.num_collateral_posts)?;
+    dict.set_item("num_collateral_withdrawals", metrics.num_collateral_withdrawals)?;
+
+    // Transaction counts
+    dict.set_item("num_arrivals", metrics.num_arrivals)?;
+    dict.set_item("num_sent", metrics.num_sent)?;
+    dict.set_item("num_received", metrics.num_received)?;
+    dict.set_item("num_settled", metrics.num_settled)?;
+    dict.set_item("num_dropped", metrics.num_dropped)?;
+
+    // Queue metrics
+    dict.set_item("queue1_peak_size", metrics.queue1_peak_size)?;
+    dict.set_item("queue1_eod_size", metrics.queue1_eod_size)?;
+
+    // Costs
+    dict.set_item("liquidity_cost", metrics.liquidity_cost)?;
+    dict.set_item("delay_cost", metrics.delay_cost)?;
+    dict.set_item("collateral_cost", metrics.collateral_cost)?;
+    dict.set_item("split_friction_cost", metrics.split_friction_cost)?;
+    dict.set_item("deadline_penalty_cost", metrics.deadline_penalty_cost)?;
+    dict.set_item("total_cost", metrics.total_cost)?;
+
+    Ok(dict.into())
+}
