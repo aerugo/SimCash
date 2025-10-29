@@ -420,28 +420,90 @@ For `PostCollateral` and `WithdrawCollateral`, support these parameters:
 
 ---
 
-## 6. New Policy: liquidity_aware_with_collateral
+## 6. Policy File Structure: Three-Tree Architecture
 
-### 6.1 Policy Logic
+### 6.1 Overview
 
-**Extends**: `liquidity_aware.json`
+Each policy JSON file contains **three independent decision trees**:
+1. **payment_tree**: Payment release decisions (Release/Hold/Drop)
+2. **strategic_collateral_tree**: Strategic collateral decisions (Layer 1, STEP 2.5)
+3. **end_of_tick_collateral_tree**: Reactive collateral decisions (Layer 2, STEP 8)
 
-**Additions**:
-- Post collateral when urgent transactions pending but insufficient headroom
-- Withdraw collateral when balance restored above buffer + safety margin
+All three trees are optional. If omitted, the policy returns default "do nothing" decisions.
 
-### 6.2 Decision Tree Structure
+### 6.2 File Structure
+
+**File**: `backend/policies/liquidity_aware_with_collateral.json`
 
 ```json
 {
   "version": "1.0",
-  "tree_id": "liquidity_aware_with_collateral",
-  "description": "Liquidity-aware policy with dynamic collateral management",
+  "policy_id": "liquidity_aware_with_collateral",
+  "description": "Liquidity-aware policy with dual-layer collateral management",
 
-  "root": {
+  "payment_tree": {
     "type": "condition",
-    "node_id": "N1",
-    "description": "Check if we have Queue 1 liquidity gap",
+    "node_id": "P1",
+    "description": "Urgent transaction (deadline < 5 ticks)?",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "ticks_to_deadline"},
+      "right": {"param": "urgency_threshold"}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "P2",
+      "description": "Can pay with available liquidity?",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "available_liquidity"},
+        "right": {"field": "amount"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "PA1",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "PA2",
+        "action": "Hold",
+        "parameters": {"reason": {"value": "InsufficientLiquidity"}}
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "P3",
+      "description": "Balance after payment >= target buffer?",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "compute": {
+            "op": "-",
+            "left": {"field": "balance"},
+            "right": {"field": "amount"}
+          }
+        },
+        "right": {"param": "target_buffer"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "PA3",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "PA4",
+        "action": "Hold",
+        "parameters": {"reason": {"value": "LowPriority"}}
+      }
+    }
+  },
+
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "S1",
+    "description": "Have Queue 1 liquidity gap?",
     "condition": {
       "op": ">",
       "left": {"field": "queue1_liquidity_gap"},
@@ -449,8 +511,8 @@ For `PostCollateral` and `WithdrawCollateral`, support these parameters:
     },
     "on_true": {
       "type": "condition",
-      "node_id": "N2",
-      "description": "Check if we have urgent transactions (deadline < 5 ticks)",
+      "node_id": "S2",
+      "description": "Urgent transactions (min deadline < 5 ticks)?",
       "condition": {
         "op": "<=",
         "left": {"field": "min_ticks_to_deadline"},
@@ -458,16 +520,16 @@ For `PostCollateral` and `WithdrawCollateral`, support these parameters:
       },
       "on_true": {
         "type": "condition",
-        "node_id": "N3",
-        "description": "Check if we have collateral capacity",
+        "node_id": "S3",
+        "description": "Have collateral capacity for gap?",
         "condition": {
-          "op": ">",
+          "op": ">=",
           "left": {"field": "remaining_collateral_capacity"},
           "right": {"field": "queue1_liquidity_gap"}
         },
         "on_true": {
           "type": "action",
-          "node_id": "A1",
+          "node_id": "SA1",
           "action": "PostCollateral",
           "parameters": {
             "amount": {"field": "queue1_liquidity_gap"},
@@ -476,22 +538,20 @@ For `PostCollateral` and `WithdrawCollateral`, support these parameters:
         },
         "on_false": {
           "type": "action",
-          "node_id": "A2",
-          "action": "HoldCollateral",
-          "parameters": {}
+          "node_id": "SA2",
+          "action": "HoldCollateral"
         }
       },
       "on_false": {
         "type": "action",
-        "node_id": "A3",
-        "action": "HoldCollateral",
-        "parameters": {}
+        "node_id": "SA3",
+        "action": "HoldCollateral"
       }
     },
     "on_false": {
       "type": "condition",
-      "node_id": "N4",
-      "description": "Check if we have posted collateral and balance is healthy",
+      "node_id": "S4",
+      "description": "Have posted collateral AND balance healthy?",
       "condition": {
         "op": "and",
         "operands": [
@@ -515,7 +575,7 @@ For `PostCollateral` and `WithdrawCollateral`, support these parameters:
       },
       "on_true": {
         "type": "action",
-        "node_id": "A4",
+        "node_id": "SA4",
         "action": "WithdrawCollateral",
         "parameters": {
           "amount": {"field": "posted_collateral"},
@@ -524,10 +584,70 @@ For `PostCollateral` and `WithdrawCollateral`, support these parameters:
       },
       "on_false": {
         "type": "action",
-        "node_id": "A5",
-        "action": "HoldCollateral",
-        "parameters": {}
+        "node_id": "SA5",
+        "action": "HoldCollateral"
       }
+    }
+  },
+
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "E1",
+    "description": "Queue 2 empty for this agent?",
+    "condition": {
+      "op": "==",
+      "left": {"field": "queue2_count_for_agent"},
+      "right": {"value": 0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "E2",
+      "description": "Headroom >= 2x Queue 1 value?",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "headroom"},
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "queue1_total_value"},
+            "right": {"value": 2.0}
+          }
+        }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "E3",
+        "description": "Have collateral posted?",
+        "condition": {
+          "op": ">",
+          "left": {"field": "posted_collateral"},
+          "right": {"value": 0}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "EA1",
+          "action": "WithdrawCollateral",
+          "parameters": {
+            "amount": {"field": "posted_collateral"},
+            "reason": {"value": "EndOfDayCleanup"}
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "EA2",
+          "action": "HoldCollateral"
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "EA3",
+        "action": "HoldCollateral"
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "EA4",
+      "action": "HoldCollateral"
     }
   },
 
@@ -538,267 +658,144 @@ For `PostCollateral` and `WithdrawCollateral`, support these parameters:
 }
 ```
 
-### 6.3 Policy Behavior
+### 6.3 Tree Behaviors
 
-**Collateral Posting Triggers**:
-1. **Urgent + Gap**: Queue 1 has liquidity gap AND deadlines within 5 ticks
-2. **Capacity Available**: Can post enough to cover gap
-
-**Collateral Withdrawal Triggers**:
-1. **No Gap**: All Queue 1 transactions can be settled with current liquidity
-2. **Healthy Balance**: Balance > 1.5x target buffer (safety margin)
-3. **Collateral Posted**: Currently have collateral to withdraw
-
-**Transaction Release Logic** (unchanged from liquidity_aware):
+**Payment Tree**:
 - Release if urgent (deadline < threshold) and can pay
 - Release if non-urgent and balance - amount >= target_buffer
 - Hold otherwise
 
+**Strategic Collateral Tree** (Layer 1 - STEP 2.5):
+- **Post**: Queue 1 has liquidity gap AND urgent transactions AND have capacity
+- **Withdraw**: No liquidity gap AND balance > 1.5x target buffer AND collateral posted
+- **Hold**: Otherwise
+
+**End-of-Tick Collateral Tree** (Layer 2 - STEP 8):
+- **Withdraw**: Queue 2 empty AND headroom >= 2x Queue 1 value AND collateral posted
+- **Hold**: Otherwise
+
 ---
 
-## 7. End-of-Tick Collateral Manager
+## 7. End-of-Tick Collateral Layer (Layer 2)
 
 ### 7.1 Purpose
 
-**Automatic cleanup and emergency posting** that runs AFTER all settlements but BEFORE cost accrual.
+**Reactive cleanup and emergency posting** implemented as JSON decision tree policy that runs AFTER all settlements but BEFORE cost accrual.
 
-**Why Separate from Policy**:
-- Policies run once per tick (early in cycle)
-- State changes after policy evaluation (settlements occur)
-- Need a second pass to react to final state
-- Conservative rules (don't fight policy decisions)
+**Why Separate Layer**:
+- Strategic layer (Layer 1) runs BEFORE settlements - can't see final state
+- End-of-tick layer (Layer 2) runs AFTER settlements - sees final outcomes
+- Layer 1 = Strategic/predictive (policy-dependent)
+- Layer 2 = Reactive/conservative (can use system default or custom policy)
 
-### 7.2 Cleanup Rules (Withdraw)
+**Key Design Decision**: Both layers use the same JSON tree policy system - Layer 2 is NOT hardcoded Rust logic, it's a configurable decision tree.
 
-**Conditions (ALL must be true)**:
-1. Agent has posted collateral (`posted_collateral > 0`)
-2. Queue 2 is empty for this agent (all submitted transactions settled)
-3. All Queue 1 transactions can be settled with current headroom
-   - `available_liquidity - posted_collateral >= queue1_total_value`
-4. Balance is positive and healthy (`balance >= target_buffer`)
+### 7.2 Default Cleanup Policy
+
+**File**: `backend/policies/defaults/end_of_tick_cleanup.json`
+
+**Logic**: Withdraw collateral if Queue 2 is settled AND headroom is sufficient
+
+**Conditions**:
+1. Queue 2 empty for agent (`queue2_count_for_agent == 0`)
+2. Headroom >= 2x Queue 1 value (`headroom >= 2 * queue1_total_value`)
+3. Agent has posted collateral (`posted_collateral > 0`)
 
 **Action**: Withdraw ALL collateral
 
-**Reason**: Clearly not needed - everything can settle without it, so stop paying opportunity cost.
+**Reason**: `EndOfDayCleanup` - clearly not needed, stop paying opportunity cost
 
-### 7.3 Emergency Rules (Post)
+### 7.3 Custom End-of-Tick Policies
 
-**Conditions (ALL must be true)**:
-1. Queue 2 has transactions for this agent that can't settle
-2. Liquidity gap exists: `required_liquidity > available_liquidity`
-3. Deadline is imminent: `min(ticks_to_deadline) <= 2`
-4. Agent has remaining collateral capacity
+Agents can specify custom end-of-tick collateral trees in their policy files. Examples:
 
-**Action**: Post minimum collateral needed to cover gap (up to capacity)
-
-**Reason**: Emergency - about to miss deadline, need liquidity NOW.
+**Conservative** (system default): Only withdraw when very safe
+**Aggressive**: Withdraw more readily, post for predicted needs
+**Emergency-Only**: Never withdraw automatically, only post for deadline emergencies
 
 ### 7.4 Implementation
 
-**File**: `backend/src/orchestrator/collateral_manager.rs` (new)
+End-of-tick collateral decisions are implemented as the third tree in policy JSON files.
 
-```rust
-/// End-of-tick collateral management (automatic cleanup and emergency posting)
-pub struct CollateralManager {
-    /// Minimum ticks to deadline before emergency posting
-    emergency_deadline_threshold: usize,
+**Example: Default Cleanup Policy**
 
-    /// Minimum balance multiplier for safe withdrawal (e.g., 1.5x buffer)
-    withdrawal_safety_margin: f64,
-}
+```json
+{
+  "version": "1.0",
+  "policy_id": "default_end_of_tick_cleanup",
+  "description": "Conservative cleanup: withdraw when Queue 2 settled and headroom sufficient",
 
-impl CollateralManager {
-    pub fn new(emergency_threshold: usize, safety_margin: f64) -> Self {
-        Self {
-            emergency_deadline_threshold: emergency_threshold,
-            withdrawal_safety_margin: safety_margin,
+  "payment_tree": null,
+  "strategic_collateral_tree": null,
+
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "E1",
+    "description": "Queue 2 empty for agent?",
+    "condition": {
+      "op": "==",
+      "left": {"field": "queue2_count_for_agent"},
+      "right": {"value": 0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "E2",
+      "description": "Headroom >= 2x Queue 1 value?",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "headroom"},
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "queue1_total_value"},
+            "right": {"value": 2.0}
+          }
         }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "E3",
+        "description": "Have collateral posted?",
+        "condition": {
+          "op": ">",
+          "left": {"field": "posted_collateral"},
+          "right": {"value": 0}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "EA1",
+          "action": "WithdrawCollateral",
+          "parameters": {
+            "amount": {"field": "posted_collateral"},
+            "reason": {"value": "EndOfDayCleanup"}
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "EA2",
+          "action": "HoldCollateral"
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "EA3",
+        "action": "HoldCollateral"
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "EA4",
+      "action": "HoldCollateral"
     }
-
-    /// Run end-of-tick collateral management for all agents
-    pub fn manage_collateral(
-        &self,
-        state: &mut SimulationState,
-        tick: usize,
-        event_log: &mut EventLog,
-    ) {
-        let agent_ids: Vec<String> = state.agents().keys().cloned().collect();
-
-        for agent_id in agent_ids {
-            // Try withdrawal first (cleanup)
-            if self.should_withdraw_collateral(state, &agent_id, tick) {
-                self.execute_withdrawal(state, &agent_id, tick, event_log);
-            }
-
-            // Then check emergency posting
-            else if self.should_post_collateral(state, &agent_id, tick) {
-                self.execute_emergency_posting(state, &agent_id, tick, event_log);
-            }
-        }
-    }
-
-    /// Check if agent should withdraw collateral (cleanup)
-    fn should_withdraw_collateral(
-        &self,
-        state: &SimulationState,
-        agent_id: &str,
-        tick: usize,
-    ) -> bool {
-        let agent = match state.get_agent(agent_id) {
-            Some(a) => a,
-            None => return false,
-        };
-
-        // Must have collateral to withdraw
-        if agent.posted_collateral() == 0 {
-            return false;
-        }
-
-        // Check Queue 2 empty for this agent
-        let has_queue2_txs = state.rtgs_queue()
-            .iter()
-            .any(|tx_id| {
-                state.get_transaction(tx_id)
-                    .map(|tx| tx.sender() == agent_id)
-                    .unwrap_or(false)
-            });
-
-        if has_queue2_txs {
-            return false;
-        }
-
-        // Check Queue 1 can settle without collateral
-        let queue1_total = agent.outgoing_queue()
-            .iter()
-            .filter_map(|tx_id| state.get_transaction(tx_id))
-            .map(|tx| tx.remaining_amount())
-            .sum::<i64>();
-
-        let liquidity_without_collateral = agent.balance() + agent.credit_limit();
-
-        if queue1_total > liquidity_without_collateral {
-            return false;
-        }
-
-        // Check balance is healthy
-        let target_buffer = agent.liquidity_buffer();
-        let healthy_balance = (target_buffer as f64 * self.withdrawal_safety_margin) as i64;
-
-        agent.balance() >= healthy_balance
-    }
-
-    /// Execute collateral withdrawal
-    fn execute_withdrawal(
-        &self,
-        state: &mut SimulationState,
-        agent_id: &str,
-        tick: usize,
-        event_log: &mut EventLog,
-    ) {
-        if let Some(agent) = state.get_agent_mut(agent_id) {
-            let amount = agent.posted_collateral();
-            agent.set_posted_collateral(0);
-
-            event_log.log(Event::CollateralChange {
-                tick,
-                agent_id: agent_id.to_string(),
-                action: "withdraw".to_string(),
-                amount,
-                reason: "end_of_tick_cleanup".to_string(),
-            });
-        }
-    }
-
-    /// Check if agent should post collateral (emergency)
-    fn should_post_collateral(
-        &self,
-        state: &SimulationState,
-        agent_id: &str,
-        tick: usize,
-    ) -> bool {
-        let agent = match state.get_agent(agent_id) {
-            Some(a) => a,
-            None => return false,
-        };
-
-        // Must have capacity to post
-        if agent.remaining_collateral_capacity() == 0 {
-            return false;
-        }
-
-        // Find Queue 2 transactions with imminent deadlines
-        let urgent_queue2_txs: Vec<_> = state.rtgs_queue()
-            .iter()
-            .filter_map(|tx_id| state.get_transaction(tx_id))
-            .filter(|tx| tx.sender() == agent_id)
-            .filter(|tx| {
-                let ticks_to_deadline = tx.deadline().saturating_sub(tick);
-                ticks_to_deadline <= self.emergency_deadline_threshold
-            })
-            .collect();
-
-        if urgent_queue2_txs.is_empty() {
-            return false;
-        }
-
-        // Calculate liquidity gap
-        let required: i64 = urgent_queue2_txs.iter()
-            .map(|tx| tx.remaining_amount())
-            .sum();
-
-        let available = agent.available_liquidity();
-
-        required > available
-    }
-
-    /// Execute emergency collateral posting
-    fn execute_emergency_posting(
-        &self,
-        state: &mut SimulationState,
-        agent_id: &str,
-        tick: usize,
-        event_log: &mut EventLog,
-    ) {
-        let agent = match state.get_agent(agent_id) {
-            Some(a) => a,
-            None => return,
-        };
-
-        // Calculate gap
-        let required: i64 = state.rtgs_queue()
-            .iter()
-            .filter_map(|tx_id| state.get_transaction(tx_id))
-            .filter(|tx| tx.sender() == agent_id)
-            .filter(|tx| {
-                let ticks_to_deadline = tx.deadline().saturating_sub(tick);
-                ticks_to_deadline <= self.emergency_deadline_threshold
-            })
-            .map(|tx| tx.remaining_amount())
-            .sum();
-
-        let available = agent.available_liquidity();
-        let gap = required.saturating_sub(available);
-
-        // Post minimum of (gap, remaining_capacity)
-        let to_post = gap.min(agent.remaining_collateral_capacity());
-
-        if to_post > 0 {
-            if let Some(agent_mut) = state.get_agent_mut(agent_id) {
-                let new_total = agent_mut.posted_collateral() + to_post;
-                agent_mut.set_posted_collateral(new_total);
-
-                event_log.log(Event::CollateralChange {
-                    tick,
-                    agent_id: agent_id.to_string(),
-                    action: "post".to_string(),
-                    amount: to_post,
-                    reason: "emergency_deadline".to_string(),
-                });
-            }
-        }
-    }
+  }
 }
 ```
+
+**Key Implementation Points**:
+- End-of-tick trees have access to same context fields as strategic trees
+- Can use `queue2_count_for_agent`, `headroom`, `posted_collateral`, etc.
+- Trees evaluated by `TreePolicy::evaluate_end_of_tick_collateral()` method
+- Orchestrator calls this at STEP 8 (after LSM, before costs)
 
 ---
 
@@ -808,157 +805,91 @@ impl CollateralManager {
 
 **File**: `backend/src/orchestrator/engine.rs`
 
+The tick loop now has TWO collateral evaluation points:
+
 ```rust
-// Step 3: Policy Evaluation (EXTENDED)
+// STEP 2: Policy Evaluation
 for agent_id in agent_ids {
     let agent = self.state.get_agent(&agent_id).unwrap();
 
-    // 3a. Evaluate queue (existing)
-    let release_decisions = self.policies.get_mut(&agent_id)
-        .unwrap()
-        .evaluate_queue(agent, &self.state, current_tick);
+    // Evaluate payment tree (existing)
+    let release_decisions = policy.evaluate_payment_tree(agent, &self.state, current_tick);
 
-    // 3b. Evaluate collateral (NEW)
-    let collateral_decision = self.policies.get_mut(&agent_id)
-        .unwrap()
-        .evaluate_collateral(agent, &self.state, current_tick);
-
-    // Store decisions for execution
+    // Store for execution
     self.pending_release_decisions.insert(agent_id.clone(), release_decisions);
-    self.pending_collateral_decisions.insert(agent_id.clone(), collateral_decision);
 }
 
-// NEW STEP: Execute Collateral Decisions (before RTGS submission)
-self.execute_collateral_decisions(current_tick)?;
+// STEP 2.5: STRATEGIC COLLATERAL LAYER (Layer 1)
+for agent_id in agent_ids {
+    let agent = self.state.get_agent(&agent_id).unwrap();
 
-// Step 4-7: Existing (Queue 1 processing, splitting, RTGS, LSM)
-// ...
+    // Only TreePolicy supports collateral evaluation
+    if let Some(tree_policy) = self.policies.get_mut(&agent_id)
+        .and_then(|p| p.as_any_mut().downcast_mut::<TreePolicy>())
+    {
+        // Evaluate strategic collateral tree
+        let decision = tree_policy.evaluate_strategic_collateral(
+            agent, &self.state, current_tick, &self.cost_rates
+        );
 
-// NEW STEP: End-of-Tick Collateral Management (after LSM, before costs)
-self.collateral_manager.manage_collateral(
-    &mut self.state,
-    current_tick,
-    &mut self.event_log,
-);
+        // Execute immediately
+        self.execute_collateral_decision(&agent_id, decision, current_tick)?;
+    }
+}
 
-// Step 8: Cost Accrual (existing, now includes collateral costs)
+// STEP 3-7: Queue processing, splitting, RTGS, LSM
+// ... (existing steps)
+
+// STEP 8: END-OF-TICK COLLATERAL LAYER (Layer 2) - NEW!
+for agent_id in agent_ids {
+    let agent = self.state.get_agent(&agent_id).unwrap();
+
+    if let Some(tree_policy) = self.policies.get_mut(&agent_id)
+        .and_then(|p| p.as_any_mut().downcast_mut::<TreePolicy>())
+    {
+        // Evaluate end-of-tick collateral tree
+        let decision = tree_policy.evaluate_end_of_tick_collateral(
+            agent, &self.state, current_tick, &self.cost_rates
+        );
+
+        // Execute immediately
+        self.execute_collateral_decision(&agent_id, decision, current_tick)?;
+    }
+}
+
+// STEP 9: Cost Accrual (existing, includes collateral costs)
 self.accrue_costs(current_tick);
 ```
 
+**Key Points**:
+- STEP 2.5 runs BEFORE settlements (strategic, forward-looking)
+- STEP 8 runs AFTER settlements (reactive, sees final state)
+- Both use same `execute_collateral_decision()` helper
+- Both use tree evaluation (no hardcoded logic)
+
 ### 8.2 Execute Collateral Decisions
 
+**Status**: ✅ Already Implemented (Phase 1)
+
+The `execute_collateral_decision()` helper method handles:
+- Validation (capacity checks, amount validation)
+- State updates (post/withdraw collateral)
+- Event logging (CollateralPost/CollateralWithdraw events with reason)
+
+**Signature**:
 ```rust
-/// Execute pending collateral decisions from policies
-fn execute_collateral_decisions(&mut self, tick: usize) -> Result<(), SimulationError> {
-    let decisions = std::mem::take(&mut self.pending_collateral_decisions);
-
-    for (agent_id, decision) in decisions {
-        match decision {
-            CollateralDecision::Post { amount, reason } => {
-                self.execute_post_collateral(&agent_id, amount, reason, tick)?;
-            }
-            CollateralDecision::Withdraw { amount, reason } => {
-                self.execute_withdraw_collateral(&agent_id, amount, reason, tick)?;
-            }
-            CollateralDecision::Hold => {
-                // No action
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Post collateral for an agent
-fn execute_post_collateral(
+fn execute_collateral_decision(
     &mut self,
     agent_id: &str,
-    amount: i64,
-    reason: CollateralReason,
+    decision: CollateralDecision,
     tick: usize,
-) -> Result<(), SimulationError> {
-    let agent = self.state.get_agent_mut(agent_id)
-        .ok_or_else(|| SimulationError::AgentNotFound(agent_id.to_string()))?;
-
-    // Validate capacity
-    if !agent.can_post_collateral(amount) {
-        return Err(SimulationError::InsufficientCollateralCapacity {
-            agent_id: agent_id.to_string(),
-            requested: amount,
-            available: agent.remaining_collateral_capacity(),
-        });
-    }
-
-    // Execute
-    let new_total = agent.posted_collateral() + amount;
-    agent.set_posted_collateral(new_total);
-
-    // Log event
-    self.log_event(Event::CollateralChange {
-        tick,
-        agent_id: agent_id.to_string(),
-        action: "post".to_string(),
-        amount,
-        reason: format!("{:?}", reason),
-    });
-
-    Ok(())
-}
-
-/// Withdraw collateral for an agent
-fn execute_withdraw_collateral(
-    &mut self,
-    agent_id: &str,
-    amount: i64,
-    reason: CollateralReason,
-    tick: usize,
-) -> Result<(), SimulationError> {
-    let agent = self.state.get_agent_mut(agent_id)
-        .ok_or_else(|| SimulationError::AgentNotFound(agent_id.to_string()))?;
-
-    // Validate amount
-    if !agent.can_withdraw_collateral(amount) {
-        return Err(SimulationError::InsufficientCollateral {
-            agent_id: agent_id.to_string(),
-            requested: amount,
-            available: agent.posted_collateral(),
-        });
-    }
-
-    // Execute
-    let new_total = agent.posted_collateral() - amount;
-    agent.set_posted_collateral(new_total);
-
-    // Log event
-    self.log_event(Event::CollateralChange {
-        tick,
-        agent_id: agent_id.to_string(),
-        action: "withdraw".to_string(),
-        amount,
-        reason: format!("{:?}", reason),
-    });
-
-    Ok(())
-}
+) -> Result<(), SimulationError>
 ```
 
-### 8.3 New Event Type
-
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Event {
-    // Existing events...
-
-    /// Collateral change event
-    CollateralChange {
-        tick: usize,
-        agent_id: String,
-        action: String,  // "post" or "withdraw"
-        amount: i64,
-        reason: String,
-    },
-}
-```
+This method matches on the CollateralDecision enum:
+- `Post { amount, reason }` → validates capacity, posts collateral, logs event
+- `Withdraw { amount, reason }` → validates amount available, withdraws, logs event
+- `Hold` → no action
 
 ---
 
