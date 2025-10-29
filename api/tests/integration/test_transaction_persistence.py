@@ -320,13 +320,12 @@ class TestPolarsDataFrameConversion:
 class TestDuckDBBatchWrite:
     """Test batch writing transactions to DuckDB."""
 
-    def test_insert_transactions_to_duckdb(self, tmp_path):
+    def test_insert_transactions_to_duckdb(self, db_path):
         """Verify transactions can be batch inserted into DuckDB."""
         import polars as pl
         from payment_simulator.persistence.connection import DatabaseManager
 
         # Setup database
-        db_path = tmp_path / "test.db"
         manager = DatabaseManager(db_path)
         manager.setup()
 
@@ -374,14 +373,13 @@ class TestDuckDBBatchWrite:
 
         manager.close()
 
-    def test_batch_write_performance_40k_transactions(self, tmp_path):
+    def test_batch_write_performance_40k_transactions(self, db_path):
         """Verify 40K transaction insert completes in <500ms (performance target)."""
         import time
         import polars as pl
         from payment_simulator.persistence.connection import DatabaseManager
 
         # Setup database
-        db_path = tmp_path / "perf_test.db"
         manager = DatabaseManager(db_path)
         manager.setup()
 
@@ -433,13 +431,12 @@ class TestDuckDBBatchWrite:
 class TestEndToEndTransactionPersistence:
     """End-to-end tests for transaction persistence workflow."""
 
-    def test_full_simulation_with_transaction_persistence(self, tmp_path):
+    def test_full_simulation_with_transaction_persistence(self, db_path):
         """Run simulation, persist transactions, verify data survives restart."""
         from payment_simulator._core import Orchestrator
         from payment_simulator.persistence.connection import DatabaseManager
         import polars as pl
 
-        db_path = tmp_path / "simulation.db"
         manager = DatabaseManager(db_path)
         manager.setup()
 

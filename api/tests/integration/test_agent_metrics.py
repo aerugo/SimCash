@@ -644,13 +644,12 @@ class TestPolarsDataFrameConversion:
 class TestDuckDBBatchWrite:
     """Test batch writing agent metrics to DuckDB."""
 
-    def test_insert_agent_metrics_to_duckdb(self, tmp_path):
+    def test_insert_agent_metrics_to_duckdb(self, db_path):
         """Verify agent metrics can be batch inserted into DuckDB."""
         import polars as pl
         from payment_simulator.persistence.connection import DatabaseManager
 
         # Setup database
-        db_path = tmp_path / "test.db"
         manager = DatabaseManager(db_path)
         manager.setup()
 
@@ -707,14 +706,13 @@ class TestDuckDBBatchWrite:
 
         manager.close()
 
-    def test_batch_write_performance_1000_agent_days(self, tmp_path):
+    def test_batch_write_performance_1000_agent_days(self, db_path):
         """Verify 1000 agent-day metrics insert completes quickly."""
         import time
         import polars as pl
         from payment_simulator.persistence.connection import DatabaseManager
 
         # Setup database
-        db_path = tmp_path / "perf_test.db"
         manager = DatabaseManager(db_path)
         manager.setup()
 
@@ -774,13 +772,12 @@ class TestDuckDBBatchWrite:
 class TestEndToEndAgentMetricsPersistence:
     """End-to-end tests for agent metrics persistence workflow."""
 
-    def test_full_simulation_with_agent_metrics_persistence(self, tmp_path):
+    def test_full_simulation_with_agent_metrics_persistence(self, db_path):
         """Run simulation, persist agent metrics, verify data survives restart."""
         from payment_simulator._core import Orchestrator
         from payment_simulator.persistence.connection import DatabaseManager
         import polars as pl
 
-        db_path = tmp_path / "simulation.db"
         manager = DatabaseManager(db_path)
         manager.setup()
 
