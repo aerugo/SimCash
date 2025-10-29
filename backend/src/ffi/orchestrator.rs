@@ -3,10 +3,10 @@
 //! This module provides the Python interface to the Rust orchestrator.
 
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList};
 
 use crate::orchestrator::Orchestrator as RustOrchestrator;
-use super::types::{parse_orchestrator_config, tick_result_to_py};
+use super::types::{parse_orchestrator_config, tick_result_to_py, transaction_to_py};
 
 /// Python wrapper for Rust Orchestrator
 ///
@@ -273,5 +273,58 @@ impl PyOrchestrator {
                     e
                 ))
             })
+    }
+
+    // ========================================================================
+    // Persistence Methods (Phase 10)
+    // ========================================================================
+
+    /// Get all transactions that arrived during a specific day
+    ///
+    /// Returns a list of dictionaries, each representing a transaction that
+    /// arrived during the specified day. The dictionaries match the schema
+    /// of the TransactionRecord Pydantic model for direct insertion into DuckDB.
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - Day number (0-indexed)
+    ///
+    /// # Returns
+    ///
+    /// List of transaction dictionaries with all fields required by TransactionRecord
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// # Run simulation for one day
+    /// for _ in range(100):  # 100 ticks per day
+    ///     orch.tick()
+    ///
+    /// # Get all transactions from day 0
+    /// daily_txs = orch.get_transactions_for_day(0)
+    ///
+    /// # Convert to Polars DataFrame
+    /// import polars as pl
+    /// df = pl.DataFrame(daily_txs)
+    ///
+    /// # Write to DuckDB
+    /// conn.execute("INSERT INTO transactions SELECT * FROM df")
+    /// ```
+    fn get_transactions_for_day(&self, py: Python, day: usize) -> PyResult<Py<PyList>> {
+        // Get transactions from Rust orchestrator
+        let transactions = self.inner.get_transactions_for_day(day);
+
+        // Get simulation metadata for conversion
+        let simulation_id = self.inner.simulation_id();
+        let ticks_per_day = self.inner.ticks_per_day();
+
+        // Convert each transaction to Python dict
+        let py_list = PyList::empty(py);
+        for tx in transactions {
+            let tx_dict = transaction_to_py(py, tx, &simulation_id, ticks_per_day)?;
+            py_list.append(tx_dict)?;
+        }
+
+        Ok(py_list.into())
     }
 }
