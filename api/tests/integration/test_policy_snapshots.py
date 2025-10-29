@@ -1,11 +1,10 @@
 """
 Integration Tests for Policy Snapshot Tracking (Phase 4)
 
-Tests policy change tracking, file management, and hash-based deduplication.
+Tests policy change tracking and hash-based deduplication.
+Policies are stored only in database (no file storage).
 
-TDD Phase: RED
-These tests define requirements before implementation.
-Expected to FAIL until Phase 4.2-4.3 implementation.
+Updated: Database-only storage implementation
 """
 
 import json
@@ -29,7 +28,6 @@ class TestPolicySnapshotModel:
             snapshot_day=0,
             snapshot_tick=0,
             policy_hash="a" * 64,  # SHA256 hex string
-            policy_file_path="backend/policies/BANK_A_policy_v1.json",
             policy_json='{"type": "fifo"}',
             created_by="init",
         )
@@ -93,70 +91,11 @@ class TestPolicyHashComputation:
         assert hash1 == hash2 == hash3
 
 
-class TestPolicyFileManagement:
-    """Test policy file storage and versioning."""
-
-    def test_save_policy_file_creates_file(self, tmp_path):
-        """Should save policy JSON to versioned file."""
-        from payment_simulator.persistence.policy_tracking import save_policy_file
-
-        policy_json = '{"type": "liquidity_aware", "threshold": 5000}'
-
-        file_path = save_policy_file(
-            agent_id="BANK_A",
-            version="v1",
-            policy_json=policy_json,
-            base_dir=tmp_path,
-        )
-
-        assert file_path.exists()
-        assert file_path.name == "BANK_A_policy_v1.json"
-        assert file_path.parent == tmp_path
-
-        # Verify content
-        saved_content = file_path.read_text()
-        assert json.loads(saved_content) == json.loads(policy_json)
-
-    def test_save_policy_file_creates_directory(self, tmp_path):
-        """Should create base directory if it doesn't exist."""
-        from payment_simulator.persistence.policy_tracking import save_policy_file
-
-        policy_dir = tmp_path / "policies"
-        assert not policy_dir.exists()
-
-        policy_json = '{"type": "fifo"}'
-
-        file_path = save_policy_file(
-            agent_id="BANK_B",
-            version="v1",
-            policy_json=policy_json,
-            base_dir=policy_dir,
-        )
-
-        assert policy_dir.exists()
-        assert file_path.exists()
-
-    def test_save_policy_file_with_multiple_versions(self, tmp_path):
-        """Should handle multiple versions of same agent's policy."""
-        from payment_simulator.persistence.policy_tracking import save_policy_file
-
-        policy_v1 = '{"type": "fifo"}'
-        policy_v2 = '{"type": "priority"}'
-
-        file_v1 = save_policy_file("BANK_A", "v1", policy_v1, tmp_path)
-        file_v2 = save_policy_file("BANK_A", "v2", policy_v2, tmp_path)
-
-        assert file_v1.exists()
-        assert file_v2.exists()
-        assert file_v1.name == "BANK_A_policy_v1.json"
-        assert file_v2.name == "BANK_A_policy_v2.json"
-
-
 class TestPolicySnapshotCreation:
     """Test policy snapshot record creation."""
 
-    def test_create_policy_snapshot_with_hash(self, tmp_path):
-        """Should create snapshot with computed hash and file path."""
+    def test_create_policy_snapshot_with_hash(self):
+        """Should create snapshot with computed hash."""
         from payment_simulator.persistence.policy_tracking import create_policy_snapshot
 
         policy_json = '{"type": "fifo", "threshold": 1000}'
@@ -168,7 +107,6 @@ class TestPolicySnapshotCreation:
             snapshot_tick=0,
             policy_json=policy_json,
             created_by="init",
-            policy_dir=tmp_path,
         )
 
         assert snapshot["simulation_id"] == "test-sim-001"
@@ -178,14 +116,10 @@ class TestPolicySnapshotCreation:
         assert len(snapshot["policy_hash"]) == 64
         assert snapshot["policy_json"] == policy_json
         assert snapshot["created_by"] == "init"
+        # No file operations - policy stored only in database
 
-        # Verify file was created
-        assert "policy_file_path" in snapshot
-        file_path = Path(snapshot["policy_file_path"])
-        assert file_path.exists()
-
-    def test_create_policy_snapshot_deduplicates_by_hash(self, tmp_path):
-        """Identical policies should reuse existing file."""
+    def test_create_policy_snapshot_same_hash_for_identical_policies(self):
+        """Identical policies should produce same hash."""
         from payment_simulator.persistence.policy_tracking import create_policy_snapshot
 
         policy_json = '{"type": "fifo"}'
@@ -197,7 +131,6 @@ class TestPolicySnapshotCreation:
             snapshot_tick=0,
             policy_json=policy_json,
             created_by="init",
-            policy_dir=tmp_path,
         )
 
         snapshot2 = create_policy_snapshot(
@@ -207,14 +140,13 @@ class TestPolicySnapshotCreation:
             snapshot_tick=0,
             policy_json=policy_json,  # Same policy
             created_by="init",
-            policy_dir=tmp_path,
         )
 
-        # Same hash
+        # Same hash (deduplication via hash)
         assert snapshot1["policy_hash"] == snapshot2["policy_hash"]
 
-        # Different file paths (agent-specific)
-        assert snapshot1["policy_file_path"] != snapshot2["policy_file_path"]
+        # Both store full policy JSON
+        assert snapshot1["policy_json"] == snapshot2["policy_json"]
 
 
 class TestPolicySnapshotPersistence:
@@ -237,7 +169,6 @@ class TestPolicySnapshotPersistence:
                 "snapshot_day": 0,
                 "snapshot_tick": 0,
                 "policy_hash": "a" * 64,
-                "policy_file_path": "backend/policies/BANK_A_policy_v1.json",
                 "policy_json": '{"type": "fifo"}',
                 "created_by": "init",
             },
@@ -247,7 +178,6 @@ class TestPolicySnapshotPersistence:
                 "snapshot_day": 0,
                 "snapshot_tick": 0,
                 "policy_hash": "b" * 64,
-                "policy_file_path": "backend/policies/BANK_B_policy_v1.json",
                 "policy_json": '{"type": "priority"}',
                 "created_by": "init",
             },
@@ -256,9 +186,9 @@ class TestPolicySnapshotPersistence:
         # Write to DuckDB
         write_policy_snapshots(manager.conn, snapshots)
 
-        # Verify
+        # Verify (exclude templates loaded during setup)
         result = manager.conn.execute(
-            "SELECT COUNT(*) as count FROM policy_snapshots"
+            "SELECT COUNT(*) as count FROM policy_snapshots WHERE simulation_id != 'templates'"
         ).fetchone()
         assert result[0] == 2
 
@@ -266,6 +196,7 @@ class TestPolicySnapshotPersistence:
         df = manager.conn.execute("""
             SELECT simulation_id, agent_id, policy_hash, created_by
             FROM policy_snapshots
+            WHERE simulation_id != 'templates'
             ORDER BY agent_id
         """).pl()
 
@@ -292,7 +223,6 @@ class TestPolicySnapshotPersistence:
                 "snapshot_day": 0,
                 "snapshot_tick": 0,
                 "policy_hash": "a" * 64,
-                "policy_file_path": "backend/policies/BANK_A_policy_v1.json",
                 "policy_json": '{"type": "fifo"}',
                 "created_by": "init",
             },
@@ -305,7 +235,6 @@ class TestPolicySnapshotPersistence:
                 "snapshot_day": 0,
                 "snapshot_tick": 0,
                 "policy_hash": "x" * 64,
-                "policy_file_path": "backend/policies/BANK_X_policy_v1.json",
                 "policy_json": '{"type": "priority"}',
                 "created_by": "init",
             },
@@ -330,7 +259,7 @@ class TestPolicySnapshotPersistence:
 class TestPolicySnapshotIntegration:
     """Test policy snapshot integration with simulation lifecycle."""
 
-    def test_capture_initial_policies_at_simulation_start(self, db_path, tmp_path):
+    def test_capture_initial_policies_at_simulation_start(self, db_path):
         """Should capture all agent policies when simulation starts."""
         from payment_simulator.persistence.policy_tracking import capture_initial_policies
 
@@ -346,15 +275,14 @@ class TestPolicySnapshotIntegration:
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
                 "credit_limit": 300_000,
-                "policy": {"type": "Priority"},
+                "policy": {"type": "Fifo"},
             },
         ]
 
-        # Capture initial policies
+        # Capture initial policies (no file storage)
         snapshots = capture_initial_policies(
             agent_configs=agent_configs,
             simulation_id="test-sim-001",
-            policy_dir=tmp_path,
         )
 
         assert len(snapshots) == 2
@@ -366,7 +294,7 @@ class TestPolicySnapshotIntegration:
         agent_ids = {s["agent_id"] for s in snapshots}
         assert agent_ids == {"BANK_A", "BANK_B"}
 
-    def test_policy_snapshot_reconstructs_history(self, db_path, tmp_path):
+    def test_policy_snapshot_reconstructs_history(self, db_path):
         """Should reconstruct policy history for an agent."""
         from payment_simulator.persistence.connection import DatabaseManager
         from payment_simulator.persistence.writers import write_policy_snapshots
@@ -382,7 +310,6 @@ class TestPolicySnapshotIntegration:
                 "snapshot_day": 0,
                 "snapshot_tick": 0,
                 "policy_hash": "a" * 64,
-                "policy_file_path": "backend/policies/BANK_A_policy_v1.json",
                 "policy_json": '{"type": "fifo"}',
                 "created_by": "init",
             },
@@ -392,7 +319,6 @@ class TestPolicySnapshotIntegration:
                 "snapshot_day": 5,
                 "snapshot_tick": 50,
                 "policy_hash": "b" * 64,
-                "policy_file_path": "backend/policies/BANK_A_policy_v2.json",
                 "policy_json": '{"type": "priority"}',
                 "created_by": "llm",
             },
@@ -402,7 +328,6 @@ class TestPolicySnapshotIntegration:
                 "snapshot_day": 10,
                 "snapshot_tick": 100,
                 "policy_hash": "c" * 64,
-                "policy_file_path": "backend/policies/BANK_A_policy_v3.json",
                 "policy_json": '{"type": "liquidity_aware"}',
                 "created_by": "manual",
             },
@@ -423,6 +348,58 @@ class TestPolicySnapshotIntegration:
         assert df["created_by"].to_list() == ["init", "llm", "manual"]
 
         manager.close()
+
+
+class TestPolicyTemplateLoading:
+    """Test loading policy templates from disk into database."""
+
+    def test_load_policy_templates_from_disk(self):
+        """Should load policy template files from backend/policies/."""
+        from payment_simulator.persistence.policy_tracking import load_policy_templates
+
+        templates = load_policy_templates()
+
+        assert isinstance(templates, list)
+        assert len(templates) > 0  # Should find fifo.json, liquidity_aware.json, etc.
+
+        # All templates should have simulation_id="templates"
+        assert all(t["simulation_id"] == "templates" for t in templates)
+
+        # Should have expected templates
+        template_names = {t["agent_id"] for t in templates}
+        assert "fifo" in template_names
+        assert "liquidity_aware" in template_names
+
+        # All should have policy_json field
+        assert all("policy_json" in t for t in templates)
+        assert all("policy_hash" in t for t in templates)
+
+    def test_database_manager_loads_templates_on_setup(self, db_path):
+        """DatabaseManager should auto-load templates on first setup."""
+        from payment_simulator.persistence.connection import DatabaseManager
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Check templates were loaded
+        templates_count = manager.conn.execute(
+            "SELECT COUNT(*) FROM policy_snapshots WHERE simulation_id = 'templates'"
+        ).fetchone()[0]
+
+        assert templates_count > 0  # Should have loaded templates
+
+        # Templates should not be reloaded on subsequent setup
+        manager2 = DatabaseManager(db_path)
+        manager2.setup()
+
+        templates_count2 = manager2.conn.execute(
+            "SELECT COUNT(*) FROM policy_snapshots WHERE simulation_id = 'templates'"
+        ).fetchone()[0]
+
+        assert templates_count2 == templates_count  # Same count, not duplicated
+
+        manager.close()
+        manager2.close()
 
 
 if __name__ == "__main__":

@@ -37,7 +37,6 @@ def write_policy_snapshots(
         ...         "snapshot_day": 0,
         ...         "snapshot_tick": 0,
         ...         "policy_hash": "a" * 64,
-        ...         "policy_file_path": "backend/policies/BANK_A_policy_v1.json",
         ...         "policy_json": '{"type": "fifo"}',
         ...         "created_by": "init",
         ...     }
@@ -60,7 +59,6 @@ def write_policy_snapshots(
         "snapshot_day",
         "snapshot_tick",
         "policy_hash",
-        "policy_file_path",
         "policy_json",
         "created_by",
     ])

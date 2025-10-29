@@ -180,12 +180,13 @@ class DatabaseManager:
         migration_manager.apply_pending_migrations()
 
     def setup(self):
-        """Complete database setup: initialize + migrate + validate.
+        """Complete database setup: initialize + migrate + validate + load templates.
 
         Performs full database setup in correct order:
         1. Initialize schema from Pydantic models
         2. Apply any pending migrations
         3. Validate schema matches models
+        4. Load policy templates (once per database)
 
         Raises:
             RuntimeError: If schema validation fails
@@ -201,6 +202,8 @@ class DatabaseManager:
               ✓ simulation_runs
               ✓ daily_agent_metrics
               ✓ collateral_events
+              ✓ policy_snapshots
+              ✓ Policy templates loaded (5 templates)
             Database setup complete
         """
         # 1. Initialize schema (creates tables if not exist)
@@ -217,7 +220,34 @@ class DatabaseManager:
                 "Create a migration file to fix the schema, or delete the database and reinitialize."
             )
 
+        # 4. Load policy templates if not already loaded
+        self._load_policy_templates_if_needed()
+
         print("Database setup complete")
+
+    def _load_policy_templates_if_needed(self):
+        """Load policy templates from disk if not already in database."""
+        # Check if templates already loaded
+        existing_count = self.conn.execute(
+            "SELECT COUNT(*) FROM policy_snapshots WHERE simulation_id = 'templates'"
+        ).fetchone()[0]
+
+        if existing_count > 0:
+            print(f"  ✓ Policy templates already loaded ({existing_count} templates)")
+            return
+
+        # Load templates from disk
+        from .policy_tracking import load_policy_templates
+        from .writers import write_policy_snapshots
+
+        print("  Loading policy templates from disk...")
+        templates = load_policy_templates()
+
+        if templates:
+            write_policy_snapshots(self.conn, templates)
+            print(f"  ✓ Loaded {len(templates)} policy templates")
+        else:
+            print("  ⚠ No policy templates found")
 
     def close(self):
         """Close database connection.
