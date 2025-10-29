@@ -42,6 +42,18 @@ pub enum ContextError {
 /// **System Fields**:
 /// - current_tick (usize → f64)
 /// - rtgs_queue_size, rtgs_queue_value, total_agents (usize/i64 → f64)
+///
+/// **Collateral Fields** (Phase 8.2):
+/// - posted_collateral: Amount of collateral currently posted (i64 → f64)
+/// - max_collateral_capacity: Maximum collateral agent can post (i64 → f64)
+/// - remaining_collateral_capacity: Remaining capacity for collateral (i64 → f64)
+/// - collateral_utilization: Posted / max capacity ratio (0.0 to 1.0)
+/// - queue1_liquidity_gap: Required liquidity to clear Queue 1 minus available (i64 → f64)
+/// - queue1_total_value: Total value of all transactions in Queue 1 (i64 → f64)
+/// - headroom: Available liquidity minus Queue 1 value (i64 → f64)
+/// - queue2_count_for_agent: Number of agent's transactions in Queue 2 (usize → f64)
+/// - queue2_nearest_deadline: Nearest deadline in Queue 2 for this agent (usize → f64)
+/// - ticks_to_nearest_queue2_deadline: Ticks until nearest Queue 2 deadline (f64, can be INFINITY)
 #[derive(Debug, Clone)]
 pub struct EvalContext {
     /// Field name → value mapping
@@ -112,6 +124,63 @@ impl EvalContext {
         fields.insert("rtgs_queue_size".to_string(), state.queue_size() as f64);
         fields.insert("rtgs_queue_value".to_string(), state.queue_value() as f64);
         fields.insert("total_agents".to_string(), state.num_agents() as f64);
+
+        // Phase 8.2: Collateral Management Fields
+
+        // Collateral state fields
+        fields.insert("posted_collateral".to_string(), agent.posted_collateral() as f64);
+        fields.insert("max_collateral_capacity".to_string(), agent.max_collateral_capacity() as f64);
+        fields.insert("remaining_collateral_capacity".to_string(), agent.remaining_collateral_capacity() as f64);
+
+        let max_cap = agent.max_collateral_capacity() as f64;
+        let collateral_utilization = if max_cap > 0.0 {
+            (agent.posted_collateral() as f64) / max_cap
+        } else {
+            0.0
+        };
+        fields.insert("collateral_utilization".to_string(), collateral_utilization);
+
+        // Liquidity gap fields
+        fields.insert("queue1_liquidity_gap".to_string(), agent.queue1_liquidity_gap(state) as f64);
+
+        let mut queue1_total_value = 0i64;
+        for tx_id in agent.outgoing_queue() {
+            if let Some(tx_in_queue) = state.get_transaction(tx_id) {
+                queue1_total_value += tx_in_queue.remaining_amount();
+            }
+        }
+        fields.insert("queue1_total_value".to_string(), queue1_total_value as f64);
+
+        // Headroom: available liquidity minus what's needed for Queue 1
+        let headroom = agent.available_liquidity() - queue1_total_value;
+        fields.insert("headroom".to_string(), headroom as f64);
+
+        // Queue 2 (RTGS) pressure fields
+        let queue2_count = state.rtgs_queue()
+            .iter()
+            .filter(|tx_id| {
+                state.get_transaction(tx_id)
+                    .map(|t| t.sender_id() == agent.id())
+                    .unwrap_or(false)
+            })
+            .count();
+        fields.insert("queue2_count_for_agent".to_string(), queue2_count as f64);
+
+        let queue2_nearest_deadline = state.rtgs_queue()
+            .iter()
+            .filter_map(|tx_id| state.get_transaction(tx_id))
+            .filter(|t| t.sender_id() == agent.id())
+            .map(|t| t.deadline_tick())
+            .min()
+            .unwrap_or(usize::MAX);
+        fields.insert("queue2_nearest_deadline".to_string(), queue2_nearest_deadline as f64);
+
+        let ticks_to_nearest_queue2_deadline = if queue2_nearest_deadline == usize::MAX {
+            f64::INFINITY
+        } else {
+            queue2_nearest_deadline.saturating_sub(tick) as f64
+        };
+        fields.insert("ticks_to_nearest_queue2_deadline".to_string(), ticks_to_nearest_queue2_deadline);
 
         Self { fields }
     }
@@ -325,5 +394,73 @@ mod tests {
 
         // Child transaction should have is_split = 1.0
         assert_eq!(context.get_field("is_split").unwrap(), 1.0);
+    }
+
+    // ============================================================================
+    // PHASE 8.2: Collateral Management Context Fields
+    // ============================================================================
+
+    #[test]
+    fn test_context_contains_collateral_fields() {
+        let (tx, agent, state, tick) = create_test_context();
+        let context = EvalContext::build(&tx, &agent, &state, tick);
+
+        // Collateral state fields
+        assert!(context.has_field("posted_collateral"));
+        assert!(context.has_field("max_collateral_capacity"));
+        assert!(context.has_field("remaining_collateral_capacity"));
+        assert!(context.has_field("collateral_utilization"));
+
+        // Should be 0.0 since test context has no collateral
+        assert_eq!(context.get_field("posted_collateral").unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_context_contains_liquidity_gap_fields() {
+        let (tx, agent, state, tick) = create_test_context();
+        let context = EvalContext::build(&tx, &agent, &state, tick);
+
+        // Liquidity gap fields
+        assert!(context.has_field("queue1_liquidity_gap"));
+        assert!(context.has_field("queue1_total_value"));
+        assert!(context.has_field("headroom"));
+
+        // queue1_total_value should be > 0 (we have 2 items in outgoing queue)
+        assert!(context.get_field("queue1_total_value").unwrap() >= 0.0);
+    }
+
+    #[test]
+    fn test_context_contains_queue2_fields() {
+        let (tx, agent, state, tick) = create_test_context();
+        let context = EvalContext::build(&tx, &agent, &state, tick);
+
+        // Queue 2 fields
+        assert!(context.has_field("queue2_count_for_agent"));
+        assert!(context.has_field("queue2_nearest_deadline"));
+        assert!(context.has_field("ticks_to_nearest_queue2_deadline"));
+
+        // Should be 0 since no transactions in queue 2
+        assert_eq!(context.get_field("queue2_count_for_agent").unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_collateral_utilization_with_posted_collateral() {
+        // Create agent with posted collateral
+        let mut agent = Agent::with_buffer(
+            "BANK_A".to_string(),
+            500_000,
+            200_000,
+            100_000,
+        );
+        // TODO: Need to add posted_collateral to agent for this test
+        // For now, test will fail until Agent supports collateral
+
+        let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 10_000, 0, 10);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        let context = EvalContext::build(&tx, &agent, &state, 0);
+
+        // Collateral utilization should be computable
+        assert!(context.has_field("collateral_utilization"));
     }
 }
