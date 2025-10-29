@@ -344,17 +344,20 @@ mod tests {
     fn test_tree_policy_creation() {
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test_policy".to_string(),
-            root: TreeNode::Action {
+            policy_id: "test_policy".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Action {
                 node_id: "A1".to_string(),
                 action: ActionType::Release,
                 parameters: HashMap::new(),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
         let policy = TreePolicy::new(tree);
-        assert_eq!(policy.tree_id(), "test_policy");
+        assert_eq!(policy.policy_id(), "test_policy");
         assert_eq!(policy.version(), "1.0");
     }
 
@@ -362,8 +365,8 @@ mod tests {
     fn test_tree_policy_from_json() {
         let json = r#"{
             "version": "1.0",
-            "tree_id": "simple_policy",
-            "root": {
+            "policy_id": "simple_policy",
+            "payment_tree": {
                 "type": "action",
                 "node_id": "A1",
                 "action": "Release"
@@ -372,7 +375,7 @@ mod tests {
         }"#;
 
         let policy = TreePolicy::from_json(json).unwrap();
-        assert_eq!(policy.tree_id(), "simple_policy");
+        assert_eq!(policy.policy_id(), "simple_policy");
     }
 
     #[test]
@@ -380,8 +383,9 @@ mod tests {
         // Create a simple tree: if balance > amount then Release else Hold
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "liquidity_check".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "liquidity_check".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if sufficient liquidity".to_string(),
                 condition: Expression::GreaterThan {
@@ -402,7 +406,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -443,12 +449,15 @@ mod tests {
         // Simple tree: always release
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "always_release".to_string(),
-            root: TreeNode::Action {
+            policy_id: "always_release".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Action {
                 node_id: "A1".to_string(),
                 action: ActionType::Release,
                 parameters: HashMap::new(),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -487,8 +496,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "threshold_policy".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "threshold_policy".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check balance threshold".to_string(),
                 condition: Expression::GreaterThan {
@@ -509,7 +519,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: params,
         };
 
