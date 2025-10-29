@@ -996,35 +996,40 @@ This method matches on the CollateralDecision enum:
 
 ---
 
-### Phase 4: End-of-Tick Manager ❌ **NOT STARTED**
+### Phase 4: End-of-Tick Collateral Policies ❌ **NOT STARTED**
 
-**Status**: Future work - implements the automatic/reactive collateral layer
+**Status**: Future work - creates JSON tree policies for Layer 2 (end-of-tick)
+
+**NEW APPROACH**: End-of-tick collateral management uses JSON tree policies, NOT hardcoded Rust logic.
 
 **Tasks**:
-1. Implement `CollateralManager` struct
-2. Implement cleanup logic (withdrawal rules)
-3. Implement emergency logic (posting rules)
-4. Integrate into orchestrator tick loop
-5. Add configuration for thresholds
+1. Create default end-of-tick cleanup policy JSON
+2. Add `TreePolicy::evaluate_end_of_tick_collateral()` method
+3. Integrate STEP 8 into orchestrator tick loop
+4. Test with various end-of-tick policy configurations
 
 **Files Created**:
-- `backend/src/orchestrator/collateral_manager.rs`
+- `backend/policies/defaults/end_of_tick_cleanup.json` - Default cleanup policy
+- Example custom end-of-tick policies (optional)
 
 **Files Modified**:
-- `backend/src/orchestrator/engine.rs` (integration)
-- `backend/src/orchestrator/mod.rs` (expose module)
+- `backend/src/policy/tree/executor.rs` - Add evaluate_end_of_tick_collateral()
+- `backend/src/orchestrator/engine.rs` - Add STEP 8 evaluation loop
+- All existing policy JSON files - Add `end_of_tick_collateral_tree: null` (or custom tree)
 
 **Tests**:
-- Cleanup logic tests (withdraw when safe)
-- Emergency logic tests (post when deadline imminent)
-- Integration tests (manager runs at end of tick)
-- No conflict tests (manager doesn't fight policy decisions)
+- Parse end-of-tick tree from JSON
+- Evaluate end-of-tick tree returns correct CollateralDecision
+- STEP 8 executes after LSM, before costs
+- End-of-tick decisions independent from strategic decisions
+- Both layers can act in same tick without conflict
 
 **Success Criteria**:
-- Cleanup withdraws collateral when clearly not needed
-- Emergency posts collateral when deadline < 2 ticks
-- Events logged with correct reasons
-- Manager respects capacity limits
+- Default cleanup policy withdraws when Queue 2 empty + headroom 2x
+- Custom end-of-tick policies work per agent
+- Events logged with correct reasons ("EndOfDayCleanup")
+- Both layers use same context fields
+- Orchestrator STEP 8 integrated correctly
 
 ---
 
@@ -1093,15 +1098,12 @@ This method matches on the CollateralDecision enum:
 - `test_can_withdraw_collateral()` - validates amount
 - `test_queue1_liquidity_gap()` - calculates gap correctly
 
-**Policy Tests** (`backend/tests/test_collateral_policy.rs`):
-- `test_post_collateral_on_urgent_gap()` - policy posts when needed
-- `test_withdraw_collateral_on_healthy_balance()` - policy withdraws when safe
-- `test_hold_collateral_by_default()` - no action when conditions not met
-
-**Collateral Manager Tests** (`backend/tests/test_collateral_manager.rs`):
-- `test_cleanup_withdraws_when_safe()` - manager withdraws excess
-- `test_emergency_posts_on_deadline()` - manager posts for expiring
-- `test_no_action_when_uncertain()` - conservative behavior
+**Tree Policy Tests** (`backend/tests/test_collateral_policy.rs`):
+- `test_parse_three_tree_policy()` - parses payment, strategic, end-of-tick trees
+- `test_strategic_collateral_tree_posts()` - strategic tree posts when conditions met
+- `test_strategic_collateral_tree_withdraws()` - strategic tree withdraws when safe
+- `test_end_of_tick_tree_cleanup()` - end-of-tick tree withdraws when Queue 2 clear
+- `test_both_layers_independent()` - both trees can be evaluated independently
 
 ### 10.2 Integration Tests
 
@@ -1112,9 +1114,9 @@ This method matches on the CollateralDecision enum:
 - `test_collateral_affects_liquidity()` - posting increases available liquidity
 
 **End-to-End Scenarios** (`backend/tests/test_collateral_integration.rs`):
-- `test_scenario_urgent_posting_and_withdrawal()`
-- `test_scenario_emergency_manager_saves_deadline()`
-- `test_scenario_cleanup_manager_reduces_costs()`
+- `test_scenario_urgent_posting_and_withdrawal()` - Strategic posts, end-of-tick withdraws
+- `test_scenario_both_layers_post()` - Strategic posts some, end-of-tick posts more
+- `test_scenario_end_of_tick_cleanup_reduces_costs()` - Default cleanup policy works
 - `test_scenario_collateral_vs_no_collateral_cost_comparison()`
 
 ### 10.3 DSL Tests
