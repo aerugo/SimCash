@@ -380,3 +380,98 @@ pub fn tick_result_to_py(py: Python, result: &TickResult) -> PyResult<Py<PyDict>
 
     Ok(dict.into())
 }
+
+/// Convert Transaction to Python dict
+///
+/// Converts a Rust Transaction to a Python dict matching the TransactionRecord Pydantic model.
+/// This is used for persistence to DuckDB.
+///
+/// # Arguments
+///
+/// * `py` - Python context
+/// * `tx` - Transaction to convert
+/// * `simulation_id` - Simulation ID for this transaction
+/// * `ticks_per_day` - Ticks per day for day calculation
+///
+/// # Returns
+///
+/// Python dict with all fields required by TransactionRecord Pydantic model
+pub fn transaction_to_py(
+    py: Python,
+    tx: &crate::models::Transaction,
+    simulation_id: &str,
+    ticks_per_day: usize,
+) -> PyResult<Py<PyDict>> {
+    let dict = PyDict::new(py);
+
+    // Identity
+    dict.set_item("simulation_id", simulation_id)?;
+    dict.set_item("tx_id", tx.id())?;
+
+    // Participants
+    dict.set_item("sender_id", tx.sender_id())?;
+    dict.set_item("receiver_id", tx.receiver_id())?;
+
+    // Transaction details
+    dict.set_item("amount", tx.amount())?;
+    dict.set_item("priority", tx.priority())?;
+    dict.set_item("is_divisible", false)?; // TODO: Store divisibility in Transaction
+
+    // Lifecycle timing
+    let arrival_tick = tx.arrival_tick();
+    dict.set_item("arrival_tick", arrival_tick)?;
+    dict.set_item("arrival_day", arrival_tick / ticks_per_day)?;
+    dict.set_item("deadline_tick", tx.deadline_tick())?;
+
+    // Settlement timing (if settled)
+    match tx.status() {
+        crate::models::TransactionStatus::Settled { tick } => {
+            dict.set_item("settlement_tick", tick)?;
+            dict.set_item("settlement_day", tick / ticks_per_day)?;
+        }
+        _ => {
+            dict.set_item("settlement_tick", py.None())?;
+            dict.set_item("settlement_day", py.None())?;
+        }
+    }
+
+    // Status
+    let status_str = match tx.status() {
+        crate::models::TransactionStatus::Pending => "pending",
+        crate::models::TransactionStatus::PartiallySettled { .. } => "settled", // Map partially settled to settled
+        crate::models::TransactionStatus::Settled { .. } => "settled",
+        crate::models::TransactionStatus::Dropped { .. } => "dropped",
+    };
+    dict.set_item("status", status_str)?;
+
+    // Drop reason (if dropped)
+    match tx.status() {
+        crate::models::TransactionStatus::Dropped { .. } => {
+            dict.set_item("drop_reason", "deadline_expired")?; // Default reason for now
+        }
+        _ => {
+            dict.set_item("drop_reason", py.None())?;
+        }
+    }
+
+    // Settlement tracking
+    dict.set_item("amount_settled", tx.settled_amount())?;
+
+    // Metrics (TODO: Track these in Transaction struct)
+    dict.set_item("queue1_ticks", 0)?;
+    dict.set_item("queue2_ticks", 0)?;
+    dict.set_item("total_delay_ticks", 0)?;
+
+    // Costs (TODO: Track these in Transaction struct)
+    dict.set_item("delay_cost", 0)?;
+
+    // Splitting
+    if let Some(parent_id) = tx.parent_id() {
+        dict.set_item("parent_tx_id", parent_id)?;
+    } else {
+        dict.set_item("parent_tx_id", py.None())?;
+    }
+    dict.set_item("split_index", py.None())?; // TODO: Track split index in Transaction
+
+    Ok(dict.into())
+}

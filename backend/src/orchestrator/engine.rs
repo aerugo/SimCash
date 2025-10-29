@@ -832,6 +832,73 @@ impl Orchestrator {
     }
 
     // ========================================================================
+    // Transaction Query Methods (Phase 10 - Persistence)
+    // ========================================================================
+
+    /// Get all transactions that arrived during a specific day
+    ///
+    /// Filters transactions by arrival_tick, converting to day using ticks_per_day.
+    /// Returns all transactions (pending, settled, dropped) that arrived during
+    /// the specified day.
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - Day number (0-indexed)
+    ///
+    /// # Returns
+    ///
+    /// Vector of references to transactions that arrived during the specified day
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Get all transactions from day 0
+    /// let day_0_txs = orch.get_transactions_for_day(0);
+    /// for tx in day_0_txs {
+    ///     println!("Transaction {}: {} cents", tx.id(), tx.amount());
+    /// }
+    /// ```
+    pub fn get_transactions_for_day(&self, day: usize) -> Vec<&crate::models::Transaction> {
+        let ticks_per_day = self.time_manager.ticks_per_day();
+        let day_start_tick = day * ticks_per_day;
+        let day_end_tick = (day + 1) * ticks_per_day;
+
+        self.state
+            .transactions()
+            .values()
+            .filter(|tx| {
+                let arrival_tick = tx.arrival_tick();
+                arrival_tick >= day_start_tick && arrival_tick < day_end_tick
+            })
+            .collect()
+    }
+
+    /// Get simulation ID
+    ///
+    /// Returns a unique identifier for this simulation run.
+    /// Used for persistence and tracking.
+    ///
+    /// # Returns
+    ///
+    /// Simulation ID string (currently derived from RNG seed)
+    pub fn simulation_id(&self) -> String {
+        // For now, use RNG seed as simulation ID
+        // In future, this could be a UUID or user-provided ID
+        format!("sim-{}", self.rng_manager.get_state())
+    }
+
+    /// Get ticks per day
+    ///
+    /// Returns the number of ticks in one simulated day.
+    ///
+    /// # Returns
+    ///
+    /// Number of ticks per day
+    pub fn ticks_per_day(&self) -> usize {
+        self.time_manager.ticks_per_day()
+    }
+
+    // ========================================================================
     // Event Logging
     // ========================================================================
 
