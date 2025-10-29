@@ -14,6 +14,7 @@ from .migrations import MigrationManager
 from .models import (
     CollateralEventRecord,
     DailyAgentMetricsRecord,
+    PolicySnapshotRecord,
     SimulationRunRecord,
     TransactionRecord,
 )
@@ -138,6 +139,7 @@ class DatabaseManager:
             SimulationRunRecord,
             DailyAgentMetricsRecord,
             CollateralEventRecord,
+            PolicySnapshotRecord,
         ]
 
         all_valid = True
