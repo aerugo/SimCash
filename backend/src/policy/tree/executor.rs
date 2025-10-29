@@ -191,6 +191,123 @@ impl TreePolicy {
         &self.tree.version
     }
 
+    /// Evaluate strategic collateral tree (STEP 2.5 - before RTGS submission)
+    ///
+    /// This method evaluates the strategic_collateral_tree to determine
+    /// whether to post collateral proactively before settlements begin.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent` - Agent being evaluated
+    /// * `state` - Full simulation state
+    /// * `tick` - Current simulation tick
+    ///
+    /// # Returns
+    ///
+    /// CollateralDecision indicating whether to post, withdraw, or hold collateral
+    ///
+    /// # Notes
+    ///
+    /// - Returns Hold if strategic_collateral_tree is not defined
+    /// - Uses same EvalContext as payment decisions (no transaction context)
+    /// - Evaluated once per agent per tick at STEP 2.5
+    pub fn evaluate_strategic_collateral(
+        &mut self,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+    ) -> Result<crate::policy::CollateralDecision, TreePolicyError> {
+        use crate::policy::tree::interpreter::{build_collateral_decision, traverse_strategic_collateral_tree};
+
+        // If no strategic tree defined, return Hold (default)
+        if self.tree.strategic_collateral_tree.is_none() {
+            return Ok(crate::policy::CollateralDecision::Hold);
+        }
+
+        // Build evaluation context (without transaction - use dummy tx for context building)
+        // We create a dummy transaction just to build context, but strategic decisions
+        // are based on agent-level state, not individual transactions
+        let dummy_tx = crate::Transaction::new(
+            agent.id().to_string(),
+            "DUMMY".to_string(),
+            0,
+            tick,
+            tick + 1,
+        );
+        let context = EvalContext::build(&dummy_tx, agent, state, tick);
+
+        // Validate tree on first use
+        if !self.validated {
+            self.validate_if_needed(&context)?;
+        }
+
+        // Traverse strategic collateral tree
+        let action_node = traverse_strategic_collateral_tree(&self.tree, &context)?;
+
+        // Build collateral decision from action node
+        let decision = build_collateral_decision(action_node, &context, &self.tree.parameters)?;
+
+        Ok(decision)
+    }
+
+    /// Evaluate end-of-tick collateral tree (STEP 8 - after LSM completion)
+    ///
+    /// This method evaluates the end_of_tick_collateral_tree to determine
+    /// whether to withdraw excess collateral after settlement attempts complete.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent` - Agent being evaluated
+    /// * `state` - Full simulation state (after RTGS and LSM)
+    /// * `tick` - Current simulation tick
+    ///
+    /// # Returns
+    ///
+    /// CollateralDecision indicating whether to post, withdraw, or hold collateral
+    ///
+    /// # Notes
+    ///
+    /// - Returns Hold if end_of_tick_collateral_tree is not defined
+    /// - Uses same EvalContext as payment decisions
+    /// - Evaluated once per agent per tick at STEP 8
+    /// - Sees final queue states after all settlement attempts
+    pub fn evaluate_end_of_tick_collateral(
+        &mut self,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+    ) -> Result<crate::policy::CollateralDecision, TreePolicyError> {
+        use crate::policy::tree::interpreter::{build_collateral_decision, traverse_end_of_tick_collateral_tree};
+
+        // If no end-of-tick tree defined, return Hold (default)
+        if self.tree.end_of_tick_collateral_tree.is_none() {
+            return Ok(crate::policy::CollateralDecision::Hold);
+        }
+
+        // Build evaluation context (without transaction - use dummy tx for context building)
+        let dummy_tx = crate::Transaction::new(
+            agent.id().to_string(),
+            "DUMMY".to_string(),
+            0,
+            tick,
+            tick + 1,
+        );
+        let context = EvalContext::build(&dummy_tx, agent, state, tick);
+
+        // Validate tree on first use
+        if !self.validated {
+            self.validate_if_needed(&context)?;
+        }
+
+        // Traverse end-of-tick collateral tree
+        let action_node = traverse_end_of_tick_collateral_tree(&self.tree, &context)?;
+
+        // Build collateral decision from action node
+        let decision = build_collateral_decision(action_node, &context, &self.tree.parameters)?;
+
+        Ok(decision)
+    }
+
     /// Override tree parameters
     ///
     /// Allows runtime parameter injection from configuration.
@@ -547,6 +664,225 @@ mod tests {
         assert!(matches!(
             &decisions[0],
             ReleaseDecision::SubmitFull { tx_id: id } if id == &tx_id
+        ));
+    }
+
+    // ========================================================================
+    // Phase 8.2 TDD Cycle 5: Collateral Evaluation Methods
+    // ========================================================================
+
+    #[test]
+    fn test_evaluate_strategic_collateral_with_tree() {
+        use crate::policy::CollateralDecision;
+
+        // Create tree with strategic_collateral_tree that posts 100k collateral
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test_strategic_collateral".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Action {
+                node_id: "P1".to_string(),
+                action: ActionType::Release,
+                parameters: HashMap::new(),
+            }),
+            strategic_collateral_tree: Some(TreeNode::Action {
+                node_id: "S1".to_string(),
+                action: ActionType::PostCollateral,
+                parameters: {
+                    let mut params = HashMap::new();
+                    params.insert("amount".to_string(), Value::Literal { value: json!(100000) });
+                    params.insert("reason".to_string(), Value::Literal { value: json!("UrgentLiquidityNeed") });
+                    params
+                },
+            }),
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let mut policy = TreePolicy::new(tree);
+
+        // Create test state
+        let agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        // Evaluate strategic collateral
+        let decision = policy.evaluate_strategic_collateral(&agent, &state, 10).unwrap();
+
+        // Should return PostCollateral decision
+        assert!(matches!(
+            decision,
+            CollateralDecision::Post { amount: 100000, .. }
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_strategic_collateral_without_tree() {
+        use crate::policy::CollateralDecision;
+
+        // Create tree WITHOUT strategic_collateral_tree
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test_no_strategic".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Action {
+                node_id: "P1".to_string(),
+                action: ActionType::Release,
+                parameters: HashMap::new(),
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let mut policy = TreePolicy::new(tree);
+
+        // Create test state
+        let agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        // Evaluate strategic collateral
+        let decision = policy.evaluate_strategic_collateral(&agent, &state, 10).unwrap();
+
+        // Should return Hold (default when tree not defined)
+        assert_eq!(decision, CollateralDecision::Hold);
+    }
+
+    #[test]
+    fn test_evaluate_end_of_tick_collateral_with_tree() {
+        use crate::policy::CollateralDecision;
+
+        // Create tree with end_of_tick_collateral_tree that withdraws posted collateral
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test_eot_collateral".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Action {
+                node_id: "P1".to_string(),
+                action: ActionType::Release,
+                parameters: HashMap::new(),
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: Some(TreeNode::Action {
+                node_id: "E1".to_string(),
+                action: ActionType::WithdrawCollateral,
+                parameters: {
+                    let mut params = HashMap::new();
+                    params.insert("amount".to_string(), Value::Field { field: "posted_collateral".to_string() });
+                    params.insert("reason".to_string(), Value::Literal { value: json!("EndOfDayCleanup") });
+                    params
+                },
+            }),
+            parameters: HashMap::new(),
+        };
+
+        let mut policy = TreePolicy::new(tree);
+
+        // Create test state with agent that has posted collateral
+        let mut agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        agent.set_posted_collateral(50000);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        // Evaluate end-of-tick collateral
+        let decision = policy.evaluate_end_of_tick_collateral(&agent, &state, 10).unwrap();
+
+        // Should return WithdrawCollateral decision for the posted amount
+        assert!(matches!(
+            decision,
+            CollateralDecision::Withdraw { amount: 50000, .. }
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_end_of_tick_collateral_without_tree() {
+        use crate::policy::CollateralDecision;
+
+        // Create tree WITHOUT end_of_tick_collateral_tree
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test_no_eot".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Action {
+                node_id: "P1".to_string(),
+                action: ActionType::Release,
+                parameters: HashMap::new(),
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let mut policy = TreePolicy::new(tree);
+
+        // Create test state
+        let agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        // Evaluate end-of-tick collateral
+        let decision = policy.evaluate_end_of_tick_collateral(&agent, &state, 10).unwrap();
+
+        // Should return Hold (default when tree not defined)
+        assert_eq!(decision, CollateralDecision::Hold);
+    }
+
+    #[test]
+    fn test_evaluate_end_of_tick_collateral_with_condition() {
+        use crate::policy::CollateralDecision;
+
+        // Create tree with conditional end-of-tick logic:
+        // If queue2_size == 0: Withdraw all collateral
+        // Else: Hold collateral
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test_conditional_eot".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Action {
+                node_id: "P1".to_string(),
+                action: ActionType::Release,
+                parameters: HashMap::new(),
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: Some(TreeNode::Condition {
+                node_id: "E1".to_string(),
+                description: "Check if RTGS queue is empty".to_string(),
+                condition: Expression::Equal {
+                    left: Value::Field {
+                        field: "queue2_size".to_string(),
+                    },
+                    right: Value::Literal { value: json!(0) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "E2".to_string(),
+                    action: ActionType::WithdrawCollateral,
+                    parameters: {
+                        let mut params = HashMap::new();
+                        params.insert("amount".to_string(), Value::Field { field: "posted_collateral".to_string() });
+                        params.insert("reason".to_string(), Value::Literal { value: json!("EndOfDayCleanup") });
+                        params
+                    },
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "E3".to_string(),
+                    action: ActionType::HoldCollateral,
+                    parameters: HashMap::new(),
+                }),
+            }),
+            parameters: HashMap::new(),
+        };
+
+        let mut policy = TreePolicy::new(tree);
+
+        // Create test state with empty RTGS queue and posted collateral
+        let mut agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        agent.set_posted_collateral(75000);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        // Evaluate end-of-tick collateral (queue2_size = 0, so should withdraw)
+        let decision = policy.evaluate_end_of_tick_collateral(&agent, &state, 10).unwrap();
+
+        // Should return WithdrawCollateral decision
+        assert!(matches!(
+            decision,
+            CollateralDecision::Withdraw { amount: 75000, .. }
         ));
     }
 }

@@ -26,8 +26,9 @@ pub use context::{ContextError, EvalContext};
 pub use executor::{TreePolicy, TreePolicyError};
 pub use factory::create_policy; // Phase 3: Policy factory function
 pub use interpreter::{
-    build_decision, evaluate_computation, evaluate_expression, evaluate_value, traverse_tree,
-    EvalError,
+    build_collateral_decision, build_decision, evaluate_computation, evaluate_expression,
+    evaluate_value, traverse_end_of_tick_collateral_tree, traverse_strategic_collateral_tree,
+    traverse_tree, EvalError,
 };
 pub use types::{
     ActionType, Computation, DecisionTreeDef, Expression, TreeNode, Value, ValueOrCompute,
