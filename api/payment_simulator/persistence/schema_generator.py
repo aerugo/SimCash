@@ -187,6 +187,7 @@ def generate_full_schema_ddl() -> str:
         CollateralEventRecord,
         DailyAgentMetricsRecord,
         PolicySnapshotRecord,
+        SimulationCheckpointRecord,
         SimulationRunRecord,
         TransactionRecord,
     )
@@ -197,6 +198,7 @@ def generate_full_schema_ddl() -> str:
         DailyAgentMetricsRecord,
         CollateralEventRecord,
         PolicySnapshotRecord,
+        SimulationCheckpointRecord,
     ]
 
     ddl_parts = []

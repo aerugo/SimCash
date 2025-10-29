@@ -66,7 +66,7 @@
 //! }
 //! ```
 
-use crate::arrivals::{ArrivalConfig, ArrivalGenerator, AmountDistribution};
+use crate::arrivals::{ArrivalConfig, ArrivalGenerator};
 use crate::core::time::TimeManager;
 use crate::models::agent::Agent;
 use crate::models::event::{Event, EventLog};
@@ -91,7 +91,7 @@ use std::collections::HashMap;
 /// * `rng_seed` - Seed for deterministic random number generation
 /// * `agent_configs` - Configuration for each participating agent (bank)
 /// * `cost_rates` - Rates for calculating liquidity, delay, and penalty costs
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OrchestratorConfig {
     /// Number of ticks per business day (e.g., 100 ticks = 1 tick per ~5 minutes)
     pub ticks_per_day: usize,
@@ -115,7 +115,7 @@ pub struct OrchestratorConfig {
 /// Per-agent configuration
 ///
 /// Specifies initial state and behavior for a single agent (bank).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AgentConfig {
     /// Unique agent identifier
     pub id: String,
@@ -140,7 +140,7 @@ pub struct AgentConfig {
 /// Policy selection for an agent
 ///
 /// Determines which cash manager policy algorithm to use for Queue 1 decisions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum PolicyConfig {
     /// FIFO: Submit all transactions immediately (baseline)
     Fifo,
@@ -202,7 +202,7 @@ pub enum PolicyConfig {
 ///
 /// Defines rates for various costs accrued during simulation.
 /// All monetary values in cents/minor units.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CostRates {
     /// Overdraft cost in basis points per tick
     /// (e.g., 0.001 = 1 bp per tick ≈ 10 bp per day for 100 ticks/day)
@@ -484,6 +484,9 @@ impl DailyMetrics {
 /// All randomness is via `rng_manager` with seeded xorshift64*.
 /// Same seed + same config = identical results (deterministic replay).
 pub struct Orchestrator {
+    /// Original configuration (stored for checkpoint hash verification)
+    config: OrchestratorConfig,
+
     /// Simulation state (agents, transactions, queues)
     state: SimulationState,
 
@@ -562,6 +565,21 @@ pub enum SimulationError {
 
     /// RNG error
     RngError(String),
+
+    /// Serialization error (checkpoint save)
+    SerializationError(String),
+
+    /// Deserialization error (checkpoint load)
+    DeserializationError(String),
+
+    /// Config mismatch (checkpoint from different config)
+    ConfigMismatch {
+        expected: String,
+        actual: String,
+    },
+
+    /// State validation error (invariant violated)
+    StateValidationError(String),
 }
 
 impl std::fmt::Display for SimulationError {
@@ -574,6 +592,14 @@ impl std::fmt::Display for SimulationError {
             }
             SimulationError::SettlementError(msg) => write!(f, "Settlement error: {}", msg),
             SimulationError::RngError(msg) => write!(f, "RNG error: {}", msg),
+            SimulationError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
+            SimulationError::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
+            SimulationError::ConfigMismatch { expected, actual } => write!(
+                f,
+                "Config mismatch: expected hash {}, got {}",
+                expected, actual
+            ),
+            SimulationError::StateValidationError(msg) => write!(f, "State validation error: {}", msg),
         }
     }
 }
@@ -703,6 +729,7 @@ impl Orchestrator {
         }
 
         Ok(Self {
+            config: config.clone(),
             state,
             time_manager,
             rng_manager,
@@ -1092,6 +1119,232 @@ impl Orchestrator {
         }
 
         metrics
+    }
+
+    // ========================================================================
+    // Checkpoint - Save/Load State
+    // ========================================================================
+
+    /// Save complete simulation state to JSON
+    ///
+    /// Serializes all state necessary to resume the simulation from this point.
+    /// Validates invariants before saving to ensure state integrity.
+    ///
+    /// # Returns
+    ///
+    /// JSON string containing complete state snapshot
+    ///
+    /// # Errors
+    ///
+    /// - `SerializationError`: If state cannot be serialized to JSON
+    /// - `StateValidationError`: If state invariants are violated
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let state_json = orchestrator.save_state()?;
+    /// // Save to file or database
+    /// std::fs::write("checkpoint.json", state_json)?;
+    /// ```
+    pub fn save_state(&self) -> Result<String, SimulationError> {
+        use crate::orchestrator::checkpoint::{compute_config_hash, validate_snapshot, AgentSnapshot, StateSnapshot, TransactionSnapshot};
+
+        // Compute config hash for validation
+        let config_hash = compute_config_hash(&self.get_config())?;
+
+        // Create snapshot with deterministic ordering
+        let mut agents: Vec<AgentSnapshot> = self.state.agents().iter().map(|(_, a)| AgentSnapshot::from(a)).collect();
+        agents.sort_by(|a, b| a.id.cmp(&b.id)); // Sort by ID for deterministic order
+
+        let mut transactions: Vec<TransactionSnapshot> = self.state.transactions().iter().map(|(_, t)| TransactionSnapshot::from(t)).collect();
+        transactions.sort_by(|a, b| a.id.cmp(&b.id)); // Sort by ID for deterministic order
+
+        let snapshot = StateSnapshot {
+            current_tick: self.time_manager.current_tick(),
+            current_day: self.time_manager.current_day(),
+            rng_seed: self.rng_manager.get_state(), // CRITICAL: Current RNG state
+            agents,
+            transactions,
+            rtgs_queue: self.state.get_rtgs_queue().clone(),
+            config_hash,
+        };
+
+        // Validate invariants before serializing
+        let expected_balance = self.get_all_agent_balances().values().sum();
+        validate_snapshot(&snapshot, expected_balance)?;
+
+        // Serialize to JSON
+        serde_json::to_string(&snapshot)
+            .map_err(|e| SimulationError::SerializationError(format!("Failed to serialize state: {}", e)))
+    }
+
+    /// Load simulation state from JSON and create new orchestrator
+    ///
+    /// Deserializes state and validates that it matches the provided config.
+    /// Ensures all invariants are preserved after reconstruction.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Orchestrator configuration (must match original)
+    /// * `state_json` - JSON string from previous save_state() call
+    ///
+    /// # Returns
+    ///
+    /// New orchestrator instance restored to the saved state
+    ///
+    /// # Errors
+    ///
+    /// - `DeserializationError`: If JSON is invalid or corrupted
+    /// - `ConfigMismatch`: If config doesn't match checkpoint's config
+    /// - `StateValidationError`: If restored state violates invariants
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let state_json = std::fs::read_to_string("checkpoint.json")?;
+    /// let orchestrator = Orchestrator::load_state(config, &state_json)?;
+    /// // Continue simulation from checkpoint
+    /// orchestrator.tick()?;
+    /// ```
+    pub fn load_state(config: OrchestratorConfig, state_json: &str) -> Result<Self, SimulationError> {
+        use crate::orchestrator::checkpoint::{compute_config_hash, validate_snapshot, StateSnapshot};
+
+        // Deserialize snapshot
+        let snapshot: StateSnapshot = serde_json::from_str(state_json)
+            .map_err(|e| SimulationError::DeserializationError(format!("Failed to parse state JSON: {}", e)))?;
+
+        // Validate config matches
+        let config_hash = compute_config_hash(&config)?;
+        if snapshot.config_hash != config_hash {
+            return Err(SimulationError::ConfigMismatch {
+                expected: snapshot.config_hash,
+                actual: config_hash,
+            });
+        }
+
+        // Validate state integrity
+        let expected_balance: i64 = snapshot.agents.iter().map(|a| a.balance).sum();
+        validate_snapshot(&snapshot, expected_balance)?;
+
+        // Reconstruct state
+        let agents: HashMap<_, _> = snapshot
+            .agents
+            .into_iter()
+            .map(|a| {
+                let agent = crate::models::agent::Agent::from(a);
+                (agent.id().to_string(), agent)
+            })
+            .collect();
+
+        let transactions: HashMap<_, _> = snapshot
+            .transactions
+            .into_iter()
+            .map(|t| {
+                let tx = crate::models::transaction::Transaction::from(t);
+                (tx.id().to_string(), tx)
+            })
+            .collect();
+
+        let state = crate::models::state::SimulationState::from_parts(
+            agents,
+            transactions,
+            snapshot.rtgs_queue,
+        )
+        .map_err(|e| SimulationError::StateValidationError(e))?;
+
+        // Reconstruct time manager
+        let time_manager = crate::core::time::TimeManager::from_state(
+            config.ticks_per_day,
+            config.num_days,
+            snapshot.current_tick,
+            snapshot.current_day,
+        );
+
+        // Reconstruct RNG manager with saved seed
+        let rng_manager = crate::rng::RngManager::new(snapshot.rng_seed);
+
+        // Reconstruct policies
+        // All policies now use JSON-based TreePolicy loaded via factory
+        let mut policies: HashMap<String, Box<dyn crate::policy::CashManagerPolicy>> = HashMap::new();
+        for agent_config in &config.agent_configs {
+            let tree_policy = crate::policy::tree::create_policy(&agent_config.policy)
+                .map_err(|e| {
+                    SimulationError::InvalidConfig(format!(
+                        "Failed to create JSON policy for agent {}: {}",
+                        agent_config.id, e
+                    ))
+                })?;
+            policies.insert(agent_config.id.clone(), Box::new(tree_policy));
+        }
+
+        // Reconstruct arrival generator if configured
+        let mut arrival_configs_map = HashMap::new();
+        for agent_config in &config.agent_configs {
+            if let Some(arrival_cfg) = &agent_config.arrival_config {
+                arrival_configs_map.insert(agent_config.id.clone(), arrival_cfg.clone());
+            }
+        }
+
+        let arrival_generator = if !arrival_configs_map.is_empty() {
+            let all_agent_ids: Vec<String> = config
+                .agent_configs
+                .iter()
+                .map(|ac| ac.id.clone())
+                .collect();
+            Some(crate::arrivals::ArrivalGenerator::new(arrival_configs_map, all_agent_ids))
+        } else {
+            None
+        };
+
+        // Initialize empty accumulators and metrics (will be recalculated)
+        let accumulated_costs: HashMap<String, CostAccumulator> = config
+            .agent_configs
+            .iter()
+            .map(|a| (a.id.clone(), CostAccumulator::new()))
+            .collect();
+
+        let current_day_metrics: HashMap<String, DailyMetrics> = HashMap::new();
+        let historical_metrics: HashMap<(String, usize), DailyMetrics> = HashMap::new();
+
+        Ok(Self {
+            config: config.clone(),
+            state,
+            time_manager,
+            rng_manager,
+            policies,
+            arrival_generator,
+            cost_rates: config.cost_rates.clone(),
+            lsm_config: config.lsm_config.clone(),
+            accumulated_costs,
+            event_log: crate::models::event::EventLog::new(),
+            pending_settlements: Vec::new(),
+            next_tx_id: 0, // Will be updated on next transaction
+            current_day_metrics,
+            historical_metrics,
+        })
+    }
+
+    /// Get current orchestrator configuration
+    ///
+    /// Returns the original configuration used to create this orchestrator.
+    /// Used for config hashing during checkpoint save/load.
+    fn get_config(&self) -> OrchestratorConfig {
+        self.config.clone()
+    }
+
+    /// Get all agent balances
+    ///
+    /// Returns a map of agent ID to current balance.
+    ///
+    /// # Returns
+    ///
+    /// HashMap mapping agent IDs to their current balances (cents)
+    pub fn get_all_agent_balances(&self) -> HashMap<String, i64> {
+        self.state
+            .agents()
+            .iter()
+            .map(|(_, agent)| (agent.id().to_string(), agent.balance()))
+            .collect()
     }
 
     // ========================================================================

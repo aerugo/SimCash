@@ -15,6 +15,7 @@ from .models import (
     CollateralEventRecord,
     DailyAgentMetricsRecord,
     PolicySnapshotRecord,
+    SimulationCheckpointRecord,
     SimulationRunRecord,
     TransactionRecord,
 )
@@ -140,6 +141,7 @@ class DatabaseManager:
             DailyAgentMetricsRecord,
             CollateralEventRecord,
             PolicySnapshotRecord,
+            SimulationCheckpointRecord,
         ]
 
         all_valid = True

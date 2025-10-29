@@ -238,6 +238,67 @@ impl Transaction {
         }
     }
 
+    /// Create transaction from snapshot (for checkpoint restoration)
+    ///
+    /// This constructor allows restoring a transaction with all fields
+    /// preserved, including the ID and status. Used when loading from
+    /// a saved checkpoint.
+    ///
+    /// # Arguments
+    /// * `id` - Transaction ID
+    /// * `sender_id` - Sender agent ID
+    /// * `receiver_id` - Receiver agent ID
+    /// * `amount` - Original transaction amount
+    /// * `remaining_amount` - Amount still to be settled
+    /// * `arrival_tick` - Tick when transaction arrived
+    /// * `deadline_tick` - Deadline tick
+    /// * `priority` - Priority level (0-10)
+    /// * `status` - Current transaction status
+    /// * `parent_id` - Parent transaction ID if this is a split child
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::{Transaction, TransactionStatus};
+    ///
+    /// let tx = Transaction::from_snapshot(
+    ///     "tx_123".to_string(),
+    ///     "BANK_A".to_string(),
+    ///     "BANK_B".to_string(),
+    ///     100_000,
+    ///     50_000,
+    ///     10,
+    ///     50,
+    ///     8,
+    ///     TransactionStatus::Pending,
+    ///     None,
+    /// );
+    /// ```
+    pub fn from_snapshot(
+        id: String,
+        sender_id: String,
+        receiver_id: String,
+        amount: i64,
+        remaining_amount: i64,
+        arrival_tick: usize,
+        deadline_tick: usize,
+        priority: u8,
+        status: TransactionStatus,
+        parent_id: Option<String>,
+    ) -> Self {
+        Self {
+            id,
+            sender_id,
+            receiver_id,
+            amount,
+            remaining_amount,
+            arrival_tick,
+            deadline_tick,
+            priority: priority.min(10),
+            status,
+            parent_id,
+        }
+    }
+
     /// Set priority (builder pattern)
     ///
     /// # Example

@@ -101,6 +101,62 @@ impl SimulationState {
         }
     }
 
+    /// Create simulation state from existing components (for checkpoint restoration)
+    ///
+    /// # Arguments
+    ///
+    /// * `agents` - HashMap of agents by ID
+    /// * `transactions` - HashMap of transactions by ID
+    /// * `rtgs_queue` - Vector of transaction IDs in RTGS queue
+    ///
+    /// # Returns
+    ///
+    /// Result containing SimulationState or error if invalid
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - RTGS queue contains transaction IDs not in transactions map
+    /// - Agents reference invalid transaction IDs in their queues
+    pub fn from_parts(
+        agents: HashMap<String, Agent>,
+        transactions: HashMap<String, Transaction>,
+        rtgs_queue: Vec<String>,
+    ) -> Result<Self, String> {
+        // Validate RTGS queue references
+        for tx_id in &rtgs_queue {
+            if !transactions.contains_key(tx_id) {
+                return Err(format!(
+                    "RTGS queue contains invalid transaction ID: {}",
+                    tx_id
+                ));
+            }
+        }
+
+        // Validate agent queue references
+        for (agent_id, agent) in &agents {
+            for tx_id in agent.outgoing_queue() {
+                if !transactions.contains_key(tx_id) {
+                    return Err(format!(
+                        "Agent {} queue contains invalid transaction ID: {}",
+                        agent_id, tx_id
+                    ));
+                }
+            }
+        }
+
+        Ok(Self {
+            agents,
+            transactions,
+            rtgs_queue,
+        })
+    }
+
+    /// Get rtgs queue (alias for compatibility)
+    pub fn get_rtgs_queue(&self) -> &Vec<String> {
+        &self.rtgs_queue
+    }
+
     /// Get reference to an agent by ID
     pub fn get_agent(&self, id: &str) -> Option<&Agent> {
         self.agents.get(id)
@@ -112,8 +168,13 @@ impl SimulationState {
     }
 
     /// Get all agent IDs in the simulation
+    ///
+    /// Returns agent IDs in deterministic sorted order to ensure
+    /// reproducible behavior (important for checkpoint determinism).
     pub fn get_all_agent_ids(&self) -> Vec<String> {
-        self.agents.keys().cloned().collect()
+        let mut ids: Vec<String> = self.agents.keys().cloned().collect();
+        ids.sort(); // Deterministic order for reproducibility
+        ids
     }
 
     /// Get reference to a transaction by ID
