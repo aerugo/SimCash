@@ -701,8 +701,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
                 condition: Expression::GreaterThan {
@@ -721,7 +722,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -735,8 +738,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
                 condition: Expression::GreaterThan {
@@ -755,7 +759,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -806,8 +812,11 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: build_nested_tree(10),
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(build_nested_tree(10)),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -825,8 +834,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
                 condition: Expression::GreaterThan {
@@ -847,7 +857,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -861,8 +873,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
                 condition: Expression::GreaterThan {
@@ -881,7 +894,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -907,8 +922,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
                 condition: Expression::GreaterThan {
@@ -929,7 +945,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: params,
         };
 
@@ -943,8 +961,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
                 condition: Expression::GreaterThan {
@@ -965,7 +984,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(), // Missing parameter
         };
 
@@ -988,8 +1009,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
                 condition: Expression::GreaterThan {
@@ -1013,7 +1035,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -1032,8 +1056,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
                 condition: Expression::GreaterThan {
@@ -1059,7 +1084,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 

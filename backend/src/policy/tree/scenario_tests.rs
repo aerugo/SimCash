@@ -62,8 +62,9 @@ mod tests {
 
         DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "liquidity_conservation_policy".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "liquidity_conservation_policy".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if past deadline (emergency drop)".to_string(),
                 condition: Expression::Equal {
@@ -190,7 +191,9 @@ mod tests {
                         }),
                     }),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: params,
         }
     }

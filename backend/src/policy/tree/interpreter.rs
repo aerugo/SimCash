@@ -1373,8 +1373,9 @@ mod tests {
         // Simple tree: if balance > amount then Release else Hold
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "simple_test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "simple_test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if balance > amount".to_string(),
                 condition: Expression::GreaterThan {
@@ -1395,7 +1396,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -1425,8 +1428,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "nested_test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "nested_test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check urgency".to_string(),
                 condition: Expression::LessOrEqual {
@@ -1462,7 +1466,9 @@ mod tests {
                         parameters: HashMap::new(),
                     }),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -1488,8 +1494,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "branch_test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "branch_test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if insufficient liquidity".to_string(),
                 condition: Expression::LessThan {
@@ -1510,7 +1517,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -1534,8 +1543,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "complex_test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "complex_test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Complex liquidity check".to_string(),
                 condition: Expression::Or {
@@ -1576,7 +1586,9 @@ mod tests {
                     action: ActionType::Drop,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: HashMap::new(),
         };
 
@@ -1602,8 +1614,9 @@ mod tests {
 
         let tree = DecisionTreeDef {
             version: "1.0".to_string(),
-            tree_id: "param_test".to_string(),
-            root: TreeNode::Condition {
+            policy_id: "param_test".to_string(),
+            description: None,
+            payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if urgent".to_string(),
                 condition: Expression::LessOrEqual {
@@ -1624,7 +1637,9 @@ mod tests {
                     action: ActionType::Hold,
                     parameters: HashMap::new(),
                 }),
-            },
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
             parameters: params,
         };
 
