@@ -20,6 +20,8 @@ dev = [
     "typer>=0.9.0",   # CLI framework
     "rich>=13.0.0",   # Terminal formatting
     "shellingham>=1.5.0",  # Shell detection for completion
+    "duckdb>=0.9.0",  # Persistence layer
+    "polars>=0.19.0",  # DataFrame operations
 ]
 
 [project.scripts]
