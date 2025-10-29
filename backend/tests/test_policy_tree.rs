@@ -427,3 +427,77 @@ fn test_parse_policy_with_optional_trees() {
     assert!(tree.strategic_collateral_tree.is_none(), "strategic_collateral_tree should be None");
     assert!(tree.end_of_tick_collateral_tree.is_none(), "end_of_tick_collateral_tree should be None");
 }
+
+// ============================================================================
+// Phase 8.2 TDD Cycle 6: Default End-of-Tick Cleanup Policy
+// ============================================================================
+
+#[test]
+fn test_load_default_end_of_tick_cleanup_policy() {
+    // Test that the default end-of-tick cleanup policy can be loaded and parsed
+    let policy_path = "../policies/defaults/end_of_tick_cleanup.json";
+    let json = std::fs::read_to_string(policy_path)
+        .expect("Failed to read default end-of-tick cleanup policy");
+
+    let tree: Result<DecisionTreeDef, _> = serde_json::from_str(&json);
+    assert!(tree.is_ok(), "Failed to parse default policy: {:?}", tree.err());
+
+    let tree = tree.unwrap();
+    assert_eq!(tree.policy_id, "default_end_of_tick_cleanup");
+    assert_eq!(tree.version, "1.0");
+
+    // Should have end_of_tick_collateral_tree but not payment or strategic trees
+    assert!(tree.payment_tree.is_none(), "payment_tree should be None for collateral-only policy");
+    assert!(tree.strategic_collateral_tree.is_none(), "strategic_collateral_tree should be None");
+    assert!(tree.end_of_tick_collateral_tree.is_some(), "end_of_tick_collateral_tree should be present");
+}
+
+#[test]
+fn test_default_policy_structure() {
+    // Test the structure of the default policy
+    let policy_path = "../policies/defaults/end_of_tick_cleanup.json";
+    let json = std::fs::read_to_string(policy_path)
+        .expect("Failed to read default end-of-tick cleanup policy");
+
+    let tree: DecisionTreeDef = serde_json::from_str(&json).expect("Failed to parse");
+
+    // Verify the root node is a condition checking queue2_size
+    match tree.end_of_tick_collateral_tree.as_ref().unwrap() {
+        TreeNode::Condition { node_id, description, condition, .. } => {
+            assert_eq!(node_id, "EOT1");
+            assert!(description.contains("RTGS queue"), "Should check RTGS queue status");
+
+            // Should check if queue2_size == 0
+            match condition {
+                Expression::Equal { left, right } => {
+                    assert!(matches!(left, Value::Field { field } if field == "queue2_size"));
+                    assert!(matches!(right, Value::Literal { .. }));
+                }
+                _ => panic!("Expected Equal condition at root"),
+            }
+        }
+        _ => panic!("Expected Condition node at root of end_of_tick_collateral_tree"),
+    }
+}
+
+#[test]
+fn test_default_policy_validates() {
+    use payment_simulator_core_rs::policy::tree::{validate_tree, EvalContext};
+    use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+
+    // Load the policy
+    let policy_path = "../policies/defaults/end_of_tick_cleanup.json";
+    let json = std::fs::read_to_string(policy_path)
+        .expect("Failed to read default end-of-tick cleanup policy");
+    let tree: DecisionTreeDef = serde_json::from_str(&json).expect("Failed to parse");
+
+    // Create sample context for validation
+    let agent = Agent::new("TEST_BANK".to_string(), 500_000, 0);
+    let state = SimulationState::new(vec![agent.clone()]);
+    let dummy_tx = Transaction::new("TEST_BANK".to_string(), "OTHER".to_string(), 100_000, 0, 100);
+    let context = EvalContext::build(&dummy_tx, &agent, &state, 10);
+
+    // Validate tree
+    let result = validate_tree(&tree, &context);
+    assert!(result.is_ok(), "Policy should validate successfully: {:?}", result.err());
+}
