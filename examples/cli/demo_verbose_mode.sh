@@ -2,9 +2,12 @@
 # Verbose Mode Demo
 # Shows detailed real-time event logging
 
+# IMPORTANT: This script must be run from the project root directory
+# cd /path/to/cashman && examples/cli/demo_verbose_mode.sh
+
 set -e
 
-source .venv/bin/activate
+source api/.venv/bin/activate
 
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║   Payment Simulator - Verbose Mode Demo                      ║"

@@ -122,6 +122,11 @@ payment-sim run --config scenarios/realistic_demo.yaml --ticks 10
 
 Run both scenarios side-by-side:
 ```bash
+# From project root
+examples/cli/demo_comparison.sh
+
+# Or from examples/cli/
+cd examples/cli
 ./demo_comparison.sh
 ```
 

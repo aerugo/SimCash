@@ -2,9 +2,12 @@
 # Realistic Scenario Demo
 # Shows a complete RTGS simulation with transaction arrivals, settlements, and costs
 
+# IMPORTANT: This script must be run from the project root directory
+# cd /path/to/cashman && examples/cli/demo_realistic_scenario.sh
+
 set -e
 
-source .venv/bin/activate
+source api/.venv/bin/activate
 
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║   Payment Simulator - Realistic RTGS Scenario Demo           ║"
@@ -19,7 +22,7 @@ echo ""
 # 1. Run full simulation
 echo "📊 Running full simulation..."
 echo ""
-payment-sim run --config scenarios/realistic_demo.yaml --quiet > /tmp/sim_results.json
+payment-sim run --config ../../scenarios/realistic_demo.yaml --quiet > /tmp/sim_results.json
 
 # 2. Extract and display key metrics
 echo "📈 SIMULATION RESULTS"

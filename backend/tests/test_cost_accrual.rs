@@ -290,8 +290,10 @@ fn test_end_of_day_penalty() {
     }
 
     // Check EOD penalty was applied
-    let costs = orchestrator.get_costs("BANK_A").unwrap();
-    assert_eq!(costs.total_penalty_cost, 10_000); // $100 for 1 unsettled tx
+    // After EOD, costs are stored in historical metrics (day 0)
+    let metrics = orchestrator.get_daily_agent_metrics(0);
+    let bank_a_metrics = metrics.iter().find(|m| m.agent_id == "BANK_A").unwrap();
+    assert_eq!(bank_a_metrics.deadline_penalty_cost, 10_000); // $100 for 1 unsettled tx
 }
 
 #[test]

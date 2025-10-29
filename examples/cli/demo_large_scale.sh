@@ -2,9 +2,12 @@
 # Large-Scale Scenario Demo
 # 200 agents, 2000 ticks (10 simulated days)
 
+# IMPORTANT: This script must be run from the project root directory
+# cd /path/to/cashman && examples/cli/demo_large_scale.sh
+
 set -e
 
-source .venv/bin/activate
+source api/.venv/bin/activate
 
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║   Payment Simulator - Large-Scale Demo                       ║"
