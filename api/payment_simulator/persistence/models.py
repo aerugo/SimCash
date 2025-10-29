@@ -283,9 +283,8 @@ class PolicySnapshotRecord(BaseModel):
     snapshot_tick: int = Field(..., description="Tick when policy changed")
 
     # Policy content
-    policy_hash: str = Field(..., description="SHA256 hash of policy JSON", min_length=64, max_length=64)
-    policy_file_path: str = Field(..., description="Path to policy JSON file")
-    policy_json: str = Field(..., description="Full policy JSON for quick access")
+    policy_hash: str = Field(..., description="SHA256 hash of policy JSON for deduplication", min_length=64, max_length=64)
+    policy_json: str = Field(..., description="Full policy JSON document")
 
     # Metadata
     created_by: PolicyCreatedBy = Field(..., description="Who/what created this policy")

@@ -3,10 +3,11 @@ Policy Snapshot Tracking
 
 Functions for:
 - Computing deterministic policy hashes for deduplication
-- Saving policy JSON files to backend/policies/
-- Creating policy snapshot records
+- Creating policy snapshot records (database-only storage)
 - Capturing initial policies at simulation start
+- Loading policy templates from disk into database
 
+Updated: Database-only storage (no file I/O at runtime)
 Phase 4: Policy Snapshot Tracking
 """
 
@@ -49,45 +50,6 @@ def compute_policy_hash(policy_json: str) -> str:
     return hash_bytes.hex()
 
 
-def save_policy_file(
-    agent_id: str,
-    version: str,
-    policy_json: str,
-    base_dir: Path,
-) -> Path:
-    """Save policy JSON to versioned file.
-
-    Uses naming convention: {agent_id}_policy_{version}.json
-
-    Args:
-        agent_id: Agent identifier (e.g., "BANK_A")
-        version: Version identifier (e.g., "v1", "v2", "init")
-        policy_json: JSON string to save
-        base_dir: Base directory for policy files
-
-    Returns:
-        Path to saved file
-
-    Examples:
-        >>> save_policy_file("BANK_A", "v1", '{"type": "fifo"}', Path("/tmp"))
-        PosixPath('/tmp/BANK_A_policy_v1.json')
-    """
-    # Ensure base directory exists
-    base_dir = Path(base_dir)
-    base_dir.mkdir(parents=True, exist_ok=True)
-
-    # Construct file path
-    filename = f"{agent_id}_policy_{version}.json"
-    file_path = base_dir / filename
-
-    # Write JSON file (pretty-printed for human readability)
-    policy_dict = json.loads(policy_json)
-    with file_path.open("w") as f:
-        json.dump(policy_dict, f, indent=2)
-
-    return file_path
-
-
 def create_policy_snapshot(
     simulation_id: str,
     agent_id: str,
@@ -95,10 +57,10 @@ def create_policy_snapshot(
     snapshot_tick: int,
     policy_json: str,
     created_by: str,
-    policy_dir: Path,
-    version: str | None = None,
 ) -> dict[str, Any]:
-    """Create policy snapshot record with hash and file path.
+    """Create policy snapshot record with hash.
+
+    Policies are stored only in database (no file operations).
 
     Args:
         simulation_id: Simulation identifier
@@ -107,8 +69,6 @@ def create_policy_snapshot(
         snapshot_tick: Tick when policy changed
         policy_json: JSON string representing policy
         created_by: Who/what created policy ("init", "manual", "llm")
-        policy_dir: Directory to save policy files
-        version: Optional version identifier (defaults to "day{day}_tick{tick}")
 
     Returns:
         Dictionary matching PolicySnapshotRecord schema
@@ -120,30 +80,23 @@ def create_policy_snapshot(
         ...     snapshot_day=0,
         ...     snapshot_tick=0,
         ...     policy_json='{"type": "fifo"}',
-        ...     created_by="init",
-        ...     policy_dir=Path("/tmp/policies")
+        ...     created_by="init"
         ... )
         >>> snapshot["policy_hash"]
         'a1b2c3d4...'  # 64 chars
+        >>> "policy_file_path" in snapshot
+        False
     """
     # Compute hash
     policy_hash = compute_policy_hash(policy_json)
 
-    # Generate version if not provided
-    if version is None:
-        version = f"day{snapshot_day}_tick{snapshot_tick}"
-
-    # Save policy file
-    file_path = save_policy_file(agent_id, version, policy_json, policy_dir)
-
-    # Create snapshot record
+    # Create snapshot record (no file operations)
     snapshot = {
         "simulation_id": simulation_id,
         "agent_id": agent_id,
         "snapshot_day": snapshot_day,
         "snapshot_tick": snapshot_tick,
         "policy_hash": policy_hash,
-        "policy_file_path": str(file_path),
         "policy_json": policy_json,
         "created_by": created_by,
     }
@@ -154,14 +107,14 @@ def create_policy_snapshot(
 def capture_initial_policies(
     agent_configs: list[dict[str, Any]],
     simulation_id: str,
-    policy_dir: Path,
 ) -> list[dict[str, Any]]:
     """Capture initial policies for all agents at simulation start.
+
+    Policies are stored only in database (no file storage).
 
     Args:
         agent_configs: List of agent configuration dicts (each with 'id' and 'policy' keys)
         simulation_id: Simulation identifier
-        policy_dir: Directory to save policy files
 
     Returns:
         List of policy snapshot dicts for all agents
@@ -171,9 +124,9 @@ def capture_initial_policies(
         ...     {"id": "BANK_A", "opening_balance": 1000000,
         ...      "credit_limit": 500000, "policy": {"type": "Fifo"}},
         ...     {"id": "BANK_B", "opening_balance": 2000000,
-        ...      "credit_limit": 300000, "policy": {"type": "Priority"}},
+        ...      "credit_limit": 300000, "policy": {"type": "Fifo"}},
         ... ]
-        >>> snapshots = capture_initial_policies(agent_configs, "sim-001", Path("/tmp"))
+        >>> snapshots = capture_initial_policies(agent_configs, "sim-001")
         >>> len(snapshots)
         2
         >>> snapshots[0]["agent_id"]
@@ -188,7 +141,7 @@ def capture_initial_policies(
         # Convert policy config to JSON
         policy_json = json.dumps(policy_config, sort_keys=True)
 
-        # Create snapshot
+        # Create snapshot (no file operations)
         snapshot = create_policy_snapshot(
             simulation_id=simulation_id,
             agent_id=agent_id,
@@ -196,10 +149,64 @@ def capture_initial_policies(
             snapshot_tick=0,
             policy_json=policy_json,
             created_by=PolicyCreatedBy.INIT.value,
-            policy_dir=policy_dir,
-            version="init",
         )
 
         snapshots.append(snapshot)
 
     return snapshots
+
+
+def load_policy_templates(
+    policy_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Load policy template files from disk into database-ready format.
+
+    Scans policy_dir for *.json files and creates snapshot records.
+    These are loaded once per database at setup.
+
+    Args:
+        policy_dir: Directory containing policy template JSON files.
+                   Defaults to backend/policies/
+
+    Returns:
+        List of policy snapshot dicts ready for database insertion
+
+    Examples:
+        >>> templates = load_policy_templates()
+        >>> len(templates) > 0
+        True
+        >>> templates[0]["simulation_id"]
+        'templates'
+        >>> "fifo" in {t["agent_id"] for t in templates}
+        True
+    """
+    if policy_dir is None:
+        # Default to backend/policies/ (from project root)
+        # policy_tracking.py -> persistence -> payment_simulator -> api -> cashman (project root)
+        policy_dir = Path(__file__).parent.parent.parent.parent / "backend" / "policies"
+
+    templates = []
+
+    # Scan for JSON files
+    for json_file in policy_dir.glob("*.json"):
+        # Skip subdirectories like defaults/
+        if not json_file.is_file():
+            continue
+
+        # Read policy JSON
+        policy_json = json_file.read_text()
+
+        # Create a snapshot record for this template
+        # Use simulation_id="templates" to mark as template catalog
+        template = create_policy_snapshot(
+            simulation_id="templates",
+            agent_id=json_file.stem,  # e.g., "fifo", "liquidity_aware"
+            snapshot_day=0,
+            snapshot_tick=0,
+            policy_json=policy_json,
+            created_by=PolicyCreatedBy.INIT.value,
+        )
+
+        templates.append(template)
+
+    return templates
