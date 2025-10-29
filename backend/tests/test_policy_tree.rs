@@ -337,3 +337,93 @@ fn test_collateral_decision_with_computed_amount() {
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
     assert!(tree.is_ok(), "Failed to parse collateral with computed amount: {:?}", tree.err());
 }
+
+// ============================================================================
+// PHASE 8.2: Three-Tree Policy Schema (TDD Cycle 1)
+// ============================================================================
+
+#[test]
+fn test_parse_three_tree_policy() {
+    // Test parsing policy with three separate decision trees
+    let json = r#"{
+        "version": "1.0",
+        "policy_id": "test_three_tree_policy",
+        "description": "Test policy with all three trees",
+
+        "payment_tree": {
+            "node_id": "P1",
+            "type": "action",
+            "action": "Release"
+        },
+
+        "strategic_collateral_tree": {
+            "node_id": "S1",
+            "type": "action",
+            "action": "HoldCollateral"
+        },
+
+        "end_of_tick_collateral_tree": {
+            "node_id": "E1",
+            "type": "condition",
+            "condition": {
+                "op": "==",
+                "left": {"field": "queue2_size"},
+                "right": {"value": 0}
+            },
+            "on_true": {
+                "node_id": "E2",
+                "type": "action",
+                "action": "WithdrawCollateral",
+                "parameters": {
+                    "amount": {"field": "posted_collateral"},
+                    "reason": {"value": "EndOfDayCleanup"}
+                }
+            },
+            "on_false": {
+                "node_id": "E3",
+                "type": "action",
+                "action": "HoldCollateral"
+            }
+        },
+
+        "parameters": {
+            "target_buffer": 500000.0
+        }
+    }"#;
+
+    let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
+    assert!(tree.is_ok(), "Failed to parse three-tree policy: {:?}", tree.err());
+
+    let tree = tree.unwrap();
+    assert_eq!(tree.version, "1.0");
+    assert_eq!(tree.policy_id, "test_three_tree_policy");
+    assert!(tree.payment_tree.is_some(), "payment_tree should be present");
+    assert!(tree.strategic_collateral_tree.is_some(), "strategic_collateral_tree should be present");
+    assert!(tree.end_of_tick_collateral_tree.is_some(), "end_of_tick_collateral_tree should be present");
+}
+
+#[test]
+fn test_parse_policy_with_optional_trees() {
+    // Test that collateral trees are optional (can be null)
+    let json = r#"{
+        "version": "1.0",
+        "policy_id": "payment_only_policy",
+
+        "payment_tree": {
+            "node_id": "P1",
+            "type": "action",
+            "action": "Release"
+        },
+
+        "strategic_collateral_tree": null,
+        "end_of_tick_collateral_tree": null
+    }"#;
+
+    let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
+    assert!(tree.is_ok(), "Failed to parse policy with null trees: {:?}", tree.err());
+
+    let tree = tree.unwrap();
+    assert!(tree.payment_tree.is_some(), "payment_tree should be present");
+    assert!(tree.strategic_collateral_tree.is_none(), "strategic_collateral_tree should be None");
+    assert!(tree.end_of_tick_collateral_tree.is_none(), "end_of_tick_collateral_tree should be None");
+}

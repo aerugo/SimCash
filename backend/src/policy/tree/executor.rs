@@ -181,9 +181,9 @@ impl TreePolicy {
         &self.tree
     }
 
-    /// Get tree ID
-    pub fn tree_id(&self) -> &str {
-        &self.tree.tree_id
+    /// Get policy ID
+    pub fn policy_id(&self) -> &str {
+        &self.tree.policy_id
     }
 
     /// Get tree version

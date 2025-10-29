@@ -132,12 +132,25 @@ pub fn validate_tree(tree: &DecisionTreeDef, sample_context: &EvalContext) -> Va
 // Phase 6.9: Node ID Uniqueness
 // ============================================================================
 
-/// Validate that all node IDs are unique
+/// Validate that all node IDs are unique across all three trees
 fn validate_node_id_uniqueness(tree: &DecisionTreeDef) -> ValidationResult {
     let mut seen = HashSet::new();
     let mut errors = Vec::new();
 
-    collect_node_ids(&tree.root, &mut seen, &mut errors);
+    // Validate payment tree
+    if let Some(ref payment_tree) = tree.payment_tree {
+        collect_node_ids(payment_tree, &mut seen, &mut errors);
+    }
+
+    // Validate strategic collateral tree
+    if let Some(ref strategic_tree) = tree.strategic_collateral_tree {
+        collect_node_ids(strategic_tree, &mut seen, &mut errors);
+    }
+
+    // Validate end-of-tick collateral tree
+    if let Some(ref eot_tree) = tree.end_of_tick_collateral_tree {
+        collect_node_ids(eot_tree, &mut seen, &mut errors);
+    }
 
     if errors.is_empty() {
         Ok(())
@@ -171,9 +184,24 @@ fn collect_node_ids(
 // Phase 6.10: Tree Depth Limits
 // ============================================================================
 
-/// Validate that tree depth does not exceed maximum
+/// Validate that tree depth does not exceed maximum for all three trees
 fn validate_tree_depth(tree: &DecisionTreeDef) -> ValidationResult {
-    let max_depth = compute_tree_depth(&tree.root, 0);
+    let mut max_depth = 0;
+
+    // Check payment tree
+    if let Some(ref payment_tree) = tree.payment_tree {
+        max_depth = max_depth.max(compute_tree_depth(payment_tree, 0));
+    }
+
+    // Check strategic collateral tree
+    if let Some(ref strategic_tree) = tree.strategic_collateral_tree {
+        max_depth = max_depth.max(compute_tree_depth(strategic_tree, 0));
+    }
+
+    // Check end-of-tick collateral tree
+    if let Some(ref eot_tree) = tree.end_of_tick_collateral_tree {
+        max_depth = max_depth.max(compute_tree_depth(eot_tree, 0));
+    }
 
     if max_depth > MAX_TREE_DEPTH {
         Err(vec![ValidationError::ExcessiveDepth {
@@ -202,7 +230,7 @@ fn compute_tree_depth(node: &TreeNode, current_depth: usize) -> usize {
 // Phase 6.11: Field References
 // ============================================================================
 
-/// Validate that all field references exist in context
+/// Validate that all field references exist in context across all three trees
 fn validate_field_references(
     tree: &DecisionTreeDef,
     sample_context: &EvalContext,
@@ -210,8 +238,20 @@ fn validate_field_references(
     let mut errors = Vec::new();
     let mut referenced_fields = HashSet::new();
 
-    // Collect all field references
-    collect_field_references(&tree.root, &mut referenced_fields);
+    // Collect all field references from payment tree
+    if let Some(ref payment_tree) = tree.payment_tree {
+        collect_field_references(payment_tree, &mut referenced_fields);
+    }
+
+    // Collect all field references from strategic collateral tree
+    if let Some(ref strategic_tree) = tree.strategic_collateral_tree {
+        collect_field_references(strategic_tree, &mut referenced_fields);
+    }
+
+    // Collect all field references from end-of-tick collateral tree
+    if let Some(ref eot_tree) = tree.end_of_tick_collateral_tree {
+        collect_field_references(eot_tree, &mut referenced_fields);
+    }
 
     // Check each field against sample context
     for field in referenced_fields {
@@ -314,13 +354,25 @@ fn collect_fields_from_value_or_compute(voc: &ValueOrCompute, fields: &mut HashS
 // Phase 6.12: Parameter References
 // ============================================================================
 
-/// Validate that all parameter references exist in tree parameters
+/// Validate that all parameter references exist in tree parameters across all three trees
 fn validate_parameter_references(tree: &DecisionTreeDef) -> ValidationResult {
     let mut errors = Vec::new();
     let mut referenced_params = HashSet::new();
 
-    // Collect all parameter references
-    collect_parameter_references(&tree.root, &mut referenced_params);
+    // Collect all parameter references from payment tree
+    if let Some(ref payment_tree) = tree.payment_tree {
+        collect_parameter_references(payment_tree, &mut referenced_params);
+    }
+
+    // Collect all parameter references from strategic collateral tree
+    if let Some(ref strategic_tree) = tree.strategic_collateral_tree {
+        collect_parameter_references(strategic_tree, &mut referenced_params);
+    }
+
+    // Collect all parameter references from end-of-tick collateral tree
+    if let Some(ref eot_tree) = tree.end_of_tick_collateral_tree {
+        collect_parameter_references(eot_tree, &mut referenced_params);
+    }
 
     // Check each parameter against tree.parameters
     for param in referenced_params {
@@ -423,14 +475,27 @@ fn collect_params_from_value_or_compute(voc: &ValueOrCompute, params: &mut HashS
 // Phase 6.13: Division Safety
 // ============================================================================
 
-/// Validate that no division operations have literal zero divisors
+/// Validate that no division operations have literal zero divisors across all three trees
 ///
 /// Note: This is static analysis only. Runtime division by zero is still
 /// caught by the interpreter's divide-by-zero check.
 fn validate_division_safety(tree: &DecisionTreeDef) -> ValidationResult {
     let mut errors = Vec::new();
 
-    check_division_safety_in_node(&tree.root, &mut errors);
+    // Check payment tree
+    if let Some(ref payment_tree) = tree.payment_tree {
+        check_division_safety_in_node(payment_tree, &mut errors);
+    }
+
+    // Check strategic collateral tree
+    if let Some(ref strategic_tree) = tree.strategic_collateral_tree {
+        check_division_safety_in_node(strategic_tree, &mut errors);
+    }
+
+    // Check end-of-tick collateral tree
+    if let Some(ref eot_tree) = tree.end_of_tick_collateral_tree {
+        check_division_safety_in_node(eot_tree, &mut errors);
+    }
 
     if errors.is_empty() {
         Ok(())
@@ -538,7 +603,7 @@ fn is_literal_zero(value: &Value) -> bool {
 // Phase 6.14: Action Reachability
 // ============================================================================
 
-/// Validate that all action nodes are potentially reachable
+/// Validate that all action nodes are potentially reachable across all three trees
 ///
 /// This is a best-effort static analysis. We check for obviously unreachable
 /// actions (e.g., both branches lead to same action, conditions always false).
@@ -546,11 +611,23 @@ fn validate_action_reachability(tree: &DecisionTreeDef) -> ValidationResult {
     let mut all_actions = HashSet::new();
     let mut reachable_actions = HashSet::new();
 
-    // Collect all action nodes
-    collect_all_actions(&tree.root, &mut all_actions);
+    // Collect all action nodes from payment tree
+    if let Some(ref payment_tree) = tree.payment_tree {
+        collect_all_actions(payment_tree, &mut all_actions);
+        mark_reachable_actions(payment_tree, &mut reachable_actions);
+    }
 
-    // Mark reachable actions (all actions in a condition's branches)
-    mark_reachable_actions(&tree.root, &mut reachable_actions);
+    // Collect all action nodes from strategic collateral tree
+    if let Some(ref strategic_tree) = tree.strategic_collateral_tree {
+        collect_all_actions(strategic_tree, &mut all_actions);
+        mark_reachable_actions(strategic_tree, &mut reachable_actions);
+    }
+
+    // Collect all action nodes from end-of-tick collateral tree
+    if let Some(ref eot_tree) = tree.end_of_tick_collateral_tree {
+        collect_all_actions(eot_tree, &mut all_actions);
+        mark_reachable_actions(eot_tree, &mut reachable_actions);
+    }
 
     // Find unreachable actions
     let mut errors = Vec::new();
