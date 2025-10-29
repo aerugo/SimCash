@@ -600,6 +600,123 @@ pub fn build_decision(
     }
 }
 
+/// Build a CollateralDecision from an action node (Phase 8.2)
+///
+/// Converts collateral ActionType and its parameters into a collateral decision.
+/// Action parameters are evaluated using the context.
+///
+/// # Arguments
+///
+/// * `action_node` - Action node from tree traversal
+/// * `context` - Evaluation context
+/// * `params` - Tree parameters
+///
+/// # Returns
+///
+/// Ok(CollateralDecision) if conversion succeeds, Err otherwise
+pub fn build_collateral_decision(
+    action_node: &TreeNode,
+    context: &EvalContext,
+    params: &HashMap<String, f64>,
+) -> Result<crate::policy::CollateralDecision, EvalError> {
+    use crate::policy::tree::types::ActionType;
+    use crate::policy::{CollateralDecision, CollateralReason};
+
+    // Verify this is an action node
+    let (action, action_params) = match action_node {
+        TreeNode::Action {
+            action,
+            parameters, ..
+        } => (action, parameters),
+        TreeNode::Condition { .. } => {
+            return Err(EvalError::ExpectedActionNode);
+        }
+    };
+
+    // Convert ActionType to CollateralDecision
+    match action {
+        ActionType::PostCollateral => {
+            // Extract amount parameter (required)
+            let amount = evaluate_action_parameter(action_params, "amount", context, params)?;
+            let amount_i64 = amount as i64;
+
+            // Extract reason parameter (required)
+            let reason = extract_collateral_reason(action_params, context)?;
+
+            Ok(CollateralDecision::Post {
+                amount: amount_i64,
+                reason,
+            })
+        }
+
+        ActionType::WithdrawCollateral => {
+            // Extract amount parameter (required)
+            let amount = evaluate_action_parameter(action_params, "amount", context, params)?;
+            let amount_i64 = amount as i64;
+
+            // Extract reason parameter (required)
+            let reason = extract_collateral_reason(action_params, context)?;
+
+            Ok(CollateralDecision::Withdraw {
+                amount: amount_i64,
+                reason,
+            })
+        }
+
+        ActionType::HoldCollateral => {
+            // No parameters needed
+            Ok(CollateralDecision::Hold)
+        }
+
+        // Payment actions are not valid in collateral decision context
+        ActionType::Release
+        | ActionType::ReleaseWithCredit
+        | ActionType::PaceAndRelease
+        | ActionType::Split
+        | ActionType::Hold
+        | ActionType::Drop => Err(EvalError::InvalidActionType(format!(
+            "Payment action {:?} cannot be used in collateral decision tree. \
+             Payment actions require separate tree evaluation.",
+            action
+        ))),
+    }
+}
+
+/// Extract CollateralReason from action parameters
+fn extract_collateral_reason(
+    action_params: &HashMap<String, ValueOrCompute>,
+    _context: &EvalContext,
+) -> Result<crate::policy::CollateralReason, EvalError> {
+    use crate::policy::tree::types::ValueOrCompute;
+    use crate::policy::CollateralReason;
+
+    let reason = if let Some(reason_value) = action_params.get("reason") {
+        match reason_value {
+            ValueOrCompute::Direct { value } => {
+                if let Some(reason_str) = value.as_str() {
+                    match reason_str {
+                        "UrgentLiquidityNeed" => CollateralReason::UrgentLiquidityNeed,
+                        "PreemptivePosting" => CollateralReason::PreemptivePosting,
+                        "LiquidityRestored" => CollateralReason::LiquidityRestored,
+                        "EndOfDayCleanup" => CollateralReason::EndOfDayCleanup,
+                        "DeadlineEmergency" => CollateralReason::DeadlineEmergency,
+                        "CostOptimization" => CollateralReason::CostOptimization,
+                        _ => CollateralReason::UrgentLiquidityNeed, // Default
+                    }
+                } else {
+                    CollateralReason::UrgentLiquidityNeed // Default
+                }
+            }
+            _ => CollateralReason::UrgentLiquidityNeed, // Default
+        }
+    } else {
+        // Reason is optional, default to UrgentLiquidityNeed
+        CollateralReason::UrgentLiquidityNeed
+    };
+
+    Ok(reason)
+}
+
 /// Evaluate an action parameter value
 ///
 /// Action parameters can be literals, field references, param references, or computations.
@@ -1725,6 +1842,179 @@ mod tests {
         match result {
             Err(EvalError::InvalidActionParameter(_)) => {}
             _ => panic!("Expected InvalidActionParameter error"),
+        }
+    }
+
+    // ============================================================================
+    // PHASE 8.2: Collateral Decision Building (TDD Cycle 3)
+    // ============================================================================
+
+    #[test]
+    fn test_build_collateral_decision_post() {
+        use crate::policy::CollateralDecision;
+        let (context, params) = create_test_context();
+
+        // PostCollateral with amount and reason
+        let mut action_params = HashMap::new();
+        action_params.insert(
+            "amount".to_string(),
+            ValueOrCompute::Direct {
+                value: json!(100000),
+            },
+        );
+        action_params.insert(
+            "reason".to_string(),
+            ValueOrCompute::Direct {
+                value: json!("UrgentLiquidityNeed"),
+            },
+        );
+
+        let action_node = TreeNode::Action {
+            node_id: "C1".to_string(),
+            action: ActionType::PostCollateral,
+            parameters: action_params,
+        };
+
+        let result = build_collateral_decision(&action_node, &context, &params);
+        assert!(result.is_ok(), "Failed to build PostCollateral decision: {:?}", result.err());
+
+        match result.unwrap() {
+            CollateralDecision::Post { amount, reason } => {
+                assert_eq!(amount, 100000);
+                assert_eq!(format!("{:?}", reason), "UrgentLiquidityNeed");
+            }
+            _ => panic!("Expected Post decision"),
+        }
+    }
+
+    #[test]
+    fn test_build_collateral_decision_withdraw() {
+        use crate::policy::CollateralDecision;
+        let (context, params) = create_test_context();
+
+        // WithdrawCollateral with amount from field
+        let mut action_params = HashMap::new();
+        action_params.insert(
+            "amount".to_string(),
+            ValueOrCompute::Field {
+                field: "posted_collateral".to_string(),
+            },
+        );
+        action_params.insert(
+            "reason".to_string(),
+            ValueOrCompute::Direct {
+                value: json!("LiquidityRestored"),
+            },
+        );
+
+        let action_node = TreeNode::Action {
+            node_id: "C2".to_string(),
+            action: ActionType::WithdrawCollateral,
+            parameters: action_params,
+        };
+
+        let result = build_collateral_decision(&action_node, &context, &params);
+        assert!(result.is_ok(), "Failed to build WithdrawCollateral decision: {:?}", result.err());
+
+        match result.unwrap() {
+            CollateralDecision::Withdraw { amount, .. } => {
+                // posted_collateral should be 0 in test context
+                assert_eq!(amount, 0);
+            }
+            _ => panic!("Expected Withdraw decision"),
+        }
+    }
+
+    #[test]
+    fn test_build_collateral_decision_hold() {
+        use crate::policy::CollateralDecision;
+        let (context, params) = create_test_context();
+
+        // HoldCollateral (no parameters needed)
+        let action_node = TreeNode::Action {
+            node_id: "C3".to_string(),
+            action: ActionType::HoldCollateral,
+            parameters: HashMap::new(),
+        };
+
+        let result = build_collateral_decision(&action_node, &context, &params);
+        assert!(result.is_ok(), "Failed to build HoldCollateral decision: {:?}", result.err());
+
+        assert!(matches!(result.unwrap(), CollateralDecision::Hold));
+    }
+
+    #[test]
+    fn test_build_collateral_decision_computed_amount() {
+        use crate::policy::CollateralDecision;
+        let (context, params) = create_test_context();
+
+        // PostCollateral with computed amount (liquidity gap)
+        let mut action_params = HashMap::new();
+        action_params.insert(
+            "amount".to_string(),
+            ValueOrCompute::Compute {
+                compute: Computation::Max {
+                    values: vec![
+                        Value::Field {
+                            field: "queue1_liquidity_gap".to_string(),
+                        },
+                        Value::Literal { value: json!(0) },
+                    ],
+                },
+            },
+        );
+        action_params.insert(
+            "reason".to_string(),
+            ValueOrCompute::Direct {
+                value: json!("UrgentLiquidityNeed"),
+            },
+        );
+
+        let action_node = TreeNode::Action {
+            node_id: "C4".to_string(),
+            action: ActionType::PostCollateral,
+            parameters: action_params,
+        };
+
+        let result = build_collateral_decision(&action_node, &context, &params);
+        assert!(result.is_ok(), "Failed to build PostCollateral with computed amount: {:?}", result.err());
+
+        // Should compute max(queue1_liquidity_gap, 0)
+        match result.unwrap() {
+            CollateralDecision::Post { amount, .. } => {
+                assert!(amount >= 0, "Amount should be non-negative");
+            }
+            _ => panic!("Expected Post decision"),
+        }
+    }
+
+    #[test]
+    fn test_build_collateral_decision_missing_amount() {
+        let (context, params) = create_test_context();
+
+        // PostCollateral without amount parameter should error
+        let mut action_params = HashMap::new();
+        action_params.insert(
+            "reason".to_string(),
+            ValueOrCompute::Direct {
+                value: json!("UrgentLiquidityNeed"),
+            },
+        );
+
+        let action_node = TreeNode::Action {
+            node_id: "C5".to_string(),
+            action: ActionType::PostCollateral,
+            parameters: action_params,
+        };
+
+        let result = build_collateral_decision(&action_node, &context, &params);
+        assert!(result.is_err(), "Should error when amount is missing");
+
+        match result {
+            Err(EvalError::MissingActionParameter(param)) => {
+                assert_eq!(param, "amount");
+            }
+            _ => panic!("Expected MissingActionParameter error"),
         }
     }
 }
