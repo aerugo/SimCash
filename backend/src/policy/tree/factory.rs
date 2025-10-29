@@ -116,7 +116,7 @@ mod tests {
     fn test_create_fifo_policy() {
         let config = PolicyConfig::Fifo;
         let policy = create_policy(&config).expect("Failed to create FIFO policy");
-        assert_eq!(policy.tree_id(), "fifo_policy");
+        assert_eq!(policy.policy_id(), "fifo_policy");
     }
 
     #[test]
@@ -125,7 +125,7 @@ mod tests {
             urgency_threshold: 5,
         };
         let policy = create_policy(&config).expect("Failed to create Deadline policy");
-        assert_eq!(policy.tree_id(), "deadline_policy");
+        assert_eq!(policy.policy_id(), "deadline_policy");
 
         // Verify parameter was injected
         let tree = policy.tree();
@@ -151,7 +151,7 @@ mod tests {
             urgency_threshold: 5,
         };
         let policy = create_policy(&config).expect("Failed to create LiquidityAware policy");
-        assert_eq!(policy.tree_id(), "liquidity_aware_policy");
+        assert_eq!(policy.policy_id(), "liquidity_aware_policy");
 
         // Verify both parameters were injected
         let tree = policy.tree();
@@ -180,7 +180,7 @@ mod tests {
             min_split_amount: 10_000,
         };
         let policy = create_policy(&config).expect("Failed to create LiquiditySplitting policy");
-        assert_eq!(policy.tree_id(), "liquidity_splitting_policy");
+        assert_eq!(policy.policy_id(), "liquidity_splitting_policy");
 
         // Verify parameters were injected
         let tree = policy.tree();
@@ -192,7 +192,7 @@ mod tests {
     fn test_create_mock_splitting_policy() {
         let config = PolicyConfig::MockSplitting { num_splits: 3 };
         let policy = create_policy(&config).expect("Failed to create MockSplitting policy");
-        assert_eq!(policy.tree_id(), "mock_splitting_policy");
+        assert_eq!(policy.policy_id(), "mock_splitting_policy");
 
         // Verify parameter was injected
         let tree = policy.tree();
