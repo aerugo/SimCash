@@ -186,6 +186,7 @@ def generate_full_schema_ddl() -> str:
     from .models import (
         CollateralEventRecord,
         DailyAgentMetricsRecord,
+        PolicySnapshotRecord,
         SimulationRunRecord,
         TransactionRecord,
     )
@@ -195,6 +196,7 @@ def generate_full_schema_ddl() -> str:
         TransactionRecord,
         DailyAgentMetricsRecord,
         CollateralEventRecord,
+        PolicySnapshotRecord,
     ]
 
     ddl_parts = []

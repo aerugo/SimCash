@@ -43,6 +43,14 @@ class CollateralActionType(str, Enum):
     HOLD = "hold"
 
 
+class PolicyCreatedBy(str, Enum):
+    """Policy snapshot creation source."""
+
+    INIT = "init"  # Initial policy at simulation start
+    MANUAL = "manual"  # Manual policy change
+    LLM = "llm"  # LLM-managed policy change
+
+
 # ============================================================================
 # Transaction Record
 # ============================================================================
@@ -240,3 +248,44 @@ class CollateralEventRecord(BaseModel):
     posted_collateral_before: int
     posted_collateral_after: int
     available_capacity_after: int
+
+
+# ============================================================================
+# Policy Snapshots (Phase 4)
+# ============================================================================
+
+
+class PolicySnapshotRecord(BaseModel):
+    """Policy snapshot tracking for reproducibility.
+
+    Tracks policy changes during simulation lifecycle for:
+    - Initial policies at simulation start
+    - Manual policy changes
+    - LLM-managed policy optimization
+
+    Added in Phase 4 (Policy Snapshot Tracking).
+    """
+
+    model_config = ConfigDict(
+        table_name="policy_snapshots",
+        primary_key=["simulation_id", "agent_id", "snapshot_day", "snapshot_tick"],
+        indexes=[
+            ("idx_policy_sim_agent", ["simulation_id", "agent_id"]),
+            ("idx_policy_hash", ["policy_hash"]),
+            ("idx_policy_created_by", ["created_by"]),
+        ],
+    )
+
+    # Identity
+    simulation_id: str = Field(..., description="Foreign key to simulations table")
+    agent_id: str = Field(..., description="Agent whose policy changed")
+    snapshot_day: int = Field(..., description="Day when policy changed")
+    snapshot_tick: int = Field(..., description="Tick when policy changed")
+
+    # Policy content
+    policy_hash: str = Field(..., description="SHA256 hash of policy JSON", min_length=64, max_length=64)
+    policy_file_path: str = Field(..., description="Path to policy JSON file")
+    policy_json: str = Field(..., description="Full policy JSON for quick access")
+
+    # Metadata
+    created_by: PolicyCreatedBy = Field(..., description="Who/what created this policy")
