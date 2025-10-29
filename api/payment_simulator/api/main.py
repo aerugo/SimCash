@@ -61,6 +61,39 @@ class TransactionListResponse(BaseModel):
     transactions: List[Dict[str, Any]]
 
 
+class CheckpointSaveRequest(BaseModel):
+    """Request model for saving a checkpoint."""
+    checkpoint_type: str = Field(..., description="Type of checkpoint (manual/auto/eod/final)")
+    description: Optional[str] = Field(None, description="Human-readable description")
+
+
+class CheckpointSaveResponse(BaseModel):
+    """Response model for checkpoint save."""
+    checkpoint_id: str
+    simulation_id: str
+    checkpoint_tick: int
+    checkpoint_day: int
+    message: str = "Checkpoint saved successfully"
+
+
+class CheckpointLoadRequest(BaseModel):
+    """Request model for loading from checkpoint."""
+    checkpoint_id: str = Field(..., description="Checkpoint ID to restore from")
+
+
+class CheckpointLoadResponse(BaseModel):
+    """Response model for loading from checkpoint."""
+    simulation_id: str
+    current_tick: int
+    current_day: int
+    message: str = "Simulation restored from checkpoint"
+
+
+class CheckpointListResponse(BaseModel):
+    """Response model for listing checkpoints."""
+    checkpoints: List[Dict[str, Any]]
+
+
 # ============================================================================
 # Simulation Manager (In-Memory State)
 # ============================================================================
@@ -68,10 +101,11 @@ class TransactionListResponse(BaseModel):
 class SimulationManager:
     """Manages active simulation instances."""
 
-    def __init__(self):
+    def __init__(self, db_manager=None):
         self.simulations: Dict[str, Orchestrator] = {}
-        self.configs: Dict[str, Dict] = {}  # Store configs for reference
+        self.configs: Dict[str, Dict] = {}  # Store both original and FFI configs: {"original": dict, "ffi": dict}
         self.transactions: Dict[str, Dict[str, Dict[str, Any]]] = {}  # sim_id -> tx_id -> tx_data
+        self.db_manager = db_manager  # Optional database manager for checkpoints
 
     def create_simulation(self, config_dict: dict) -> tuple[str, Orchestrator]:
         """Create new simulation from config."""
@@ -93,9 +127,9 @@ class SimulationManager:
         # Generate unique ID
         sim_id = str(uuid.uuid4())
 
-        # Store
+        # Store (keep both original and FFI configs for checkpoint restoration)
         self.simulations[sim_id] = orchestrator
-        self.configs[sim_id] = config_dict
+        self.configs[sim_id] = {"original": config_dict, "ffi": ffi_dict}
         self.transactions[sim_id] = {}  # Initialize empty transaction tracking
 
         return sim_id, orchestrator
@@ -134,8 +168,8 @@ class SimulationManager:
             agents[agent_id] = {
                 "balance": orch.get_agent_balance(agent_id),
                 "queue1_size": orch.get_queue1_size(agent_id),
-                "credit_limit": self.configs[sim_id]["agents"][
-                    next(i for i, a in enumerate(self.configs[sim_id]["agents"]) if a["id"] == agent_id)
+                "credit_limit": self.configs[sim_id]["original"]["agents"][
+                    next(i for i, a in enumerate(self.configs[sim_id]["original"]["agents"]) if a["id"] == agent_id)
                 ]["credit_limit"],
             }
 
@@ -469,6 +503,237 @@ def list_transactions(
         raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+# ============================================================================
+# Checkpoint Endpoints
+# ============================================================================
+
+@app.post("/simulations/{sim_id}/checkpoint", response_model=CheckpointSaveResponse)
+def save_checkpoint(sim_id: str, request: CheckpointSaveRequest):
+    """
+    Save simulation state as checkpoint to database.
+
+    Creates a checkpoint that can be used to restore the simulation later.
+    The checkpoint includes complete state (agents, transactions, queues, RNG state).
+    """
+    try:
+        # Verify simulation exists
+        orch = manager.get_simulation(sim_id)
+
+        # Verify database manager is available
+        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Checkpoint feature not available (database not configured)"
+            )
+
+        # Import CheckpointManager
+        from payment_simulator.persistence.checkpoint import CheckpointManager
+
+        # Create checkpoint manager
+        checkpoint_mgr = CheckpointManager(app.state.db_manager)
+
+        # Get the FFI config that was used to create this simulation
+        config_data = manager.configs[sim_id]
+        ffi_dict = config_data["ffi"]
+
+        # Save checkpoint
+        checkpoint_id = checkpoint_mgr.save_checkpoint(
+            orchestrator=orch,
+            simulation_id=sim_id,
+            config=ffi_dict,
+            checkpoint_type=request.checkpoint_type,
+            description=request.description,
+            created_by="api_user"  # TODO: Get from auth context
+        )
+
+        return CheckpointSaveResponse(
+            checkpoint_id=checkpoint_id,
+            simulation_id=sim_id,
+            checkpoint_tick=orch.current_tick(),
+            checkpoint_day=orch.current_day(),
+        )
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save checkpoint: {e}")
+
+
+@app.post("/simulations/from-checkpoint", response_model=CheckpointLoadResponse)
+def load_from_checkpoint(request: CheckpointLoadRequest):
+    """
+    Create new simulation by restoring from checkpoint.
+
+    Loads the simulation state from the specified checkpoint and creates a new
+    active simulation instance that can be advanced independently.
+    """
+    try:
+        # Verify database manager is available
+        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Checkpoint feature not available (database not configured)"
+            )
+
+        # Import CheckpointManager
+        from payment_simulator.persistence.checkpoint import CheckpointManager
+
+        # Create checkpoint manager
+        checkpoint_mgr = CheckpointManager(app.state.db_manager)
+
+        # Get checkpoint to extract config
+        checkpoint = checkpoint_mgr.get_checkpoint(request.checkpoint_id)
+        if checkpoint is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Checkpoint not found: {request.checkpoint_id}"
+            )
+
+        # Load orchestrator and config from checkpoint
+        # The config is stored in the checkpoint database record, so we don't need
+        # the original simulation to still be active in memory
+        orch, ffi_dict = checkpoint_mgr.load_checkpoint(request.checkpoint_id)
+
+        # Create new simulation ID
+        new_sim_id = str(uuid.uuid4())
+
+        # Convert FFI dict back to original config dict for storage
+        # This is for API compatibility (list_simulations needs original format)
+        from payment_simulator.config import SimulationConfig
+        # We need to reconstruct the original dict from the FFI dict
+        # For now, we'll just use the ffi_dict as both (they're similar enough)
+        # TODO: Store original_config_dict in checkpoint too if needed for perfect reconstruction
+        config_dict = ffi_dict  # Simplified: use FFI dict as original
+
+        # Store in manager
+        manager.simulations[new_sim_id] = orch
+        manager.configs[new_sim_id] = {"original": config_dict, "ffi": ffi_dict}
+        manager.transactions[new_sim_id] = {}  # Initialize empty transaction tracking
+
+        return CheckpointLoadResponse(
+            simulation_id=new_sim_id,
+            current_tick=orch.current_tick(),
+            current_day=orch.current_day(),
+        )
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load checkpoint: {e}")
+
+
+@app.get("/simulations/{sim_id}/checkpoints", response_model=CheckpointListResponse)
+def list_checkpoints(sim_id: str):
+    """
+    List all checkpoints for a simulation.
+
+    Returns checkpoint metadata sorted by tick (chronological order).
+    """
+    try:
+        # Verify simulation exists (or existed)
+        # Note: Checkpoints may exist for deleted simulations
+        if sim_id not in manager.simulations and sim_id not in manager.configs:
+            raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+
+        # Verify database manager is available
+        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Checkpoint feature not available (database not configured)"
+            )
+
+        # Import CheckpointManager
+        from payment_simulator.persistence.checkpoint import CheckpointManager
+
+        # Create checkpoint manager
+        checkpoint_mgr = CheckpointManager(app.state.db_manager)
+
+        # List checkpoints
+        checkpoints = checkpoint_mgr.list_checkpoints(simulation_id=sim_id)
+
+        return CheckpointListResponse(checkpoints=checkpoints)
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list checkpoints: {e}")
+
+
+@app.get("/checkpoints/{checkpoint_id}")
+def get_checkpoint_details(checkpoint_id: str):
+    """
+    Get checkpoint metadata by ID.
+
+    Returns full checkpoint metadata (excluding large state_json field).
+    """
+    try:
+        # Verify database manager is available
+        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Checkpoint feature not available (database not configured)"
+            )
+
+        # Import CheckpointManager
+        from payment_simulator.persistence.checkpoint import CheckpointManager
+
+        # Create checkpoint manager
+        checkpoint_mgr = CheckpointManager(app.state.db_manager)
+
+        # Get checkpoint
+        checkpoint = checkpoint_mgr.get_checkpoint(checkpoint_id)
+
+        if checkpoint is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Checkpoint not found: {checkpoint_id}"
+            )
+
+        # Remove large state_json field from response (use /checkpoints/{id}/state to get it)
+        checkpoint_metadata = {k: v for k, v in checkpoint.items() if k != "state_json"}
+
+        return checkpoint_metadata
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get checkpoint: {e}")
+
+
+@app.delete("/checkpoints/{checkpoint_id}")
+def delete_checkpoint(checkpoint_id: str):
+    """
+    Delete a checkpoint by ID.
+
+    This operation is idempotent - deleting a non-existent checkpoint succeeds.
+    """
+    try:
+        # Verify database manager is available
+        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Checkpoint feature not available (database not configured)"
+            )
+
+        # Import CheckpointManager
+        from payment_simulator.persistence.checkpoint import CheckpointManager
+
+        # Create checkpoint manager
+        checkpoint_mgr = CheckpointManager(app.state.db_manager)
+
+        # Delete checkpoint (idempotent)
+        checkpoint_mgr.delete_checkpoint(checkpoint_id)
+
+        return {"message": "Checkpoint deleted successfully", "checkpoint_id": checkpoint_id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete checkpoint: {e}")
 
 
 # ============================================================================

@@ -380,4 +380,149 @@ impl PyOrchestrator {
 
         Ok(py_list.into())
     }
+
+    // ========================================================================
+    // Checkpoint Save/Load (Sprint 2: FFI Boundary)
+    // ========================================================================
+
+    /// Save complete orchestrator state to JSON string
+    ///
+    /// Creates a checkpoint of the entire simulation state including:
+    /// - Current tick and day
+    /// - RNG seed state (for determinism)
+    /// - All agent balances, queues, and settings
+    /// - All transactions and their status
+    /// - RTGS queue contents
+    /// - Configuration hash (for validation)
+    ///
+    /// # Returns
+    ///
+    /// JSON string containing complete state snapshot
+    ///
+    /// # Errors
+    ///
+    /// Raises RuntimeError if:
+    /// - State validation fails (balance conservation violated)
+    /// - JSON serialization fails
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// orch = Orchestrator.new(config)
+    /// for _ in range(10):
+    ///     orch.tick()
+    ///
+    /// # Save state
+    /// state_json = orch.save_state()
+    ///
+    /// # Write to file or database
+    /// with open("checkpoint.json", "w") as f:
+    ///     f.write(state_json)
+    /// ```
+    fn save_state(&self) -> PyResult<String> {
+        self.inner.save_state()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                format!("Failed to save state: {}", e)
+            ))
+    }
+
+    /// Load orchestrator from saved state JSON
+    ///
+    /// Restores a complete simulation from a previously saved checkpoint.
+    /// The configuration must match the original configuration used to create
+    /// the checkpoint (verified via SHA256 hash).
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration dictionary (must match original config)
+    /// * `state_json` - JSON string from previous save_state() call
+    ///
+    /// # Returns
+    ///
+    /// New Orchestrator instance restored to the saved state
+    ///
+    /// # Errors
+    ///
+    /// Raises RuntimeError if:
+    /// - Config hash mismatch (config doesn't match checkpoint)
+    /// - JSON deserialization fails
+    /// - State validation fails (invariants violated)
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// # Load from file
+    /// with open("checkpoint.json", "r") as f:
+    ///     state_json = f.read()
+    ///
+    /// # Restore orchestrator
+    /// orch = Orchestrator.load_state(config, state_json)
+    ///
+    /// # Continue simulation
+    /// result = orch.tick()
+    /// ```
+    #[staticmethod]
+    fn load_state(config: &Bound<'_, PyDict>, state_json: &str) -> PyResult<Self> {
+        let rust_config = parse_orchestrator_config(config)?;
+
+        let inner = RustOrchestrator::load_state(rust_config, state_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                format!("Failed to load state: {}", e)
+            ))?;
+
+        Ok(PyOrchestrator { inner })
+    }
+
+    /// Get checkpoint metadata without deserializing entire state
+    ///
+    /// Quickly extract key information from a checkpoint JSON without
+    /// fully loading the orchestrator. Useful for checkpoint management
+    /// and diagnostics.
+    ///
+    /// # Arguments
+    ///
+    /// * `state_json` - JSON string from save_state()
+    ///
+    /// # Returns
+    ///
+    /// Dictionary containing:
+    /// - `current_tick`: Tick number when checkpoint was created
+    /// - `current_day`: Day number when checkpoint was created
+    /// - `rng_seed`: RNG state at checkpoint time
+    /// - `config_hash`: SHA256 hash of configuration
+    /// - `num_agents`: Number of agents in simulation
+    /// - `num_transactions`: Number of active transactions
+    ///
+    /// # Errors
+    ///
+    /// Raises RuntimeError if JSON is invalid or missing required fields
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// # List checkpoints in database
+    /// for checkpoint_id, state_json in checkpoints:
+    ///     info = Orchestrator.get_checkpoint_info(state_json)
+    ///     print(f"Checkpoint {checkpoint_id}: tick={info['current_tick']}, agents={info['num_agents']}")
+    /// ```
+    #[staticmethod]
+    fn get_checkpoint_info(py: Python, state_json: &str) -> PyResult<Py<PyDict>> {
+        // Parse JSON to extract metadata
+        let snapshot: crate::orchestrator::checkpoint::StateSnapshot =
+            serde_json::from_str(state_json)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    format!("Failed to parse checkpoint JSON: {}", e)
+                ))?;
+
+        // Create Python dict with metadata
+        let info_dict = PyDict::new(py);
+        info_dict.set_item("current_tick", snapshot.current_tick)?;
+        info_dict.set_item("current_day", snapshot.current_day)?;
+        info_dict.set_item("rng_seed", snapshot.rng_seed)?;
+        info_dict.set_item("config_hash", snapshot.config_hash)?;
+        info_dict.set_item("num_agents", snapshot.agents.len())?;
+        info_dict.set_item("num_transactions", snapshot.transactions.len())?;
+
+        Ok(info_dict.into())
+    }
 }

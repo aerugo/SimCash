@@ -37,7 +37,7 @@ use crate::rng::RngManager;
 use std::collections::HashMap;
 
 /// Configuration for transaction arrivals for a single agent.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ArrivalConfig {
     /// Expected number of arrivals per tick (Poisson λ parameter)
     pub rate_per_tick: f64,
@@ -60,7 +60,7 @@ pub struct ArrivalConfig {
 }
 
 /// Amount distribution types for transaction generation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AmountDistribution {
     /// Uniform distribution between min and max (inclusive)
     Uniform { min: i64, max: i64 },

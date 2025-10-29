@@ -14,6 +14,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
+sha2 = "0.10"
 pyo3 = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -38,3 +39,7 @@ path = "tests/test_agent.rs"
 [[test]]
 name = "test_transaction"
 path = "tests/test_transaction.rs"
+
+[[test]]
+name = "test_checkpoint"
+path = "tests/test_checkpoint.rs"

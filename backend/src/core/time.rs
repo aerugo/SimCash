@@ -46,6 +46,42 @@ impl TimeManager {
         }
     }
 
+    /// Create TimeManager from saved state (for checkpoint restoration)
+    ///
+    /// # Arguments
+    /// * `ticks_per_day` - Number of ticks in one business day
+    /// * `_num_days` - Number of days (for future use, currently unused)
+    /// * `current_tick` - Current tick to restore to
+    /// * `_current_day` - Current day (derived from tick, parameter kept for API compatibility)
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::TimeManager;
+    ///
+    /// let time = TimeManager::from_state(100, 1, 150, 1);
+    /// assert_eq!(time.current_tick(), 150);
+    /// assert_eq!(time.current_day(), 1);
+    /// ```
+    pub fn from_state(
+        ticks_per_day: usize,
+        _num_days: usize,
+        current_tick: usize,
+        _current_day: usize,
+    ) -> Self {
+        assert!(ticks_per_day > 0, "ticks_per_day must be positive");
+        Self {
+            current_tick,
+            ticks_per_day,
+        }
+    }
+
+    /// Get num_days for compatibility (derived from config, not stored)
+    pub fn num_days(&self) -> usize {
+        // This is stored in config, not in TimeManager
+        // Return a placeholder for now
+        1
+    }
+
     /// Advance time by one tick
     ///
     /// # Example

@@ -165,6 +165,59 @@ impl Agent {
         }
     }
 
+    /// Create agent from snapshot (for checkpoint restoration)
+    ///
+    /// This constructor allows restoring an agent with all fields
+    /// preserved, including queues and state. Used when loading from
+    /// a saved checkpoint.
+    ///
+    /// # Arguments
+    /// * `id` - Agent ID
+    /// * `balance` - Current balance
+    /// * `credit_limit` - Credit limit
+    /// * `outgoing_queue` - Queue 1 (internal queue) transaction IDs
+    /// * `incoming_expected` - Expected incoming transaction IDs
+    /// * `last_decision_tick` - Last tick policy was evaluated
+    /// * `liquidity_buffer` - Target minimum balance
+    /// * `posted_collateral` - Amount of collateral posted
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let agent = Agent::from_snapshot(
+    ///     "BANK_A".to_string(),
+    ///     1_000_000,
+    ///     500_000,
+    ///     vec!["tx_1".to_string()],
+    ///     vec![],
+    ///     Some(42),
+    ///     100_000,
+    ///     0,
+    /// );
+    /// ```
+    pub fn from_snapshot(
+        id: String,
+        balance: i64,
+        credit_limit: i64,
+        outgoing_queue: Vec<String>,
+        incoming_expected: Vec<String>,
+        last_decision_tick: Option<usize>,
+        liquidity_buffer: i64,
+        posted_collateral: i64,
+    ) -> Self {
+        Self {
+            id,
+            balance,
+            credit_limit,
+            outgoing_queue,
+            incoming_expected,
+            last_decision_tick,
+            liquidity_buffer,
+            posted_collateral,
+        }
+    }
+
     /// Get agent ID
     pub fn id(&self) -> &str {
         &self.id

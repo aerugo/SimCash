@@ -37,7 +37,7 @@ use std::collections::{HashMap, HashSet};
 // ============================================================================
 
 /// Configuration for LSM optimization behavior
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LsmConfig {
     /// Enable bilateral offsetting (A↔B netting)
     pub enable_bilateral: bool,

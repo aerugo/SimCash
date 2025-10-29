@@ -51,6 +51,15 @@ class PolicyCreatedBy(str, Enum):
     LLM = "llm"  # LLM-managed policy change
 
 
+class CheckpointType(str, Enum):
+    """Checkpoint creation type."""
+
+    MANUAL = "manual"  # Manual user-triggered checkpoint
+    AUTO = "auto"  # Automatic periodic checkpoint
+    EOD = "end_of_day"  # End-of-day checkpoint
+    FINAL = "final"  # Final checkpoint at simulation end
+
+
 # ============================================================================
 # Transaction Record
 # ============================================================================
@@ -288,3 +297,61 @@ class PolicySnapshotRecord(BaseModel):
 
     # Metadata
     created_by: PolicyCreatedBy = Field(..., description="Who/what created this policy")
+
+
+# ============================================================================
+# Simulation Checkpoints (Save/Load Feature)
+# ============================================================================
+
+
+class SimulationCheckpointRecord(BaseModel):
+    """Simulation checkpoint for save/load functionality.
+
+    Stores complete orchestrator state snapshots to enable:
+    - Pausing and resuming simulations
+    - Creating restore points during long runs
+    - Debugging from specific simulation states
+    - Rollback to previous states
+
+    Each checkpoint contains:
+    - Full simulation state (JSON snapshot from Rust)
+    - Metadata (tick, day, timestamp)
+    - Integrity hashes (state + config validation)
+    - Human-readable description
+    """
+
+    model_config = ConfigDict(
+        table_name="simulation_checkpoints",
+        primary_key=["checkpoint_id"],
+        indexes=[
+            ("idx_cp_sim", ["simulation_id"]),
+            ("idx_cp_timestamp", ["checkpoint_timestamp"]),
+            ("idx_cp_type", ["checkpoint_type"]),
+            ("idx_cp_tick", ["simulation_id", "checkpoint_tick"]),
+        ],
+    )
+
+    # Identity
+    checkpoint_id: str = Field(..., description="Unique checkpoint identifier (UUID)")
+    simulation_id: str = Field(..., description="Foreign key to simulation_runs table")
+
+    # Checkpoint position
+    checkpoint_tick: int = Field(..., description="Tick when checkpoint was created")
+    checkpoint_day: int = Field(..., description="Day when checkpoint was created")
+    checkpoint_timestamp: datetime = Field(..., description="Real-world timestamp of checkpoint creation")
+
+    # State snapshot
+    state_json: str = Field(..., description="Complete orchestrator state (from Rust save_state())")
+    state_hash: str = Field(..., description="SHA256 hash of state_json for integrity validation", min_length=64, max_length=64)
+    config_json: str = Field(..., description="Complete config used to create simulation (FFI dict as JSON)")
+    config_hash: str = Field(..., description="SHA256 hash of config (from Rust snapshot)", min_length=64, max_length=64)
+
+    # Checkpoint metadata
+    checkpoint_type: CheckpointType = Field(..., description="Type of checkpoint (manual/auto/eod/final)")
+    description: Optional[str] = Field(None, description="Human-readable checkpoint description")
+    created_by: str = Field(..., description="User or system that created checkpoint")
+
+    # Size tracking
+    num_agents: int = Field(..., description="Number of agents in snapshot")
+    num_transactions: int = Field(..., description="Number of transactions in snapshot")
+    total_size_bytes: int = Field(..., description="Total checkpoint size in bytes")
