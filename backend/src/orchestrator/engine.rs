@@ -337,6 +337,136 @@ impl CostAccumulator {
 }
 
 // ============================================================================
+// Daily Metrics Tracking (Phase 3: Agent Metrics Collection)
+// ============================================================================
+
+/// Daily agent metrics collected during simulation
+///
+/// Tracks per-agent statistics for a single day, reset at start of each day.
+/// These metrics enable fast queries for agent performance analysis without
+/// scanning all transactions.
+#[derive(Debug, Clone)]
+pub struct DailyMetrics {
+    /// Agent identifier
+    pub agent_id: String,
+
+    /// Day number (0-indexed)
+    pub day: usize,
+
+    // Balance metrics
+    pub opening_balance: i64,
+    pub closing_balance: i64,
+    pub min_balance: i64,
+    pub max_balance: i64,
+
+    // Credit usage
+    pub credit_limit: i64,
+    pub peak_overdraft: i64,
+
+    // Collateral management (Phase 8)
+    pub opening_posted_collateral: i64,
+    pub closing_posted_collateral: i64,
+    pub peak_posted_collateral: i64,
+    pub collateral_capacity: i64,
+    pub num_collateral_posts: usize,
+    pub num_collateral_withdrawals: usize,
+
+    // Transaction counts
+    pub num_arrivals: usize,
+    pub num_sent: usize,
+    pub num_received: usize,
+    pub num_settled: usize,
+    pub num_dropped: usize,
+
+    // Queue metrics
+    pub queue1_peak_size: usize,
+    pub queue1_eod_size: usize,
+
+    // Costs (captured from CostAccumulator at EOD)
+    pub liquidity_cost: i64,
+    pub delay_cost: i64,
+    pub collateral_cost: i64,
+    pub split_friction_cost: i64,
+    pub deadline_penalty_cost: i64,
+    pub total_cost: i64,
+}
+
+impl DailyMetrics {
+    /// Create new daily metrics for an agent at start of day
+    fn new(agent_id: String, day: usize, agent: &Agent) -> Self {
+        let credit_limit = agent.credit_limit();
+        let opening_balance = agent.balance();
+        let opening_posted_collateral = agent.posted_collateral();
+
+        Self {
+            agent_id,
+            day,
+            opening_balance,
+            closing_balance: opening_balance,  // Will be updated at EOD
+            min_balance: opening_balance,
+            max_balance: opening_balance,
+            credit_limit,
+            peak_overdraft: 0,
+            opening_posted_collateral,
+            closing_posted_collateral: opening_posted_collateral,
+            peak_posted_collateral: opening_posted_collateral,
+            collateral_capacity: credit_limit * 10,  // 10x leverage
+            num_collateral_posts: 0,
+            num_collateral_withdrawals: 0,
+            num_arrivals: 0,
+            num_sent: 0,
+            num_received: 0,
+            num_settled: 0,
+            num_dropped: 0,
+            queue1_peak_size: 0,
+            queue1_eod_size: 0,
+            liquidity_cost: 0,
+            delay_cost: 0,
+            collateral_cost: 0,
+            split_friction_cost: 0,
+            deadline_penalty_cost: 0,
+            total_cost: 0,
+        }
+    }
+
+    /// Update balance tracking (called after balance changes)
+    fn update_balance(&mut self, new_balance: i64) {
+        self.min_balance = self.min_balance.min(new_balance);
+        self.max_balance = self.max_balance.max(new_balance);
+
+        // Peak overdraft = most negative balance seen
+        if new_balance < 0 {
+            self.peak_overdraft = self.peak_overdraft.max(new_balance.abs());
+        }
+    }
+
+    /// Update collateral tracking (called after collateral changes)
+    fn update_collateral(&mut self, new_collateral: i64) {
+        self.peak_posted_collateral = self.peak_posted_collateral.max(new_collateral);
+    }
+
+    /// Update queue size tracking (called each tick)
+    fn update_queue_size(&mut self, current_size: usize) {
+        self.queue1_peak_size = self.queue1_peak_size.max(current_size);
+    }
+
+    /// Finalize metrics at end of day
+    fn finalize(&mut self, agent: &Agent, costs: &CostAccumulator) {
+        self.closing_balance = agent.balance();
+        self.closing_posted_collateral = agent.posted_collateral();
+        self.queue1_eod_size = agent.outgoing_queue_size();
+
+        // Capture costs from accumulator
+        self.liquidity_cost = costs.total_liquidity_cost;
+        self.delay_cost = costs.total_delay_cost;
+        self.collateral_cost = costs.total_collateral_cost;
+        self.split_friction_cost = costs.total_split_friction_cost;
+        self.deadline_penalty_cost = costs.total_penalty_cost;
+        self.total_cost = costs.total();
+    }
+}
+
+// ============================================================================
 // Orchestrator
 // ============================================================================
 
@@ -386,6 +516,14 @@ pub struct Orchestrator {
 
     /// Counter for generating unique transaction IDs
     next_tx_id: usize,
+
+    /// Daily metrics for current day (Phase 3: Agent Metrics Collection)
+    /// Key: agent_id
+    current_day_metrics: HashMap<String, DailyMetrics>,
+
+    /// Historical daily metrics for completed days (Phase 3: Agent Metrics Collection)
+    /// Key: (agent_id, day)
+    historical_metrics: HashMap<(String, usize), DailyMetrics>,
 }
 
 /// Result of a single tick
@@ -556,6 +694,14 @@ impl Orchestrator {
             accumulated_costs.insert(agent_config.id.clone(), CostAccumulator::new());
         }
 
+        // Initialize daily metrics for day 0 (Phase 3: Agent Metrics Collection)
+        let mut current_day_metrics = HashMap::new();
+        for agent_config in &config.agent_configs {
+            let agent = state.get_agent(&agent_config.id).unwrap();
+            let metrics = DailyMetrics::new(agent_config.id.clone(), 0, agent);
+            current_day_metrics.insert(agent_config.id.clone(), metrics);
+        }
+
         Ok(Self {
             state,
             time_manager,
@@ -568,6 +714,8 @@ impl Orchestrator {
             event_log: EventLog::new(),
             pending_settlements: Vec::new(),
             next_tx_id: 1,
+            current_day_metrics,
+            historical_metrics: HashMap::new(),
         })
     }
 
@@ -896,6 +1044,54 @@ impl Orchestrator {
     /// Number of ticks per day
     pub fn ticks_per_day(&self) -> usize {
         self.time_manager.ticks_per_day()
+    }
+
+    // ========================================================================
+    // Daily Metrics Retrieval (Phase 3: Agent Metrics Collection)
+    // ========================================================================
+
+    /// Get daily agent metrics for a specific day
+    ///
+    /// Returns metrics for all agents for the specified day.
+    /// Metrics include balance tracking, transaction counts, queue sizes, and costs.
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - Day number (0-indexed)
+    ///
+    /// # Returns
+    ///
+    /// Vector of DailyMetrics for all agents on the specified day.
+    /// Returns empty vector if day hasn't been completed yet or doesn't exist.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Run simulation for 2 days
+    /// for _ in 0..200 {
+    ///     orch.tick();
+    /// }
+    ///
+    /// // Get metrics for day 0
+    /// let day0_metrics = orch.get_daily_agent_metrics(0);
+    /// for metrics in day0_metrics {
+    ///     println!("{}: balance {} -> {}",
+    ///              metrics.agent_id,
+    ///              metrics.opening_balance,
+    ///              metrics.closing_balance);
+    /// }
+    /// ```
+    pub fn get_daily_agent_metrics(&self, day: usize) -> Vec<&DailyMetrics> {
+        let mut metrics = Vec::new();
+
+        // Collect metrics for all agents for the specified day
+        for agent_id in self.state.get_all_agent_ids() {
+            if let Some(m) = self.historical_metrics.get(&(agent_id, day)) {
+                metrics.push(m);
+            }
+        }
+
+        metrics
     }
 
     // ========================================================================
@@ -1441,6 +1637,10 @@ impl Orchestrator {
         // STEP 8: ADVANCE TIME
         self.time_manager.advance_tick();
 
+        // STEP 8.5: UPDATE DAILY METRICS (Phase 3: Agent Metrics Collection)
+        // Track balance changes, queue sizes, and collateral for all agents
+        self.update_tick_metrics();
+
         // STEP 9: END-OF-DAY HANDLING
         if self.time_manager.is_end_of_day() {
             self.handle_end_of_day()?;
@@ -1629,9 +1829,67 @@ impl Orchestrator {
             total_penalties,
         });
 
-        // TODO: Reset daily counters if needed for multi-day simulations
+        // Phase 3: Finalize daily metrics and prepare for next day
+        self.finalize_daily_metrics(current_day)?;
 
         Ok(())
+    }
+
+    /// Finalize daily metrics at end of day (Phase 3: Agent Metrics Collection)
+    ///
+    /// 1. Finalize current day metrics (capture closing balance, costs, etc.)
+    /// 2. Move current day metrics to historical storage
+    /// 3. Initialize metrics for next day
+    /// 4. Reset cost accumulators for next day
+    fn finalize_daily_metrics(&mut self, current_day: usize) -> Result<(), SimulationError> {
+        let agent_ids: Vec<String> = self.state.get_all_agent_ids();
+
+        for agent_id in &agent_ids {
+            // Get current day metrics
+            if let Some(mut metrics) = self.current_day_metrics.remove(agent_id) {
+                // Finalize metrics with agent state and costs
+                let agent = self.state.get_agent(agent_id).unwrap();
+                let costs = self.accumulated_costs.get(agent_id).unwrap();
+                metrics.finalize(agent, costs);
+
+                // Store in historical metrics
+                self.historical_metrics.insert((agent_id.clone(), current_day), metrics);
+            }
+
+            // Initialize metrics for next day
+            let agent = self.state.get_agent(agent_id).unwrap();
+            let next_day_metrics = DailyMetrics::new(agent_id.clone(), current_day + 1, agent);
+            self.current_day_metrics.insert(agent_id.clone(), next_day_metrics);
+
+            // Reset cost accumulator for next day
+            if let Some(accumulator) = self.accumulated_costs.get_mut(agent_id) {
+                *accumulator = CostAccumulator::new();
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Update metrics at end of tick (Phase 3: Agent Metrics Collection)
+    ///
+    /// Tracks balance changes and queue sizes for all agents.
+    fn update_tick_metrics(&mut self) {
+        let agent_ids: Vec<String> = self.state.get_all_agent_ids();
+
+        for agent_id in &agent_ids {
+            let agent = self.state.get_agent(agent_id).unwrap();
+
+            if let Some(metrics) = self.current_day_metrics.get_mut(agent_id) {
+                // Update balance tracking
+                metrics.update_balance(agent.balance());
+
+                // Update collateral tracking
+                metrics.update_collateral(agent.posted_collateral());
+
+                // Update queue size tracking
+                metrics.update_queue_size(agent.outgoing_queue_size());
+            }
+        }
     }
 
     /// Try to settle a transaction that's already in the state
