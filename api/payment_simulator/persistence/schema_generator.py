@@ -272,3 +272,68 @@ def _is_int_type(py_type: Any) -> bool:
         return int in args
 
     return False
+
+
+# ============================================================================
+# Schema Validation
+# ============================================================================
+
+
+def validate_table_schema(conn: Any, model: Type[BaseModel]) -> tuple[bool, list[str]]:
+    """Validate that database table schema matches Pydantic model.
+
+    Args:
+        conn: DuckDB connection
+        model: Pydantic model to validate against
+
+    Returns:
+        Tuple of (is_valid, list of error messages)
+        - is_valid: True if schema matches, False otherwise
+        - errors: List of descriptive error messages (empty if valid)
+
+    Examples:
+        >>> import duckdb
+        >>> from payment_simulator.persistence.models import TransactionRecord
+        >>> conn = duckdb.connect(':memory:')
+        >>> # ... create table ...
+        >>> is_valid, errors = validate_table_schema(conn, TransactionRecord)
+        >>> if not is_valid:
+        ...     print(f"Schema errors: {errors}")
+    """
+    if not hasattr(model, "model_config"):
+        return False, [f"Model {model.__name__} missing model_config attribute"]
+
+    config = model.model_config
+    if "table_name" not in config:
+        return False, [f"Model {model.__name__} missing model_config['table_name']"]
+
+    table_name = config["table_name"]
+    errors = []
+
+    # Try to get table schema from database
+    try:
+        # DuckDB DESCRIBE returns: column_name, column_type, null, key, default, extra
+        result = conn.execute(f"DESCRIBE {table_name}").fetchall()
+        db_columns = {row[0]: row[1] for row in result}  # column_name: column_type
+    except Exception as e:
+        # Table doesn't exist or other error
+        return False, [f"Table {table_name} does not exist: {e}"]
+
+    # Get model fields
+    model_fields = set(model.model_fields.keys())
+    db_fields = set(db_columns.keys())
+
+    # Check for missing columns (in model but not in database)
+    missing_columns = model_fields - db_fields
+    if missing_columns:
+        for col in sorted(missing_columns):
+            errors.append(f"Column '{col}' missing from table {table_name}")
+
+    # Check for extra columns (in database but not in model)
+    extra_columns = db_fields - model_fields
+    if extra_columns:
+        errors.append(f"Unexpected columns in {table_name}: {sorted(extra_columns)}")
+
+    # Return validation results
+    is_valid = len(errors) == 0
+    return is_valid, errors
