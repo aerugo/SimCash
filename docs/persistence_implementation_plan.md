@@ -17,6 +17,7 @@ This plan details the implementation of file-based data persistence for the paym
 - 200 simulation runs × 1.2M transactions/run = 240M+ transaction records
 - 200 runs × 200 agents × 10 days × 2 policy files/day = 800K policy snapshots
 - Agent metrics collected daily (200 agents × 10 days × 200 runs = 400K daily summaries)
+- **Phase 8 Addition**: Collateral events tracking (estimated 50-100 events/agent/day = 2-4M events)
 
 ---
 
@@ -222,6 +223,14 @@ class DailyAgentMetricsRecord(BaseModel):
     credit_limit: int
     peak_overdraft: int
 
+    # Collateral management (Phase 8)
+    opening_posted_collateral: int = 0
+    closing_posted_collateral: int = 0
+    peak_posted_collateral: int = 0
+    collateral_capacity: int = 0  # 10x credit_limit
+    num_collateral_posts: int = 0
+    num_collateral_withdrawals: int = 0
+
     # Transaction counts
     num_arrivals: int = 0
     num_sent: int = 0
@@ -236,6 +245,7 @@ class DailyAgentMetricsRecord(BaseModel):
     # Costs
     liquidity_cost: int = 0
     delay_cost: int = 0
+    collateral_cost: int = 0  # Phase 8: Opportunity cost of posted collateral
     split_friction_cost: int = 0
     deadline_penalty_cost: int = 0
     total_cost: int = 0
@@ -298,7 +308,10 @@ class SimulationRecord(BaseModel):
 # ============================================================================
 
 class PolicySnapshotRecord(BaseModel):
-    """Policy snapshot tracking."""
+    """Policy snapshot tracking.
+
+    Phase 8+: Policies use three-tree structure (payment, strategic_collateral, end_of_tick_collateral).
+    """
 
     id: Optional[int] = None  # Auto-increment
     simulation_id: str
@@ -306,9 +319,14 @@ class PolicySnapshotRecord(BaseModel):
     day: int
 
     policy_version: str
-    policy_type: str
+    policy_type: str  # 'fifo', 'deadline', 'liquidity_aware', 'tree'
     policy_file_path: Optional[str] = None
     policy_hash: Optional[str] = None
+
+    # Phase 8: Three-tree structure metadata
+    has_payment_tree: bool = True
+    has_strategic_collateral_tree: bool = False
+    has_end_of_tick_collateral_tree: bool = False
 
     created_at: datetime
     created_by: str  # 'manual', 'llm_manager', 'init'
@@ -322,6 +340,52 @@ class PolicySnapshotRecord(BaseModel):
         indexes = [
             ("idx_policy_sim_agent_day", ["simulation_id", "agent_id", "day"]),
             ("idx_policy_hash", ["policy_hash"]),
+        ]
+
+
+# ============================================================================
+# Collateral Events (Phase 8)
+# ============================================================================
+
+class CollateralActionType(str, Enum):
+    POST = "post"
+    WITHDRAW = "withdraw"
+    HOLD = "hold"
+
+
+class CollateralEventRecord(BaseModel):
+    """Collateral management events.
+
+    Tracks when agents post or withdraw collateral during simulation.
+    Added in Phase 8 (two-layer collateral management).
+    """
+
+    id: Optional[int] = None  # Auto-increment
+    simulation_id: str
+    agent_id: str
+    tick: int
+    day: int
+
+    action: CollateralActionType
+    amount: int  # Amount posted/withdrawn (cents), 0 for hold
+    reason: str  # Decision reason from tree policy
+
+    # Layer context
+    layer: str  # 'strategic' or 'end_of_tick'
+
+    # Agent state at time of action
+    balance_before: int
+    posted_collateral_before: int
+    posted_collateral_after: int
+    available_capacity_after: int
+
+    class Config:
+        table_name = "collateral_events"
+        primary_key = ["id"]
+        indexes = [
+            ("idx_collateral_sim_agent", ["simulation_id", "agent_id"]),
+            ("idx_collateral_sim_day", ["simulation_id", "day"]),
+            ("idx_collateral_action", ["action"]),
         ]
 
 
@@ -458,6 +522,7 @@ def generate_full_schema_ddl() -> str:
         TransactionRecord,
         DailyAgentMetricsRecord,
         PolicySnapshotRecord,
+        CollateralEventRecord,
         ConfigArchiveRecord,
     )
 
@@ -466,6 +531,7 @@ def generate_full_schema_ddl() -> str:
         TransactionRecord,
         DailyAgentMetricsRecord,
         PolicySnapshotRecord,
+        CollateralEventRecord,
         ConfigArchiveRecord,
     ]
 
@@ -674,6 +740,7 @@ from .models import (
     TransactionRecord,
     DailyAgentMetricsRecord,
     PolicySnapshotRecord,
+    CollateralEventRecord,
     ConfigArchiveRecord,
 )
 
@@ -712,6 +779,7 @@ class DatabaseManager:
             TransactionRecord,
             DailyAgentMetricsRecord,
             PolicySnapshotRecord,
+            CollateralEventRecord,
             ConfigArchiveRecord,
         ]
 
@@ -2381,6 +2449,255 @@ payment-sim db validate
 
 ---
 
+## Part X: Phase 8 Update - Collateral Management
+
+### Overview
+
+Phase 8 introduced two-layer collateral management to the simulation, allowing agents to dynamically post and withdraw collateral to optimize liquidity access. This required significant schema extensions to track:
+
+1. **Agent collateral state** (opening/closing/peak amounts)
+2. **Collateral operations** (post/withdraw/hold actions)
+3. **Collateral costs** (opportunity cost of posted collateral)
+4. **Policy structure changes** (three-tree decision framework)
+
+### Schema Changes
+
+#### 1. Updated: DailyAgentMetricsRecord
+
+Added 6 new fields to track collateral metrics:
+
+```python
+# Collateral management (Phase 8)
+opening_posted_collateral: int = 0      # Collateral at day start
+closing_posted_collateral: int = 0      # Collateral at day end
+peak_posted_collateral: int = 0         # Maximum during day
+collateral_capacity: int = 0            # 10x credit_limit heuristic
+num_collateral_posts: int = 0           # Count of post operations
+num_collateral_withdrawals: int = 0     # Count of withdrawal operations
+
+# Added to Costs section
+collateral_cost: int = 0                # Opportunity cost (basis points per tick)
+```
+
+**Rationale**: Daily snapshots enable analysis of collateral usage patterns, capacity utilization, and cost impact over time.
+
+#### 2. New Table: CollateralEventRecord
+
+Track every collateral operation for fine-grained analysis:
+
+```python
+class CollateralEventRecord(BaseModel):
+    """Collateral management events."""
+
+    id: Optional[int] = None  # Auto-increment
+    simulation_id: str
+    agent_id: str
+    tick: int
+    day: int
+
+    action: CollateralActionType  # POST, WITHDRAW, HOLD
+    amount: int                   # Cents (0 for HOLD)
+    reason: str                   # Decision reason from tree
+    layer: str                    # 'strategic' or 'end_of_tick'
+
+    # Agent state snapshots
+    balance_before: int
+    posted_collateral_before: int
+    posted_collateral_after: int
+    available_capacity_after: int
+```
+
+**Key Indexes**:
+- `idx_collateral_sim_agent` - Query all events for an agent
+- `idx_collateral_sim_day` - Daily aggregations
+- `idx_collateral_action` - Filter by POST/WITHDRAW/HOLD
+
+**Use Cases**:
+- Analyze timing of collateral operations (strategic vs. end-of-tick)
+- Correlate collateral posts with liquidity gaps
+- Identify capacity constraints
+- Evaluate policy effectiveness
+
+#### 3. Updated: PolicySnapshotRecord
+
+Extended to track three-tree policy structure:
+
+```python
+# Phase 8: Three-tree structure metadata
+has_payment_tree: bool = True                      # Queue 1 release decisions
+has_strategic_collateral_tree: bool = False        # Forward-looking collateral
+has_end_of_tick_collateral_tree: bool = False      # Reactive collateral
+```
+
+**Rationale**: Policies now consist of three independent decision trees:
+1. **Payment Tree**: Queue 1 release decisions (existing functionality)
+2. **Strategic Collateral Tree**: Runs at STEP 1.5, before policy evaluation, sees full Queue 1
+3. **End-of-Tick Collateral Tree**: Runs at STEP 5.5, after LSM, responds to final state
+
+This allows tracking which agents use collateral automation and which trees are active.
+
+### Implementation Notes
+
+#### Two-Layer Architecture
+
+The collateral system operates at two distinct points in the tick loop:
+
+**Layer 1 - Strategic (STEP 1.5)**:
+- Runs BEFORE policy evaluation
+- Sees full Queue 1 (transactions not yet released)
+- Forward-looking decisions based on `queue1_liquidity_gap`
+- Posts collateral to enable upcoming settlements
+
+**Layer 2 - End-of-Tick (STEP 5.5)**:
+- Runs AFTER LSM completion
+- Sees final Queue 2 state
+- Reactive cleanup operations
+- Withdraws excess collateral, posts for remaining gridlock
+
+Both layers are tracked separately in the `layer` field of `CollateralEventRecord`.
+
+#### Collateral Capacity Model
+
+Agents have a maximum collateral capacity calculated as:
+```
+collateral_capacity = credit_limit × 10
+```
+
+This 10x multiplier is a heuristic based on typical collateralization ratios. The `collateral_capacity` field in `DailyAgentMetricsRecord` stores this value for reference.
+
+#### Cost Accrual
+
+Collateral costs accrue per tick at a rate defined by `collateral_cost_per_tick_bps` in `CostRates`. The `collateral_cost` field tracks the cumulative opportunity cost for the day, separate from other cost components (liquidity, delay, deadlines).
+
+### Query Examples
+
+**1. Agent Collateral Utilization Over Time**
+```sql
+SELECT
+    day,
+    closing_posted_collateral,
+    collateral_capacity,
+    (closing_posted_collateral * 100.0 / collateral_capacity) as utilization_pct,
+    collateral_cost
+FROM daily_agent_metrics
+WHERE simulation_id = ? AND agent_id = ?
+ORDER BY day;
+```
+
+**2. Collateral Operations Timeline**
+```sql
+SELECT
+    tick,
+    action,
+    amount,
+    layer,
+    reason,
+    posted_collateral_after
+FROM collateral_events
+WHERE simulation_id = ? AND agent_id = ?
+ORDER BY tick;
+```
+
+**3. Strategic vs. End-of-Tick Comparison**
+```sql
+SELECT
+    layer,
+    action,
+    COUNT(*) as operation_count,
+    SUM(amount) as total_amount
+FROM collateral_events
+WHERE simulation_id = ? AND agent_id = ?
+GROUP BY layer, action;
+```
+
+**4. Collateral Capacity Constraints**
+```sql
+SELECT
+    agent_id,
+    day,
+    peak_posted_collateral,
+    collateral_capacity,
+    CASE
+        WHEN peak_posted_collateral >= collateral_capacity * 0.95
+        THEN 'constrained'
+        ELSE 'unconstrained'
+    END as capacity_status
+FROM daily_agent_metrics
+WHERE simulation_id = ?
+ORDER BY agent_id, day;
+```
+
+### Migration Path
+
+For existing databases, apply migration to add:
+
+```sql
+-- Migration: Add Phase 8 collateral fields
+
+-- Update daily_agent_metrics
+ALTER TABLE daily_agent_metrics ADD COLUMN opening_posted_collateral BIGINT DEFAULT 0;
+ALTER TABLE daily_agent_metrics ADD COLUMN closing_posted_collateral BIGINT DEFAULT 0;
+ALTER TABLE daily_agent_metrics ADD COLUMN peak_posted_collateral BIGINT DEFAULT 0;
+ALTER TABLE daily_agent_metrics ADD COLUMN collateral_capacity BIGINT DEFAULT 0;
+ALTER TABLE daily_agent_metrics ADD COLUMN num_collateral_posts BIGINT DEFAULT 0;
+ALTER TABLE daily_agent_metrics ADD COLUMN num_collateral_withdrawals BIGINT DEFAULT 0;
+ALTER TABLE daily_agent_metrics ADD COLUMN collateral_cost BIGINT DEFAULT 0;
+
+-- Update policy_snapshots
+ALTER TABLE policy_snapshots ADD COLUMN has_payment_tree BOOLEAN DEFAULT TRUE;
+ALTER TABLE policy_snapshots ADD COLUMN has_strategic_collateral_tree BOOLEAN DEFAULT FALSE;
+ALTER TABLE policy_snapshots ADD COLUMN has_end_of_tick_collateral_tree BOOLEAN DEFAULT FALSE;
+
+-- Create collateral_events table
+CREATE TABLE IF NOT EXISTS collateral_events (
+    id INTEGER AUTOINCREMENT,
+    simulation_id VARCHAR NOT NULL,
+    agent_id VARCHAR NOT NULL,
+    tick BIGINT NOT NULL,
+    day BIGINT NOT NULL,
+    action VARCHAR NOT NULL,
+    amount BIGINT NOT NULL,
+    reason VARCHAR NOT NULL,
+    layer VARCHAR NOT NULL,
+    balance_before BIGINT NOT NULL,
+    posted_collateral_before BIGINT NOT NULL,
+    posted_collateral_after BIGINT NOT NULL,
+    available_capacity_after BIGINT NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_collateral_sim_agent ON collateral_events (simulation_id, agent_id);
+CREATE INDEX IF NOT EXISTS idx_collateral_sim_day ON collateral_events (simulation_id, day);
+CREATE INDEX IF NOT EXISTS idx_collateral_action ON collateral_events (action);
+```
+
+### Testing Additions
+
+The collateral edge case test suite (`backend/tests/test_collateral_edge_cases.rs`) covers:
+- Capacity limit enforcement
+- Post/withdraw validation
+- Zero-amount rejection
+- Liquidity impact verification
+- Cost accrual correctness
+- Cross-agent isolation
+
+These tests ensure persistence layer receives correct data.
+
+### Performance Impact
+
+Estimated storage requirements (200 runs, 200 agents, 10 days):
+
+| Data Type | Records | Size Estimate |
+|-----------|---------|---------------|
+| Daily agent metrics (7 new fields) | 400K | ~15 MB additional |
+| Collateral events | 2-4M | ~150-300 MB |
+| Policy snapshots (3 new fields) | 800K | ~5 MB additional |
+| **Total Phase 8 Addition** | - | **~170-320 MB** |
+
+Batch write performance impact: Minimal (<10ms additional per day for collateral events).
+
+---
+
 ## Conclusion
 
 This plan provides a comprehensive, maintainable approach to database persistence with **automatic schema synchronization**. By using Pydantic models as the single source of truth and auto-generating DDL, we eliminate manual schema management and prevent schema drift.
@@ -2397,8 +2714,9 @@ This approach scales from initial development through hundreds of simulation run
 ---
 
 **Document Status**: Ready for Implementation (TDD methodology included)
-**Last Updated**: 2025-10-29
+**Last Updated**: 2025-10-29 (Phase 8 collateral management updates)
 **Author**: Payment Simulator Team
 **Technology Stack**: DuckDB + Polars + Pydantic (schema-as-code)
 **Development Approach**: Test-Driven Development (Red-Green-Refactor)
+**Phase 8 Status**: Schema extended for two-layer collateral management
 **Next Action**: Begin Phase 1 implementation with test-first approach
