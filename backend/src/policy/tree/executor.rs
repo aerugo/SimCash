@@ -230,7 +230,7 @@ impl TreePolicy {
         let dummy_tx = crate::Transaction::new(
             agent.id().to_string(),
             "DUMMY".to_string(),
-            0,
+            1, // Must be positive (not used in strategic decisions, but required by constructor)
             tick,
             tick + 1,
         );
@@ -288,7 +288,7 @@ impl TreePolicy {
         let dummy_tx = crate::Transaction::new(
             agent.id().to_string(),
             "DUMMY".to_string(),
-            0,
+            1, // Must be positive (not used in end-of-tick decisions, but required by constructor)
             tick,
             tick + 1,
         );
@@ -431,6 +431,10 @@ impl CashManagerPolicy for TreePolicy {
 
         decisions
     }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
 }
 
 // ============================================================================
@@ -441,7 +445,7 @@ impl CashManagerPolicy for TreePolicy {
 mod tests {
     use super::*;
     use crate::orchestrator::CostRates;
-    use crate::policy::tree::types::{ActionType, Expression, TreeNode, Value};
+    use crate::policy::tree::types::{ActionType, Expression, TreeNode, Value, ValueOrCompute};
     use crate::{Agent, Transaction};
     use serde_json::json;
     use std::collections::HashMap;
@@ -690,8 +694,8 @@ mod tests {
                 action: ActionType::PostCollateral,
                 parameters: {
                     let mut params = HashMap::new();
-                    params.insert("amount".to_string(), Value::Literal { value: json!(100000) });
-                    params.insert("reason".to_string(), Value::Literal { value: json!("UrgentLiquidityNeed") });
+                    params.insert("amount".to_string(), ValueOrCompute::Direct { value: json!(100000) });
+                    params.insert("reason".to_string(), ValueOrCompute::Direct { value: json!("UrgentLiquidityNeed") });
                     params
                 },
             }),
@@ -767,8 +771,8 @@ mod tests {
                 action: ActionType::WithdrawCollateral,
                 parameters: {
                     let mut params = HashMap::new();
-                    params.insert("amount".to_string(), Value::Field { field: "posted_collateral".to_string() });
-                    params.insert("reason".to_string(), Value::Literal { value: json!("EndOfDayCleanup") });
+                    params.insert("amount".to_string(), ValueOrCompute::Field { field: "posted_collateral".to_string() });
+                    params.insert("reason".to_string(), ValueOrCompute::Direct { value: json!("EndOfDayCleanup") });
                     params
                 },
             }),
@@ -855,8 +859,8 @@ mod tests {
                     action: ActionType::WithdrawCollateral,
                     parameters: {
                         let mut params = HashMap::new();
-                        params.insert("amount".to_string(), Value::Field { field: "posted_collateral".to_string() });
-                        params.insert("reason".to_string(), Value::Literal { value: json!("EndOfDayCleanup") });
+                        params.insert("amount".to_string(), ValueOrCompute::Field { field: "posted_collateral".to_string() });
+                        params.insert("reason".to_string(), ValueOrCompute::Direct { value: json!("EndOfDayCleanup") });
                         params
                     },
                 }),

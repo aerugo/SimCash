@@ -406,7 +406,8 @@ When starting work on this project:
 3. ✅ Scan `api/CLAUDE.md` for Python patterns
 4. ✅ Review `docs/architecture.md` for system design
 5. ✅ Look at example configs to understand domain
-6. ✅ Run tests to verify setup: `cargo test` and `pytest`
+6. ✅ Run tests to verify setup: `cargo test --no-default-features` and `pytest`
+   - **Note**: Rust tests require `--no-default-features` flag
 7. ✅ Create subagents as needed for specialized work
 
 ---

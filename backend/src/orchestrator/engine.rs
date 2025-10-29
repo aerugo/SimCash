@@ -181,6 +181,19 @@ pub enum PolicyConfig {
         /// Number of splits to create for every transaction
         num_splits: usize,
     },
+
+    /// Custom JSON policy for testing
+    ///
+    /// Allows tests to pass arbitrary JSON policy definitions without
+    /// requiring policy files. Useful for integration tests that need
+    /// specific policy configurations.
+    ///
+    /// NOTE: Available in all builds to support integration testing,
+    /// but should only be used in test code.
+    FromJson {
+        /// JSON string containing complete policy definition
+        json: String,
+    },
 }
 
 // ArrivalConfig is now imported from crate::arrivals module
@@ -911,6 +924,111 @@ impl Orchestrator {
             self.log_event(event);
         }
 
+        // STEP 1.5: STRATEGIC COLLATERAL MANAGEMENT (Layer 1)
+        // Evaluate strategic collateral decisions BEFORE policy evaluation
+        // This is forward-looking: agents post collateral based on full Queue 1 state
+        // MUST run before STEP 2 so it sees transactions before policies remove them
+        let all_agent_ids: Vec<String> = self.state.agents().keys().cloned().collect();
+
+        for agent_id in all_agent_ids.clone() {
+            let agent = self
+                .state
+                .get_agent(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            let policy = self
+                .policies
+                .get_mut(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            let tree_policy = policy
+                .as_any_mut()
+                .downcast_mut::<crate::policy::tree::TreePolicy>()
+                .ok_or_else(|| {
+                    SimulationError::InvalidConfig(format!(
+                        "Agent {} policy is not a TreePolicy",
+                        agent_id
+                    ))
+                })?;
+
+            let decision = tree_policy
+                .evaluate_strategic_collateral(agent, &self.state, current_tick)
+                .map_err(|e| {
+                    SimulationError::InvalidConfig(format!(
+                        "Failed to evaluate strategic collateral for {}: {}",
+                        agent_id, e
+                    ))
+                })?;
+
+            use crate::policy::CollateralDecision;
+
+            match decision {
+                CollateralDecision::Post { amount, reason } => {
+                    if amount <= 0 {
+                        return Err(SimulationError::InvalidConfig(format!(
+                            "Collateral post amount must be positive, got {}",
+                            amount
+                        )));
+                    }
+
+                    let agent = self.state.get_agent(&agent_id).unwrap();
+                    let remaining_capacity = agent.remaining_collateral_capacity();
+
+                    if amount > remaining_capacity {
+                        return Err(SimulationError::InvalidConfig(format!(
+                            "Agent {} tried to post {} collateral but only has {} capacity remaining",
+                            agent_id, amount, remaining_capacity
+                        )));
+                    }
+
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                    let old_collateral = agent_mut.posted_collateral();
+                    let new_collateral = old_collateral + amount;
+                    agent_mut.set_posted_collateral(new_collateral);
+
+                    self.log_event(Event::CollateralPost {
+                        tick: current_tick,
+                        agent_id: agent_id.clone(),
+                        amount,
+                        reason: format!("{:?}", reason),
+                        new_total: new_collateral,
+                    });
+                }
+                CollateralDecision::Withdraw { amount, reason } => {
+                    if amount <= 0 {
+                        return Err(SimulationError::InvalidConfig(format!(
+                            "Collateral withdraw amount must be positive, got {}",
+                            amount
+                        )));
+                    }
+
+                    let agent = self.state.get_agent(&agent_id).unwrap();
+                    let posted = agent.posted_collateral();
+
+                    if amount > posted {
+                        return Err(SimulationError::InvalidConfig(format!(
+                            "Agent {} tried to withdraw {} collateral but only has {} posted",
+                            agent_id, amount, posted
+                        )));
+                    }
+
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                    let old_collateral = agent_mut.posted_collateral();
+                    let new_collateral = old_collateral - amount;
+                    agent_mut.set_posted_collateral(new_collateral);
+
+                    self.log_event(Event::CollateralWithdraw {
+                        tick: current_tick,
+                        agent_id: agent_id.clone(),
+                        amount,
+                        reason: format!("{:?}", reason),
+                        new_total: new_collateral,
+                    });
+                }
+                CollateralDecision::Hold => {}
+            }
+        }
+
         // STEP 2: POLICY EVALUATION
         // Get agents with queued transactions (Queue 1)
         let agents_with_queues: Vec<String> = self
@@ -1073,26 +1191,101 @@ impl Orchestrator {
             }
         }
 
-        // STEP 2.5: COLLATERAL MANAGEMENT
-        // Evaluate and execute collateral decisions for each agent
+        // STEP 3: RTGS SETTLEMENT
+        // Process pending settlements (Queue 1 → RTGS)
+        // Clone to avoid borrow checker issues
+        let pending = self.pending_settlements.clone();
+        for tx_id in pending.iter() {
+            // Get transaction details for event logging
+            let (sender_id, receiver_id, amount) = {
+                let tx = self.state.get_transaction(tx_id)
+                    .ok_or_else(|| SimulationError::TransactionNotFound(tx_id.clone()))?;
+                (tx.sender_id().to_string(), tx.receiver_id().to_string(), tx.remaining_amount())
+            };
+
+            // Try to settle the transaction (already in state)
+            let settlement_result = self.try_settle_transaction(tx_id, current_tick)?;
+
+            match settlement_result {
+                SettlementOutcome::Settled => {
+                    num_settlements += 1;
+
+                    // Log settlement event
+                    self.log_event(Event::Settlement {
+                        tick: current_tick,
+                        tx_id: tx_id.clone(),
+                        sender_id,
+                        receiver_id,
+                        amount,
+                    });
+                }
+                SettlementOutcome::Queued => {
+                    // Insufficient liquidity, added to Queue 2 (RTGS queue)
+                    // Log queued event
+                    self.log_event(Event::QueuedRtgs {
+                        tick: current_tick,
+                        tx_id: tx_id.clone(),
+                        sender_id,
+                    });
+                }
+            }
+        }
+
+        // STEP 4: PROCESS RTGS QUEUE (Queue 2)
+        // Retry queued transactions
+        let queue_result = rtgs::process_queue(&mut self.state, current_tick);
+        num_settlements += queue_result.settled_count;
+
+        // STEP 5: LSM COORDINATOR
+        // Find and release offsetting transactions
+        let lsm_result = lsm::run_lsm_pass(&mut self.state, &self.lsm_config, current_tick);
+        let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
+        num_settlements += num_lsm_releases;
+
+        // TODO: Log detailed LSM events
+        // Currently the LSM module doesn't return enough details for proper event logging
+        // Would need to track which specific transactions were settled via LSM
+
+        // STEP 5.5: END-OF-TICK COLLATERAL MANAGEMENT (Layer 2)
+        // Evaluate end-of-tick collateral decisions for each agent AFTER settlements complete
+        // This is reactive: agents adjust collateral based on final settlement state
         let all_agent_ids: Vec<String> = self.state.agents().keys().cloned().collect();
 
         for agent_id in all_agent_ids {
-            // Get agent and policy
+            // Get agent
             let agent = self
                 .state
                 .get_agent(&agent_id)
                 .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
 
+            // Get policy and downcast to TreePolicy
             let policy = self
                 .policies
                 .get_mut(&agent_id)
                 .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
 
-            // Evaluate collateral decision
-            let decision = policy.evaluate_collateral(agent, &self.state, current_tick, &self.cost_rates);
+            // Downcast to TreePolicy to access end-of-tick collateral method
+            let tree_policy = policy
+                .as_any_mut()
+                .downcast_mut::<crate::policy::tree::TreePolicy>()
+                .ok_or_else(|| {
+                    SimulationError::InvalidConfig(format!(
+                        "Agent {} policy is not a TreePolicy",
+                        agent_id
+                    ))
+                })?;
 
-            // Execute collateral decision
+            // Evaluate END-OF-TICK collateral decision (Layer 2)
+            let decision = tree_policy
+                .evaluate_end_of_tick_collateral(agent, &self.state, current_tick)
+                .map_err(|e| {
+                    SimulationError::InvalidConfig(format!(
+                        "Failed to evaluate end-of-tick collateral for {}: {}",
+                        agent_id, e
+                    ))
+                })?;
+
+            // Execute collateral decision (same logic as strategic layer)
             use crate::policy::CollateralDecision;
 
             match decision {
@@ -1171,61 +1364,6 @@ impl Orchestrator {
                 }
             }
         }
-
-        // STEP 3: RTGS SETTLEMENT
-        // Process pending settlements (Queue 1 → RTGS)
-        // Clone to avoid borrow checker issues
-        let pending = self.pending_settlements.clone();
-        for tx_id in pending.iter() {
-            // Get transaction details for event logging
-            let (sender_id, receiver_id, amount) = {
-                let tx = self.state.get_transaction(tx_id)
-                    .ok_or_else(|| SimulationError::TransactionNotFound(tx_id.clone()))?;
-                (tx.sender_id().to_string(), tx.receiver_id().to_string(), tx.remaining_amount())
-            };
-
-            // Try to settle the transaction (already in state)
-            let settlement_result = self.try_settle_transaction(tx_id, current_tick)?;
-
-            match settlement_result {
-                SettlementOutcome::Settled => {
-                    num_settlements += 1;
-
-                    // Log settlement event
-                    self.log_event(Event::Settlement {
-                        tick: current_tick,
-                        tx_id: tx_id.clone(),
-                        sender_id,
-                        receiver_id,
-                        amount,
-                    });
-                }
-                SettlementOutcome::Queued => {
-                    // Insufficient liquidity, added to Queue 2 (RTGS queue)
-                    // Log queued event
-                    self.log_event(Event::QueuedRtgs {
-                        tick: current_tick,
-                        tx_id: tx_id.clone(),
-                        sender_id,
-                    });
-                }
-            }
-        }
-
-        // STEP 4: PROCESS RTGS QUEUE (Queue 2)
-        // Retry queued transactions
-        let queue_result = rtgs::process_queue(&mut self.state, current_tick);
-        num_settlements += queue_result.settled_count;
-
-        // STEP 5: LSM COORDINATOR
-        // Find and release offsetting transactions
-        let lsm_result = lsm::run_lsm_pass(&mut self.state, &self.lsm_config, current_tick);
-        let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
-        num_settlements += num_lsm_releases;
-
-        // TODO: Log detailed LSM events
-        // Currently the LSM module doesn't return enough details for proper event logging
-        // Would need to track which specific transactions were settled via LSM
 
         // STEP 6: COST ACCRUAL (Phase 4b.3 - minimal for now)
         let total_cost = self.accrue_costs(current_tick);

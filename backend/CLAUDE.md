@@ -669,13 +669,15 @@ cargo build
 cargo build --release
 
 # Run tests
-cargo test
+cargo test --no-default-features
 
 # Run tests with output
-cargo test -- --nocapture
+cargo test --no-default-features -- --nocapture
 
 # Run specific test
-cargo test test_determinism
+cargo test --no-default-features test_determinism
+
+# Note: --no-default-features flag is required for tests in this project
 
 # Check without building
 cargo check
@@ -1334,7 +1336,7 @@ pub enum PolicyExecutor {
 
 - [ ] No `f32` or `f64` for money calculations
 - [ ] All public functions have doc comments
-- [ ] Tests pass: `cargo test`
+- [ ] Tests pass: `cargo test --no-default-features`
 - [ ] No compiler warnings: `cargo clippy`
 - [ ] Code formatted: `cargo fmt`
 - [ ] FFI functions return `PyResult`

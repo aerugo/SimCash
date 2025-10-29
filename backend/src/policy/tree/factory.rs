@@ -97,6 +97,11 @@ pub fn create_policy(config: &PolicyConfig) -> Result<TreePolicy, TreePolicyErro
 
             Ok(policy)
         }
+
+        PolicyConfig::FromJson { json } => {
+            // Parse custom JSON policy directly (for testing)
+            TreePolicy::from_json(json)
+        }
     }
 }
 
