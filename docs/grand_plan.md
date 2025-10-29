@@ -504,12 +504,14 @@ The foundation implementation validated several critical design choices:
 - ❌ Can't query per-agent cost breakdown via API
 - ❌ No system-wide metrics methods (total arrived, total settled, throughput)
 
-**Collateral Management** (Phase 4 of collateral_management_plan.md - End-of-Tick Manager):
-- ❌ End-of-Tick automatic collateral manager NOT implemented
-  - Should run after LSM, before cost accrual (STEP 8)
-  - Cleanup logic: Withdraw when Queue 2 empty and Queue 1 can settle without it
-  - Emergency logic: Post when deadline < 2 ticks and liquidity gap exists
-  - See: [docs/collateral_management_plan.md](collateral_management_plan.md) Phase 4
+**Collateral Management** (Phase 4 of collateral_management_plan.md - End-of-Tick Layer):
+- ❌ End-of-Tick collateral layer NOT implemented (Layer 2)
+  - Architecture Decision: Uses JSON tree policies (NOT hardcoded Rust logic)
+  - Each policy file has THREE trees: payment, strategic_collateral, end_of_tick_collateral
+  - Layer 1 (strategic): Runs at STEP 2.5 (before settlements) - ✅ IMPLEMENTED
+  - Layer 2 (end-of-tick): Runs at STEP 8 (after settlements) - ❌ NOT IMPLEMENTED
+  - Default end-of-tick policy: Withdraw when Queue 2 empty + headroom >= 2x Queue 1
+  - See: [docs/collateral_management_plan.md](collateral_management_plan.md) Section 6-7
 
 **Testing**:
 - ❌ No tests for cost calculations
@@ -553,10 +555,12 @@ The foundation implementation validated several critical design choices:
    - Document cost/metrics API endpoints
 
 **Future Enhancements** (Not Phase 8):
-- End-of-Tick Collateral Manager (Phase 4 of collateral_management_plan.md)
-  - Automatic cleanup and emergency posting
-  - Runs after settlements, before costs
-  - Complements policy-layer decisions
+- End-of-Tick Collateral Layer (Phase 4 of collateral_management_plan.md)
+  - Implemented as JSON tree policies (third tree in policy files)
+  - Automatic cleanup: Withdraw collateral when safe
+  - Runs at STEP 8 (after settlements, before costs)
+  - Complements strategic layer (STEP 2.5)
+  - Both layers use same context fields, just evaluated at different times
 
 ### 4.3 Phase 9 (DSL): Policy Expression Language ✅ **COMPLETE**
 
