@@ -70,12 +70,15 @@ const MAX_TREE_DEPTH: usize = 100;
 ///
 /// let json = r#"{
 ///   "version": "1.0",
-///   "tree_id": "valid_policy",
-///   "root": {
+///   "policy_id": "valid_policy",
+///   "payment_tree": {
 ///     "type": "action",
 ///     "node_id": "A1",
 ///     "action": "Release"
-///   }
+///   },
+///   "strategic_collateral_tree": null,
+///   "end_of_tick_collateral_tree": null,
+///   "parameters": {}
 /// }"#;
 /// let tree: DecisionTreeDef = serde_json::from_str(json)?;
 ///

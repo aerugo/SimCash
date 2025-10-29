@@ -33,6 +33,10 @@
 //!         // Decision logic here
 //!         vec![]
 //!     }
+//!
+//!     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+//!         self
+//!     }
 //! }
 //! ```
 //!
@@ -223,6 +227,10 @@ pub enum CollateralReason {
 ///                 tx_id: tx_id.clone(),
 ///             })
 ///             .collect()
+///     }
+///
+///     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+///         self
 ///     }
 /// }
 /// ```
