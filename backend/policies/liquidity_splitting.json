@@ -1,8 +1,9 @@
 {
   "version": "1.0",
-  "tree_id": "liquidity_splitting_policy",
+  "policy_id": "liquidity_splitting_policy",
   "description": "Liquidity-aware splitting policy - intelligently splits large payments when liquidity is constrained",
-  "root": {
+
+  "payment_tree": {
     "type": "condition",
     "node_id": "N1",
     "description": "Check if past deadline",
@@ -109,6 +110,10 @@
       }
     }
   },
+
+  "strategic_collateral_tree": null,
+  "end_of_tick_collateral_tree": null,
+
   "parameters": {
     "max_splits": 4.0,
     "min_split_amount": 10000.0

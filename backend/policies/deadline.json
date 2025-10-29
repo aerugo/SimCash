@@ -1,8 +1,9 @@
 {
   "version": "1.0",
-  "tree_id": "deadline_policy",
+  "policy_id": "deadline_policy",
   "description": "Deadline-aware policy - prioritizes transactions approaching their deadline. Drops expired transactions, submits urgent transactions, and holds non-urgent transactions.",
-  "root": {
+
+  "payment_tree": {
     "type": "condition",
     "node_id": "N1",
     "description": "Check if past deadline (deadline <= current tick)",
@@ -42,6 +43,10 @@
       }
     }
   },
+
+  "strategic_collateral_tree": null,
+  "end_of_tick_collateral_tree": null,
+
   "parameters": {
     "urgency_threshold": 5.0
   }
