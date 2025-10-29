@@ -42,12 +42,15 @@ pub enum TreePolicyError {
 /// // Create from inline JSON
 /// let json = r#"{
 ///   "version": "1.0",
-///   "tree_id": "simple_policy",
-///   "root": {
+///   "policy_id": "simple_policy",
+///   "payment_tree": {
 ///     "type": "action",
 ///     "node_id": "A1",
 ///     "action": "Release"
-///   }
+///   },
+///   "strategic_collateral_tree": null,
+///   "end_of_tick_collateral_tree": null,
+///   "parameters": {}
 /// }"#;
 ///
 /// let policy = TreePolicy::from_json(json)?;
@@ -80,12 +83,15 @@ impl TreePolicy {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let json = r#"{
     ///   "version": "1.0",
-    ///   "tree_id": "test_policy",
-    ///   "root": {
+    ///   "policy_id": "test_policy",
+    ///   "payment_tree": {
     ///     "type": "action",
     ///     "node_id": "A1",
     ///     "action": "Release"
-    ///   }
+    ///   },
+    ///   "strategic_collateral_tree": null,
+    ///   "end_of_tick_collateral_tree": null,
+    ///   "parameters": {}
     /// }"#;
     /// let tree: DecisionTreeDef = serde_json::from_str(json)?;
     /// let policy = TreePolicy::new(tree);
@@ -144,12 +150,15 @@ impl TreePolicy {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let json = r#"{
     ///   "version": "1.0",
-    ///   "tree_id": "fifo_policy",
-    ///   "root": {
+    ///   "policy_id": "fifo_policy",
+    ///   "payment_tree": {
     ///     "type": "action",
     ///     "node_id": "A1",
     ///     "action": "Release"
-    ///   }
+    ///   },
+    ///   "strategic_collateral_tree": null,
+    ///   "end_of_tick_collateral_tree": null,
+    ///   "parameters": {}
     /// }"#;
     /// let policy = TreePolicy::from_json(json)?;
     /// # Ok(())
@@ -326,12 +335,14 @@ impl TreePolicy {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let json = r#"{
     ///   "version": "1.0",
-    ///   "tree_id": "parameterized_policy",
-    ///   "root": {
+    ///   "policy_id": "parameterized_policy",
+    ///   "payment_tree": {
     ///     "type": "action",
     ///     "node_id": "A1",
     ///     "action": "Release"
     ///   },
+    ///   "strategic_collateral_tree": null,
+    ///   "end_of_tick_collateral_tree": null,
     ///   "parameters": {
     ///     "urgency_threshold": 5.0
     ///   }
