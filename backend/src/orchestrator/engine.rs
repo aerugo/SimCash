@@ -1634,17 +1634,18 @@ impl Orchestrator {
         // STEP 7: DEADLINE ENFORCEMENT (handled by policies in STEP 2)
         // Policies drop expired transactions via ReleaseDecision::Drop
 
-        // STEP 8: ADVANCE TIME
-        self.time_manager.advance_tick();
-
-        // STEP 8.5: UPDATE DAILY METRICS (Phase 3: Agent Metrics Collection)
-        // Track balance changes, queue sizes, and collateral for all agents
-        self.update_tick_metrics();
-
-        // STEP 9: END-OF-DAY HANDLING
+        // STEP 8: END-OF-DAY HANDLING (before advancing time)
+        // Check if current tick is the last tick of the day
         if self.time_manager.is_end_of_day() {
             self.handle_end_of_day()?;
         }
+
+        // STEP 9: ADVANCE TIME
+        self.time_manager.advance_tick();
+
+        // STEP 9.5: UPDATE DAILY METRICS (Phase 3: Agent Metrics Collection)
+        // Track balance changes, queue sizes, and collateral for all agents
+        self.update_tick_metrics();
 
         Ok(TickResult {
             tick: current_tick,

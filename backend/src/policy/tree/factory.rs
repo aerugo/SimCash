@@ -110,6 +110,13 @@ pub fn create_policy(config: &PolicyConfig) -> Result<TreePolicy, TreePolicyErro
 /// Resolves to `backend/policies/` relative to project root.
 /// When running tests from backend/, this is just `policies/`.
 fn policies_dir() -> PathBuf {
+    // First try backend/policies (when running from project root)
+    let backend_policies = PathBuf::from("backend/policies");
+    if backend_policies.exists() {
+        return backend_policies;
+    }
+
+    // Fall back to policies/ (when running tests from backend/ directory)
     PathBuf::from("policies")
 }
 

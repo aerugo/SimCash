@@ -2,9 +2,12 @@
 # Scenario Comparison Demo
 # Compares normal liquidity vs. high-stress scenarios
 
+# IMPORTANT: This script must be run from the project root directory
+# cd /path/to/cashman && examples/cli/demo_comparison.sh
+
 set -e
 
-source .venv/bin/activate
+source api/.venv/bin/activate
 
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║   Payment Simulator - Scenario Comparison                    ║"
