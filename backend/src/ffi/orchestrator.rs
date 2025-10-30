@@ -943,9 +943,11 @@ impl PyOrchestrator {
                     event_dict.set_item("agent_id", agent_id)?;
                     // Convert CostBreakdown to dict
                     let costs_dict = PyDict::new(py);
-                    costs_dict.set_item("overdraft_cost", costs.overdraft_cost)?;
-                    costs_dict.set_item("delay_penalty", costs.delay_penalty)?;
-                    costs_dict.set_item("split_fee", costs.split_fee)?;
+                    costs_dict.set_item("liquidity_cost", costs.liquidity_cost)?;
+                    costs_dict.set_item("delay_cost", costs.delay_cost)?;
+                    costs_dict.set_item("collateral_cost", costs.collateral_cost)?;
+                    costs_dict.set_item("penalty_cost", costs.penalty_cost)?;
+                    costs_dict.set_item("split_friction_cost", costs.split_friction_cost)?;
                     event_dict.set_item("costs", costs_dict)?;
                 }
                 crate::models::event::Event::EndOfDay { day, unsettled_count, total_penalties, .. } => {
