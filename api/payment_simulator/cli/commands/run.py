@@ -26,6 +26,15 @@ from payment_simulator.cli.output import (
     log_agent_state,
     log_costs,
     log_tick_summary,
+    # Enhanced verbose mode functions
+    log_transaction_arrivals,
+    log_settlement_details,
+    log_agent_queues_detailed,
+    log_policy_decisions,
+    log_collateral_activity,
+    log_cost_breakdown,
+    log_lsm_cycle_visualization,
+    log_end_of_day_statistics,
 )
 from payment_simulator.config import SimulationConfig
 from payment_simulator._core import Orchestrator
@@ -190,15 +199,15 @@ def run_simulation(
             db_manager = DatabaseManager(db_path)
 
             # Initialize schema if needed (idempotent - safe to call multiple times)
-            try:
-                # Try to validate first
-                if not db_manager.validate_schema():
-                    log_info("Schema incomplete, initializing...", quiet)
-                    db_manager.initialize_schema()
-            except Exception:
-                # If validation fails (e.g., tables don't exist), initialize
-                log_info("Initializing database schema...", quiet)
+            if not db_manager.is_initialized():
+                # Fresh database - initialize without verbose validation
+                log_info("Database not initialized, creating schema...", quiet)
                 db_manager.initialize_schema()
+            else:
+                # Database exists - validate schema
+                if not db_manager.validate_schema(quiet=quiet):
+                    log_info("Schema incomplete, re-initializing...", quiet)
+                    db_manager.initialize_schema()
 
             # Capture initial policy snapshots (Phase 4: Policy Snapshot Tracking)
             log_info("Capturing initial policy snapshots...", quiet)
@@ -233,55 +242,166 @@ def run_simulation(
             # Track previous balances for change detection
             prev_balances = {agent_id: orch.get_agent_balance(agent_id) for agent_id in agent_ids}
 
+            # Track daily statistics for end-of-day summaries
+            ticks_per_day = ffi_dict["ticks_per_day"]
+            daily_stats = {
+                "arrivals": 0,
+                "settlements": 0,
+                "lsm_releases": 0,
+                "costs": 0,
+            }
+
             tick_results = []
             sim_start = time.time()
 
             for tick_num in range(total_ticks):
-                # Log tick start
+                # ═══════════════════════════════════════════════════════════
+                # TICK HEADER
+                # ═══════════════════════════════════════════════════════════
                 log_tick_start(tick_num)
 
                 # Execute tick
                 result = orch.tick()
                 tick_results.append(result)
 
-                # Log arrivals
+                # Update daily stats
+                daily_stats["arrivals"] += result["num_arrivals"]
+                daily_stats["settlements"] += result["num_settlements"]
+                daily_stats["lsm_releases"] += result["num_lsm_releases"]
+                daily_stats["costs"] += result["total_cost"]
+
+                # Get all events for this tick
+                events = orch.get_tick_events(tick_num)
+
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 1: ARRIVALS (detailed)
+                # ═══════════════════════════════════════════════════════════
                 if result["num_arrivals"] > 0:
-                    log_arrivals(result["num_arrivals"])
+                    log_transaction_arrivals(orch, events)
 
-                # Log settlements
-                if result["num_settlements"] > 0:
-                    log_settlements(result["num_settlements"])
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 2: POLICY DECISIONS
+                # ═══════════════════════════════════════════════════════════
+                log_policy_decisions(events)
 
-                # Log LSM activity
-                if result["num_lsm_releases"] > 0:
-                    log_lsm_activity(bilateral=result["num_lsm_releases"], cycles=0)
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 3: SETTLEMENTS (detailed with mechanisms)
+                # ═══════════════════════════════════════════════════════════
+                if result["num_settlements"] > 0 or any(e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"] for e in events):
+                    log_settlement_details(orch, events, tick_num)
 
-                # Log costs
-                if result["total_cost"] > 0:
-                    log_costs(result["total_cost"])
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 4: LSM CYCLE VISUALIZATION
+                # ═══════════════════════════════════════════════════════════
+                log_lsm_cycle_visualization(events)
 
-                # Log agent states with balance changes
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 5: COLLATERAL ACTIVITY
+                # ═══════════════════════════════════════════════════════════
+                log_collateral_activity(events)
+
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 6: AGENT STATES (detailed queues)
+                # ═══════════════════════════════════════════════════════════
                 for agent_id in agent_ids:
                     current_balance = orch.get_agent_balance(agent_id)
-                    queue_size = orch.get_queue1_size(agent_id)
                     balance_change = current_balance - prev_balances[agent_id]
 
-                    # Only show agents with activity
-                    if balance_change != 0 or queue_size > 0:
-                        log_agent_state(agent_id, current_balance, queue_size, balance_change)
+                    # Only show agents with activity or non-empty queues
+                    queue1_size = orch.get_queue1_size(agent_id)
+                    rtgs_queue = orch.get_rtgs_queue_contents()
+                    agent_in_rtgs = any(
+                        orch.get_transaction_details(tx_id).get("sender_id") == agent_id
+                        for tx_id in rtgs_queue
+                        if orch.get_transaction_details(tx_id)
+                    )
+
+                    if balance_change != 0 or queue1_size > 0 or agent_in_rtgs:
+                        log_agent_queues_detailed(orch, agent_id, current_balance, balance_change)
 
                     prev_balances[agent_id] = current_balance
 
-                # Calculate total queued
-                total_queued = sum(orch.get_queue1_size(aid) for aid in agent_ids)
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 7: COST BREAKDOWN
+                # ═══════════════════════════════════════════════════════════
+                if result["total_cost"] > 0:
+                    log_cost_breakdown(orch, agent_ids)
 
-                # Log summary
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 8: TICK SUMMARY
+                # ═══════════════════════════════════════════════════════════
+                total_queued = sum(orch.get_queue1_size(aid) for aid in agent_ids)
                 log_tick_summary(
                     result["num_arrivals"],
                     result["num_settlements"],
                     result["num_lsm_releases"],
                     total_queued
                 )
+
+                # ═══════════════════════════════════════════════════════════
+                # END-OF-DAY SUMMARY (if applicable)
+                # ═══════════════════════════════════════════════════════════
+                if (tick_num + 1) % ticks_per_day == 0:
+                    current_day = tick_num // ticks_per_day
+
+                    # Gather agent statistics for end-of-day summary
+                    agent_stats = []
+                    for agent_id in agent_ids:
+                        balance = orch.get_agent_balance(agent_id)
+                        credit_limit = orch.get_agent_credit_limit(agent_id)
+
+                        # Calculate credit utilization
+                        credit_util = 0
+                        if credit_limit and credit_limit > 0:
+                            used = max(0, credit_limit - balance)
+                            credit_util = (used / credit_limit) * 100
+
+                        # Get queue sizes
+                        queue1_size = orch.get_queue1_size(agent_id)
+                        rtgs_queue = orch.get_rtgs_queue_contents()
+                        queue2_size = sum(
+                            1 for tx_id in rtgs_queue
+                            if orch.get_transaction_details(tx_id) and
+                            orch.get_transaction_details(tx_id).get("sender_id") == agent_id
+                        )
+
+                        # Get costs for this agent (cumulative for the day)
+                        costs = orch.get_agent_accumulated_costs(agent_id)
+                        agent_total_costs = 0
+                        if costs:
+                            agent_total_costs = sum([
+                                costs.get("liquidity_cost", 0),
+                                costs.get("delay_cost", 0),
+                                costs.get("collateral_cost", 0),
+                                costs.get("penalty_cost", 0),
+                                costs.get("split_friction_cost", 0),
+                            ])
+
+                        agent_stats.append({
+                            "id": agent_id,
+                            "final_balance": balance,
+                            "credit_utilization": credit_util,
+                            "queue1_size": queue1_size,
+                            "queue2_size": queue2_size,
+                            "total_costs": agent_total_costs,
+                        })
+
+                    log_end_of_day_statistics(
+                        day=current_day,
+                        total_arrivals=daily_stats["arrivals"],
+                        total_settlements=daily_stats["settlements"],
+                        total_lsm_releases=daily_stats["lsm_releases"],
+                        total_costs=daily_stats["costs"],
+                        agent_stats=agent_stats,
+                    )
+
+                    # Reset daily stats for next day
+                    daily_stats = {
+                        "arrivals": 0,
+                        "settlements": 0,
+                        "lsm_releases": 0,
+                        "costs": 0,
+                    }
 
             sim_duration = time.time() - sim_start
             ticks_per_second = total_ticks / sim_duration if sim_duration > 0 else 0
