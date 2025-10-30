@@ -71,6 +71,7 @@ use crate::core::time::TimeManager;
 use crate::models::agent::Agent;
 use crate::models::event::{Event, EventLog};
 use crate::models::state::SimulationState;
+use crate::models::transaction::Transaction;
 use crate::policy::CashManagerPolicy;
 use crate::rng::RngManager;
 use crate::settlement::lsm::LsmConfig;
@@ -1062,6 +1063,136 @@ impl Orchestrator {
             .filter(|event| event.day == day)
             .cloned()
             .collect()
+    }
+
+    // ========================================================================
+    // Verbose CLI Query Methods (Enhanced Monitoring)
+    // ========================================================================
+
+    /// Get all events that occurred during a specific tick
+    ///
+    /// Returns references to all events logged during the specified tick.
+    /// Used by verbose CLI mode to show detailed tick-by-tick activity.
+    ///
+    /// # Arguments
+    ///
+    /// * `tick` - Tick number to query
+    ///
+    /// # Returns
+    ///
+    /// Vector of references to Event objects for the specified tick
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let events = orch.get_tick_events(42);
+    /// for event in events {
+    ///     println!("Event type: {}", event.event_type());
+    /// }
+    /// ```
+    pub fn get_tick_events(&self, tick: usize) -> Vec<&Event> {
+        self.event_log.events_at_tick(tick)
+    }
+
+    /// Get transaction details by ID
+    ///
+    /// Returns a reference to a transaction if it exists in the system.
+    /// Used to query full transaction details for verbose output.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_id` - Transaction identifier
+    ///
+    /// # Returns
+    ///
+    /// * `Some(&Transaction)` - Transaction reference if found
+    /// * `None` - Transaction not found
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// if let Some(tx) = orch.get_transaction("tx_12345") {
+    ///     println!("{} -> {}: ${}", tx.sender_id(), tx.receiver_id(), tx.amount() / 100);
+    /// }
+    /// ```
+    pub fn get_transaction(&self, tx_id: &str) -> Option<&Transaction> {
+        self.state.get_transaction(tx_id)
+    }
+
+    /// Get contents of RTGS queue (Queue 2)
+    ///
+    /// Returns transaction IDs currently waiting in the central RTGS queue
+    /// for liquidity to become available. Used by verbose CLI to show which
+    /// transactions are queued in the RTGS system.
+    ///
+    /// # Returns
+    ///
+    /// Vector of transaction ID strings in queue order
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let rtgs_queue = orch.get_rtgs_queue_contents();
+    /// println!("RTGS Queue has {} transactions", rtgs_queue.len());
+    /// for tx_id in rtgs_queue {
+    ///     println!("  - {}", tx_id);
+    /// }
+    /// ```
+    pub fn get_rtgs_queue_contents(&self) -> Vec<String> {
+        self.state.get_rtgs_queue().clone()
+    }
+
+    /// Get agent's credit limit
+    ///
+    /// Returns the maximum credit/overdraft amount available to an agent.
+    /// Used by verbose CLI to calculate credit utilization percentage.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// * `Some(limit)` - Credit limit in cents
+    /// * `None` - Agent not found
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// if let Some(limit) = orch.get_agent_credit_limit("BANK_A") {
+    ///     let balance = orch.get_agent_balance("BANK_A").unwrap_or(0);
+    ///     let used = limit - balance;
+    ///     let utilization = (used as f64 / limit as f64) * 100.0;
+    ///     println!("Credit utilization: {:.1}%", utilization);
+    /// }
+    /// ```
+    pub fn get_agent_credit_limit(&self, agent_id: &str) -> Option<i64> {
+        self.state.get_agent(agent_id).map(|a| a.credit_limit())
+    }
+
+    /// Get agent's currently posted collateral
+    ///
+    /// Returns the amount of collateral currently posted by an agent.
+    /// Used by verbose CLI to display collateral status.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// * `Some(amount)` - Posted collateral in cents
+    /// * `None` - Agent not found
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// if let Some(collateral) = orch.get_agent_collateral_posted("BANK_A") {
+    ///     println!("Collateral posted: ${:.2}", collateral as f64 / 100.0);
+    /// }
+    /// ```
+    pub fn get_agent_collateral_posted(&self, agent_id: &str) -> Option<i64> {
+        self.state.get_agent(agent_id).map(|a| a.posted_collateral())
     }
 
     // ========================================================================
