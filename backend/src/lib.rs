@@ -27,7 +27,7 @@ pub mod rng;
 pub mod settlement;
 
 // Re-exports for convenience
-pub use arrivals::{ArrivalConfig, AmountDistribution};
+pub use arrivals::{AmountDistribution, ArrivalConfig};
 pub use core::time::TimeManager;
 pub use models::{
     agent::{Agent, AgentError},
@@ -36,8 +36,8 @@ pub use models::{
     transaction::{Transaction, TransactionError, TransactionStatus},
 };
 pub use orchestrator::{
-    AgentConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator,
-    OrchestratorConfig, PolicyConfig, SimulationError, TickResult,
+    AgentConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator, OrchestratorConfig,
+    PolicyConfig, SimulationError, TickResult,
 };
 pub use rng::RngManager;
 pub use settlement::{try_settle, SettlementError};
@@ -52,7 +52,7 @@ use pyo3::prelude::*;
 
 #[cfg(feature = "pyo3")]
 #[pymodule]
-fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn payment_simulator_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ffi::orchestrator::PyOrchestrator>()?;
     Ok(())
 }

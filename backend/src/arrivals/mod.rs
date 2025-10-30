@@ -143,13 +143,7 @@ impl ArrivalGenerator {
             let tx_id = format!("tx_{:08}", self.next_tx_id);
             self.next_tx_id += 1;
 
-            let mut tx = Transaction::new(
-                agent_id.to_string(),
-                receiver,
-                amount,
-                tick,
-                deadline,
-            );
+            let mut tx = Transaction::new(agent_id.to_string(), receiver, amount, tick, deadline);
 
             // Set priority if configured
             if config.priority > 0 {
@@ -354,9 +348,7 @@ mod tests {
 
         let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
         let mut generator = ArrivalGenerator::new(
-            vec![("BANK_A".to_string(), config)]
-                .into_iter()
-                .collect(),
+            vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
         );
         let mut rng = RngManager::new(42);
@@ -384,11 +376,13 @@ mod tests {
             divisible: false,
         };
 
-        let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string(), "BANK_C".to_string()];
+        let all_agents = vec![
+            "BANK_A".to_string(),
+            "BANK_B".to_string(),
+            "BANK_C".to_string(),
+        ];
         let mut generator = ArrivalGenerator::new(
-            vec![("BANK_A".to_string(), config)]
-                .into_iter()
-                .collect(),
+            vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
         );
         let mut rng = RngManager::new(42);
@@ -418,9 +412,7 @@ mod tests {
 
         let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
         let mut generator = ArrivalGenerator::new(
-            vec![("BANK_A".to_string(), config)]
-                .into_iter()
-                .collect(),
+            vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
         );
         let mut rng = RngManager::new(42);
@@ -439,7 +431,7 @@ mod tests {
     fn test_weighted_counterparty_selection() {
         let mut weights = HashMap::new();
         weights.insert("BANK_B".to_string(), 10.0); // High weight
-        weights.insert("BANK_C".to_string(), 1.0);  // Low weight
+        weights.insert("BANK_C".to_string(), 1.0); // Low weight
 
         let config = ArrivalConfig {
             rate_per_tick: 20.0, // Generate many transactions
@@ -453,11 +445,13 @@ mod tests {
             divisible: false,
         };
 
-        let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string(), "BANK_C".to_string()];
+        let all_agents = vec![
+            "BANK_A".to_string(),
+            "BANK_B".to_string(),
+            "BANK_C".to_string(),
+        ];
         let mut generator = ArrivalGenerator::new(
-            vec![("BANK_A".to_string(), config)]
-                .into_iter()
-                .collect(),
+            vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
         );
         let mut rng = RngManager::new(42);

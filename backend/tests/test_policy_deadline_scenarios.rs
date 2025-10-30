@@ -7,7 +7,7 @@
 //! - Outperforms FIFO in deadline violation prevention
 
 use payment_simulator_core_rs::{
-    arrivals::{ArrivalConfig, AmountDistribution},
+    arrivals::{AmountDistribution, ArrivalConfig},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
 };
@@ -29,7 +29,12 @@ impl PolicyMetrics {
         Self::default()
     }
 
-    fn record_tick(&mut self, tick_arrivals: usize, tick_settlements: usize, current_queue_depth: usize) {
+    fn record_tick(
+        &mut self,
+        tick_arrivals: usize,
+        tick_settlements: usize,
+        current_queue_depth: usize,
+    ) {
         self.total_arrivals += tick_arrivals;
         self.total_settlements += tick_settlements;
         self.queue_depths_per_tick.push(current_queue_depth);
@@ -88,14 +93,16 @@ fn test_deadline_policy_submits_urgent_arrivals() {
                     urgency_threshold: 5, // Urgent if deadline within 5 ticks
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -163,14 +170,16 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 10_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -239,7 +248,8 @@ fn test_deadline_policy_vs_fifo_comparison() {
                     urgency_threshold: 3,
                 },
                 arrival_config: Some(arrival_config.clone()),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             // Agent B: FIFO Policy
             AgentConfig {
                 id: "BANK_B_FIFO".to_string(),
@@ -247,7 +257,8 @@ fn test_deadline_policy_vs_fifo_comparison() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             // Receiver bank
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -255,7 +266,8 @@ fn test_deadline_policy_vs_fifo_comparison() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -278,17 +290,23 @@ fn test_deadline_policy_vs_fifo_comparison() {
     }
 
     // Calculate average queue depths
-    let avg_deadline_queue: f64 = deadline_queue_depths.iter().sum::<usize>() as f64
-        / deadline_queue_depths.len() as f64;
-    let avg_fifo_queue: f64 = fifo_queue_depths.iter().sum::<usize>() as f64
-        / fifo_queue_depths.len() as f64;
+    let avg_deadline_queue: f64 =
+        deadline_queue_depths.iter().sum::<usize>() as f64 / deadline_queue_depths.len() as f64;
+    let avg_fifo_queue: f64 =
+        fifo_queue_depths.iter().sum::<usize>() as f64 / fifo_queue_depths.len() as f64;
 
     // DeadlinePolicy should maintain similar or better queue management
     // (This is a behavioral comparison - both should handle load, but Deadline prioritizes differently)
-    println!("Avg queue depth - Deadline: {:.2}, FIFO: {:.2}", avg_deadline_queue, avg_fifo_queue);
+    println!(
+        "Avg queue depth - Deadline: {:.2}, FIFO: {:.2}",
+        avg_deadline_queue, avg_fifo_queue
+    );
 
     // Both should be able to process arrivals reasonably
-    assert!(avg_deadline_queue < 20.0, "Deadline queue shouldn't explode");
+    assert!(
+        avg_deadline_queue < 20.0,
+        "Deadline queue shouldn't explode"
+    );
     assert!(avg_fifo_queue < 20.0, "FIFO queue shouldn't explode");
 }
 
@@ -322,14 +340,16 @@ fn test_deadline_policy_all_urgent_scenario() {
                     urgency_threshold: 5, // All arrivals will be urgent
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -390,14 +410,16 @@ fn test_deadline_policy_deadline_cascade() {
                     urgency_threshold: 5, // Becomes urgent at 5 ticks remaining
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 30_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -418,7 +440,10 @@ fn test_deadline_policy_deadline_cascade() {
     // Then decrease as transactions become urgent and are submitted
     let late_queue = queue_sizes[15..20].iter().sum::<usize>() as f64 / 5.0;
 
-    println!("Early avg queue: {:.2}, Late avg queue: {:.2}", early_queue, late_queue);
+    println!(
+        "Early avg queue: {:.2}, Late avg queue: {:.2}",
+        early_queue, late_queue
+    );
 
     // This verifies the "cascade" behavior - queue builds then drains as deadlines approach
     // Note: With ample liquidity, everything should eventually settle

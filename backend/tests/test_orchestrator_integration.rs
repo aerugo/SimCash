@@ -4,10 +4,8 @@
 //! through settlement and LSM coordination.
 
 use payment_simulator_core_rs::{
-    arrivals::{ArrivalConfig, AmountDistribution},
-    orchestrator::{
-        AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
-    },
+    arrivals::{AmountDistribution, ArrivalConfig},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
     Transaction,
 };
@@ -26,17 +24,19 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 credit_limit: 500_000,      // $5,000
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 2_000_000, // $20,000
                 credit_limit: 0,
                 policy: PolicyConfig::LiquidityAware {
-                    target_buffer: 500_000,   // $5,000 buffer
-                    urgency_threshold: 5,     // 5 ticks before deadline
+                    target_buffer: 500_000, // $5,000 buffer
+                    urgency_threshold: 5,   // 5 ticks before deadline
                 },
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -319,14 +319,16 @@ fn test_orchestrator_lsm_bilateral_offset() {
                 credit_limit: 0,          // No credit
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
-                opening_balance: 100_000, // Only $1,000
-                credit_limit: 0,          // No credit
+                opening_balance: 100_000,   // Only $1,000
+                credit_limit: 0,            // No credit
                 policy: PolicyConfig::Fifo, // Use FIFO to ensure submission
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -379,14 +381,26 @@ fn test_orchestrator_lsm_bilateral_offset() {
     );
 
     // Verify both transactions settled
-    let tx_a_to_b_status = orchestrator.state().get_transaction(tx_a_to_b.id()).unwrap();
-    let tx_b_to_a_status = orchestrator.state().get_transaction(tx_b_to_a.id()).unwrap();
+    let tx_a_to_b_status = orchestrator
+        .state()
+        .get_transaction(tx_a_to_b.id())
+        .unwrap();
+    let tx_b_to_a_status = orchestrator
+        .state()
+        .get_transaction(tx_b_to_a.id())
+        .unwrap();
     assert!(tx_a_to_b_status.is_fully_settled(), "A→B should be settled");
     assert!(tx_b_to_a_status.is_fully_settled(), "B→A should be settled");
 
     // Verify balances unchanged (net-zero bilateral offset)
-    assert_eq!(orchestrator.state().get_agent("BANK_A").unwrap().balance(), 100_000);
-    assert_eq!(orchestrator.state().get_agent("BANK_B").unwrap().balance(), 100_000);
+    assert_eq!(
+        orchestrator.state().get_agent("BANK_A").unwrap().balance(),
+        100_000
+    );
+    assert_eq!(
+        orchestrator.state().get_agent("BANK_B").unwrap().balance(),
+        100_000
+    );
 }
 
 #[test]
@@ -416,7 +430,10 @@ fn test_orchestrator_peak_net_debit_tracking() {
 
     // Check peak net debit was tracked
     let costs = orchestrator.get_costs("BANK_A").unwrap();
-    assert_eq!(costs.peak_net_debit, -200_000, "Peak net debit should be tracked");
+    assert_eq!(
+        costs.peak_net_debit, -200_000,
+        "Peak net debit should be tracked"
+    );
 }
 
 #[test]
@@ -523,14 +540,16 @@ fn test_orchestrator_automatic_arrivals() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 10_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -577,7 +596,8 @@ fn test_orchestrator_arrival_determinism() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 5_000_000,
@@ -643,21 +663,24 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_C".to_string(),
                 opening_balance: 50_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -732,14 +755,16 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),

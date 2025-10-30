@@ -377,7 +377,9 @@ pub fn traverse_tree<'a>(
     context: &EvalContext,
 ) -> Result<&'a TreeNode, EvalError> {
     // For backward compatibility, traverse payment_tree by default
-    let root = tree.payment_tree.as_ref()
+    let root = tree
+        .payment_tree
+        .as_ref()
         .ok_or_else(|| EvalError::InvalidTree("payment_tree is not defined".to_string()))?;
     traverse_node(root, context, &tree.parameters, 0)
 }
@@ -390,8 +392,9 @@ pub fn traverse_strategic_collateral_tree<'a>(
     tree: &'a DecisionTreeDef,
     context: &EvalContext,
 ) -> Result<&'a TreeNode, EvalError> {
-    let root = tree.strategic_collateral_tree.as_ref()
-        .ok_or_else(|| EvalError::InvalidTree("strategic_collateral_tree is not defined".to_string()))?;
+    let root = tree.strategic_collateral_tree.as_ref().ok_or_else(|| {
+        EvalError::InvalidTree("strategic_collateral_tree is not defined".to_string())
+    })?;
     traverse_node(root, context, &tree.parameters, 0)
 }
 
@@ -403,8 +406,9 @@ pub fn traverse_end_of_tick_collateral_tree<'a>(
     tree: &'a DecisionTreeDef,
     context: &EvalContext,
 ) -> Result<&'a TreeNode, EvalError> {
-    let root = tree.end_of_tick_collateral_tree.as_ref()
-        .ok_or_else(|| EvalError::InvalidTree("end_of_tick_collateral_tree is not defined".to_string()))?;
+    let root = tree.end_of_tick_collateral_tree.as_ref().ok_or_else(|| {
+        EvalError::InvalidTree("end_of_tick_collateral_tree is not defined".to_string())
+    })?;
     traverse_node(root, context, &tree.parameters, 0)
 }
 
@@ -499,8 +503,7 @@ pub fn build_decision(
     // Verify this is an action node
     let (action, action_params) = match action_node {
         TreeNode::Action {
-            action,
-            parameters, ..
+            action, parameters, ..
         } => (action, parameters),
         TreeNode::Condition { .. } => {
             return Err(EvalError::ExpectedActionNode);
@@ -518,7 +521,8 @@ pub fn build_decision(
 
         ActionType::PaceAndRelease => {
             // Need num_splits parameter
-            let num_splits = evaluate_action_parameter(action_params, "num_splits", context, params)?;
+            let num_splits =
+                evaluate_action_parameter(action_params, "num_splits", context, params)?;
             let num_splits_usize = num_splits as usize;
 
             if num_splits_usize < 2 {
@@ -535,7 +539,8 @@ pub fn build_decision(
 
         ActionType::Split => {
             // Same as PaceAndRelease - split transaction into num_splits parts
-            let num_splits = evaluate_action_parameter(action_params, "num_splits", context, params)?;
+            let num_splits =
+                evaluate_action_parameter(action_params, "num_splits", context, params)?;
             let num_splits_usize = num_splits as usize;
 
             if num_splits_usize < 2 {
@@ -568,15 +573,16 @@ pub fn build_decision(
                                     let ticks_remaining = context
                                         .get_field("ticks_to_deadline")
                                         .unwrap_or(0.0)
-                                        .max(0.0) as usize;
+                                        .max(0.0)
+                                        as usize;
                                     HoldReason::NearDeadline { ticks_remaining }
-                                },
+                                }
                                 other => HoldReason::Custom(other.to_string()),
                             }
                         } else {
                             HoldReason::Custom("Policy decision".to_string())
                         }
-                    },
+                    }
                     _ => HoldReason::Custom("Policy decision".to_string()),
                 }
             } else {
@@ -625,8 +631,7 @@ pub fn build_collateral_decision(
     // Verify this is an action node
     let (action, action_params) = match action_node {
         TreeNode::Action {
-            action,
-            parameters, ..
+            action, parameters, ..
         } => (action, parameters),
         TreeNode::Condition { .. } => {
             return Err(EvalError::ExpectedActionNode);
@@ -818,9 +823,7 @@ mod tests {
     #[test]
     fn test_eval_literal_number() {
         let (context, params) = create_test_context();
-        let value = Value::Literal {
-            value: json!(42.0),
-        };
+        let value = Value::Literal { value: json!(42.0) };
 
         let result = evaluate_value(&value, &context, &params).unwrap();
         assert_eq!(result, 42.0);
@@ -1477,7 +1480,10 @@ mod tests {
         // ticks_to_deadline = 40 (not <= 5), balance (500000) >= amount (100000)
         // Should reach A2 (Release)
         assert!(result.is_action());
-        if let TreeNode::Action { node_id, action, .. } = result {
+        if let TreeNode::Action {
+            node_id, action, ..
+        } = result
+        {
             assert_eq!(node_id, "A2");
             assert!(matches!(action, ActionType::Release));
         } else {
@@ -1669,7 +1675,8 @@ mod tests {
             parameters: HashMap::new(),
         };
 
-        let decision = build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
 
         assert!(matches!(
             decision,
@@ -1687,7 +1694,8 @@ mod tests {
             parameters: HashMap::new(),
         };
 
-        let decision = build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
 
         match decision {
             ReleaseDecision::Hold { tx_id, reason } => {
@@ -1705,9 +1713,7 @@ mod tests {
         let mut action_params = HashMap::new();
         action_params.insert(
             "num_splits".to_string(),
-            ValueOrCompute::Direct {
-                value: json!(3),
-            },
+            ValueOrCompute::Direct { value: json!(3) },
         );
 
         let action_node = TreeNode::Action {
@@ -1716,7 +1722,8 @@ mod tests {
             parameters: action_params,
         };
 
-        let decision = build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
 
         match decision {
             ReleaseDecision::SubmitPartial { tx_id, num_splits } => {
@@ -1737,7 +1744,8 @@ mod tests {
             parameters: HashMap::new(),
         };
 
-        let decision = build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
 
         assert!(matches!(
             decision,
@@ -1769,7 +1777,8 @@ mod tests {
             parameters: action_params,
         };
 
-        let decision = build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
 
         match decision {
             ReleaseDecision::SubmitPartial { tx_id, num_splits } => {
@@ -1799,7 +1808,8 @@ mod tests {
             parameters: action_params,
         };
 
-        let decision = build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
 
         match decision {
             ReleaseDecision::SubmitPartial { tx_id, num_splits } => {
@@ -1840,9 +1850,7 @@ mod tests {
         let mut action_params = HashMap::new();
         action_params.insert(
             "num_splits".to_string(),
-            ValueOrCompute::Direct {
-                value: json!(1),
-            },
+            ValueOrCompute::Direct { value: json!(1) },
         );
 
         let action_node = TreeNode::Action {
@@ -1891,7 +1899,11 @@ mod tests {
         };
 
         let result = build_collateral_decision(&action_node, &context, &params);
-        assert!(result.is_ok(), "Failed to build PostCollateral decision: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to build PostCollateral decision: {:?}",
+            result.err()
+        );
 
         match result.unwrap() {
             CollateralDecision::Post { amount, reason } => {
@@ -1929,7 +1941,11 @@ mod tests {
         };
 
         let result = build_collateral_decision(&action_node, &context, &params);
-        assert!(result.is_ok(), "Failed to build WithdrawCollateral decision: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to build WithdrawCollateral decision: {:?}",
+            result.err()
+        );
 
         match result.unwrap() {
             CollateralDecision::Withdraw { amount, .. } => {
@@ -1953,7 +1969,11 @@ mod tests {
         };
 
         let result = build_collateral_decision(&action_node, &context, &params);
-        assert!(result.is_ok(), "Failed to build HoldCollateral decision: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to build HoldCollateral decision: {:?}",
+            result.err()
+        );
 
         assert!(matches!(result.unwrap(), CollateralDecision::Hold));
     }
@@ -1992,7 +2012,11 @@ mod tests {
         };
 
         let result = build_collateral_decision(&action_node, &context, &params);
-        assert!(result.is_ok(), "Failed to build PostCollateral with computed amount: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to build PostCollateral with computed amount: {:?}",
+            result.err()
+        );
 
         // Should compute max(queue1_liquidity_gap, 0)
         match result.unwrap() {

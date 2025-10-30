@@ -8,7 +8,7 @@
 //! These tests verify performance, stability, and reasonable completion times.
 
 use payment_simulator_core_rs::{
-    arrivals::{ArrivalConfig, AmountDistribution},
+    arrivals::{AmountDistribution, ArrivalConfig},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
 };
@@ -46,14 +46,16 @@ fn test_high_frequency_arrivals_single_agent() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -72,8 +74,8 @@ fn test_high_frequency_arrivals_single_agent() {
         total_arrivals += result.num_arrivals;
         total_settlements += result.num_settlements;
 
-        let queue_depth = orchestrator.state().total_internal_queue_size()
-            + orchestrator.state().queue_size();
+        let queue_depth =
+            orchestrator.state().total_internal_queue_size() + orchestrator.state().queue_size();
 
         if queue_depth > max_queue {
             max_queue = queue_depth;
@@ -83,17 +85,34 @@ fn test_high_frequency_arrivals_single_agent() {
     let elapsed = start.elapsed();
 
     println!("High-frequency test completed in {:?}", elapsed);
-    println!("Total arrivals: {}, settlements: {}", total_arrivals, total_settlements);
+    println!(
+        "Total arrivals: {}, settlements: {}",
+        total_arrivals, total_settlements
+    );
     println!("Max queue depth: {}", max_queue);
-    println!("Settlement rate: {:.2}%", (total_settlements as f64 / total_arrivals as f64) * 100.0);
+    println!(
+        "Settlement rate: {:.2}%",
+        (total_settlements as f64 / total_arrivals as f64) * 100.0
+    );
 
     // Verify system handled the load
-    assert!(total_arrivals > 400, "Should generate many arrivals at rate=10.0");
+    assert!(
+        total_arrivals > 400,
+        "Should generate many arrivals at rate=10.0"
+    );
     assert!(total_settlements > 0, "Should settle some transactions");
-    assert!(elapsed.as_secs() < 5, "Should complete in under 5 seconds. Took: {:?}", elapsed);
+    assert!(
+        elapsed.as_secs() < 5,
+        "Should complete in under 5 seconds. Took: {:?}",
+        elapsed
+    );
 
     // Queue should build up but not explode
-    assert!(max_queue < 500, "Queue shouldn't explode. Max: {}", max_queue);
+    assert!(
+        max_queue < 500,
+        "Queue shouldn't explode. Max: {}",
+        max_queue
+    );
 }
 
 #[test]
@@ -126,14 +145,16 @@ fn test_sustained_high_load_100_ticks() {
                     urgency_threshold: 8,
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 150_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -163,12 +184,22 @@ fn test_sustained_high_load_100_ticks() {
     let elapsed = start.elapsed();
 
     println!("Sustained load test (100 ticks) completed in {:?}", elapsed);
-    println!("Total arrivals: {}, settlements: {}", total_arrivals, total_settlements);
+    println!(
+        "Total arrivals: {}, settlements: {}",
+        total_arrivals, total_settlements
+    );
     println!("Queue samples: {:?}", queue_samples);
 
     // Verify reasonable performance
-    assert!(total_arrivals > 700, "Should generate many arrivals over 100 ticks");
-    assert!(elapsed.as_secs() < 10, "Should complete 100 ticks in under 10 seconds. Took: {:?}", elapsed);
+    assert!(
+        total_arrivals > 700,
+        "Should generate many arrivals over 100 ticks"
+    );
+    assert!(
+        elapsed.as_secs() < 10,
+        "Should complete 100 ticks in under 10 seconds. Took: {:?}",
+        elapsed
+    );
 
     // Queue should stay bounded (not grow unbounded)
     let avg_queue: f64 = queue_samples.iter().sum::<usize>() as f64 / queue_samples.len() as f64;
@@ -176,8 +207,16 @@ fn test_sustained_high_load_100_ticks() {
     println!("Average queue depth: {:.2}, Max: {}", avg_queue, max_queue);
 
     // With high sustained load, queue will build up but should stay bounded
-    assert!(avg_queue < 200.0, "Average queue should stay bounded. Got: {:.2}", avg_queue);
-    assert!(*max_queue < 300, "Max queue should stay reasonable. Got: {}", max_queue);
+    assert!(
+        avg_queue < 200.0,
+        "Average queue should stay bounded. Got: {:.2}",
+        avg_queue
+    );
+    assert!(
+        *max_queue < 300,
+        "Max queue should stay reasonable. Got: {}",
+        max_queue
+    );
 }
 
 #[test]
@@ -208,14 +247,16 @@ fn test_extreme_high_frequency_arrivals() {
                 credit_limit: 100_000_000,
                 policy: PolicyConfig::Fifo, // Simple policy for speed
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 200_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -236,18 +277,37 @@ fn test_extreme_high_frequency_arrivals() {
 
     let elapsed = start.elapsed();
 
-    println!("Extreme frequency test (rate=20.0) completed in {:?}", elapsed);
-    println!("Total arrivals: {}, settlements: {}", total_arrivals, total_settlements);
-    println!("Throughput: {:.0} arrivals/sec", total_arrivals as f64 / elapsed.as_secs_f64());
+    println!(
+        "Extreme frequency test (rate=20.0) completed in {:?}",
+        elapsed
+    );
+    println!(
+        "Total arrivals: {}, settlements: {}",
+        total_arrivals, total_settlements
+    );
+    println!(
+        "Throughput: {:.0} arrivals/sec",
+        total_arrivals as f64 / elapsed.as_secs_f64()
+    );
 
     // Verify system handled extreme load
-    assert!(total_arrivals > 500, "Should generate many arrivals at rate=20.0");
-    assert!(elapsed.as_secs() < 10, "Should handle extreme load. Took: {:?}", elapsed);
+    assert!(
+        total_arrivals > 500,
+        "Should generate many arrivals at rate=20.0"
+    );
+    assert!(
+        elapsed.as_secs() < 10,
+        "Should handle extreme load. Took: {:?}",
+        elapsed
+    );
 
     // With FIFO and huge liquidity, should settle most
     let settlement_rate = total_settlements as f64 / total_arrivals as f64;
     println!("Settlement rate: {:.2}%", settlement_rate * 100.0);
-    assert!(settlement_rate > 0.5, "Should settle majority with ample liquidity");
+    assert!(
+        settlement_rate > 0.5,
+        "Should settle majority with ample liquidity"
+    );
 }
 
 #[test]
@@ -276,7 +336,9 @@ fn test_50_agent_high_frequency_simulation() {
             credit_limit: if i % 3 == 0 { 10_000_000 } else { 0 }, // Some have credit
             policy: match i % 3 {
                 0 => PolicyConfig::Fifo,
-                1 => PolicyConfig::Deadline { urgency_threshold: 5 },
+                1 => PolicyConfig::Deadline {
+                    urgency_threshold: 5,
+                },
                 2 => PolicyConfig::LiquidityAware {
                     target_buffer: 10_000_000,
                     urgency_threshold: 5,
@@ -284,7 +346,8 @@ fn test_50_agent_high_frequency_simulation() {
                 _ => unreachable!(),
             },
             arrival_config: Some(arrival_config.clone()),
-                posted_collateral: None,        });
+            posted_collateral: None,
+        });
     }
 
     let config = OrchestratorConfig {
@@ -340,8 +403,14 @@ fn test_50_agent_high_frequency_simulation() {
     println!("Total arrivals: {}", total_arrivals);
     println!("Total settlements: {}", total_settlements);
     println!("LSM releases: {}", lsm_releases);
-    println!("Settlement rate: {:.2}%", (total_settlements as f64 / total_arrivals as f64) * 100.0);
-    println!("Throughput: {:.0} arrivals/sec", total_arrivals as f64 / total_elapsed.as_secs_f64());
+    println!(
+        "Settlement rate: {:.2}%",
+        (total_settlements as f64 / total_arrivals as f64) * 100.0
+    );
+    println!(
+        "Throughput: {:.0} arrivals/sec",
+        total_arrivals as f64 / total_elapsed.as_secs_f64()
+    );
 
     // Performance assertions
     assert!(
@@ -372,11 +441,14 @@ fn test_50_agent_high_frequency_simulation() {
     // LSM may find optimization opportunities, but with uniform counterparty selection
     // across 49 potential receivers, exact bilateral matches are rare
     // This is expected behavior - LSM is most useful with structured payment patterns
-    println!("LSM found {} bilateral offsets (expected to be low with uniform selection)", lsm_releases);
+    println!(
+        "LSM found {} bilateral offsets (expected to be low with uniform selection)",
+        lsm_releases
+    );
 
     // Check that queues didn't explode
-    let total_queue = orchestrator.state().total_internal_queue_size()
-        + orchestrator.state().queue_size();
+    let total_queue =
+        orchestrator.state().total_internal_queue_size() + orchestrator.state().queue_size();
     println!("Final queue depth: {}", total_queue);
     assert!(
         total_queue < 1000,

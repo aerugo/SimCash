@@ -235,12 +235,12 @@ pub struct CostRates {
 impl Default for CostRates {
     fn default() -> Self {
         Self {
-            overdraft_bps_per_tick: 0.001,            // 1 bp/tick
-            delay_cost_per_tick_per_cent: 0.0001,     // 0.1 bp/tick
-            collateral_cost_per_tick_bps: 0.0002,     // 2 bps annualized / 100 ticks
-            eod_penalty_per_transaction: 10_000,      // $100 per unsettled tx
-            deadline_penalty: 50_000,                  // $500 per missed deadline
-            split_friction_cost: 1000,                 // $10 per split
+            overdraft_bps_per_tick: 0.001,        // 1 bp/tick
+            delay_cost_per_tick_per_cent: 0.0001, // 0.1 bp/tick
+            collateral_cost_per_tick_bps: 0.0002, // 2 bps annualized / 100 ticks
+            eod_penalty_per_transaction: 10_000,  // $100 per unsettled tx
+            deadline_penalty: 50_000,             // $500 per missed deadline
+            split_friction_cost: 1000,            // $10 per split
         }
     }
 }
@@ -337,6 +337,44 @@ impl CostAccumulator {
 }
 
 // ============================================================================
+// System-Wide Metrics (Phase 8: Cost Model API)
+// ============================================================================
+
+/// System-wide performance metrics
+///
+/// Provides comprehensive view of simulation health and efficiency.
+/// Used for Phase 8 API endpoints and monitoring dashboards.
+#[derive(Debug, Clone)]
+pub struct SystemMetrics {
+    /// Total transactions that have arrived in the system
+    pub total_arrivals: usize,
+
+    /// Total transactions that have been settled (fully or partially)
+    pub total_settlements: usize,
+
+    /// Settlement rate: settlements / arrivals (0.0 to 1.0)
+    pub settlement_rate: f64,
+
+    /// Average delay in ticks for settled transactions
+    pub avg_delay_ticks: f64,
+
+    /// Maximum delay in ticks observed
+    pub max_delay_ticks: usize,
+
+    /// Total number of transactions in all agent queues (Queue 1)
+    pub queue1_total_size: usize,
+
+    /// Total number of transactions in RTGS queue (Queue 2)
+    pub queue2_total_size: usize,
+
+    /// Peak overdraft observed across all agents (absolute value)
+    pub peak_overdraft: i64,
+
+    /// Number of agents currently in overdraft
+    pub agents_in_overdraft: usize,
+}
+
+// ============================================================================
 // Daily Metrics Tracking (Phase 3: Agent Metrics Collection)
 // ============================================================================
 
@@ -402,7 +440,7 @@ impl DailyMetrics {
             agent_id,
             day,
             opening_balance,
-            closing_balance: opening_balance,  // Will be updated at EOD
+            closing_balance: opening_balance, // Will be updated at EOD
             min_balance: opening_balance,
             max_balance: opening_balance,
             credit_limit,
@@ -410,7 +448,7 @@ impl DailyMetrics {
             opening_posted_collateral,
             closing_posted_collateral: opening_posted_collateral,
             peak_posted_collateral: opening_posted_collateral,
-            collateral_capacity: credit_limit * 10,  // 10x leverage
+            collateral_capacity: credit_limit * 10, // 10x leverage
             num_collateral_posts: 0,
             num_collateral_withdrawals: 0,
             num_arrivals: 0,
@@ -573,10 +611,7 @@ pub enum SimulationError {
     DeserializationError(String),
 
     /// Config mismatch (checkpoint from different config)
-    ConfigMismatch {
-        expected: String,
-        actual: String,
-    },
+    ConfigMismatch { expected: String, actual: String },
 
     /// State validation error (invariant violated)
     StateValidationError(String),
@@ -593,13 +628,17 @@ impl std::fmt::Display for SimulationError {
             SimulationError::SettlementError(msg) => write!(f, "Settlement error: {}", msg),
             SimulationError::RngError(msg) => write!(f, "RNG error: {}", msg),
             SimulationError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
-            SimulationError::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
+            SimulationError::DeserializationError(msg) => {
+                write!(f, "Deserialization error: {}", msg)
+            }
             SimulationError::ConfigMismatch { expected, actual } => write!(
                 f,
                 "Config mismatch: expected hash {}, got {}",
                 expected, actual
             ),
-            SimulationError::StateValidationError(msg) => write!(f, "State validation error: {}", msg),
+            SimulationError::StateValidationError(msg) => {
+                write!(f, "State validation error: {}", msg)
+            }
         }
     }
 }
@@ -685,8 +724,8 @@ impl Orchestrator {
         // All policies now use JSON-based TreePolicy loaded via factory
         let mut policies: HashMap<String, Box<dyn CashManagerPolicy>> = HashMap::new();
         for agent_config in &config.agent_configs {
-            let tree_policy = crate::policy::tree::create_policy(&agent_config.policy)
-                .map_err(|e| {
+            let tree_policy =
+                crate::policy::tree::create_policy(&agent_config.policy).map_err(|e| {
                     SimulationError::InvalidConfig(format!(
                         "Failed to create JSON policy for agent {}: {}",
                         agent_config.id, e
@@ -829,6 +868,90 @@ impl Orchestrator {
         &self.accumulated_costs
     }
 
+    /// Calculate comprehensive system-wide metrics
+    ///
+    /// Provides a snapshot of current system health including:
+    /// - Settlement performance (rate, delays)
+    /// - Queue statistics
+    /// - Liquidity usage (overdrafts)
+    ///
+    /// Used by Phase 8 REST API endpoints for monitoring.
+    pub fn calculate_system_metrics(&self) -> SystemMetrics {
+        // Count arrivals and settlements from transactions
+        let mut total_arrivals = 0;
+        let mut total_settlements = 0;
+        let mut delays = Vec::new();
+
+        for tx in self.state.transactions().values() {
+            total_arrivals += 1;
+
+            // Check if settled (fully or partially)
+            if tx.settled_amount() > 0 {
+                total_settlements += 1;
+
+                // Calculate delay: current_tick - arrival_tick
+                // If settled_at exists, use that; otherwise use current tick
+                let current_tick = self.current_tick();
+                let delay = current_tick.saturating_sub(tx.arrival_tick() as usize);
+                delays.push(delay);
+            }
+        }
+
+        // Calculate settlement rate
+        let settlement_rate = if total_arrivals > 0 {
+            total_settlements as f64 / total_arrivals as f64
+        } else {
+            0.0
+        };
+
+        // Calculate average and max delay
+        let avg_delay_ticks = if !delays.is_empty() {
+            delays.iter().sum::<usize>() as f64 / delays.len() as f64
+        } else {
+            0.0
+        };
+        let max_delay_ticks = delays.into_iter().max().unwrap_or(0);
+
+        // Count queue sizes
+        let queue1_total_size: usize = self
+            .state
+            .agents()
+            .values()
+            .map(|agent| agent.outgoing_queue_size())
+            .sum();
+
+        let queue2_total_size = self.state.rtgs_queue().len();
+
+        // Find peak overdraft (most negative balance)
+        let peak_overdraft = self
+            .state
+            .agents()
+            .values()
+            .map(|agent| agent.balance().min(0).abs())
+            .max()
+            .unwrap_or(0);
+
+        // Count agents in overdraft
+        let agents_in_overdraft = self
+            .state
+            .agents()
+            .values()
+            .filter(|agent| agent.balance() < 0)
+            .count();
+
+        SystemMetrics {
+            total_arrivals,
+            total_settlements,
+            settlement_rate,
+            avg_delay_ticks,
+            max_delay_ticks,
+            queue1_total_size,
+            queue2_total_size,
+            peak_overdraft,
+            agents_in_overdraft,
+        }
+    }
+
     // ========================================================================
     // State Query Methods (Phase 7: FFI Integration)
     // ========================================================================
@@ -864,7 +987,9 @@ impl Orchestrator {
     /// * `Some(size)` - Number of transactions in Queue 1
     /// * `None` - Agent not found
     pub fn get_queue1_size(&self, agent_id: &str) -> Option<usize> {
-        self.state.get_agent(agent_id).map(|a| a.outgoing_queue_size())
+        self.state
+            .get_agent(agent_id)
+            .map(|a| a.outgoing_queue_size())
     }
 
     /// Get size of RTGS central queue (Queue 2)
@@ -875,12 +1000,68 @@ impl Orchestrator {
         self.state.queue_size()
     }
 
+    /// Get contents of agent's internal queue (Queue 1)
+    ///
+    /// Returns a vector of transaction IDs currently in the agent's
+    /// internal queue (Queue 1), preserving queue order.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// Vector of transaction ID strings in queue order.
+    /// Returns empty vector if agent not found or queue is empty.
+    ///
+    /// # Phase 3: Queue Contents Persistence
+    ///
+    /// This method enables Phase 3 queue persistence by providing access
+    /// to the actual transaction IDs in each agent's queue for end-of-day
+    /// snapshots.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let queue_contents = orch.get_agent_queue1_contents("BANK_A");
+    /// for (idx, tx_id) in queue_contents.iter().enumerate() {
+    ///     println!("Position {}: {}", idx, tx_id);
+    /// }
+    /// ```
+    pub fn get_agent_queue1_contents(&self, agent_id: &str) -> Vec<String> {
+        self.state
+            .get_agent(agent_id)
+            .map(|a| a.outgoing_queue().to_vec())
+            .unwrap_or_default()
+    }
+
     /// Get list of all agent identifiers
     ///
     /// Returns all agent IDs configured in the simulation.
     /// Useful for iterating over agents to query their state.
     pub fn get_agent_ids(&self) -> Vec<String> {
         self.state.get_all_agent_ids()
+    }
+
+    /// Get LSM cycle events for a specific day (Phase 4)
+    ///
+    /// Returns all LSM cycle events (bilateral offsets and multilateral cycles)
+    /// that were settled during the specified day.
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - The day number to query (0-indexed)
+    ///
+    /// # Returns
+    ///
+    /// Vector of LsmCycleEvent structs for the specified day
+    pub fn get_lsm_cycles_for_day(&self, day: usize) -> Vec<crate::settlement::lsm::LsmCycleEvent> {
+        self.state
+            .lsm_cycle_events
+            .iter()
+            .filter(|event| event.day == day)
+            .cloned()
+            .collect()
     }
 
     // ========================================================================
@@ -970,7 +1151,7 @@ impl Orchestrator {
             sender_id.to_string(),
             receiver_id.to_string(),
             amount,
-            current_tick,      // Arrival tick = current tick
+            current_tick, // Arrival tick = current tick
             deadline_tick,
         );
 
@@ -1121,6 +1302,36 @@ impl Orchestrator {
         metrics
     }
 
+    /// Get agent policy configurations
+    ///
+    /// Returns the PolicyConfig for each agent as specified in the original
+    /// simulation configuration. Useful for policy snapshot tracking and
+    /// provenance ("what policy was BANK_A using?").
+    ///
+    /// # Returns
+    ///
+    /// Vector of tuples containing (agent_id, PolicyConfig) for all agents.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Create orchestrator with policies
+    /// let orch = Orchestrator::new(config)?;
+    ///
+    /// // Get policy configs for all agents
+    /// let policies = orch.get_agent_policies();
+    /// for (agent_id, policy_config) in policies {
+    ///     println!("{}: {:?}", agent_id, policy_config);
+    /// }
+    /// ```
+    pub fn get_agent_policies(&self) -> Vec<(String, PolicyConfig)> {
+        self.config
+            .agent_configs
+            .iter()
+            .map(|ac| (ac.id.clone(), ac.policy.clone()))
+            .collect()
+    }
+
     // ========================================================================
     // Checkpoint - Save/Load State
     // ========================================================================
@@ -1147,16 +1358,29 @@ impl Orchestrator {
     /// std::fs::write("checkpoint.json", state_json)?;
     /// ```
     pub fn save_state(&self) -> Result<String, SimulationError> {
-        use crate::orchestrator::checkpoint::{compute_config_hash, validate_snapshot, AgentSnapshot, StateSnapshot, TransactionSnapshot};
+        use crate::orchestrator::checkpoint::{
+            compute_config_hash, validate_snapshot, AgentSnapshot, StateSnapshot,
+            TransactionSnapshot,
+        };
 
         // Compute config hash for validation
         let config_hash = compute_config_hash(&self.get_config())?;
 
         // Create snapshot with deterministic ordering
-        let mut agents: Vec<AgentSnapshot> = self.state.agents().iter().map(|(_, a)| AgentSnapshot::from(a)).collect();
+        let mut agents: Vec<AgentSnapshot> = self
+            .state
+            .agents()
+            .iter()
+            .map(|(_, a)| AgentSnapshot::from(a))
+            .collect();
         agents.sort_by(|a, b| a.id.cmp(&b.id)); // Sort by ID for deterministic order
 
-        let mut transactions: Vec<TransactionSnapshot> = self.state.transactions().iter().map(|(_, t)| TransactionSnapshot::from(t)).collect();
+        let mut transactions: Vec<TransactionSnapshot> = self
+            .state
+            .transactions()
+            .iter()
+            .map(|(_, t)| TransactionSnapshot::from(t))
+            .collect();
         transactions.sort_by(|a, b| a.id.cmp(&b.id)); // Sort by ID for deterministic order
 
         let snapshot = StateSnapshot {
@@ -1174,8 +1398,9 @@ impl Orchestrator {
         validate_snapshot(&snapshot, expected_balance)?;
 
         // Serialize to JSON
-        serde_json::to_string(&snapshot)
-            .map_err(|e| SimulationError::SerializationError(format!("Failed to serialize state: {}", e)))
+        serde_json::to_string(&snapshot).map_err(|e| {
+            SimulationError::SerializationError(format!("Failed to serialize state: {}", e))
+        })
     }
 
     /// Load simulation state from JSON and create new orchestrator
@@ -1206,12 +1431,18 @@ impl Orchestrator {
     /// // Continue simulation from checkpoint
     /// orchestrator.tick()?;
     /// ```
-    pub fn load_state(config: OrchestratorConfig, state_json: &str) -> Result<Self, SimulationError> {
-        use crate::orchestrator::checkpoint::{compute_config_hash, validate_snapshot, StateSnapshot};
+    pub fn load_state(
+        config: OrchestratorConfig,
+        state_json: &str,
+    ) -> Result<Self, SimulationError> {
+        use crate::orchestrator::checkpoint::{
+            compute_config_hash, validate_snapshot, StateSnapshot,
+        };
 
         // Deserialize snapshot
-        let snapshot: StateSnapshot = serde_json::from_str(state_json)
-            .map_err(|e| SimulationError::DeserializationError(format!("Failed to parse state JSON: {}", e)))?;
+        let snapshot: StateSnapshot = serde_json::from_str(state_json).map_err(|e| {
+            SimulationError::DeserializationError(format!("Failed to parse state JSON: {}", e))
+        })?;
 
         // Validate config matches
         let config_hash = compute_config_hash(&config)?;
@@ -1265,10 +1496,11 @@ impl Orchestrator {
 
         // Reconstruct policies
         // All policies now use JSON-based TreePolicy loaded via factory
-        let mut policies: HashMap<String, Box<dyn crate::policy::CashManagerPolicy>> = HashMap::new();
+        let mut policies: HashMap<String, Box<dyn crate::policy::CashManagerPolicy>> =
+            HashMap::new();
         for agent_config in &config.agent_configs {
-            let tree_policy = crate::policy::tree::create_policy(&agent_config.policy)
-                .map_err(|e| {
+            let tree_policy =
+                crate::policy::tree::create_policy(&agent_config.policy).map_err(|e| {
                     SimulationError::InvalidConfig(format!(
                         "Failed to create JSON policy for agent {}: {}",
                         agent_config.id, e
@@ -1291,7 +1523,10 @@ impl Orchestrator {
                 .iter()
                 .map(|ac| ac.id.clone())
                 .collect();
-            Some(crate::arrivals::ArrivalGenerator::new(arrival_configs_map, all_agent_ids))
+            Some(crate::arrivals::ArrivalGenerator::new(
+                arrival_configs_map,
+                all_agent_ids,
+            ))
         } else {
             None
         };
@@ -1408,7 +1643,8 @@ impl Orchestrator {
 
             for agent_id in agent_ids {
                 // Generate arrivals for this agent
-                let new_transactions = generator.generate_for_agent(&agent_id, current_tick, &mut self.rng_manager);
+                let new_transactions =
+                    generator.generate_for_agent(&agent_id, current_tick, &mut self.rng_manager);
                 num_arrivals += new_transactions.len();
 
                 // Add transactions to state and queue them
@@ -1502,6 +1738,15 @@ impl Orchestrator {
                     let new_collateral = old_collateral + amount;
                     agent_mut.set_posted_collateral(new_collateral);
 
+                    // Record detailed collateral event (Phase 10)
+                    self.record_collateral_event(
+                        &agent_id,
+                        crate::models::CollateralAction::Post,
+                        amount,
+                        format!("{:?}", reason),
+                        crate::models::CollateralLayer::Strategic,
+                    );
+
                     self.log_event(Event::CollateralPost {
                         tick: current_tick,
                         agent_id: agent_id.clone(),
@@ -1532,6 +1777,15 @@ impl Orchestrator {
                     let old_collateral = agent_mut.posted_collateral();
                     let new_collateral = old_collateral - amount;
                     agent_mut.set_posted_collateral(new_collateral);
+
+                    // Record detailed collateral event (Phase 10)
+                    self.record_collateral_event(
+                        &agent_id,
+                        crate::models::CollateralAction::Withdraw,
+                        amount,
+                        format!("{:?}", reason),
+                        crate::models::CollateralLayer::Strategic,
+                    );
 
                     self.log_event(Event::CollateralWithdraw {
                         tick: current_tick,
@@ -1567,7 +1821,8 @@ impl Orchestrator {
 
             // Evaluate policy for all transactions in Queue 1
             // Pass cost_rates for policy decision-making (read-only, external)
-            let decisions = policy.evaluate_queue(agent, &self.state, current_tick, &self.cost_rates);
+            let decisions =
+                policy.evaluate_queue(agent, &self.state, current_tick, &self.cost_rates);
 
             // Process decisions
             for decision in decisions {
@@ -1593,16 +1848,22 @@ impl Orchestrator {
 
                         // Validate num_splits
                         if num_splits < 2 {
-                            return Err(SimulationError::SettlementError(
-                                format!("num_splits must be >= 2, got {}", num_splits)
-                            ));
+                            return Err(SimulationError::SettlementError(format!(
+                                "num_splits must be >= 2, got {}",
+                                num_splits
+                            )));
                         }
 
                         // Get parent transaction
-                        let parent_tx = self.state.get_transaction(&tx_id)
-                            .ok_or_else(|| SimulationError::SettlementError(
-                                format!("Transaction {} not found for splitting", tx_id)
-                            ))?
+                        let parent_tx = self
+                            .state
+                            .get_transaction(&tx_id)
+                            .ok_or_else(|| {
+                                SimulationError::SettlementError(format!(
+                                    "Transaction {} not found for splitting",
+                                    tx_id
+                                ))
+                            })?
                             .clone();
 
                         // Remove parent from Queue 1 (will be replaced by children)
@@ -1646,7 +1907,8 @@ impl Orchestrator {
                         }
 
                         // Calculate and charge split friction cost
-                        let friction_cost = self.cost_rates.split_friction_cost * (num_splits as i64 - 1);
+                        let friction_cost =
+                            self.cost_rates.split_friction_cost * (num_splits as i64 - 1);
 
                         if friction_cost > 0 {
                             if let Some(accumulator) = self.accumulated_costs.get_mut(&agent_id) {
@@ -1714,9 +1976,15 @@ impl Orchestrator {
         for tx_id in pending.iter() {
             // Get transaction details for event logging
             let (sender_id, receiver_id, amount) = {
-                let tx = self.state.get_transaction(tx_id)
+                let tx = self
+                    .state
+                    .get_transaction(tx_id)
                     .ok_or_else(|| SimulationError::TransactionNotFound(tx_id.clone()))?;
-                (tx.sender_id().to_string(), tx.receiver_id().to_string(), tx.remaining_amount())
+                (
+                    tx.sender_id().to_string(),
+                    tx.receiver_id().to_string(),
+                    tx.remaining_amount(),
+                )
             };
 
             // Try to settle the transaction (already in state)
@@ -1754,13 +2022,19 @@ impl Orchestrator {
 
         // STEP 5: LSM COORDINATOR
         // Find and release offsetting transactions
-        let lsm_result = lsm::run_lsm_pass(&mut self.state, &self.lsm_config, current_tick);
+        let lsm_result = lsm::run_lsm_pass(
+            &mut self.state,
+            &self.lsm_config,
+            current_tick,
+            self.time_manager.ticks_per_day(),
+        );
         let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
 
-        // TODO: Log detailed LSM events
-        // Currently the LSM module doesn't return enough details for proper event logging
-        // Would need to track which specific transactions were settled via LSM
+        // Store LSM cycle events for persistence (Phase 4.2)
+        self.state
+            .lsm_cycle_events
+            .extend(lsm_result.cycle_events);
 
         // STEP 5.5: END-OF-TICK COLLATERAL MANAGEMENT (Layer 2)
         // Evaluate end-of-tick collateral decisions for each agent AFTER settlements complete
@@ -1831,6 +2105,15 @@ impl Orchestrator {
                     let new_collateral = old_collateral + amount;
                     agent_mut.set_posted_collateral(new_collateral);
 
+                    // Record detailed collateral event (Phase 10)
+                    self.record_collateral_event(
+                        &agent_id,
+                        crate::models::CollateralAction::Post,
+                        amount,
+                        format!("{:?}", reason),
+                        crate::models::CollateralLayer::EndOfTick,
+                    );
+
                     // Log collateral post event
                     self.log_event(Event::CollateralPost {
                         tick: current_tick,
@@ -1865,6 +2148,15 @@ impl Orchestrator {
                     let old_collateral = agent_mut.posted_collateral();
                     let new_collateral = old_collateral - amount;
                     agent_mut.set_posted_collateral(new_collateral);
+
+                    // Record detailed collateral event (Phase 10)
+                    self.record_collateral_event(
+                        &agent_id,
+                        crate::models::CollateralAction::Withdraw,
+                        amount,
+                        format!("{:?}", reason),
+                        crate::models::CollateralLayer::EndOfTick,
+                    );
 
                     // Log collateral withdraw event
                     self.log_event(Event::CollateralWithdraw {
@@ -1981,7 +2273,7 @@ impl Orchestrator {
 
         let overdraft_amount = (-balance) as f64;
         let cost = overdraft_amount * self.cost_rates.overdraft_bps_per_tick;
-        cost.round() as i64  // Use rounding instead of truncation (Phase 8 fix)
+        cost.round() as i64 // Use rounding instead of truncation (Phase 8 fix)
     }
 
     /// Calculate delay cost for queued transactions
@@ -2006,7 +2298,7 @@ impl Orchestrator {
         }
 
         let cost = (total_queued_value as f64) * self.cost_rates.delay_cost_per_tick_per_cent;
-        cost.round() as i64  // Use rounding instead of truncation (Phase 8 fix)
+        cost.round() as i64 // Use rounding instead of truncation (Phase 8 fix)
     }
 
     /// Calculate collateral opportunity cost (Phase 8)
@@ -2049,7 +2341,8 @@ impl Orchestrator {
 
             if unsettled_count > 0 {
                 // Calculate penalty
-                let penalty = (unsettled_count as i64) * self.cost_rates.eod_penalty_per_transaction;
+                let penalty =
+                    (unsettled_count as i64) * self.cost_rates.eod_penalty_per_transaction;
                 total_penalties += penalty;
 
                 // Accumulate penalty cost
@@ -2107,13 +2400,15 @@ impl Orchestrator {
                 metrics.finalize(agent, costs);
 
                 // Store in historical metrics
-                self.historical_metrics.insert((agent_id.clone(), current_day), metrics);
+                self.historical_metrics
+                    .insert((agent_id.clone(), current_day), metrics);
             }
 
             // Initialize metrics for next day
             let agent = self.state.get_agent(agent_id).unwrap();
             let next_day_metrics = DailyMetrics::new(agent_id.clone(), current_day + 1, agent);
-            self.current_day_metrics.insert(agent_id.clone(), next_day_metrics);
+            self.current_day_metrics
+                .insert(agent_id.clone(), next_day_metrics);
 
             // Reset cost accumulator for next day
             if let Some(accumulator) = self.accumulated_costs.get_mut(agent_id) {
@@ -2178,9 +2473,9 @@ impl Orchestrator {
             // Settle the transaction
             {
                 let sender = self.state.get_agent_mut(&sender_id).unwrap();
-                sender
-                    .debit(amount)
-                    .map_err(|e| SimulationError::SettlementError(format!("Debit failed: {}", e)))?;
+                sender.debit(amount).map_err(|e| {
+                    SimulationError::SettlementError(format!("Debit failed: {}", e))
+                })?;
             }
             {
                 let receiver = self.state.get_agent_mut(&receiver_id).unwrap();
@@ -2188,8 +2483,9 @@ impl Orchestrator {
             }
             {
                 let tx = self.state.get_transaction_mut(tx_id).unwrap();
-                tx.settle(amount, tick)
-                    .map_err(|e| SimulationError::SettlementError(format!("Settle failed: {}", e)))?;
+                tx.settle(amount, tick).map_err(|e| {
+                    SimulationError::SettlementError(format!("Settle failed: {}", e))
+                })?;
             }
 
             Ok(SettlementOutcome::Settled)
@@ -2198,6 +2494,122 @@ impl Orchestrator {
             self.state.queue_transaction(tx_id.to_string());
             Ok(SettlementOutcome::Queued)
         }
+    }
+
+    // ========================================================================
+    // Collateral Event Tracking (Phase 10)
+    // ========================================================================
+
+    /// Calculate collateral amount after applying an action
+    ///
+    /// # Arguments
+    /// * `before` - Current posted collateral amount
+    /// * `action` - Action to apply (Post/Withdraw/Hold)
+    /// * `amount` - Amount to post or withdraw
+    ///
+    /// # Returns
+    /// New posted collateral amount after action
+    fn calculate_collateral_after(
+        before: i64,
+        action: &crate::models::CollateralAction,
+        amount: i64,
+    ) -> i64 {
+        match action {
+            crate::models::CollateralAction::Post => before + amount,
+            crate::models::CollateralAction::Withdraw => before - amount,
+            crate::models::CollateralAction::Hold => before,
+        }
+    }
+
+    /// Record a collateral event with full state capture
+    ///
+    /// Called whenever collateral is posted, withdrawn, or a hold decision is made.
+    /// Captures the complete state before and after the action for later analysis.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent making the decision
+    /// * `action` - Action taken (Post/Withdraw/Hold)
+    /// * `amount` - Amount involved (i64 cents)
+    /// * `reason` - Reason for action (e.g., "insufficient_liquidity")
+    /// * `layer` - Decision layer (Strategic/EndOfTick)
+    ///
+    /// # Implementation Notes
+    ///
+    /// This method is called from 4 locations in the tick loop:
+    /// 1. Strategic layer collateral post (policy-driven)
+    /// 2. Strategic layer collateral withdraw (policy-driven)
+    /// 3. End-of-tick automatic collateral post
+    /// 4. End-of-tick automatic collateral withdraw
+    ///
+    /// The captured state enables detailed analysis of collateral behavior,
+    /// including capacity utilization, decision timing, and layer distinction.
+    fn record_collateral_event(
+        &mut self,
+        agent_id: &str,
+        action: crate::models::CollateralAction,
+        amount: i64,
+        reason: String,
+        layer: crate::models::CollateralLayer,
+    ) {
+        let agent = self.state.get_agent(agent_id).unwrap();
+        let current_tick = self.time_manager.current_tick() as usize;
+        let current_day = current_tick / self.config.ticks_per_day;
+
+        // Capture before state
+        let balance_before = agent.balance();
+        let posted_collateral_before = agent.posted_collateral();
+
+        // Calculate after state based on action
+        let posted_collateral_after =
+            Self::calculate_collateral_after(posted_collateral_before, &action, amount);
+
+        // Calculate remaining capacity
+        let max_capacity = agent.max_collateral_capacity();
+        let available_capacity_after = max_capacity - posted_collateral_after;
+
+        // Create event with all captured state
+        let event = crate::models::CollateralEvent::new(
+            agent_id.to_string(),
+            current_tick,
+            current_day,
+            action,
+            amount,
+            reason,
+            layer,
+            balance_before,
+            posted_collateral_before,
+            posted_collateral_after,
+            available_capacity_after,
+        );
+
+        // Store event in state for later retrieval
+        self.state.collateral_events.push(event);
+    }
+
+    /// Get collateral events for a specific day
+    ///
+    /// Returns all collateral management events that occurred during the specified day.
+    ///
+    /// # Arguments
+    /// * `day` - Day number (0-indexed)
+    ///
+    /// # Returns
+    /// Vector of collateral events filtered by day
+    ///
+    /// # Example
+    /// ```ignore
+    /// let events = orch.get_collateral_events_for_day(0);
+    /// for event in events {
+    ///     println!("{} posted {} at tick {}", event.agent_id, event.amount, event.tick);
+    /// }
+    /// ```
+    pub fn get_collateral_events_for_day(&self, day: usize) -> Vec<crate::models::CollateralEvent> {
+        self.state
+            .collateral_events
+            .iter()
+            .filter(|e| e.day == day)
+            .cloned()
+            .collect()
     }
 }
 

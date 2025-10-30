@@ -13,6 +13,59 @@ import json
 from payment_simulator.cli.main import app
 from payment_simulator.persistence.connection import DatabaseManager
 from payment_simulator._core import Orchestrator
+import yaml
+
+
+def create_test_checkpoint(tmp_path, sim_id="test_sim", num_ticks=10):
+    """Helper to create a checkpoint for testing.
+
+    Returns: (config_file, state_file, checkpoint_id)
+    """
+    state_file = tmp_path / f"{sim_id}_state.json"
+    config_file = tmp_path / f"{sim_id}_config.yaml"
+
+    # Create YAML config
+    yaml_config = {
+        "simulation": {
+            "ticks_per_day": 100,
+            "num_days": 1,
+            "rng_seed": 12345,
+        },
+        "agents": [
+            {
+                "id": "BANK_A",
+                "opening_balance": 1_000_000,
+                "credit_limit": 500_000,
+                "policy": {"type": "Fifo"},
+            },
+        ],
+    }
+    with open(config_file, 'w') as f:
+        yaml.dump(yaml_config, f)
+
+    # Create FFI config for orchestrator
+    ffi_config = {
+        "ticks_per_day": 100,
+        "num_days": 1,
+        "rng_seed": 12345,
+        "agent_configs": [
+            {
+                "id": "BANK_A",
+                "opening_balance": 1_000_000,
+                "credit_limit": 500_000,
+                "policy": {"type": "Fifo"},
+            },
+        ],
+    }
+    orch = Orchestrator.new(ffi_config)
+    for _ in range(num_ticks):
+        orch.tick()
+
+    state_json = orch.save_state()
+    with open(state_file, 'w') as f:
+        f.write(state_json)
+
+    return config_file, state_file
 
 
 @pytest.fixture
@@ -120,8 +173,10 @@ def test_checkpoint_save_creates_checkpoint(runner, db_path, tmp_path):
     import os
     os.environ["PAYMENT_SIM_DB_PATH"] = str(db_path)
 
-    # Create a temporary state file
+    # Create a temporary state file and config file
     state_file = tmp_path / "sim_state.json"
+    config_file = tmp_path / "config.yaml"
+
     config = {
         "ticks_per_day": 100,
         "num_days": 1,
@@ -135,6 +190,28 @@ def test_checkpoint_save_creates_checkpoint(runner, db_path, tmp_path):
             },
         ],
     }
+
+    # Write config to YAML file in the format that SimulationConfig.from_dict expects
+    import yaml
+    yaml_config = {
+        "simulation": {
+            "ticks_per_day": 100,
+            "num_days": 1,
+            "rng_seed": 12345,
+        },
+        "agents": [  # Note: YAML uses "agents", FFI uses "agent_configs"
+            {
+                "id": "BANK_A",
+                "opening_balance": 1_000_000,
+                "credit_limit": 500_000,
+                "policy": {"type": "Fifo"},
+            },
+        ],
+    }
+    with open(config_file, 'w') as f:
+        yaml.dump(yaml_config, f)
+
+    # Create orchestrator and save state
     orch = Orchestrator.new(config)
     for _ in range(5):
         orch.tick()
@@ -148,10 +225,16 @@ def test_checkpoint_save_creates_checkpoint(runner, db_path, tmp_path):
         "checkpoint", "save",
         "--simulation-id", "test_sim_001",
         "--state-file", str(state_file),
+        "--config", str(config_file),
         "--description", "Test checkpoint from CLI"
     ])
 
     # Should succeed
+    if result.exit_code != 0:
+        print(f"Command failed with exit code {result.exit_code}")
+        print(f"Output: {result.output}")
+        if result.exception:
+            print(f"Exception: {result.exception}")
     assert result.exit_code == 0
     assert "saved" in result.output.lower() or "checkpoint" in result.output.lower()
 
@@ -192,10 +275,39 @@ def test_checkpoint_load_requires_config_file(runner):
 def test_checkpoint_load_restores_simulation(runner, db_path, simple_config_file, tmp_path):
     """CLI: checkpoint load restores and displays simulation state."""
     import os
+    import yaml
     os.environ["PAYMENT_SIM_DB_PATH"] = str(db_path)
 
     # First, save a checkpoint
     state_file = tmp_path / "sim_state.json"
+    config_file = tmp_path / "config.yaml"
+
+    # Create YAML config
+    yaml_config = {
+        "simulation": {
+            "ticks_per_day": 100,
+            "num_days": 1,
+            "rng_seed": 12345,
+        },
+        "agents": [
+            {
+                "id": "BANK_A",
+                "opening_balance": 1_000_000,
+                "credit_limit": 500_000,
+                "policy": {"type": "Fifo"},
+            },
+            {
+                "id": "BANK_B",
+                "opening_balance": 2_000_000,
+                "credit_limit": 0,
+                "policy": {"type": "Fifo"},
+            },
+        ],
+    }
+    with open(config_file, 'w') as f:
+        yaml.dump(yaml_config, f)
+
+    # Create FFI config for orchestrator
     config = {
         "ticks_per_day": 100,
         "num_days": 1,
@@ -228,6 +340,7 @@ def test_checkpoint_load_restores_simulation(runner, db_path, simple_config_file
         "checkpoint", "save",
         "--simulation-id", "test_sim_002",
         "--state-file", str(state_file),
+        "--config", str(config_file),
         "--description", "Before load test"
     ])
 
@@ -278,32 +391,13 @@ def test_checkpoint_list_displays_checkpoints(runner, db_path, tmp_path):
 
     # Create multiple checkpoints
     for i in range(3):
-        state_file = tmp_path / f"sim_state_{i}.json"
-        config = {
-            "ticks_per_day": 100,
-            "num_days": 1,
-            "rng_seed": 12345,
-            "agent_configs": [
-                {
-                    "id": "BANK_A",
-                    "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
-                    "policy": {"type": "Fifo"},
-                },
-            ],
-        }
-        orch = Orchestrator.new(config)
-        for _ in range(i * 2):
-            orch.tick()
-
-        state_json = orch.save_state()
-        with open(state_file, 'w') as f:
-            f.write(state_json)
+        config_file, state_file = create_test_checkpoint(tmp_path, sim_id=f"test_sim_003_{i}", num_ticks=i * 2)
 
         runner.invoke(app, [
             "checkpoint", "save",
             "--simulation-id", "test_sim_003",
             "--state-file", str(state_file),
+            "--config", str(config_file),
             "--description", f"Checkpoint {i}"
         ])
 
@@ -323,31 +417,13 @@ def test_checkpoint_list_filters_by_simulation(runner, db_path, tmp_path):
 
     # Create checkpoints for different simulations
     for sim_id in ["sim_A", "sim_B"]:
-        state_file = tmp_path / f"{sim_id}_state.json"
-        config = {
-            "ticks_per_day": 100,
-            "num_days": 1,
-            "rng_seed": 12345,
-            "agent_configs": [
-                {
-                    "id": "BANK_A",
-                    "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
-                    "policy": {"type": "Fifo"},
-                },
-            ],
-        }
-        orch = Orchestrator.new(config)
-        orch.tick()
-
-        state_json = orch.save_state()
-        with open(state_file, 'w') as f:
-            f.write(state_json)
+        config_file, state_file = create_test_checkpoint(tmp_path, sim_id=sim_id, num_ticks=1)
 
         runner.invoke(app, [
             "checkpoint", "save",
             "--simulation-id", sim_id,
             "--state-file", str(state_file),
+            "--config", str(config_file),
         ])
 
     # List only sim_A checkpoints
@@ -380,31 +456,13 @@ def test_checkpoint_delete_removes_checkpoint(runner, db_path, tmp_path):
     os.environ["PAYMENT_SIM_DB_PATH"] = str(db_path)
 
     # Create a checkpoint
-    state_file = tmp_path / "sim_state.json"
-    config = {
-        "ticks_per_day": 100,
-        "num_days": 1,
-        "rng_seed": 12345,
-        "agent_configs": [
-            {
-                "id": "BANK_A",
-                "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
-                "policy": {"type": "Fifo"},
-            },
-        ],
-    }
-    orch = Orchestrator.new(config)
-    orch.tick()
-
-    state_json = orch.save_state()
-    with open(state_file, 'w') as f:
-        f.write(state_json)
+    config_file, state_file = create_test_checkpoint(tmp_path, sim_id="test_sim_delete", num_ticks=1)
 
     save_result = runner.invoke(app, [
         "checkpoint", "save",
         "--simulation-id", "test_sim_delete",
         "--state-file", str(state_file),
+        "--config", str(config_file),
     ])
 
     # List to verify it exists
@@ -441,9 +499,25 @@ def test_checkpoint_workflow_save_list_load(runner, db_path, tmp_path):
     import yaml
     os.environ["PAYMENT_SIM_DB_PATH"] = str(db_path)
 
-    # 1. Save checkpoint
+    # 1. Save checkpoint - create config file
+    config_file = tmp_path / "workflow_config.yaml"
+    yaml_config = {
+        "simulation": {
+            "ticks_per_day": 100,
+            "num_days": 1,
+            "rng_seed": 42,
+        },
+        "agents": [
+            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 500_000, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+        ],
+    }
+    with open(config_file, 'w') as f:
+        yaml.dump(yaml_config, f)
+
+    # Create orchestrator and state
     state_file = tmp_path / "workflow_state.json"
-    config = {
+    ffi_config = {
         "ticks_per_day": 100,
         "num_days": 1,
         "rng_seed": 42,
@@ -462,7 +536,7 @@ def test_checkpoint_workflow_save_list_load(runner, db_path, tmp_path):
             },
         ],
     }
-    orch = Orchestrator.new(config)
+    orch = Orchestrator.new(ffi_config)
     for _ in range(15):
         orch.tick()
 
@@ -474,6 +548,7 @@ def test_checkpoint_workflow_save_list_load(runner, db_path, tmp_path):
         "checkpoint", "save",
         "--simulation-id", "workflow_test",
         "--state-file", str(state_file),
+        "--config", str(config_file),
         "--description", "Workflow checkpoint"
     ])
     assert save_result.exit_code == 0
@@ -483,22 +558,7 @@ def test_checkpoint_workflow_save_list_load(runner, db_path, tmp_path):
     assert list_result.exit_code == 0
     assert "workflow_test" in list_result.output
 
-    # 3. Load checkpoint - create matching config file
-    config_file = tmp_path / "workflow_config.yaml"
-    yaml_config = {
-        "simulation": {
-            "ticks_per_day": 100,
-            "num_days": 1,
-            "rng_seed": 42,  # Must match checkpoint!
-        },
-        "agents": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 500_000, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-        ],
-    }
-    with open(config_file, 'w') as f:
-        yaml.dump(yaml_config, f)
-
+    # 3. Load checkpoint (config_file already created above)
     load_result = runner.invoke(app, [
         "checkpoint", "load",
         "--checkpoint-id", "latest",

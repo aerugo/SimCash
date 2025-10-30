@@ -53,9 +53,10 @@
 //!
 //! # let mut state = todo!();
 //! # let tick = 5;
+//! # let ticks_per_day = 100;
 //! // After queue processing, run LSM to resolve gridlock
 //! let lsm_config = LsmConfig::default();
-//! let result = run_lsm_pass(&mut state, &lsm_config, tick);
+//! let result = run_lsm_pass(&mut state, &lsm_config, tick, ticks_per_day);
 //! println!("LSM settled {} transactions", result.total_settled_value);
 //! ```
 
@@ -64,8 +65,8 @@ pub mod rtgs;
 
 // Re-export public API
 pub use rtgs::{
-    process_queue, submit_transaction, try_settle, QueueProcessingResult,
-    SettlementError, SubmissionResult,
+    process_queue, submit_transaction, try_settle, QueueProcessingResult, SettlementError,
+    SubmissionResult,
 };
 
 pub use lsm::{

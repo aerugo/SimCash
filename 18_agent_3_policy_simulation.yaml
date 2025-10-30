@@ -1,0 +1,474 @@
+# 18-Agent Multi-Policy Payment Simulation
+#
+# Configuration: 3 policies x 6 variants each = 18 agents
+# - 6 FIFO agents (varied by liquidity levels)
+# - 6 Deadline agents (varied by urgency_threshold)
+# - 6 LiquidityAware agents (varied by target_buffer)
+#
+# Duration: 3 days x 100 ticks/day = 300 ticks total
+
+simulation:
+  ticks_per_day: 100
+  num_days: 3
+  rng_seed: 42  # Change for different random scenarios
+
+# ============================================================================
+# AGENTS: 18 banks with different policies and configurations
+# ============================================================================
+
+agents:
+  # ==========================================================================
+  # FIFO POLICY (6 agents) - Varied by liquidity levels
+  # Strategy: Always submit all queued transactions immediately (no holding)
+  # ==========================================================================
+
+  - id: "FIFO_HIGH_LIQ"
+    opening_balance: 10000000   # $100,000 - High liquidity
+    credit_limit: 5000000       # $50,000 credit
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 0.6        # ~60 transactions/day
+      amount_distribution:
+        type: "Uniform"
+        min: 20000              # $200
+        max: 800000             # $8,000
+      counterparty_weights:
+        FIFO_MED_LIQ: 0.15
+        FIFO_LOW_LIQ: 0.10
+        DEADLINE_CONSERVATIVE: 0.15
+        DEADLINE_MODERATE: 0.15
+        DEADLINE_AGGRESSIVE: 0.10
+        LIQUIDITY_TIGHT: 0.10
+        LIQUIDITY_BALANCED: 0.15
+        LIQUIDITY_LOOSE: 0.10
+      deadline_range: [15, 40]
+      priority: 5
+      divisible: false
+
+  - id: "FIFO_MED_LIQ"
+    opening_balance: 5000000    # $50,000 - Medium liquidity
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000              # $100
+        max: 500000             # $5,000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.20
+        FIFO_LOW_LIQ: 0.10
+        DEADLINE_VERY_CONSERVATIVE: 0.15
+        DEADLINE_MODERATE: 0.15
+        LIQUIDITY_TIGHT: 0.10
+        LIQUIDITY_BALANCED: 0.15
+        LIQUIDITY_MODERATE: 0.15
+      deadline_range: [10, 35]
+      priority: 5
+      divisible: false
+
+  - id: "FIFO_LOW_LIQ"
+    opening_balance: 2000000    # $20,000 - Low liquidity
+    credit_limit: 1000000       # $10,000 credit
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 0.4
+      amount_distribution:
+        type: "Uniform"
+        min: 5000               # $50
+        max: 300000             # $3,000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.25
+        FIFO_MED_LIQ: 0.20
+        DEADLINE_CONSERVATIVE: 0.15
+        DEADLINE_AGGRESSIVE: 0.10
+        LIQUIDITY_BALANCED: 0.15
+        LIQUIDITY_LOOSE: 0.15
+      deadline_range: [12, 30]
+      priority: 5
+      divisible: false
+
+  - id: "FIFO_VERY_HIGH_LIQ"
+    opening_balance: 15000000   # $150,000 - Very high liquidity
+    credit_limit: 7000000       # $70,000 credit
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 0.7
+      amount_distribution:
+        type: "Uniform"
+        min: 30000              # $300
+        max: 1000000            # $10,000
+      counterparty_weights:
+        FIFO_MED_LIQ: 0.20
+        FIFO_LOW_LIQ: 0.15
+        DEADLINE_MODERATE: 0.15
+        DEADLINE_ULTRA_AGGRESSIVE: 0.10
+        LIQUIDITY_TIGHT: 0.15
+        LIQUIDITY_ZERO_BUFFER: 0.15
+        LIQUIDITY_LOOSE: 0.10
+      deadline_range: [20, 50]
+      priority: 5
+      divisible: false
+
+  - id: "FIFO_CONSTRAINED"
+    opening_balance: 1500000    # $15,000 - Constrained
+    credit_limit: 500000        # $5,000 credit
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 0.3
+      amount_distribution:
+        type: "Uniform"
+        min: 5000               # $50
+        max: 200000             # $2,000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.30
+        FIFO_VERY_HIGH_LIQ: 0.25
+        DEADLINE_CONSERVATIVE: 0.15
+        LIQUIDITY_BALANCED: 0.15
+        LIQUIDITY_LOOSE: 0.15
+      deadline_range: [8, 25]
+      priority: 5
+      divisible: false
+
+  - id: "FIFO_BALANCED"
+    opening_balance: 7000000    # $70,000 - Balanced
+    credit_limit: 3000000       # $30,000 credit
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 0.55
+      amount_distribution:
+        type: "Uniform"
+        min: 15000              # $150
+        max: 600000             # $6,000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.15
+        FIFO_MED_LIQ: 0.15
+        DEADLINE_MODERATE: 0.20
+        DEADLINE_AGGRESSIVE: 0.15
+        LIQUIDITY_TIGHT: 0.10
+        LIQUIDITY_BALANCED: 0.15
+        LIQUIDITY_MODERATE: 0.10
+      deadline_range: [12, 35]
+      priority: 5
+      divisible: false
+
+  # ==========================================================================
+  # DEADLINE POLICY (6 agents) - Varied by urgency_threshold
+  # Strategy: Hold payments until near deadline, then submit urgently
+  # ==========================================================================
+
+  - id: "DEADLINE_VERY_CONSERVATIVE"
+    opening_balance: 6000000    # $60,000
+    credit_limit: 2500000       # $25,000 credit
+    policy:
+      type: "Deadline"
+      urgency_threshold: 1      # Submit only 1 tick before deadline (very risky!)
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.20
+        FIFO_MED_LIQ: 0.15
+        DEADLINE_MODERATE: 0.15
+        DEADLINE_AGGRESSIVE: 0.15
+        LIQUIDITY_TIGHT: 0.15
+        LIQUIDITY_BALANCED: 0.20
+      deadline_range: [10, 30]
+      priority: 5
+      divisible: false
+
+  - id: "DEADLINE_CONSERVATIVE"
+    opening_balance: 5500000    # $55,000
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "Deadline"
+      urgency_threshold: 3      # Submit 3 ticks before deadline
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.18
+        FIFO_MED_LIQ: 0.18
+        DEADLINE_MODERATE: 0.16
+        DEADLINE_ULTRA_AGGRESSIVE: 0.12
+        LIQUIDITY_BALANCED: 0.18
+        LIQUIDITY_MODERATE: 0.18
+      deadline_range: [12, 35]
+      priority: 5
+      divisible: false
+
+  - id: "DEADLINE_MODERATE"
+    opening_balance: 5000000    # $50,000
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "Deadline"
+      urgency_threshold: 5      # Submit 5 ticks before deadline (balanced)
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.15
+        FIFO_BALANCED: 0.15
+        DEADLINE_CONSERVATIVE: 0.15
+        DEADLINE_AGGRESSIVE: 0.15
+        LIQUIDITY_TIGHT: 0.15
+        LIQUIDITY_BALANCED: 0.15
+        LIQUIDITY_LOOSE: 0.10
+      deadline_range: [15, 40]
+      priority: 5
+      divisible: false
+
+  - id: "DEADLINE_AGGRESSIVE"
+    opening_balance: 4500000    # $45,000
+    credit_limit: 1800000       # $18,000 credit
+    policy:
+      type: "Deadline"
+      urgency_threshold: 10     # Submit 10 ticks before deadline
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_MED_LIQ: 0.20
+        FIFO_LOW_LIQ: 0.15
+        DEADLINE_MODERATE: 0.15
+        DEADLINE_ULTRA_AGGRESSIVE: 0.15
+        LIQUIDITY_TIGHT: 0.15
+        LIQUIDITY_MODERATE: 0.20
+      deadline_range: [20, 50]
+      priority: 5
+      divisible: false
+
+  - id: "DEADLINE_VERY_AGGRESSIVE"
+    opening_balance: 4000000    # $40,000
+    credit_limit: 1500000       # $15,000 credit
+    policy:
+      type: "Deadline"
+      urgency_threshold: 15     # Submit 15 ticks before deadline
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.20
+        FIFO_VERY_HIGH_LIQ: 0.15
+        DEADLINE_MODERATE: 0.15
+        DEADLINE_ULTRA_AGGRESSIVE: 0.15
+        LIQUIDITY_BALANCED: 0.20
+        LIQUIDITY_LOOSE: 0.15
+      deadline_range: [25, 60]
+      priority: 5
+      divisible: false
+
+  - id: "DEADLINE_ULTRA_AGGRESSIVE"
+    opening_balance: 3500000    # $35,000
+    credit_limit: 1200000       # $12,000 credit
+    policy:
+      type: "Deadline"
+      urgency_threshold: 20     # Submit 20 ticks before deadline (very early)
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_VERY_HIGH_LIQ: 0.20
+        FIFO_BALANCED: 0.18
+        DEADLINE_CONSERVATIVE: 0.12
+        DEADLINE_MODERATE: 0.15
+        LIQUIDITY_BALANCED: 0.20
+        LIQUIDITY_ZERO_BUFFER: 0.15
+      deadline_range: [30, 70]
+      priority: 5
+      divisible: false
+
+  # ==========================================================================
+  # LIQUIDITY AWARE POLICY (6 agents) - Varied by target_buffer
+  # Strategy: Preserve liquidity buffer while managing urgent payments
+  # ==========================================================================
+
+  - id: "LIQUIDITY_TIGHT"
+    opening_balance: 5000000    # $50,000
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 50000      # $500 buffer (very tight)
+      urgency_threshold: 5
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.20
+        FIFO_MED_LIQ: 0.15
+        DEADLINE_CONSERVATIVE: 0.15
+        DEADLINE_MODERATE: 0.15
+        LIQUIDITY_BALANCED: 0.20
+        LIQUIDITY_LOOSE: 0.15
+      deadline_range: [10, 35]
+      priority: 5
+      divisible: false
+
+  - id: "LIQUIDITY_BALANCED"
+    opening_balance: 5000000    # $50,000
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 100000     # $1,000 buffer (balanced)
+      urgency_threshold: 5
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.15
+        FIFO_BALANCED: 0.15
+        DEADLINE_MODERATE: 0.20
+        DEADLINE_AGGRESSIVE: 0.15
+        LIQUIDITY_TIGHT: 0.15
+        LIQUIDITY_MODERATE: 0.20
+      deadline_range: [12, 40]
+      priority: 5
+      divisible: false
+
+  - id: "LIQUIDITY_MODERATE"
+    opening_balance: 5000000    # $50,000
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 200000     # $2,000 buffer (moderate)
+      urgency_threshold: 5
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_MED_LIQ: 0.18
+        FIFO_LOW_LIQ: 0.12
+        DEADLINE_CONSERVATIVE: 0.18
+        DEADLINE_AGGRESSIVE: 0.16
+        LIQUIDITY_BALANCED: 0.18
+        LIQUIDITY_CONSERVATIVE: 0.18
+      deadline_range: [15, 40]
+      priority: 5
+      divisible: false
+
+  - id: "LIQUIDITY_CONSERVATIVE"
+    opening_balance: 5000000    # $50,000
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 500000     # $5,000 buffer (conservative)
+      urgency_threshold: 5
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.22
+        FIFO_VERY_HIGH_LIQ: 0.18
+        DEADLINE_MODERATE: 0.15
+        DEADLINE_AGGRESSIVE: 0.15
+        LIQUIDITY_BALANCED: 0.15
+        LIQUIDITY_LOOSE: 0.15
+      deadline_range: [15, 45]
+      priority: 5
+      divisible: false
+
+  - id: "LIQUIDITY_LOOSE"
+    opening_balance: 5000000    # $50,000
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 1000000    # $10,000 buffer (very conservative)
+      urgency_threshold: 5
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_VERY_HIGH_LIQ: 0.25
+        FIFO_HIGH_LIQ: 0.20
+        DEADLINE_CONSERVATIVE: 0.15
+        DEADLINE_MODERATE: 0.15
+        LIQUIDITY_CONSERVATIVE: 0.15
+        LIQUIDITY_ZERO_BUFFER: 0.10
+      deadline_range: [20, 50]
+      priority: 5
+      divisible: false
+
+  - id: "LIQUIDITY_ZERO_BUFFER"
+    opening_balance: 5000000    # $50,000
+    credit_limit: 2000000       # $20,000 credit
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 0          # $0 buffer (aggressive, like FIFO)
+      urgency_threshold: 5
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution:
+        type: "Uniform"
+        min: 10000
+        max: 500000
+      counterparty_weights:
+        FIFO_HIGH_LIQ: 0.18
+        FIFO_MED_LIQ: 0.17
+        DEADLINE_AGGRESSIVE: 0.15
+        DEADLINE_ULTRA_AGGRESSIVE: 0.15
+        LIQUIDITY_TIGHT: 0.20
+        LIQUIDITY_BALANCED: 0.15
+      deadline_range: [10, 30]
+      priority: 5
+      divisible: false
+
+# ============================================================================
+# LSM CONFIGURATION
+# Enable bilateral offsetting and cycle detection to resolve gridlocks
+# ============================================================================
+
+lsm_config:
+  bilateral_offsetting: true
+  cycle_detection: true
+  max_iterations: 5
+
+# ============================================================================
+# COST CONFIGURATION
+# Define penalties and fees for various events
+# ============================================================================
+
+cost_rates:
+  overdraft_bps_per_tick: 10          # 10 basis points per tick for negative balance
+  delay_cost_per_tick_per_cent: 1     # $0.01 per cent per tick in queue
+  eod_penalty_per_transaction: 1000000  # $10,000 penalty for unsettled at end-of-day
+  deadline_penalty: 500000            # $5,000 penalty for missing deadline
+  split_friction_cost: 10000          # $100 cost to split a transaction

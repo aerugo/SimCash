@@ -9,10 +9,10 @@
 //! - Queue integrity: No orphaned or duplicate transactions
 //! - Config matching: Reject state from different config
 
+use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig};
 use payment_simulator_core_rs::orchestrator::{
     AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
 };
-use payment_simulator_core_rs::arrivals::{ArrivalConfig, AmountDistribution};
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 use std::collections::HashMap;
 
@@ -35,7 +35,7 @@ fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000, // $10,000
-                credit_limit: 500_000,       // $5,000
+                credit_limit: 500_000,      // $5,000
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -66,7 +66,7 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 10_000_000, // $100,000
-                credit_limit: 1_000_000,      // $10,000
+                credit_limit: 1_000_000,     // $10,000
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(ArrivalConfig {
                     rate_per_tick: 0.5, // Poisson λ
@@ -124,11 +124,13 @@ fn test_save_state_returns_valid_json() {
     let orchestrator = create_test_orchestrator();
 
     // Should return JSON string
-    let state_json = orchestrator.save_state().expect("save_state() should succeed");
+    let state_json = orchestrator
+        .save_state()
+        .expect("save_state() should succeed");
 
     // Should be valid JSON
-    let parsed: serde_json::Value = serde_json::from_str(&state_json)
-        .expect("save_state() should return valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&state_json).expect("save_state() should return valid JSON");
 
     assert!(parsed.is_object(), "Root should be JSON object");
 }
@@ -148,7 +150,10 @@ fn test_save_state_includes_all_required_fields() {
 
     // Required state arrays
     assert!(parsed["agents"].is_array(), "Missing agents array");
-    assert!(parsed["transactions"].is_array(), "Missing transactions array");
+    assert!(
+        parsed["transactions"].is_array(),
+        "Missing transactions array"
+    );
     assert!(parsed["rtgs_queue"].is_array(), "Missing rtgs_queue array");
 
     // Required config validation
@@ -168,9 +173,18 @@ fn test_save_state_captures_agent_data() {
     let agent = &agents[0];
     assert!(agent["id"].is_string(), "Agent missing id");
     assert!(agent["balance"].is_number(), "Agent missing balance");
-    assert!(agent["credit_limit"].is_number(), "Agent missing credit_limit");
-    assert!(agent["outgoing_queue"].is_array(), "Agent missing outgoing_queue");
-    assert!(agent["posted_collateral"].is_number(), "Agent missing posted_collateral");
+    assert!(
+        agent["credit_limit"].is_number(),
+        "Agent missing credit_limit"
+    );
+    assert!(
+        agent["outgoing_queue"].is_array(),
+        "Agent missing outgoing_queue"
+    );
+    assert!(
+        agent["posted_collateral"].is_number(),
+        "Agent missing posted_collateral"
+    );
 }
 
 // ============================================================================
@@ -215,8 +229,8 @@ fn test_load_state_restores_exact_state() {
     let state_json = original.save_state().unwrap();
 
     // Load state
-    let restored = Orchestrator::load_state(config, &state_json)
-        .expect("load_state() should succeed");
+    let restored =
+        Orchestrator::load_state(config, &state_json).expect("load_state() should succeed");
 
     // Verify exact match
     assert_eq!(restored.current_tick(), original.current_tick());
@@ -296,24 +310,18 @@ fn test_determinism_after_restore() {
     let mut results1 = Vec::new();
     for _ in 0..50 {
         let result = sim1.tick().unwrap();
-        results1.push((
-            result.num_arrivals,
-            result.num_settlements,
-        ));
+        results1.push((result.num_arrivals, result.num_settlements));
     }
 
     // Restore sim2 from checkpoint at tick 50
-    let mut sim2 = Orchestrator::load_state(config, &state_json)
-        .expect("load_state() should succeed");
+    let mut sim2 =
+        Orchestrator::load_state(config, &state_json).expect("load_state() should succeed");
 
     // Run sim2 for 50 ticks (same as continuation)
     let mut results2 = Vec::new();
     for _ in 0..50 {
         let result = sim2.tick().unwrap();
-        results2.push((
-            result.num_arrivals,
-            result.num_settlements,
-        ));
+        results2.push((result.num_arrivals, result.num_settlements));
     }
 
     // Results MUST be IDENTICAL (determinism guarantee)
@@ -468,16 +476,14 @@ fn test_corrupted_state_json_rejected() {
         ticks_per_day: 100,
         num_days: 1,
         rng_seed: 42,
-        agent_configs: vec![
-            AgentConfig {
-                id: "BANK_A".to_string(),
-                opening_balance: 1_000_000,
-                credit_limit: 500_000,
-                policy: PolicyConfig::Fifo,
-                arrival_config: None,
-                posted_collateral: None,
-            },
-        ],
+        agent_configs: vec![AgentConfig {
+            id: "BANK_A".to_string(),
+            opening_balance: 1_000_000,
+            credit_limit: 500_000,
+            policy: PolicyConfig::Fifo,
+            arrival_config: None,
+            posted_collateral: None,
+        }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
     };

@@ -127,7 +127,9 @@ mod tests {
                             // Early day: Use stricter 3x buffer
                             on_true: Box::new(TreeNode::Condition {
                                 node_id: "N5".to_string(),
-                                description: "Early day: Check if very high liquidity (balance > 3x amount)".to_string(),
+                                description:
+                                    "Early day: Check if very high liquidity (balance > 3x amount)"
+                                        .to_string(),
                                 condition: Expression::GreaterThan {
                                     left: Value::Field {
                                         field: "available_liquidity".to_string(),
@@ -159,7 +161,9 @@ mod tests {
                             // Mid-day: Use normal 2x buffer
                             on_false: Box::new(TreeNode::Condition {
                                 node_id: "N6".to_string(),
-                                description: "Mid-day: Check if sufficient liquidity (balance > 2x amount)".to_string(),
+                                description:
+                                    "Mid-day: Check if sufficient liquidity (balance > 2x amount)"
+                                        .to_string(),
                                 condition: Expression::GreaterThan {
                                     left: Value::Field {
                                         field: "available_liquidity".to_string(),
@@ -240,7 +244,8 @@ mod tests {
 
         // Evaluate at tick 10 (early day)
         // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
-        let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
+        let conservation_decisions =
+            conservation_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
 
         // FIFO: Releases all 3 transactions immediately
         // assert_eq!(fifo_decisions.len(), 3);
@@ -264,7 +269,10 @@ mod tests {
         // );
 
         // Conservation should hold at least one transaction
-        assert!(holds_count >= 1, "Conservation policy should hold at least one transaction early in the day");
+        assert!(
+            holds_count >= 1,
+            "Conservation policy should hold at least one transaction early in the day"
+        );
     }
 
     // ========================================================================
@@ -305,7 +313,8 @@ mod tests {
 
         // Evaluate at tick 15 (early-mid day)
         // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 15, &cost_rates);
-        let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, 15, &cost_rates);
+        let conservation_decisions =
+            conservation_policy.evaluate_queue(&agent, &state, 15, &cost_rates);
 
         // Count holds
         // let fifo_holds = fifo_decisions
@@ -369,7 +378,8 @@ mod tests {
 
         // Evaluate at tick 96 (late day, approaching EoD at tick 100)
         // let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, 96, &cost_rates);
-        let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, 96, &cost_rates);
+        let conservation_decisions =
+            conservation_policy.evaluate_queue(&agent, &state, 96, &cost_rates);
 
         // Both should release everything to avoid EoD penalties
         // let deadline_releases = deadline_decisions
@@ -414,7 +424,8 @@ mod tests {
         let mut agent = Agent::new("BANK_A".to_string(), 100_000, 0); // Low balance
 
         // Urgent transaction (deadline in 5 ticks)
-        let tx_urgent = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 150_000, 0, 15);
+        let tx_urgent =
+            Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 150_000, 0, 15);
 
         // Non-urgent transaction
         let tx_normal = Transaction::new("BANK_A".to_string(), "BANK_C".to_string(), 80_000, 0, 80);
@@ -509,7 +520,8 @@ mod tests {
 
         // Evaluate at tick 20 (mid-day)
         // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 20, &cost_rates);
-        let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates);
+        let conservation_decisions =
+            conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates);
 
         // Both should release everything
         // let fifo_releases = fifo_decisions
@@ -555,9 +567,24 @@ mod tests {
 
         // Scenario parameters
         let scenarios = vec![
-            ("Normal Operations", 10, 500_000, vec![(100_000, 50), (150_000, 100), (200_000, 20)]),
-            ("Liquidity Squeeze", 15, 200_000, vec![(150_000, 80), (100_000, 90), (120_000, 100)]),
-            ("End-of-Day Rush", 96, 300_000, vec![(80_000, 110), (90_000, 105)]),
+            (
+                "Normal Operations",
+                10,
+                500_000,
+                vec![(100_000, 50), (150_000, 100), (200_000, 20)],
+            ),
+            (
+                "Liquidity Squeeze",
+                15,
+                200_000,
+                vec![(150_000, 80), (100_000, 90), (120_000, 100)],
+            ),
+            (
+                "End-of-Day Rush",
+                96,
+                300_000,
+                vec![(80_000, 110), (90_000, 105)],
+            ),
         ];
 
         for (scenario_name, tick, initial_balance, transactions) in scenarios {
@@ -589,7 +616,8 @@ mod tests {
 
             // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
             // let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
-            let conservation_decisions = conservation_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
+            let conservation_decisions =
+                conservation_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
 
             let count_releases = |decisions: &Vec<ReleaseDecision>| {
                 decisions
@@ -600,7 +628,10 @@ mod tests {
 
             // println!("  FIFO:         {} releases", count_releases(&fifo_decisions));
             // println!("  Deadline:     {} releases", count_releases(&deadline_decisions));
-            println!("  Conservation: {} releases", count_releases(&conservation_decisions));
+            println!(
+                "  Conservation: {} releases",
+                count_releases(&conservation_decisions)
+            );
             println!();
         }
 

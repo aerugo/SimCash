@@ -231,9 +231,7 @@ pub struct EventLog {
 impl EventLog {
     /// Create a new empty event log
     pub fn new() -> Self {
-        Self {
-            events: Vec::new(),
-        }
+        Self { events: Vec::new() }
     }
 
     /// Add an event to the log

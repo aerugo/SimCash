@@ -203,16 +203,29 @@ class MigrationManager:
         # Ensure migrations directory exists
         self.migrations_dir.mkdir(parents=True, exist_ok=True)
 
-        # Get next version number
+        # Get next version number by checking both applied and existing file versions
         applied = self.get_applied_versions()
-        next_version = max(applied) + 1 if applied else 1
+
+        # Also check for existing migration files (not yet applied)
+        existing_files = list(self.migrations_dir.glob("[0-9][0-9][0-9]_*.sql"))
+        file_versions = set()
+        for f in existing_files:
+            try:
+                version = int(f.name.split('_')[0])
+                file_versions.add(version)
+            except (ValueError, IndexError):
+                continue
+
+        # Next version is max of both applied and file versions + 1
+        all_versions = applied | file_versions
+        next_version = max(all_versions) + 1 if all_versions else 1
 
         # Create filename with zero-padded version
         filename = f"{next_version:03d}_{description}.sql"
         filepath = self.migrations_dir / filename
 
-        # Write helpful template
-        template = f"""-- Migration {next_version}: {description.replace('_', ' ')}
+        # Write helpful template (keep underscores in description for searchability)
+        template = f"""-- Migration {next_version}: {description}
 -- Created: {datetime.now().isoformat()}
 
 -- Add your migration SQL here

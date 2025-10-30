@@ -149,10 +149,38 @@ impl From<TransactionSnapshot> for Transaction {
 ///
 /// This hash is used to verify that a checkpoint's config matches
 /// the config used to restore it.
+///
+/// Uses canonical JSON serialization with sorted keys to ensure
+/// deterministic hashing regardless of HashMap iteration order.
 pub fn compute_config_hash<T: Serialize>(config: &T) -> Result<String, SimulationError> {
-    // Serialize config to JSON
-    let json = serde_json::to_string(config)
-        .map_err(|e| SimulationError::SerializationError(format!("Config serialization failed: {}", e)))?;
+    use serde_json::Value;
+    use std::collections::BTreeMap;
+
+    // First serialize to serde_json::Value
+    let value = serde_json::to_value(config).map_err(|e| {
+        SimulationError::SerializationError(format!("Config serialization failed: {}", e))
+    })?;
+
+    // Recursively sort all object keys for canonical representation
+    fn canonicalize(value: Value) -> Value {
+        match value {
+            Value::Object(map) => {
+                // Convert HashMap to BTreeMap (sorted keys)
+                let sorted: BTreeMap<String, Value> =
+                    map.into_iter().map(|(k, v)| (k, canonicalize(v))).collect();
+                Value::Object(sorted.into_iter().collect())
+            }
+            Value::Array(arr) => Value::Array(arr.into_iter().map(canonicalize).collect()),
+            other => other,
+        }
+    }
+
+    let canonical_value = canonicalize(value);
+
+    // Serialize to JSON string (now with sorted keys)
+    let json = serde_json::to_string(&canonical_value).map_err(|e| {
+        SimulationError::SerializationError(format!("Config serialization failed: {}", e))
+    })?;
 
     // Compute SHA256 hash
     let mut hasher = Sha256::new();
@@ -218,8 +246,7 @@ pub fn validate_snapshot(
     let mut seen = HashMap::new();
     for agent in &snapshot.agents {
         for tx_id in &agent.outgoing_queue {
-            if let Some(prev_location) = seen.insert(tx_id.clone(), format!("agent {}", agent.id))
-            {
+            if let Some(prev_location) = seen.insert(tx_id.clone(), format!("agent {}", agent.id)) {
                 return Err(SimulationError::StateValidationError(format!(
                     "Duplicate transaction {} in multiple queues: {} and agent {}",
                     tx_id, prev_location, agent.id
@@ -281,6 +308,9 @@ mod tests {
         let hash1 = compute_config_hash(&config1).unwrap();
         let hash2 = compute_config_hash(&config2).unwrap();
 
-        assert_ne!(hash1, hash2, "Different configs should produce different hashes");
+        assert_ne!(
+            hash1, hash2,
+            "Different configs should produce different hashes"
+        );
     }
 }

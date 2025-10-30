@@ -19,7 +19,9 @@
 //! 4. **No Orphan Transactions**: Every transaction references valid sender and receiver agents
 
 use crate::models::agent::Agent;
+use crate::models::collateral_event::CollateralEvent;
 use crate::models::transaction::Transaction;
+use crate::settlement::lsm::LsmCycleEvent;
 use std::collections::HashMap;
 
 /// Complete simulation state
@@ -66,6 +68,18 @@ pub struct SimulationState {
     ///
     /// See `/docs/queue_architecture.md` for complete two-queue model explanation.
     rtgs_queue: Vec<String>,
+
+    /// Collateral management events (Phase 10 persistence)
+    ///
+    /// Tracks every collateral post/withdraw/hold decision with full context.
+    /// Enables granular analysis of collateral behavior.
+    pub collateral_events: Vec<CollateralEvent>,
+
+    /// LSM cycle events (Phase 4 persistence)
+    ///
+    /// Tracks every LSM cycle settled (bilateral offsets and multilateral cycles).
+    /// Enables analysis of liquidity-saving mechanism effectiveness.
+    pub lsm_cycle_events: Vec<LsmCycleEvent>,
 }
 
 impl SimulationState {
@@ -98,6 +112,8 @@ impl SimulationState {
             agents: agents_map,
             transactions: HashMap::new(),
             rtgs_queue: Vec::new(),
+            collateral_events: Vec::new(),
+            lsm_cycle_events: Vec::new(),
         }
     }
 
@@ -149,6 +165,8 @@ impl SimulationState {
             agents,
             transactions,
             rtgs_queue,
+            collateral_events: Vec::new(),
+            lsm_cycle_events: Vec::new(),
         })
     }
 

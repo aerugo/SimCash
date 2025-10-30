@@ -3,11 +3,11 @@
 // Implements CashManagerPolicy trait for JSON decision tree policies.
 // Provides unified interface for both trait-based and tree-based policies.
 
+use crate::orchestrator::CostRates;
 use crate::policy::tree::{
     build_decision, traverse_tree, validate_tree, DecisionTreeDef, EvalContext, EvalError,
     ValidationError,
 };
-use crate::orchestrator::CostRates;
 use crate::policy::{CashManagerPolicy, ReleaseDecision};
 use crate::{Agent, SimulationState};
 use std::path::Path;
@@ -173,13 +173,9 @@ impl TreePolicy {
     ///
     /// This is automatically called on first evaluate_queue call.
     /// Can be called explicitly to fail fast.
-    fn validate_if_needed(
-        &mut self,
-        sample_context: &EvalContext,
-    ) -> Result<(), TreePolicyError> {
+    fn validate_if_needed(&mut self, sample_context: &EvalContext) -> Result<(), TreePolicyError> {
         if !self.validated {
-            validate_tree(&self.tree, sample_context)
-                .map_err(TreePolicyError::ValidationError)?;
+            validate_tree(&self.tree, sample_context).map_err(TreePolicyError::ValidationError)?;
             self.validated = true;
         }
         Ok(())
@@ -226,7 +222,9 @@ impl TreePolicy {
         state: &SimulationState,
         tick: usize,
     ) -> Result<crate::policy::CollateralDecision, TreePolicyError> {
-        use crate::policy::tree::interpreter::{build_collateral_decision, traverse_strategic_collateral_tree};
+        use crate::policy::tree::interpreter::{
+            build_collateral_decision, traverse_strategic_collateral_tree,
+        };
 
         // If no strategic tree defined, return Hold (default)
         if self.tree.strategic_collateral_tree.is_none() {
@@ -286,7 +284,9 @@ impl TreePolicy {
         state: &SimulationState,
         tick: usize,
     ) -> Result<crate::policy::CollateralDecision, TreePolicyError> {
-        use crate::policy::tree::interpreter::{build_collateral_decision, traverse_end_of_tick_collateral_tree};
+        use crate::policy::tree::interpreter::{
+            build_collateral_decision, traverse_end_of_tick_collateral_tree,
+        };
 
         // If no end-of-tick tree defined, return Hold (default)
         if self.tree.end_of_tick_collateral_tree.is_none() {
@@ -548,13 +548,7 @@ mod tests {
 
         // Create simulation state
         let mut agent = Agent::new("BANK_A".to_string(), 500_000, 0);
-        let tx = Transaction::new(
-            "BANK_A".to_string(),
-            "BANK_B".to_string(),
-            100_000,
-            0,
-            100,
-        );
+        let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
         let tx_id = tx.id().to_string();
 
         let mut state = SimulationState::new(vec![agent.clone()]);
@@ -705,8 +699,18 @@ mod tests {
                 action: ActionType::PostCollateral,
                 parameters: {
                     let mut params = HashMap::new();
-                    params.insert("amount".to_string(), ValueOrCompute::Direct { value: json!(100000) });
-                    params.insert("reason".to_string(), ValueOrCompute::Direct { value: json!("UrgentLiquidityNeed") });
+                    params.insert(
+                        "amount".to_string(),
+                        ValueOrCompute::Direct {
+                            value: json!(100000),
+                        },
+                    );
+                    params.insert(
+                        "reason".to_string(),
+                        ValueOrCompute::Direct {
+                            value: json!("UrgentLiquidityNeed"),
+                        },
+                    );
                     params
                 },
             }),
@@ -721,7 +725,9 @@ mod tests {
         let state = SimulationState::new(vec![agent.clone()]);
 
         // Evaluate strategic collateral
-        let decision = policy.evaluate_strategic_collateral(&agent, &state, 10).unwrap();
+        let decision = policy
+            .evaluate_strategic_collateral(&agent, &state, 10)
+            .unwrap();
 
         // Should return PostCollateral decision
         assert!(matches!(
@@ -756,7 +762,9 @@ mod tests {
         let state = SimulationState::new(vec![agent.clone()]);
 
         // Evaluate strategic collateral
-        let decision = policy.evaluate_strategic_collateral(&agent, &state, 10).unwrap();
+        let decision = policy
+            .evaluate_strategic_collateral(&agent, &state, 10)
+            .unwrap();
 
         // Should return Hold (default when tree not defined)
         assert_eq!(decision, CollateralDecision::Hold);
@@ -782,8 +790,18 @@ mod tests {
                 action: ActionType::WithdrawCollateral,
                 parameters: {
                     let mut params = HashMap::new();
-                    params.insert("amount".to_string(), ValueOrCompute::Field { field: "posted_collateral".to_string() });
-                    params.insert("reason".to_string(), ValueOrCompute::Direct { value: json!("EndOfDayCleanup") });
+                    params.insert(
+                        "amount".to_string(),
+                        ValueOrCompute::Field {
+                            field: "posted_collateral".to_string(),
+                        },
+                    );
+                    params.insert(
+                        "reason".to_string(),
+                        ValueOrCompute::Direct {
+                            value: json!("EndOfDayCleanup"),
+                        },
+                    );
                     params
                 },
             }),
@@ -798,7 +816,9 @@ mod tests {
         let state = SimulationState::new(vec![agent.clone()]);
 
         // Evaluate end-of-tick collateral
-        let decision = policy.evaluate_end_of_tick_collateral(&agent, &state, 10).unwrap();
+        let decision = policy
+            .evaluate_end_of_tick_collateral(&agent, &state, 10)
+            .unwrap();
 
         // Should return WithdrawCollateral decision for the posted amount
         assert!(matches!(
@@ -833,7 +853,9 @@ mod tests {
         let state = SimulationState::new(vec![agent.clone()]);
 
         // Evaluate end-of-tick collateral
-        let decision = policy.evaluate_end_of_tick_collateral(&agent, &state, 10).unwrap();
+        let decision = policy
+            .evaluate_end_of_tick_collateral(&agent, &state, 10)
+            .unwrap();
 
         // Should return Hold (default when tree not defined)
         assert_eq!(decision, CollateralDecision::Hold);
@@ -870,8 +892,18 @@ mod tests {
                     action: ActionType::WithdrawCollateral,
                     parameters: {
                         let mut params = HashMap::new();
-                        params.insert("amount".to_string(), ValueOrCompute::Field { field: "posted_collateral".to_string() });
-                        params.insert("reason".to_string(), ValueOrCompute::Direct { value: json!("EndOfDayCleanup") });
+                        params.insert(
+                            "amount".to_string(),
+                            ValueOrCompute::Field {
+                                field: "posted_collateral".to_string(),
+                            },
+                        );
+                        params.insert(
+                            "reason".to_string(),
+                            ValueOrCompute::Direct {
+                                value: json!("EndOfDayCleanup"),
+                            },
+                        );
                         params
                     },
                 }),
@@ -892,7 +924,9 @@ mod tests {
         let state = SimulationState::new(vec![agent.clone()]);
 
         // Evaluate end-of-tick collateral (queue2_size = 0, so should withdraw)
-        let decision = policy.evaluate_end_of_tick_collateral(&agent, &state, 10).unwrap();
+        let decision = policy
+            .evaluate_end_of_tick_collateral(&agent, &state, 10)
+            .unwrap();
 
         // Should return WithdrawCollateral decision
         assert!(matches!(

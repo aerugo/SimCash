@@ -63,7 +63,10 @@ fn test_bilateral_offset_exact_match() {
 
     assert_eq!(result.pairs_found, 1, "Should find 1 bilateral pair");
     assert_eq!(result.offset_value, 500_000, "Should offset 500k");
-    assert_eq!(result.settlements_count, 2, "Should settle exactly both transactions");
+    assert_eq!(
+        result.settlements_count, 2,
+        "Should settle exactly both transactions"
+    );
 
     // Verify balances net to original (net-zero settlement)
     assert_eq!(
@@ -126,8 +129,8 @@ fn test_bilateral_offset_multiple_transactions() {
     // but bilateral offsetting should resolve it with net-zero settlement.
 
     let agents = vec![
-        create_agent("BANK_A", 0, 0),  // Zero liquidity
-        create_agent("BANK_B", 0, 0),  // Zero liquidity
+        create_agent("BANK_A", 0, 0), // Zero liquidity
+        create_agent("BANK_B", 0, 0), // Zero liquidity
     ];
     let mut state = SimulationState::new(agents);
 
@@ -144,7 +147,11 @@ fn test_bilateral_offset_multiple_transactions() {
     }
 
     // Verify all 6 transactions queued (gridlock - no liquidity for individual settlements)
-    assert_eq!(state.queue_size(), 6, "All 6 transactions should queue (complete gridlock)");
+    assert_eq!(
+        state.queue_size(),
+        6,
+        "All 6 transactions should queue (complete gridlock)"
+    );
 
     // Run bilateral offsetting
     let result = bilateral_offset(&mut state, 5);
@@ -153,10 +160,16 @@ fn test_bilateral_offset_multiple_transactions() {
     assert_eq!(result.pairs_found, 1, "Should find 1 bilateral pair A↔B");
 
     // Should offset 600k (min of 600k A→B and 600k B→A)
-    assert_eq!(result.offset_value, 600_000, "Should offset 600k (exact match)");
+    assert_eq!(
+        result.offset_value, 600_000,
+        "Should offset 600k (exact match)"
+    );
 
     // Should settle all 6 transactions (3 A→B + 3 B→A)
-    assert_eq!(result.settlements_count, 6, "Should settle all 6 transactions");
+    assert_eq!(
+        result.settlements_count, 6,
+        "Should settle all 6 transactions"
+    );
 
     // Verify balances are net-zero (each sent 600k, each received 600k)
     assert_eq!(
@@ -261,8 +274,16 @@ fn test_detect_3_cycle() {
     assert!(!cycles.is_empty(), "Should detect at least one cycle");
 
     let cycle = &cycles[0];
-    assert_eq!(cycle.agents.len(), 4, "Cycle should have 4 agents (3 + closing)");
-    assert_eq!(cycle.transactions.len(), 3, "Cycle should have 3 transactions");
+    assert_eq!(
+        cycle.agents.len(),
+        4,
+        "Cycle should have 4 agents (3 + closing)"
+    );
+    assert_eq!(
+        cycle.transactions.len(),
+        3,
+        "Cycle should have 3 transactions"
+    );
     assert_eq!(cycle.min_amount, 500_000, "Min amount is 500k");
 }
 
@@ -415,7 +436,7 @@ fn test_lsm_pass_bilateral_only() {
         ..Default::default()
     };
 
-    let result = run_lsm_pass(&mut state, &config, 5);
+    let result = run_lsm_pass(&mut state, &config, 5, 100);
 
     assert!(result.iterations_run >= 1);
     assert!(result.total_settled_value > 0);
@@ -447,7 +468,7 @@ fn test_lsm_pass_cycles_only() {
         ..Default::default()
     };
 
-    let result = run_lsm_pass(&mut state, &config, 5);
+    let result = run_lsm_pass(&mut state, &config, 5, 100);
 
     assert!(result.iterations_run >= 1);
     assert!(result.total_settled_value > 0);
@@ -479,7 +500,7 @@ fn test_lsm_pass_full_optimization() {
 
     let config = LsmConfig::default(); // Both enabled
 
-    let result = run_lsm_pass(&mut state, &config, 5);
+    let result = run_lsm_pass(&mut state, &config, 5, 100);
 
     assert!(result.iterations_run >= 1);
     assert!(result.total_settled_value > 0);
@@ -501,7 +522,7 @@ fn test_lsm_pass_max_iterations() {
     submit_transaction(&mut state, tx_ab, 1).unwrap();
 
     let config = LsmConfig::default();
-    let result = run_lsm_pass(&mut state, &config, 5);
+    let result = run_lsm_pass(&mut state, &config, 5, 100);
 
     // Should stop early due to no progress
     assert!(result.iterations_run <= 3, "Should stop at max iterations");
@@ -546,11 +567,15 @@ fn test_four_bank_ring_lsm_resolves_gridlock() {
     submit_transaction(&mut state, tx_cd, 3).unwrap();
     submit_transaction(&mut state, tx_da, 4).unwrap();
 
-    assert_eq!(state.queue_size(), 4, "All 4 transactions queued (gridlock)");
+    assert_eq!(
+        state.queue_size(),
+        4,
+        "All 4 transactions queued (gridlock)"
+    );
 
     // Run LSM pass - should detect and settle 4-cycle
     let config = LsmConfig::default();
-    let result = run_lsm_pass(&mut state, &config, 5);
+    let result = run_lsm_pass(&mut state, &config, 5, 100);
 
     // Verify LSM resolved the gridlock
     assert!(result.cycles_settled >= 1, "LSM should detect 4-cycle");

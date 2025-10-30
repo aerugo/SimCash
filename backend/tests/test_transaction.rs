@@ -28,27 +28,15 @@ fn test_transaction_new() {
 
 #[test]
 fn test_transaction_with_priority() {
-    let tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    )
-    .with_priority(8);
+    let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50)
+        .with_priority(8);
 
     assert_eq!(tx.priority(), 8);
 }
 
 #[test]
 fn test_transaction_settle_full() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    );
+    let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
     let result = tx.settle(100000, 20);
     assert!(result.is_ok());
@@ -59,13 +47,7 @@ fn test_transaction_settle_full() {
 
 #[test]
 fn test_transaction_drop() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    );
+    let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
     tx.drop_transaction(60);
     assert_eq!(tx.status(), &TransactionStatus::Dropped { tick: 60 });
@@ -73,13 +55,7 @@ fn test_transaction_drop() {
 
 #[test]
 fn test_transaction_is_pending() {
-    let tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    );
+    let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
     assert!(tx.is_pending());
 }
@@ -101,13 +77,7 @@ fn test_transaction_is_past_deadline() {
 
 #[test]
 fn test_transaction_zero_amount_fails() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    );
+    let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
     let result = tx.settle(0, 20);
     assert!(result.is_err());
@@ -115,13 +85,7 @@ fn test_transaction_zero_amount_fails() {
 
 #[test]
 fn test_transaction_settle_already_settled() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    );
+    let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
     tx.settle(100000, 20).unwrap();
 
@@ -132,13 +96,7 @@ fn test_transaction_settle_already_settled() {
 
 #[test]
 fn test_transaction_settle_dropped() {
-    let mut tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    );
+    let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
     tx.drop_transaction(40);
 
@@ -149,21 +107,9 @@ fn test_transaction_settle_dropped() {
 
 #[test]
 fn test_transaction_with_id() {
-    let tx1 = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    );
+    let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
-    let tx2 = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100000,
-        10,
-        50,
-    );
+    let tx2 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
     // IDs should be unique
     assert_ne!(tx1.id(), tx2.id());

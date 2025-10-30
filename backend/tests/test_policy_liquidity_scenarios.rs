@@ -7,7 +7,7 @@
 //! - Urgency threshold tuning
 
 use payment_simulator_core_rs::{
-    arrivals::{ArrivalConfig, AmountDistribution},
+    arrivals::{AmountDistribution, ArrivalConfig},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
 };
@@ -44,14 +44,16 @@ fn test_liquidity_aware_with_high_arrival_rate() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 20_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -124,14 +126,16 @@ fn test_liquidity_aware_buffer_recovery() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000, // Large balance
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -227,14 +231,16 @@ fn test_liquidity_aware_credit_limit_interaction() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 20_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -259,7 +265,10 @@ fn test_liquidity_aware_credit_limit_interaction() {
     }
 
     println!("Min balance reached: {}", min_balance);
-    println!("Arrivals: {}, Settlements: {}", total_arrivals, total_settlements);
+    println!(
+        "Arrivals: {}, Settlements: {}",
+        total_arrivals, total_settlements
+    );
 
     // With credit limit, agent can go into negative balance
     // But policy should still respect buffer logic relative to available liquidity
@@ -321,14 +330,16 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                     urgency_threshold: 2, // Conservative: only very urgent
                 },
                 arrival_config: Some(arrival_config.clone()),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 20_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -349,14 +360,16 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                     urgency_threshold: 8, // Aggressive: many considered urgent
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 20_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -378,8 +391,16 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         conservative_settlements += result_cons.num_settlements;
         aggressive_settlements += result_agg.num_settlements;
 
-        let balance_cons = orch_conservative.state().get_agent("BANK_A").unwrap().balance();
-        let balance_agg = orch_aggressive.state().get_agent("BANK_A").unwrap().balance();
+        let balance_cons = orch_conservative
+            .state()
+            .get_agent("BANK_A")
+            .unwrap()
+            .balance();
+        let balance_agg = orch_aggressive
+            .state()
+            .get_agent("BANK_A")
+            .unwrap()
+            .balance();
 
         if balance_cons < conservative_min_balance {
             conservative_min_balance = balance_cons;
@@ -389,8 +410,14 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         }
     }
 
-    println!("Conservative settlements: {}, min balance: {}", conservative_settlements, conservative_min_balance);
-    println!("Aggressive settlements: {}, min balance: {}", aggressive_settlements, aggressive_min_balance);
+    println!(
+        "Conservative settlements: {}, min balance: {}",
+        conservative_settlements, conservative_min_balance
+    );
+    println!(
+        "Aggressive settlements: {}, min balance: {}",
+        aggressive_settlements, aggressive_min_balance
+    );
 
     // Aggressive should settle more (more urgency overrides)
     assert!(

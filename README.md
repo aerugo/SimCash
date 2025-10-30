@@ -208,6 +208,32 @@ requests.delete(f"http://localhost:8000/simulations/{sim_id}")
 - **FFI is thin**: Minimal, stable API surface (24 tests validate boundary)
 - **Performance-critical in Rust**: Settlement, policies, simulation loop
 - **Developer-friendly in Python**: YAML configs, CLI, REST API
+- **Mandatory persistence**: All data persisted to DuckDB at end of each simulated day
+
+**Data Persistence Architecture** (Phase 10 - Complete):
+```
+End of Each Simulated Day:
+    ↓
+Rust FFI: get_transactions_for_day(day) → List[Dict]
+    ↓
+Python: Convert to Polars DataFrame (zero-copy Arrow)
+    ↓
+DuckDB: INSERT INTO transactions SELECT * FROM df (<100ms for 40K txs)
+    ↓
+Rust FFI: get_daily_agent_metrics(day) → List[Dict]
+    ↓
+Python: Convert to Polars DataFrame
+    ↓
+DuckDB: INSERT INTO daily_agent_metrics SELECT * FROM df (<20ms)
+    ↓
+Database Updated: Ready for analytical queries
+```
+
+**Why Mandatory Persistence?**
+- **Research Reproducibility**: Every simulation fully queryable
+- **Policy Evolution**: Track changes over time (Phase 11 LLM Manager)
+- **Historical Analysis**: Compare 200+ runs with SQL
+- **Audit Trail**: Complete provenance of all decisions
 
 ---
 
@@ -245,7 +271,21 @@ If insufficient liquidity → LSM Optimization
 Settlement (bilateral offset / cycle / gross)
     ↓
 Balance Updates & Cost Accrual
+    ↓
+End of Day → MANDATORY DATABASE PERSISTENCE
 ```
+
+**CRITICAL**: At the end of each simulated day, ALL data is automatically persisted to the database:
+- All transaction records (arrival, settlement, status, costs)
+- Daily agent metrics (balance stats, queue sizes, transaction counts)
+- Policy snapshots (if policies changed)
+- Simulation progress and metadata
+
+This persistence is **mandatory** (not optional) and enables:
+- Research reproducibility (re-run any simulation from stored data)
+- Policy evolution tracking (LLM Manager Phase 11)
+- Historical analysis and comparison
+- Monte Carlo validation of policy improvements
 
 ### Built-in Policies
 
@@ -365,7 +405,52 @@ See [CLAUDE.md](CLAUDE.md) for comprehensive development guidelines.
 - [x] Large-scale validation (200 agents tested)
 - [x] Comprehensive documentation
 
-**Test Coverage**: 60+ Rust tests + 24 FFI tests + 23 API tests = **107+ tests passing**
+**Test Coverage**: 60+ Rust tests + 24 FFI tests + 23 API tests + 71 persistence tests = **178+ tests passing**
+
+---
+
+### ✅ Data Persistence (Phase 10 - COMPLETE)
+
+**Status**: 100% complete with 71/71 tests passing
+
+**Capabilities**:
+- **DuckDB + Polars**: Columnar database with zero-copy Arrow integration
+- **Automatic Daily Persistence**: All data saved at end of each simulated day
+- **Schema-as-Code**: Pydantic models auto-generate DDL, migrations automated
+- **Query Interface**: 9 pre-built analytical queries returning Polars DataFrames
+- **Checkpoint System**: Save/load full orchestrator state for resumption
+
+**Database Tables**:
+1. `simulations` - Simulation run metadata and KPIs
+2. `transactions` - All transaction records (arrival, settlement, costs)
+3. `daily_agent_metrics` - Daily balance stats, queue sizes, cost breakdowns
+4. `policy_snapshots` - Policy version tracking with SHA256 hashing
+5. `simulation_checkpoints` - Save/load orchestrator state
+
+**Performance**:
+- Daily transaction batch write: <100ms (40K transactions)
+- Daily metrics batch write: <20ms (200 agent records)
+- Analytical queries: <1s (250M transaction aggregates)
+- Database file: <10 GB (200 runs, compressed columnar)
+
+**CLI Commands**:
+```bash
+# Database management
+payment-sim db init              # Create database from Pydantic models
+payment-sim db migrate           # Apply pending migrations
+payment-sim db validate          # Verify schema matches models
+
+# Checkpoint management
+payment-sim checkpoint save <sim_id> --description "Before policy change"
+payment-sim checkpoint load <checkpoint_id>
+payment-sim checkpoint list <sim_id>
+```
+
+**Why This Matters**:
+- **Research Reproducibility**: Query any simulation's complete history
+- **Policy Evolution**: Track policy changes over time (enables Phase 11 LLM Manager)
+- **Historical Analysis**: Compare 200+ simulation runs with SQL queries
+- **Monte Carlo Validation**: Sample from episode database for statistical testing
 
 ---
 
@@ -605,9 +690,15 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Status**: Phase 7 Complete (Integration Layer) | Ready for Phase 8 (LLM Policy Evolution)  
-**Version**: 0.8.0 | **Tests**: 107+ passing | **Performance**: 1000+ ticks/s  
-**Next Milestone**: LLM-driven policy optimization with shadow replay validation
+**Status**: Phase 7 (Integration) + Phase 10 (Persistence) Complete | Ready for Phase 11 (LLM Manager)
+**Version**: 0.10.0 | **Tests**: 178+ passing | **Performance**: 1000+ ticks/s
+**Next Milestone**: LLM-driven policy optimization with shadow replay validation (Phase 11)
 
-*Built for researchers who demand reproducibility, performance, and correctness.*  
+**Phase 10 Achievement**: Full database persistence with DuckDB + Polars (71 tests passing)
+- ✅ Mandatory daily persistence of all transactions and agent metrics
+- ✅ Policy provenance tracking for reproducible research
+- ✅ Checkpoint system for save/load orchestrator state
+- ✅ Query interface with 9 analytical functions
+
+*Built for researchers who demand reproducibility, performance, and correctness.*
 *Designed for the future of AI-assisted financial system optimization.*

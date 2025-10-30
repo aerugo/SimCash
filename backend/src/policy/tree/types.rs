@@ -369,7 +369,10 @@ mod tests {
         assert_eq!(tree.version, "1.0");
         assert_eq!(tree.policy_id, "minimal_test");
         assert!(tree.payment_tree.is_some());
-        assert!(matches!(tree.payment_tree.as_ref().unwrap(), TreeNode::Condition { .. }));
+        assert!(matches!(
+            tree.payment_tree.as_ref().unwrap(),
+            TreeNode::Condition { .. }
+        ));
     }
 
     #[test]

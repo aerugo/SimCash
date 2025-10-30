@@ -41,7 +41,11 @@ fn test_parse_minimal_tree() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
-    assert!(tree.is_ok(), "Failed to parse minimal tree: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse minimal tree: {:?}",
+        tree.err()
+    );
 
     let tree = tree.unwrap();
     assert_eq!(tree.version, "1.0");
@@ -94,7 +98,11 @@ fn test_parse_nested_conditions() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
-    assert!(tree.is_ok(), "Failed to parse nested tree: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse nested tree: {:?}",
+        tree.err()
+    );
 }
 
 #[test]
@@ -131,7 +139,11 @@ fn test_parse_with_computations() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
-    assert!(tree.is_ok(), "Failed to parse tree with computations: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse tree with computations: {:?}",
+        tree.err()
+    );
 }
 
 #[test]
@@ -163,7 +175,8 @@ fn test_parse_all_expression_types() {
     ];
 
     for (op, _name) in operators {
-        let json = format!(r#"{{
+        let json = format!(
+            r#"{{
             "version": "1.0",
             "policy_id": "test_{}",
             "payment_tree": {{
@@ -177,10 +190,17 @@ fn test_parse_all_expression_types() {
                 "on_true": {{"node_id": "A1", "type": "action", "action": "Release"}},
                 "on_false": {{"node_id": "A2", "type": "action", "action": "Hold"}}
             }}
-        }}"#, op, op);
+        }}"#,
+            op, op
+        );
 
         let tree: Result<DecisionTreeDef, _> = serde_json::from_str(&json);
-        assert!(tree.is_ok(), "Failed to parse {} operator: {:?}", op, tree.err());
+        assert!(
+            tree.is_ok(),
+            "Failed to parse {} operator: {:?}",
+            op,
+            tree.err()
+        );
     }
 
     // Test logical operators
@@ -203,7 +223,11 @@ fn test_parse_all_expression_types() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(logical_json);
-    assert!(tree.is_ok(), "Failed to parse AND operator: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse AND operator: {:?}",
+        tree.err()
+    );
 }
 
 #[test]
@@ -241,10 +265,17 @@ fn test_parse_all_value_types() {
 
 #[test]
 fn test_parse_all_action_types() {
-    let actions = vec!["Release", "Hold", "Drop", "ReleaseWithCredit", "PaceAndRelease"];
+    let actions = vec![
+        "Release",
+        "Hold",
+        "Drop",
+        "ReleaseWithCredit",
+        "PaceAndRelease",
+    ];
 
     for action in actions {
-        let json = format!(r#"{{
+        let json = format!(
+            r#"{{
             "version": "1.0",
             "policy_id": "action_test_{}",
             "payment_tree": {{
@@ -252,10 +283,17 @@ fn test_parse_all_action_types() {
                 "type": "action",
                 "action": "{}"
             }}
-        }}"#, action, action);
+        }}"#,
+            action, action
+        );
 
         let tree: Result<DecisionTreeDef, _> = serde_json::from_str(&json);
-        assert!(tree.is_ok(), "Failed to parse action {}: {:?}", action, tree.err());
+        assert!(
+            tree.is_ok(),
+            "Failed to parse action {}: {:?}",
+            action,
+            tree.err()
+        );
     }
 }
 
@@ -281,7 +319,11 @@ fn test_parse_collateral_action_types() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(post_json);
-    assert!(tree.is_ok(), "Failed to parse PostCollateral action: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse PostCollateral action: {:?}",
+        tree.err()
+    );
 
     // Test WithdrawCollateral action
     let withdraw_json = r#"{
@@ -299,7 +341,11 @@ fn test_parse_collateral_action_types() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(withdraw_json);
-    assert!(tree.is_ok(), "Failed to parse WithdrawCollateral action: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse WithdrawCollateral action: {:?}",
+        tree.err()
+    );
 
     // Test HoldCollateral action (no parameters needed)
     let hold_json = r#"{
@@ -313,7 +359,11 @@ fn test_parse_collateral_action_types() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(hold_json);
-    assert!(tree.is_ok(), "Failed to parse HoldCollateral action: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse HoldCollateral action: {:?}",
+        tree.err()
+    );
 }
 
 #[test]
@@ -340,7 +390,11 @@ fn test_collateral_decision_with_computed_amount() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
-    assert!(tree.is_ok(), "Failed to parse collateral with computed amount: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse collateral with computed amount: {:?}",
+        tree.err()
+    );
 }
 
 // ============================================================================
@@ -397,14 +451,27 @@ fn test_parse_three_tree_policy() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
-    assert!(tree.is_ok(), "Failed to parse three-tree policy: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse three-tree policy: {:?}",
+        tree.err()
+    );
 
     let tree = tree.unwrap();
     assert_eq!(tree.version, "1.0");
     assert_eq!(tree.policy_id, "test_three_tree_policy");
-    assert!(tree.payment_tree.is_some(), "payment_tree should be present");
-    assert!(tree.strategic_collateral_tree.is_some(), "strategic_collateral_tree should be present");
-    assert!(tree.end_of_tick_collateral_tree.is_some(), "end_of_tick_collateral_tree should be present");
+    assert!(
+        tree.payment_tree.is_some(),
+        "payment_tree should be present"
+    );
+    assert!(
+        tree.strategic_collateral_tree.is_some(),
+        "strategic_collateral_tree should be present"
+    );
+    assert!(
+        tree.end_of_tick_collateral_tree.is_some(),
+        "end_of_tick_collateral_tree should be present"
+    );
 }
 
 #[test]
@@ -425,12 +492,25 @@ fn test_parse_policy_with_optional_trees() {
     }"#;
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
-    assert!(tree.is_ok(), "Failed to parse policy with null trees: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse policy with null trees: {:?}",
+        tree.err()
+    );
 
     let tree = tree.unwrap();
-    assert!(tree.payment_tree.is_some(), "payment_tree should be present");
-    assert!(tree.strategic_collateral_tree.is_none(), "strategic_collateral_tree should be None");
-    assert!(tree.end_of_tick_collateral_tree.is_none(), "end_of_tick_collateral_tree should be None");
+    assert!(
+        tree.payment_tree.is_some(),
+        "payment_tree should be present"
+    );
+    assert!(
+        tree.strategic_collateral_tree.is_none(),
+        "strategic_collateral_tree should be None"
+    );
+    assert!(
+        tree.end_of_tick_collateral_tree.is_none(),
+        "end_of_tick_collateral_tree should be None"
+    );
 }
 
 // ============================================================================
@@ -445,16 +525,29 @@ fn test_load_default_end_of_tick_cleanup_policy() {
         .expect("Failed to read default end-of-tick cleanup policy");
 
     let tree: Result<DecisionTreeDef, _> = serde_json::from_str(&json);
-    assert!(tree.is_ok(), "Failed to parse default policy: {:?}", tree.err());
+    assert!(
+        tree.is_ok(),
+        "Failed to parse default policy: {:?}",
+        tree.err()
+    );
 
     let tree = tree.unwrap();
     assert_eq!(tree.policy_id, "default_end_of_tick_cleanup");
     assert_eq!(tree.version, "1.0");
 
     // Should have end_of_tick_collateral_tree but not payment or strategic trees
-    assert!(tree.payment_tree.is_none(), "payment_tree should be None for collateral-only policy");
-    assert!(tree.strategic_collateral_tree.is_none(), "strategic_collateral_tree should be None");
-    assert!(tree.end_of_tick_collateral_tree.is_some(), "end_of_tick_collateral_tree should be present");
+    assert!(
+        tree.payment_tree.is_none(),
+        "payment_tree should be None for collateral-only policy"
+    );
+    assert!(
+        tree.strategic_collateral_tree.is_none(),
+        "strategic_collateral_tree should be None"
+    );
+    assert!(
+        tree.end_of_tick_collateral_tree.is_some(),
+        "end_of_tick_collateral_tree should be present"
+    );
 }
 
 #[test]
@@ -468,9 +561,17 @@ fn test_default_policy_structure() {
 
     // Verify the root node is a condition checking queue2_size
     match tree.end_of_tick_collateral_tree.as_ref().unwrap() {
-        TreeNode::Condition { node_id, description, condition, .. } => {
+        TreeNode::Condition {
+            node_id,
+            description,
+            condition,
+            ..
+        } => {
             assert_eq!(node_id, "EOT1");
-            assert!(description.contains("RTGS queue"), "Should check RTGS queue status");
+            assert!(
+                description.contains("RTGS queue"),
+                "Should check RTGS queue status"
+            );
 
             // Should check if queue2_size == 0
             match condition {
@@ -499,10 +600,20 @@ fn test_default_policy_validates() {
     // Create sample context for validation
     let agent = Agent::new("TEST_BANK".to_string(), 500_000, 0);
     let state = SimulationState::new(vec![agent.clone()]);
-    let dummy_tx = Transaction::new("TEST_BANK".to_string(), "OTHER".to_string(), 100_000, 0, 100);
+    let dummy_tx = Transaction::new(
+        "TEST_BANK".to_string(),
+        "OTHER".to_string(),
+        100_000,
+        0,
+        100,
+    );
     let context = EvalContext::build(&dummy_tx, &agent, &state, 10);
 
     // Validate tree
     let result = validate_tree(&tree, &context);
-    assert!(result.is_ok(), "Policy should validate successfully: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Policy should validate successfully: {:?}",
+        result.err()
+    );
 }

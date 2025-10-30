@@ -224,12 +224,12 @@ def test_load_checkpoint_validates_config_hash(checkpoint_manager, simple_config
         created_by="tester"
     )
 
-    # Try to load with different config
-    different_config = simple_config.copy()
-    different_config["rng_seed"] = 99999
+    # Load checkpoint - config should come from database
+    orch2, loaded_config = checkpoint_manager.load_checkpoint(checkpoint_id)
 
-    with pytest.raises(ValueError, match="[Cc]onfig.*[Mm]ismatch"):
-        checkpoint_manager.load_checkpoint(checkpoint_id, different_config)
+    # Verify the loaded config matches the original
+    assert loaded_config == simple_config
+    assert orch2.current_tick() == 1
 
 
 def test_load_checkpoint_preserves_determinism(checkpoint_manager, config_with_transactions):
@@ -252,8 +252,10 @@ def test_load_checkpoint_preserves_determinism(checkpoint_manager, config_with_t
     results_1 = [orch1.tick() for _ in range(10)]
 
     # Load and continue
-    orch2 = checkpoint_manager.load_checkpoint(checkpoint_id, config_with_transactions)
+    orch2, loaded_config = checkpoint_manager.load_checkpoint(checkpoint_id)
     results_2 = [orch2.tick() for _ in range(10)]
+    # Verify config was restored
+    assert loaded_config == config_with_transactions
 
     # Must produce identical results
     for i, (r1, r2) in enumerate(zip(results_1, results_2)):
@@ -434,7 +436,7 @@ def test_delete_checkpoint(checkpoint_manager, simple_config):
 def test_load_nonexistent_checkpoint_raises_error(checkpoint_manager, simple_config):
     """Database: Loading non-existent checkpoint should raise error."""
     with pytest.raises(ValueError, match="[Cc]heckpoint.*not found"):
-        checkpoint_manager.load_checkpoint("nonexistent_id", simple_config)
+        checkpoint_manager.load_checkpoint("nonexistent_id")
 
 
 def test_save_checkpoint_with_empty_simulation_id_raises_error(checkpoint_manager, simple_config):

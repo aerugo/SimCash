@@ -46,6 +46,27 @@ def seeded_database(db_path):
         )
     """)
 
+    # Seed simulations table for queries (Phase 5)
+    manager.conn.execute("""
+        INSERT INTO simulations VALUES (
+            'test-sim-001',          -- simulation_id
+            'test_config.yaml',      -- config_file
+            'hash123',               -- config_hash
+            12345,                   -- rng_seed
+            100,                     -- ticks_per_day
+            3,                       -- num_days
+            2,                       -- num_agents
+            'completed',             -- status
+            '2025-01-01 00:00:00',   -- started_at
+            '2025-01-01 01:00:00',   -- completed_at
+            150,                     -- total_arrivals
+            90,                      -- total_settlements (30 settled per day * 3 days)
+            50000,                   -- total_cost_cents
+            3600.0,                  -- duration_seconds (1 hour)
+            8.33                     -- ticks_per_second (300 ticks / 3600 seconds)
+        )
+    """)
+
     # Seed transactions for 3 days
     transactions = []
     tx_id = 1

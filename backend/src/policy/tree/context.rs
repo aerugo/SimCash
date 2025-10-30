@@ -98,18 +98,39 @@ impl EvalContext {
         fields.insert("arrival_tick".to_string(), tx.arrival_tick() as f64);
         fields.insert("deadline_tick".to_string(), tx.deadline_tick() as f64);
         fields.insert("priority".to_string(), tx.priority() as f64);
-        fields.insert("is_split".to_string(), if tx.is_split() { 1.0 } else { 0.0 });
-        fields.insert("is_past_deadline".to_string(), if tx.is_past_deadline(tick) { 1.0 } else { 0.0 });
+        fields.insert(
+            "is_split".to_string(),
+            if tx.is_split() { 1.0 } else { 0.0 },
+        );
+        fields.insert(
+            "is_past_deadline".to_string(),
+            if tx.is_past_deadline(tick) { 1.0 } else { 0.0 },
+        );
 
         // Agent fields
         fields.insert("balance".to_string(), agent.balance() as f64);
         fields.insert("credit_limit".to_string(), agent.credit_limit() as f64);
-        fields.insert("available_liquidity".to_string(), agent.available_liquidity() as f64);
+        fields.insert(
+            "available_liquidity".to_string(),
+            agent.available_liquidity() as f64,
+        );
         fields.insert("credit_used".to_string(), agent.credit_used() as f64);
-        fields.insert("is_using_credit".to_string(), if agent.is_using_credit() { 1.0 } else { 0.0 });
-        fields.insert("liquidity_buffer".to_string(), agent.liquidity_buffer() as f64);
-        fields.insert("outgoing_queue_size".to_string(), agent.outgoing_queue_size() as f64);
-        fields.insert("incoming_expected_count".to_string(), agent.incoming_expected().len() as f64);
+        fields.insert(
+            "is_using_credit".to_string(),
+            if agent.is_using_credit() { 1.0 } else { 0.0 },
+        );
+        fields.insert(
+            "liquidity_buffer".to_string(),
+            agent.liquidity_buffer() as f64,
+        );
+        fields.insert(
+            "outgoing_queue_size".to_string(),
+            agent.outgoing_queue_size() as f64,
+        );
+        fields.insert(
+            "incoming_expected_count".to_string(),
+            agent.incoming_expected().len() as f64,
+        );
         fields.insert("liquidity_pressure".to_string(), agent.liquidity_pressure());
 
         // Derived fields
@@ -128,9 +149,18 @@ impl EvalContext {
         // Phase 8.2: Collateral Management Fields
 
         // Collateral state fields
-        fields.insert("posted_collateral".to_string(), agent.posted_collateral() as f64);
-        fields.insert("max_collateral_capacity".to_string(), agent.max_collateral_capacity() as f64);
-        fields.insert("remaining_collateral_capacity".to_string(), agent.remaining_collateral_capacity() as f64);
+        fields.insert(
+            "posted_collateral".to_string(),
+            agent.posted_collateral() as f64,
+        );
+        fields.insert(
+            "max_collateral_capacity".to_string(),
+            agent.max_collateral_capacity() as f64,
+        );
+        fields.insert(
+            "remaining_collateral_capacity".to_string(),
+            agent.remaining_collateral_capacity() as f64,
+        );
 
         let max_cap = agent.max_collateral_capacity() as f64;
         let collateral_utilization = if max_cap > 0.0 {
@@ -141,7 +171,10 @@ impl EvalContext {
         fields.insert("collateral_utilization".to_string(), collateral_utilization);
 
         // Liquidity gap fields
-        fields.insert("queue1_liquidity_gap".to_string(), agent.queue1_liquidity_gap(state) as f64);
+        fields.insert(
+            "queue1_liquidity_gap".to_string(),
+            agent.queue1_liquidity_gap(state) as f64,
+        );
 
         let mut queue1_total_value = 0i64;
         for tx_id in agent.outgoing_queue() {
@@ -159,31 +192,40 @@ impl EvalContext {
         // Total size of Queue 2 (all agents)
         fields.insert("queue2_size".to_string(), state.rtgs_queue().len() as f64);
 
-        let queue2_count = state.rtgs_queue()
+        let queue2_count = state
+            .rtgs_queue()
             .iter()
             .filter(|tx_id| {
-                state.get_transaction(tx_id)
+                state
+                    .get_transaction(tx_id)
                     .map(|t| t.sender_id() == agent.id())
                     .unwrap_or(false)
             })
             .count();
         fields.insert("queue2_count_for_agent".to_string(), queue2_count as f64);
 
-        let queue2_nearest_deadline = state.rtgs_queue()
+        let queue2_nearest_deadline = state
+            .rtgs_queue()
             .iter()
             .filter_map(|tx_id| state.get_transaction(tx_id))
             .filter(|t| t.sender_id() == agent.id())
             .map(|t| t.deadline_tick())
             .min()
             .unwrap_or(usize::MAX);
-        fields.insert("queue2_nearest_deadline".to_string(), queue2_nearest_deadline as f64);
+        fields.insert(
+            "queue2_nearest_deadline".to_string(),
+            queue2_nearest_deadline as f64,
+        );
 
         let ticks_to_nearest_queue2_deadline = if queue2_nearest_deadline == usize::MAX {
             f64::INFINITY
         } else {
             queue2_nearest_deadline.saturating_sub(tick) as f64
         };
-        fields.insert("ticks_to_nearest_queue2_deadline".to_string(), ticks_to_nearest_queue2_deadline);
+        fields.insert(
+            "ticks_to_nearest_queue2_deadline".to_string(),
+            ticks_to_nearest_queue2_deadline,
+        );
 
         Self { fields }
     }
@@ -449,12 +491,7 @@ mod tests {
     #[test]
     fn test_collateral_utilization_with_posted_collateral() {
         // Create agent with posted collateral
-        let mut agent = Agent::with_buffer(
-            "BANK_A".to_string(),
-            500_000,
-            200_000,
-            100_000,
-        );
+        let mut agent = Agent::with_buffer("BANK_A".to_string(), 500_000, 200_000, 100_000);
         // TODO: Need to add posted_collateral to agent for this test
         // For now, test will fail until Agent supports collateral
 

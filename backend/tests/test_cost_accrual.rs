@@ -8,9 +8,7 @@
 //! - Cost accumulation over multiple ticks
 
 use payment_simulator_core_rs::{
-    orchestrator::{
-        AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
-    },
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
     Transaction,
 };
@@ -28,14 +26,16 @@ fn create_test_config() -> OrchestratorConfig {
                 credit_limit: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 2_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -53,13 +53,7 @@ fn test_overdraft_cost_calculation() {
     // Create transaction that uses credit (goes into overdraft)
     // BANK_A has 1M balance + 500k credit = 1.5M capacity
     // Send 1.2M, leaving balance at -200k
-    let tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        1_200_000,
-        0,
-        10,
-    );
+    let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 1_200_000, 0, 10);
 
     orchestrator.state_mut().add_transaction(tx.clone());
     orchestrator
@@ -156,13 +150,7 @@ fn test_cost_accumulation_over_multiple_ticks() {
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
     // Put BANK_A into overdraft
-    let tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        1_200_000,
-        0,
-        10,
-    );
+    let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 1_200_000, 0, 10);
 
     orchestrator.state_mut().add_transaction(tx.clone());
     orchestrator
@@ -189,13 +177,7 @@ fn test_peak_net_debit_tracking() {
     let mut orchestrator = Orchestrator::new(create_test_config()).unwrap();
 
     // Send transaction that uses credit
-    let tx1 = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        1_200_000,
-        0,
-        10,
-    );
+    let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 1_200_000, 0, 10);
 
     orchestrator.state_mut().add_transaction(tx1.clone());
     orchestrator
@@ -211,13 +193,7 @@ fn test_peak_net_debit_tracking() {
     assert_eq!(costs.peak_net_debit, -200_000);
 
     // Send another transaction to go deeper into overdraft
-    let tx2 = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        100_000,
-        1,
-        20,
-    );
+    let tx2 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 1, 20);
 
     orchestrator.state_mut().add_transaction(tx2.clone());
     orchestrator
@@ -233,13 +209,7 @@ fn test_peak_net_debit_tracking() {
     assert_eq!(costs.peak_net_debit, -300_000);
 
     // Receive payment to reduce overdraft
-    let tx3 = Transaction::new(
-        "BANK_B".to_string(),
-        "BANK_A".to_string(),
-        200_000,
-        2,
-        20,
-    );
+    let tx3 = Transaction::new("BANK_B".to_string(), "BANK_A".to_string(), 200_000, 2, 20);
 
     orchestrator.state_mut().add_transaction(tx3.clone());
     orchestrator
@@ -304,13 +274,7 @@ fn test_cost_event_logging() {
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
     // Put BANK_A into overdraft
-    let tx = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        1_200_000,
-        0,
-        10,
-    );
+    let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 1_200_000, 0, 10);
 
     orchestrator.state_mut().add_transaction(tx.clone());
     orchestrator
@@ -339,13 +303,7 @@ fn test_multiple_agents_cost_accrual() {
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
     // Put BANK_A into overdraft first
-    let tx1 = Transaction::new(
-        "BANK_A".to_string(),
-        "BANK_B".to_string(),
-        1_200_000,
-        0,
-        10,
-    );
+    let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 1_200_000, 0, 10);
 
     orchestrator.state_mut().add_transaction(tx1.clone());
     orchestrator
@@ -411,7 +369,10 @@ fn test_collateral_cost_calculation() {
 
     // Verify collateral cost was accrued
     // Expected: 1,000,000 * 0.0002 * 10 = 2000 cents = $20
-    assert!(costs.total_collateral_cost > 0, "Should have collateral cost");
+    assert!(
+        costs.total_collateral_cost > 0,
+        "Should have collateral cost"
+    );
     assert_eq!(costs.total_collateral_cost, 2000);
 }
 
@@ -459,7 +420,10 @@ fn test_zero_collateral_has_no_cost() {
     }
 
     let costs = orchestrator.get_costs("BANK_A").unwrap();
-    assert_eq!(costs.total_collateral_cost, 0, "No collateral should mean no cost");
+    assert_eq!(
+        costs.total_collateral_cost, 0,
+        "No collateral should mean no cost"
+    );
 }
 
 #[test]
@@ -501,7 +465,10 @@ fn test_all_cost_types_together() {
     // Check we have delay cost and collateral cost (no liquidity cost yet, balance positive)
     let costs_after_1 = orchestrator.get_costs("BANK_A").unwrap();
     assert!(costs_after_1.total_delay_cost > 0, "Should have delay cost");
-    assert!(costs_after_1.total_collateral_cost > 0, "Should have collateral cost");
+    assert!(
+        costs_after_1.total_collateral_cost > 0,
+        "Should have collateral cost"
+    );
     assert_eq!(costs_after_1.total_liquidity_cost, 0, "No overdraft yet");
 
     // Create transaction that will settle and put BANK_A into overdraft
@@ -527,9 +494,15 @@ fn test_all_cost_types_together() {
 
     // Now we should have all three cost types
     let costs_final = orchestrator.get_costs("BANK_A").unwrap();
-    assert!(costs_final.total_liquidity_cost > 0, "Should have liquidity cost");
+    assert!(
+        costs_final.total_liquidity_cost > 0,
+        "Should have liquidity cost"
+    );
     assert!(costs_final.total_delay_cost > 0, "Should have delay cost");
-    assert!(costs_final.total_collateral_cost > 0, "Should have collateral cost");
+    assert!(
+        costs_final.total_collateral_cost > 0,
+        "Should have collateral cost"
+    );
     assert!(costs_final.total() > 0, "Total should be sum of all costs");
 
     // Verify total is sum of parts

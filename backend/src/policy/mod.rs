@@ -147,7 +147,10 @@ pub enum CollateralDecision {
     ///
     /// * `amount` - Amount of collateral to post (cents)
     /// * `reason` - Why collateral is being posted
-    Post { amount: i64, reason: CollateralReason },
+    Post {
+        amount: i64,
+        reason: CollateralReason,
+    },
 
     /// Withdraw collateral to reduce opportunity cost
     ///
@@ -155,7 +158,10 @@ pub enum CollateralDecision {
     ///
     /// * `amount` - Amount of collateral to withdraw (cents)
     /// * `reason` - Why collateral is being withdrawn
-    Withdraw { amount: i64, reason: CollateralReason },
+    Withdraw {
+        amount: i64,
+        reason: CollateralReason,
+    },
 
     /// Hold current collateral level (no change)
     Hold,
