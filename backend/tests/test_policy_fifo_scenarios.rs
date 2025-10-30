@@ -4,7 +4,7 @@
 //! FIFO is the simplest baseline policy that submits all queued transactions immediately.
 
 use payment_simulator_core_rs::{
-    arrivals::{ArrivalConfig, AmountDistribution},
+    arrivals::{AmountDistribution, ArrivalConfig},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
 };
@@ -37,14 +37,16 @@ fn test_fifo_preserves_arrival_order() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -103,14 +105,16 @@ fn test_fifo_partial_submission() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 10_000_000,
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -127,8 +131,8 @@ fn test_fifo_partial_submission() {
         total_arrivals += result.num_arrivals;
         total_settlements += result.num_settlements;
 
-        let total_queued = orchestrator.state().total_internal_queue_size()
-            + orchestrator.state().queue_size(); // Queue 1 + Queue 2
+        let total_queued =
+            orchestrator.state().total_internal_queue_size() + orchestrator.state().queue_size(); // Queue 1 + Queue 2
 
         if total_queued > max_queue {
             max_queue = total_queued;
@@ -182,7 +186,8 @@ fn test_fifo_vs_deadline_under_pressure() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             // Deadline agent (for comparison)
             AgentConfig {
                 id: "BANK_DEADLINE".to_string(),
@@ -192,7 +197,8 @@ fn test_fifo_vs_deadline_under_pressure() {
                     urgency_threshold: 3,
                 },
                 arrival_config: Some(arrival_config),
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
             // Receiver
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -200,7 +206,8 @@ fn test_fifo_vs_deadline_under_pressure() {
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
-                posted_collateral: None,            },
+                posted_collateral: None,
+            },
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -225,15 +232,21 @@ fn test_fifo_vs_deadline_under_pressure() {
     // Both should handle the load, but with different strategies
     let avg_fifo_queue: f64 =
         fifo_queue_history.iter().sum::<usize>() as f64 / fifo_queue_history.len() as f64;
-    let avg_deadline_queue: f64 = deadline_queue_history.iter().sum::<usize>() as f64
-        / deadline_queue_history.len() as f64;
+    let avg_deadline_queue: f64 =
+        deadline_queue_history.iter().sum::<usize>() as f64 / deadline_queue_history.len() as f64;
 
-    println!("Avg FIFO queue: {:.2}, Avg Deadline queue: {:.2}", avg_fifo_queue, avg_deadline_queue);
+    println!(
+        "Avg FIFO queue: {:.2}, Avg Deadline queue: {:.2}",
+        avg_fifo_queue, avg_deadline_queue
+    );
 
     // This is primarily a behavioral comparison test
     // Both policies should be able to process transactions
     assert!(avg_fifo_queue < 30.0, "FIFO queue shouldn't explode");
-    assert!(avg_deadline_queue < 30.0, "Deadline queue shouldn't explode");
+    assert!(
+        avg_deadline_queue < 30.0,
+        "Deadline queue shouldn't explode"
+    );
 
     // FIFO typically submits everything immediately, so Queue 1 stays smaller
     // (transactions move to Queue 2 or settle)

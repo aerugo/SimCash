@@ -1,27 +1,143 @@
-# Implementation Plan: DuckDB-Based Simulation Persistence
+# Implementation Plan: DuckDB-Based Simulation Persistence & Complete Data Portability
 
 ## Document Purpose
-This plan details the implementation of file-based data persistence for the payment simulator using DuckDB, enabling storage and analysis of simulation runs, transactions, agent states, and policy evolution across hundreds of simulation episodes.
+This plan details the implementation of file-based data persistence for the payment simulator using DuckDB, enabling:
+1. **Historical Analytics**: Storage and analysis of simulation runs, transactions, agent states, and policy evolution across hundreds of simulation episodes
+2. **Complete Data Portability**: Save/load functionality for both individual simulation checkpoints AND entire analytical databases
+3. **Research Reproducibility**: Full dataset export/import for collaboration and backup
 
 ## Executive Summary
 
-**Goal**: Implement batch-write persistence that saves simulation state at the beginning of each run and after each simulated "day", using DuckDB as a single, unified data store for both operational data and analytical queries.
+**Goal**: Implement a comprehensive persistence system that provides:
+- **Batch-write persistence** for historical data (transactions, metrics, policies) across hundreds of runs
+- **Checkpoint system** for save/resume of individual simulations (✅ **ALREADY IMPLEMENTED** - see `docs/plans/save-load-simulation.md`)
+- **Database-level export/import** for complete data portability (research datasets, backups, collaboration)
 
 **Key Design Decisions**:
 1. **Database**: DuckDB exclusively (columnar, analytical, file-based)
 2. **DataFrame Library**: Polars (faster than Pandas, Arrow-native, zero-copy with DuckDB)
 3. **Schema Management**: Pydantic models as single source of truth with automated DDL generation
 4. **Migration Strategy**: Versioned migrations + runtime validation to prevent schema drift
+5. **Checkpoint Integration**: Leverage existing checkpoint system (247/248 tests passing) for simulation state
+6. **Data Portability**: Native DuckDB export/import + custom backup tooling
 
 **Scope**:
 - 200 simulation runs × 1.2M transactions/run = 240M+ transaction records
 - 200 runs × 200 agents × 10 days × 2 policy files/day = 800K policy snapshots
 - Agent metrics collected daily (200 agents × 10 days × 200 runs = 400K daily summaries)
 - **Phase 8 Addition**: Collateral events tracking (estimated 50-100 events/agent/day = 2-4M events)
+- **Checkpoint Storage**: Full simulation state snapshots with config (existing implementation)
+- **Database Backup**: Complete `.db` file export with integrity verification
 
 ---
 
 ## Part I: Architecture Overview
+
+### 1.0 Checkpoint vs. Persistence: Two Complementary Systems
+
+**This plan builds on the existing checkpoint system** (implemented October 2025, 247/248 tests passing). Understanding the distinction is critical:
+
+#### Checkpoint System (✅ ALREADY IMPLEMENTED)
+**Purpose**: Save/resume individual simulations
+**Scope**: Single simulation state at a specific tick
+**Use Cases**:
+- Pause simulation, shut down app, resume later
+- Experiment with different policy changes from same starting point
+- Recover from crashes
+- Branch simulation timelines
+
+**What Gets Saved**:
+- Complete orchestrator state (current tick, day, RNG seed)
+- All agent states (balances, queues, collateral)
+- All transaction states (amounts, status, deadlines)
+- Full configuration (stored as JSON in checkpoint record)
+
+**Storage**: `simulation_checkpoints` table in DuckDB
+
+**Status**: Production ready - see `docs/plans/save-load-simulation.md`
+
+---
+
+#### Persistence System (THIS PLAN - NOT YET IMPLEMENTED)
+**Purpose**: Historical analytics across hundreds of simulation runs
+**Scope**: Aggregate data from many simulations over time
+**Use Cases**:
+- Compare 200 different policy configurations
+- Analyze agent performance trends across parameter sweeps
+- Query "Which policy minimized costs in simulations 50-100?"
+- Generate research papers with statistical analysis
+
+**What Gets Saved**:
+- Daily transaction batches (all settlements, drops, delays)
+- Daily agent metrics (balances, costs, throughput)
+- Policy evolution snapshots (when policies change)
+- Collateral operation history (Phase 8)
+- Simulation run metadata (config hash, seed, performance)
+
+**Storage**: `transactions`, `daily_agent_metrics`, `policy_snapshots`, etc. tables in DuckDB
+
+**Status**: Planned - implementation begins with Phase 1 below
+
+---
+
+#### How They Work Together
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Single Simulation Lifecycle                                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. Start Simulation (config.yaml)                             │
+│     ↓                                                           │
+│  2. Run for 5 days (500 ticks)                                 │
+│     ├─ [CHECKPOINT] Save state at day 2 (optional)             │
+│     │   → simulation_checkpoints table                         │
+│     ├─ [PERSISTENCE] Write day 0 transactions to DB            │
+│     │   → transactions table                                   │
+│     ├─ [PERSISTENCE] Write day 0 agent metrics to DB           │
+│     │   → daily_agent_metrics table                            │
+│     └─ ... repeat for each day                                 │
+│     ↓                                                           │
+│  3. Simulation Completes                                       │
+│     ├─ [CHECKPOINT] Save final state (optional)                │
+│     └─ [PERSISTENCE] Record simulation metadata                │
+│         → simulations table                                    │
+│                                                                 │
+│  4. Later: Resume from day 2 checkpoint                        │
+│     ├─ [CHECKPOINT] Load state from simulation_checkpoints     │
+│     └─ Continue running, writing to persistence tables         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  200-Run Research Study Lifecycle                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  FOR each config in parameter_sweep(200):                      │
+│      run_simulation(config)                                    │
+│      [PERSISTENCE] Write all transactions, metrics, policies   │
+│                                                                 │
+│  After all 200 runs complete:                                  │
+│      [QUERY] "SELECT AVG(total_cost) FROM simulations          │
+│               GROUP BY config_hash"                            │
+│                                                                 │
+│      [BACKUP] Export entire database for publication:          │
+│         python -m payment_simulator.persistence.export \       │
+│           --output research_dataset_2025.duckdb.gz             │
+│                                                                 │
+│  Share with collaborators:                                     │
+│      [IMPORT] Load database on different machine:              │
+│         python -m payment_simulator.persistence.import \       │
+│           --input research_dataset_2025.duckdb.gz              │
+│                                                                 │
+│      [QUERY] Run same analyses, reproduce results              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key Insight**: Checkpoints are for **resuming**, persistence is for **analyzing**. Both use the same DuckDB file.
+
+---
 
 ### 1.1 Data Persistence Points
 
@@ -39,18 +155,72 @@ This plan details the implementation of file-based data persistence for the paym
 
 ```
 /Users/hugi/GitRepos/cashman/
-├── simulation_data.db          # Single DuckDB file (all data)
-├── backend/policies/           # Policy JSON files (git-tracked separately)
+├── simulation_data.db               # PRIMARY DATABASE (all operational + historical data)
+│   ├── [CHECKPOINT TABLES - ✅ IMPLEMENTED]
+│   │   └── simulation_checkpoints   # Full state snapshots for resume
+│   │
+│   ├── [HISTORICAL TABLES - PLANNED]
+│   │   ├── simulations              # Run metadata
+│   │   ├── transactions             # All transaction records
+│   │   ├── daily_agent_metrics      # Agent state over time
+│   │   ├── policy_snapshots         # Policy evolution
+│   │   ├── collateral_events        # Collateral operations (Phase 8)
+│   │   └── config_archive           # Config deduplication
+│   │
+│   └── [SCHEMA MANAGEMENT]
+│       └── schema_migrations        # Version tracking
+│
+├── backups/                         # Database backups
+│   ├── simulation_data_2025-10-29.db.gz
+│   ├── simulation_data_2025-11-01.db.gz
+│   └── research_dataset_v1.0.db.gz  # Published datasets
+│
+├── exports/                         # Portable export formats
+│   ├── study_001_results.parquet    # Apache Parquet exports
+│   ├── study_001_results.csv        # CSV for Excel/R/Julia
+│   └── study_001_metadata.json      # Export manifest
+│
+├── backend/policies/                # Policy JSON files (git-tracked)
 │   ├── BANK_A_policy_v1.json
 │   ├── BANK_A_policy_v2.json
 │   └── ...
-└── configs/                    # Simulation configs (YAML/JSON)
+│
+└── configs/                         # Simulation configs (YAML/JSON)
+    ├── baseline_scenario.yaml
+    ├── stress_test_scenario.yaml
+    └── parameter_sweep_001/
+        ├── config_001.yaml
+        ├── config_002.yaml
+        └── ... (200 configs)
 ```
 
 **Design Rationale**:
-- Single `.db` file simplifies backups, migrations, and deployment
-- Policy JSON files stored separately for git versioning (LLM manager Phase 9)
-- Database stores policy metadata + file paths, not full JSON
+- **Single `.db` file**: All data in one place - simplifies atomic operations
+- **Checkpoint table**: Integrated with historical data (shared schema, same DB)
+- **Backup directory**: Versioned snapshots for disaster recovery
+- **Export formats**: Multiple formats for different tools (Parquet for Python, CSV for R)
+- **Policy separation**: Git-tracked JSON files for version control (LLM manager Phase 9)
+- **Config management**: Parameter sweeps organized in directories
+
+**Database Portability**:
+```bash
+# Full database copy (preserves all data)
+cp simulation_data.db backup_$(date +%Y%m%d).db
+
+# Compressed backup (90% size reduction)
+gzip -c simulation_data.db > backups/simulation_data_$(date +%Y%m%d).db.gz
+
+# Export subset for publication (just completed runs)
+python -m payment_simulator.persistence.export \
+  --output research_v1.db \
+  --filter "status='completed'" \
+  --compress
+
+# Import on collaborator's machine
+python -m payment_simulator.persistence.import \
+  --input research_v1.db.gz \
+  --verify-integrity
+```
 
 ---
 
@@ -2440,12 +2610,219 @@ payment-sim db validate
 
 | Phase | Duration | Deliverable |
 |-------|----------|-------------|
+| 0. Checkpoint Integration | 0 days | ✅ **COMPLETE** - Leverage existing checkpoint system |
 | 1. Infrastructure | 2-3 days | Database setup, schema management, validation |
 | 2. Transaction batch writes | 2-3 days | Daily transaction persistence |
 | 3. Agent metrics | 1-2 days | Daily agent snapshots |
 | 4. Policy snapshots | 1 day | Policy evolution tracking |
 | 5. Query interface | 2-3 days | CLI commands, analytics functions |
-| **Total** | **8-12 days** | Full persistence system |
+| 6. Data portability | 1-2 days | Database export/import, backup tooling |
+| **Total** | **9-14 days** | Full persistence system with data portability |
+
+### Phase 6 Details: Database Export/Import & Data Portability (1-2 days)
+
+**Goal**: Enable complete save/load of analytical databases for collaboration, backup, and publication.
+
+**Tasks**:
+
+1. **Database Export Module** (`api/payment_simulator/persistence/export.py`)
+   ```python
+   class DatabaseExporter:
+       """Export DuckDB databases with filtering and compression."""
+
+       def export_database(
+           self,
+           output_path: Path,
+           include_checkpoints: bool = True,
+           filter_query: Optional[str] = None,
+           compress: bool = True,
+       ) -> ExportManifest:
+           """
+           Export database with optional filtering.
+
+           Args:
+               output_path: Destination file (.db or .db.gz)
+               include_checkpoints: Include checkpoint table (large)
+               filter_query: SQL WHERE clause (e.g., "status='completed'")
+               compress: Apply gzip compression
+
+           Returns:
+               Manifest with metadata (row counts, file size, checksums)
+           """
+   ```
+
+2. **Database Import Module** (`api/payment_simulator/persistence/import_db.py`)
+   ```python
+   class DatabaseImporter:
+       """Import and verify DuckDB databases."""
+
+       def import_database(
+           self,
+           input_path: Path,
+           verify_integrity: bool = True,
+           merge_mode: bool = False,
+       ) -> ImportReport:
+           """
+           Import database with integrity checks.
+
+           Args:
+               input_path: Source file (.db or .db.gz)
+               verify_integrity: Validate checksums and schema
+               merge_mode: Merge with existing DB (vs. replace)
+
+           Returns:
+               Report with verification results
+           """
+   ```
+
+3. **Export Formats** (Beyond native DuckDB):
+   - **Parquet**: Apache Parquet for maximum portability
+     ```python
+     def export_to_parquet(
+         conn: DuckDB,
+         output_dir: Path,
+         table_names: List[str],
+     ):
+         """Export specified tables to .parquet files."""
+         for table in table_names:
+             conn.execute(f"""
+                 COPY {table} TO '{output_dir}/{table}.parquet'
+                 (FORMAT PARQUET, COMPRESSION ZSTD)
+             """)
+     ```
+
+   - **CSV**: For Excel/R/Julia users
+   - **JSON**: For human-readable exports
+   - **SQL Dump**: For PostgreSQL/MySQL migration
+
+4. **CLI Commands**:
+   ```bash
+   # Export entire database
+   payment-sim db export \
+       --output research_study_001.db.gz \
+       --compress \
+       --verify
+
+   # Export only completed simulations (filter)
+   payment-sim db export \
+       --output completed_runs.db.gz \
+       --filter "status='completed'" \
+       --include-checkpoints=false
+
+   # Export to Parquet for Python/R
+   payment-sim db export-parquet \
+       --output-dir ./parquet_export/ \
+       --tables transactions,daily_agent_metrics
+
+   # Import database
+   payment-sim db import \
+       --input research_study_001.db.gz \
+       --verify-integrity \
+       --target-path ./imported_data.db
+
+   # Merge databases (combine results from multiple machines)
+   payment-sim db merge \
+       --input study_machine_1.db,study_machine_2.db \
+       --output combined_study.db
+   ```
+
+5. **Integrity Verification**:
+   - SHA256 checksums for all exported files
+   - Schema version validation
+   - Row count verification
+   - Foreign key constraint checks
+   - Balance conservation validation (for financial integrity)
+
+6. **Backup Automation**:
+   ```python
+   # api/payment_simulator/persistence/backup.py
+
+   class BackupManager:
+       """Automated backup scheduling."""
+
+       def create_backup(
+           self,
+           backup_dir: Path,
+           retention_days: int = 30,
+       ) -> Path:
+           """Create timestamped backup with automatic cleanup."""
+
+       def restore_backup(
+           self,
+           backup_path: Path,
+           verify: bool = True,
+       ) -> bool:
+           """Restore from backup with verification."""
+
+   # Cron job: Daily backup at 2 AM
+   0 2 * * * cd /path/to/cashman && \
+       payment-sim db backup --retention-days 30
+   ```
+
+**Success Criteria**:
+- Export 10GB database in < 2 minutes
+- Compression achieves 70-90% size reduction
+- Import validates schema and integrity automatically
+- Zero data loss across export/import cycles
+- CLI provides progress bars for large operations
+- Exported databases work across platforms (Mac/Linux/Windows)
+
+**Test Cases**:
+```python
+# api/tests/integration/test_database_portability.py
+
+def test_export_import_preserves_all_data():
+    """Full export/import cycle loses no data."""
+    # Create database with known data
+    original_counts = get_table_row_counts(conn)
+
+    # Export
+    exporter = DatabaseExporter(conn)
+    exporter.export_database('test_export.db.gz', compress=True)
+
+    # Import to new database
+    importer = DatabaseImporter()
+    new_conn = importer.import_database('test_export.db.gz')
+
+    # Verify identical row counts
+    new_counts = get_table_row_counts(new_conn)
+    assert original_counts == new_counts
+
+def test_filtered_export_excludes_data():
+    """Filtered export respects WHERE clause."""
+    exporter = DatabaseExporter(conn)
+    exporter.export_database(
+        'filtered.db',
+        filter_query="simulation_id='sim-001'",
+    )
+
+    # Only sim-001 data should be present
+    new_conn = duckdb.connect('filtered.db')
+    sim_ids = new_conn.execute(
+        "SELECT DISTINCT simulation_id FROM simulations"
+    ).fetchall()
+    assert len(sim_ids) == 1
+    assert sim_ids[0][0] == 'sim-001'
+
+def test_parquet_export_readable_by_pandas():
+    """Parquet exports work with standard tools."""
+    export_to_parquet(conn, './parquet/', ['transactions'])
+
+    # Load with pandas
+    import pandas as pd
+    df = pd.read_parquet('./parquet/transactions.parquet')
+
+    assert len(df) > 0
+    assert 'tx_id' in df.columns
+```
+
+**Documentation**:
+- Add "Data Export/Import" section to user guide
+- Create examples for common workflows:
+  - "Publishing a research dataset"
+  - "Backing up before major changes"
+  - "Sharing results with collaborators"
+  - "Migrating to a new machine"
 
 ---
 
@@ -2700,23 +3077,192 @@ Batch write performance impact: Minimal (<10ms additional per day for collateral
 
 ## Conclusion
 
-This plan provides a comprehensive, maintainable approach to database persistence with **automatic schema synchronization**. By using Pydantic models as the single source of truth and auto-generating DDL, we eliminate manual schema management and prevent schema drift.
+This plan provides a **comprehensive, three-tier persistence system** that handles:
 
-**Key Innovation**: The schema management system ensures that as the project evolves and new fields/tables are added, the database schema automatically stays in sync with the code through:
-1. Pydantic models defining structure
-2. Auto-generated DDL
-3. Versioned migrations
-4. Runtime validation
-5. Developer-friendly CLI tools
+### 1. Operational State (✅ COMPLETE)
+**Checkpoint System** - Production ready with 247/248 tests passing
+- Save/resume individual simulations at any tick
+- Complete state preservation (RNG seed, balances, queues, config)
+- Determinism verified across all test scenarios
+- Database-backed with integrity checks
 
-This approach scales from initial development through hundreds of simulation runs and multiple developers making schema changes.
+### 2. Historical Analytics (PLANNED - This Document)
+**Batch Persistence** - For research and analysis across hundreds of runs
+- Daily transaction records (240M+ across 200 simulations)
+- Agent performance metrics over time
+- Policy evolution tracking
+- Collateral operation history (Phase 8)
+- Automatic schema synchronization via Pydantic models
+
+### 3. Complete Data Portability (PLANNED - Phase 6)
+**Export/Import System** - For collaboration and publication
+- Full database backup/restore with compression
+- Filtered exports (e.g., only completed runs)
+- Multi-format support (DuckDB, Parquet, CSV, JSON)
+- Cross-platform compatibility (Mac/Linux/Windows)
+- Integrity verification (checksums, schema validation)
 
 ---
 
-**Document Status**: Ready for Implementation (TDD methodology included)
-**Last Updated**: 2025-10-29 (Phase 8 collateral management updates)
+### Key Innovations
+
+**1. Schema-as-Code Architecture**
+- Pydantic models are the single source of truth
+- Auto-generated DDL from models
+- Versioned migrations with runtime validation
+- No manual schema management, zero drift
+
+**2. Unified Database Design**
+- Checkpoints + Historical Data + Metadata in single `.db` file
+- Atomic operations across all tables
+- Single backup/restore workflow
+- Shared schema management
+
+**3. Complete Data Lifecycle**
+```
+Research Study Lifecycle:
+  ┌──────────────────────────────────────────┐
+  │ 1. Run 200 simulations                   │
+  │    [CHECKPOINT] Save state at key points │
+  │    [PERSISTENCE] Write daily data        │
+  ├──────────────────────────────────────────┤
+  │ 2. Analyze results                       │
+  │    [QUERY] Aggregate across all runs     │
+  │    [EXPORT] Generate Parquet for Python  │
+  ├──────────────────────────────────────────┤
+  │ 3. Publish research                      │
+  │    [EXPORT] Filtered, compressed dataset │
+  │    [SHARE] Collaborators import & verify │
+  ├──────────────────────────────────────────┤
+  │ 4. Reproduce results                     │
+  │    [CHECKPOINT] Resume from published    │
+  │    [DETERMINISM] Identical outcomes      │
+  └──────────────────────────────────────────┘
+```
+
+**4. Research Reproducibility**
+- Export complete datasets with all metadata
+- Import validates schema version compatibility
+- Determinism guarantees (same seed → same results)
+- Balance conservation checks prevent data corruption
+
+---
+
+### Scaling Characteristics
+
+| Scale Dimension | Target | Approach |
+|-----------------|--------|----------|
+| **Simulation runs** | 200+ | Batch writes, columnar storage |
+| **Transactions** | 240M+ | DuckDB analytical queries (sub-second) |
+| **Database size** | <10 GB | Compression, deduplication |
+| **Export/Import** | <2 min | Streaming, parallel compression |
+| **Schema changes** | Unlimited | Auto-migration, validation |
+| **Collaborators** | Many | Portable formats (Parquet, CSV) |
+
+---
+
+### Production Readiness Path
+
+**Already Complete** (0 days):
+- ✅ Checkpoint system (save/load simulation state)
+- ✅ 247 passing tests for determinism
+- ✅ Config storage in database
+- ✅ Integrity validation
+
+**Remaining Work** (9-14 days):
+- Phase 1: Infrastructure (2-3 days)
+- Phase 2: Transaction batch writes (2-3 days)
+- Phase 3: Agent metrics (1-2 days)
+- Phase 4: Policy snapshots (1 day)
+- Phase 5: Query interface (2-3 days)
+- Phase 6: Data portability (1-2 days)
+
+**Total Investment**: 9-14 days to go from "single simulation checkpoints" to "full research data platform"
+
+---
+
+### Use Case Examples
+
+**Use Case 1: Long-Running Research Study**
+```bash
+# Run 200 parameter sweep simulations
+for i in {1..200}; do
+  payment-sim run configs/sweep_$i.yaml --persist
+  # [CHECKPOINT] Auto-save every 100 ticks
+  # [PERSISTENCE] Write transactions/metrics after each day
+done
+
+# Analyze results
+payment-sim query settlement-rate --group-by config_hash
+
+# Export for publication
+payment-sim db export \
+  --output study_2025_results.db.gz \
+  --filter "status='completed'" \
+  --compress
+```
+
+**Use Case 2: Collaborative Research**
+```bash
+# Researcher A: Run simulations, export results
+payment-sim db export --output dataset_v1.db.gz
+
+# Researcher B: Import, verify, extend analysis
+payment-sim db import dataset_v1.db.gz --verify
+payment-sim query custom-analysis.sql
+payment-sim db export-parquet --tables transactions  # For R/Julia
+```
+
+**Use Case 3: Policy Development Workflow**
+```bash
+# Test new policy
+payment-sim run baseline.yaml --persist
+payment-sim checkpoint save --simulation-id sim_001
+
+# Try policy variant A
+payment-sim checkpoint load sim_001 --apply-policy policy_A.json
+payment-sim run --continue
+# [PERSISTENCE] Writes to new simulation_id, preserves original
+
+# Compare outcomes
+payment-sim query compare-simulations \
+  --sim-ids sim_001,sim_002 \
+  --metric total_cost
+```
+
+---
+
+**Document Status**: **Updated 2025-10-30** - Comprehensive save/load integration
+**Checkpoint Integration**: ✅ Complete (247/248 tests passing)
+**Historical Persistence**: ⏳ Planned (Phases 1-5, 8-12 days)
+**Data Portability**: ⏳ Planned (Phase 6, 1-2 days)
+**Total Timeline**: 9-14 days to full system
+
 **Author**: Payment Simulator Team
-**Technology Stack**: DuckDB + Polars + Pydantic (schema-as-code)
+**Technology Stack**: DuckDB + Polars + Pydantic + PyO3
 **Development Approach**: Test-Driven Development (Red-Green-Refactor)
-**Phase 8 Status**: Schema extended for two-layer collateral management
+**Phase 8 Status**: Collateral management schema extensions documented
 **Next Action**: Begin Phase 1 implementation with test-first approach
+
+---
+
+## Document Changelog
+
+- **2025-10-30**: Added comprehensive save/load integration
+  - Integrated existing checkpoint system (Phase 0)
+  - Added Phase 6: Database export/import & data portability
+  - Updated architecture diagrams to show checkpoint + persistence synergy
+  - Expanded file structure with backup/export directories
+  - Added research reproducibility workflows
+  - Updated timeline: 9-14 days (was 8-12 days)
+
+- **2025-10-29**: Phase 8 collateral management updates
+  - Extended `DailyAgentMetricsRecord` with 7 collateral fields
+  - Added `CollateralEventRecord` table for operation tracking
+  - Updated `PolicySnapshotRecord` for three-tree structure
+  - Documented two-layer architecture (strategic + end-of-tick)
+
+- **2025-10-27**: Initial document creation
+  - Five-phase implementation plan
+  - Schema-as-code architecture
+  - TDD methodology with comprehensive test strategy

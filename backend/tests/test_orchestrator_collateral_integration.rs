@@ -124,9 +124,7 @@ fn test_strategic_collateral_layer_runs_at_step_2_5() {
     // Submit a transaction that exceeds balance
     // This will create the transaction and add it to BANK_A's queue
     orch.submit_transaction(
-        "BANK_A",
-        "BANK_B",
-        60_000, // Needs 60k, has 40k → gap of 20k
+        "BANK_A", "BANK_B", 60_000, // Needs 60k, has 40k → gap of 20k
         100,    // deadline
         1,      // priority
         false,  // not divisible
@@ -142,7 +140,10 @@ fn test_strategic_collateral_layer_runs_at_step_2_5() {
         agent_before.outgoing_queue().len(),
         agent_before.posted_collateral()
     );
-    println!("Queue1 liquidity gap: {}", agent_before.queue1_liquidity_gap(state_before));
+    println!(
+        "Queue1 liquidity gap: {}",
+        agent_before.queue1_liquidity_gap(state_before)
+    );
 
     // Tick once - should trigger strategic collateral posting at STEP 2.5
     let result = orch.tick();
@@ -160,7 +161,10 @@ fn test_strategic_collateral_layer_runs_at_step_2_5() {
     // Verify collateral was posted
     let final_state = orch.state();
     let agent = final_state.get_agent("BANK_A").unwrap();
-    println!("After tick: posted_collateral={}", agent.posted_collateral());
+    println!(
+        "After tick: posted_collateral={}",
+        agent.posted_collateral()
+    );
     assert_eq!(
         agent.posted_collateral(),
         50_000,

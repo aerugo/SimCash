@@ -109,6 +109,34 @@ pub struct CycleSettlementResult {
     pub transactions_affected: usize,
 }
 
+/// LSM cycle event for persistence (Phase 4)
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LsmCycleEvent {
+    /// Tick when cycle was settled
+    pub tick: usize,
+
+    /// Day when cycle was settled
+    pub day: usize,
+
+    /// Type of cycle: "bilateral" or "multilateral"
+    pub cycle_type: String,
+
+    /// Number of agents in cycle (2 for bilateral, 3+ for multilateral)
+    pub cycle_length: usize,
+
+    /// Agent IDs in cycle order (e.g., [A, B, C, A])
+    pub agents: Vec<String>,
+
+    /// Transaction IDs in cycle order
+    pub transactions: Vec<String>,
+
+    /// Net value settled (after netting)
+    pub settled_value: i64,
+
+    /// Gross value (sum of all transaction amounts)
+    pub total_value: i64,
+}
+
 /// Result of complete LSM pass
 #[derive(Debug, Clone, PartialEq)]
 pub struct LsmPassResult {
@@ -126,6 +154,9 @@ pub struct LsmPassResult {
 
     /// Number of cycles settled
     pub cycles_settled: usize,
+
+    /// Detailed cycle events for persistence (Phase 4)
+    pub cycle_events: Vec<LsmCycleEvent>,
 }
 
 // ============================================================================
@@ -159,10 +190,7 @@ pub struct LsmPassResult {
 /// // A→B 500k (queued), B→A 300k (queued)
 /// // Bilateral offset will settle both, net 200k A→B
 /// ```
-pub fn bilateral_offset(
-    state: &mut SimulationState,
-    tick: usize,
-) -> BilateralOffsetResult {
+pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOffsetResult {
     let mut pairs_found = 0;
     let mut offset_value = 0i64;
     let mut settlements_count = 0;
@@ -176,7 +204,10 @@ pub fn bilateral_offset(
             let receiver = tx.receiver_id().to_string();
             let key = (sender.clone(), receiver.clone());
 
-            bilateral_map.entry(key).or_insert_with(Vec::new).push(tx_id.clone());
+            bilateral_map
+                .entry(key)
+                .or_insert_with(Vec::new)
+                .push(tx_id.clone());
         }
     }
 
@@ -213,13 +244,8 @@ pub fn bilateral_offset(
 
             // Settle in both directions up to offset amount
             if offset_amount > 0 {
-                settlements_count += settle_bilateral_pair(
-                    state,
-                    txs_ab,
-                    txs_ba,
-                    offset_amount,
-                    tick,
-                );
+                settlements_count +=
+                    settle_bilateral_pair(state, txs_ab, txs_ba, offset_amount, tick);
             }
         }
     }
@@ -245,7 +271,7 @@ fn settle_bilateral_pair(
     state: &mut SimulationState,
     txs_ab: &[String],
     txs_ba: &[String],
-    _offset_amount: i64,  // Unused: we calculate net flows ourselves
+    _offset_amount: i64, // Unused: we calculate net flows ourselves
     tick: usize,
 ) -> usize {
     let mut settlements = 0;
@@ -272,11 +298,17 @@ fn settle_bilateral_pair(
     let (net_sender, _net_receiver) = if sum_ab > sum_ba {
         // Net flow is A→B (A will have net negative balance)
         let tx_sample = state.get_transaction(&txs_ab[0]).unwrap();
-        (tx_sample.sender_id().to_string(), tx_sample.receiver_id().to_string())
+        (
+            tx_sample.sender_id().to_string(),
+            tx_sample.receiver_id().to_string(),
+        )
     } else {
         // Net flow is B→A (B will have net negative balance)
         let tx_sample = state.get_transaction(&txs_ba[0]).unwrap();
-        (tx_sample.sender_id().to_string(), tx_sample.receiver_id().to_string())
+        (
+            tx_sample.sender_id().to_string(),
+            tx_sample.receiver_id().to_string(),
+        )
     };
 
     // Check if net sender can handle the net negative balance (within credit limits)
@@ -295,9 +327,19 @@ fn settle_bilateral_pair(
             let sender_id = tx.sender_id().to_string();
             let receiver_id = tx.receiver_id().to_string();
 
-            state.get_agent_mut(&sender_id).unwrap().adjust_balance(-(amount as i64));
-            state.get_agent_mut(&receiver_id).unwrap().adjust_balance(amount as i64);
-            state.get_transaction_mut(tx_id).unwrap().settle(amount, tick).ok();
+            state
+                .get_agent_mut(&sender_id)
+                .unwrap()
+                .adjust_balance(-(amount as i64));
+            state
+                .get_agent_mut(&receiver_id)
+                .unwrap()
+                .adjust_balance(amount as i64);
+            state
+                .get_transaction_mut(tx_id)
+                .unwrap()
+                .settle(amount, tick)
+                .ok();
             settlements += 1;
         }
     }
@@ -309,9 +351,19 @@ fn settle_bilateral_pair(
             let sender_id = tx.sender_id().to_string();
             let receiver_id = tx.receiver_id().to_string();
 
-            state.get_agent_mut(&sender_id).unwrap().adjust_balance(-(amount as i64));
-            state.get_agent_mut(&receiver_id).unwrap().adjust_balance(amount as i64);
-            state.get_transaction_mut(tx_id).unwrap().settle(amount, tick).ok();
+            state
+                .get_agent_mut(&sender_id)
+                .unwrap()
+                .adjust_balance(-(amount as i64));
+            state
+                .get_agent_mut(&receiver_id)
+                .unwrap()
+                .adjust_balance(amount as i64);
+            state
+                .get_transaction_mut(tx_id)
+                .unwrap()
+                .settle(amount, tick)
+                .ok();
             settlements += 1;
         }
     }
@@ -339,10 +391,7 @@ fn settle_bilateral_pair(
 /// // Queue contains: A→B (500k), B→C (500k), C→A (500k)
 /// // detect_cycles will find: Cycle([A,B,C,A], min=500k)
 /// ```
-pub fn detect_cycles(
-    state: &SimulationState,
-    max_cycle_length: usize,
-) -> Vec<Cycle> {
+pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cycle> {
     // Build payment graph: agent -> [(neighbor, tx_id, amount)]
     let mut graph: HashMap<String, Vec<(String, String, i64)>> = HashMap::new();
 
@@ -435,7 +484,9 @@ fn find_cycles_from_start(
             } else if !visited.contains(next_node) {
                 // Continue DFS
                 path.push((next_node.clone(), tx_id.clone(), *amount));
-                find_cycles_from_start(start_node, next_node, graph, path, visited, cycles, max_length);
+                find_cycles_from_start(
+                    start_node, next_node, graph, path, visited, cycles, max_length,
+                );
                 path.pop();
             }
         }
@@ -493,9 +544,18 @@ pub fn settle_cycle(
 
         // Perform settlement (net-zero for cycle)
         // Use adjust_balance to bypass liquidity checks (flows cancel out)
-        state.get_agent_mut(&sender_id).unwrap().adjust_balance(-(settle_amount as i64));
-        state.get_agent_mut(&receiver_id).unwrap().adjust_balance(settle_amount as i64);
-        state.get_transaction_mut(tx_id).unwrap().settle(settle_amount, tick)?;
+        state
+            .get_agent_mut(&sender_id)
+            .unwrap()
+            .adjust_balance(-(settle_amount as i64));
+        state
+            .get_agent_mut(&receiver_id)
+            .unwrap()
+            .adjust_balance(settle_amount as i64);
+        state
+            .get_transaction_mut(tx_id)
+            .unwrap()
+            .settle(settle_amount, tick)?;
 
         transactions_affected += 1;
     }
@@ -531,8 +591,9 @@ pub fn settle_cycle(
 ///
 /// # let mut state = todo!();
 /// # let current_tick = 5;
+/// # let ticks_per_day = 100;
 /// let config = LsmConfig::default();
-/// let result = run_lsm_pass(&mut state, &config, current_tick);
+/// let result = run_lsm_pass(&mut state, &config, current_tick, ticks_per_day);
 ///
 /// println!("LSM settled {}k, {} iterations", result.total_settled_value / 1000, result.iterations_run);
 /// ```
@@ -540,11 +601,13 @@ pub fn run_lsm_pass(
     state: &mut SimulationState,
     config: &LsmConfig,
     tick: usize,
+    ticks_per_day: usize,
 ) -> LsmPassResult {
     let mut total_settled_value = 0i64;
     let mut iterations = 0;
     let mut bilateral_offsets = 0;
     let mut cycles_settled = 0;
+    let mut cycle_events = Vec::new();
     const MAX_ITERATIONS: usize = 3;
 
     while iterations < MAX_ITERATIONS && !state.rtgs_queue().is_empty() {
@@ -572,6 +635,28 @@ pub fn run_lsm_pass(
                 if let Ok(result) = settle_cycle(state, cycle, tick) {
                     total_settled_value += result.settled_value;
                     cycles_settled += 1;
+
+                    // Capture cycle event for persistence (Phase 4.2)
+                    let day = tick / ticks_per_day;
+                    let cycle_length = cycle.agents.len().saturating_sub(1); // Exclude duplicate agent
+                    let cycle_type = if cycle_length == 2 {
+                        "bilateral".to_string()
+                    } else {
+                        "multilateral".to_string()
+                    };
+
+                    let event = LsmCycleEvent {
+                        tick,
+                        day,
+                        cycle_type,
+                        cycle_length,
+                        agents: cycle.agents.clone(),
+                        transactions: cycle.transactions.clone(),
+                        settled_value: result.settled_value,
+                        total_value: cycle.total_value,
+                    };
+
+                    cycle_events.push(event);
                 }
             }
 
@@ -594,5 +679,6 @@ pub fn run_lsm_pass(
         final_queue_size: state.queue_size(),
         bilateral_offsets,
         cycles_settled,
+        cycle_events,
     }
 }

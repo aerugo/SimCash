@@ -94,6 +94,46 @@ class CheckpointListResponse(BaseModel):
     checkpoints: List[Dict[str, Any]]
 
 
+class AgentCostBreakdown(BaseModel):
+    """Cost breakdown for a single agent."""
+    liquidity_cost: int = Field(..., description="Overdraft cost in cents")
+    collateral_cost: int = Field(..., description="Collateral opportunity cost in cents")
+    delay_cost: int = Field(..., description="Queue 1 delay cost in cents")
+    split_friction_cost: int = Field(..., description="Transaction splitting cost in cents")
+    deadline_penalty: int = Field(..., description="Deadline miss penalties in cents")
+    total_cost: int = Field(..., description="Sum of all costs in cents")
+
+
+class CostResponse(BaseModel):
+    """Response model for GET /simulations/{id}/costs endpoint."""
+    simulation_id: str = Field(..., description="Simulation identifier")
+    tick: int = Field(..., description="Current tick number")
+    day: int = Field(..., description="Current day number")
+    agents: Dict[str, AgentCostBreakdown] = Field(..., description="Per-agent cost breakdowns")
+    total_system_cost: int = Field(..., description="Total cost across all agents in cents")
+
+
+class SystemMetrics(BaseModel):
+    """System-wide performance metrics."""
+    total_arrivals: int = Field(..., description="Total transactions arrived")
+    total_settlements: int = Field(..., description="Total transactions settled")
+    settlement_rate: float = Field(..., ge=0.0, le=1.0, description="Settlement rate (0.0-1.0)")
+    avg_delay_ticks: float = Field(..., description="Average settlement delay in ticks")
+    max_delay_ticks: int = Field(..., description="Maximum delay observed in ticks")
+    queue1_total_size: int = Field(..., description="Total transactions in agent queues")
+    queue2_total_size: int = Field(..., description="Total transactions in RTGS queue")
+    peak_overdraft: int = Field(..., description="Largest overdraft across all agents in cents")
+    agents_in_overdraft: int = Field(..., description="Number of agents with negative balance")
+
+
+class MetricsResponse(BaseModel):
+    """Response model for GET /simulations/{id}/metrics endpoint."""
+    simulation_id: str = Field(..., description="Simulation identifier")
+    tick: int = Field(..., description="Current tick number")
+    day: int = Field(..., description="Current day number")
+    metrics: SystemMetrics = Field(..., description="System-wide metrics")
+
+
 # ============================================================================
 # Simulation Manager (In-Memory State)
 # ============================================================================
@@ -164,13 +204,20 @@ class SimulationManager:
 
         # Collect agent states
         agents = {}
+
+        # Handle both YAML format ("agents") and FFI format ("agent_configs")
+        config = self.configs[sim_id]["original"]
+        agent_list = config.get("agents") or config.get("agent_configs")
+
         for agent_id in orch.get_agent_ids():
+            # Find agent config
+            agent_config = next((a for a in agent_list if a["id"] == agent_id), None)
+            credit_limit = agent_config["credit_limit"] if agent_config else 0
+
             agents[agent_id] = {
                 "balance": orch.get_agent_balance(agent_id),
                 "queue1_size": orch.get_queue1_size(agent_id),
-                "credit_limit": self.configs[sim_id]["original"]["agents"][
-                    next(i for i, a in enumerate(self.configs[sim_id]["original"]["agents"]) if a["id"] == agent_id)
-                ]["credit_limit"],
+                "credit_limit": credit_limit,
             }
 
         return {
@@ -278,12 +325,23 @@ manager = SimulationManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
-    # Startup
+    # Startup: Configure database if environment variable is set
+    import os
+    db_path = os.environ.get("PAYMENT_SIM_DB_PATH")
+    if db_path:
+        from payment_simulator.persistence.connection import DatabaseManager
+        app.state.db_manager = DatabaseManager(db_path)
+        app.state.db_manager.setup()
+        manager.db_manager = app.state.db_manager
+
     yield
-    # Shutdown: cleanup simulations
+
+    # Shutdown: cleanup simulations and close database
     manager.simulations.clear()
     manager.configs.clear()
     manager.transactions.clear()
+    if hasattr(app.state, 'db_manager') and app.state.db_manager:
+        app.state.db_manager.close()
 
 
 app = FastAPI(
@@ -734,6 +792,150 @@ def delete_checkpoint(checkpoint_id: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete checkpoint: {e}")
+
+
+# ============================================================================
+# Cost & Metrics Endpoints (Phase 8)
+# ============================================================================
+
+@app.get("/simulations/{sim_id}/costs", response_model=CostResponse)
+def get_simulation_costs(sim_id: str):
+    """
+    Get accumulated costs for all agents in a simulation.
+
+    Returns per-agent cost breakdown and total system cost.
+    All costs are in cents (i64).
+
+    ## Cost Types
+
+    - **Liquidity Cost**: Overdraft cost (negative balance × overdraft rate)
+    - **Collateral Cost**: Opportunity cost of pledged collateral
+    - **Delay Cost**: Queue 1 delay cost (transactions waiting × delay rate)
+    - **Split Friction Cost**: Cost of splitting divisible transactions
+    - **Deadline Penalty**: Penalties for missing transaction deadlines
+
+    ## Example Response
+
+    ```json
+    {
+      "simulation_id": "sim-001",
+      "tick": 150,
+      "day": 1,
+      "agents": {
+        "BANK_A": {
+          "liquidity_cost": 1000,
+          "collateral_cost": 500,
+          "delay_cost": 200,
+          "split_friction_cost": 50,
+          "deadline_penalty": 0,
+          "total_cost": 1750
+        }
+      },
+      "total_system_cost": 5000
+    }
+    ```
+    """
+    try:
+        # Get simulation
+        orchestrator = manager.get_simulation(sim_id)
+
+        # Get costs for all agents
+        agent_costs = {}
+        total_system_cost = 0
+
+        # Get agent list from config
+        config = manager.configs.get(sim_id, {}).get("original", {})
+        agent_configs = config.get("agents", [])
+
+        for agent_config in agent_configs:
+            agent_id = agent_config["id"]
+
+            # Get costs from FFI
+            costs_dict = orchestrator.get_agent_accumulated_costs(agent_id)
+
+            # Convert to Pydantic model
+            breakdown = AgentCostBreakdown(**costs_dict)
+            agent_costs[agent_id] = breakdown
+            total_system_cost += breakdown.total_cost
+
+        # Get current tick and day
+        current_tick = orchestrator.current_tick()
+        current_day = orchestrator.current_day()
+
+        return CostResponse(
+            simulation_id=sim_id,
+            tick=current_tick,
+            day=current_day,
+            agents=agent_costs,
+            total_system_cost=total_system_cost
+        )
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get("/simulations/{sim_id}/metrics", response_model=MetricsResponse)
+def get_simulation_metrics(sim_id: str):
+    """
+    Get comprehensive system-wide metrics for a simulation.
+
+    Returns settlement rates, delays, queue statistics, and liquidity usage.
+
+    ## Metrics
+
+    - **Settlement Rate**: Ratio of settled to arrived transactions (0.0-1.0)
+    - **Average Delay**: Mean time from arrival to settlement (ticks)
+    - **Queue Sizes**: Transactions waiting in agent queues (Queue 1) and RTGS queue (Queue 2)
+    - **Overdraft Usage**: Peak overdraft and number of agents in overdraft
+
+    ## Example Response
+
+    ```json
+    {
+      "simulation_id": "sim-001",
+      "tick": 150,
+      "day": 1,
+      "metrics": {
+        "total_arrivals": 1000,
+        "total_settlements": 950,
+        "settlement_rate": 0.95,
+        "avg_delay_ticks": 2.5,
+        "max_delay_ticks": 20,
+        "queue1_total_size": 45,
+        "queue2_total_size": 5,
+        "peak_overdraft": 500000,
+        "agents_in_overdraft": 3
+      }
+    }
+    ```
+    """
+    try:
+        # Get simulation
+        orchestrator = manager.get_simulation(sim_id)
+
+        # Get metrics from FFI
+        metrics_dict = orchestrator.get_system_metrics()
+
+        # Convert to Pydantic model
+        metrics = SystemMetrics(**metrics_dict)
+
+        # Get current tick and day
+        current_tick = orchestrator.current_tick()
+        current_day = orchestrator.current_day()
+
+        return MetricsResponse(
+            simulation_id=sim_id,
+            tick=current_tick,
+            day=current_day,
+            metrics=metrics
+        )
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
 
 # ============================================================================

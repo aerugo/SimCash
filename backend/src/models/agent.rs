@@ -129,7 +129,7 @@ impl Agent {
             outgoing_queue: Vec::new(),
             incoming_expected: Vec::new(),
             last_decision_tick: None,
-            liquidity_buffer: 0, // Default: no buffer requirement
+            liquidity_buffer: 0,  // Default: no buffer requirement
             posted_collateral: 0, // Default: no collateral posted
         }
     }
@@ -152,7 +152,10 @@ impl Agent {
     /// ```
     pub fn with_buffer(id: String, balance: i64, credit_limit: i64, liquidity_buffer: i64) -> Self {
         assert!(credit_limit >= 0, "credit_limit must be non-negative");
-        assert!(liquidity_buffer >= 0, "liquidity_buffer must be non-negative");
+        assert!(
+            liquidity_buffer >= 0,
+            "liquidity_buffer must be non-negative"
+        );
         Self {
             id,
             balance,
@@ -807,16 +810,10 @@ mod tests {
             "BANK_A".to_string(),
             "BANK_B".to_string(),
             400_000,
-            0,  // arrival
+            0,   // arrival
             100, // deadline
         );
-        let tx2 = Transaction::new(
-            "BANK_A".to_string(),
-            "BANK_B".to_string(),
-            600_000,
-            0,
-            100,
-        );
+        let tx2 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 600_000, 0, 100);
 
         let tx1_id = tx1.id().to_string();
         let tx2_id = tx2.id().to_string();
@@ -845,13 +842,7 @@ mod tests {
         ]);
 
         // Create transaction
-        let tx = Transaction::new(
-            "BANK_A".to_string(),
-            "BANK_B".to_string(),
-            900_000,
-            0,
-            100,
-        );
+        let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 900_000, 0, 100);
 
         let tx_id = tx.id().to_string();
         state.add_transaction(tx);

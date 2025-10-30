@@ -132,7 +132,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
             opening_balance: 300_000, // $3,000
             credit_limit: 0,
             policy: PolicyConfig::LiquidityAware {
-                target_buffer: 100_000,  // Keep at least $1,000
+                target_buffer: 100_000, // Keep at least $1,000
                 urgency_threshold: 5,
             },
             arrival_config: None,
@@ -219,7 +219,8 @@ fn test_multi_agent_different_json_policies() {
     };
 
     // Should successfully create orchestrator with all three JSON policies
-    let orchestrator = Orchestrator::new(config).expect("Failed to create multi-agent orchestrator");
+    let orchestrator =
+        Orchestrator::new(config).expect("Failed to create multi-agent orchestrator");
 
     // Verify all agents exist
     assert_eq!(orchestrator.get_agent_ids().len(), 3);

@@ -362,7 +362,7 @@ class TestCreateMigrationTemplate:
         content = filepath.read_text()
 
         assert "Migration" in content
-        assert "add column" in content  # Description
+        assert "add_column" in content  # Description (with underscore preserved)
         assert "ALTER TABLE" in content  # Example SQL
         assert "Pydantic model" in content  # Reminder
 

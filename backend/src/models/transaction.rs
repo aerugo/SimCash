@@ -530,14 +530,8 @@ mod tests {
 
     #[test]
     fn test_priority_capped_at_10() {
-        let tx = Transaction::new(
-            "BANK_A".to_string(),
-            "BANK_B".to_string(),
-            100000,
-            10,
-            50,
-        )
-        .with_priority(255); // Try to set > 10
+        let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50)
+            .with_priority(255); // Try to set > 10
 
         assert_eq!(tx.priority(), 10); // Should be capped at 10
     }

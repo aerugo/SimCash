@@ -1,12 +1,16 @@
 """Run command - Execute simulations from config files."""
 
+import json
 import time
+import uuid
 import yaml
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 from typing_extensions import Annotated
 
 import typer
+import polars as pl
 
 from payment_simulator.cli.output import (
     output_json,
@@ -76,6 +80,28 @@ def run_simulation(
             help="Verbose mode: show detailed events in real-time",
         ),
     ] = False,
+    persist: Annotated[
+        bool,
+        typer.Option(
+            "--persist",
+            "-p",
+            help="Persist transactions and metrics to database",
+        ),
+    ] = False,
+    db_path: Annotated[
+        str,
+        typer.Option(
+            "--db-path",
+            help="Database file path (default: simulation_data.db)",
+        ),
+    ] = "simulation_data.db",
+    simulation_id: Annotated[
+        Optional[str],
+        typer.Option(
+            "--simulation-id",
+            help="Custom simulation ID (auto-generated if not provided)",
+        ),
+    ] = None,
 ):
     """Run a simulation from a configuration file.
 
@@ -144,6 +170,57 @@ def run_simulation(
         create_time = time.time() - start_time
 
         log_success(f"Simulation created in {create_time:.3f}s", quiet)
+
+        # Initialize persistence if enabled
+        db_manager = None
+        sim_id = None
+        if persist:
+            from payment_simulator.persistence.connection import DatabaseManager
+            from payment_simulator.persistence.writers import (
+                write_transactions,
+                write_daily_agent_metrics,
+                write_policy_snapshots,
+            )
+            import hashlib
+            import json
+
+            sim_id = simulation_id or f"sim-{uuid.uuid4().hex[:8]}"
+            log_info(f"Persistence enabled (DB: {db_path}, ID: {sim_id})", quiet)
+
+            db_manager = DatabaseManager(db_path)
+
+            # Initialize schema if needed (idempotent - safe to call multiple times)
+            try:
+                # Try to validate first
+                if not db_manager.validate_schema():
+                    log_info("Schema incomplete, initializing...", quiet)
+                    db_manager.initialize_schema()
+            except Exception:
+                # If validation fails (e.g., tables don't exist), initialize
+                log_info("Initializing database schema...", quiet)
+                db_manager.initialize_schema()
+
+            # Capture initial policy snapshots (Phase 4: Policy Snapshot Tracking)
+            log_info("Capturing initial policy snapshots...", quiet)
+            policies = orch.get_agent_policies()
+            snapshots = []
+            for policy in policies:
+                policy_json = json.dumps(policy["policy_config"], sort_keys=True)
+                policy_hash = hashlib.sha256(policy_json.encode()).hexdigest()
+
+                snapshots.append({
+                    "simulation_id": sim_id,
+                    "agent_id": policy["agent_id"],
+                    "snapshot_day": 0,
+                    "snapshot_tick": 0,
+                    "policy_hash": policy_hash,
+                    "policy_json": policy_json,
+                    "created_by": "init",
+                })
+
+            if snapshots:
+                policy_count = write_policy_snapshots(db_manager.conn, snapshots)
+                log_info(f"  Persisted {policy_count} initial policy snapshots", quiet)
 
         # Run simulation
         if verbose:
@@ -273,6 +350,11 @@ def run_simulation(
             tick_results = []
             sim_start = time.time()
 
+            # Track days for persistence
+            ticks_per_day = ffi_dict["ticks_per_day"]
+            num_days = ffi_dict["num_days"]
+            current_tick = 0
+
             if not quiet:
                 with create_progress() as progress:
                     task = progress.add_task(
@@ -280,14 +362,148 @@ def run_simulation(
                         total=total_ticks
                     )
 
-                    for _ in range(total_ticks):
+                    for day in range(num_days):
+                        # Run ticks for this day
+                        for _ in range(ticks_per_day):
+                            result = orch.tick()
+                            tick_results.append(result)
+                            current_tick += 1
+                            progress.update(task, advance=1)
+
+                        # Persist at end of day if enabled
+                        if persist and db_manager:
+                            # Write transactions for this day
+                            txs = orch.get_transactions_for_day(day)
+                            if txs:
+                                tx_count = write_transactions(db_manager.conn, sim_id, txs)
+                                log_info(f"  Persisted {tx_count} transactions for day {day}", quiet)
+
+                            # Write agent metrics for this day
+                            metrics = orch.get_daily_agent_metrics(day)
+                            if metrics:
+                                metrics_count = write_daily_agent_metrics(db_manager.conn, sim_id, metrics)
+                                log_info(f"  Persisted {metrics_count} agent metrics for day {day}", quiet)
+
+                            # Write collateral events for this day (Phase 2.3)
+                            collateral_events = orch.get_collateral_events_for_day(day)
+                            if collateral_events:
+                                df = pl.DataFrame(collateral_events)
+                                db_manager.conn.execute("INSERT INTO collateral_events SELECT * FROM df")
+                                log_info(f"  Persisted {len(collateral_events)} collateral events for day {day}", quiet)
+
+                            # Write agent queue snapshots for this day (Phase 3.3)
+                            queue_snapshot_count = 0
+                            for agent_id in orch.get_agent_ids():
+                                queue_contents = orch.get_agent_queue1_contents(agent_id)
+                                if queue_contents:
+                                    queue_data = [
+                                        {
+                                            "simulation_id": sim_id,
+                                            "agent_id": agent_id,
+                                            "day": day,
+                                            "queue_type": "queue1",
+                                            "position": idx,
+                                            "transaction_id": tx_id,
+                                        }
+                                        for idx, tx_id in enumerate(queue_contents)
+                                    ]
+                                    df = pl.DataFrame(queue_data)
+                                    db_manager.conn.execute("INSERT INTO agent_queue_snapshots SELECT * FROM df")
+                                    queue_snapshot_count += len(queue_contents)
+                            if queue_snapshot_count > 0:
+                                log_info(f"  Persisted {queue_snapshot_count} queue snapshots for day {day}", quiet)
+
+                            # Write LSM cycles for this day (Phase 4.3)
+                            lsm_cycles = orch.get_lsm_cycles_for_day(day)
+                            if lsm_cycles:
+                                lsm_data = [
+                                    {
+                                        "simulation_id": sim_id,
+                                        "tick": cycle["tick"],
+                                        "day": cycle["day"],
+                                        "cycle_type": cycle["cycle_type"],
+                                        "cycle_length": cycle["cycle_length"],
+                                        "agents": json.dumps(cycle["agents"]),
+                                        "transactions": json.dumps(cycle["transactions"]),
+                                        "settled_value": cycle["settled_value"],
+                                        "total_value": cycle["total_value"],
+                                    }
+                                    for cycle in lsm_cycles
+                                ]
+                                df = pl.DataFrame(lsm_data)
+                                db_manager.conn.execute("INSERT INTO lsm_cycles (simulation_id, tick, day, cycle_type, cycle_length, agents, transactions, settled_value, total_value) SELECT simulation_id, tick, day, cycle_type, cycle_length, agents, transactions, settled_value, total_value FROM df")
+                                log_info(f"  Persisted {len(lsm_cycles)} LSM cycles for day {day}", quiet)
+            else:
+                for day in range(num_days):
+                    # Run ticks for this day
+                    for _ in range(ticks_per_day):
                         result = orch.tick()
                         tick_results.append(result)
-                        progress.update(task, advance=1)
-            else:
-                for _ in range(total_ticks):
-                    result = orch.tick()
-                    tick_results.append(result)
+                        current_tick += 1
+
+                    # Persist at end of day if enabled
+                    if persist and db_manager:
+                        # Write transactions for this day
+                        txs = orch.get_transactions_for_day(day)
+                        if txs:
+                            tx_count = write_transactions(db_manager.conn, sim_id, txs)
+                            log_info(f"  Persisted {tx_count} transactions for day {day}", quiet)
+
+                        # Write agent metrics for this day
+                        metrics = orch.get_daily_agent_metrics(day)
+                        if metrics:
+                            metrics_count = write_daily_agent_metrics(db_manager.conn, sim_id, metrics)
+                            log_info(f"  Persisted {metrics_count} agent metrics for day {day}", quiet)
+
+                        # Write collateral events for this day (Phase 2.3)
+                        collateral_events = orch.get_collateral_events_for_day(day)
+                        if collateral_events:
+                            df = pl.DataFrame(collateral_events)
+                            db_manager.conn.execute("INSERT INTO collateral_events SELECT * FROM df")
+                            log_info(f"  Persisted {len(collateral_events)} collateral events for day {day}", quiet)
+
+                        # Write agent queue snapshots for this day (Phase 3.3)
+                        queue_snapshot_count = 0
+                        for agent_id in orch.get_agent_ids():
+                            queue_contents = orch.get_agent_queue1_contents(agent_id)
+                            if queue_contents:
+                                queue_data = [
+                                    {
+                                        "simulation_id": sim_id,
+                                        "agent_id": agent_id,
+                                        "day": day,
+                                        "queue_type": "queue1",
+                                        "position": idx,
+                                        "transaction_id": tx_id,
+                                    }
+                                    for idx, tx_id in enumerate(queue_contents)
+                                ]
+                                df = pl.DataFrame(queue_data)
+                                db_manager.conn.execute("INSERT INTO agent_queue_snapshots SELECT * FROM df")
+                                queue_snapshot_count += len(queue_contents)
+                        if queue_snapshot_count > 0:
+                            log_info(f"  Persisted {queue_snapshot_count} queue snapshots for day {day}", quiet)
+
+                        # Write LSM cycles for this day (Phase 4.3)
+                        lsm_cycles = orch.get_lsm_cycles_for_day(day)
+                        if lsm_cycles:
+                            lsm_data = [
+                                {
+                                    "simulation_id": sim_id,
+                                    "tick": cycle["tick"],
+                                    "day": cycle["day"],
+                                    "cycle_type": cycle["cycle_type"],
+                                    "cycle_length": cycle["cycle_length"],
+                                    "agents": json.dumps(cycle["agents"]),
+                                    "transactions": json.dumps(cycle["transactions"]),
+                                    "settled_value": cycle["settled_value"],
+                                    "total_value": cycle["total_value"],
+                                }
+                                for cycle in lsm_cycles
+                            ]
+                            df = pl.DataFrame(lsm_data)
+                            db_manager.conn.execute("INSERT INTO lsm_cycles (simulation_id, tick, day, cycle_type, cycle_length, agents, transactions, settled_value, total_value) SELECT simulation_id, tick, day, cycle_type, cycle_length, agents, transactions, settled_value, total_value FROM df")
+                            log_info(f"  Persisted {len(lsm_cycles)} LSM cycles for day {day}", quiet)
 
             sim_duration = time.time() - sim_start
             ticks_per_second = total_ticks / sim_duration if sim_duration > 0 else 0
@@ -334,8 +550,74 @@ def run_simulation(
                 },
             }
 
+            # Persist simulation metadata if enabled
+            if persist and db_manager:
+                import hashlib
+                config_hash = hashlib.sha256(str(config_dict).encode()).hexdigest()
+
+                # Write simulation run record
+                # Calculate timestamps
+                end_time = datetime.now()
+                start_time_dt = end_time - timedelta(seconds=sim_duration)
+
+                db_manager.conn.execute("""
+                    INSERT INTO simulation_runs (
+                        simulation_id, config_name, config_hash, description,
+                        start_time, end_time,
+                        ticks_per_day, num_days, rng_seed,
+                        status, total_transactions
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    sim_id,
+                    config.name,
+                    config_hash,
+                    f"Simulation run from {config.name}",
+                    start_time_dt,
+                    end_time,
+                    ffi_dict["ticks_per_day"],
+                    ffi_dict["num_days"],
+                    ffi_dict["rng_seed"],
+                    "completed",
+                    total_arrivals,
+                ])
+
+                # NEW: Persist to simulations table (Phase 5 query interface)
+                # This enables list_simulations(), compare_simulations(), and other queries
+                db_manager.conn.execute("""
+                    INSERT INTO simulations (
+                        simulation_id, config_file, config_hash, rng_seed,
+                        ticks_per_day, num_days, num_agents,
+                        status, started_at, completed_at,
+                        total_arrivals, total_settlements, total_cost_cents,
+                        duration_seconds, ticks_per_second
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    sim_id,
+                    config.name,
+                    config_hash,
+                    ffi_dict["rng_seed"],
+                    ffi_dict["ticks_per_day"],
+                    ffi_dict["num_days"],
+                    len(agent_ids),
+                    "completed",
+                    start_time_dt,
+                    end_time,
+                    total_arrivals,
+                    total_settlements,
+                    total_costs,
+                    sim_duration,
+                    ticks_per_second,
+                ])
+
+                log_success(f"Simulation metadata persisted (ID: {sim_id})", quiet)
+
             # Output results
             if output_format.lower() == "json":
+                # Add simulation_id to output if persisted
+                if persist and sim_id:
+                    output_data["simulation"]["simulation_id"] = sim_id
+                    output_data["simulation"]["database"] = db_path
+
                 output_json(output_data)
             else:
                 log_error(f"Unsupported output format: {output_format}")

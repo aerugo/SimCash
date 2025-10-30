@@ -51,13 +51,14 @@ def get_database_manager() -> DatabaseManager:
 def save_checkpoint(
     simulation_id: str = typer.Option(..., "--simulation-id", "-s", help="Simulation ID for this checkpoint"),
     state_file: Path = typer.Option(..., "--state-file", "-f", help="Path to state JSON file from orchestrator.save_state()"),
+    config_file: Path = typer.Option(..., "--config", "-c", help="Path to simulation config YAML file"),
     description: Optional[str] = typer.Option(None, "--description", "-d", help="Human-readable description"),
     checkpoint_type: str = typer.Option("manual", "--type", "-t", help="Checkpoint type (manual/auto/eod/final)"),
 ):
     """Save simulation checkpoint to database.
 
     Example:
-        payment-sim checkpoint save --simulation-id sim_001 --state-file state.json --description "After 50 ticks"
+        payment-sim checkpoint save --simulation-id sim_001 --state-file state.json --config config.yaml --description "After 50 ticks"
     """
     try:
         # Validate inputs
@@ -75,6 +76,18 @@ def save_checkpoint(
         except json.JSONDecodeError as e:
             console.print(f"[red]Error: Invalid JSON in state file: {e}[/red]")
             raise typer.Exit(1)
+
+        # Load and validate config
+        if not config_file.exists():
+            console.print(f"[red]Error: Config file not found: {config_file}[/red]")
+            raise typer.Exit(1)
+
+        import yaml
+        from payment_simulator.config import SimulationConfig
+        with open(config_file, 'r') as f:
+            config_dict = yaml.safe_load(f)
+        config = SimulationConfig.from_dict(config_dict)
+        ffi_dict = config.to_ffi_dict()
 
         # Get database manager
         db_manager = get_database_manager()
@@ -104,6 +117,7 @@ def save_checkpoint(
         checkpoint_id = checkpoint_mgr.save_checkpoint(
             orchestrator=wrapper,
             simulation_id=simulation_id,
+            config=ffi_dict,
             checkpoint_type=checkpoint_type,
             description=description,
             created_by="cli"
@@ -184,8 +198,10 @@ def load_checkpoint(
                 raise typer.Exit(1)
 
         # Load orchestrator from checkpoint
+        # Note: Config now comes from the checkpoint database, not from the CLI parameter
+        # The CLI config parameter is kept for backwards compatibility but is not used for loading
         console.print("[yellow]Loading checkpoint...[/yellow]")
-        orch = checkpoint_mgr.load_checkpoint(actual_checkpoint_id, ffi_dict)
+        orch, loaded_config = checkpoint_mgr.load_checkpoint(actual_checkpoint_id)
 
         # Display restored state
         console.print(f"[green]✓ Simulation restored from checkpoint[/green]")
@@ -193,6 +209,7 @@ def load_checkpoint(
         console.print(f"  Simulation ID: [cyan]{checkpoint_record['simulation_id']}[/cyan]")
         console.print(f"  Tick: [yellow]{orch.current_tick()}[/yellow]")
         console.print(f"  Day: [yellow]{orch.current_day()}[/yellow]")
+        console.print(f"  Config loaded from checkpoint database")
 
         # Save to file if requested
         if output:

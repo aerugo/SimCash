@@ -39,9 +39,11 @@ def main(
 # Import commands after app is defined to avoid circular imports
 from payment_simulator.cli.commands.run import run_simulation
 from payment_simulator.cli.commands.checkpoint import checkpoint_app
+from payment_simulator.cli.commands.db import db_app
 
 app.command(name="run", help="Run a simulation from a configuration file")(run_simulation)
 app.add_typer(checkpoint_app, name="checkpoint")
+app.add_typer(db_app, name="db")
 
 
 if __name__ == "__main__":

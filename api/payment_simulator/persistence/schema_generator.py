@@ -184,21 +184,27 @@ def generate_full_schema_ddl() -> str:
         True
     """
     from .models import (
+        AgentQueueSnapshotRecord,
         CollateralEventRecord,
         DailyAgentMetricsRecord,
+        LsmCycleRecord,
         PolicySnapshotRecord,
         SimulationCheckpointRecord,
+        SimulationRecord,
         SimulationRunRecord,
         TransactionRecord,
     )
 
     models = [
+        SimulationRecord,
         SimulationRunRecord,
         TransactionRecord,
         DailyAgentMetricsRecord,
         CollateralEventRecord,
+        AgentQueueSnapshotRecord,
         PolicySnapshotRecord,
         SimulationCheckpointRecord,
+        LsmCycleRecord,
     ]
 
     ddl_parts = []

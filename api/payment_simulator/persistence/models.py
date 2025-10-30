@@ -123,6 +123,51 @@ class TransactionRecord(BaseModel):
 
 
 # ============================================================================
+# Simulation Metadata Record (Phase 5: Query Interface)
+# ============================================================================
+
+
+class SimulationRecord(BaseModel):
+    """Simulation metadata for query interface.
+
+    This table stores high-level metadata about each simulation run,
+    optimized for query and comparison operations in Phase 5.
+    """
+
+    model_config = ConfigDict(
+        table_name="simulations",
+        primary_key=["simulation_id"],
+        indexes=[
+            ("idx_sim_status", ["status"]),
+            ("idx_sim_started_at", ["started_at"]),
+        ],
+    )
+
+    # Identity
+    simulation_id: str = Field(..., description="Unique simulation identifier")
+    config_file: str = Field(..., description="Configuration file name")
+    config_hash: str = Field(..., description="SHA256 hash of configuration")
+    rng_seed: int = Field(..., description="RNG seed for determinism")
+
+    # Configuration
+    ticks_per_day: int = Field(..., description="Ticks per day")
+    num_days: int = Field(..., description="Number of simulated days")
+    num_agents: int = Field(..., description="Number of agents")
+
+    # Status
+    status: SimulationStatus = Field(..., description="Simulation status")
+    started_at: Optional[datetime] = Field(None, description="When simulation started")
+    completed_at: Optional[datetime] = Field(None, description="When simulation completed")
+
+    # Results (populated at end)
+    total_arrivals: Optional[int] = Field(None, description="Total transactions arrived")
+    total_settlements: Optional[int] = Field(None, description="Total transactions settled")
+    total_cost_cents: Optional[int] = Field(None, description="Total cost in cents")
+    duration_seconds: Optional[float] = Field(None, description="Wall-clock duration")
+    ticks_per_second: Optional[float] = Field(None, description="Simulation speed")
+
+
+# ============================================================================
 # Simulation Run Record
 # ============================================================================
 
@@ -260,6 +305,36 @@ class CollateralEventRecord(BaseModel):
 
 
 # ============================================================================
+# Agent Queue Snapshots (Phase 3: Queue Contents Persistence)
+# ============================================================================
+
+
+class AgentQueueSnapshotRecord(BaseModel):
+    """Agent queue contents snapshot for perfect state reconstruction.
+
+    Captures the exact contents of each agent's internal queue (Queue 1)
+    at end-of-day, preserving queue order via position field.
+    Added in Phase 3 (Queue Contents Persistence).
+    """
+
+    model_config = ConfigDict(
+        table_name="agent_queue_snapshots",
+        primary_key=["simulation_id", "agent_id", "day", "queue_type", "position"],
+        indexes=[
+            ("idx_queue_sim_agent_day", ["simulation_id", "agent_id", "day"]),
+            ("idx_queue_sim_day", ["simulation_id", "day"]),
+        ],
+    )
+
+    simulation_id: str = Field(..., description="Foreign key to simulations table")
+    agent_id: str = Field(..., description="Agent identifier")
+    day: int = Field(..., description="Day number", ge=0)
+    queue_type: str = Field(..., description="Queue type (queue1)")
+    position: int = Field(..., description="Position in queue (0-indexed)", ge=0)
+    transaction_id: str = Field(..., description="Transaction ID at this position")
+
+
+# ============================================================================
 # Policy Snapshots (Phase 4)
 # ============================================================================
 
@@ -355,3 +430,41 @@ class SimulationCheckpointRecord(BaseModel):
     num_agents: int = Field(..., description="Number of agents in snapshot")
     num_transactions: int = Field(..., description="Number of transactions in snapshot")
     total_size_bytes: int = Field(..., description="Total checkpoint size in bytes")
+
+
+# ============================================================================
+# LSM Cycle Events (Phase 4)
+# ============================================================================
+
+
+class LsmCycleRecord(BaseModel):
+    """LSM cycle event for analyzing liquidity-saving mechanisms.
+
+    Tracks every LSM cycle settled (bilateral offsets and multilateral cycles)
+    with full details about the cycle pattern and values.
+
+    Added in Phase 4 (LSM Cycle Persistence).
+    """
+
+    model_config = ConfigDict(
+        table_name="lsm_cycles",
+        primary_key=["id"],
+        indexes=[
+            ("idx_lsm_sim_day", ["simulation_id", "day"]),
+            ("idx_lsm_cycle_type", ["cycle_type"]),
+        ],
+    )
+
+    id: Optional[int] = Field(None, description="Auto-increment primary key")
+    simulation_id: str = Field(..., description="Foreign key to simulations table")
+    tick: int = Field(..., description="Tick when cycle was settled", ge=0)
+    day: int = Field(..., description="Day when cycle was settled", ge=0)
+
+    cycle_type: str = Field(..., description="Type of cycle: 'bilateral' or 'multilateral'")
+    cycle_length: int = Field(..., description="Number of agents in cycle (2 for bilateral, 3+ for multilateral)", ge=2)
+
+    agents: str = Field(..., description="JSON array of agent IDs in cycle")
+    transactions: str = Field(..., description="JSON array of transaction IDs in cycle")
+
+    settled_value: int = Field(..., description="Net value settled (cents)")
+    total_value: int = Field(..., description="Gross value before netting (cents)")

@@ -31,7 +31,10 @@ fn test_rng_different_seeds_different_sequences() {
     let val1 = rng1.next();
     let val2 = rng2.next();
 
-    assert_ne!(val1, val2, "Different seeds should produce different values");
+    assert_ne!(
+        val1, val2,
+        "Different seeds should produce different values"
+    );
 }
 
 #[test]
@@ -130,7 +133,10 @@ fn test_rng_produces_diverse_values() {
     }
 
     // Check that we got diverse values (not all the same)
-    let unique_count = values.iter().collect::<std::collections::HashSet<_>>().len();
+    let unique_count = values
+        .iter()
+        .collect::<std::collections::HashSet<_>>()
+        .len();
     assert!(
         unique_count > 90,
         "RNG not diverse enough: only {} unique values out of 100",

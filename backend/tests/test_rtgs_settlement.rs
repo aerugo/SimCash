@@ -51,15 +51,25 @@ fn test_immediate_settlement_with_sufficient_balance() {
     );
 
     // Should succeed
-    assert!(result.is_ok(), "Settlement should succeed with sufficient balance");
+    assert!(
+        result.is_ok(),
+        "Settlement should succeed with sufficient balance"
+    );
 
     // Check balances updated correctly
     assert_eq!(sender.balance(), 500_000, "Sender should be debited");
     assert_eq!(receiver.balance(), 500_000, "Receiver should be credited");
 
     // Check transaction marked as settled
-    assert!(transaction.is_fully_settled(), "Transaction should be fully settled");
-    assert_eq!(transaction.remaining_amount(), 0, "Remaining amount should be 0");
+    assert!(
+        transaction.is_fully_settled(),
+        "Transaction should be fully settled"
+    );
+    assert_eq!(
+        transaction.remaining_amount(),
+        0,
+        "Remaining amount should be 0"
+    );
 }
 
 #[test]
@@ -114,12 +124,27 @@ fn test_insufficient_liquidity_returns_error() {
     assert!(result.is_err(), "Settlement should fail");
 
     // Balances should be unchanged
-    assert_eq!(sender.balance(), 300_000, "Sender balance should be unchanged");
-    assert_eq!(receiver.balance(), 0, "Receiver balance should be unchanged");
+    assert_eq!(
+        sender.balance(),
+        300_000,
+        "Sender balance should be unchanged"
+    );
+    assert_eq!(
+        receiver.balance(),
+        0,
+        "Receiver balance should be unchanged"
+    );
 
     // Transaction should still be pending
-    assert!(!transaction.is_fully_settled(), "Transaction should not be settled");
-    assert_eq!(transaction.remaining_amount(), 900_000, "Full amount still pending");
+    assert!(
+        !transaction.is_fully_settled(),
+        "Transaction should not be settled"
+    );
+    assert_eq!(
+        transaction.remaining_amount(),
+        900_000,
+        "Full amount still pending"
+    );
 }
 
 #[test]
@@ -166,7 +191,10 @@ fn test_cannot_settle_already_settled_transaction() {
     );
 
     // Should fail with AlreadySettled error
-    assert!(result2.is_err(), "Cannot settle already settled transaction");
+    assert!(
+        result2.is_err(),
+        "Cannot settle already settled transaction"
+    );
 
     // Balances should not change on second attempt
     assert_eq!(sender.balance(), 500_000, "No double debit");
@@ -298,7 +326,11 @@ fn test_submit_transaction_settles_immediately() {
     assert_eq!(state.get_agent("BANK_B").unwrap().balance(), 500_000);
 
     // Verify queue is empty
-    assert_eq!(state.queue_size(), 0, "Queue should be empty after immediate settlement");
+    assert_eq!(
+        state.queue_size(),
+        0,
+        "Queue should be empty after immediate settlement"
+    );
 }
 
 #[test]
@@ -461,7 +493,10 @@ fn test_queue_fifo_ordering() {
 
     assert_eq!(result.settled_count, 1, "Should settle 1 transaction");
     assert_eq!(result.settled_value, 100_000, "Should settle tx1's amount");
-    assert_eq!(result.remaining_queue_size, 2, "2 transactions still queued");
+    assert_eq!(
+        result.remaining_queue_size, 2,
+        "2 transactions still queued"
+    );
 
     // Verify FIFO: tx1 settled, tx2 and tx3 still pending
     assert!(
@@ -497,7 +532,10 @@ fn test_queue_fifo_ordering() {
 
     assert_eq!(result2.settled_count, 1, "Should settle 1 more transaction");
     assert_eq!(result2.settled_value, 200_000, "Should settle tx2's amount");
-    assert_eq!(result2.remaining_queue_size, 1, "1 transaction still queued");
+    assert_eq!(
+        result2.remaining_queue_size, 1,
+        "1 transaction still queued"
+    );
 
     assert!(
         state.get_transaction(&tx2_id).unwrap().is_fully_settled(),
@@ -907,7 +945,10 @@ fn test_multiple_queue_processing_rounds() {
         // Verify progressive settlement (FIFO)
         for j in 0..=round {
             assert!(
-                state.get_transaction(&tx_ids[j]).unwrap().is_fully_settled(),
+                state
+                    .get_transaction(&tx_ids[j])
+                    .unwrap()
+                    .is_fully_settled(),
                 "tx{} should be settled after round {}",
                 j,
                 round
@@ -915,7 +956,10 @@ fn test_multiple_queue_processing_rounds() {
         }
         for j in (round + 1)..5 {
             assert!(
-                !state.get_transaction(&tx_ids[j]).unwrap().is_fully_settled(),
+                !state
+                    .get_transaction(&tx_ids[j])
+                    .unwrap()
+                    .is_fully_settled(),
                 "tx{} should still be pending after round {}",
                 j,
                 round

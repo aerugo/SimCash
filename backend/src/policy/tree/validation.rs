@@ -529,7 +529,11 @@ fn check_division_safety_in_node(node: &TreeNode, errors: &mut Vec<ValidationErr
     }
 }
 
-fn check_division_in_expression(expr: &Expression, node_id: &str, errors: &mut Vec<ValidationError>) {
+fn check_division_in_expression(
+    expr: &Expression,
+    node_id: &str,
+    errors: &mut Vec<ValidationError>,
+) {
     match expr {
         Expression::Equal { left, right }
         | Expression::NotEqual { left, right }
@@ -555,7 +559,11 @@ fn check_division_in_expression(expr: &Expression, node_id: &str, errors: &mut V
     }
 }
 
-fn check_division_in_computation(comp: &Computation, node_id: &str, errors: &mut Vec<ValidationError>) {
+fn check_division_in_computation(
+    comp: &Computation,
+    node_id: &str,
+    errors: &mut Vec<ValidationError>,
+) {
     match comp {
         Computation::Divide { left: _, right } => {
             // Check if right is a literal zero

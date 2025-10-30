@@ -5,8 +5,11 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
+use super::types::{
+    agent_metrics_to_py, collateral_event_to_py, parse_orchestrator_config, policy_config_to_py,
+    tick_result_to_py, transaction_to_py,
+};
 use crate::orchestrator::Orchestrator as RustOrchestrator;
-use super::types::{agent_metrics_to_py, parse_orchestrator_config, tick_result_to_py, transaction_to_py};
 
 /// Python wrapper for Rust Orchestrator
 ///
@@ -63,10 +66,12 @@ impl PyOrchestrator {
     fn new(config: &Bound<'_, PyDict>) -> PyResult<Self> {
         let rust_config = parse_orchestrator_config(config)?;
 
-        let inner = RustOrchestrator::new(rust_config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                format!("Failed to create orchestrator: {}", e)
-            ))?;
+        let inner = RustOrchestrator::new(rust_config).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to create orchestrator: {}",
+                e
+            ))
+        })?;
 
         Ok(PyOrchestrator { inner })
     }
@@ -98,10 +103,12 @@ impl PyOrchestrator {
     /// - `total_liquidity_cost`: Liquidity cost this tick
     /// - `total_delay_cost`: Delay cost this tick
     fn tick(&mut self, py: Python) -> PyResult<Py<PyDict>> {
-        let result = self.inner.tick()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                format!("Tick execution failed: {}", e)
-            ))?;
+        let result = self.inner.tick().map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Tick execution failed: {}",
+                e
+            ))
+        })?;
 
         tick_result_to_py(py, &result)
     }
@@ -189,6 +196,37 @@ impl PyOrchestrator {
         self.inner.get_queue2_size()
     }
 
+    /// Get contents of agent's internal queue (Queue 1)
+    ///
+    /// Returns a list of transaction IDs currently in the agent's
+    /// internal queue (Queue 1), preserving queue order.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    ///
+    /// # Returns
+    ///
+    /// List of transaction IDs (strings) in queue order, or empty list
+    /// if agent not found or queue is empty.
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// queue_contents = orch.get_agent_queue1_contents("BANK_A")
+    /// print(f"BANK_A Queue 1 has {len(queue_contents)} transactions:")
+    /// for tx_id in queue_contents:
+    ///     print(f"  - {tx_id}")
+    /// ```
+    ///
+    /// # Phase 3: Queue Contents Persistence
+    ///
+    /// This method enables Phase 3 queue persistence by providing access
+    /// to the actual transaction IDs in each agent's queue.
+    fn get_agent_queue1_contents(&self, agent_id: &str) -> Vec<String> {
+        self.inner.get_agent_queue1_contents(agent_id)
+    }
+
     /// Get list of all agent identifiers
     ///
     /// Returns all agent IDs configured in the simulation.
@@ -207,6 +245,56 @@ impl PyOrchestrator {
     /// ```
     fn get_agent_ids(&self) -> Vec<String> {
         self.inner.get_agent_ids()
+    }
+
+    /// Get LSM cycle events for a specific day (Phase 4)
+    ///
+    /// Returns all LSM cycle events (bilateral offsets and multilateral cycles)
+    /// that were settled during the specified day.
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - The day number to query (0-indexed)
+    ///
+    /// # Returns
+    ///
+    /// List of dictionaries, each containing:
+    /// - tick: int - Tick when cycle was settled
+    /// - day: int - Day when cycle was settled
+    /// - cycle_type: str - "bilateral" or "multilateral"
+    /// - cycle_length: int - Number of agents in cycle
+    /// - agents: list[str] - Agent IDs in cycle
+    /// - transactions: list[str] - Transaction IDs in cycle
+    /// - settled_value: int - Net value settled (cents)
+    /// - total_value: int - Gross value before netting (cents)
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// lsm_cycles = orch.get_lsm_cycles_for_day(0)
+    /// for cycle in lsm_cycles:
+    ///     agents_str = " → ".join(cycle["agents"])
+    ///     print(f"Cycle: {agents_str}")
+    ///     print(f"  Settled: ${cycle['settled_value'] / 100:.2f}")
+    /// ```
+    fn get_lsm_cycles_for_day(&self, py: Python, day: usize) -> PyResult<Vec<PyObject>> {
+        let events = self.inner.get_lsm_cycles_for_day(day);
+
+        let mut result = Vec::new();
+        for event in events {
+            let dict = PyDict::new(py);
+            dict.set_item("tick", event.tick)?;
+            dict.set_item("day", event.day)?;
+            dict.set_item("cycle_type", event.cycle_type)?;
+            dict.set_item("cycle_length", event.cycle_length)?;
+            dict.set_item("agents", event.agents)?;
+            dict.set_item("transactions", event.transactions)?;
+            dict.set_item("settled_value", event.settled_value)?;
+            dict.set_item("total_value", event.total_value)?;
+            result.push(dict.into());
+        }
+
+        Ok(result)
     }
 
     // ========================================================================
@@ -381,6 +469,75 @@ impl PyOrchestrator {
         Ok(py_list.into())
     }
 
+    /// Get agent policy configurations
+    ///
+    /// Returns policy configuration for each agent as specified in the
+    /// original simulation configuration. Used for policy snapshot tracking.
+    ///
+    /// # Returns (Python)
+    ///
+    /// List of dicts with structure:
+    /// ```python
+    /// [
+    ///     {
+    ///         "agent_id": "BANK_A",
+    ///         "policy_config": {"type": "Fifo"}
+    ///     },
+    ///     {
+    ///         "agent_id": "BANK_B",
+    ///         "policy_config": {
+    ///             "type": "LiquidityAware",
+    ///             "target_buffer": 500000,
+    ///             "urgency_threshold": 5
+    ///         }
+    ///     }
+    /// ]
+    /// ```
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// orch = Orchestrator.new(config)
+    ///
+    /// # Get policy configs
+    /// policies = orch.get_agent_policies()
+    /// for policy in policies:
+    ///     print(f"{policy['agent_id']}: {policy['policy_config']}")
+    ///
+    /// # Convert to policy snapshots with SHA256 hashing
+    /// import hashlib
+    /// import json
+    /// snapshots = []
+    /// for policy in policies:
+    ///     policy_json = json.dumps(policy['policy_config'], sort_keys=True)
+    ///     policy_hash = hashlib.sha256(policy_json.encode()).hexdigest()
+    ///     snapshots.append({
+    ///         "agent_id": policy['agent_id'],
+    ///         "policy_hash": policy_hash,
+    ///         "policy_json": policy_json,
+    ///         "created_by": "init"
+    ///     })
+    /// ```
+    fn get_agent_policies(&self, py: Python) -> PyResult<Py<PyList>> {
+        // Get policies from Rust orchestrator
+        let policies = self.inner.get_agent_policies();
+
+        // Convert each policy to Python dict
+        let py_list = PyList::empty(py);
+        for (agent_id, policy_config) in policies {
+            let policy_dict = PyDict::new(py);
+            policy_dict.set_item("agent_id", agent_id)?;
+
+            // Convert PolicyConfig to Python dict
+            let policy_config_dict = policy_config_to_py(py, &policy_config)?;
+            policy_dict.set_item("policy_config", policy_config_dict)?;
+
+            py_list.append(policy_dict)?;
+        }
+
+        Ok(py_list.into())
+    }
+
     // ========================================================================
     // Checkpoint Save/Load (Sprint 2: FFI Boundary)
     // ========================================================================
@@ -420,10 +577,12 @@ impl PyOrchestrator {
     ///     f.write(state_json)
     /// ```
     fn save_state(&self) -> PyResult<String> {
-        self.inner.save_state()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                format!("Failed to save state: {}", e)
+        self.inner.save_state().map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to save state: {}",
+                e
             ))
+        })
     }
 
     /// Load orchestrator from saved state JSON
@@ -465,10 +624,12 @@ impl PyOrchestrator {
     fn load_state(config: &Bound<'_, PyDict>, state_json: &str) -> PyResult<Self> {
         let rust_config = parse_orchestrator_config(config)?;
 
-        let inner = RustOrchestrator::load_state(rust_config, state_json)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                format!("Failed to load state: {}", e)
-            ))?;
+        let inner = RustOrchestrator::load_state(rust_config, state_json).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to load state: {}",
+                e
+            ))
+        })?;
 
         Ok(PyOrchestrator { inner })
     }
@@ -509,10 +670,12 @@ impl PyOrchestrator {
     fn get_checkpoint_info(py: Python, state_json: &str) -> PyResult<Py<PyDict>> {
         // Parse JSON to extract metadata
         let snapshot: crate::orchestrator::checkpoint::StateSnapshot =
-            serde_json::from_str(state_json)
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    format!("Failed to parse checkpoint JSON: {}", e)
-                ))?;
+            serde_json::from_str(state_json).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to parse checkpoint JSON: {}",
+                    e
+                ))
+            })?;
 
         // Create Python dict with metadata
         let info_dict = PyDict::new(py);
@@ -524,5 +687,156 @@ impl PyOrchestrator {
         info_dict.set_item("num_transactions", snapshot.transactions.len())?;
 
         Ok(info_dict.into())
+    }
+
+    /// Get collateral events for a specific day (Phase 10: Collateral Event Tracking)
+    ///
+    /// Returns all collateral management events that occurred during the specified day,
+    /// including strategic layer decisions and end-of-tick automatic postings.
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - Day number (0-indexed)
+    ///
+    /// # Returns
+    ///
+    /// List of dictionaries, each containing:
+    /// - `simulation_id`: Simulation identifier
+    /// - `agent_id`: Agent that made the decision
+    /// - `tick`: Tick when event occurred
+    /// - `day`: Day when event occurred
+    /// - `action`: Action taken ("post", "withdraw", or "hold")
+    /// - `amount`: Amount of collateral involved (i64 cents)
+    /// - `reason`: Reason for the action
+    /// - `layer`: Decision layer ("strategic" or "end_of_tick")
+    /// - `balance_before`: Agent balance before action
+    /// - `posted_collateral_before`: Posted collateral before action
+    /// - `posted_collateral_after`: Posted collateral after action
+    /// - `available_capacity_after`: Remaining capacity after action
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// collateral_events = orch.get_collateral_events_for_day(0)
+    ///
+    /// # Convert to Polars DataFrame
+    /// import polars as pl
+    /// df = pl.DataFrame(collateral_events)
+    ///
+    /// # Write to DuckDB
+    /// conn.execute("INSERT INTO collateral_events SELECT * FROM df")
+    /// ```
+    fn get_collateral_events_for_day(&self, py: Python, day: usize) -> PyResult<Py<PyList>> {
+        // Get events from Rust orchestrator
+        let events = self.inner.get_collateral_events_for_day(day);
+
+        // Get simulation ID for conversion
+        let simulation_id = self.inner.simulation_id();
+
+        // Convert each event to Python dict
+        let py_list = PyList::empty(py);
+        for event in events {
+            let event_dict = collateral_event_to_py(py, &event, &simulation_id)?;
+            py_list.append(event_dict)?;
+        }
+
+        Ok(py_list.into())
+    }
+
+    /// Get accumulated costs for a specific agent
+    ///
+    /// Returns cost breakdown including:
+    /// - Liquidity cost (overdraft)
+    /// - Collateral opportunity cost
+    /// - Delay cost (Queue 1)
+    /// - Split friction cost
+    /// - Deadline penalties
+    ///
+    /// All costs are in cents (i64).
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// Dictionary with cost breakdown:
+    /// - `liquidity_cost`: Overdraft cost (cents)
+    /// - `collateral_cost`: Collateral opportunity cost (cents)
+    /// - `delay_cost`: Queue delay cost (cents)
+    /// - `split_friction_cost`: Transaction splitting cost (cents)
+    /// - `deadline_penalty`: Deadline miss penalties (cents)
+    /// - `total_cost`: Sum of all costs (cents)
+    ///
+    /// # Errors
+    ///
+    /// Raises KeyError if agent_id not found
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// costs = orch.get_agent_accumulated_costs("BANK_A")
+    /// print(f"Total cost: ${costs['total_cost'] / 100:.2f}")
+    /// print(f"Liquidity: ${costs['liquidity_cost'] / 100:.2f}")
+    /// ```
+    fn get_agent_accumulated_costs(&self, py: Python, agent_id: String) -> PyResult<Py<PyDict>> {
+        let costs = self.inner.get_costs(&agent_id).ok_or_else(|| {
+            pyo3::exceptions::PyKeyError::new_err(format!("Agent not found: {}", agent_id))
+        })?;
+
+        let dict = PyDict::new(py);
+        dict.set_item("liquidity_cost", costs.total_liquidity_cost)?;
+        dict.set_item("collateral_cost", costs.total_collateral_cost)?;
+        dict.set_item("delay_cost", costs.total_delay_cost)?;
+        dict.set_item("split_friction_cost", costs.total_split_friction_cost)?;
+        dict.set_item("deadline_penalty", costs.total_penalty_cost)?;
+        dict.set_item("total_cost", costs.total())?;
+
+        Ok(dict.into())
+    }
+
+    /// Get comprehensive system-wide metrics
+    ///
+    /// Returns snapshot of current simulation health including:
+    /// - Settlement performance (rate, delays)
+    /// - Queue statistics
+    /// - Liquidity usage (overdrafts)
+    ///
+    /// # Returns
+    ///
+    /// Dictionary with system metrics:
+    /// - `total_arrivals`: Total transactions arrived
+    /// - `total_settlements`: Total transactions settled
+    /// - `settlement_rate`: Settlements / arrivals (0.0-1.0)
+    /// - `avg_delay_ticks`: Average settlement delay in ticks
+    /// - `max_delay_ticks`: Maximum delay observed
+    /// - `queue1_total_size`: Total transactions in agent queues
+    /// - `queue2_total_size`: Total transactions in RTGS queue
+    /// - `peak_overdraft`: Largest overdraft across all agents (cents)
+    /// - `agents_in_overdraft`: Number of agents with negative balance
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// metrics = orch.get_system_metrics()
+    /// print(f"Settlement rate: {metrics['settlement_rate']:.1%}")
+    /// print(f"Avg delay: {metrics['avg_delay_ticks']:.1f} ticks")
+    /// print(f"Agents in overdraft: {metrics['agents_in_overdraft']}")
+    /// ```
+    fn get_system_metrics(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let metrics = self.inner.calculate_system_metrics();
+
+        let dict = PyDict::new(py);
+        dict.set_item("total_arrivals", metrics.total_arrivals)?;
+        dict.set_item("total_settlements", metrics.total_settlements)?;
+        dict.set_item("settlement_rate", metrics.settlement_rate)?;
+        dict.set_item("avg_delay_ticks", metrics.avg_delay_ticks)?;
+        dict.set_item("max_delay_ticks", metrics.max_delay_ticks)?;
+        dict.set_item("queue1_total_size", metrics.queue1_total_size)?;
+        dict.set_item("queue2_total_size", metrics.queue2_total_size)?;
+        dict.set_item("peak_overdraft", metrics.peak_overdraft)?;
+        dict.set_item("agents_in_overdraft", metrics.agents_in_overdraft)?;
+
+        Ok(dict.into())
     }
 }

@@ -27,7 +27,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
 
     if ticks_per_day == 0 {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "ticks_per_day must be positive"
+            "ticks_per_day must be positive",
         ));
     }
 
@@ -88,7 +88,9 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
 
     let opening_balance: i64 = py_agent
         .get_item("opening_balance")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'opening_balance'"))?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'opening_balance'")
+        })?
         .extract()?;
 
     let credit_limit: i64 = py_agent
@@ -134,9 +136,11 @@ fn parse_policy_config(py_policy: &Bound<'_, PyDict>) -> PyResult<PolicyConfig> 
         "Deadline" => {
             let urgency_threshold: usize = py_policy
                 .get_item("urgency_threshold")?
-                .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "Deadline policy requires 'urgency_threshold'"
-                ))?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "Deadline policy requires 'urgency_threshold'",
+                    )
+                })?
                 .extract()?;
 
             Ok(PolicyConfig::Deadline { urgency_threshold })
@@ -144,16 +148,20 @@ fn parse_policy_config(py_policy: &Bound<'_, PyDict>) -> PyResult<PolicyConfig> 
         "LiquidityAware" => {
             let target_buffer: i64 = py_policy
                 .get_item("target_buffer")?
-                .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "LiquidityAware policy requires 'target_buffer'"
-                ))?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "LiquidityAware policy requires 'target_buffer'",
+                    )
+                })?
                 .extract()?;
 
             let urgency_threshold: usize = py_policy
                 .get_item("urgency_threshold")?
-                .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "LiquidityAware policy requires 'urgency_threshold'"
-                ))?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "LiquidityAware policy requires 'urgency_threshold'",
+                    )
+                })?
                 .extract()?;
 
             Ok(PolicyConfig::LiquidityAware {
@@ -164,16 +172,20 @@ fn parse_policy_config(py_policy: &Bound<'_, PyDict>) -> PyResult<PolicyConfig> 
         "LiquiditySplitting" => {
             let max_splits: usize = py_policy
                 .get_item("max_splits")?
-                .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "LiquiditySplitting policy requires 'max_splits'"
-                ))?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "LiquiditySplitting policy requires 'max_splits'",
+                    )
+                })?
                 .extract()?;
 
             let min_split_amount: i64 = py_policy
                 .get_item("min_split_amount")?
-                .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "LiquiditySplitting policy requires 'min_split_amount'"
-                ))?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "LiquiditySplitting policy requires 'min_split_amount'",
+                    )
+                })?
                 .extract()?;
 
             Ok(PolicyConfig::LiquiditySplitting {
@@ -181,10 +193,61 @@ fn parse_policy_config(py_policy: &Bound<'_, PyDict>) -> PyResult<PolicyConfig> 
                 min_split_amount,
             })
         }
-        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            format!("Unknown policy type: {}", policy_type)
-        )),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown policy type: {}",
+            policy_type
+        ))),
     }
+}
+
+/// Convert PolicyConfig to Python dict
+///
+/// Reverse of parse_policy_config - converts Rust PolicyConfig enum
+/// to Python dictionary format.
+///
+/// # Example
+///
+/// PolicyConfig::Fifo → {"type": "Fifo"}
+/// PolicyConfig::LiquidityAware { target_buffer: 500000, urgency_threshold: 5 }
+///   → {"type": "LiquidityAware", "target_buffer": 500000, "urgency_threshold": 5}
+pub fn policy_config_to_py(py: Python, policy: &PolicyConfig) -> PyResult<Py<PyDict>> {
+    let dict = PyDict::new(py);
+
+    match policy {
+        PolicyConfig::Fifo => {
+            dict.set_item("type", "Fifo")?;
+        }
+        PolicyConfig::Deadline { urgency_threshold } => {
+            dict.set_item("type", "Deadline")?;
+            dict.set_item("urgency_threshold", urgency_threshold)?;
+        }
+        PolicyConfig::LiquidityAware {
+            target_buffer,
+            urgency_threshold,
+        } => {
+            dict.set_item("type", "LiquidityAware")?;
+            dict.set_item("target_buffer", target_buffer)?;
+            dict.set_item("urgency_threshold", urgency_threshold)?;
+        }
+        PolicyConfig::LiquiditySplitting {
+            max_splits,
+            min_split_amount,
+        } => {
+            dict.set_item("type", "LiquiditySplitting")?;
+            dict.set_item("max_splits", max_splits)?;
+            dict.set_item("min_split_amount", min_split_amount)?;
+        }
+        PolicyConfig::MockSplitting { num_splits } => {
+            dict.set_item("type", "MockSplitting")?;
+            dict.set_item("num_splits", num_splits)?;
+        }
+        PolicyConfig::FromJson { json } => {
+            dict.set_item("type", "FromJson")?;
+            dict.set_item("json", json)?;
+        }
+    }
+
+    Ok(dict.into())
 }
 
 /// Convert Python dict to ArrivalConfig
@@ -196,7 +259,9 @@ fn parse_arrival_config(py_arrivals: &Bound<'_, PyDict>) -> PyResult<ArrivalConf
 
     let py_dist: Bound<'_, PyDict> = py_arrivals
         .get_item("amount_distribution")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'amount_distribution'"))?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'amount_distribution'")
+        })?
         .downcast_into()?;
 
     let amount_distribution = parse_amount_distribution(&py_dist)?;
@@ -204,7 +269,9 @@ fn parse_arrival_config(py_arrivals: &Bound<'_, PyDict>) -> PyResult<ArrivalConf
     // Parse counterparty weights
     let py_weights: Bound<'_, PyDict> = py_arrivals
         .get_item("counterparty_weights")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'counterparty_weights'"))?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'counterparty_weights'")
+        })?
         .downcast_into()?;
 
     let mut counterparty_weights = HashMap::new();
@@ -215,17 +282,18 @@ fn parse_arrival_config(py_arrivals: &Bound<'_, PyDict>) -> PyResult<ArrivalConf
     }
 
     // Parse deadline_range (tuple or list of 2 elements)
-    let deadline_range: (usize, usize) = if let Some(range_item) = py_arrivals.get_item("deadline_range")? {
-        let range_list: Vec<usize> = range_item.extract()?;
-        if range_list.len() != 2 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "deadline_range must have exactly 2 elements [min, max]"
-            ));
-        }
-        (range_list[0], range_list[1])
-    } else {
-        (10, 50) // Default range
-    };
+    let deadline_range: (usize, usize) =
+        if let Some(range_item) = py_arrivals.get_item("deadline_range")? {
+            let range_list: Vec<usize> = range_item.extract()?;
+            if range_list.len() != 2 {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "deadline_range must have exactly 2 elements [min, max]",
+                ));
+            }
+            (range_list[0], range_list[1])
+        } else {
+            (10, 50) // Default range
+        };
 
     // Parse priority (default 5 if not provided)
     let priority: u8 = py_arrivals
@@ -255,46 +323,67 @@ fn parse_arrival_config(py_arrivals: &Bound<'_, PyDict>) -> PyResult<ArrivalConf
 fn parse_amount_distribution(py_dist: &Bound<'_, PyDict>) -> PyResult<AmountDistribution> {
     let dist_type: String = py_dist
         .get_item("type")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing distribution 'type'"))?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing distribution 'type'")
+        })?
         .extract()?;
 
     match dist_type.as_str() {
         "Normal" => {
-            let mean: i64 = py_dist.get_item("mean")?.ok_or_else(||
-                PyErr::new::<pyo3::exceptions::PyValueError, _>("Normal requires 'mean'")
-            )?.extract()?;
+            let mean: i64 = py_dist
+                .get_item("mean")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Normal requires 'mean'")
+                })?
+                .extract()?;
 
-            let std_dev: i64 = py_dist.get_item("std_dev")?.ok_or_else(||
-                PyErr::new::<pyo3::exceptions::PyValueError, _>("Normal requires 'std_dev'")
-            )?.extract()?;
+            let std_dev: i64 = py_dist
+                .get_item("std_dev")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Normal requires 'std_dev'")
+                })?
+                .extract()?;
 
             Ok(AmountDistribution::Normal { mean, std_dev })
         }
         "LogNormal" => {
-            let mean: f64 = py_dist.get_item("mean")?.ok_or_else(||
-                PyErr::new::<pyo3::exceptions::PyValueError, _>("LogNormal requires 'mean'")
-            )?.extract()?;
+            let mean: f64 = py_dist
+                .get_item("mean")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("LogNormal requires 'mean'")
+                })?
+                .extract()?;
 
-            let std_dev: f64 = py_dist.get_item("std_dev")?.ok_or_else(||
-                PyErr::new::<pyo3::exceptions::PyValueError, _>("LogNormal requires 'std_dev'")
-            )?.extract()?;
+            let std_dev: f64 = py_dist
+                .get_item("std_dev")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("LogNormal requires 'std_dev'")
+                })?
+                .extract()?;
 
             Ok(AmountDistribution::LogNormal { mean, std_dev })
         }
         "Uniform" => {
-            let min: i64 = py_dist.get_item("min")?.ok_or_else(||
-                PyErr::new::<pyo3::exceptions::PyValueError, _>("Uniform requires 'min'")
-            )?.extract()?;
+            let min: i64 = py_dist
+                .get_item("min")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Uniform requires 'min'")
+                })?
+                .extract()?;
 
-            let max: i64 = py_dist.get_item("max")?.ok_or_else(||
-                PyErr::new::<pyo3::exceptions::PyValueError, _>("Uniform requires 'max'")
-            )?.extract()?;
+            let max: i64 = py_dist
+                .get_item("max")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Uniform requires 'max'")
+                })?
+                .extract()?;
 
             Ok(AmountDistribution::Uniform { min, max })
         }
-        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            format!("Unknown distribution type: {}", dist_type)
-        )),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown distribution type: {}",
+            dist_type
+        ))),
     }
 }
 
@@ -513,12 +602,21 @@ pub fn agent_metrics_to_py(
     dict.set_item("peak_overdraft", metrics.peak_overdraft)?;
 
     // Collateral management (Phase 8)
-    dict.set_item("opening_posted_collateral", metrics.opening_posted_collateral)?;
-    dict.set_item("closing_posted_collateral", metrics.closing_posted_collateral)?;
+    dict.set_item(
+        "opening_posted_collateral",
+        metrics.opening_posted_collateral,
+    )?;
+    dict.set_item(
+        "closing_posted_collateral",
+        metrics.closing_posted_collateral,
+    )?;
     dict.set_item("peak_posted_collateral", metrics.peak_posted_collateral)?;
     dict.set_item("collateral_capacity", metrics.collateral_capacity)?;
     dict.set_item("num_collateral_posts", metrics.num_collateral_posts)?;
-    dict.set_item("num_collateral_withdrawals", metrics.num_collateral_withdrawals)?;
+    dict.set_item(
+        "num_collateral_withdrawals",
+        metrics.num_collateral_withdrawals,
+    )?;
 
     // Transaction counts
     dict.set_item("num_arrivals", metrics.num_arrivals)?;
@@ -538,6 +636,58 @@ pub fn agent_metrics_to_py(
     dict.set_item("split_friction_cost", metrics.split_friction_cost)?;
     dict.set_item("deadline_penalty_cost", metrics.deadline_penalty_cost)?;
     dict.set_item("total_cost", metrics.total_cost)?;
+
+    Ok(dict.into())
+}
+
+/// Convert CollateralEvent to Python dict
+///
+/// Maps Rust CollateralEvent struct to Python dict with snake_case keys
+/// matching the Pydantic CollateralEventRecord schema.
+///
+/// # Arguments
+///
+/// * `py` - Python GIL token
+/// * `event` - CollateralEvent to convert
+/// * `simulation_id` - Simulation identifier
+///
+/// # Returns
+///
+/// PyDict with collateral event data
+pub fn collateral_event_to_py(
+    py: Python,
+    event: &crate::models::CollateralEvent,
+    simulation_id: &str,
+) -> PyResult<Py<PyDict>> {
+    let dict = PyDict::new(py);
+
+    dict.set_item("simulation_id", simulation_id)?;
+    dict.set_item("agent_id", &event.agent_id)?;
+    dict.set_item("tick", event.tick)?;
+    dict.set_item("day", event.day)?;
+
+    // Convert enum to string
+    let action_str = match event.action {
+        crate::models::CollateralAction::Post => "post",
+        crate::models::CollateralAction::Withdraw => "withdraw",
+        crate::models::CollateralAction::Hold => "hold",
+    };
+    dict.set_item("action", action_str)?;
+
+    dict.set_item("amount", event.amount)?;
+    dict.set_item("reason", &event.reason)?;
+
+    // Convert enum to string
+    let layer_str = match event.layer {
+        crate::models::CollateralLayer::Strategic => "strategic",
+        crate::models::CollateralLayer::EndOfTick => "end_of_tick",
+    };
+    dict.set_item("layer", layer_str)?;
+
+    dict.set_item("balance_before", event.balance_before)?;
+    dict.set_item("posted_collateral_before", event.posted_collateral_before)?;
+    dict.set_item("posted_collateral_after", event.posted_collateral_after)?;
+    dict.set_item("available_capacity_after", event.available_capacity_after)?;
 
     Ok(dict.into())
 }

@@ -13,19 +13,26 @@
 
 use payment_simulator_core_rs::{
     orchestrator::{AgentConfig, Orchestrator, OrchestratorConfig, PolicyConfig},
-    CostRates,
     settlement::LsmConfig,
+    CostRates,
 };
 
 // Helper to create minimal test config with specific credit limit
-fn create_test_config(agent_id: &str, credit_limit: i64, opening_balance: i64, policy_json: &str) -> OrchestratorConfig {
+fn create_test_config(
+    agent_id: &str,
+    credit_limit: i64,
+    opening_balance: i64,
+    policy_json: &str,
+) -> OrchestratorConfig {
     OrchestratorConfig {
         agent_configs: vec![
             AgentConfig {
                 id: agent_id.to_string(),
                 opening_balance,
                 credit_limit,
-                policy: PolicyConfig::FromJson { json: policy_json.to_string() },
+                policy: PolicyConfig::FromJson {
+                    json: policy_json.to_string(),
+                },
                 arrival_config: None,
                 posted_collateral: None,
             },
@@ -122,7 +129,11 @@ fn test_posting_exactly_at_capacity_succeeds() {
 
     let final_state = orch.state();
     let agent = final_state.get_agent("BANK_A").unwrap();
-    assert_eq!(agent.posted_collateral(), 100_000, "Should have posted exactly capacity");
+    assert_eq!(
+        agent.posted_collateral(),
+        100_000,
+        "Should have posted exactly capacity"
+    );
 
     let available_capacity = agent.max_collateral_capacity() - agent.posted_collateral();
     assert_eq!(available_capacity, 0, "Should have zero remaining capacity");
@@ -250,11 +261,18 @@ fn test_withdrawing_all_collateral_succeeds() {
     let mut orch = Orchestrator::new(config).unwrap();
 
     let result = orch.tick();
-    assert!(result.is_ok(), "Should succeed withdrawing all posted collateral");
+    assert!(
+        result.is_ok(),
+        "Should succeed withdrawing all posted collateral"
+    );
 
     let final_state = orch.state();
     let agent = final_state.get_agent("BANK_A").unwrap();
-    assert_eq!(agent.posted_collateral(), 0, "Should have zero posted collateral after withdrawing all");
+    assert_eq!(
+        agent.posted_collateral(),
+        0,
+        "Should have zero posted collateral after withdrawing all"
+    );
 }
 
 #[test]
@@ -285,7 +303,11 @@ fn test_withdrawing_with_no_posted_collateral_is_noop() {
     let agent = final_state.get_agent("BANK_A").unwrap();
 
     // Should remain at 0 (can't go negative)
-    assert_eq!(agent.posted_collateral(), 0, "Should remain at zero when withdrawing from zero");
+    assert_eq!(
+        agent.posted_collateral(),
+        0,
+        "Should remain at zero when withdrawing from zero"
+    );
 }
 
 // =============================================================================
@@ -417,7 +439,8 @@ fn test_posting_collateral_increases_credit_limit() {
     assert!(
         final_liquidity > initial_liquidity,
         "Posting collateral should increase available liquidity: {} -> {}",
-        initial_liquidity, final_liquidity
+        initial_liquidity,
+        final_liquidity
     );
 }
 
@@ -449,7 +472,11 @@ fn test_withdrawing_collateral_decreases_credit_limit() {
     let mid_state = orch.state();
     let mid_agent = mid_state.get_agent("BANK_A").unwrap();
     let mid_liquidity = mid_agent.available_liquidity();
-    assert_eq!(mid_agent.posted_collateral(), 50_000, "Should have posted 50k");
+    assert_eq!(
+        mid_agent.posted_collateral(),
+        50_000,
+        "Should have posted 50k"
+    );
 
     // Now withdraw (we'd need to change policy or use a different approach)
     // For this test, just verify the posted amount affects liquidity
@@ -498,7 +525,8 @@ fn test_collateral_costs_accrue_per_tick() {
     assert!(
         cost2 > cost1,
         "Collateral costs should accrue per tick: {} -> {}",
-        cost1, cost2
+        cost1,
+        cost2
     );
 }
 
@@ -543,7 +571,9 @@ fn test_capacity_invariant_maintained() {
         posted + available,
         total_capacity,
         "Invariant violated: posted ({}) + available ({}) should equal capacity ({})",
-        posted, available, total_capacity
+        posted,
+        available,
+        total_capacity
     );
 }
 
@@ -572,7 +602,9 @@ fn test_cross_agent_collateral_isolation() {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000,
                 credit_limit: 10_000,
-                policy: PolicyConfig::FromJson { json: policy_a.to_string() },
+                policy: PolicyConfig::FromJson {
+                    json: policy_a.to_string(),
+                },
                 arrival_config: None,
                 posted_collateral: None,
             },
@@ -599,8 +631,16 @@ fn test_cross_agent_collateral_isolation() {
     let agent_a = state.get_agent("BANK_A").unwrap();
     let agent_b = state.get_agent("BANK_B").unwrap();
 
-    assert_eq!(agent_a.posted_collateral(), 40_000, "Agent A should have posted collateral");
-    assert_eq!(agent_b.posted_collateral(), 0, "Agent B should have no posted collateral");
+    assert_eq!(
+        agent_a.posted_collateral(),
+        40_000,
+        "Agent A should have posted collateral"
+    );
+    assert_eq!(
+        agent_b.posted_collateral(),
+        0,
+        "Agent B should have no posted collateral"
+    );
 }
 
 // =============================================================================
@@ -649,7 +689,10 @@ fn test_posting_collateral_enables_transaction_settlement() {
         .expect("Should submit transaction");
 
     let result = orch.tick();
-    assert!(result.is_ok(), "Tick should succeed with collateral posting");
+    assert!(
+        result.is_ok(),
+        "Tick should succeed with collateral posting"
+    );
 
     let tick_result = result.unwrap();
     assert!(
@@ -683,7 +726,9 @@ fn test_hold_collateral_action_is_noop() {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000,
                 credit_limit: 10_000,
-                policy: PolicyConfig::FromJson { json: policy_json.to_string() },
+                policy: PolicyConfig::FromJson {
+                    json: policy_json.to_string(),
+                },
                 arrival_config: None,
                 posted_collateral: Some(20_000), // Start with some posted
             },
