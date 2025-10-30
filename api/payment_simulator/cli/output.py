@@ -208,6 +208,7 @@ def log_tick_summary(arrivals: int, settlements: int, lsm: int, queued: int):
     if queued > 0:
         parts.append(f"[yellow]{queued} queued[/yellow]")
 
+    console.print()
     console.print(f"  Summary: {' | '.join(parts)}")
 
 
@@ -242,6 +243,7 @@ def log_transaction_arrivals(orch, events, quiet=False):
     if not arrival_events:
         return
 
+    console.print()
     console.print(f"📥 [cyan]{len(arrival_events)} transaction(s) arrived:[/cyan]")
 
     for event in arrival_events:
@@ -268,10 +270,8 @@ def log_transaction_arrivals(orch, events, quiet=False):
 
         amount_str = f"${amount / 100:,.2f}"
 
-        console.print(
-            f"   • TX {tx_id}: {sender} → {receiver} | "
-            f"{amount_str} | {priority_str} | ⏰ Tick {deadline}"
-        )
+        console.print(f"   • TX {tx_id}: {sender} → {receiver}")
+        console.print(f"     {amount_str} | {priority_str} | ⏰ Tick {deadline}")
 
 
 def log_settlement_details(orch, events, tick, quiet=False):
@@ -311,6 +311,7 @@ def log_settlement_details(orch, events, tick, quiet=False):
         return
 
     # Display header with total settlements
+    console.print()
     total = total_settlements + len(lsm_bilateral) + len(lsm_cycles)
     console.print(f"✅ [green]{total} transaction(s) settled:[/green]")
     console.print()
@@ -323,9 +324,7 @@ def log_settlement_details(orch, events, tick, quiet=False):
             sender = event.get("sender_id", "unknown")
             receiver = event.get("receiver_id", "unknown")
             amount = event.get("amount", 0)
-            console.print(
-                f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f}"
-            )
+            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f}")
         console.print()
 
     # LSM bilateral offsets
@@ -429,19 +428,12 @@ def log_agent_queues_detailed(orch, agent_id, balance, balance_change, quiet=Fal
             if tx:
                 total_value += tx.get("remaining_amount", 0)
 
-        console.print(
-            f"     Queue 1 ({len(queue1_contents)} transactions, "
-            f"${total_value / 100:,.2f} total):"
-        )
+        console.print(f"     Queue 1 ({len(queue1_contents)} transactions, ${total_value / 100:,.2f} total):")
         for tx_id in queue1_contents:
             tx = orch.get_transaction_details(tx_id)
             if tx:
                 priority_str = f"P:{tx['priority']}"
-                console.print(
-                    f"     • TX {tx_id[:8]} → {tx['receiver_id']}: "
-                    f"${tx['remaining_amount'] / 100:,.2f} | {priority_str} | "
-                    f"⏰ Tick {tx['deadline_tick']}"
-                )
+                console.print(f"     • TX {tx_id[:8]} → {tx['receiver_id']}: ${tx['remaining_amount'] / 100:,.2f} | {priority_str} | ⏰ Tick {tx['deadline_tick']}")
         console.print()
 
     # Queue 2 (RTGS) - filter for this agent's transactions
@@ -459,18 +451,11 @@ def log_agent_queues_detailed(orch, agent_id, balance, balance_change, quiet=Fal
             if tx:
                 total_value += tx.get("remaining_amount", 0)
 
-        console.print(
-            f"     Queue 2 - RTGS ({len(agent_rtgs_txs)} transactions, "
-            f"${total_value / 100:,.2f}):"
-        )
+        console.print(f"     Queue 2 - RTGS ({len(agent_rtgs_txs)} transactions, ${total_value / 100:,.2f}):")
         for tx_id in agent_rtgs_txs:
             tx = orch.get_transaction_details(tx_id)
             if tx:
-                console.print(
-                    f"     • TX {tx_id[:8]} → {tx['receiver_id']}: "
-                    f"${tx['remaining_amount'] / 100:,.2f} | P:{tx['priority']} | "
-                    f"⏰ Tick {tx['deadline_tick']}"
-                )
+                console.print(f"     • TX {tx_id[:8]} → {tx['receiver_id']}: ${tx['remaining_amount'] / 100:,.2f} | P:{tx['priority']} | ⏰ Tick {tx['deadline_tick']}")
         console.print()
 
     # Collateral
@@ -509,6 +494,7 @@ def log_policy_decisions(events, quiet=False):
     if not policy_events:
         return
 
+    console.print()
     console.print(f"🎯 [blue]Policy Decisions ({len(policy_events)}):[/blue]")
 
     # Group by agent
@@ -520,7 +506,7 @@ def log_policy_decisions(events, quiet=False):
         by_agent[agent_id].append(event)
 
     for agent_id, agent_events in by_agent.items():
-        console.print(f"   {agent_id}:")
+        console.print(f"   [bold]{agent_id}:[/bold]")
         for event in agent_events:
             event_type = event.get("event_type")
             tx_id = event.get("tx_id", "unknown")[:8]
@@ -529,19 +515,13 @@ def log_policy_decisions(events, quiet=False):
                 console.print(f"   • [green]SUBMIT[/green]: TX {tx_id}")
             elif event_type == "PolicyHold":
                 reason = event.get("reason", "no reason")
-                console.print(
-                    f"   • [yellow]HOLD[/yellow]: TX {tx_id} - {reason}"
-                )
+                console.print(f"   • [yellow]HOLD[/yellow]: TX {tx_id} - {reason}")
             elif event_type == "PolicyDrop":
                 reason = event.get("reason", "no reason")
-                console.print(
-                    f"   • [red]DROP[/red]: TX {tx_id} - {reason}"
-                )
+                console.print(f"   • [red]DROP[/red]: TX {tx_id} - {reason}")
             elif event_type == "PolicySplit":
                 num_splits = event.get("num_splits", 0)
-                console.print(
-                    f"   • [magenta]SPLIT[/magenta]: TX {tx_id} → {num_splits} children"
-                )
+                console.print(f"   • [magenta]SPLIT[/magenta]: TX {tx_id} → {num_splits} children")
         console.print()
 
 
@@ -571,6 +551,7 @@ def log_collateral_activity(events, quiet=False):
     if not collateral_events:
         return
 
+    console.print()
     console.print(f"💰 [yellow]Collateral Activity ({len(collateral_events)}):[/yellow]")
 
     # Group by agent
@@ -582,7 +563,7 @@ def log_collateral_activity(events, quiet=False):
         by_agent[agent_id].append(event)
 
     for agent_id, agent_events in by_agent.items():
-        console.print(f"   {agent_id}:")
+        console.print(f"   [bold]{agent_id}:[/bold]")
         for event in agent_events:
             event_type = event.get("event_type")
             amount = event.get("amount", 0)
@@ -590,15 +571,9 @@ def log_collateral_activity(events, quiet=False):
             new_total = event.get("new_total", 0)
 
             if event_type == "CollateralPost":
-                console.print(
-                    f"   • [green]POSTED[/green]: ${amount / 100:,.2f} - "
-                    f"{reason} | New Total: ${new_total / 100:,.2f}"
-                )
+                console.print(f"   • [green]POSTED[/green]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
             else:
-                console.print(
-                    f"   • [yellow]WITHDRAWN[/yellow]: ${amount / 100:,.2f} - "
-                    f"{reason} | New Total: ${new_total / 100:,.2f}"
-                )
+                console.print(f"   • [yellow]WITHDRAWN[/yellow]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
         console.print()
 
 
@@ -654,6 +629,7 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
     if total_cost == 0:
         return
 
+    console.print()
     console.print(f"💰 [yellow]Costs Accrued This Tick: ${total_cost / 100:,.2f}[/yellow]")
     console.print()
 
@@ -706,6 +682,7 @@ def log_lsm_cycle_visualization(events, quiet=False):
     if total_cycles == 0:
         return
 
+    console.print()
     console.print(f"🔄 [magenta]LSM Cycles ({total_cycles}):[/magenta]")
     console.print()
 
