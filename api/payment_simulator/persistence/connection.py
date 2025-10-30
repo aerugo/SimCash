@@ -107,11 +107,35 @@ class DatabaseManager:
 
         print("  ✓ Schema initialized")
 
-    def validate_schema(self) -> bool:
+    def is_initialized(self) -> bool:
+        """Check if database has been initialized (has our tables).
+
+        Returns:
+            True if at least one of our core tables exists, False otherwise
+
+        Examples:
+            >>> manager = DatabaseManager(":memory:")
+            >>> manager.is_initialized()
+            False
+            >>> manager.initialize_schema()
+            >>> manager.is_initialized()
+            True
+        """
+        try:
+            # Check if transactions table exists (our core table)
+            self.conn.execute("SELECT 1 FROM transactions LIMIT 1")
+            return True
+        except Exception:
+            return False
+
+    def validate_schema(self, quiet: bool = False) -> bool:
         """Validate that database schema matches Pydantic models.
 
         Checks each model's table against the actual database schema.
         Prints validation results for each table.
+
+        Args:
+            quiet: If True, suppress success messages (only show errors)
 
         Returns:
             True if all tables valid, False if any mismatches found
@@ -133,7 +157,8 @@ class DatabaseManager:
               ✓ simulation_runs
             False
         """
-        print("Validating database schema...")
+        if not quiet:
+            print("Validating database schema...")
 
         models = [
             TransactionRecord,
@@ -150,12 +175,14 @@ class DatabaseManager:
             if not is_valid:
                 all_valid = False
                 table_name = model.model_config.get("table_name", "unknown")
-                print(f"  ✗ {table_name}:")
-                for error in errors:
-                    print(f"      {error}")
+                if not quiet:
+                    print(f"  ✗ {table_name}:")
+                    for error in errors:
+                        print(f"      {error}")
             else:
                 table_name = model.model_config.get("table_name", "unknown")
-                print(f"  ✓ {table_name}")
+                if not quiet:
+                    print(f"  ✓ {table_name}")
 
         return all_valid
 
