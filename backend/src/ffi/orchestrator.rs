@@ -839,4 +839,245 @@ impl PyOrchestrator {
 
         Ok(dict.into())
     }
+
+    // ========================================================================
+    // Verbose CLI Query Methods (Enhanced Monitoring)
+    // ========================================================================
+
+    /// Get all events that occurred during a specific tick
+    ///
+    /// Returns detailed event log entries for arrivals, settlements,
+    /// policy decisions, collateral actions, and LSM cycles.
+    ///
+    /// # Arguments
+    ///
+    /// * `tick` - Tick number to query
+    ///
+    /// # Returns
+    ///
+    /// List of event dictionaries with structure:
+    /// - "event_type": str - Event type (Arrival, Settlement, PolicySubmit, etc.)
+    /// - "tick": int - Tick number
+    /// - Additional fields specific to event type
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// events = orch.get_tick_events(42)
+    /// for event in events:
+    ///     if event["event_type"] == "Arrival":
+    ///         print(f"TX {event['tx_id']}: {event['sender_id']} → {event['receiver_id']}")
+    /// ```
+    fn get_tick_events(&self, py: Python, tick: usize) -> PyResult<Py<PyList>> {
+        let events = self.inner.get_tick_events(tick);
+
+        let py_list = PyList::empty(py);
+        for event in events {
+            let event_dict = PyDict::new(py);
+
+            // Set common fields
+            event_dict.set_item("event_type", event.event_type())?;
+            event_dict.set_item("tick", event.tick())?;
+
+            // Set event-specific fields based on event type
+            match event {
+                crate::models::event::Event::Arrival { tx_id, sender_id, receiver_id, amount, deadline, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                    event_dict.set_item("receiver_id", receiver_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("deadline", deadline)?;
+                }
+                crate::models::event::Event::PolicySubmit { agent_id, tx_id, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                }
+                crate::models::event::Event::PolicyHold { agent_id, tx_id, reason, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("reason", reason)?;
+                }
+                crate::models::event::Event::PolicyDrop { agent_id, tx_id, reason, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("reason", reason)?;
+                }
+                crate::models::event::Event::PolicySplit { agent_id, tx_id, num_splits, child_ids, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("num_splits", num_splits)?;
+                    event_dict.set_item("child_ids", child_ids)?;
+                }
+                crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("reason", reason)?;
+                    event_dict.set_item("new_total", new_total)?;
+                }
+                crate::models::event::Event::CollateralWithdraw { agent_id, amount, reason, new_total, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("reason", reason)?;
+                    event_dict.set_item("new_total", new_total)?;
+                }
+                crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                    event_dict.set_item("receiver_id", receiver_id)?;
+                    event_dict.set_item("amount", amount)?;
+                }
+                crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                }
+                crate::models::event::Event::LsmBilateralOffset { tx_id_a, tx_id_b, amount, .. } => {
+                    event_dict.set_item("tx_id_a", tx_id_a)?;
+                    event_dict.set_item("tx_id_b", tx_id_b)?;
+                    event_dict.set_item("amount", amount)?;
+                }
+                crate::models::event::Event::LsmCycleSettlement { tx_ids, cycle_value, .. } => {
+                    event_dict.set_item("tx_ids", tx_ids)?;
+                    event_dict.set_item("cycle_value", cycle_value)?;
+                }
+                crate::models::event::Event::CostAccrual { agent_id, costs, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    // Convert CostBreakdown to dict
+                    let costs_dict = PyDict::new(py);
+                    costs_dict.set_item("overdraft_cost", costs.overdraft_cost)?;
+                    costs_dict.set_item("delay_penalty", costs.delay_penalty)?;
+                    costs_dict.set_item("split_fee", costs.split_fee)?;
+                    event_dict.set_item("costs", costs_dict)?;
+                }
+                crate::models::event::Event::EndOfDay { day, unsettled_count, total_penalties, .. } => {
+                    event_dict.set_item("day", day)?;
+                    event_dict.set_item("unsettled_count", unsettled_count)?;
+                    event_dict.set_item("total_penalties", total_penalties)?;
+                }
+            }
+
+            py_list.append(event_dict)?;
+        }
+
+        Ok(py_list.into())
+    }
+
+    /// Get full details for a specific transaction
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_id` - Transaction identifier
+    ///
+    /// # Returns
+    ///
+    /// Dictionary with:
+    /// - id: str
+    /// - sender_id: str
+    /// - receiver_id: str
+    /// - amount: int (cents)
+    /// - remaining_amount: int (cents)
+    /// - arrival_tick: int
+    /// - deadline_tick: int
+    /// - priority: int (0-10)
+    /// - status: str (Pending, Settled, etc.)
+    ///
+    /// Returns None if transaction not found.
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// tx = orch.get_transaction_details("tx_12345")
+    /// if tx:
+    ///     print(f"{tx['sender_id']} → {tx['receiver_id']}: ${tx['amount'] / 100:.2f}")
+    /// ```
+    fn get_transaction_details(&self, py: Python, tx_id: String) -> PyResult<Option<Py<PyDict>>> {
+        if let Some(tx) = self.inner.get_transaction(&tx_id) {
+            let dict = PyDict::new(py);
+            dict.set_item("id", tx.id())?;
+            dict.set_item("sender_id", tx.sender_id())?;
+            dict.set_item("receiver_id", tx.receiver_id())?;
+            dict.set_item("amount", tx.amount())?;
+            dict.set_item("remaining_amount", tx.remaining_amount())?;
+            dict.set_item("arrival_tick", tx.arrival_tick())?;
+            dict.set_item("deadline_tick", tx.deadline_tick())?;
+            dict.set_item("priority", tx.priority())?;
+
+            // Convert status to string
+            let status_str = match tx.status() {
+                crate::models::transaction::TransactionStatus::Pending => "Pending",
+                crate::models::transaction::TransactionStatus::PartiallySettled { .. } => "PartiallySettled",
+                crate::models::transaction::TransactionStatus::Settled { .. } => "Settled",
+                crate::models::transaction::TransactionStatus::Dropped { .. } => "Dropped",
+            };
+            dict.set_item("status", status_str)?;
+
+            Ok(Some(dict.into()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get list of transaction IDs in RTGS queue (Queue 2)
+    ///
+    /// Returns transaction IDs in the central RTGS queue waiting
+    /// for liquidity to become available.
+    ///
+    /// # Returns
+    ///
+    /// List of transaction IDs (strings) in queue order
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// rtgs_queue = orch.get_rtgs_queue_contents()
+    /// print(f"RTGS Queue has {len(rtgs_queue)} transactions")
+    /// ```
+    fn get_rtgs_queue_contents(&self) -> Vec<String> {
+        self.inner.get_rtgs_queue_contents()
+    }
+
+    /// Get agent's credit limit
+    ///
+    /// Returns the maximum credit/overdraft amount available to an agent.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// Credit limit in cents, or None if agent not found
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// limit = orch.get_agent_credit_limit("BANK_A")
+    /// if limit:
+    ///     print(f"Credit limit: ${limit / 100:,.2f}")
+    /// ```
+    fn get_agent_credit_limit(&self, agent_id: String) -> Option<i64> {
+        self.inner.get_agent_credit_limit(&agent_id)
+    }
+
+    /// Get agent's currently posted collateral
+    ///
+    /// Returns the amount of collateral currently posted by an agent.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// Posted collateral in cents, or None if agent not found
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// collateral = orch.get_agent_collateral_posted("BANK_A")
+    /// if collateral:
+    ///     print(f"Collateral posted: ${collateral / 100:,.2f}")
+    /// ```
+    fn get_agent_collateral_posted(&self, agent_id: String) -> Option<i64> {
+        self.inner.get_agent_collateral_posted(&agent_id)
+    }
 }
