@@ -1,0 +1,213 @@
+{
+  "version": "1.0",
+  "policy_id": "agile_regional_bank_v2",
+  "description": "An adaptive, cost-optimizing policy. It makes decisions by comparing explicit delay, overdraft, and penalty costs. Uses splitting and reactive collateral to manage liquidity.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "split_threshold": 100000.0,
+    "min_split_amount": 25000.0,
+    "max_splits": 8.0,
+    "safety_margin": 1.1
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "ARB-N1-IsEODRush",
+    "description": "Is it the EOD rush? If so, release everything.",
+    "condition": {
+      "op": "==",
+      "left": {"field": "is_eod_rush"},
+      "right": {"value": 1.0}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "ARB-A1-PanicRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "ARB-N2-IsUrgent",
+      "description": "Not EOD. Is it urgent (or already past deadline)?",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "ticks_to_deadline"},
+        "right": {"param": "urgency_threshold"}
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "ARB-N3-UrgentCostBenefit",
+        "description": "It's urgent. Is the deadline penalty CHEAPER than the overdraft cost to settle?",
+        "condition": {
+          "op": "<",
+          "left": {"field": "cost_deadline_penalty"},
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": {"field": "cost_overdraft_this_amount_one_tick"},
+              "right": {"field": "ticks_to_deadline"}
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "ARB-A2-HoldAcceptPenalty",
+          "action": "Hold",
+          "parameters": {"reason": {"value": "PenaltyCheaperThanCredit"}}
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "ARB-A3-ReleaseUrgent",
+          "action": "Release"
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "ARB-N4-CanAfford",
+        "description": "Not urgent. Can we afford to send it now?",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "available_liquidity"},
+          "right": {"field": "remaining_amount"}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "ARB-A4-ReleaseAfford",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "ARB-N5-CostBenefitHold",
+          "description": "Cannot afford. Is it cheaper to hold than use credit?",
+          "condition": {
+            "op": "<",
+            "left": {"field": "cost_delay_this_tx_one_tick"},
+            "right": {"field": "cost_overdraft_this_amount_one_tick"}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "ARB-A5-HoldCheap",
+            "action": "Hold",
+            "parameters": {"reason": {"value": "DelayMoreEconomical"}}
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "ARB-N6-CanSplit",
+            "description": "Expensive to hold. Can we split it?",
+            "condition": {
+              "op": "and",
+              "conditions": [
+                {
+                  "op": ">",
+                  "left": {"field": "remaining_amount"},
+                  "right": {"param": "split_threshold"}
+                },
+                {
+                  "op": ">",
+                  "left": {"field": "available_liquidity"},
+                  "right": {"param": "min_split_amount"}
+                }
+              ]
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "ARB-A6-SplitPayment",
+              "action": "Split",
+              "parameters": {
+                "num_splits": {
+                  "compute": {
+                    "op": "min",
+                    "values": [
+                      {"param": "max_splits"},
+                      {
+                        "compute": {
+                          "op": "max",
+                          "values": [
+                            {"value": 2.0},
+                            {
+                              "compute": {
+                                "op": "/",
+                                "left": {"field": "remaining_amount"},
+                                "right": {"field": "available_liquidity"}
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "ARB-A7-HoldNoLiquidity",
+              "action": "Hold",
+              "parameters": {"reason": {"value": "InsufficientLiquidity"}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "ARB-SC1-Hold",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "ARB-EC1-CheckGap",
+    "description": "Am I in trouble? (Gap > 0)",
+    "condition": {
+      "op": ">",
+      "left": {"field": "queue1_liquidity_gap"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "ARB-EC2-PostToCover",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "min",
+            "values": [
+              {"field": "remaining_collateral_capacity"},
+              {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "queue1_liquidity_gap"},
+                  "right": {"param": "safety_margin"}
+                }
+              }
+            ]
+          }
+        },
+        "reason": {"value": "DeadlineEmergency"}
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "ARB-EC3-CheckWithdraw",
+      "description": "No gap. Can I withdraw excess collateral?",
+      "condition": {
+        "op": ">",
+        "left": {"field": "posted_collateral"},
+        "right": {"value": 0.0}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "ARB-EC4-WithdrawAll",
+        "action": "WithdrawCollateral",
+        "parameters": {
+          "amount": {"field": "posted_collateral"},
+          "reason": {"value": "LiquidityRestored"}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "ARB-EC5-Hold",
+        "action": "HoldCollateral"
+      }
+    }
+  }
+}

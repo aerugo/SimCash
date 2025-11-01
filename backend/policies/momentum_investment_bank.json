@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "policy_id": "momentum_investment_bank_v2",
+  "description": "Aggressive, system-aware policy. Releases almost everything, but holds trivial payments and pauses submissions if the central RTGS queue is congested.",
+  "parameters": {
+    "trivial_priority_threshold": 3.0,
+    "trivial_amount_threshold": 10000.0,
+    "congestion_threshold": 50.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "MIB-N1-IsEODRush",
+    "description": "Is it the EOD rush? Release everything, even trivial.",
+    "condition": {
+      "op": "==",
+      "left": {"field": "is_eod_rush"},
+      "right": {"value": 1.0}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "MIB-A1-ReleaseEOD",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "MIB-N2-IsTrivial",
+      "description": "Is this payment trivial (low priority AND low value)?",
+      "condition": {
+        "op": "and",
+        "conditions": [
+          {
+            "op": "<",
+            "left": {"field": "priority"},
+            "right": {"param": "trivial_priority_threshold"}
+          },
+          {
+            "op": "<",
+            "left": {"field": "remaining_amount"},
+            "right": {"param": "trivial_amount_threshold"}
+          }
+        ]
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "MIB-A2-HoldTrivial",
+        "action": "Hold",
+        "parameters": {"reason": {"value": "LowPriority"}}
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "MIB-N3-IsSystemCongested",
+        "description": "Not trivial. Is the RTGS system congested?",
+        "condition": {
+          "op": ">",
+          "left": {"field": "rtgs_queue_size"},
+          "right": {"param": "congestion_threshold"}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "MIB-A3-HoldCongestion",
+          "action": "Hold",
+          "parameters": {
+            "reason": {"value": "Custom"}
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "MIB-A4-ReleaseAggressive",
+          "action": "Release"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "MIB-SC1-Hold",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "MIB-EC1-Hold",
+    "action": "HoldCollateral"
+  }
+}
