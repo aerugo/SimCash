@@ -7,3 +7,6 @@ mod test_cost_context;
 
 #[cfg(test)]
 mod test_system_context;
+
+#[cfg(test)]
+mod test_phase_9_5_integration;

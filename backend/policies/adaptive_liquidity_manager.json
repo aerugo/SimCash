@@ -1,0 +1,378 @@
+{
+  "version": "1.0",
+  "policy_id": "adaptive_liquidity_gridlock_manager",
+  "description": "Complex realistic policy demonstrating cost-aware, time-based, and gridlock-aware strategies (Phase 9.5 Integration)",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "C1_EOD_CHECK",
+    "description": "EOD Rush Detection - Most urgent priority",
+    "condition": {
+      "op": "==",
+      "left": { "field": "is_eod_rush" },
+      "right": { "value": 1.0 }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "C2_EOD_DEADLINE",
+      "description": "In EOD rush: Check if past deadline",
+      "condition": {
+        "op": "<=",
+        "left": { "field": "ticks_to_deadline" },
+        "right": { "value": 0.0 }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "A1_EOD_URGENT_RELEASE",
+        "action": "Release",
+        "comment": "EOD + past deadline: MUST release to avoid double penalty"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "C3_EOD_SUFFICIENT_LIQUIDITY",
+        "description": "Check if we have enough liquidity",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "available_liquidity" },
+          "right": { "field": "remaining_amount" }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "A2_EOD_RELEASE",
+          "action": "Release",
+          "comment": "EOD + sufficient funds: Release to avoid EOD penalty"
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "C4_EOD_CREDIT_AVAILABLE",
+          "description": "Can we use credit?",
+          "condition": {
+            "op": ">",
+            "left": { "field": "credit_limit" },
+            "right": { "value": 0.0 }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "A3_EOD_RELEASE_WITH_CREDIT",
+            "action": "ReleaseWithCredit",
+            "comment": "EOD + insufficient funds: Use credit to avoid EOD penalty"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "A4_EOD_HOLD",
+            "action": "Hold",
+            "parameters": {
+              "reason": { "value": "InsufficientLiquidityEOD" }
+            },
+            "comment": "EOD but no options: Hold and take EOD penalty"
+          }
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "C5_DEADLINE_URGENT",
+      "description": "Not EOD: Check if deadline is urgent (< 5 ticks)",
+      "condition": {
+        "op": "<=",
+        "left": { "field": "ticks_to_deadline" },
+        "right": { "value": 5.0 }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "C6_URGENT_HAS_LIQUIDITY",
+        "description": "Urgent deadline: Check liquidity",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "available_liquidity" },
+          "right": { "field": "remaining_amount" }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "A5_URGENT_RELEASE",
+          "action": "Release",
+          "comment": "Urgent + sufficient funds: Release immediately"
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "C7_URGENT_COST_COMPARISON",
+          "description": "Urgent: Compare deadline penalty vs overdraft cost",
+          "condition": {
+            "op": "<",
+            "left": { "field": "cost_deadline_penalty" },
+            "right": { "field": "cost_overdraft_this_amount_one_tick" }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "A6_URGENT_HOLD_CHEAPER",
+            "action": "Hold",
+            "parameters": {
+              "reason": { "value": "DeadlinePenaltyCheaperThanOverdraft" }
+            },
+            "comment": "Urgent but deadline penalty < overdraft: Hold and take penalty"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "A7_URGENT_RELEASE_WITH_CREDIT",
+            "action": "ReleaseWithCredit",
+            "comment": "Urgent + overdraft cheaper than penalty: Use credit"
+          }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "C8_LATE_DAY_CHECK",
+        "description": "Not urgent: Check if late in day (> 60% progress)",
+        "condition": {
+          "op": ">",
+          "left": { "field": "day_progress_fraction" },
+          "right": { "value": 0.6 }
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "C9_LATE_DAY_LIQUIDITY",
+          "description": "Late day: Be more aggressive",
+          "condition": {
+            "op": ">=",
+            "left": { "field": "available_liquidity" },
+            "right": { "field": "remaining_amount" }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "A8_LATE_DAY_RELEASE",
+            "action": "Release",
+            "comment": "Late day + funds available: Release proactively"
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "C10_LATE_DAY_COST_CHECK",
+            "description": "Check if delay cost exceeds overdraft cost",
+            "condition": {
+              "op": ">",
+              "left": { "field": "cost_delay_this_tx_one_tick" },
+              "right": { "field": "cost_overdraft_this_amount_one_tick" }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "A9_LATE_DAY_RELEASE_CREDIT",
+              "action": "ReleaseWithCredit",
+              "comment": "Late day + delay expensive: Use credit"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "A10_LATE_DAY_HOLD",
+              "action": "Hold",
+              "parameters": {
+                "reason": { "value": "WaitingForLiquidity" }
+              },
+              "comment": "Late day + delay cheap: Hold for better timing"
+            }
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "C11_EARLY_DAY_STRATEGY",
+          "description": "Early day (< 60%): Conservative strategy",
+          "condition": {
+            "op": ">=",
+            "left": { "field": "available_liquidity" },
+            "right": {
+              "compute": {
+                "op": "*",
+                "left": { "field": "remaining_amount" },
+                "right": { "value": 1.5 }
+              }
+            }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "A11_EARLY_DAY_RELEASE",
+            "action": "Release",
+            "comment": "Early day + strong liquidity buffer (1.5x): Release"
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "C12_HIGH_PRIORITY",
+            "description": "Check if high priority transaction",
+            "condition": {
+              "op": ">=",
+              "left": { "field": "priority" },
+              "right": { "value": 8.0 }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "A12_HIGH_PRIORITY_RELEASE",
+              "action": "Release",
+              "comment": "Early day + high priority: Release despite conservative mode"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "A13_EARLY_DAY_HOLD",
+              "action": "Hold",
+              "parameters": {
+                "reason": { "value": "ConservativeEarlyDay" }
+              },
+              "comment": "Early day + normal priority: Hold for optimal timing"
+            }
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC1_QUEUE_GAP_CHECK",
+    "description": "Strategic collateral: Check if Queue 1 has liquidity gap",
+    "condition": {
+      "op": ">",
+      "left": { "field": "queue1_liquidity_gap" },
+      "right": { "value": 0.0 }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "SC2_EOD_APPROACHING",
+      "description": "Gap exists: Check if EOD is approaching",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "day_progress_fraction" },
+        "right": { "value": 0.7 }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "SC3_CAPACITY_AVAILABLE",
+        "description": "EOD approaching: Check if we have collateral capacity",
+        "condition": {
+          "op": ">",
+          "left": { "field": "remaining_collateral_capacity" },
+          "right": { "field": "queue1_liquidity_gap" }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "SCA1_POST_GAP_AMOUNT",
+          "action": "PostCollateral",
+          "parameters": {
+            "amount": {
+              "compute": {
+                "op": "max",
+                "values": [
+                  { "field": "queue1_liquidity_gap" },
+                  { "value": 0.0 }
+                ]
+              }
+            },
+            "reason": { "value": "EODLiquidityGap" }
+          },
+          "comment": "EOD + gap + capacity: Post exact gap amount"
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "SC4_POST_WHAT_WE_CAN",
+          "description": "Post whatever capacity we have",
+          "condition": {
+            "op": ">",
+            "left": { "field": "remaining_collateral_capacity" },
+            "right": { "value": 0.0 }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "SCA2_POST_AVAILABLE",
+            "action": "PostCollateral",
+            "parameters": {
+              "amount": { "field": "remaining_collateral_capacity" },
+              "reason": { "value": "PartialEODGap" }
+            },
+            "comment": "EOD + gap > capacity: Post all remaining capacity"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "SCA3_HOLD_NO_CAPACITY",
+            "action": "HoldCollateral",
+            "comment": "No collateral capacity remaining"
+          }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "SCA4_HOLD_EARLY_DAY",
+        "action": "HoldCollateral",
+        "comment": "Early day: Wait for inflows before posting collateral"
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SCA5_HOLD_NO_GAP",
+      "action": "HoldCollateral",
+      "comment": "No liquidity gap: No need for collateral"
+    }
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "EC1_COLLATERAL_POSTED",
+    "description": "End of tick: Check if we have collateral posted",
+    "condition": {
+      "op": ">",
+      "left": { "field": "posted_collateral" },
+      "right": { "value": 0.0 }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "EC2_HEADROOM_CHECK",
+      "description": "We have collateral: Check if we have excess headroom",
+      "condition": {
+        "op": ">",
+        "left": { "field": "headroom" },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": { "field": "queue1_total_value" },
+            "right": { "value": 0.5 }
+          }
+        }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "EC3_COST_BENEFIT",
+        "description": "Excess headroom: Compare collateral cost vs queue value",
+        "condition": {
+          "op": ">",
+          "left": { "field": "cost_collateral_bps_per_tick" },
+          "right": { "value": 0.0001 }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "ECA1_WITHDRAW_HALF",
+          "action": "WithdrawCollateral",
+          "parameters": {
+            "amount": {
+              "compute": {
+                "op": "/",
+                "left": { "field": "posted_collateral" },
+                "right": { "value": 2.0 }
+              }
+            },
+            "reason": { "value": "ExcessHeadroom" }
+          },
+          "comment": "Excess headroom + costly collateral: Withdraw half"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "ECA2_HOLD_CHEAP",
+          "action": "HoldCollateral",
+          "comment": "Excess headroom but cheap collateral: Keep posted"
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "ECA3_HOLD_NEEDED",
+        "action": "HoldCollateral",
+        "comment": "Collateral still needed for Queue 1"
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "ECA4_HOLD_NO_COLLATERAL",
+      "action": "HoldCollateral",
+      "comment": "No collateral posted"
+    }
+  },
+  "parameters": {}
+}
