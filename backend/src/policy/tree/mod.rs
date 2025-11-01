@@ -21,6 +21,9 @@ pub mod scenario_tests; // Real-world scenario tests for policy evaluation
 pub mod types;
 pub mod validation;
 
+#[cfg(test)]
+mod tests; // Phase 9.5: Complex policy DSL tests
+
 // Re-export main types for convenience
 pub use context::{ContextError, EvalContext};
 pub use executor::{TreePolicy, TreePolicyError};

@@ -66,7 +66,8 @@ const MAX_TREE_DEPTH: usize = 100;
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
-/// let sample_context = EvalContext::build(&tx, &agent, &state, 0);
+/// let cost_rates = crate::orchestrator::CostRates::default();
+/// let sample_context = EvalContext::build(&tx, &agent, &state, 0, &cost_rates);
 ///
 /// let json = r#"{
 ///   "version": "1.0",
@@ -699,7 +700,8 @@ mod tests {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
         let agent = Agent::new("BANK_A".to_string(), 500_000, 200_000);
         let state = SimulationState::new(vec![agent.clone()]);
-        EvalContext::build(&tx, &agent, &state, 10)
+        let cost_rates = crate::orchestrator::CostRates::default();
+        EvalContext::build(&tx, &agent, &state, 10, &cost_rates)
     }
 
     // ========================================================================

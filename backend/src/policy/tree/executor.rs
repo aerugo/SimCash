@@ -221,6 +221,7 @@ impl TreePolicy {
         agent: &Agent,
         state: &SimulationState,
         tick: usize,
+        cost_rates: &CostRates,
     ) -> Result<crate::policy::CollateralDecision, TreePolicyError> {
         use crate::policy::tree::interpreter::{
             build_collateral_decision, traverse_strategic_collateral_tree,
@@ -241,7 +242,7 @@ impl TreePolicy {
             tick,
             tick + 1,
         );
-        let context = EvalContext::build(&dummy_tx, agent, state, tick);
+        let context = EvalContext::build(&dummy_tx, agent, state, tick, cost_rates);
 
         // Validate tree on first use
         if !self.validated {
@@ -283,6 +284,7 @@ impl TreePolicy {
         agent: &Agent,
         state: &SimulationState,
         tick: usize,
+        cost_rates: &CostRates,
     ) -> Result<crate::policy::CollateralDecision, TreePolicyError> {
         use crate::policy::tree::interpreter::{
             build_collateral_decision, traverse_end_of_tick_collateral_tree,
@@ -301,7 +303,7 @@ impl TreePolicy {
             tick,
             tick + 1,
         );
-        let context = EvalContext::build(&dummy_tx, agent, state, tick);
+        let context = EvalContext::build(&dummy_tx, agent, state, tick, cost_rates);
 
         // Validate tree on first use
         if !self.validated {
@@ -390,10 +392,9 @@ impl CashManagerPolicy for TreePolicy {
         agent: &Agent,
         state: &SimulationState,
         tick: usize,
-        _cost_rates: &CostRates,
+        cost_rates: &CostRates,
     ) -> Vec<ReleaseDecision> {
-        // Note: cost_rates not currently used in tree evaluation
-        // Future: could expose as variable in EvalContext for tree-based cost calculations
+        // Phase 9.5.1: Expose cost_rates to policy decision trees
         let mut decisions = Vec::new();
 
         // Process each transaction in agent's queue
@@ -406,8 +407,8 @@ impl CashManagerPolicy for TreePolicy {
                 }
             };
 
-            // Build evaluation context
-            let context = EvalContext::build(tx, agent, state, tick);
+            // Build evaluation context (Phase 9.5.1: now includes cost_rates)
+            let context = EvalContext::build(tx, agent, state, tick, cost_rates);
 
             // Validate tree on first use
             if !self.validated {
@@ -718,6 +719,7 @@ mod tests {
             parameters: HashMap::new(),
         };
 
+        let cost_rates = CostRates::default();
         let mut policy = TreePolicy::new(tree);
 
         // Create test state
@@ -726,7 +728,7 @@ mod tests {
 
         // Evaluate strategic collateral
         let decision = policy
-            .evaluate_strategic_collateral(&agent, &state, 10)
+            .evaluate_strategic_collateral(&agent, &state, 10, &cost_rates)
             .unwrap();
 
         // Should return PostCollateral decision
@@ -755,6 +757,7 @@ mod tests {
             parameters: HashMap::new(),
         };
 
+        let cost_rates = CostRates::default();
         let mut policy = TreePolicy::new(tree);
 
         // Create test state
@@ -763,7 +766,7 @@ mod tests {
 
         // Evaluate strategic collateral
         let decision = policy
-            .evaluate_strategic_collateral(&agent, &state, 10)
+            .evaluate_strategic_collateral(&agent, &state, 10, &cost_rates)
             .unwrap();
 
         // Should return Hold (default when tree not defined)
@@ -808,6 +811,7 @@ mod tests {
             parameters: HashMap::new(),
         };
 
+        let cost_rates = CostRates::default();
         let mut policy = TreePolicy::new(tree);
 
         // Create test state with agent that has posted collateral
@@ -817,7 +821,7 @@ mod tests {
 
         // Evaluate end-of-tick collateral
         let decision = policy
-            .evaluate_end_of_tick_collateral(&agent, &state, 10)
+            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates)
             .unwrap();
 
         // Should return WithdrawCollateral decision for the posted amount
@@ -846,6 +850,7 @@ mod tests {
             parameters: HashMap::new(),
         };
 
+        let cost_rates = CostRates::default();
         let mut policy = TreePolicy::new(tree);
 
         // Create test state
@@ -854,7 +859,7 @@ mod tests {
 
         // Evaluate end-of-tick collateral
         let decision = policy
-            .evaluate_end_of_tick_collateral(&agent, &state, 10)
+            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates)
             .unwrap();
 
         // Should return Hold (default when tree not defined)
@@ -916,6 +921,7 @@ mod tests {
             parameters: HashMap::new(),
         };
 
+        let cost_rates = CostRates::default();
         let mut policy = TreePolicy::new(tree);
 
         // Create test state with empty RTGS queue and posted collateral
@@ -925,7 +931,7 @@ mod tests {
 
         // Evaluate end-of-tick collateral (queue2_size = 0, so should withdraw)
         let decision = policy
-            .evaluate_end_of_tick_collateral(&agent, &state, 10)
+            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates)
             .unwrap();
 
         // Should return WithdrawCollateral decision
