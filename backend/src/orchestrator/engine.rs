@@ -81,6 +81,11 @@ use std::collections::HashMap;
 // Configuration Types
 // ============================================================================
 
+/// Default EOD rush threshold for serde deserialization (Phase 9.5.2)
+fn default_eod_rush_threshold() -> f64 {
+    0.8
+}
+
 /// Complete orchestrator configuration
 ///
 /// This struct contains all parameters needed to initialize a simulation.
@@ -88,6 +93,7 @@ use std::collections::HashMap;
 /// # Fields
 ///
 /// * `ticks_per_day` - Number of discrete time steps per business day
+/// * `eod_rush_threshold` - Fraction of day (0.0-1.0) that defines EOD rush period start
 /// * `num_days` - Total simulation duration in days
 /// * `rng_seed` - Seed for deterministic random number generation
 /// * `agent_configs` - Configuration for each participating agent (bank)
@@ -96,6 +102,13 @@ use std::collections::HashMap;
 pub struct OrchestratorConfig {
     /// Number of ticks per business day (e.g., 100 ticks = 1 tick per ~5 minutes)
     pub ticks_per_day: usize,
+
+    /// End-of-day rush threshold (Phase 9.5.2)
+    /// Fraction of day (0.0 to 1.0) when EOD rush period begins.
+    /// Default: 0.8 (last 20% of day)
+    /// Policies can check `is_eod_rush` field to enable time-based strategies.
+    #[serde(default = "default_eod_rush_threshold")]
+    pub eod_rush_threshold: f64,
 
     /// Number of business days to simulate
     pub num_days: usize,
@@ -1847,7 +1860,7 @@ impl Orchestrator {
                 })?;
 
             let decision = tree_policy
-                .evaluate_strategic_collateral(agent, &self.state, current_tick, &self.cost_rates)
+                .evaluate_strategic_collateral(agent, &self.state, current_tick, &self.cost_rates, self.config.ticks_per_day, self.config.eod_rush_threshold)
                 .map_err(|e| {
                     SimulationError::InvalidConfig(format!(
                         "Failed to evaluate strategic collateral for {}: {}",
@@ -1965,7 +1978,7 @@ impl Orchestrator {
             // Evaluate policy for all transactions in Queue 1
             // Pass cost_rates for policy decision-making (read-only, external)
             let decisions =
-                policy.evaluate_queue(agent, &self.state, current_tick, &self.cost_rates);
+                policy.evaluate_queue(agent, &self.state, current_tick, &self.cost_rates, self.config.ticks_per_day, self.config.eod_rush_threshold);
 
             // Process decisions
             for decision in decisions {
@@ -2210,7 +2223,7 @@ impl Orchestrator {
 
             // Evaluate END-OF-TICK collateral decision (Layer 2)
             let decision = tree_policy
-                .evaluate_end_of_tick_collateral(agent, &self.state, current_tick, &self.cost_rates)
+                .evaluate_end_of_tick_collateral(agent, &self.state, current_tick, &self.cost_rates, self.config.ticks_per_day, self.config.eod_rush_threshold)
                 .map_err(|e| {
                     SimulationError::InvalidConfig(format!(
                         "Failed to evaluate end-of-tick collateral for {}: {}",
@@ -2781,6 +2794,7 @@ mod tests {
     fn create_test_config() -> OrchestratorConfig {
         OrchestratorConfig {
             ticks_per_day: 100,
+            eod_rush_threshold: 0.8,
             num_days: 1,
             rng_seed: 12345,
             agent_configs: vec![
@@ -2848,6 +2862,7 @@ mod tests {
     fn test_validate_config_empty_agents() {
         let config = OrchestratorConfig {
             ticks_per_day: 100,
+            eod_rush_threshold: 0.8,
             num_days: 1,
             rng_seed: 12345,
             agent_configs: vec![],
@@ -2876,6 +2891,7 @@ mod tests {
     fn test_validate_config_duplicate_agent_ids() {
         let config = OrchestratorConfig {
             ticks_per_day: 100,
+            eod_rush_threshold: 0.8,
             num_days: 1,
             rng_seed: 12345,
             agent_configs: vec![

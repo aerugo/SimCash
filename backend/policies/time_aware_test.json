@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "policy_id": "time_aware_test",
+  "description": "Test policy demonstrating time-of-day awareness and EOD rush detection (Phase 9.5.2)",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "C1",
+    "condition": {
+      "op": "==",
+      "left": { "field": "is_eod_rush" },
+      "right": { "value": 1.0 }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "A1",
+      "action": "Release",
+      "comment": "During EOD rush: release all transactions to avoid EOD penalties"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "C2",
+      "condition": {
+        "op": ">",
+        "left": { "field": "day_progress_fraction" },
+        "right": { "value": 0.5 }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "C3",
+        "condition": {
+          "op": "<",
+          "left": { "field": "ticks_remaining_in_day" },
+          "right": { "value": 10.0 }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "A2",
+          "action": "Release",
+          "comment": "Late in day with < 10 ticks remaining: release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "A3",
+          "action": "Hold",
+          "hold_reason": "WaitingForLiquidity",
+          "comment": "Late in day but enough time: hold for better liquidity"
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "A4",
+        "action": "Hold",
+        "hold_reason": "WaitingForLiquidity",
+        "comment": "Early in day (< 50%): conservative hold strategy"
+      }
+    }
+  },
+  "strategic_collateral_tree": null,
+  "end_of_tick_collateral_tree": null,
+  "parameters": {}
+}

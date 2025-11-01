@@ -29,6 +29,8 @@
 //!         state: &SimulationState,
 //!         tick: usize,
 //!         cost_rates: &CostRates,
+//!         ticks_per_day: usize,
+//!         eod_rush_threshold: f64,
 //!     ) -> Vec<ReleaseDecision> {
 //!         // Decision logic here
 //!         vec![]
@@ -225,6 +227,8 @@ pub enum CollateralReason {
 ///         _state: &SimulationState,
 ///         _tick: usize,
 ///         _cost_rates: &CostRates,
+///         _ticks_per_day: usize,
+///         _eod_rush_threshold: f64,
 ///     ) -> Vec<ReleaseDecision> {
 ///         // Submit all queued transactions immediately
 ///         agent.outgoing_queue()
@@ -271,6 +275,8 @@ pub trait CashManagerPolicy: Send + Sync {
         state: &SimulationState,
         tick: usize,
         cost_rates: &CostRates,
+        ticks_per_day: usize,
+        eod_rush_threshold: f64,
     ) -> Vec<ReleaseDecision>;
 
     /// Evaluate collateral management decision

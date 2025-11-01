@@ -701,7 +701,7 @@ mod tests {
         let agent = Agent::new("BANK_A".to_string(), 500_000, 200_000);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = crate::orchestrator::CostRates::default();
-        EvalContext::build(&tx, &agent, &state, 10, &cost_rates)
+        EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8)
     }
 
     // ========================================================================
