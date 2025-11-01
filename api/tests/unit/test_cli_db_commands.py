@@ -209,6 +209,7 @@ class TestDBCreateMigrationCommand:
         runner = CliRunner()
         migrations_dir = tmp_path / "migrations"
         migrations_dir.mkdir()
+        db_path = tmp_path / "test.db"
 
         result = runner.invoke(
             app,
@@ -218,6 +219,8 @@ class TestDBCreateMigrationCommand:
                 "add_new_field",
                 "--migrations-dir",
                 str(migrations_dir),
+                "--db-path",
+                str(db_path),
             ],
         )
 
@@ -243,6 +246,7 @@ class TestDBCreateMigrationCommand:
         runner = CliRunner()
         migrations_dir = tmp_path / "migrations"
         migrations_dir.mkdir()
+        db_path = tmp_path / "test.db"
 
         # Create first migration
         runner.invoke(
@@ -253,6 +257,8 @@ class TestDBCreateMigrationCommand:
                 "first_migration",
                 "--migrations-dir",
                 str(migrations_dir),
+                "--db-path",
+                str(db_path),
             ],
         )
 
@@ -265,6 +271,8 @@ class TestDBCreateMigrationCommand:
                 "second_migration",
                 "--migrations-dir",
                 str(migrations_dir),
+                "--db-path",
+                str(db_path),
             ],
         )
 
