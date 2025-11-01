@@ -141,31 +141,32 @@ fn test_three_day_with_manual_transactions() {
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
 
     // Day 1: MIB sends to GNB (aggressive trader style)
-    for i in 0..5 {
+    // Submit at beginning with deadline at tick 50
+    for _ in 0..5 {
         orchestrator
-            .submit_transaction("MIB", "GNB", 3_000_000, i, 50, false)
+            .submit_transaction("MIB", "GNB", 3_000_000, 50, 5, false)
             .expect("Failed to submit MIB transaction");
     }
 
-    // Day 1: GNB sends larger transfer to ARB
+    // Day 1: GNB sends larger transfer to ARB (deadline tick 90)
     orchestrator
-        .submit_transaction("GNB", "ARB", 20_000_000, 40, 90, false)
+        .submit_transaction("GNB", "ARB", 20_000_000, 90, 7, false)
         .expect("Failed to submit GNB transaction");
 
-    // Day 2: ARB sends back to GNB
+    // Day 2: ARB sends back to GNB (deadline tick 180)
     orchestrator
-        .submit_transaction("ARB", "GNB", 15_000_000, 120, 180, false)
+        .submit_transaction("ARB", "GNB", 15_000_000, 180, 6, false)
         .expect("Failed to submit ARB transaction");
 
-    // Day 3: Circular transactions
+    // Day 3: Circular transactions (deadlines near end of day 3)
     orchestrator
-        .submit_transaction("GNB", "ARB", 10_000_000, 210, 70, false)
+        .submit_transaction("GNB", "ARB", 10_000_000, 280, 5, false)
         .expect("Failed to submit GNB->ARB");
     orchestrator
-        .submit_transaction("ARB", "MIB", 8_000_000, 220, 65, false)
+        .submit_transaction("ARB", "MIB", 8_000_000, 285, 5, false)
         .expect("Failed to submit ARB->MIB");
     orchestrator
-        .submit_transaction("MIB", "GNB", 6_000_000, 230, 60, false)
+        .submit_transaction("MIB", "GNB", 6_000_000, 290, 5, false)
         .expect("Failed to submit MIB->GNB");
 
     // Run full 3 days
@@ -215,16 +216,16 @@ fn test_eod_rush_behavior() {
     let config = create_config(1); // 1 day
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
 
-    // Submit transactions during EOD rush period (tick 85, 87, 90)
+    // Submit transactions during EOD rush period (deadlines near end of day)
     // EOD rush starts at tick 80 (80% of 100-tick day)
     orchestrator
-        .submit_transaction("GNB", "ARB", 30_000_000, 85, 95, false)
+        .submit_transaction("GNB", "ARB", 30_000_000, 95, 5, false)
         .expect("Failed to submit during EOD");
     orchestrator
-        .submit_transaction("ARB", "MIB", 20_000_000, 87, 96, false)
+        .submit_transaction("ARB", "MIB", 20_000_000, 96, 5, false)
         .expect("Failed to submit during EOD");
     orchestrator
-        .submit_transaction("MIB", "GNB", 15_000_000, 90, 98, false)
+        .submit_transaction("MIB", "GNB", 15_000_000, 98, 5, false)
         .expect("Failed to submit during EOD");
 
     // Run full day
@@ -252,15 +253,15 @@ fn test_different_policy_behaviors() {
     let config = create_config(1);
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
 
-    // Early day (tick 10): Test conservative vs aggressive
+    // Early day: Test conservative vs aggressive
     // GNB should be more conservative (150% buffer in early day)
     // MIB should be aggressive (default-to-release)
 
     orchestrator
-        .submit_transaction("GNB", "ARB", 50_000_000, 10, 80, false)
+        .submit_transaction("GNB", "ARB", 50_000_000, 80, 5, false)
         .expect("GNB transaction");
     orchestrator
-        .submit_transaction("MIB", "ARB", 20_000_000, 10, 80, false)
+        .submit_transaction("MIB", "ARB", 20_000_000, 80, 5, false)
         .expect("MIB transaction");
 
     // Run for 50 ticks
