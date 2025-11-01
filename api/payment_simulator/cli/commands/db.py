@@ -271,3 +271,85 @@ def db_info(
     except Exception as e:
         console.print(f"[red]✗ Error getting database info: {e}[/red]")
         raise typer.Exit(code=1)
+
+
+@db_app.command("simulations")
+def db_simulations(
+    db_path: str = typer.Option(
+        "simulation_data.db",
+        "--db-path",
+        "-d",
+        help="Path to database file",
+    ),
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        "-n",
+        help="Maximum number of simulations to show",
+    ),
+):
+    """List simulations in the database."""
+    try:
+        manager = DatabaseManager(db_path)
+
+        # Query simulation_runs for all simulations
+        query = """
+            SELECT
+                simulation_id,
+                config_name,
+                rng_seed,
+                ticks_per_day,
+                num_days,
+                status,
+                start_time,
+                total_transactions
+            FROM simulation_runs
+            ORDER BY start_time DESC
+            LIMIT ?
+        """
+
+        results = manager.conn.execute(query, [limit]).fetchall()
+
+        if not results:
+            console.print("[yellow]No simulations found in database[/yellow]")
+            return
+
+        # Display as table
+        table = Table(title=f"Simulations in Database ({len(results)} shown)")
+
+        table.add_column("Simulation ID", style="cyan", no_wrap=True)
+        table.add_column("Config", style="blue")
+        table.add_column("Seed", justify="right", style="yellow")
+        table.add_column("Ticks", justify="right", style="magenta")
+        table.add_column("Status", style="green")
+        table.add_column("Started", style="white")
+
+        for row in results:
+            sim_id, config_name, seed, ticks_per_day, num_days, status, start_time, total_txs = row
+
+            # Format start time
+            if start_time:
+                from datetime import datetime
+                dt = datetime.fromisoformat(start_time) if isinstance(start_time, str) else start_time
+                time_str = dt.strftime("%Y-%m-%d %H:%M")
+            else:
+                time_str = "N/A"
+
+            # Calculate total ticks
+            total_ticks = ticks_per_day * num_days
+
+            table.add_row(
+                sim_id,
+                config_name or "N/A",
+                str(seed) if seed else "N/A",
+                str(total_ticks),
+                status or "unknown",
+                time_str,
+            )
+
+        console.print(table)
+        console.print(f"\n[dim]Use 'payment-sim replay --simulation-id <ID> --config <file>' to replay[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]✗ Error listing simulations: {e}[/red]")
+        raise typer.Exit(code=1)

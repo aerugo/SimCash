@@ -153,6 +153,185 @@ requests.delete(f"http://localhost:8000/simulations/{sim_id}")
 
 ---
 
+## 🖥️ CLI Reference
+
+The `payment-sim` CLI provides comprehensive tools for running, replaying, and managing simulations.
+
+### Core Commands
+
+#### Run a New Simulation
+
+```bash
+# Basic run with JSON output
+payment-sim run --config scenarios/demo.yaml
+
+# Run with verbose real-time output (detailed events)
+payment-sim run --config scenarios/demo.yaml --verbose
+
+# Run and persist to database
+payment-sim run --config scenarios/demo.yaml --persist
+
+# Override parameters
+payment-sim run --config cfg.yaml --seed 999 --ticks 500
+
+# AI-friendly quiet mode (stdout only)
+payment-sim run --config cfg.yaml --quiet
+
+# Stream results for long simulations (JSONL output)
+payment-sim run --config large.yaml --stream
+```
+
+#### Replay a Persisted Simulation
+
+**NEW**: Replay enables debugging and analysis of specific tick ranges with identical verbose output.
+
+```bash
+# Replay entire simulation from database
+payment-sim replay --simulation-id sim-abc123 --config original_config.yaml
+
+# Replay specific tick range (e.g., debug ticks 50-100)
+payment-sim replay \
+  --simulation-id sim-abc123 \
+  --config original_config.yaml \
+  --from-tick 50 \
+  --to-tick 100
+
+# Replay with custom database location
+payment-sim replay \
+  --simulation-id sim-abc123 \
+  --config original_config.yaml \
+  --db-path /path/to/simulation_data.db
+```
+
+**Key Features**:
+- **Deterministic replay**: Same seed guarantees identical results
+- **Fast-forward**: Silently advances to `--from-tick`, then shows verbose output
+- **Identical output**: Produces exact same verbose logs as original run
+- **Use cases**: Debug specific ticks, analyze edge cases, reproduce issues
+
+### Database Management
+
+```bash
+# Initialize database from Pydantic models
+payment-sim db init
+
+# Apply pending schema migrations
+payment-sim db migrate
+
+# Validate schema matches models
+payment-sim db validate
+
+# List all tables
+payment-sim db list
+
+# Show database statistics
+payment-sim db info
+```
+
+### Checkpoint Management
+
+Save and load simulation state for resumption or analysis.
+
+```bash
+# Save checkpoint (requires state JSON from orchestrator.save_state())
+payment-sim checkpoint save \
+  --simulation-id sim-001 \
+  --state-file state.json \
+  --config config.yaml \
+  --description "After 50 ticks"
+
+# Load checkpoint
+payment-sim checkpoint load \
+  --checkpoint-id abc123 \
+  --config config.yaml
+
+# Load latest checkpoint for a simulation
+payment-sim checkpoint load \
+  --checkpoint-id latest \
+  --simulation-id sim-001 \
+  --config config.yaml
+
+# List checkpoints
+payment-sim checkpoint list
+payment-sim checkpoint list --simulation-id sim-001
+payment-sim checkpoint list --type manual --limit 10
+
+# Delete checkpoint
+payment-sim checkpoint delete --checkpoint-id abc123
+payment-sim checkpoint delete --simulation-id sim-001 --confirm
+```
+
+### Common Workflows
+
+#### 1. Run and Persist for Later Analysis
+
+```bash
+# Run simulation with persistence
+payment-sim run \
+  --config scenarios/18_agent_3_policy_simulation.yaml \
+  --persist \
+  --simulation-id my-test-001
+
+# Later: Query database to find interesting tick ranges
+# (Use Python query interface or SQL)
+
+# Replay specific tick range with verbose output
+payment-sim replay \
+  --simulation-id my-test-001 \
+  --config scenarios/18_agent_3_policy_simulation.yaml \
+  --from-tick 45 \
+  --to-tick 55
+```
+
+#### 2. Debug Specific Tick Range
+
+```bash
+# First run identifies issue around tick 75
+payment-sim run --config test.yaml --verbose | tee run.log
+
+# Replay just the problematic tick range
+payment-sim replay \
+  --simulation-id sim-xxx \
+  --config test.yaml \
+  --from-tick 70 \
+  --to-tick 80 > debug.log
+```
+
+#### 3. Compare Real-time vs Replay Output
+
+```bash
+# Original run with verbose output
+payment-sim run --config test.yaml --persist --verbose > original.log
+
+# Replay with identical output (should match exactly)
+payment-sim replay \
+  --simulation-id <id_from_original> \
+  --config test.yaml > replay.log
+
+# Verify identical output (determinism check)
+diff original.log replay.log
+```
+
+### Output Formats
+
+- **JSON** (default): Structured summary at end of simulation
+- **JSONL** (`--stream`): One JSON object per tick (for long simulations)
+- **Verbose** (`--verbose`): Rich formatted output with detailed events
+- **Quiet** (`--quiet`): Suppresses logs, stdout only (AI-friendly)
+
+### Environment Variables
+
+```bash
+# Custom database location
+export PAYMENT_SIM_DB_PATH=/path/to/simulation_data.db
+
+# Then all commands use this database
+payment-sim run --config test.yaml --persist
+payment-sim replay --simulation-id sim-001 --config test.yaml
+```
+
+---
+
 ## 📚 Documentation
 
 | Document | Description |
