@@ -123,10 +123,28 @@ When your `payment_tree` is evaluated for a specific transaction, you have acces
 | | `collateral_utilization`| `f64` (0-1) | `posted_collateral / max_collateral_capacity`. |
 | | `queue1_total_value`| `f64` (cents) | Total value of all items in Queue 1. |
 | | `queue1_liquidity_gap`| `f64` (cents) | `queue1_total_value - available_liquidity` (min 0). |
+| | `headroom` | `f64` (cents) | `available_liquidity - queue1_total_value`. |
+| | `queue2_count_for_agent`| `f64` | Number of *this agent's* items in **Queue 2**. |
+| | `queue2_nearest_deadline`| `f64` | Nearest deadline in Queue 2 for this agent. |
+| | `ticks_to_nearest_queue2_deadline`| `f64` | Ticks until nearest Queue 2 deadline (can be INFINITY). |
+| **Cost Rates** | `cost_overdraft_bps_per_tick`| `f64` | Overdraft cost in basis points per tick. |
+| *(Phase 9.5.1)* | `cost_delay_per_tick_per_cent`| `f64` | Delay cost per tick per cent of value. |
+| | `cost_collateral_bps_per_tick`| `f64` | Collateral opportunity cost in bps per tick. |
+| | `cost_split_friction`| `f64` (cents) | Cost per split operation. |
+| | `cost_deadline_penalty`| `f64` (cents) | Penalty for missing deadline. |
+| | `cost_eod_penalty`| `f64` (cents) | End-of-day penalty per unsettled transaction. |
+| **Derived Costs** | `cost_delay_this_tx_one_tick`| `f64` (cents) | Delay cost for THIS transaction for one tick. |
+| *(Phase 9.5.1)* | `cost_overdraft_this_amount_one_tick`| `f64` (cents) | Overdraft cost for THIS amount for one tick. |
+| **Time-of-Day** | `system_ticks_per_day`| `f64` | Number of ticks in a simulation day. |
+| *(Phase 9.5.2)* | `system_current_day`| `f64` | Current day number (0-indexed). |
+| | `system_tick_in_day`| `f64` | Current tick within day (0 to ticks_per_day-1). |
+| | `ticks_remaining_in_day`| `f64` | Ticks remaining in current day. |
+| | `day_progress_fraction`| `f64` (0-1) | Progress through day (0.0 = start, 1.0 = end). |
+| | `is_eod_rush` | `f64` (bool) | `1.0` if in EOD rush period, `0.0` otherwise. |
 | **System** | `current_tick` | `f64` | The current simulation tick. |
 | | `rtgs_queue_size` | `f64` | Total items in the central **Queue 2** (all agents). |
 | | `rtgs_queue_value` | `f64` (cents) | Total value in the central **Queue 2**. |
-| | `queue2_count_for_agent`| `f64` | Number of *this agent's* items in **Queue 2**. |
+| | `total_agents` | `f64` | Total number of agents in simulation. |
 
 #### 3. Example: `liquidity_aware.json` Walkthrough
 
@@ -213,6 +231,162 @@ function evaluate_policy(transaction, agent, system_state):
             // A3_Hold
             return Hold(reason="InsufficientLiquidity")
 ```
+
+#### 4. Advanced Features: Cost-Aware & Time-Based Policies (Phase 9.5)
+
+The Phase 9.5 enhancements enable sophisticated economic optimization and time-based strategies. Here are practical examples:
+
+##### Example 4.1: Cost-Based Economic Trade-offs
+
+Policies can compare costs to make optimal economic decisions:
+
+```json
+{
+  "type": "condition",
+  "node_id": "N1_CostComparison",
+  "description": "Hold if delay is cheaper than using overdraft",
+  "condition": {
+    "op": "<",
+    "left": {"field": "cost_delay_this_tx_one_tick"},
+    "right": {"field": "cost_overdraft_this_amount_one_tick"}
+  },
+  "on_true": {
+    "type": "action",
+    "node_id": "A1_Hold",
+    "action": "Hold",
+    "parameters": {
+      "reason": {"value": "DelayCheaperThanOverdraft"}
+    }
+  },
+  "on_false": {
+    "type": "action",
+    "node_id": "A2_Release",
+    "action": "Release"
+  }
+}
+```
+
+**Use Case**: When balance is negative, compare the cost of one tick of delay vs. using overdraft credit for this specific transaction amount.
+
+##### Example 4.2: EOD Rush Detection
+
+Implement time-based strategies that change behavior throughout the day:
+
+```json
+{
+  "type": "condition",
+  "node_id": "N1_EODCheck",
+  "description": "Release everything in EOD rush to avoid penalties",
+  "condition": {
+    "op": "==",
+    "left": {"field": "is_eod_rush"},
+    "right": {"value": 1.0}
+  },
+  "on_true": {
+    "type": "action",
+    "node_id": "A1_EODRelease",
+    "action": "Release",
+    "comment": "In EOD rush: release all to avoid EOD penalty"
+  },
+  "on_false": {
+    "type": "condition",
+    "node_id": "N2_EarlyDayConservative",
+    "description": "Early day: conservative strategy",
+    "condition": {
+      "op": "<",
+      "left": {"field": "day_progress_fraction"},
+      "right": {"value": 0.6}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "A2_Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {"value": "ConservativeEarlyDay"}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "A3_LateDayRelease",
+      "action": "Release"
+    }
+  }
+}
+```
+
+**Strategy**: Conservative in the first 60% of the day, aggressive in the next 20%, panic mode in the last 20% (EOD rush).
+
+##### Example 4.3: Dynamic Collateral Management
+
+Use computed values for collateral decisions based on liquidity gaps:
+
+```json
+{
+  "type": "action",
+  "node_id": "SC1_PostGapAmount",
+  "action": "PostCollateral",
+  "parameters": {
+    "amount": {
+      "compute": {
+        "op": "max",
+        "values": [
+          {"field": "queue1_liquidity_gap"},
+          {"value": 0.0}
+        ]
+      }
+    },
+    "reason": {"value": "EODLiquidityGap"}
+  }
+}
+```
+
+**Use Case**: Post exactly the amount of collateral needed to cover the liquidity gap in Queue 1.
+
+##### Example 4.4: Progressive Liquidity Buffer
+
+Adjust liquidity requirements based on day progress:
+
+```json
+{
+  "condition": {
+    "op": ">=",
+    "left": {"field": "available_liquidity"},
+    "right": {
+      "compute": {
+        "op": "*",
+        "left": {"field": "remaining_amount"},
+        "right": {
+          "compute": {
+            "op": "+",
+            "left": {"value": 1.0},
+            "right": {
+              "compute": {
+                "op": "*",
+                "left": {"field": "day_progress_fraction"},
+                "right": {"value": 0.5}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Logic**: Early day requires `amount * 1.0x` liquidity, end of day requires `amount * 1.5x` (progressively more conservative as time passes).
+
+##### Example 4.5: Complete Complex Policy
+
+See `backend/policies/adaptive_liquidity_manager.json` for a full 370-line policy demonstrating:
+- **EOD rush detection** with aggressive release strategies
+- **Cost-based credit decisions** (overdraft vs. deadline penalty comparison)
+- **Time-of-day strategies** (conservative morning, aggressive afternoon, panic EOD)
+- **Strategic collateral posting** when approaching EOD with liquidity gaps
+- **End-of-tick collateral withdrawal** when excess headroom detected
+- **Dynamic parameter calculations** for split counts and collateral amounts
+
+This policy implements the "Adaptive Liquidity & Gridlock Manager" strategy from the game design document.
 
 -----
 
