@@ -1,0 +1,230 @@
+{
+  "version": "1.0",
+  "policy_id": "goliath_national_bank_v2",
+  "description": "A multi-layered, time-adaptive, conservative policy. It maintains tiered liquidity buffers based on the time of day and proactively posts collateral to ensure stability.",
+  "parameters": {
+    "urgency_threshold": 5.0,
+    "target_buffer": 50000000.0,
+    "early_day_buffer_multiplier": 1.5,
+    "mid_day_buffer_multiplier": 1.0,
+    "eod_buffer_multiplier": 0.5,
+    "early_day_end_fraction": 0.3,
+    "min_collateral_buffer": 20000000.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "GNB-N1-IsUrgent",
+    "description": "First, check for any time-critical payments.",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "ticks_to_deadline"},
+      "right": {"param": "urgency_threshold"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "GNB-A1-ReleaseUrgent",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "GNB-N2-IsEODRush",
+      "description": "Not urgent. What time of day is it? Check for EOD rush first.",
+      "condition": {
+        "op": "==",
+        "left": {"field": "is_eod_rush"},
+        "right": {"value": 1.0}
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "GNB-N3-CheckBuffer-EOD",
+        "description": "EOD: Use a 50% buffer.",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "available_liquidity"},
+          "right": {
+            "compute": {
+              "op": "+",
+              "left": {"field": "remaining_amount"},
+              "right": {
+                "compute": {
+                  "op": "*",
+                  "left": {"param": "target_buffer"},
+                  "right": {"param": "eod_buffer_multiplier"}
+                }
+              }
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "GNB-A2-ReleaseEOD",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "GNB-A3-HoldEOD",
+          "action": "Hold",
+          "parameters": {"reason": {"value": "BufferProtection"}}
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "GNB-N4-IsEarlyDay",
+        "description": "Not EOD. Is it early day? (First 30%)",
+        "condition": {
+          "op": "<",
+          "left": {"field": "day_progress_fraction"},
+          "right": {"param": "early_day_end_fraction"}
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "GNB-N5-CheckBuffer-Early",
+          "description": "Early Day: Be very conservative (150% buffer).",
+          "condition": {
+            "op": ">=",
+            "left": {"field": "available_liquidity"},
+            "right": {
+              "compute": {
+                "op": "+",
+                "left": {"field": "remaining_amount"},
+                "right": {
+                  "compute": {
+                    "op": "*",
+                    "left": {"param": "target_buffer"},
+                    "right": {"param": "early_day_buffer_multiplier"}
+                  }
+                }
+              }
+            }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "GNB-A4-ReleaseEarly",
+            "action": "Release"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "GNB-A5-HoldEarly",
+            "action": "Hold",
+            "parameters": {"reason": {"value": "BufferProtection"}}
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "GNB-N6-CheckBuffer-MidDay",
+          "description": "Mid-Day: Use standard 100% buffer.",
+          "condition": {
+            "op": ">=",
+            "left": {"field": "available_liquidity"},
+            "right": {
+              "compute": {
+                "op": "+",
+                "left": {"field": "remaining_amount"},
+                "right": {"param": "target_buffer"}
+              }
+            }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "GNB-A6-ReleaseMid",
+            "action": "Release"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "GNB-A7-HoldMid",
+            "action": "Hold",
+            "parameters": {"reason": {"value": "BufferProtection"}}
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "GNB-SC1-CheckGap",
+    "description": "Proactively top-up collateral if our buffer + queue value exceeds available liquidity.",
+    "condition": {
+      "op": ">",
+      "left": {
+        "compute": {
+          "op": "+",
+          "left": {"field": "queue1_total_value"},
+          "right": {"param": "target_buffer"}
+        }
+      },
+      "right": {"field": "available_liquidity"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "GNB-SC2-PostToCoverGap",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "min",
+            "values": [
+              {"field": "remaining_collateral_capacity"},
+              {
+                "compute": {
+                  "op": "-",
+                  "left": {
+                    "compute": {
+                      "op": "+",
+                      "left": {"field": "queue1_total_value"},
+                      "right": {"param": "target_buffer"}
+                    }
+                  },
+                  "right": {"field": "available_liquidity"}
+                }
+              }
+            ]
+          }
+        },
+        "reason": {"value": "PreemptivePosting"}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "GNB-SC3-Hold",
+      "action": "HoldCollateral"
+    }
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "GNB-EC1-CheckHeadroom",
+    "description": "Withdraw excess collateral, but always keep a minimum buffer.",
+    "condition": {
+      "op": ">",
+      "left": {"field": "headroom"},
+      "right": {"param": "min_collateral_buffer"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "GNB-EC2-WithdrawExcess",
+      "action": "WithdrawCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "min",
+            "values": [
+              {"field": "posted_collateral"},
+              {
+                "compute": {
+                  "op": "-",
+                  "left": {"field": "headroom"},
+                  "right": {"param": "min_collateral_buffer"}
+                }
+              }
+            ]
+          }
+        },
+        "reason": {"value": "CostOptimization"}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "GNB-EC3-Hold",
+      "action": "HoldCollateral"
+    }
+  }
+}
