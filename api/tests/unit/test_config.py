@@ -295,7 +295,7 @@ def test_config_with_cost_rates():
 
 
 def test_config_with_lsm_settings():
-    """Test loading config with LSM configuration."""
+    """Test loading config with LSM configuration (updated field names)."""
     from payment_simulator.config import load_config
 
     config_dict = {
@@ -305,10 +305,10 @@ def test_config_with_lsm_settings():
             "rng_seed": 12345,
         },
         "lsm_config": {
-            "enabled": True,
-            "bilateral_enabled": True,
-            "cycle_detection_enabled": True,
-            "max_iterations": 5,
+            "enable_bilateral": True,
+            "enable_cycles": True,
+            "max_cycle_length": 5,
+            "max_cycles_per_tick": 15,
         },
         "agents": [
             {
@@ -327,13 +327,103 @@ def test_config_with_lsm_settings():
     try:
         config = load_config(config_path)
 
-        # Verify LSM config loaded
+        # Verify LSM config loaded with correct field names
         assert config.lsm_config is not None
-        assert config.lsm_config.enabled is True
-        assert config.lsm_config.bilateral_enabled is True
-        assert config.lsm_config.max_iterations == 5
+        assert config.lsm_config.enable_bilateral is True
+        assert config.lsm_config.enable_cycles is True
+        assert config.lsm_config.max_cycle_length == 5
+        assert config.lsm_config.max_cycles_per_tick == 15
     finally:
         Path(config_path).unlink()
+
+
+def test_lsm_config_ffi_dict_conversion():
+    """Test that LSM config correctly converts to FFI dict with proper field names.
+
+    This test verifies the fix for the configuration field name mismatch bug.
+    Previously, Python used different field names than Rust expected, causing
+    LSM configuration to be silently ignored.
+    """
+    from payment_simulator.config import SimulationConfig
+
+    config_dict = {
+        "simulation": {
+            "ticks_per_day": 100,
+            "num_days": 1,
+            "rng_seed": 12345,
+        },
+        "lsm_config": {
+            "enable_bilateral": False,  # Non-default value
+            "enable_cycles": False,      # Non-default value
+            "max_cycle_length": 6,       # Non-default value (default is 4)
+            "max_cycles_per_tick": 20,   # Non-default value (default is 10)
+        },
+        "agents": [
+            {
+                "id": "BANK_A",
+                "opening_balance": 1_000_000,
+                "credit_limit": 0,
+                "policy": {"type": "Fifo"},
+            },
+        ],
+    }
+
+    config = SimulationConfig.from_dict(config_dict)
+    ffi_dict = config.to_ffi_dict()
+
+    # Verify LSM config exists in FFI dict
+    assert "lsm_config" in ffi_dict
+    lsm_ffi = ffi_dict["lsm_config"]
+
+    # Verify field names match what Rust FFI expects (not Python names)
+    assert "enable_bilateral" in lsm_ffi
+    assert "enable_cycles" in lsm_ffi
+    assert "max_cycle_length" in lsm_ffi
+    assert "max_cycles_per_tick" in lsm_ffi
+
+    # Verify values are correctly passed through
+    assert lsm_ffi["enable_bilateral"] is False
+    assert lsm_ffi["enable_cycles"] is False
+    assert lsm_ffi["max_cycle_length"] == 6
+    assert lsm_ffi["max_cycles_per_tick"] == 20
+
+    # Verify old incorrect field names are NOT present
+    assert "bilateral_enabled" not in lsm_ffi
+    assert "cycle_detection_enabled" not in lsm_ffi
+    assert "max_iterations" not in lsm_ffi
+    assert "enabled" not in lsm_ffi
+
+
+def test_lsm_config_defaults():
+    """Test that LSM config uses correct defaults when not specified."""
+    from payment_simulator.config import SimulationConfig
+
+    config_dict = {
+        "simulation": {
+            "ticks_per_day": 100,
+            "num_days": 1,
+            "rng_seed": 12345,
+        },
+        # No lsm_config specified - should use defaults
+        "agents": [
+            {
+                "id": "BANK_A",
+                "opening_balance": 1_000_000,
+                "credit_limit": 0,
+                "policy": {"type": "Fifo"},
+            },
+        ],
+    }
+
+    config = SimulationConfig.from_dict(config_dict)
+    ffi_dict = config.to_ffi_dict()
+
+    # Verify LSM config uses defaults
+    lsm_ffi = ffi_dict["lsm_config"]
+    assert lsm_ffi["enable_bilateral"] is True    # Default
+    assert lsm_ffi["enable_cycles"] is True       # Default
+    assert lsm_ffi["max_cycle_length"] == 4       # Default
+    assert lsm_ffi["max_cycles_per_tick"] == 10   # Default
 
 
 def test_config_from_dict_directly():

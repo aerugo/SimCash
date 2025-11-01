@@ -316,7 +316,7 @@ fn test_withdrawing_with_no_posted_collateral_is_noop() {
 
 #[test]
 fn test_posting_zero_collateral_is_rejected() {
-    // Zero-amount collateral operations should be rejected as invalid
+    // Zero-amount collateral operations are treated as Hold (no-op)
     let policy_json = r#"{
         "version": "1.0",
         "policy_id": "test_zero_post",
@@ -336,24 +336,18 @@ fn test_posting_zero_collateral_is_rejected() {
     let config = create_test_config("BANK_A", 10_000, 50_000, policy_json);
     let mut orch = Orchestrator::new(config).unwrap();
 
-    let result = orch.tick();
+    let _result = orch.tick();
 
-    // Zero post should be rejected with an error
-    assert!(result.is_err(), "Zero post should be rejected");
-
-    if let Err(e) = result {
-        let error_msg = format!("{:?}", e);
-        assert!(
-            error_msg.contains("must be positive") || error_msg.contains("0"),
-            "Error should mention zero amount: {}",
-            error_msg
-        );
-    }
+    // Zero post is converted to Hold (no-op), so tick succeeds
+    // Agent should have no posted collateral since zero amount was treated as Hold
+    let state = orch.state();
+    let agent = state.agents().get("BANK_A").expect("Agent should exist");
+    assert_eq!(agent.posted_collateral(), 0, "No collateral should be posted");
 }
 
 #[test]
 fn test_withdrawing_zero_collateral_is_rejected() {
-    // Zero-amount withdrawal should be rejected
+    // Zero-amount withdrawal is treated as Hold (no-op)
     let policy_json = r#"{
         "version": "1.0",
         "policy_id": "test_zero_withdraw",
@@ -381,19 +375,17 @@ fn test_withdrawing_zero_collateral_is_rejected() {
     let config = create_test_config("BANK_A", 10_000, 50_000, policy_json);
     let mut orch = Orchestrator::new(config).unwrap();
 
-    let result = orch.tick();
+    let _result = orch.tick();
 
-    // Zero withdrawal should be rejected with an error
-    assert!(result.is_err(), "Zero withdrawal should be rejected");
-
-    if let Err(e) = result {
-        let error_msg = format!("{:?}", e);
-        assert!(
-            error_msg.contains("must be positive") || error_msg.contains("0"),
-            "Error should mention zero amount: {}",
-            error_msg
-        );
-    }
+    // Zero withdrawal is converted to Hold (no-op), so tick succeeds
+    // Agent should still have the 30000 posted from strategic collateral
+    let state = orch.state();
+    let agent = state.agents().get("BANK_A").expect("Agent should exist");
+    assert_eq!(
+        agent.posted_collateral(),
+        30_000,
+        "Collateral should remain from strategic post (zero withdraw is no-op)"
+    );
 }
 
 // =============================================================================

@@ -653,6 +653,11 @@ pub fn build_collateral_decision(
             let amount = evaluate_action_parameter(action_params, "amount", context, params)?;
             let amount_i64 = amount as i64;
 
+            // If amount is zero or negative, treat as no-op (hold)
+            if amount_i64 <= 0 {
+                return Ok(CollateralDecision::Hold);
+            }
+
             // Extract reason parameter (required)
             let reason = extract_collateral_reason(action_params, context)?;
 
@@ -666,6 +671,11 @@ pub fn build_collateral_decision(
             // Extract amount parameter (required)
             let amount = evaluate_action_parameter(action_params, "amount", context, params)?;
             let amount_i64 = amount as i64;
+
+            // If amount is zero or negative, treat as no-op (hold)
+            if amount_i64 <= 0 {
+                return Ok(CollateralDecision::Hold);
+            }
 
             // Extract reason parameter (required)
             let reason = extract_collateral_reason(action_params, context)?;
@@ -1927,7 +1937,15 @@ mod tests {
     #[test]
     fn test_build_collateral_decision_withdraw() {
         use crate::policy::CollateralDecision;
-        let (context, params) = create_test_context();
+
+        // Create a test context with posted collateral
+        let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000, 200_000);
+        agent.set_posted_collateral(150_000); // Set some posted collateral
+        let state = SimulationState::new(vec![agent.clone()]);
+        let cost_rates = CostRates::default();
+        let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8);
+        let params = HashMap::new();
 
         // WithdrawCollateral with amount from field
         let mut action_params = HashMap::new();
@@ -1959,8 +1977,8 @@ mod tests {
 
         match result.unwrap() {
             CollateralDecision::Withdraw { amount, .. } => {
-                // posted_collateral should be 0 in test context
-                assert_eq!(amount, 0);
+                // Should match the posted_collateral amount
+                assert_eq!(amount, 150_000);
             }
             _ => panic!("Expected Withdraw decision"),
         }
@@ -1991,7 +2009,26 @@ mod tests {
     #[test]
     fn test_build_collateral_decision_computed_amount() {
         use crate::policy::CollateralDecision;
-        let (context, params) = create_test_context();
+
+        // Create a test context with a liquidity gap
+        let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
+        let mut agent = Agent::new("BANK_A".to_string(), 50_000, 0); // Low balance, no credit
+
+        // Create a state with the agent
+        let mut state = SimulationState::new(vec![
+            agent.clone(),
+            Agent::new("BANK_C".to_string(), 1_000_000, 0),
+        ]);
+
+        // Add a transaction to the queue to create a liquidity gap
+        let queued_tx = Transaction::new("BANK_A".to_string(), "BANK_C".to_string(), 200_000, 0, 50);
+        let queued_tx_id = queued_tx.id().to_string();
+        state.add_transaction(queued_tx);
+        agent.queue_outgoing(queued_tx_id);
+
+        let cost_rates = CostRates::default();
+        let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8);
+        let params = HashMap::new();
 
         // PostCollateral with computed amount (liquidity gap)
         let mut action_params = HashMap::new();
@@ -2029,9 +2066,10 @@ mod tests {
         );
 
         // Should compute max(queue1_liquidity_gap, 0)
+        // Agent has 50k available, 200k queued, so gap = 150k
         match result.unwrap() {
             CollateralDecision::Post { amount, .. } => {
-                assert!(amount >= 0, "Amount should be non-negative");
+                assert_eq!(amount, 150_000, "Amount should equal the liquidity gap");
             }
             _ => panic!("Expected Post decision"),
         }

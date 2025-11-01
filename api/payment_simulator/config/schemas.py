@@ -204,10 +204,10 @@ class CostRates(BaseModel):
 class LsmConfig(BaseModel):
     """Liquidity-Saving Mechanism configuration."""
 
-    enabled: bool = Field(True, description="Enable LSM optimization")
-    bilateral_enabled: bool = Field(True, description="Enable bilateral offsetting")
-    cycle_detection_enabled: bool = Field(True, description="Enable cycle detection")
-    max_iterations: int = Field(3, description="Maximum LSM optimization iterations", ge=1, le=10)
+    enable_bilateral: bool = Field(True, description="Enable bilateral offsetting (A↔B netting)")
+    enable_cycles: bool = Field(True, description="Enable cycle detection and settlement")
+    max_cycle_length: int = Field(4, description="Maximum cycle length to detect (3-5 typical)", ge=3, le=10)
+    max_cycles_per_tick: int = Field(10, description="Maximum cycles to settle per tick (performance limit)", ge=1, le=100)
 
 
 # ============================================================================
@@ -271,10 +271,10 @@ class SimulationConfig(BaseModel):
                 "split_friction_cost": self.cost_rates.split_friction_cost,
             },
             "lsm_config": {
-                "enabled": self.lsm_config.enabled,
-                "bilateral_enabled": self.lsm_config.bilateral_enabled,
-                "cycle_detection_enabled": self.lsm_config.cycle_detection_enabled,
-                "max_iterations": self.lsm_config.max_iterations,
+                "enable_bilateral": self.lsm_config.enable_bilateral,
+                "enable_cycles": self.lsm_config.enable_cycles,
+                "max_cycle_length": self.lsm_config.max_cycle_length,
+                "max_cycles_per_tick": self.lsm_config.max_cycles_per_tick,
             },
         }
 

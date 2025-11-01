@@ -1,16 +1,27 @@
-# 12-Bank Multi-Policy Comparison Simulation
+# 12-Bank LSM Gridlock Stress Test
 #
-# Configuration: 12 banks using 4 distinct JSON policies, each configured 3 different ways
-# - Adaptive Liquidity Manager: Cost-aware, time-based, gridlock-aware (3 variants)
-# - Agile Regional Bank: Cost-optimizing with splitting and reactive collateral (3 variants)
-# - Goliath National Bank: Conservative, time-adaptive, proactive collateral (3 variants)
-# - Momentum Investment Bank: Aggressive, system-aware, minimal collateral (3 variants)
+# THIS IS A STRESS-TEST VARIANT OF 12_bank_4_policy_comparison.yaml
 #
-# Scenario design:
-# - 200 ticks/day over 5 days = 1000 total ticks (realistic intraday granularity)
-# - Mixed liquidity profiles from constrained to abundant
-# - Varied transaction patterns to stress-test all policy strategies
-# - Cost rates calibrated to make policy decisions economically meaningful
+# Key differences from the comparison scenario:
+# - Liquidity reduced by ~95% (÷20) to create liquidity stress
+# - Transaction amounts increased by 3-5x to stress liquidity further
+# - Target: Liquidity/median-tx ratios of 5-20x (vs 100-2,600x in original)
+#
+# PURPOSE: Force transactions into RTGS Queue 2 to trigger LSM mechanisms
+# - Without liquidity stress, all transactions settle immediately via RTGS
+# - LSM bilateral offsetting and cycle detection only operate on queued transactions
+# - This scenario creates gridlock conditions where LSM demonstrates value
+#
+# Configuration: Same 12 banks, 4 JSON policies, but under extreme liquidity constraints
+# - Adaptive Liquidity Manager: Will heavily use collateral and delay decisions
+# - Agile Regional Bank: Will rely heavily on payment splitting
+# - Goliath National Bank: Conservative buffers will be challenged
+# - Momentum Investment Bank: Aggressive strategy meets hard constraints
+#
+# Expected LSM activity:
+# - Frequent bilateral offsetting (A→B and B→A netting)
+# - Multi-party cycles (A→B→C→A) resolving gridlock
+# - Clear difference in settlement rates with LSM enabled vs disabled
 
 simulation:
   ticks_per_day: 200
@@ -19,25 +30,24 @@ simulation:
 
 # ============================================================================
 # POLICY 1: ADAPTIVE LIQUIDITY MANAGER (3 configurations)
-# Strategy: Cost-aware, time-based, gridlock-aware with multi-layer collateral
+# Under stress: Will heavily rely on collateral and strategic timing
 # ============================================================================
 
 agents:
   # ==========================================================================
-  # ALM-1: Conservative Configuration
-  # High liquidity, low volume, defensive collateral strategy
+  # ALM-1: Conservative Configuration (STRESSED)
   # ==========================================================================
   - id: "ALM_CONSERVATIVE"
-    opening_balance: 50000000    # $500,000 - Strong liquidity cushion
-    credit_limit: 30000000       # $300,000 credit available
+    opening_balance: 2500000     # $25,000 (was $500,000) - 95% reduction
+    credit_limit: 1500000        # $15,000 (was $300,000) - 95% reduction
     policy:
       type: "FromJson"
       json_path: "backend/policies/adaptive_liquidity_manager.json"
     arrival_config:
-      rate_per_tick: 0.4         # ~80 transactions/day (conservative volume)
+      rate_per_tick: 0.4         # ~80 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 11.5               # ~$1,000 median
+        mean: 13.0               # ~$4,420 median (was ~$1,000) - 4.4x increase
         std_dev: 0.8
       counterparty_weights:
         ALM_BALANCED: 0.10
@@ -51,17 +61,16 @@ agents:
         MIB_PRIME_BROKER: 0.08
         MIB_HEDGE_FUND_DESK: 0.05
         MIB_PROP_TRADING: 0.02
-      deadline_range: [50, 150]  # Relaxed deadlines
+      deadline_range: [50, 150]
       priority: 5
       divisible: false
 
   # ==========================================================================
-  # ALM-2: Balanced Configuration
-  # Medium liquidity, moderate volume, strategic collateral use
+  # ALM-2: Balanced Configuration (STRESSED)
   # ==========================================================================
   - id: "ALM_BALANCED"
-    opening_balance: 30000000    # $300,000 - Moderate liquidity
-    credit_limit: 25000000       # $250,000 credit
+    opening_balance: 1500000     # $15,000 (was $300,000)
+    credit_limit: 1250000        # $12,500 (was $250,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/adaptive_liquidity_manager.json"
@@ -69,7 +78,7 @@ agents:
       rate_per_tick: 0.6         # ~120 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 11.0
+        mean: 12.5               # ~$2,700 median (was ~$600) - 4.5x increase
         std_dev: 1.0
       counterparty_weights:
         ALM_CONSERVATIVE: 0.10
@@ -88,20 +97,19 @@ agents:
       divisible: false
 
   # ==========================================================================
-  # ALM-3: Aggressive Configuration
-  # Lower liquidity, high volume, relies heavily on collateral
+  # ALM-3: Aggressive Configuration (STRESSED)
   # ==========================================================================
   - id: "ALM_AGGRESSIVE"
-    opening_balance: 20000000    # $200,000 - Constrained liquidity
-    credit_limit: 35000000       # $350,000 credit (higher than balance!)
+    opening_balance: 1000000     # $10,000 (was $200,000)
+    credit_limit: 1750000        # $17,500 (was $350,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/adaptive_liquidity_manager.json"
     arrival_config:
-      rate_per_tick: 0.8         # ~160 transactions/day (high volume)
+      rate_per_tick: 0.8         # ~160 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 10.5
+        mean: 12.0               # ~$1,630 median (was ~$297) - 5.5x increase
         std_dev: 1.2
       counterparty_weights:
         ALM_CONSERVATIVE: 0.08
@@ -115,22 +123,21 @@ agents:
         MIB_PRIME_BROKER: 0.08
         MIB_HEDGE_FUND_DESK: 0.05
         MIB_PROP_TRADING: 0.02
-      deadline_range: [20, 80]   # Tighter deadlines
+      deadline_range: [20, 80]
       priority: 6
       divisible: false
 
 # ============================================================================
 # POLICY 2: AGILE REGIONAL BANK (3 configurations)
-# Strategy: Cost-optimizing with payment splitting and reactive collateral
+# Under stress: Payment splitting will be critical for operation
 # ============================================================================
 
   # ==========================================================================
-  # ARB-1: Large Regional Configuration
-  # Strong liquidity, active splitting strategy
+  # ARB-1: Large Regional Configuration (STRESSED)
   # ==========================================================================
   - id: "ARB_LARGE_REGIONAL"
-    opening_balance: 45000000    # $450,000
-    credit_limit: 28000000       # $280,000 credit
+    opening_balance: 2250000     # $22,500 (was $450,000)
+    credit_limit: 1400000        # $14,000 (was $280,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/agile_regional_bank.json"
@@ -138,8 +145,8 @@ agents:
       rate_per_tick: 0.5         # ~100 transactions/day
       amount_distribution:
         type: "Uniform"
-        min: 50000               # $500
-        max: 800000              # $8,000
+        min: 250000              # $2,500 (was $500) - 5x increase
+        max: 4000000             # $40,000 (was $8,000) - 5x increase
       counterparty_weights:
         ALM_CONSERVATIVE: 0.12
         ALM_BALANCED: 0.10
@@ -154,15 +161,14 @@ agents:
         MIB_PROP_TRADING: 0.02
       deadline_range: [40, 120]
       priority: 5
-      divisible: true            # Splitting enabled
+      divisible: true            # Splitting will be essential
 
   # ==========================================================================
-  # ARB-2: Medium Regional Configuration
-  # Moderate liquidity, selective splitting
+  # ARB-2: Medium Regional Configuration (STRESSED)
   # ==========================================================================
   - id: "ARB_MEDIUM_REGIONAL"
-    opening_balance: 28000000    # $280,000
-    credit_limit: 22000000       # $220,000 credit
+    opening_balance: 1400000     # $14,000 (was $280,000)
+    credit_limit: 1100000        # $11,000 (was $220,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/agile_regional_bank.json"
@@ -170,8 +176,8 @@ agents:
       rate_per_tick: 0.55        # ~110 transactions/day
       amount_distribution:
         type: "Uniform"
-        min: 40000
-        max: 600000
+        min: 200000              # $2,000 (was $400) - 5x increase
+        max: 3000000             # $30,000 (was $6,000) - 5x increase
       counterparty_weights:
         ALM_CONSERVATIVE: 0.10
         ALM_BALANCED: 0.12
@@ -189,21 +195,20 @@ agents:
       divisible: true
 
   # ==========================================================================
-  # ARB-3: Small Regional Configuration
-  # Constrained liquidity, reactive strategy, relies on collateral
+  # ARB-3: Small Regional Configuration (STRESSED)
   # ==========================================================================
   - id: "ARB_SMALL_REGIONAL"
-    opening_balance: 18000000    # $180,000 - Tight liquidity
-    credit_limit: 20000000       # $200,000 credit
+    opening_balance: 900000      # $9,000 (was $180,000)
+    credit_limit: 1000000        # $10,000 (was $200,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/agile_regional_bank.json"
     arrival_config:
-      rate_per_tick: 0.65        # ~130 transactions/day (high for size)
+      rate_per_tick: 0.65        # ~130 transactions/day
       amount_distribution:
         type: "Uniform"
-        min: 30000
-        max: 500000
+        min: 150000              # $1,500 (was $300) - 5x increase
+        max: 2500000             # $25,000 (was $5,000) - 5x increase
       counterparty_weights:
         ALM_CONSERVATIVE: 0.08
         ALM_BALANCED: 0.10
@@ -222,16 +227,15 @@ agents:
 
 # ============================================================================
 # POLICY 3: GOLIATH NATIONAL BANK (3 configurations)
-# Strategy: Conservative, time-adaptive with tiered buffers, proactive collateral
+# Under stress: Conservative buffers will be tested, collateral critical
 # ============================================================================
 
   # ==========================================================================
-  # GNB-1: Tier 1 Behemoth Configuration
-  # Massive liquidity, highest volume, maintains large buffers
+  # GNB-1: Tier 1 Behemoth Configuration (STRESSED)
   # ==========================================================================
   - id: "GNB_TIER1_BEHEMOTH"
-    opening_balance: 80000000    # $800,000 - Dominant liquidity
-    credit_limit: 50000000       # $500,000 credit
+    opening_balance: 4000000     # $40,000 (was $800,000)
+    credit_limit: 2500000        # $25,000 (was $500,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/goliath_national_bank.json"
@@ -239,7 +243,7 @@ agents:
       rate_per_tick: 0.7         # ~140 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 12.0               # Larger transactions
+        mean: 13.5               # ~$7,300 median (was ~$1,628) - 4.5x increase
         std_dev: 1.0
       counterparty_weights:
         ALM_CONSERVATIVE: 0.10
@@ -253,17 +257,16 @@ agents:
         MIB_PRIME_BROKER: 0.10
         MIB_HEDGE_FUND_DESK: 0.07
         MIB_PROP_TRADING: 0.03
-      deadline_range: [60, 160]  # Very relaxed deadlines
+      deadline_range: [60, 160]
       priority: 7
       divisible: false
 
   # ==========================================================================
-  # GNB-2: Major National Configuration
-  # Large liquidity, high volume, strict buffer maintenance
+  # GNB-2: Major National Configuration (STRESSED)
   # ==========================================================================
   - id: "GNB_MAJOR_NATIONAL"
-    opening_balance: 55000000    # $550,000
-    credit_limit: 38000000       # $380,000 credit
+    opening_balance: 2750000     # $27,500 (was $550,000)
+    credit_limit: 1900000        # $19,000 (was $380,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/goliath_national_bank.json"
@@ -271,7 +274,7 @@ agents:
       rate_per_tick: 0.65        # ~130 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 11.5
+        mean: 13.0               # ~$4,420 median (was ~$987) - 4.5x increase
         std_dev: 0.9
       counterparty_weights:
         ALM_CONSERVATIVE: 0.10
@@ -290,12 +293,11 @@ agents:
       divisible: false
 
   # ==========================================================================
-  # GNB-3: Regional National Configuration
-  # Good liquidity, moderate volume, time-adaptive
+  # GNB-3: Regional National Configuration (STRESSED)
   # ==========================================================================
   - id: "GNB_REGIONAL_NATIONAL"
-    opening_balance: 38000000    # $380,000
-    credit_limit: 28000000       # $280,000 credit
+    opening_balance: 1900000     # $19,000 (was $380,000)
+    credit_limit: 1400000        # $14,000 (was $280,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/goliath_national_bank.json"
@@ -303,7 +305,7 @@ agents:
       rate_per_tick: 0.55        # ~110 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 11.0
+        mean: 12.5               # ~$2,700 median (was ~$600) - 4.5x increase
         std_dev: 0.85
       counterparty_weights:
         ALM_CONSERVATIVE: 0.10
@@ -323,25 +325,24 @@ agents:
 
 # ============================================================================
 # POLICY 4: MOMENTUM INVESTMENT BANK (3 configurations)
-# Strategy: Aggressive release, system-aware, holds trivial payments
+# Under stress: Aggressive strategy will hit hard liquidity constraints
 # ============================================================================
 
   # ==========================================================================
-  # MIB-1: Prime Broker Configuration
-  # High liquidity, very high volume, aggressive with large payments
+  # MIB-1: Prime Broker Configuration (STRESSED)
   # ==========================================================================
   - id: "MIB_PRIME_BROKER"
-    opening_balance: 42000000    # $420,000
-    credit_limit: 32000000       # $320,000 credit
+    opening_balance: 2100000     # $21,000 (was $420,000)
+    credit_limit: 1600000        # $16,000 (was $320,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/momentum_investment_bank.json"
     arrival_config:
-      rate_per_tick: 0.9         # ~180 transactions/day (highest volume)
+      rate_per_tick: 0.9         # ~180 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 10.8
-        std_dev: 1.3             # High variance
+        mean: 12.2               # ~$2,200 median (was ~$490) - 4.5x increase
+        std_dev: 1.3
       counterparty_weights:
         ALM_CONSERVATIVE: 0.08
         ALM_BALANCED: 0.08
@@ -354,25 +355,24 @@ agents:
         GNB_REGIONAL_NATIONAL: 0.10
         MIB_HEDGE_FUND_DESK: 0.10
         MIB_PROP_TRADING: 0.06
-      deadline_range: [20, 80]   # Tight deadlines
+      deadline_range: [20, 80]
       priority: 7
       divisible: false
 
   # ==========================================================================
-  # MIB-2: Hedge Fund Desk Configuration
-  # Medium liquidity, very high volume, diverse counterparties
+  # MIB-2: Hedge Fund Desk Configuration (STRESSED)
   # ==========================================================================
   - id: "MIB_HEDGE_FUND_DESK"
-    opening_balance: 32000000    # $320,000
-    credit_limit: 28000000       # $280,000 credit
+    opening_balance: 1600000     # $16,000 (was $320,000)
+    credit_limit: 1400000        # $14,000 (was $280,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/momentum_investment_bank.json"
     arrival_config:
-      rate_per_tick: 1.0         # ~200 transactions/day (very high)
+      rate_per_tick: 1.0         # ~200 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 10.3
+        mean: 11.7               # ~$1,330 median (was ~$297) - 4.5x increase
         std_dev: 1.4
       counterparty_weights:
         ALM_CONSERVATIVE: 0.05
@@ -385,27 +385,26 @@ agents:
         GNB_MAJOR_NATIONAL: 0.12
         GNB_REGIONAL_NATIONAL: 0.10
         MIB_PRIME_BROKER: 0.10
-        MIB_PROP_TRADING: 0.21    # Heavy interaction with prop desk
+        MIB_PROP_TRADING: 0.21
       deadline_range: [15, 70]
       priority: 6
       divisible: false
 
   # ==========================================================================
-  # MIB-3: Prop Trading Configuration
-  # Moderate liquidity, extremely high volume, many small payments
+  # MIB-3: Prop Trading Configuration (STRESSED)
   # ==========================================================================
   - id: "MIB_PROP_TRADING"
-    opening_balance: 25000000    # $250,000
-    credit_limit: 22000000       # $220,000 credit
+    opening_balance: 1250000     # $12,500 (was $250,000)
+    credit_limit: 1100000        # $11,000 (was $220,000)
     policy:
       type: "FromJson"
       json_path: "backend/policies/momentum_investment_bank.json"
     arrival_config:
-      rate_per_tick: 1.1         # ~220 transactions/day (extreme volume)
+      rate_per_tick: 1.1         # ~220 transactions/day
       amount_distribution:
         type: "LogNormal"
-        mean: 9.8                # Smaller transactions
-        std_dev: 1.5             # Very high variance
+        mean: 11.2               # ~$810 median (was ~$180) - 4.5x increase
+        std_dev: 1.5
       counterparty_weights:
         ALM_CONSERVATIVE: 0.02
         ALM_BALANCED: 0.02
@@ -417,70 +416,74 @@ agents:
         GNB_MAJOR_NATIONAL: 0.12
         GNB_REGIONAL_NATIONAL: 0.10
         MIB_PRIME_BROKER: 0.06
-        MIB_HEDGE_FUND_DESK: 0.43  # Heavy flow to hedge fund desk
-      deadline_range: [10, 60]   # Very tight deadlines
+        MIB_HEDGE_FUND_DESK: 0.43
+      deadline_range: [10, 60]
       priority: 5
       divisible: false
 
 # ============================================================================
 # LSM CONFIGURATION
-# Enable bilateral offsetting and cycle detection for gridlock resolution
+# CRITICAL: LSM is the primary gridlock resolution mechanism in this scenario
 # ============================================================================
 
 lsm_config:
-  enable_bilateral: true        # Enable bilateral offsetting (A↔B netting)
-  enable_cycles: true            # Enable cycle detection and settlement
-  max_cycle_length: 5            # Maximum cycle length to detect (increased for 12-bank network)
-  max_cycles_per_tick: 10        # Maximum cycles to settle per tick (performance limit)
+  enable_bilateral: true        # Bilateral offsetting will be HEAVILY used
+  enable_cycles: true            # Cycle detection critical for multi-party gridlock
+  max_cycle_length: 6            # Increased to 6 for complex gridlock patterns
+  max_cycles_per_tick: 15        # Increased capacity for high LSM activity
 
 # ============================================================================
 # COST CONFIGURATION
-# Calibrated to make policy decisions economically meaningful
+# Same as comparison scenario - makes metrics directly comparable
 # ============================================================================
 
 cost_rates:
-  overdraft_bps_per_tick: 0.5               # 0.5 bp per tick (reasonable for 200 ticks/day)
-  delay_cost_per_tick_per_cent: 0.0001     # $0.001 per cent per tick
-  collateral_cost_per_tick_bps: 0.0003     # 0.03 bp per tick (annualized ~5.4% with 200 ticks)
-  eod_penalty_per_transaction: 500000       # $5,000 penalty for unsettled at EOD
-  deadline_penalty: 250000                  # $2,500 penalty for missing deadline
-  split_friction_cost: 5000                 # $50 cost to split a transaction
+  overdraft_bps_per_tick: 0.5
+  delay_cost_per_tick_per_cent: 0.0001
+  collateral_cost_per_tick_bps: 0.0003
+  eod_penalty_per_transaction: 500000       # $5,000 penalty
+  deadline_penalty: 250000                  # $2,500 penalty
+  split_friction_cost: 5000                 # $50 cost to split
 
 # ============================================================================
-# EXPECTED DYNAMICS
+# EXPECTED LSM DYNAMICS
 # ============================================================================
 #
-# This scenario tests all four policy types under realistic conditions:
+# With 95% liquidity reduction and 3-5x larger transactions:
 #
-# 1. ADAPTIVE LIQUIDITY MANAGER banks will demonstrate:
-#    - Cost-aware decision making comparing overdraft vs delay costs
-#    - Time-based urgency with EOD rush detection
-#    - Strategic collateral posting when gaps emerge late in day
-#    - End-of-tick collateral optimization (withdraw excess)
+# 1. RTGS Queue 2 will fill up significantly
+#    - Many transactions will fail immediate RTGS settlement
+#    - Queue depths of 50-200 transactions expected during peak times
+#    - Creates opportunities for bilateral and cycle-based offsetting
 #
-# 2. AGILE REGIONAL BANK variants will show:
-#    - Payment splitting when facing liquidity constraints
-#    - Cost-benefit analysis (delay vs overdraft vs splitting)
-#    - Reactive collateral management (post when gap appears)
-#    - Different split strategies based on bank size
+# 2. Bilateral Offsetting (A↔B netting) will trigger frequently
+#    - Expect 20-50 bilateral pairs per day
+#    - Particularly effective for banks with balanced flows (MIB↔MIB, ALM↔GNB)
+#    - Will reduce queue depth and improve settlement rates
 #
-# 3. GOLIATH NATIONAL BANK tiers will exhibit:
-#    - Time-adaptive buffer strategies (conservative early, aggressive late)
-#    - Proactive collateral posting before gaps emerge
-#    - Strict liquidity preservation
-#    - Tier-based risk management (larger banks more conservative)
+# 3. Cycle Detection will resolve complex gridlock
+#    - Expect 5-15 cycles per day (3-6 party cycles)
+#    - Critical during end-of-day rushes when many agents are constrained
+#    - Unlocks circular waiting patterns that bilateral offsetting can't solve
 #
-# 4. MOMENTUM INVESTMENT BANK desks will display:
-#    - Aggressive payment release (near-FIFO)
-#    - System congestion awareness (pause when RTGS overloaded)
-#    - Deprioritization of trivial payments
-#    - No collateral management (pure liquidity-based strategy)
+# 4. Policy effectiveness under stress:
+#    - ALM: Collateral management becomes critical, not just nice-to-have
+#    - ARB: Payment splitting transforms from optimization to necessity
+#    - GNB: Conservative buffers may be insufficient, forcing adaptations
+#    - MIB: Aggressive release strategy creates queue pressure, tests LSM limits
 #
-# Network effects:
-# - High-volume MIB banks will stress the system
-# - Conservative GNB banks will provide stability
-# - ALM banks will adapt strategically to changing conditions
-# - ARB banks will optimize through splitting and reactive collateral
+# 5. Comparative metrics to measure LSM effectiveness:
+#    - Settlement rate: LSM enabled vs disabled (expect 15-30% improvement)
+#    - Queue depth: Peak and average (expect 40-60% reduction with LSM)
+#    - End-of-day unsettled: Critical metric (expect 50-80% reduction)
+#    - Total system cost: Delay penalties dominate without LSM
 #
-# With 200 ticks/day over 5 days, this creates realistic intraday dynamics
-# where time-based strategies can shine and cost comparisons are meaningful.
+# 6. Recommended analysis:
+#    - Run with enable_bilateral=false, enable_cycles=false to see baseline
+#    - Run with only enable_bilateral=true to isolate bilateral value
+#    - Run with both enabled to see full LSM effectiveness
+#    - Compare RTGS queue visualizations across all three runs
+#
+# This scenario demonstrates LSM's value proposition: without it, the system
+# experiences severe gridlock. With it, the system remains operational despite
+# extreme liquidity constraints.

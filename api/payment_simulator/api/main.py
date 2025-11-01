@@ -261,7 +261,7 @@ class SimulationManager:
         }
 
     def get_transaction(self, sim_id: str, tx_id: str) -> Optional[Dict[str, Any]]:
-        """Get transaction by ID, with status inference."""
+        """Get transaction by ID with status from orchestrator."""
         if sim_id not in self.transactions:
             return None
 
@@ -272,20 +272,28 @@ class SimulationManager:
         # Make a copy to avoid modifying stored data
         tx_data = tx_data.copy()
 
-        # Infer status based on balance changes since submission
-        # If sender's balance has decreased by at least the transaction amount,
-        # assume the transaction has settled
+        # Query the orchestrator for ground truth transaction status
+        # This replaces the old balance-based heuristic which was unreliable
         orch = self.simulations[sim_id]
-        current_balance = orch.get_agent_balance(tx_data["sender"])
-        balance_at_submission = tx_data.get("sender_balance_at_submission")
+        orchestrator_tx = orch.get_transaction_details(tx_id)
 
-        if balance_at_submission is not None:
-            balance_decrease = balance_at_submission - current_balance
+        if orchestrator_tx is not None:
+            # Update status from orchestrator's ground truth
+            # Map orchestrator status strings to API status format
+            orch_status = orchestrator_tx.get("status", "Pending")
 
-            # If balance decreased by at least 80% of transaction amount, assume settled
-            # (allowing for some costs/fees)
-            if balance_decrease >= (tx_data["amount"] * 0.8):
-                tx_data["status"] = "settled"
+            # Convert status to lowercase for API consistency
+            status_map = {
+                "Pending": "pending",
+                "Settled": "settled",
+                "Dropped": "dropped",
+                "PartiallySettled": "partially_settled",
+            }
+            tx_data["status"] = status_map.get(orch_status, "pending")
+
+            # Also update amount information from orchestrator if available
+            if "remaining_amount" in orchestrator_tx:
+                tx_data["remaining_amount"] = orchestrator_tx["remaining_amount"]
 
         return tx_data
 
@@ -299,7 +307,12 @@ class SimulationManager:
         if sim_id not in self.transactions:
             return []
 
-        transactions = list(self.transactions[sim_id].values())
+        # Get all transactions with updated statuses from orchestrator
+        transactions = []
+        for tx_id in self.transactions[sim_id].keys():
+            tx = self.get_transaction(sim_id, tx_id)
+            if tx is not None:
+                transactions.append(tx)
 
         # Apply filters
         if status:
