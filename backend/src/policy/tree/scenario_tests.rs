@@ -243,9 +243,9 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 10 (early day)
-        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
+        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
         let conservation_decisions =
-            conservation_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
+            conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
 
         // FIFO: Releases all 3 transactions immediately
         // assert_eq!(fifo_decisions.len(), 3);
@@ -312,9 +312,9 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 15 (early-mid day)
-        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 15, &cost_rates);
+        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
         let conservation_decisions =
-            conservation_policy.evaluate_queue(&agent, &state, 15, &cost_rates);
+            conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
 
         // Count holds
         // let fifo_holds = fifo_decisions
@@ -377,9 +377,9 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 96 (late day, approaching EoD at tick 100)
-        // let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, 96, &cost_rates);
+        // let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
         let conservation_decisions =
-            conservation_policy.evaluate_queue(&agent, &state, 96, &cost_rates);
+            conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
 
         // Both should release everything to avoid EoD penalties
         // let deadline_releases = deadline_decisions
@@ -444,7 +444,7 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 10 (urgent deadline in 5 ticks)
-        let decisions = conservation_policy.evaluate_queue(&agent, &state, 10, &cost_rates);
+        let decisions = conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
 
         // Find decisions
         let urgent_decision = decisions
@@ -519,9 +519,9 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 20 (mid-day)
-        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 20, &cost_rates);
+        // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
         let conservation_decisions =
-            conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates);
+            conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
 
         // Both should release everything
         // let fifo_releases = fifo_decisions
@@ -617,7 +617,7 @@ mod tests {
             // let fifo_decisions = fifo_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
             // let deadline_decisions = deadline_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
             let conservation_decisions =
-                conservation_policy.evaluate_queue(&agent, &state, tick, &cost_rates);
+                conservation_policy.evaluate_queue(&agent, &state, tick, &cost_rates, 100, 0.8);
 
             let count_releases = |decisions: &Vec<ReleaseDecision>| {
                 decisions

@@ -33,7 +33,7 @@ mod test_cost_context {
             eod_penalty_per_transaction: 500_000,
         };
 
-        EvalContext::build(&tx, &agent, &state, 50, &cost_rates)
+        EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8)
     }
 
     /// Helper: Create scenario where delay is cheaper than overdraft
@@ -156,7 +156,7 @@ mod test_cost_context {
             ..Default::default()
         };
 
-        let context = EvalContext::build(&tx, &agent, &state, tick, &cost_rates);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &cost_rates, 100, 0.8);
 
         let delay_cost = context.get_field("cost_delay_this_tx_one_tick").unwrap();
         let overdraft_cost = context
@@ -191,7 +191,7 @@ mod test_cost_context {
             eod_penalty_per_transaction: 0,
         };
 
-        let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates);
+        let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8);
 
         assert_eq!(
             context.get_field("cost_overdraft_bps_per_tick").unwrap(),
@@ -284,7 +284,7 @@ mod test_cost_context {
             ..Default::default()
         };
 
-        let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates);
+        let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8);
 
         let delay_cost = context.get_field("cost_delay_this_tx_one_tick").unwrap();
         let overdraft_cost = context
@@ -320,7 +320,7 @@ mod test_cost_context {
             ..Default::default()
         };
 
-        let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates);
+        let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8);
 
         let delay_cost = context.get_field("cost_delay_this_tx_one_tick").unwrap();
         let overdraft_cost = context
@@ -365,8 +365,8 @@ mod test_cost_context {
             ..Default::default()
         };
 
-        let context1 = EvalContext::build(&tx, &agent, &state, 50, &cost_rates);
-        let context2 = EvalContext::build(&tx, &agent, &state, 50, &cost_rates);
+        let context1 = EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8);
+        let context2 = EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8);
 
         assert_eq!(
             context1.get_field("cost_delay_this_tx_one_tick").unwrap(),

@@ -222,6 +222,8 @@ impl TreePolicy {
         state: &SimulationState,
         tick: usize,
         cost_rates: &CostRates,
+        ticks_per_day: usize,
+        eod_rush_threshold: f64,
     ) -> Result<crate::policy::CollateralDecision, TreePolicyError> {
         use crate::policy::tree::interpreter::{
             build_collateral_decision, traverse_strategic_collateral_tree,
@@ -242,7 +244,7 @@ impl TreePolicy {
             tick,
             tick + 1,
         );
-        let context = EvalContext::build(&dummy_tx, agent, state, tick, cost_rates);
+        let context = EvalContext::build(&dummy_tx, agent, state, tick, cost_rates, ticks_per_day, eod_rush_threshold);
 
         // Validate tree on first use
         if !self.validated {
@@ -285,6 +287,8 @@ impl TreePolicy {
         state: &SimulationState,
         tick: usize,
         cost_rates: &CostRates,
+        ticks_per_day: usize,
+        eod_rush_threshold: f64,
     ) -> Result<crate::policy::CollateralDecision, TreePolicyError> {
         use crate::policy::tree::interpreter::{
             build_collateral_decision, traverse_end_of_tick_collateral_tree,
@@ -303,7 +307,7 @@ impl TreePolicy {
             tick,
             tick + 1,
         );
-        let context = EvalContext::build(&dummy_tx, agent, state, tick, cost_rates);
+        let context = EvalContext::build(&dummy_tx, agent, state, tick, cost_rates, ticks_per_day, eod_rush_threshold);
 
         // Validate tree on first use
         if !self.validated {
@@ -393,6 +397,8 @@ impl CashManagerPolicy for TreePolicy {
         state: &SimulationState,
         tick: usize,
         cost_rates: &CostRates,
+        ticks_per_day: usize,
+        eod_rush_threshold: f64,
     ) -> Vec<ReleaseDecision> {
         // Phase 9.5.1: Expose cost_rates to policy decision trees
         let mut decisions = Vec::new();
@@ -408,7 +414,7 @@ impl CashManagerPolicy for TreePolicy {
             };
 
             // Build evaluation context (Phase 9.5.1: now includes cost_rates)
-            let context = EvalContext::build(tx, agent, state, tick, cost_rates);
+            let context = EvalContext::build(tx, agent, state, tick, cost_rates, ticks_per_day, eod_rush_threshold);
 
             // Validate tree on first use
             if !self.validated {
@@ -561,7 +567,7 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate queue
-        let decisions = policy.evaluate_queue(&agent, &state, 10, &cost_rates);
+        let decisions = policy.evaluate_queue(&agent, &state, 10, &cost_rates, 100, 0.8);
 
         // Should release (balance 500k > amount 100k)
         assert_eq!(decisions.len(), 1);
@@ -607,7 +613,7 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate queue
-        let decisions = policy.evaluate_queue(&agent, &state, 10, &cost_rates);
+        let decisions = policy.evaluate_queue(&agent, &state, 10, &cost_rates, 100, 0.8);
 
         // Should release both
         assert_eq!(decisions.len(), 2);
@@ -667,7 +673,7 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate queue
-        let decisions = policy.evaluate_queue(&agent, &state, 10, &cost_rates);
+        let decisions = policy.evaluate_queue(&agent, &state, 10, &cost_rates, 100, 0.8);
 
         // Should release (balance 500k > threshold 300k)
         assert_eq!(decisions.len(), 1);
@@ -728,7 +734,7 @@ mod tests {
 
         // Evaluate strategic collateral
         let decision = policy
-            .evaluate_strategic_collateral(&agent, &state, 10, &cost_rates)
+            .evaluate_strategic_collateral(&agent, &state, 10, &cost_rates, 100, 0.8)
             .unwrap();
 
         // Should return PostCollateral decision
@@ -766,7 +772,7 @@ mod tests {
 
         // Evaluate strategic collateral
         let decision = policy
-            .evaluate_strategic_collateral(&agent, &state, 10, &cost_rates)
+            .evaluate_strategic_collateral(&agent, &state, 10, &cost_rates, 100, 0.8)
             .unwrap();
 
         // Should return Hold (default when tree not defined)
@@ -821,7 +827,7 @@ mod tests {
 
         // Evaluate end-of-tick collateral
         let decision = policy
-            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates)
+            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates, 100, 0.8)
             .unwrap();
 
         // Should return WithdrawCollateral decision for the posted amount
@@ -859,7 +865,7 @@ mod tests {
 
         // Evaluate end-of-tick collateral
         let decision = policy
-            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates)
+            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates, 100, 0.8)
             .unwrap();
 
         // Should return Hold (default when tree not defined)
@@ -931,7 +937,7 @@ mod tests {
 
         // Evaluate end-of-tick collateral (queue2_size = 0, so should withdraw)
         let decision = policy
-            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates)
+            .evaluate_end_of_tick_collateral(&agent, &state, 10, &cost_rates, 100, 0.8)
             .unwrap();
 
         // Should return WithdrawCollateral decision

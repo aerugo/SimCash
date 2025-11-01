@@ -65,6 +65,14 @@ pub enum ContextError {
 /// - cost_eod_penalty: End-of-day penalty per unsettled transaction (f64)
 /// - cost_delay_this_tx_one_tick: Delay cost for THIS transaction for one tick (f64)
 /// - cost_overdraft_this_amount_one_tick: Overdraft cost for THIS amount for one tick (f64)
+///
+/// **System Configuration Fields** (Phase 9.5.2):
+/// - system_ticks_per_day: Number of ticks in a simulation day (f64)
+/// - system_current_day: Current day number (0-indexed) (f64)
+/// - system_tick_in_day: Current tick within the day (0 to ticks_per_day-1) (f64)
+/// - ticks_remaining_in_day: Ticks remaining in current day (f64)
+/// - day_progress_fraction: Progress through day (0.0 to 1.0) (f64)
+/// - is_eod_rush: Boolean (1.0) if in end-of-day rush period (f64)
 #[derive(Debug, Clone)]
 pub struct EvalContext {
     /// Field name → value mapping
@@ -81,6 +89,8 @@ impl EvalContext {
     /// * `state` - Full simulation state
     /// * `tick` - Current simulation tick
     /// * `cost_rates` - Cost configuration (Phase 9.5.1)
+    /// * `ticks_per_day` - Number of ticks in a simulation day (Phase 9.5.2)
+    /// * `eod_rush_threshold` - End-of-day rush threshold (0.0 to 1.0) (Phase 9.5.2)
     ///
     /// # Returns
     ///
@@ -98,7 +108,7 @@ impl EvalContext {
     /// let state = SimulationState::new(vec![agent.clone()]);
     /// let cost_rates = CostRates::default();
     ///
-    /// let context = EvalContext::build(&tx, &agent, &state, 100, &create_cost_rates());
+    /// let context = EvalContext::build(&tx, &agent, &state, 100, &cost_rates, 100, 0.8);
     /// let balance = context.get_field("balance").unwrap();
     /// assert_eq!(balance, 1_000_000.0);
     /// ```
@@ -108,6 +118,8 @@ impl EvalContext {
         state: &SimulationState,
         tick: usize,
         cost_rates: &CostRates,
+        ticks_per_day: usize,
+        eod_rush_threshold: f64,
     ) -> Self {
         let mut fields = HashMap::new();
 
@@ -295,6 +307,38 @@ impl EvalContext {
             overdraft_cost_one_tick,
         );
 
+        // Phase 9.5.2: System Configuration Fields
+        //
+        // Expose time-of-day context to enable EOD rush detection and time-based strategies.
+
+        // Direct system configuration fields
+        fields.insert("system_ticks_per_day".to_string(), ticks_per_day as f64);
+
+        // Calculate current day and tick within day
+        let current_day = tick / ticks_per_day;
+        let tick_in_day = tick % ticks_per_day;
+
+        fields.insert("system_current_day".to_string(), current_day as f64);
+        fields.insert("system_tick_in_day".to_string(), tick_in_day as f64);
+
+        // Derived time fields
+        // Ticks remaining in day: ticks_per_day - tick_in_day - 1
+        // (subtract 1 because current tick counts as "used")
+        let ticks_remaining = ticks_per_day.saturating_sub(tick_in_day).saturating_sub(1);
+        fields.insert("ticks_remaining_in_day".to_string(), ticks_remaining as f64);
+
+        // Day progress fraction: how far through the day (0.0 = start, 1.0 = end)
+        let day_progress = if ticks_per_day > 0 {
+            tick_in_day as f64 / ticks_per_day as f64
+        } else {
+            0.0
+        };
+        fields.insert("day_progress_fraction".to_string(), day_progress);
+
+        // EOD rush detection: boolean field (1.0 = in rush, 0.0 = not in rush)
+        let is_eod_rush = if day_progress >= eod_rush_threshold { 1.0 } else { 0.0 };
+        fields.insert("is_eod_rush".to_string(), is_eod_rush);
+
         Self { fields }
     }
 
@@ -376,7 +420,7 @@ mod tests {
     #[test]
     fn test_context_contains_agent_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Check agent fields
         assert_eq!(context.get_field("balance").unwrap(), 500_000.0);
@@ -395,7 +439,7 @@ mod tests {
     #[test]
     fn test_context_contains_transaction_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Check transaction fields
         assert_eq!(context.get_field("amount").unwrap(), 100_000.0);
@@ -411,7 +455,7 @@ mod tests {
     #[test]
     fn test_context_contains_derived_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Check derived fields
         // tick = 30, deadline = 50 → ticks_to_deadline = 20
@@ -424,7 +468,7 @@ mod tests {
     #[test]
     fn test_context_contains_system_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Check system fields
         assert_eq!(context.get_field("rtgs_queue_size").unwrap(), 0.0); // Empty queue
@@ -435,7 +479,7 @@ mod tests {
     #[test]
     fn test_field_lookup_returns_correct_value() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Test specific lookups
         assert!(context.has_field("balance"));
@@ -449,7 +493,7 @@ mod tests {
     #[test]
     fn test_missing_field_returns_error() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Test missing field
         let result = context.get_field("nonexistent_field");
@@ -471,7 +515,7 @@ mod tests {
 
         // Create context with tick past deadline
         let tick = 60; // deadline is 50
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // ticks_to_deadline should be negative
         assert_eq!(context.get_field("ticks_to_deadline").unwrap(), -10.0);
@@ -485,7 +529,7 @@ mod tests {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 10_000, 0, 10);
         let state = SimulationState::new(vec![agent.clone()]);
 
-        let context = EvalContext::build(&tx, &agent, &state, 0, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, 0, &create_cost_rates(), 100, 0.8);
 
         // is_using_credit should be 1.0 (true)
         assert_eq!(context.get_field("is_using_credit").unwrap(), 1.0);
@@ -508,7 +552,7 @@ mod tests {
         let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
         let state = SimulationState::new(vec![agent.clone()]);
 
-        let context = EvalContext::build(&child, &agent, &state, 5, &create_cost_rates());
+        let context = EvalContext::build(&child, &agent, &state, 5, &create_cost_rates(), 100, 0.8);
 
         // Child transaction should have is_split = 1.0
         assert_eq!(context.get_field("is_split").unwrap(), 1.0);
@@ -521,7 +565,7 @@ mod tests {
     #[test]
     fn test_context_contains_collateral_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Collateral state fields
         assert!(context.has_field("posted_collateral"));
@@ -536,7 +580,7 @@ mod tests {
     #[test]
     fn test_context_contains_liquidity_gap_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Liquidity gap fields
         assert!(context.has_field("queue1_liquidity_gap"));
@@ -550,7 +594,7 @@ mod tests {
     #[test]
     fn test_context_contains_queue2_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates(), 100, 0.8);
 
         // Queue 2 fields
         assert!(context.has_field("queue2_count_for_agent"));
@@ -571,7 +615,7 @@ mod tests {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 10_000, 0, 10);
         let state = SimulationState::new(vec![agent.clone()]);
 
-        let context = EvalContext::build(&tx, &agent, &state, 0, &create_cost_rates());
+        let context = EvalContext::build(&tx, &agent, &state, 0, &create_cost_rates(), 100, 0.8);
 
         // Collateral utilization should be computable
         assert!(context.has_field("collateral_utilization"));
