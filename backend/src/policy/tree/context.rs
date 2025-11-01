@@ -3,6 +3,7 @@
 // Builds field values from simulation state for expression evaluation.
 // Exposes transaction fields, agent fields, derived fields, and system state.
 
+use crate::orchestrator::CostRates;
 use crate::{Agent, SimulationState, Transaction};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -54,6 +55,16 @@ pub enum ContextError {
 /// - queue2_count_for_agent: Number of agent's transactions in Queue 2 (usize → f64)
 /// - queue2_nearest_deadline: Nearest deadline in Queue 2 for this agent (usize → f64)
 /// - ticks_to_nearest_queue2_deadline: Ticks until nearest Queue 2 deadline (f64, can be INFINITY)
+///
+/// **Cost Fields** (Phase 9.5.1):
+/// - cost_overdraft_bps_per_tick: Overdraft cost in basis points per tick (f64)
+/// - cost_delay_per_tick_per_cent: Delay cost per tick per cent (f64)
+/// - cost_collateral_bps_per_tick: Collateral opportunity cost in bps per tick (f64)
+/// - cost_split_friction: Cost per split operation (f64)
+/// - cost_deadline_penalty: Penalty for missing deadline (f64)
+/// - cost_eod_penalty: End-of-day penalty per unsettled transaction (f64)
+/// - cost_delay_this_tx_one_tick: Delay cost for THIS transaction for one tick (f64)
+/// - cost_overdraft_this_amount_one_tick: Overdraft cost for THIS amount for one tick (f64)
 #[derive(Debug, Clone)]
 pub struct EvalContext {
     /// Field name → value mapping
@@ -69,6 +80,7 @@ impl EvalContext {
     /// * `agent` - Agent whose queue contains this transaction
     /// * `state` - Full simulation state
     /// * `tick` - Current simulation tick
+    /// * `cost_rates` - Cost configuration (Phase 9.5.1)
     ///
     /// # Returns
     ///
@@ -79,16 +91,24 @@ impl EvalContext {
     /// ```rust
     /// use payment_simulator_core_rs::policy::tree::EvalContext;
     /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+    /// use payment_simulator_core_rs::orchestrator::CostRates;
     ///
     /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
     /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
     /// let state = SimulationState::new(vec![agent.clone()]);
+    /// let cost_rates = CostRates::default();
     ///
-    /// let context = EvalContext::build(&tx, &agent, &state, 100);
+    /// let context = EvalContext::build(&tx, &agent, &state, 100, &create_cost_rates());
     /// let balance = context.get_field("balance").unwrap();
     /// assert_eq!(balance, 1_000_000.0);
     /// ```
-    pub fn build(tx: &Transaction, agent: &Agent, state: &SimulationState, tick: usize) -> Self {
+    pub fn build(
+        tx: &Transaction,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+        cost_rates: &CostRates,
+    ) -> Self {
         let mut fields = HashMap::new();
 
         // Transaction fields
@@ -227,6 +247,54 @@ impl EvalContext {
             ticks_to_nearest_queue2_deadline,
         );
 
+        // Phase 9.5.1: Cost Fields
+        //
+        // Expose cost parameters to enable cost-based decision making in policies.
+        // Policies can compare costs (e.g., "is delay cheaper than overdraft?").
+
+        // Direct cost rate fields
+        fields.insert(
+            "cost_overdraft_bps_per_tick".to_string(),
+            cost_rates.overdraft_bps_per_tick,
+        );
+        fields.insert(
+            "cost_delay_per_tick_per_cent".to_string(),
+            cost_rates.delay_cost_per_tick_per_cent,
+        );
+        fields.insert(
+            "cost_collateral_bps_per_tick".to_string(),
+            cost_rates.collateral_cost_per_tick_bps,
+        );
+        fields.insert(
+            "cost_split_friction".to_string(),
+            cost_rates.split_friction_cost as f64,
+        );
+        fields.insert(
+            "cost_deadline_penalty".to_string(),
+            cost_rates.deadline_penalty as f64,
+        );
+        fields.insert(
+            "cost_eod_penalty".to_string(),
+            cost_rates.eod_penalty_per_transaction as f64,
+        );
+
+        // Derived cost calculations specific to this transaction
+        let amount_f64 = tx.remaining_amount() as f64;
+
+        // Delay cost for THIS transaction for one tick
+        // Formula: delay_cost_per_tick_per_cent * amount
+        let delay_cost_one_tick = amount_f64 * cost_rates.delay_cost_per_tick_per_cent;
+        fields.insert("cost_delay_this_tx_one_tick".to_string(), delay_cost_one_tick);
+
+        // Overdraft cost for THIS amount for one tick
+        // Formula: (overdraft_bps_per_tick / 10000) * amount
+        // Note: Basis points conversion (1 bp = 0.0001 = 1/10000)
+        let overdraft_cost_one_tick = (cost_rates.overdraft_bps_per_tick / 10_000.0) * amount_f64;
+        fields.insert(
+            "cost_overdraft_this_amount_one_tick".to_string(),
+            overdraft_cost_one_tick,
+        );
+
         Self { fields }
     }
 
@@ -263,6 +331,7 @@ impl EvalContext {
 
 #[cfg(test)]
 mod tests {
+    use crate::orchestrator::CostRates;
     use super::*;
     use crate::{Agent, SimulationState, Transaction};
 
@@ -300,10 +369,14 @@ mod tests {
         (tx, agent, state, tick)
     }
 
+    fn create_cost_rates() -> CostRates {
+        CostRates::default()
+    }
+
     #[test]
     fn test_context_contains_agent_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Check agent fields
         assert_eq!(context.get_field("balance").unwrap(), 500_000.0);
@@ -322,7 +395,7 @@ mod tests {
     #[test]
     fn test_context_contains_transaction_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Check transaction fields
         assert_eq!(context.get_field("amount").unwrap(), 100_000.0);
@@ -338,7 +411,7 @@ mod tests {
     #[test]
     fn test_context_contains_derived_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Check derived fields
         // tick = 30, deadline = 50 → ticks_to_deadline = 20
@@ -351,7 +424,7 @@ mod tests {
     #[test]
     fn test_context_contains_system_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Check system fields
         assert_eq!(context.get_field("rtgs_queue_size").unwrap(), 0.0); // Empty queue
@@ -362,7 +435,7 @@ mod tests {
     #[test]
     fn test_field_lookup_returns_correct_value() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Test specific lookups
         assert!(context.has_field("balance"));
@@ -376,7 +449,7 @@ mod tests {
     #[test]
     fn test_missing_field_returns_error() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Test missing field
         let result = context.get_field("nonexistent_field");
@@ -398,7 +471,7 @@ mod tests {
 
         // Create context with tick past deadline
         let tick = 60; // deadline is 50
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // ticks_to_deadline should be negative
         assert_eq!(context.get_field("ticks_to_deadline").unwrap(), -10.0);
@@ -412,7 +485,7 @@ mod tests {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 10_000, 0, 10);
         let state = SimulationState::new(vec![agent.clone()]);
 
-        let context = EvalContext::build(&tx, &agent, &state, 0);
+        let context = EvalContext::build(&tx, &agent, &state, 0, &create_cost_rates());
 
         // is_using_credit should be 1.0 (true)
         assert_eq!(context.get_field("is_using_credit").unwrap(), 1.0);
@@ -435,7 +508,7 @@ mod tests {
         let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
         let state = SimulationState::new(vec![agent.clone()]);
 
-        let context = EvalContext::build(&child, &agent, &state, 5);
+        let context = EvalContext::build(&child, &agent, &state, 5, &create_cost_rates());
 
         // Child transaction should have is_split = 1.0
         assert_eq!(context.get_field("is_split").unwrap(), 1.0);
@@ -448,7 +521,7 @@ mod tests {
     #[test]
     fn test_context_contains_collateral_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Collateral state fields
         assert!(context.has_field("posted_collateral"));
@@ -463,7 +536,7 @@ mod tests {
     #[test]
     fn test_context_contains_liquidity_gap_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Liquidity gap fields
         assert!(context.has_field("queue1_liquidity_gap"));
@@ -477,7 +550,7 @@ mod tests {
     #[test]
     fn test_context_contains_queue2_fields() {
         let (tx, agent, state, tick) = create_test_context();
-        let context = EvalContext::build(&tx, &agent, &state, tick);
+        let context = EvalContext::build(&tx, &agent, &state, tick, &create_cost_rates());
 
         // Queue 2 fields
         assert!(context.has_field("queue2_count_for_agent"));
@@ -498,7 +571,7 @@ mod tests {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 10_000, 0, 10);
         let state = SimulationState::new(vec![agent.clone()]);
 
-        let context = EvalContext::build(&tx, &agent, &state, 0);
+        let context = EvalContext::build(&tx, &agent, &state, 0, &create_cost_rates());
 
         // Collateral utilization should be computable
         assert!(context.has_field("collateral_utilization"));

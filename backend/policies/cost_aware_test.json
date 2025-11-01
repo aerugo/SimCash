@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "policy_id": "cost_aware_test",
+  "description": "Test policy that uses cost fields for economic decision-making. Holds if delay is cheaper than overdraft, releases otherwise.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "N1_CompareCosts",
+    "description": "Compare delay cost vs overdraft cost for this transaction",
+    "condition": {
+      "op": "<",
+      "left": {"field": "cost_delay_this_tx_one_tick"},
+      "right": {"field": "cost_overdraft_this_amount_one_tick"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "A1_HoldCheaper",
+      "action": "Hold",
+      "parameters": {
+        "reason": {"value": "DelayCheaperThanOverdraft"}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "A2_ReleaseExpensive",
+      "action": "Release",
+      "parameters": {}
+    }
+  },
+  "strategic_collateral_tree": null,
+  "end_of_tick_collateral_tree": null,
+  "parameters": {}
+}

@@ -80,7 +80,7 @@ pub enum EvalError {
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
-/// let context = EvalContext::build(&tx, &agent, &state, 10);
+/// let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates);
 /// let params = HashMap::new();
 ///
 /// let value = Value::Field { field: "balance".to_string() };
@@ -239,7 +239,7 @@ const FLOAT_EPSILON: f64 = 1e-9;
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
-/// let context = EvalContext::build(&tx, &agent, &state, 10);
+/// let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates);
 /// let params = HashMap::new();
 ///
 /// let expr = Expression::GreaterThan {
@@ -355,7 +355,7 @@ const MAX_TREE_DEPTH: usize = 100;
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
-/// let context = EvalContext::build(&tx, &agent, &state, 10);
+/// let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates);
 ///
 /// // Simple always-release policy
 /// let json = r#"{
@@ -478,7 +478,7 @@ fn traverse_node<'a>(
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let tx_id = tx.id().to_string();
 /// let state = SimulationState::new(vec![agent.clone()]);
-/// let context = EvalContext::build(&tx, &agent, &state, 10);
+/// let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates);
 ///
 /// // Create action node directly for testing
 /// let action_node = TreeNode::Action {
@@ -777,6 +777,7 @@ fn evaluate_action_parameter(
 mod tests {
     use super::*;
     use crate::policy::tree::types::Value;
+    use crate::orchestrator::CostRates;
     use crate::{Agent, SimulationState, Transaction};
     use serde_json::json;
 
@@ -784,8 +785,9 @@ mod tests {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
         let agent = Agent::new("BANK_A".to_string(), 500_000, 200_000);
         let state = SimulationState::new(vec![agent.clone()]);
+        let cost_rates = CostRates::default();
 
-        let context = EvalContext::build(&tx, &agent, &state, 10);
+        let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates);
 
         let mut params = HashMap::new();
         params.insert("threshold".to_string(), 100_000.0);

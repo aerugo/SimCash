@@ -1847,7 +1847,7 @@ impl Orchestrator {
                 })?;
 
             let decision = tree_policy
-                .evaluate_strategic_collateral(agent, &self.state, current_tick)
+                .evaluate_strategic_collateral(agent, &self.state, current_tick, &self.cost_rates)
                 .map_err(|e| {
                     SimulationError::InvalidConfig(format!(
                         "Failed to evaluate strategic collateral for {}: {}",
@@ -2210,7 +2210,7 @@ impl Orchestrator {
 
             // Evaluate END-OF-TICK collateral decision (Layer 2)
             let decision = tree_policy
-                .evaluate_end_of_tick_collateral(agent, &self.state, current_tick)
+                .evaluate_end_of_tick_collateral(agent, &self.state, current_tick, &self.cost_rates)
                 .map_err(|e| {
                     SimulationError::InvalidConfig(format!(
                         "Failed to evaluate end-of-tick collateral for {}: {}",
