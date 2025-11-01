@@ -74,12 +74,14 @@ pub enum EvalError {
 /// ```rust
 /// use payment_simulator_core_rs::policy::tree::{Value, EvalContext};
 /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+/// use payment_simulator_core_rs::orchestrator::CostRates;
 /// use std::collections::HashMap;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
+/// let cost_rates = CostRates::default();
 /// let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8);
 /// let params = HashMap::new();
 ///
@@ -233,12 +235,14 @@ const FLOAT_EPSILON: f64 = 1e-9;
 /// ```rust
 /// use payment_simulator_core_rs::policy::tree::{Expression, Value, EvalContext};
 /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+/// use payment_simulator_core_rs::orchestrator::CostRates;
 /// use std::collections::HashMap;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
+/// let cost_rates = CostRates::default();
 /// let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8);
 /// let params = HashMap::new();
 ///
@@ -350,11 +354,13 @@ const MAX_TREE_DEPTH: usize = 100;
 /// ```rust
 /// use payment_simulator_core_rs::policy::tree::{DecisionTreeDef, EvalContext, traverse_tree};
 /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+/// use payment_simulator_core_rs::orchestrator::CostRates;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
+/// let cost_rates = CostRates::default();
 /// let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8);
 ///
 /// // Simple always-release policy
@@ -471,6 +477,7 @@ fn traverse_node<'a>(
 /// ```rust
 /// use payment_simulator_core_rs::policy::tree::{build_decision, TreeNode, ActionType, EvalContext};
 /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+/// use payment_simulator_core_rs::orchestrator::CostRates;
 /// use std::collections::HashMap;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -478,6 +485,7 @@ fn traverse_node<'a>(
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let tx_id = tx.id().to_string();
 /// let state = SimulationState::new(vec![agent.clone()]);
+/// let cost_rates = CostRates::default();
 /// let context = EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8);
 ///
 /// // Create action node directly for testing

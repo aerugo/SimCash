@@ -49,8 +49,9 @@ def write_transactions(
     if not transactions:
         return 0
 
-    # Create DataFrame
-    df = pl.DataFrame(transactions)
+    # Create DataFrame with increased schema inference length
+    # to handle mixed types (e.g., drop_reason can be str or None)
+    df = pl.DataFrame(transactions, infer_schema_length=None)
 
     # Add simulation_id
     df = df.with_columns(
@@ -93,8 +94,8 @@ def write_daily_agent_metrics(
     test_record = {**agent_metrics[0], "simulation_id": simulation_id}
     DailyAgentMetricsRecord(**test_record)
 
-    # Create DataFrame
-    df = pl.DataFrame(agent_metrics)
+    # Create DataFrame with increased schema inference length
+    df = pl.DataFrame(agent_metrics, infer_schema_length=None)
 
     # Add simulation_id
     df = df.with_columns(
@@ -142,8 +143,8 @@ def write_policy_snapshots(
     # Validate first record against schema
     PolicySnapshotRecord(**snapshots[0])
 
-    # Convert to Polars DataFrame
-    df = pl.DataFrame(snapshots)
+    # Convert to Polars DataFrame with increased schema inference length
+    df = pl.DataFrame(snapshots, infer_schema_length=None)
 
     # Ensure column order matches schema
     df = df.select([
@@ -207,8 +208,9 @@ def write_policy_decisions_batch(
     test_record.pop("id", None)  # Remove auto-increment field if present
     PolicyDecisionRecord(**test_record)
 
-    # Convert to Polars DataFrame
-    df = pl.DataFrame(decisions)
+    # Convert to Polars DataFrame with increased schema inference length
+    # to handle mixed types (e.g., num_splits can be int or None)
+    df = pl.DataFrame(decisions, infer_schema_length=None)
 
     # Insert into DuckDB (zero-copy via Arrow)
     # Note: id column is auto-increment, so we exclude it from INSERT
@@ -278,8 +280,8 @@ def write_tick_agent_states_batch(
     # Validate first record
     TickAgentStateRecord(**states[0])
 
-    # Convert to Polars DataFrame
-    df = pl.DataFrame(states)
+    # Convert to Polars DataFrame with increased schema inference length
+    df = pl.DataFrame(states, infer_schema_length=None)
 
     # Ensure column order matches schema
     df = df.select([
@@ -343,8 +345,8 @@ def write_tick_queue_snapshots_batch(
     # Validate first record
     TickQueueSnapshotRecord(**snapshots[0])
 
-    # Convert to Polars DataFrame
-    df = pl.DataFrame(snapshots)
+    # Convert to Polars DataFrame with increased schema inference length
+    df = pl.DataFrame(snapshots, infer_schema_length=None)
 
     # Ensure column order matches schema
     df = df.select([

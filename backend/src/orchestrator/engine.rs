@@ -690,6 +690,7 @@ impl Orchestrator {
     ///
     /// let config = OrchestratorConfig {
     ///     ticks_per_day: 100,
+    ///     eod_rush_threshold: 0.8,
     ///     num_days: 1,
     ///     rng_seed: 12345,
     ///     agent_configs: vec![

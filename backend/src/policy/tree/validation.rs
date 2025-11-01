@@ -61,13 +61,14 @@ const MAX_TREE_DEPTH: usize = 100;
 /// ```rust
 /// use payment_simulator_core_rs::policy::tree::{DecisionTreeDef, EvalContext, validate_tree};
 /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
+/// use payment_simulator_core_rs::orchestrator::CostRates;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
-/// let cost_rates = crate::orchestrator::CostRates::default();
-/// let sample_context = EvalContext::build(&tx, &agent, &state, 0, &cost_rates);
+/// let cost_rates = CostRates::default();
+/// let sample_context = EvalContext::build(&tx, &agent, &state, 0, &cost_rates, 100, 0.8);
 ///
 /// let json = r#"{
 ///   "version": "1.0",

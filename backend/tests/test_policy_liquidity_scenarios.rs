@@ -32,7 +32,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![
             AgentConfig {
@@ -114,7 +114,7 @@ fn test_liquidity_aware_buffer_recovery() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 77777,
         agent_configs: vec![
             AgentConfig {
@@ -219,7 +219,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 33333,
         agent_configs: vec![
             AgentConfig {
@@ -318,7 +318,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
     // Conservative (low urgency threshold = fewer overrides)
     let config_conservative = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 99999,
         agent_configs: vec![
             AgentConfig {
@@ -348,7 +348,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
     // Aggressive (high urgency threshold = more overrides)
     let config_aggressive = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 99999, // Same seed!
         agent_configs: vec![
             AgentConfig {

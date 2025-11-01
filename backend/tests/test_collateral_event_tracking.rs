@@ -13,7 +13,7 @@ use payment_simulator_core_rs::{
 fn create_test_config() -> OrchestratorConfig {
     OrchestratorConfig {
         ticks_per_day: 10,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
@@ -55,7 +55,7 @@ fn test_collateral_events_filter_by_day() {
     // Create config with multiple days
     let config = OrchestratorConfig {
         ticks_per_day: 10,
-        num_days: 3,
+        eod_rush_threshold: 0.8,        num_days: 3,
         rng_seed: 42,
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
