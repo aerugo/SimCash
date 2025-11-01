@@ -749,3 +749,464 @@ def get_policy_at_day(
         "policy_config": policy_config,
         "created_by": result[4],
     }
+
+
+# ============================================================================
+# Database-Driven Replay Queries
+# ============================================================================
+
+
+def get_transactions_by_tick(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    tick: int,
+) -> dict[str, list[dict[str, Any]]]:
+    """Get all transactions that arrived or settled on a specific tick.
+
+    Args:
+        conn: DuckDB connection
+        simulation_id: Simulation identifier
+        tick: Tick number to query
+
+    Returns:
+        Dict with keys:
+        - arrivals: Transactions that arrived on this tick
+        - settlements: Transactions that settled on this tick
+
+    Examples:
+        >>> txs = get_transactions_by_tick(conn, "sim-001", 10)
+        >>> len(txs["arrivals"])
+        3
+        >>> len(txs["settlements"])
+        2
+    """
+    # Query arrivals for this tick
+    arrivals_query = """
+        SELECT
+            tx_id,
+            sender_id,
+            receiver_id,
+            amount,
+            priority,
+            is_divisible,
+            arrival_tick,
+            arrival_day,
+            deadline_tick,
+            status
+        FROM transactions
+        WHERE simulation_id = ? AND arrival_tick = ?
+        ORDER BY tx_id
+    """
+
+    arrivals_result = conn.execute(arrivals_query, [simulation_id, tick]).fetchall()
+    arrivals = [
+        {
+            "tx_id": row[0],
+            "sender_id": row[1],
+            "receiver_id": row[2],
+            "amount": row[3],
+            "priority": row[4],
+            "is_divisible": row[5],
+            "arrival_tick": row[6],
+            "arrival_day": row[7],
+            "deadline_tick": row[8],
+            "status": row[9],
+        }
+        for row in arrivals_result
+    ]
+
+    # Query settlements for this tick
+    settlements_query = """
+        SELECT
+            tx_id,
+            sender_id,
+            receiver_id,
+            amount,
+            amount_settled,
+            settlement_tick,
+            settlement_day,
+            status,
+            queue1_ticks,
+            queue2_ticks,
+            total_delay_ticks,
+            delay_cost
+        FROM transactions
+        WHERE simulation_id = ? AND settlement_tick = ?
+        ORDER BY tx_id
+    """
+
+    settlements_result = conn.execute(settlements_query, [simulation_id, tick]).fetchall()
+    settlements = [
+        {
+            "tx_id": row[0],
+            "sender_id": row[1],
+            "receiver_id": row[2],
+            "amount": row[3],
+            "amount_settled": row[4],
+            "settlement_tick": row[5],
+            "settlement_day": row[6],
+            "status": row[7],
+            "queue1_ticks": row[8],
+            "queue2_ticks": row[9],
+            "total_delay_ticks": row[10],
+            "delay_cost": row[11],
+        }
+        for row in settlements_result
+    ]
+
+    return {
+        "arrivals": arrivals,
+        "settlements": settlements,
+    }
+
+
+def get_collateral_events_by_tick(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    tick: int,
+) -> list[dict[str, Any]]:
+    """Get all collateral events for a specific tick.
+
+    Args:
+        conn: DuckDB connection
+        simulation_id: Simulation identifier
+        tick: Tick number to query
+
+    Returns:
+        List of collateral event records
+
+    Examples:
+        >>> events = get_collateral_events_by_tick(conn, "sim-001", 10)
+        >>> events[0]["action"]
+        'post'
+        >>> events[0]["amount"]
+        1000000
+    """
+    query = """
+        SELECT
+            agent_id,
+            tick,
+            day,
+            action,
+            amount,
+            reason,
+            layer,
+            balance_before,
+            posted_collateral_before,
+            posted_collateral_after,
+            available_capacity_after
+        FROM collateral_events
+        WHERE simulation_id = ? AND tick = ?
+        ORDER BY id
+    """
+
+    result = conn.execute(query, [simulation_id, tick]).fetchall()
+    return [
+        {
+            "agent_id": row[0],
+            "tick": row[1],
+            "day": row[2],
+            "action": row[3],
+            "amount": row[4],
+            "reason": row[5],
+            "layer": row[6],
+            "balance_before": row[7],
+            "posted_collateral_before": row[8],
+            "posted_collateral_after": row[9],
+            "available_capacity_after": row[10],
+        }
+        for row in result
+    ]
+
+
+def get_lsm_cycles_by_tick(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    tick: int,
+) -> list[dict[str, Any]]:
+    """Get all LSM cycles settled on a specific tick.
+
+    Args:
+        conn: DuckDB connection
+        simulation_id: Simulation identifier
+        tick: Tick number to query
+
+    Returns:
+        List of LSM cycle records
+
+    Examples:
+        >>> cycles = get_lsm_cycles_by_tick(conn, "sim-001", 10)
+        >>> cycles[0]["cycle_type"]
+        'bilateral'
+        >>> cycles[0]["settled_value"]
+        100000
+    """
+    import json
+
+    query = """
+        SELECT
+            tick,
+            day,
+            cycle_type,
+            cycle_length,
+            agents,
+            transactions,
+            settled_value,
+            total_value
+        FROM lsm_cycles
+        WHERE simulation_id = ? AND tick = ?
+        ORDER BY id
+    """
+
+    result = conn.execute(query, [simulation_id, tick]).fetchall()
+    return [
+        {
+            "tick": row[0],
+            "day": row[1],
+            "cycle_type": row[2],
+            "cycle_length": row[3],
+            "agent_ids": json.loads(row[4]),  # Parse JSON array
+            "tx_ids": json.loads(row[5]),     # Parse JSON array
+            "settled_value": row[6],
+            "total_value": row[7],
+        }
+        for row in result
+    ]
+
+
+def get_tick_range_summary(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    from_tick: int,
+    to_tick: int,
+) -> dict[str, Any]:
+    """Get aggregate statistics for a tick range.
+
+    Args:
+        conn: DuckDB connection
+        simulation_id: Simulation identifier
+        from_tick: Starting tick (inclusive)
+        to_tick: Ending tick (inclusive)
+
+    Returns:
+        Dict with aggregate statistics:
+        - total_arrivals: Total transactions that arrived
+        - total_settlements: Total transactions that settled
+        - total_cost: Total costs accrued
+        - avg_delay: Average delay in ticks
+
+    Examples:
+        >>> summary = get_tick_range_summary(conn, "sim-001", 0, 10)
+        >>> summary["total_arrivals"]
+        100
+        >>> summary["total_settlements"]
+        95
+    """
+    query = """
+        SELECT
+            COUNT(*) FILTER (WHERE arrival_tick BETWEEN ? AND ?) as total_arrivals,
+            COUNT(*) FILTER (WHERE settlement_tick BETWEEN ? AND ?) as total_settlements,
+            SUM(delay_cost) FILTER (WHERE settlement_tick BETWEEN ? AND ?) as total_delay_cost,
+            AVG(total_delay_ticks) FILTER (WHERE settlement_tick BETWEEN ? AND ?) as avg_delay_ticks
+        FROM transactions
+        WHERE simulation_id = ?
+    """
+
+    result = conn.execute(
+        query,
+        [
+            from_tick, to_tick,  # arrivals
+            from_tick, to_tick,  # settlements
+            from_tick, to_tick,  # costs
+            from_tick, to_tick,  # avg delay
+            simulation_id,
+        ]
+    ).fetchone()
+
+    if not result:
+        return {
+            "total_arrivals": 0,
+            "total_settlements": 0,
+            "total_delay_cost": 0,
+            "avg_delay_ticks": 0.0,
+        }
+
+    return {
+        "total_arrivals": result[0] if result[0] else 0,
+        "total_settlements": result[1] if result[1] else 0,
+        "total_delay_cost": result[2] if result[2] else 0,
+        "avg_delay_ticks": result[3] if result[3] else 0.0,
+    }
+
+
+# ============================================================================
+# Full Replay Queries
+# ============================================================================
+
+
+def get_policy_decisions_by_tick(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    tick: int,
+) -> list[dict[str, Any]]:
+    """Get all policy decisions for a specific tick.
+
+    Args:
+        conn: DuckDB connection
+        simulation_id: Simulation identifier
+        tick: Tick number to query
+
+    Returns:
+        List of policy decision records
+
+    Examples:
+        >>> decisions = get_policy_decisions_by_tick(conn, "sim-001", 10)
+        >>> decisions[0]["decision_type"]
+        'submit'
+    """
+    query = """
+        SELECT
+            agent_id,
+            tick,
+            day,
+            decision_type,
+            tx_id,
+            reason,
+            num_splits,
+            child_tx_ids
+        FROM policy_decisions
+        WHERE simulation_id = ? AND tick = ?
+        ORDER BY id
+    """
+
+    result = conn.execute(query, [simulation_id, tick]).fetchall()
+    return [
+        {
+            "agent_id": row[0],
+            "tick": row[1],
+            "day": row[2],
+            "decision_type": row[3],
+            "tx_id": row[4],
+            "reason": row[5],
+            "num_splits": row[6],
+            "child_tx_ids": row[7],
+        }
+        for row in result
+    ]
+
+
+def get_tick_agent_states(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    tick: int,
+) -> list[dict[str, Any]]:
+    """Get agent states for a specific tick.
+
+    Args:
+        conn: DuckDB connection
+        simulation_id: Simulation identifier
+        tick: Tick number to query
+
+    Returns:
+        List of agent state records
+
+    Examples:
+        >>> states = get_tick_agent_states(conn, "sim-001", 10)
+        >>> states[0]["balance"]
+        1000000
+    """
+    query = """
+        SELECT
+            agent_id,
+            tick,
+            day,
+            balance,
+            balance_change,
+            posted_collateral,
+            liquidity_cost,
+            delay_cost,
+            collateral_cost,
+            penalty_cost,
+            split_friction_cost,
+            liquidity_cost_delta,
+            delay_cost_delta,
+            collateral_cost_delta,
+            penalty_cost_delta,
+            split_friction_cost_delta
+        FROM tick_agent_states
+        WHERE simulation_id = ? AND tick = ?
+        ORDER BY agent_id
+    """
+
+    result = conn.execute(query, [simulation_id, tick]).fetchall()
+    return [
+        {
+            "agent_id": row[0],
+            "tick": row[1],
+            "day": row[2],
+            "balance": row[3],
+            "balance_change": row[4],
+            "posted_collateral": row[5],
+            "liquidity_cost": row[6],
+            "delay_cost": row[7],
+            "collateral_cost": row[8],
+            "penalty_cost": row[9],
+            "split_friction_cost": row[10],
+            "liquidity_cost_delta": row[11],
+            "delay_cost_delta": row[12],
+            "collateral_cost_delta": row[13],
+            "penalty_cost_delta": row[14],
+            "split_friction_cost_delta": row[15],
+        }
+        for row in result
+    ]
+
+
+def get_tick_queue_snapshots(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    tick: int,
+) -> dict[str, dict[str, list[str]]]:
+    """Get queue contents for a specific tick.
+
+    Args:
+        conn: DuckDB connection
+        simulation_id: Simulation identifier
+        tick: Tick number to query
+
+    Returns:
+        Dict mapping agent_id -> queue_type -> list of tx_ids in order
+
+    Examples:
+        >>> queues = get_tick_queue_snapshots(conn, "sim-001", 10)
+        >>> queues["BANK_A"]["queue1"]
+        ['tx_001', 'tx_002']
+    """
+    query = """
+        SELECT
+            agent_id,
+            queue_type,
+            position,
+            tx_id
+        FROM tick_queue_snapshots
+        WHERE simulation_id = ? AND tick = ?
+        ORDER BY agent_id, queue_type, position
+    """
+
+    result = conn.execute(query, [simulation_id, tick]).fetchall()
+
+    # Organize by agent and queue type
+    queues: dict[str, dict[str, list[str]]] = {}
+    for row in result:
+        agent_id = row[0]
+        queue_type = row[1]
+        tx_id = row[3]
+
+        if agent_id not in queues:
+            queues[agent_id] = {}
+        if queue_type not in queues[agent_id]:
+            queues[agent_id][queue_type] = []
+
+        queues[agent_id][queue_type].append(tx_id)
+
+    return queues

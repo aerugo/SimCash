@@ -14,7 +14,7 @@
 # - 20 ticks/day over 2 days = 40 total ticks
 
 simulation:
-  ticks_per_day: 25
+  ticks_per_day: 2
   num_days: 2
   rng_seed: 42  # Change for different random scenarios
 

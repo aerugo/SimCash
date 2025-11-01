@@ -1763,6 +1763,18 @@ impl Orchestrator {
         // Clear pending settlements from previous tick
         self.pending_settlements.clear();
 
+        // STEP 0: RESET COST ACCUMULATORS AT START OF NEW DAY
+        // (This ensures the previous day's costs remain queryable until the new day starts)
+        if self.time_manager.tick_within_day() == 0 && current_tick > 0 {
+            // First tick of a new day (but not tick 0) - reset accumulators
+            let agent_ids: Vec<String> = self.state.get_all_agent_ids();
+            for agent_id in agent_ids {
+                if let Some(accumulator) = self.accumulated_costs.get_mut(&agent_id) {
+                    *accumulator = CostAccumulator::new();
+                }
+            }
+        }
+
         // STEP 1: ARRIVALS
         // Generate new transactions according to arrival configurations
         let mut num_arrivals = 0;
@@ -2305,7 +2317,7 @@ impl Orchestrator {
         }
 
         // STEP 6: COST ACCRUAL (Phase 4b.3 - minimal for now)
-        let total_cost = self.accrue_costs(current_tick);
+        let mut total_cost = self.accrue_costs(current_tick);
 
         // STEP 7: DEADLINE ENFORCEMENT (handled by policies in STEP 2)
         // Policies drop expired transactions via ReleaseDecision::Drop
@@ -2313,7 +2325,8 @@ impl Orchestrator {
         // STEP 8: END-OF-DAY HANDLING (before advancing time)
         // Check if current tick is the last tick of the day
         if self.time_manager.is_end_of_day() {
-            self.handle_end_of_day()?;
+            let eod_penalties = self.handle_end_of_day()?;
+            total_cost += eod_penalties;  // Include EOD penalties in tick's total cost
         }
 
         // STEP 9: ADVANCE TIME
@@ -2455,7 +2468,9 @@ impl Orchestrator {
     /// Applies penalties for unsettled transactions at end of day.
     /// Each agent pays eod_penalty_per_transaction for each unsettled transaction
     /// in their Queue 1 (internal queue).
-    fn handle_end_of_day(&mut self) -> Result<(), SimulationError> {
+    ///
+    /// Returns the total EOD penalties accrued across all agents.
+    fn handle_end_of_day(&mut self) -> Result<i64, SimulationError> {
         let current_tick = self.current_tick();
         let current_day = self.current_day();
 
@@ -2510,7 +2525,7 @@ impl Orchestrator {
         // Phase 3: Finalize daily metrics and prepare for next day
         self.finalize_daily_metrics(current_day)?;
 
-        Ok(())
+        Ok(total_penalties)
     }
 
     /// Finalize daily metrics at end of day (Phase 3: Agent Metrics Collection)
@@ -2541,10 +2556,8 @@ impl Orchestrator {
             self.current_day_metrics
                 .insert(agent_id.clone(), next_day_metrics);
 
-            // Reset cost accumulator for next day
-            if let Some(accumulator) = self.accumulated_costs.get_mut(agent_id) {
-                *accumulator = CostAccumulator::new();
-            }
+            // NOTE: Cost accumulators are now reset at START of new day in tick(),
+            // not here at EOD. This allows the CLI to query EOD costs after the tick completes.
         }
 
         Ok(())

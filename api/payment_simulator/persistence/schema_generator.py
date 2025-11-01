@@ -116,11 +116,11 @@ def generate_create_table_ddl(model: Type[BaseModel]) -> str:
 
         # Special handling for auto-increment id fields
         auto_increment = ""
-        if field_name == "id" and _is_int_type(py_type):
-            # For DuckDB, use INTEGER for auto-increment
+        if field_name == "id" and _is_int_type(py_type) and is_optional:
+            # For DuckDB, use sequence for auto-increment
             sql_type = "INTEGER"
-            # Note: DuckDB doesn't use AUTOINCREMENT keyword like SQLite
-            # Instead, we rely on PRIMARY KEY behavior
+            sequence_name = f"{table_name}_id_seq"
+            auto_increment = f" DEFAULT nextval('{sequence_name}')"
 
         columns.append(f"    {field_name} {sql_type}{null_constraint}{auto_increment}")
 
@@ -193,6 +193,9 @@ def generate_full_schema_ddl() -> str:
         SimulationRecord,
         SimulationRunRecord,
         TransactionRecord,
+        PolicyDecisionRecord,
+        TickAgentStateRecord,
+        TickQueueSnapshotRecord,
     )
 
     models = [
@@ -205,9 +208,24 @@ def generate_full_schema_ddl() -> str:
         PolicySnapshotRecord,
         SimulationCheckpointRecord,
         LsmCycleRecord,
+        PolicyDecisionRecord,
+        TickAgentStateRecord,
+        TickQueueSnapshotRecord,
     ]
 
     ddl_parts = []
+
+    # Generate CREATE SEQUENCE statements for tables with auto-increment id
+    for model in models:
+        if hasattr(model, "model_config") and "table_name" in model.model_config:
+            table_name = model.model_config["table_name"]
+            # Check if model has optional id field
+            if "id" in model.model_fields:
+                field_info = model.model_fields["id"]
+                py_type = field_info.annotation
+                if _is_field_optional(py_type, field_info) and _is_int_type(py_type):
+                    sequence_name = f"{table_name}_id_seq"
+                    ddl_parts.append(f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1;")
 
     # Generate CREATE TABLE statements
     for model in models:

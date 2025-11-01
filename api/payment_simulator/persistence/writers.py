@@ -18,6 +18,9 @@ from .models import (
     TransactionRecord,
     DailyAgentMetricsRecord,
     PolicySnapshotRecord,
+    PolicyDecisionRecord,
+    TickAgentStateRecord,
+    TickQueueSnapshotRecord,
 )
 
 
@@ -155,5 +158,205 @@ def write_policy_snapshots(
 
     # Insert into DuckDB (zero-copy via Arrow)
     conn.execute("INSERT INTO policy_snapshots SELECT * FROM df")
+
+    return len(snapshots)
+
+
+# ============================================================================
+# Full Replay Writers (Batched EOD Writes)
+# ============================================================================
+
+
+def write_policy_decisions_batch(
+    conn: duckdb.DuckDBPyConnection,
+    decisions: list[dict[str, Any]],
+) -> int:
+    """Write policy decisions in batch (called at EOD).
+
+    Uses Polars DataFrame for efficient batch writes via Apache Arrow.
+    Collects all policy decisions for a day and writes them atomically.
+
+    Args:
+        conn: DuckDB connection
+        decisions: List of policy decision dicts for the day
+
+    Returns:
+        Number of policy decisions written
+
+    Examples:
+        >>> decisions = [
+        ...     {
+        ...         "simulation_id": "sim-001",
+        ...         "agent_id": "BANK_A",
+        ...         "tick": 10,
+        ...         "day": 0,
+        ...         "decision_type": "submit",
+        ...         "tx_id": "tx_00001",
+        ...         "reason": None,
+        ...         "num_splits": None,
+        ...         "child_tx_ids": None,
+        ...     }
+        ... ]
+        >>> count = write_policy_decisions_batch(conn, decisions)
+    """
+    if not decisions:
+        return 0
+
+    # Validate first record
+    test_record = {**decisions[0]}
+    test_record.pop("id", None)  # Remove auto-increment field if present
+    PolicyDecisionRecord(**test_record)
+
+    # Convert to Polars DataFrame
+    df = pl.DataFrame(decisions)
+
+    # Insert into DuckDB (zero-copy via Arrow)
+    # Note: id column is auto-increment, so we exclude it from INSERT
+    columns = [
+        "simulation_id",
+        "agent_id",
+        "tick",
+        "day",
+        "decision_type",
+        "tx_id",
+        "reason",
+        "num_splits",
+        "child_tx_ids",
+    ]
+    df = df.select([col for col in columns if col in df.columns])
+
+    # Specify columns explicitly to exclude auto-increment id column
+    col_list = ", ".join(columns)
+    conn.execute(f"INSERT INTO policy_decisions ({col_list}) SELECT * FROM df")
+
+    return len(decisions)
+
+
+def write_tick_agent_states_batch(
+    conn: duckdb.DuckDBPyConnection,
+    states: list[dict[str, Any]],
+) -> int:
+    """Write agent states in batch (called at EOD).
+
+    Uses Polars DataFrame for efficient batch writes via Apache Arrow.
+    Collects all agent state snapshots for a day and writes them atomically.
+
+    Args:
+        conn: DuckDB connection
+        states: List of agent state dicts for the day
+
+    Returns:
+        Number of agent state records written
+
+    Examples:
+        >>> states = [
+        ...     {
+        ...         "simulation_id": "sim-001",
+        ...         "agent_id": "BANK_A",
+        ...         "tick": 10,
+        ...         "day": 0,
+        ...         "balance": 1000000,
+        ...         "balance_change": -5000,
+        ...         "posted_collateral": 0,
+        ...         "liquidity_cost": 100,
+        ...         "delay_cost": 50,
+        ...         "collateral_cost": 0,
+        ...         "penalty_cost": 0,
+        ...         "split_friction_cost": 0,
+        ...         "liquidity_cost_delta": 10,
+        ...         "delay_cost_delta": 5,
+        ...         "collateral_cost_delta": 0,
+        ...         "penalty_cost_delta": 0,
+        ...         "split_friction_cost_delta": 0,
+        ...     }
+        ... ]
+        >>> count = write_tick_agent_states_batch(conn, states)
+    """
+    if not states:
+        return 0
+
+    # Validate first record
+    TickAgentStateRecord(**states[0])
+
+    # Convert to Polars DataFrame
+    df = pl.DataFrame(states)
+
+    # Ensure column order matches schema
+    df = df.select([
+        "simulation_id",
+        "agent_id",
+        "tick",
+        "day",
+        "balance",
+        "balance_change",
+        "posted_collateral",
+        "liquidity_cost",
+        "delay_cost",
+        "collateral_cost",
+        "penalty_cost",
+        "split_friction_cost",
+        "liquidity_cost_delta",
+        "delay_cost_delta",
+        "collateral_cost_delta",
+        "penalty_cost_delta",
+        "split_friction_cost_delta",
+    ])
+
+    # Insert into DuckDB (zero-copy via Arrow)
+    conn.execute("INSERT INTO tick_agent_states SELECT * FROM df")
+
+    return len(states)
+
+
+def write_tick_queue_snapshots_batch(
+    conn: duckdb.DuckDBPyConnection,
+    snapshots: list[dict[str, Any]],
+) -> int:
+    """Write queue snapshots in batch (called at EOD).
+
+    Uses Polars DataFrame for efficient batch writes via Apache Arrow.
+    Collects all queue snapshots for a day and writes them atomically.
+
+    Args:
+        conn: DuckDB connection
+        snapshots: List of queue snapshot dicts for the day
+
+    Returns:
+        Number of queue snapshot records written
+
+    Examples:
+        >>> snapshots = [
+        ...     {
+        ...         "simulation_id": "sim-001",
+        ...         "agent_id": "BANK_A",
+        ...         "tick": 10,
+        ...         "queue_type": "queue1",
+        ...         "position": 0,
+        ...         "tx_id": "tx_00001",
+        ...     }
+        ... ]
+        >>> count = write_tick_queue_snapshots_batch(conn, snapshots)
+    """
+    if not snapshots:
+        return 0
+
+    # Validate first record
+    TickQueueSnapshotRecord(**snapshots[0])
+
+    # Convert to Polars DataFrame
+    df = pl.DataFrame(snapshots)
+
+    # Ensure column order matches schema
+    df = df.select([
+        "simulation_id",
+        "agent_id",
+        "tick",
+        "queue_type",
+        "position",
+        "tx_id",
+    ])
+
+    # Insert into DuckDB (zero-copy via Arrow)
+    conn.execute("INSERT INTO tick_queue_snapshots SELECT * FROM df")
 
     return len(snapshots)

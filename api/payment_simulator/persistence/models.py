@@ -468,3 +468,104 @@ class LsmCycleRecord(BaseModel):
 
     settled_value: int = Field(..., description="Net value settled (cents)")
     total_value: int = Field(..., description="Gross value before netting (cents)")
+
+
+# ============================================================================
+# Full Replay Tables (Per-Tick Data)
+# ============================================================================
+
+
+class PolicyDecisionRecord(BaseModel):
+    """Policy decision event for full replay.
+
+    Captures every policy decision (submit/hold/drop/split) made during
+    simulation. Enables perfect replay of agent behavior.
+    Added for --full-replay mode.
+    """
+
+    model_config = ConfigDict(
+        table_name="policy_decisions",
+        primary_key=["id"],
+        indexes=[
+            ("idx_policy_sim_tick", ["simulation_id", "tick"]),
+            ("idx_policy_sim_agent", ["simulation_id", "agent_id"]),
+        ],
+    )
+
+    id: Optional[int] = Field(None, description="Auto-increment primary key")
+    simulation_id: str = Field(..., description="Foreign key to simulations table")
+    agent_id: str = Field(..., description="Agent who made the decision")
+    tick: int = Field(..., description="Tick when decision was made", ge=0)
+    day: int = Field(..., description="Day when decision was made", ge=0)
+
+    decision_type: str = Field(..., description="Decision type: submit, hold, drop, split")
+    tx_id: str = Field(..., description="Transaction ID")
+    reason: Optional[str] = Field(None, description="Reason for hold/drop decisions")
+    num_splits: Optional[int] = Field(None, description="Number of splits (for split decisions)")
+    child_tx_ids: Optional[str] = Field(None, description="JSON array of child TX IDs (for split decisions)")
+
+
+class TickAgentStateRecord(BaseModel):
+    """Agent state snapshot for a specific tick (full replay).
+
+    Captures agent balance, costs, and collateral after each tick.
+    Enables tick-by-tick replay of agent state evolution.
+    Added for --full-replay mode.
+    """
+
+    model_config = ConfigDict(
+        table_name="tick_agent_states",
+        primary_key=["simulation_id", "agent_id", "tick"],
+        indexes=[
+            ("idx_tick_states_sim_tick", ["simulation_id", "tick"]),
+        ],
+    )
+
+    simulation_id: str = Field(..., description="Foreign key to simulations table")
+    agent_id: str = Field(..., description="Agent identifier")
+    tick: int = Field(..., description="Tick number", ge=0)
+    day: int = Field(..., description="Day number", ge=0)
+
+    # Balance tracking
+    balance: int = Field(..., description="Balance at end of tick (cents)")
+    balance_change: int = Field(..., description="Change in balance this tick (cents)")
+    posted_collateral: int = Field(..., description="Posted collateral at end of tick (cents)")
+
+    # Cumulative costs (running totals)
+    liquidity_cost: int = Field(..., description="Cumulative liquidity cost (cents)")
+    delay_cost: int = Field(..., description="Cumulative delay cost (cents)")
+    collateral_cost: int = Field(..., description="Cumulative collateral opportunity cost (cents)")
+    penalty_cost: int = Field(..., description="Cumulative deadline penalty (cents)")
+    split_friction_cost: int = Field(..., description="Cumulative split friction cost (cents)")
+
+    # Per-tick cost deltas (incremental changes)
+    liquidity_cost_delta: int = Field(..., description="Liquidity cost accrued this tick (cents)")
+    delay_cost_delta: int = Field(..., description="Delay cost accrued this tick (cents)")
+    collateral_cost_delta: int = Field(..., description="Collateral cost accrued this tick (cents)")
+    penalty_cost_delta: int = Field(..., description="Penalty accrued this tick (cents)")
+    split_friction_cost_delta: int = Field(..., description="Split friction accrued this tick (cents)")
+
+
+class TickQueueSnapshotRecord(BaseModel):
+    """Queue contents snapshot for a specific tick (full replay).
+
+    Captures exact queue state (Queue 1 and RTGS) after each tick.
+    Preserves queue order via position field.
+    Added for --full-replay mode.
+    """
+
+    model_config = ConfigDict(
+        table_name="tick_queue_snapshots",
+        primary_key=["simulation_id", "agent_id", "tick", "queue_type", "position"],
+        indexes=[
+            ("idx_tick_queue_sim_tick", ["simulation_id", "tick"]),
+            ("idx_tick_queue_sim_agent", ["simulation_id", "agent_id", "tick"]),
+        ],
+    )
+
+    simulation_id: str = Field(..., description="Foreign key to simulations table")
+    agent_id: str = Field(..., description="Agent identifier")
+    tick: int = Field(..., description="Tick number", ge=0)
+    queue_type: str = Field(..., description="Queue type: queue1 or rtgs")
+    position: int = Field(..., description="Position in queue (0-indexed)", ge=0)
+    tx_id: str = Field(..., description="Transaction ID at this position")

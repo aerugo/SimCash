@@ -618,7 +618,7 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
                 costs.get("liquidity_cost", 0) +
                 costs.get("delay_cost", 0) +
                 costs.get("collateral_cost", 0) +
-                costs.get("penalty_cost", 0) +
+                costs.get("deadline_penalty", 0) +  # Note: FFI exports as "deadline_penalty" not "penalty_cost"
                 costs.get("split_friction_cost", 0)
             )
 
@@ -642,8 +642,8 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
             console.print(f"   • Delay: ${costs['delay_cost'] / 100:,.2f}")
         if costs.get("collateral_cost", 0) > 0:
             console.print(f"   • Collateral: ${costs['collateral_cost'] / 100:,.2f}")
-        if costs.get("penalty_cost", 0) > 0:
-            console.print(f"   • Penalty: ${costs['penalty_cost'] / 100:,.2f}")
+        if costs.get("deadline_penalty", 0) > 0:
+            console.print(f"   • Penalty: ${costs['deadline_penalty'] / 100:,.2f}")
         if costs.get("split_friction_cost", 0) > 0:
             console.print(f"   • Split: ${costs['split_friction_cost'] / 100:,.2f}")
 
@@ -729,6 +729,148 @@ def log_lsm_cycle_visualization(events, quiet=False):
 
         console.print()
         cycle_num += 1
+
+
+def log_agent_state_from_db(mock_orch, agent_id: str, state_data: dict, queue_data: dict, quiet=False):
+    """Log agent state from database (full replay mode).
+
+    Shows:
+    - Agent balance with color coding
+    - Queue 1 (internal) contents from database
+    - Queue 2 (RTGS) contents from database
+    - Total queued value
+    - Collateral posted
+
+    Args:
+        mock_orch: Mock orchestrator for transaction details
+        agent_id: Agent identifier
+        state_data: Agent state dict from database (balance, collateral, etc.)
+        queue_data: Queue contents dict {queue_type: [tx_ids]}
+        quiet: Suppress output if True
+
+    Example:
+        >>> log_agent_state_from_db(mock_orch, "BANK_A", state, queues)
+    """
+    if quiet:
+        return
+
+    balance = state_data.get("balance", 0)
+    balance_change = state_data.get("balance_change", 0)
+    collateral = state_data.get("posted_collateral", 0)
+
+    # Format balance with color coding
+    balance_str = f"${balance / 100:,.2f}"
+    if balance < 0:
+        balance_str = f"[red]{balance_str} (overdraft)[/red]"
+    elif balance_change < 0:
+        balance_str = f"[yellow]{balance_str}[/yellow]"
+    else:
+        balance_str = f"[green]{balance_str}[/green]"
+
+    # Balance change indicator
+    change_str = ""
+    if balance_change != 0:
+        sign = "+" if balance_change > 0 else ""
+        change_str = f" ({sign}${balance_change / 100:,.2f})"
+
+    console.print(f"  {agent_id}: {balance_str}{change_str}")
+
+    # Queue 1 (internal)
+    queue1_tx_ids = queue_data.get("queue1", [])
+    if queue1_tx_ids:
+        total_value = 0
+        for tx_id in queue1_tx_ids:
+            tx = mock_orch.get_transaction_details(tx_id)
+            if tx:
+                total_value += tx.get("remaining_amount", 0)
+
+        console.print(f"     Queue 1 ({len(queue1_tx_ids)} transactions, ${total_value / 100:,.2f} total):")
+        for tx_id in queue1_tx_ids:
+            tx = mock_orch.get_transaction_details(tx_id)
+            if tx:
+                priority_str = f"P:{tx['priority']}"
+                console.print(f"     • TX {tx_id[:8]} → {tx['receiver_id']}: ${tx['remaining_amount'] / 100:,.2f} | {priority_str} | ⏰ Tick {tx['deadline_tick']}")
+        console.print()
+
+    # Queue 2 (RTGS)
+    rtgs_tx_ids = queue_data.get("rtgs", [])
+    if rtgs_tx_ids:
+        total_value = 0
+        for tx_id in rtgs_tx_ids:
+            tx = mock_orch.get_transaction_details(tx_id)
+            if tx:
+                total_value += tx.get("remaining_amount", 0)
+
+        console.print(f"     Queue 2 - RTGS ({len(rtgs_tx_ids)} transactions, ${total_value / 100:,.2f}):")
+        for tx_id in rtgs_tx_ids:
+            tx = mock_orch.get_transaction_details(tx_id)
+            if tx:
+                console.print(f"     • TX {tx_id[:8]} → {tx['receiver_id']}: ${tx['remaining_amount'] / 100:,.2f} | P:{tx['priority']} | ⏰ Tick {tx['deadline_tick']}")
+        console.print()
+
+    # Collateral
+    if collateral and collateral > 0:
+        console.print(f"     Collateral Posted: ${collateral / 100:,.2f}")
+        console.print()
+
+
+def log_cost_breakdown_from_db(agent_states: list[dict], quiet=False):
+    """Log detailed cost breakdown from database (full replay mode).
+
+    Shows cumulative costs for each agent (matching original run behavior).
+
+    Args:
+        agent_states: List of agent state dicts from database
+        quiet: Suppress output if True
+
+    Example:
+        >>> log_cost_breakdown_from_db(agent_states)
+    """
+    if quiet:
+        return
+
+    # Calculate total costs (cumulative, not deltas)
+    total_cost = 0
+    agent_costs = []
+
+    for state in agent_states:
+        agent_id = state.get("agent_id", "unknown")
+
+        # Sum all cumulative costs (NOT deltas - to match original run behavior)
+        tick_cost = (
+            state.get("liquidity_cost", 0) +
+            state.get("delay_cost", 0) +
+            state.get("collateral_cost", 0) +
+            state.get("penalty_cost", 0) +
+            state.get("split_friction_cost", 0)
+        )
+
+        if tick_cost > 0:
+            agent_costs.append((agent_id, state, tick_cost))
+            total_cost += tick_cost
+
+    if total_cost == 0:
+        return
+
+    console.print()
+    console.print(f"💰 [yellow]Costs Accrued This Tick: ${total_cost / 100:,.2f}[/yellow]")
+    console.print()
+
+    for agent_id, state, agent_total in agent_costs:
+        console.print(f"   {agent_id}: ${agent_total / 100:,.2f}")
+
+        if state.get("liquidity_cost", 0) > 0:
+            console.print(f"   • Liquidity: ${state['liquidity_cost'] / 100:,.2f}")
+        if state.get("delay_cost", 0) > 0:
+            console.print(f"   • Delay: ${state['delay_cost'] / 100:,.2f}")
+        if state.get("collateral_cost", 0) > 0:
+            console.print(f"   • Collateral: ${state['collateral_cost'] / 100:,.2f}")
+        if state.get("penalty_cost", 0) > 0:
+            console.print(f"   • Penalty: ${state['penalty_cost'] / 100:,.2f}")
+        if state.get("split_friction_cost", 0) > 0:
+            console.print(f"   • Split: ${state['split_friction_cost'] / 100:,.2f}")
+
+        console.print()
 
 
 def log_end_of_day_statistics(
