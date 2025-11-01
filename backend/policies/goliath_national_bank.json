@@ -194,9 +194,19 @@
     "node_id": "GNB-EC1-CheckHeadroom",
     "description": "Withdraw excess collateral, but always keep a minimum buffer.",
     "condition": {
-      "op": ">",
-      "left": {"field": "headroom"},
-      "right": {"param": "min_collateral_buffer"}
+      "op": "and",
+      "conditions": [
+        {
+          "op": ">",
+          "left": {"field": "headroom"},
+          "right": {"param": "min_collateral_buffer"}
+        },
+        {
+          "op": ">",
+          "left": {"field": "posted_collateral"},
+          "right": {"value": 0.0}
+        }
+      ]
     },
     "on_true": {
       "type": "action",
