@@ -444,7 +444,7 @@ mod tests {
         let cost_rates = create_test_cost_rates();
 
         // Evaluate at tick 10 (urgent deadline in 5 ticks)
-        let decisions = conservation_policy.evaluate_queue(&agent, &state, 20, &cost_rates, 100, 0.8);
+        let decisions = conservation_policy.evaluate_queue(&agent, &state, 10, &cost_rates, 100, 0.8);
 
         // Find decisions
         let urgent_decision = decisions

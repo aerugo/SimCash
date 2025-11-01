@@ -28,7 +28,7 @@ fn test_fifo_preserves_arrival_order() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![
             AgentConfig {
@@ -96,7 +96,7 @@ fn test_fifo_partial_submission() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 999,
         agent_configs: vec![
             AgentConfig {
@@ -176,7 +176,7 @@ fn test_fifo_vs_deadline_under_pressure() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 55555,
         agent_configs: vec![
             // FIFO agent

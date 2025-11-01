@@ -15,7 +15,7 @@ use std::collections::HashMap;
 fn create_two_agent_config() -> OrchestratorConfig {
     OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![
             AgentConfig {
@@ -310,7 +310,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
     // Create custom config with minimal balances and no credit to force LSM
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![
             AgentConfig {
@@ -531,7 +531,7 @@ fn test_orchestrator_automatic_arrivals() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![
             AgentConfig {
@@ -587,7 +587,7 @@ fn test_orchestrator_arrival_determinism() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 99999, // Same seed
         agent_configs: vec![
             AgentConfig {
@@ -654,7 +654,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![
             AgentConfig {
@@ -746,7 +746,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![
             AgentConfig {

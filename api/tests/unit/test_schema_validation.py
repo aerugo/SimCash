@@ -122,6 +122,8 @@ class TestSchemaValidationPasses:
         from payment_simulator.persistence.schema_generator import (
             generate_create_table_ddl,
             validate_table_schema,
+            _is_field_optional,
+            _is_int_type,
         )
 
         models = [
@@ -133,6 +135,17 @@ class TestSchemaValidationPasses:
 
         conn = duckdb.connect(":memory:")
 
+        # First, create sequences for models with auto-increment id fields
+        for model in models:
+            if "id" in model.model_fields:
+                field_info = model.model_fields["id"]
+                py_type = field_info.annotation
+                if _is_field_optional(py_type, field_info) and _is_int_type(py_type):
+                    table_name = model.model_config["table_name"]
+                    sequence_name = f"{table_name}_id_seq"
+                    conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1;")
+
+        # Now create tables
         for model in models:
             # Create table
             ddl = generate_create_table_ddl(model)

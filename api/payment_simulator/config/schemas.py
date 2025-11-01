@@ -1,4 +1,6 @@
 """Pydantic schemas for configuration validation."""
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Literal, Union
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -17,8 +19,8 @@ class NormalDistribution(BaseModel):
 class LogNormalDistribution(BaseModel):
     """Log-normal distribution (right-skewed)."""
     type: Literal["LogNormal"] = "LogNormal"
-    mean_log: float = Field(..., description="Mean of log values")
-    std_dev_log: float = Field(..., description="Std dev of log values", gt=0)
+    mean: float = Field(..., description="Mean parameter for log-normal distribution")
+    std_dev: float = Field(..., description="Std dev parameter for log-normal distribution", gt=0)
 
 
 class UniformDistribution(BaseModel):
@@ -129,6 +131,12 @@ class MockSplittingPolicy(BaseModel):
     num_splits: int = Field(..., description="Number of splits to create", ge=2, le=10)
 
 
+class FromJsonPolicy(BaseModel):
+    """Policy loaded from JSON file."""
+    type: Literal["FromJson"] = "FromJson"
+    json_path: str = Field(..., description="Path to JSON policy file (relative to project root)")
+
+
 # Union type for all policies
 PolicyConfig = Union[
     FifoPolicy,
@@ -136,6 +144,7 @@ PolicyConfig = Union[
     LiquidityAwarePolicy,
     LiquiditySplittingPolicy,
     MockSplittingPolicy,
+    FromJsonPolicy,
 ]
 
 
@@ -173,6 +182,9 @@ class CostRates(BaseModel):
     )
     delay_cost_per_tick_per_cent: float = Field(
         0.0001, description="Delay cost per tick per cent of queued value", ge=0
+    )
+    collateral_cost_per_tick_bps: float = Field(
+        0.0002, description="Collateral opportunity cost in basis points per tick", ge=0
     )
     eod_penalty_per_transaction: int = Field(
         10_000, description="End-of-day penalty per unsettled transaction (cents)", ge=0
@@ -253,6 +265,7 @@ class SimulationConfig(BaseModel):
             "cost_rates": {
                 "overdraft_bps_per_tick": self.cost_rates.overdraft_bps_per_tick,
                 "delay_cost_per_tick_per_cent": self.cost_rates.delay_cost_per_tick_per_cent,
+                "collateral_cost_per_tick_bps": self.cost_rates.collateral_cost_per_tick_bps,
                 "eod_penalty_per_transaction": self.cost_rates.eod_penalty_per_transaction,
                 "deadline_penalty": self.cost_rates.deadline_penalty,
                 "split_friction_cost": self.cost_rates.split_friction_cost,
@@ -308,6 +321,28 @@ class SimulationConfig(BaseModel):
             }
         elif isinstance(policy, MockSplittingPolicy):
             return {"type": "MockSplitting", "num_splits": policy.num_splits}
+        elif isinstance(policy, FromJsonPolicy):
+            # Load JSON policy from file
+            # Try the path as-is first, then try relative to project root
+            json_path = Path(policy.json_path)
+            if not json_path.exists():
+                # Try relative to project root
+                # schemas.py is at api/payment_simulator/config/schemas.py, so go up 4 levels
+                project_root = Path(__file__).resolve().parent.parent.parent.parent
+                json_path = project_root / policy.json_path
+                if not json_path.exists():
+                    raise ValueError(f"Policy JSON file not found: {policy.json_path} (tried {json_path})")
+
+            with open(json_path, 'r') as f:
+                policy_json = f.read()
+
+            # Validate it's valid JSON
+            try:
+                json.loads(policy_json)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in policy file {policy.json_path}: {e}")
+
+            return {"type": "FromJson", "json": policy_json}
         else:
             raise ValueError(f"Unknown policy type: {type(policy)}")
 
@@ -316,7 +351,7 @@ class SimulationConfig(BaseModel):
         if isinstance(dist, NormalDistribution):
             return {"type": "Normal", "mean": dist.mean, "std_dev": dist.std_dev}
         elif isinstance(dist, LogNormalDistribution):
-            return {"type": "LogNormal", "mean_log": dist.mean_log, "std_dev_log": dist.std_dev_log}
+            return {"type": "LogNormal", "mean": dist.mean, "std_dev": dist.std_dev}
         elif isinstance(dist, UniformDistribution):
             return {"type": "Uniform", "min": dist.min, "max": dist.max}
         elif isinstance(dist, ExponentialDistribution):

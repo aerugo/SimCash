@@ -82,7 +82,7 @@ fn test_deadline_policy_submits_urgent_arrivals() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![
             AgentConfig {
@@ -159,7 +159,7 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 99,
         agent_configs: vec![
             AgentConfig {
@@ -236,7 +236,7 @@ fn test_deadline_policy_vs_fifo_comparison() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![
             // Agent A: DeadlinePolicy
@@ -329,7 +329,7 @@ fn test_deadline_policy_all_urgent_scenario() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 777,
         agent_configs: vec![
             AgentConfig {
@@ -399,7 +399,7 @@ fn test_deadline_policy_deadline_cascade() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 888,
         agent_configs: vec![
             AgentConfig {

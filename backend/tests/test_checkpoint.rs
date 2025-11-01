@@ -29,7 +29,7 @@ fn create_test_orchestrator() -> Orchestrator {
 fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: seed,
         agent_configs: vec![
             AgentConfig {
@@ -60,7 +60,7 @@ fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
 fn create_test_orchestrator_with_arrivals() -> Orchestrator {
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![
             AgentConfig {
@@ -203,7 +203,7 @@ fn test_load_state_restores_exact_state() {
     // Save state
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![
             AgentConfig {
@@ -253,7 +253,7 @@ fn test_determinism_after_restore() {
     // Save state at tick 50
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![
             AgentConfig {
@@ -350,7 +350,7 @@ fn test_balance_conservation_preserved() {
     // Save and restore
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![
             AgentConfig {
@@ -430,7 +430,7 @@ fn test_config_mismatch_rejected() {
     // Create DIFFERENT config (different seed)
     let different_config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 99999, // DIFFERENT SEED
         agent_configs: vec![
             AgentConfig {
@@ -474,7 +474,7 @@ fn test_config_mismatch_rejected() {
 fn test_corrupted_state_json_rejected() {
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42,
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
@@ -514,7 +514,7 @@ fn test_save_load_roundtrip_preserves_state_multiple_seeds() {
         // Save and restore
         let config = OrchestratorConfig {
             ticks_per_day: 100,
-            num_days: 1,
+        eod_rush_threshold: 0.8,            num_days: 1,
             rng_seed: seed,
             agent_configs: vec![
                 AgentConfig {

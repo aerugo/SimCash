@@ -13,7 +13,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
     // TDD: Define desired behavior - orchestrator should load FIFO from JSON
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
@@ -47,7 +47,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
     // TDD: Deadline policy loaded from JSON with default urgency_threshold=5
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
@@ -86,7 +86,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
     // TDD: Deadline policy with custom threshold parameter
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
@@ -125,7 +125,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
     // TDD: LiquidityAware policy with parameter injection
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
@@ -181,7 +181,7 @@ fn test_multi_agent_different_json_policies() {
     // TDD: Multiple agents with different JSON policies
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![
             AgentConfig {
@@ -234,7 +234,7 @@ fn test_determinism_with_json_policies() {
     // TDD: JSON policies should produce deterministic results (same seed = same output)
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 99999, // Fixed seed
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),

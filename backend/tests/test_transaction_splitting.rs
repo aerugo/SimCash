@@ -654,7 +654,7 @@ fn test_multiple_transactions_with_selective_splitting() {
 fn create_basic_config() -> OrchestratorConfig {
     OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![
             // BANK_B receives payments (always has enough balance)

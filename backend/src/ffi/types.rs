@@ -69,8 +69,16 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         LsmConfig::default()
     };
 
+    // Parse optional EOD rush threshold (default to 0.8 if not provided)
+    let eod_rush_threshold = if let Some(py_threshold) = py_config.get_item("eod_rush_threshold")? {
+        py_threshold.extract()?
+    } else {
+        0.8
+    };
+
     Ok(OrchestratorConfig {
         ticks_per_day,
+        eod_rush_threshold,
         num_days,
         rng_seed,
         agent_configs,
@@ -192,6 +200,30 @@ fn parse_policy_config(py_policy: &Bound<'_, PyDict>) -> PyResult<PolicyConfig> 
                 max_splits,
                 min_split_amount,
             })
+        }
+        "MockSplitting" => {
+            let num_splits: usize = py_policy
+                .get_item("num_splits")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "MockSplitting policy requires 'num_splits'",
+                    )
+                })?
+                .extract()?;
+
+            Ok(PolicyConfig::MockSplitting { num_splits })
+        }
+        "FromJson" => {
+            let json: String = py_policy
+                .get_item("json")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "FromJson policy requires 'json' field with policy JSON string",
+                    )
+                })?
+                .extract()?;
+
+            Ok(PolicyConfig::FromJson { json })
         }
         _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
             "Unknown policy type: {}",
@@ -379,6 +411,16 @@ fn parse_amount_distribution(py_dist: &Bound<'_, PyDict>) -> PyResult<AmountDist
                 .extract()?;
 
             Ok(AmountDistribution::Uniform { min, max })
+        }
+        "Exponential" => {
+            let rate: f64 = py_dist
+                .get_item("lambda")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Exponential requires 'lambda'")
+                })?
+                .extract()?;
+
+            Ok(AmountDistribution::Exponential { rate })
         }
         _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
             "Unknown distribution type: {}",

@@ -17,6 +17,7 @@ use payment_simulator_core_rs::{
 fn create_test_config() -> OrchestratorConfig {
     OrchestratorConfig {
         ticks_per_day: 100,
+        eod_rush_threshold: 0.8,
         num_days: 1,
         rng_seed: 42,
         agent_configs: vec![

@@ -34,7 +34,7 @@ fn test_high_frequency_arrivals_single_agent() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         agent_configs: vec![
             AgentConfig {
@@ -134,7 +134,7 @@ fn test_sustained_high_load_100_ticks() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 99999,
         agent_configs: vec![
             AgentConfig {
@@ -238,7 +238,7 @@ fn test_extreme_high_frequency_arrivals() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 77777,
         agent_configs: vec![
             AgentConfig {
@@ -352,7 +352,7 @@ fn test_50_agent_high_frequency_simulation() {
 
     let config = OrchestratorConfig {
         ticks_per_day: 100,
-        num_days: 1,
+        eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 42424242,
         agent_configs,
         cost_rates: CostRates::default(),

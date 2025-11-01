@@ -80,7 +80,15 @@ def _persist_day_data(
     collateral_events = orch.get_collateral_events_for_day(day)
     if collateral_events:
         df = pl.DataFrame(collateral_events)
-        db_manager.conn.execute("INSERT INTO collateral_events SELECT * FROM df")
+        # Insert excluding auto-generated id column
+        db_manager.conn.execute("""
+            INSERT INTO collateral_events (
+                simulation_id, agent_id, tick, day, action, amount, reason, layer,
+                balance_before, posted_collateral_before, posted_collateral_after,
+                available_capacity_after
+            )
+            SELECT * FROM df
+        """)
         log_info(f"  Persisted {len(collateral_events)} collateral events for day {day}", quiet)
 
     # Write agent queue snapshots for this day
