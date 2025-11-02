@@ -482,6 +482,40 @@ Banks can **voluntarily split** large payments at Queue 1 decision point:
 - Split friction cost: `cost × (N-1)` where N = number of children
 - Useful when liquidity insufficient for full amount but available for partial
 
+### Settlement Rate
+
+**Definition**: Percentage of original payment requests that successfully completed.
+
+The settlement rate uses recursive checking to properly handle split transactions:
+
+```python
+def is_effectively_settled(tx_id, transactions, children_map):
+    tx = transactions[tx_id]
+    
+    # Base case 1: Transaction itself settled
+    if tx.is_fully_settled():
+        return True
+    
+    # Base case 2: All children settled (recursive)
+    if tx_id in children_map:
+        return all(
+            is_effectively_settled(child_id, transactions, children_map)
+            for child_id in children_map[tx_id]
+        )
+    
+    # Base case 3: Not settled, no children
+    return False
+
+settlement_rate = effectively_settled_count / original_arrivals
+```
+
+**Key principle**: Only count ORIGINAL arrivals (not split children) and recursively check that all descendants settled.
+
+This ensures:
+- Settlement rate ≤ 100% (mathematically correct)
+- Measures actual payment completion (semantically correct)
+- Handles nested splits properly (technically correct)
+
 ### Liquidity-Saving Mechanisms (LSM)
 
 **Bilateral Offsetting**: Net transactions between two banks

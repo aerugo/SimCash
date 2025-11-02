@@ -164,6 +164,29 @@ The simulator models real-world payment flows through **two distinct queues**:
 2. **Settled** — Fully settled with immediate finality (final state)
 3. **Dropped** — Rejected or past deadline (terminal state)
 
+**Settlement Rate Calculation**:
+
+The settlement rate measures what percentage of original payment requests successfully completed.
+
+**Formula**: `settlement_rate = effectively_settled_arrivals / total_arrivals`
+
+Where:
+- **total_arrivals**: Count of original transactions entering the system (excludes child transactions from splits)
+- **effectively_settled**: A transaction is considered settled if:
+  - It settled directly (no split), OR
+  - ALL of its child transactions settled (recursive check for nested splits)
+
+**Why This Definition?**
+
+Split transactions create multiple child payments from one original request. The settlement rate should reflect whether the ORIGINAL payment request was fulfilled, not count internal split mechanics.
+
+**Example**: If 1 transaction splits into 2 children that both settle:
+- Arrivals: 1 (original request)
+- Effectively settled: 1 (request fulfilled via children)
+- Rate: 100% ✓
+
+This semantic ensures rates ≤ 100% and measures actual payment completion.
+
 **Splitting Mechanics**:
 - Banks may **voluntarily split** large payments at Queue 1 decision point
 - Creates N independent child transactions (each with unique ID)

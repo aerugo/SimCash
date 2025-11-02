@@ -1,23 +1,28 @@
 """FastAPI application for Payment Simulator."""
-from contextlib import asynccontextmanager
-from typing import Dict, List, Optional, Any
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
-import uuid
 
+import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from fastapi import FastAPI, HTTPException, Query
 from payment_simulator._core import Orchestrator
 from payment_simulator.config import SimulationConfig, ValidationError
-
+from pydantic import BaseModel, Field
 
 # ============================================================================
 # Request/Response Models
 # ============================================================================
 
+
 class TransactionSubmission(BaseModel):
     """Request model for submitting a transaction."""
+
     sender: str = Field(..., description="Sender agent ID")
     receiver: str = Field(..., description="Receiver agent ID")
-    amount: int = Field(..., description="Transaction amount in cents")  # Let FFI validate
+    amount: int = Field(
+        ..., description="Transaction amount in cents"
+    )  # Let FFI validate
     deadline_tick: int = Field(..., description="Deadline tick number", gt=0)
     priority: int = Field(5, description="Priority level (0-10)", ge=0, le=10)
     divisible: bool = Field(False, description="Whether transaction can be split")
@@ -25,12 +30,14 @@ class TransactionSubmission(BaseModel):
 
 class TransactionResponse(BaseModel):
     """Response model for transaction submission."""
+
     transaction_id: str
     message: str = "Transaction submitted successfully"
 
 
 class SimulationCreateResponse(BaseModel):
     """Response model for simulation creation."""
+
     simulation_id: str
     state: Dict[str, Any]
     message: str = "Simulation created successfully"
@@ -38,6 +45,7 @@ class SimulationCreateResponse(BaseModel):
 
 class TickResponse(BaseModel):
     """Response model for single tick execution."""
+
     tick: int
     num_arrivals: int
     num_settlements: int
@@ -47,28 +55,35 @@ class TickResponse(BaseModel):
 
 class MultiTickResponse(BaseModel):
     """Response model for multiple tick execution."""
+
     results: List[TickResponse]
     final_tick: int
 
 
 class SimulationListResponse(BaseModel):
     """Response model for listing simulations."""
+
     simulations: List[Dict[str, Any]]
 
 
 class TransactionListResponse(BaseModel):
     """Response model for listing transactions."""
+
     transactions: List[Dict[str, Any]]
 
 
 class CheckpointSaveRequest(BaseModel):
     """Request model for saving a checkpoint."""
-    checkpoint_type: str = Field(..., description="Type of checkpoint (manual/auto/eod/final)")
+
+    checkpoint_type: str = Field(
+        ..., description="Type of checkpoint (manual/auto/eod/final)"
+    )
     description: Optional[str] = Field(None, description="Human-readable description")
 
 
 class CheckpointSaveResponse(BaseModel):
     """Response model for checkpoint save."""
+
     checkpoint_id: str
     simulation_id: str
     checkpoint_tick: int
@@ -78,11 +93,13 @@ class CheckpointSaveResponse(BaseModel):
 
 class CheckpointLoadRequest(BaseModel):
     """Request model for loading from checkpoint."""
+
     checkpoint_id: str = Field(..., description="Checkpoint ID to restore from")
 
 
 class CheckpointLoadResponse(BaseModel):
     """Response model for loading from checkpoint."""
+
     simulation_id: str
     current_tick: int
     current_day: int
@@ -91,43 +108,64 @@ class CheckpointLoadResponse(BaseModel):
 
 class CheckpointListResponse(BaseModel):
     """Response model for listing checkpoints."""
+
     checkpoints: List[Dict[str, Any]]
 
 
 class AgentCostBreakdown(BaseModel):
     """Cost breakdown for a single agent."""
+
     liquidity_cost: int = Field(..., description="Overdraft cost in cents")
-    collateral_cost: int = Field(..., description="Collateral opportunity cost in cents")
+    collateral_cost: int = Field(
+        ..., description="Collateral opportunity cost in cents"
+    )
     delay_cost: int = Field(..., description="Queue 1 delay cost in cents")
-    split_friction_cost: int = Field(..., description="Transaction splitting cost in cents")
+    split_friction_cost: int = Field(
+        ..., description="Transaction splitting cost in cents"
+    )
     deadline_penalty: int = Field(..., description="Deadline miss penalties in cents")
     total_cost: int = Field(..., description="Sum of all costs in cents")
 
 
 class CostResponse(BaseModel):
     """Response model for GET /simulations/{id}/costs endpoint."""
+
     simulation_id: str = Field(..., description="Simulation identifier")
     tick: int = Field(..., description="Current tick number")
     day: int = Field(..., description="Current day number")
-    agents: Dict[str, AgentCostBreakdown] = Field(..., description="Per-agent cost breakdowns")
-    total_system_cost: int = Field(..., description="Total cost across all agents in cents")
+    agents: Dict[str, AgentCostBreakdown] = Field(
+        ..., description="Per-agent cost breakdowns"
+    )
+    total_system_cost: int = Field(
+        ..., description="Total cost across all agents in cents"
+    )
 
 
 class SystemMetrics(BaseModel):
     """System-wide performance metrics."""
+
     total_arrivals: int = Field(..., description="Total transactions arrived")
     total_settlements: int = Field(..., description="Total transactions settled")
-    settlement_rate: float = Field(..., ge=0.0, le=1.0, description="Settlement rate (0.0-1.0)")
+    settlement_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Settlement rate (0.0-1.0)"
+    )
     avg_delay_ticks: float = Field(..., description="Average settlement delay in ticks")
     max_delay_ticks: int = Field(..., description="Maximum delay observed in ticks")
-    queue1_total_size: int = Field(..., description="Total transactions in agent queues")
+    queue1_total_size: int = Field(
+        ..., description="Total transactions in agent queues"
+    )
     queue2_total_size: int = Field(..., description="Total transactions in RTGS queue")
-    peak_overdraft: int = Field(..., description="Largest overdraft across all agents in cents")
-    agents_in_overdraft: int = Field(..., description="Number of agents with negative balance")
+    peak_overdraft: int = Field(
+        ..., description="Largest overdraft across all agents in cents"
+    )
+    agents_in_overdraft: int = Field(
+        ..., description="Number of agents with negative balance"
+    )
 
 
 class MetricsResponse(BaseModel):
     """Response model for GET /simulations/{id}/metrics endpoint."""
+
     simulation_id: str = Field(..., description="Simulation identifier")
     tick: int = Field(..., description="Current tick number")
     day: int = Field(..., description="Current day number")
@@ -135,16 +173,163 @@ class MetricsResponse(BaseModel):
 
 
 # ============================================================================
+# Diagnostic Endpoints Response Models
+# ============================================================================
+
+
+class SimulationSummary(BaseModel):
+    """Summary statistics for a simulation."""
+
+    total_ticks: int
+    total_transactions: int
+    settlement_rate: float
+    total_cost_cents: int
+    duration_seconds: Optional[float] = None
+    ticks_per_second: Optional[float] = None
+
+
+class SimulationMetadataResponse(BaseModel):
+    """Response model for GET /simulations/{id} diagnostic endpoint."""
+
+    simulation_id: str
+    created_at: str
+    config: Dict[str, Any]
+    summary: SimulationSummary
+
+
+class AgentSummary(BaseModel):
+    """Summary statistics for a single agent."""
+
+    agent_id: str
+    total_sent: int
+    total_received: int
+    total_settled: int
+    total_dropped: int
+    total_cost_cents: int
+    avg_balance_cents: int
+    peak_overdraft_cents: int
+    credit_limit_cents: int
+
+
+class AgentListResponse(BaseModel):
+    """Response model for GET /simulations/{id}/agents endpoint."""
+
+    agents: List[AgentSummary]
+
+
+class EventRecord(BaseModel):
+    """Single event in the timeline."""
+
+    tick: int
+    day: int
+    event_type: str
+    tx_id: Optional[str] = None
+    sender_id: Optional[str] = None
+    receiver_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    amount: Optional[int] = None
+    priority: Optional[int] = None
+    deadline_tick: Optional[int] = None
+    timestamp: Optional[str] = None
+
+
+class EventListResponse(BaseModel):
+    """Response model for paginated events."""
+
+    events: List[EventRecord]
+    total: int
+    limit: int
+    offset: int
+
+
+class DailyAgentMetric(BaseModel):
+    """Daily metrics for an agent."""
+
+    day: int
+    opening_balance: int
+    closing_balance: int
+    min_balance: int
+    max_balance: int
+    transactions_sent: int
+    transactions_received: int
+    total_cost_cents: int
+
+
+class CollateralEvent(BaseModel):
+    """Collateral event record."""
+
+    tick: int
+    day: int
+    action: str
+    amount: int
+    reason: str
+    balance_before: int
+
+
+class AgentTimelineResponse(BaseModel):
+    """Response model for agent timeline."""
+
+    agent_id: str
+    daily_metrics: List[DailyAgentMetric]
+    collateral_events: List[CollateralEvent]
+
+
+class TransactionEvent(BaseModel):
+    """Event in a transaction lifecycle."""
+
+    tick: int
+    event_type: str
+    details: Dict[str, Any]
+
+
+class RelatedTransaction(BaseModel):
+    """Related transaction reference."""
+
+    tx_id: str
+    relationship: str
+    split_index: Optional[int] = None
+
+
+class TransactionDetail(BaseModel):
+    """Full transaction details."""
+
+    tx_id: str
+    sender_id: str
+    receiver_id: str
+    amount: int
+    priority: int
+    arrival_tick: int
+    deadline_tick: int
+    settlement_tick: Optional[int]
+    status: str
+    delay_cost: int
+    amount_settled: int
+
+
+class TransactionLifecycleResponse(BaseModel):
+    """Response model for transaction lifecycle."""
+
+    transaction: TransactionDetail
+    events: List[TransactionEvent]
+    related_transactions: List[RelatedTransaction]
+
+
+# ============================================================================
 # Simulation Manager (In-Memory State)
 # ============================================================================
+
 
 class SimulationManager:
     """Manages active simulation instances."""
 
     def __init__(self, db_manager=None):
         self.simulations: Dict[str, Orchestrator] = {}
-        self.configs: Dict[str, Dict] = {}  # Store both original and FFI configs: {"original": dict, "ffi": dict}
-        self.transactions: Dict[str, Dict[str, Dict[str, Any]]] = {}  # sim_id -> tx_id -> tx_data
+        self.configs: Dict[str, Dict] = (
+            {}
+        )  # Store both original and FFI configs: {"original": dict, "ffi": dict}
+        self.transactions: Dict[str, Dict[str, Dict[str, Any]]] = (
+            {}
+        )  # sim_id -> tx_id -> tx_data
         self.db_manager = db_manager  # Optional database manager for checkpoints
 
     def create_simulation(self, config_dict: dict) -> tuple[str, Orchestrator]:
@@ -249,6 +434,7 @@ class SimulationManager:
 
         self.transactions[sim_id][tx_id] = {
             "transaction_id": tx_id,
+            "tx_id": tx_id,  # Alias for compatibility
             "sender": sender,
             "receiver": receiver,
             "amount": amount,
@@ -320,7 +506,8 @@ class SimulationManager:
 
         if agent:
             transactions = [
-                tx for tx in transactions
+                tx
+                for tx in transactions
                 if tx["sender"] == agent or tx["receiver"] == agent
             ]
 
@@ -340,9 +527,11 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
     # Startup: Configure database if environment variable is set
     import os
+
     db_path = os.environ.get("PAYMENT_SIM_DB_PATH")
     if db_path:
         from payment_simulator.persistence.connection import DatabaseManager
+
         app.state.db_manager = DatabaseManager(db_path)
         app.state.db_manager.setup()
         manager.db_manager = app.state.db_manager
@@ -353,7 +542,7 @@ async def lifespan(app: FastAPI):
     manager.simulations.clear()
     manager.configs.clear()
     manager.transactions.clear()
-    if hasattr(app.state, 'db_manager') and app.state.db_manager:
+    if hasattr(app.state, "db_manager") and app.state.db_manager:
         app.state.db_manager.close()
 
 
@@ -368,6 +557,7 @@ app = FastAPI(
 # ============================================================================
 # Simulation Endpoints
 # ============================================================================
+
 
 @app.post("/simulations", response_model=SimulationCreateResponse, status_code=200)
 def create_simulation(config: dict):
@@ -394,9 +584,65 @@ def create_simulation(config: dict):
 
 @app.get("/simulations", response_model=SimulationListResponse)
 def list_simulations():
-    """List all active simulations."""
-    simulations = manager.list_simulations()
-    return SimulationListResponse(simulations=simulations)
+    """List all simulations (both active and database-persisted).
+
+    Returns:
+        - Active in-memory simulations with current_tick, current_day
+        - Database-persisted simulations with config_file, status, timestamps
+    """
+    try:
+        simulations = []
+
+        # Get active in-memory simulations
+        active_sims = manager.list_simulations()
+        simulations.extend(active_sims)
+
+        # Get database-persisted simulations
+        if manager.db_manager:
+            conn = manager.db_manager.get_connection()
+
+            query = """
+                SELECT
+                    simulation_id,
+                    config_file,
+                    config_hash,
+                    rng_seed,
+                    ticks_per_day,
+                    num_days,
+                    num_agents,
+                    status,
+                    started_at,
+                    completed_at
+                FROM simulations
+                ORDER BY started_at DESC
+            """
+
+            results = conn.execute(query).fetchall()
+
+            for row in results:
+                # Skip if already in active list
+                if any(s["simulation_id"] == row[0] for s in simulations):
+                    continue
+
+                simulations.append(
+                    {
+                        "simulation_id": str(row[0]),
+                        "config_file": str(row[1]) if row[1] else None,
+                        "config_hash": str(row[2]) if row[2] else None,
+                        "rng_seed": int(row[3]) if row[3] else None,
+                        "ticks_per_day": int(row[4]) if row[4] else None,
+                        "num_days": int(row[5]) if row[5] else None,
+                        "num_agents": int(row[6]) if row[6] else None,
+                        "status": str(row[7]) if row[7] else None,
+                        "started_at": row[8].isoformat() if row[8] else None,
+                        "completed_at": row[9].isoformat() if row[9] else None,
+                    }
+                )
+
+        return SimulationListResponse(simulations=simulations)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
 
 @app.get("/simulations/{sim_id}/state")
@@ -463,12 +709,16 @@ def delete_simulation(sim_id: str):
         return {"message": "Simulation deleted successfully", "simulation_id": sim_id}
     except KeyError:
         # Idempotent - don't error if already deleted
-        return {"message": "Simulation not found (may have been already deleted)", "simulation_id": sim_id}
+        return {
+            "message": "Simulation not found (may have been already deleted)",
+            "simulation_id": sim_id,
+        }
 
 
 # ============================================================================
 # Transaction Endpoints
 # ============================================================================
+
 
 @app.post("/simulations/{sim_id}/transactions", response_model=TransactionResponse)
 def submit_transaction(sim_id: str, tx: TransactionSubmission):
@@ -580,6 +830,7 @@ def list_transactions(
 # Checkpoint Endpoints
 # ============================================================================
 
+
 @app.post("/simulations/{sim_id}/checkpoint", response_model=CheckpointSaveResponse)
 def save_checkpoint(sim_id: str, request: CheckpointSaveRequest):
     """
@@ -593,10 +844,10 @@ def save_checkpoint(sim_id: str, request: CheckpointSaveRequest):
         orch = manager.get_simulation(sim_id)
 
         # Verify database manager is available
-        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+        if not hasattr(app.state, "db_manager") or app.state.db_manager is None:
             raise HTTPException(
                 status_code=503,
-                detail="Checkpoint feature not available (database not configured)"
+                detail="Checkpoint feature not available (database not configured)",
             )
 
         # Import CheckpointManager
@@ -616,7 +867,7 @@ def save_checkpoint(sim_id: str, request: CheckpointSaveRequest):
             config=ffi_dict,
             checkpoint_type=request.checkpoint_type,
             description=request.description,
-            created_by="api_user"  # TODO: Get from auth context
+            created_by="api_user",  # TODO: Get from auth context
         )
 
         return CheckpointSaveResponse(
@@ -644,10 +895,10 @@ def load_from_checkpoint(request: CheckpointLoadRequest):
     """
     try:
         # Verify database manager is available
-        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+        if not hasattr(app.state, "db_manager") or app.state.db_manager is None:
             raise HTTPException(
                 status_code=503,
-                detail="Checkpoint feature not available (database not configured)"
+                detail="Checkpoint feature not available (database not configured)",
             )
 
         # Import CheckpointManager
@@ -660,8 +911,7 @@ def load_from_checkpoint(request: CheckpointLoadRequest):
         checkpoint = checkpoint_mgr.get_checkpoint(request.checkpoint_id)
         if checkpoint is None:
             raise HTTPException(
-                status_code=404,
-                detail=f"Checkpoint not found: {request.checkpoint_id}"
+                status_code=404, detail=f"Checkpoint not found: {request.checkpoint_id}"
             )
 
         # Load orchestrator and config from checkpoint
@@ -675,6 +925,7 @@ def load_from_checkpoint(request: CheckpointLoadRequest):
         # Convert FFI dict back to original config dict for storage
         # This is for API compatibility (list_simulations needs original format)
         from payment_simulator.config import SimulationConfig
+
         # We need to reconstruct the original dict from the FFI dict
         # For now, we'll just use the ffi_dict as both (they're similar enough)
         # TODO: Store original_config_dict in checkpoint too if needed for perfect reconstruction
@@ -710,13 +961,15 @@ def list_checkpoints(sim_id: str):
         # Verify simulation exists (or existed)
         # Note: Checkpoints may exist for deleted simulations
         if sim_id not in manager.simulations and sim_id not in manager.configs:
-            raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Simulation not found: {sim_id}"
+            )
 
         # Verify database manager is available
-        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+        if not hasattr(app.state, "db_manager") or app.state.db_manager is None:
             raise HTTPException(
                 status_code=503,
-                detail="Checkpoint feature not available (database not configured)"
+                detail="Checkpoint feature not available (database not configured)",
             )
 
         # Import CheckpointManager
@@ -745,10 +998,10 @@ def get_checkpoint_details(checkpoint_id: str):
     """
     try:
         # Verify database manager is available
-        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+        if not hasattr(app.state, "db_manager") or app.state.db_manager is None:
             raise HTTPException(
                 status_code=503,
-                detail="Checkpoint feature not available (database not configured)"
+                detail="Checkpoint feature not available (database not configured)",
             )
 
         # Import CheckpointManager
@@ -762,8 +1015,7 @@ def get_checkpoint_details(checkpoint_id: str):
 
         if checkpoint is None:
             raise HTTPException(
-                status_code=404,
-                detail=f"Checkpoint not found: {checkpoint_id}"
+                status_code=404, detail=f"Checkpoint not found: {checkpoint_id}"
             )
 
         # Remove large state_json field from response (use /checkpoints/{id}/state to get it)
@@ -786,10 +1038,10 @@ def delete_checkpoint(checkpoint_id: str):
     """
     try:
         # Verify database manager is available
-        if not hasattr(app.state, 'db_manager') or app.state.db_manager is None:
+        if not hasattr(app.state, "db_manager") or app.state.db_manager is None:
             raise HTTPException(
                 status_code=503,
-                detail="Checkpoint feature not available (database not configured)"
+                detail="Checkpoint feature not available (database not configured)",
             )
 
         # Import CheckpointManager
@@ -801,7 +1053,10 @@ def delete_checkpoint(checkpoint_id: str):
         # Delete checkpoint (idempotent)
         checkpoint_mgr.delete_checkpoint(checkpoint_id)
 
-        return {"message": "Checkpoint deleted successfully", "checkpoint_id": checkpoint_id}
+        return {
+            "message": "Checkpoint deleted successfully",
+            "checkpoint_id": checkpoint_id,
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete checkpoint: {e}")
@@ -810,6 +1065,7 @@ def delete_checkpoint(checkpoint_id: str):
 # ============================================================================
 # Cost & Metrics Endpoints (Phase 8)
 # ============================================================================
+
 
 @app.get("/simulations/{sim_id}/costs", response_model=CostResponse)
 def get_simulation_costs(sim_id: str):
@@ -880,7 +1136,7 @@ def get_simulation_costs(sim_id: str):
             tick=current_tick,
             day=current_day,
             agents=agent_costs,
-            total_system_cost=total_system_cost
+            total_system_cost=total_system_cost,
         )
 
     except KeyError:
@@ -939,10 +1195,7 @@ def get_simulation_metrics(sim_id: str):
         current_day = orchestrator.current_day()
 
         return MetricsResponse(
-            simulation_id=sim_id,
-            tick=current_tick,
-            day=current_day,
-            metrics=metrics
+            simulation_id=sim_id, tick=current_tick, day=current_day, metrics=metrics
         )
 
     except KeyError:
@@ -954,6 +1207,752 @@ def get_simulation_metrics(sim_id: str):
 # ============================================================================
 # Health Check
 # ============================================================================
+
+# ============================================================================
+# Diagnostic Endpoints (for Frontend)
+# ============================================================================
+
+
+@app.get("/simulations/{sim_id}", response_model=SimulationMetadataResponse)
+def get_simulation_metadata(sim_id: str):
+    """
+    Get complete simulation metadata including config and summary statistics.
+
+    This endpoint provides all information needed for the diagnostic frontend dashboard.
+    """
+    try:
+        # Check if simulation exists in manager or database
+        if sim_id in manager.simulations:
+            # Active simulation - get from manager
+            config = manager.configs[sim_id]["original"]
+            orch = manager.simulations[sim_id]
+
+            # Normalize config structure: extract from nested 'simulation' key if present
+            if "simulation" in config:
+                normalized_config = {
+                    "ticks_per_day": config["simulation"].get("ticks_per_day"),
+                    "num_days": config["simulation"].get("num_days"),
+                    "rng_seed": config["simulation"].get("rng_seed"),
+                    "agents": config.get("agents", []),
+                }
+                # Include LSM config if present
+                if "lsm" in config:
+                    normalized_config["lsm_config"] = config["lsm"]
+            else:
+                # Already flat structure
+                normalized_config = config
+
+            # Calculate summary from current state
+            transactions = manager.list_transactions(sim_id)
+            settled = sum(1 for tx in transactions if tx["status"] == "settled")
+            total_tx = len(transactions)
+            settlement_rate = settled / total_tx if total_tx > 0 else 0.0
+
+            return SimulationMetadataResponse(
+                simulation_id=sim_id,
+                created_at=datetime.now().isoformat(),  # Approximate
+                config=normalized_config,
+                summary=SimulationSummary(
+                    total_ticks=orch.current_tick(),
+                    total_transactions=total_tx,
+                    settlement_rate=settlement_rate,
+                    total_cost_cents=0,  # Would need to calculate
+                    duration_seconds=None,
+                    ticks_per_second=None,
+                ),
+            )
+        else:
+            # Check database if available
+            if not manager.db_manager:
+                raise HTTPException(
+                    status_code=404, detail=f"Simulation not found: {sim_id}"
+                )
+
+            conn = manager.db_manager.get_connection()
+
+            # Query simulation metadata - use named columns instead of SELECT *
+            sim_query = """
+                SELECT
+                    simulation_id,
+                    config_file,
+                    config_hash,
+                    rng_seed,
+                    ticks_per_day,
+                    num_days,
+                    num_agents,
+                    config_json,
+                    status,
+                    started_at,
+                    completed_at,
+                    total_arrivals,
+                    total_settlements,
+                    total_cost_cents,
+                    duration_seconds,
+                    ticks_per_second
+                FROM simulations
+                WHERE simulation_id = ?
+            """
+            sim_result = conn.execute(sim_query, [sim_id]).fetchone()
+
+            if not sim_result:
+                raise HTTPException(
+                    status_code=404, detail=f"Simulation not found: {sim_id}"
+                )
+
+            # Unpack result with named indices (including config_json)
+            (
+                sim_id_result,
+                config_file,
+                config_hash,
+                rng_seed,
+                ticks_per_day,
+                num_days,
+                num_agents,
+                config_json_str,
+                status,
+                started_at,
+                completed_at,
+                total_arrivals,
+                total_settlements,
+                total_cost_cents,
+                duration_seconds,
+                ticks_per_second,
+            ) = sim_result
+
+            # Parse config_json if available
+            import json
+
+            if config_json_str:
+                config_dict = json.loads(config_json_str)
+            else:
+                # Fallback: Build minimal config dict from available fields
+                config_dict = {
+                    "config_file": config_file,
+                    "config_hash": config_hash,
+                    "rng_seed": rng_seed,
+                    "ticks_per_day": ticks_per_day,
+                    "num_days": num_days,
+                    "num_agents": num_agents,
+                    "agents": [],
+                }
+
+            # Get transaction summary if total_arrivals not populated
+            if total_arrivals is None or total_settlements is None:
+                tx_summary_query = """
+                    SELECT
+                        COUNT(*) as total_transactions,
+                        SUM(CASE WHEN status = 'settled' THEN 1 ELSE 0 END) as settled_count,
+                        SUM(delay_cost) as total_delay_cost
+                    FROM transactions
+                    WHERE simulation_id = ?
+                """
+                tx_summary = conn.execute(tx_summary_query, [sim_id]).fetchone()
+                total_arrivals = tx_summary[0] if tx_summary else 0
+                total_settlements = tx_summary[1] if tx_summary and tx_summary[1] else 0
+                if total_cost_cents is None:
+                    total_cost_cents = (
+                        tx_summary[2] if tx_summary and tx_summary[2] else 0
+                    )
+
+            # CRITICAL FIX: Recalculate settlement rate correctly
+            # The pre-calculated values in the simulations table may have been
+            # calculated with buggy code that counted split children as arrivals.
+            # Instead, calculate from raw transaction data:
+            # - Only count original transactions (parent_tx_id IS NULL) as arrivals
+            # - Count transaction as settled if:
+            #   1. It has no children AND is fully settled, OR
+            #   2. It has children AND ALL children are fully settled
+
+            recalc_query = """
+                WITH parent_transactions AS (
+                    -- Get all original (non-split) transactions
+                    SELECT
+                        tx_id,
+                        status,
+                        amount,
+                        amount_settled,
+                        parent_tx_id
+                    FROM transactions
+                    WHERE simulation_id = ? AND parent_tx_id IS NULL
+                ),
+                child_status AS (
+                    -- For each parent, check if all children are fully settled
+                    SELECT
+                        parent_tx_id,
+                        COUNT(*) as child_count,
+                        SUM(CASE WHEN status = 'settled' AND amount_settled = amount THEN 1 ELSE 0 END) as settled_child_count
+                    FROM transactions
+                    WHERE simulation_id = ? AND parent_tx_id IS NOT NULL
+                    GROUP BY parent_tx_id
+                )
+                SELECT
+                    COUNT(DISTINCT pt.tx_id) as total_arrivals,
+                    SUM(CASE
+                        -- Transaction with no children: check if settled itself
+                        WHEN cs.child_count IS NULL THEN
+                            CASE WHEN pt.status = 'settled' AND pt.amount_settled = pt.amount THEN 1 ELSE 0 END
+                        -- Transaction with children: check if ALL children settled
+                        ELSE
+                            CASE WHEN cs.settled_child_count = cs.child_count THEN 1 ELSE 0 END
+                    END) as effective_settlements
+                FROM parent_transactions pt
+                LEFT JOIN child_status cs ON pt.tx_id = cs.parent_tx_id
+            """
+
+            recalc_result = conn.execute(recalc_query, [sim_id, sim_id]).fetchone()
+
+            if recalc_result and recalc_result[0] > 0:
+                # Use recalculated values
+                total_arrivals = recalc_result[0]
+                total_settlements = recalc_result[1] if recalc_result[1] else 0
+
+            settlement_rate = (
+                total_settlements / total_arrivals
+                if total_arrivals and total_arrivals > 0
+                else 0.0
+            )
+
+            # Calculate total ticks (ticks_per_day * num_days)
+            total_ticks = ticks_per_day * num_days if ticks_per_day and num_days else 0
+
+            return SimulationMetadataResponse(
+                simulation_id=sim_id_result,
+                created_at=(
+                    started_at.isoformat() if started_at else datetime.now().isoformat()
+                ),
+                config=config_dict,
+                summary=SimulationSummary(
+                    total_ticks=total_ticks,
+                    total_transactions=total_arrivals or 0,
+                    settlement_rate=settlement_rate,
+                    total_cost_cents=total_cost_cents or 0,
+                    duration_seconds=duration_seconds,
+                    ticks_per_second=ticks_per_second,
+                ),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get("/simulations/{sim_id}/agents", response_model=AgentListResponse)
+def get_agent_list(sim_id: str):
+    """
+    Get list of all agents with summary statistics.
+
+    For in-memory simulations: returns current state
+    For database simulations: aggregates full metrics from daily_agent_metrics
+    """
+    try:
+        # Check if simulation exists in memory
+        if sim_id in manager.simulations:
+            orch = manager.get_simulation(sim_id)
+            config = manager.configs[sim_id]["original"]
+            agent_list = config.get("agents") or config.get("agent_configs")
+
+            agents = []
+            for agent_id in orch.get_agent_ids():
+                agent_config = next(
+                    (a for a in agent_list if a["id"] == agent_id), None
+                )
+                credit_limit = (
+                    agent_config.get("credit_limit", 0) if agent_config else 0
+                )
+
+                # For in-memory simulations, we can only provide current state
+                # Full metrics require database persistence
+                agents.append(
+                    AgentSummary(
+                        agent_id=agent_id,
+                        total_sent=0,  # Would need to track this
+                        total_received=0,  # Would need to track this
+                        total_settled=0,  # Would need to track this
+                        total_dropped=0,  # Would need to track this
+                        total_cost_cents=0,  # Would need to track this
+                        avg_balance_cents=orch.get_agent_balance(agent_id),
+                        peak_overdraft_cents=0,  # Would need to track this
+                        credit_limit_cents=credit_limit,
+                    )
+                )
+
+            return AgentListResponse(agents=agents)
+
+        # Not in memory, try database
+        if not manager.db_manager:
+            raise HTTPException(
+                status_code=404, detail=f"Simulation not found: {sim_id}"
+            )
+
+        conn = manager.db_manager.get_connection()
+
+        # Query from database
+        query = """
+            SELECT
+                dam.agent_id,
+                COALESCE(SUM(dam.num_sent), 0) as total_sent,
+                COALESCE(SUM(dam.num_received), 0) as total_received,
+                COALESCE(SUM(dam.num_settled), 0) as total_settled,
+                COALESCE(SUM(dam.num_dropped), 0) as total_dropped,
+                COALESCE(SUM(dam.total_cost), 0) as total_cost_cents,
+                COALESCE(AVG(dam.closing_balance), 0) as avg_balance_cents,
+                COALESCE(MIN(dam.min_balance), 0) as peak_overdraft_cents,
+                0 as credit_limit_cents
+            FROM daily_agent_metrics dam
+            WHERE dam.simulation_id = ?
+            GROUP BY dam.agent_id
+            ORDER BY dam.agent_id
+        """
+
+        results = conn.execute(query, [sim_id]).fetchall()
+
+        if not results:
+            raise HTTPException(
+                status_code=404, detail=f"Simulation not found: {sim_id}"
+            )
+
+        agents = [
+            AgentSummary(
+                agent_id=row[0],
+                total_sent=int(row[1]),
+                total_received=int(row[2]),
+                total_settled=int(row[3]),
+                total_dropped=int(row[4]),
+                total_cost_cents=int(row[5]),
+                avg_balance_cents=int(row[6]),
+                peak_overdraft_cents=int(row[7]),
+                credit_limit_cents=int(row[8]),
+            )
+            for row in results
+        ]
+
+        return AgentListResponse(agents=agents)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get("/simulations/{sim_id}/events", response_model=EventListResponse)
+def get_events(
+    sim_id: str,
+    tick: Optional[int] = Query(None),
+    tick_min: Optional[int] = Query(None),
+    tick_max: Optional[int] = Query(None),
+    agent_id: Optional[str] = Query(None),
+    event_type: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Get paginated list of events with optional filtering.
+
+    For in-memory simulations: reconstructs events from transaction tracking
+    For database simulations: queries full event history
+    """
+    try:
+        # Check if simulation exists in memory
+        if sim_id in manager.simulations:
+            orch = manager.get_simulation(sim_id)
+            txs = manager.transactions.get(sim_id, {})
+
+            # Reconstruct events from tracked transactions
+            events = []
+            for tx_id, tx_data in txs.items():
+                arrival_tick = tx_data.get("submitted_at_tick", 0)
+
+                # Apply filters
+                if tick is not None and arrival_tick != tick:
+                    continue
+                if tick_min is not None and arrival_tick < tick_min:
+                    continue
+                if tick_max is not None and arrival_tick > tick_max:
+                    continue
+                if (
+                    agent_id
+                    and tx_data["sender"] != agent_id
+                    and tx_data["receiver"] != agent_id
+                ):
+                    continue
+
+                events.append(
+                    EventRecord(
+                        tick=arrival_tick,
+                        day=arrival_tick // 100,  # Assume 100 ticks per day
+                        event_type="Arrival",
+                        tx_id=tx_id,
+                        sender_id=tx_data["sender"],
+                        receiver_id=tx_data["receiver"],
+                        amount=tx_data["amount"],
+                        priority=tx_data["priority"],
+                        deadline_tick=tx_data["deadline_tick"],
+                        timestamp=None,
+                    )
+                )
+
+            # Sort and paginate
+            events.sort(key=lambda e: (e.tick, e.tx_id or ""))
+            total = len(events)
+            events = events[offset : offset + limit]
+
+            return EventListResponse(
+                events=events, total=total, limit=limit, offset=offset
+            )
+
+        # Not in memory, try database
+        if not manager.db_manager:
+            raise HTTPException(
+                status_code=404, detail=f"Simulation not found: {sim_id}"
+            )
+
+        conn = manager.db_manager.get_connection()
+
+        # Build base query - get events from transactions (arrivals and settlements)
+        where_clauses = ["simulation_id = ?"]
+        params = [sim_id]
+
+        if tick is not None:
+            where_clauses.append("arrival_tick = ?")
+            params.append(tick)
+        elif tick_min is not None or tick_max is not None:
+            if tick_min is not None:
+                where_clauses.append("arrival_tick >= ?")
+                params.append(tick_min)
+            if tick_max is not None:
+                where_clauses.append("arrival_tick <= ?")
+                params.append(tick_max)
+
+        if agent_id:
+            where_clauses.append("(sender_id = ? OR receiver_id = ?)")
+            params.extend([agent_id, agent_id])
+
+        where_sql = " AND ".join(where_clauses)
+
+        # Get total count
+        count_query = f"SELECT COUNT(*) FROM transactions WHERE {where_sql}"
+        total = conn.execute(count_query, params).fetchone()[0]
+
+        if total == 0:
+            raise HTTPException(
+                status_code=404, detail=f"Simulation not found: {sim_id}"
+            )
+
+        # Get paginated events
+        events_query = f"""
+            SELECT
+                arrival_tick as tick,
+                arrival_day as day,
+                'Arrival' as event_type,
+                tx_id,
+                sender_id,
+                receiver_id,
+                amount,
+                priority,
+                deadline_tick
+            FROM transactions
+            WHERE {where_sql}
+            ORDER BY arrival_tick, tx_id
+            LIMIT ? OFFSET ?
+        """
+
+        params.extend([limit, offset])
+        results = conn.execute(events_query, params).fetchall()
+
+        events = [
+            EventRecord(
+                tick=int(row[0]),
+                day=int(row[1]),
+                event_type=str(row[2]),
+                tx_id=str(row[3]) if row[3] else None,
+                sender_id=str(row[4]) if row[4] else None,
+                receiver_id=str(row[5]) if row[5] else None,
+                amount=int(row[6]) if row[6] else None,
+                priority=int(row[7]) if row[7] else None,
+                deadline_tick=int(row[8]) if row[8] else None,
+                timestamp=None,
+            )
+            for row in results
+        ]
+
+        return EventListResponse(events=events, total=total, limit=limit, offset=offset)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get(
+    "/simulations/{sim_id}/agents/{agent_id}/timeline",
+    response_model=AgentTimelineResponse,
+)
+def get_agent_timeline(sim_id: str, agent_id: str):
+    """
+    Get complete timeline for a specific agent including daily metrics and collateral events.
+
+    For in-memory simulations: returns current state as single day metric
+    For database simulations: returns full historical timeline
+    """
+    try:
+        # Check if simulation exists in memory
+        if sim_id in manager.simulations:
+            orch = manager.get_simulation(sim_id)
+
+            # Verify agent exists
+            if agent_id not in orch.get_agent_ids():
+                raise HTTPException(
+                    status_code=404, detail=f"Agent {agent_id} not found"
+                )
+
+            # For in-memory simulations, provide current state as single metric
+            current_balance = orch.get_agent_balance(agent_id)
+            current_day = orch.current_day()
+
+            daily_metrics = [
+                DailyAgentMetric(
+                    day=current_day,
+                    opening_balance=current_balance,  # Approximation
+                    closing_balance=current_balance,
+                    min_balance=current_balance,  # Would need tracking
+                    max_balance=current_balance,  # Would need tracking
+                    transactions_sent=0,  # Would need tracking
+                    transactions_received=0,  # Would need tracking
+                    total_cost_cents=0,  # Would need tracking
+                )
+            ]
+
+            return AgentTimelineResponse(
+                agent_id=agent_id, daily_metrics=daily_metrics, collateral_events=[]
+            )
+
+        # Not in memory, try database
+        if not manager.db_manager:
+            raise HTTPException(
+                status_code=404, detail=f"Simulation not found: {sim_id}"
+            )
+
+        conn = manager.db_manager.get_connection()
+
+        # Get daily metrics
+        metrics_query = """
+            SELECT
+                day,
+                opening_balance,
+                closing_balance,
+                min_balance,
+                max_balance,
+                num_sent,
+                num_received,
+                total_cost
+            FROM daily_agent_metrics
+            WHERE simulation_id = ? AND agent_id = ?
+            ORDER BY day
+        """
+
+        metrics_results = conn.execute(metrics_query, [sim_id, agent_id]).fetchall()
+
+        if not metrics_results:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent {agent_id} not found in simulation {sim_id}",
+            )
+
+        daily_metrics = [
+            DailyAgentMetric(
+                day=int(row[0]),
+                opening_balance=int(row[1]),
+                closing_balance=int(row[2]),
+                min_balance=int(row[3]),
+                max_balance=int(row[4]),
+                transactions_sent=int(row[5]),
+                transactions_received=int(row[6]),
+                total_cost_cents=int(row[7]),
+            )
+            for row in metrics_results
+        ]
+
+        # Get collateral events
+        collateral_query = """
+            SELECT
+                tick,
+                day,
+                action,
+                amount,
+                reason,
+                balance_before
+            FROM collateral_events
+            WHERE simulation_id = ? AND agent_id = ?
+            ORDER BY tick
+        """
+
+        collateral_results = conn.execute(
+            collateral_query, [sim_id, agent_id]
+        ).fetchall()
+
+        collateral_events = [
+            CollateralEvent(
+                tick=int(row[0]),
+                day=int(row[1]),
+                action=str(row[2]),
+                amount=int(row[3]),
+                reason=str(row[4]),
+                balance_before=int(row[5]),
+            )
+            for row in collateral_results
+        ]
+
+        return AgentTimelineResponse(
+            agent_id=agent_id,
+            daily_metrics=daily_metrics,
+            collateral_events=collateral_events,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get(
+    "/simulations/{sim_id}/transactions/{tx_id}/lifecycle",
+    response_model=TransactionLifecycleResponse,
+)
+def get_transaction_lifecycle(sim_id: str, tx_id: str):
+    """
+    Get complete lifecycle of a transaction including all events and related transactions.
+    """
+    try:
+        if not manager.db_manager:
+            # Fall back to manager if no database
+            tx = manager.get_transaction(sim_id, tx_id)
+            if not tx:
+                raise HTTPException(
+                    status_code=404, detail=f"Transaction {tx_id} not found"
+                )
+
+            # Minimal response from manager
+            return TransactionLifecycleResponse(
+                transaction=TransactionDetail(
+                    tx_id=tx_id,
+                    sender_id=tx["sender"],
+                    receiver_id=tx["receiver"],
+                    amount=tx["amount"],
+                    priority=tx["priority"],
+                    arrival_tick=tx.get("submitted_at_tick", 0),
+                    deadline_tick=tx["deadline_tick"],
+                    settlement_tick=None,
+                    status=tx["status"],
+                    delay_cost=0,
+                    amount_settled=0,
+                ),
+                events=[
+                    TransactionEvent(
+                        tick=tx.get("submitted_at_tick", 0),
+                        event_type="Arrival",
+                        details={},
+                    )
+                ],
+                related_transactions=[],
+            )
+
+        conn = manager.db_manager.get_connection()
+
+        # Get transaction details
+        tx_query = """
+            SELECT
+                tx_id,
+                sender_id,
+                receiver_id,
+                amount,
+                priority,
+                arrival_tick,
+                deadline_tick,
+                settlement_tick,
+                status,
+                delay_cost,
+                COALESCE(amount_settled, amount) as amount_settled
+            FROM transactions
+            WHERE simulation_id = ? AND tx_id = ?
+        """
+
+        tx_result = conn.execute(tx_query, [sim_id, tx_id]).fetchone()
+
+        if not tx_result:
+            raise HTTPException(
+                status_code=404, detail=f"Transaction {tx_id} not found"
+            )
+
+        transaction = TransactionDetail(
+            tx_id=str(tx_result[0]),
+            sender_id=str(tx_result[1]),
+            receiver_id=str(tx_result[2]),
+            amount=int(tx_result[3]),
+            priority=int(tx_result[4]),
+            arrival_tick=int(tx_result[5]),
+            deadline_tick=int(tx_result[6]),
+            settlement_tick=int(tx_result[7]) if tx_result[7] is not None else None,
+            status=str(tx_result[8]),
+            delay_cost=int(tx_result[9]) if tx_result[9] else 0,
+            amount_settled=int(tx_result[10]) if tx_result[10] else 0,
+        )
+
+        # Build events from transaction lifecycle
+        events = [
+            TransactionEvent(
+                tick=transaction.arrival_tick, event_type="Arrival", details={}
+            )
+        ]
+
+        if transaction.settlement_tick is not None:
+            events.append(
+                TransactionEvent(
+                    tick=transaction.settlement_tick,
+                    event_type="Settlement",
+                    details={"method": "rtgs"},
+                )
+            )
+
+        # Get related transactions (splits)
+        related_query = """
+            SELECT tx_id, parent_tx_id, split_index
+            FROM transactions
+            WHERE simulation_id = ? AND (parent_tx_id = ? OR tx_id IN (
+                SELECT parent_tx_id FROM transactions WHERE simulation_id = ? AND tx_id = ?
+            ))
+            AND tx_id != ?
+        """
+
+        related_results = conn.execute(
+            related_query, [sim_id, tx_id, sim_id, tx_id, tx_id]
+        ).fetchall()
+
+        related_transactions = [
+            RelatedTransaction(
+                tx_id=str(row[0]),
+                relationship="split_from" if row[1] == tx_id else "split_to",
+                split_index=int(row[2]) if row[2] is not None else None,
+            )
+            for row in related_results
+        ]
+
+        return TransactionLifecycleResponse(
+            transaction=transaction,
+            events=events,
+            related_transactions=related_transactions,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+# ============================================================================
+# Health & Status
+# ============================================================================
+
 
 @app.get("/health")
 def health_check():
@@ -967,6 +1966,7 @@ def health_check():
 # ============================================================================
 # Root
 # ============================================================================
+
 
 @app.get("/")
 def root():

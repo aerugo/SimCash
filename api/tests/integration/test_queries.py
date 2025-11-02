@@ -14,9 +14,7 @@ from pathlib import Path
 import duckdb
 import polars as pl
 import pytest
-
 from payment_simulator.persistence.connection import DatabaseManager
-
 
 # ============================================================================
 # Test Fixtures and Helpers
@@ -30,7 +28,8 @@ def seeded_database(db_path):
     manager.setup()
 
     # Seed simulation run
-    manager.conn.execute("""
+    manager.conn.execute(
+        """
         INSERT INTO simulation_runs VALUES (
             'test-sim-001',
             'test_config.yaml',
@@ -44,10 +43,12 @@ def seeded_database(db_path):
             'completed',
             150  -- total_transactions
         )
-    """)
+    """
+    )
 
     # Seed simulations table for queries (Phase 5)
-    manager.conn.execute("""
+    manager.conn.execute(
+        """
         INSERT INTO simulations VALUES (
             'test-sim-001',          -- simulation_id
             'test_config.yaml',      -- config_file
@@ -56,6 +57,7 @@ def seeded_database(db_path):
             100,                     -- ticks_per_day
             3,                       -- num_days
             2,                       -- num_agents
+            NULL,                    -- config_json (optional)
             'completed',             -- status
             '2025-01-01 00:00:00',   -- started_at
             '2025-01-01 01:00:00',   -- completed_at
@@ -65,7 +67,8 @@ def seeded_database(db_path):
             3600.0,                  -- duration_seconds (1 hour)
             8.33                     -- ticks_per_second (300 ticks / 3600 seconds)
         )
-    """)
+    """
+    )
 
     # Seed transactions for 3 days
     transactions = []
@@ -97,14 +100,16 @@ def seeded_database(db_path):
             tx_id += 1
 
     tx_values = ",\n        ".join(transactions)
-    manager.conn.execute(f"""
+    manager.conn.execute(
+        f"""
         INSERT INTO transactions (
             simulation_id, tx_id, sender_id, receiver_id, amount, priority, is_divisible,
             arrival_tick, arrival_day, deadline_tick, settlement_tick, settlement_day,
             status, drop_reason, amount_settled, queue1_ticks, queue2_ticks, total_delay_ticks, delay_cost
         ) VALUES
         {tx_values}
-    """)
+    """
+    )
 
     # Seed agent metrics for 3 days
     metrics = []
@@ -136,7 +141,8 @@ def seeded_database(db_path):
         )
 
     metrics_values = ",\n        ".join(metrics)
-    manager.conn.execute(f"""
+    manager.conn.execute(
+        f"""
         INSERT INTO daily_agent_metrics (
             simulation_id, agent_id, day,
             opening_balance, closing_balance, min_balance, max_balance,
@@ -149,7 +155,8 @@ def seeded_database(db_path):
             deadline_penalty_cost, total_cost
         ) VALUES
         {metrics_values}
-    """)
+    """
+    )
 
     yield manager
 
@@ -186,7 +193,9 @@ class TestAgentPerformanceQueries:
         days = df["day"].to_list()
         assert days == [0, 1, 2]
 
-    def test_get_agent_performance_filters_by_simulation_and_agent(self, seeded_database):
+    def test_get_agent_performance_filters_by_simulation_and_agent(
+        self, seeded_database
+    ):
         """Should filter to specific simulation and agent."""
         from payment_simulator.persistence.queries import get_agent_performance
 
@@ -383,7 +392,8 @@ class TestQueryPerformance:
         for i in range(0, len(metrics), batch_size):
             batch = metrics[i : i + batch_size]
             values = ",\n        ".join(batch)
-            manager.conn.execute(f"""
+            manager.conn.execute(
+                f"""
                 INSERT INTO daily_agent_metrics (
                     simulation_id, agent_id, day,
                     opening_balance, closing_balance, min_balance, max_balance,
@@ -395,7 +405,8 @@ class TestQueryPerformance:
                     liquidity_cost, delay_cost, collateral_cost, split_friction_cost,
                     deadline_penalty_cost, total_cost
                 ) VALUES {values}
-            """)
+            """
+            )
 
         # Query should complete quickly
         from payment_simulator.persistence.queries import get_agent_performance
@@ -439,14 +450,16 @@ class TestQueryPerformance:
                 )
 
             values = ",\n        ".join(transactions)
-            manager.conn.execute(f"""
+            manager.conn.execute(
+                f"""
                 INSERT INTO transactions (
                     simulation_id, tx_id, sender_id, receiver_id, amount, priority, is_divisible,
                     arrival_tick, arrival_day, deadline_tick, settlement_tick, settlement_day,
                     status, drop_reason, amount_settled, queue1_ticks, queue2_ticks,
                     total_delay_ticks, delay_cost
                 ) VALUES {values}
-            """)
+            """
+            )
 
         # Query should complete quickly
         from payment_simulator.persistence.queries import get_settlement_rate_by_day
