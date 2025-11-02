@@ -13,7 +13,6 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ============================================================================
 # Enums
 # ============================================================================
@@ -153,15 +152,24 @@ class SimulationRecord(BaseModel):
     ticks_per_day: int = Field(..., description="Ticks per day")
     num_days: int = Field(..., description="Number of simulated days")
     num_agents: int = Field(..., description="Number of agents")
+    config_json: Optional[str] = Field(
+        None, description="Complete configuration as JSON (for diagnostic frontend)"
+    )
 
     # Status
     status: SimulationStatus = Field(..., description="Simulation status")
     started_at: Optional[datetime] = Field(None, description="When simulation started")
-    completed_at: Optional[datetime] = Field(None, description="When simulation completed")
+    completed_at: Optional[datetime] = Field(
+        None, description="When simulation completed"
+    )
 
     # Results (populated at end)
-    total_arrivals: Optional[int] = Field(None, description="Total transactions arrived")
-    total_settlements: Optional[int] = Field(None, description="Total transactions settled")
+    total_arrivals: Optional[int] = Field(
+        None, description="Total transactions arrived"
+    )
+    total_settlements: Optional[int] = Field(
+        None, description="Total transactions settled"
+    )
     total_cost_cents: Optional[int] = Field(None, description="Total cost in cents")
     duration_seconds: Optional[float] = Field(None, description="Wall-clock duration")
     ticks_per_second: Optional[float] = Field(None, description="Simulation speed")
@@ -367,7 +375,12 @@ class PolicySnapshotRecord(BaseModel):
     snapshot_tick: int = Field(..., description="Tick when policy changed")
 
     # Policy content
-    policy_hash: str = Field(..., description="SHA256 hash of policy JSON for deduplication", min_length=64, max_length=64)
+    policy_hash: str = Field(
+        ...,
+        description="SHA256 hash of policy JSON for deduplication",
+        min_length=64,
+        max_length=64,
+    )
     policy_json: str = Field(..., description="Full policy JSON document")
 
     # Metadata
@@ -413,17 +426,37 @@ class SimulationCheckpointRecord(BaseModel):
     # Checkpoint position
     checkpoint_tick: int = Field(..., description="Tick when checkpoint was created")
     checkpoint_day: int = Field(..., description="Day when checkpoint was created")
-    checkpoint_timestamp: datetime = Field(..., description="Real-world timestamp of checkpoint creation")
+    checkpoint_timestamp: datetime = Field(
+        ..., description="Real-world timestamp of checkpoint creation"
+    )
 
     # State snapshot
-    state_json: str = Field(..., description="Complete orchestrator state (from Rust save_state())")
-    state_hash: str = Field(..., description="SHA256 hash of state_json for integrity validation", min_length=64, max_length=64)
-    config_json: str = Field(..., description="Complete config used to create simulation (FFI dict as JSON)")
-    config_hash: str = Field(..., description="SHA256 hash of config (from Rust snapshot)", min_length=64, max_length=64)
+    state_json: str = Field(
+        ..., description="Complete orchestrator state (from Rust save_state())"
+    )
+    state_hash: str = Field(
+        ...,
+        description="SHA256 hash of state_json for integrity validation",
+        min_length=64,
+        max_length=64,
+    )
+    config_json: str = Field(
+        ..., description="Complete config used to create simulation (FFI dict as JSON)"
+    )
+    config_hash: str = Field(
+        ...,
+        description="SHA256 hash of config (from Rust snapshot)",
+        min_length=64,
+        max_length=64,
+    )
 
     # Checkpoint metadata
-    checkpoint_type: CheckpointType = Field(..., description="Type of checkpoint (manual/auto/eod/final)")
-    description: Optional[str] = Field(None, description="Human-readable checkpoint description")
+    checkpoint_type: CheckpointType = Field(
+        ..., description="Type of checkpoint (manual/auto/eod/final)"
+    )
+    description: Optional[str] = Field(
+        None, description="Human-readable checkpoint description"
+    )
     created_by: str = Field(..., description="User or system that created checkpoint")
 
     # Size tracking
@@ -460,8 +493,14 @@ class LsmCycleRecord(BaseModel):
     tick: int = Field(..., description="Tick when cycle was settled", ge=0)
     day: int = Field(..., description="Day when cycle was settled", ge=0)
 
-    cycle_type: str = Field(..., description="Type of cycle: 'bilateral' or 'multilateral'")
-    cycle_length: int = Field(..., description="Number of agents in cycle (2 for bilateral, 3+ for multilateral)", ge=2)
+    cycle_type: str = Field(
+        ..., description="Type of cycle: 'bilateral' or 'multilateral'"
+    )
+    cycle_length: int = Field(
+        ...,
+        description="Number of agents in cycle (2 for bilateral, 3+ for multilateral)",
+        ge=2,
+    )
 
     agents: str = Field(..., description="JSON array of agent IDs in cycle")
     transactions: str = Field(..., description="JSON array of transaction IDs in cycle")
@@ -498,11 +537,17 @@ class PolicyDecisionRecord(BaseModel):
     tick: int = Field(..., description="Tick when decision was made", ge=0)
     day: int = Field(..., description="Day when decision was made", ge=0)
 
-    decision_type: str = Field(..., description="Decision type: submit, hold, drop, split")
+    decision_type: str = Field(
+        ..., description="Decision type: submit, hold, drop, split"
+    )
     tx_id: str = Field(..., description="Transaction ID")
     reason: Optional[str] = Field(None, description="Reason for hold/drop decisions")
-    num_splits: Optional[int] = Field(None, description="Number of splits (for split decisions)")
-    child_tx_ids: Optional[str] = Field(None, description="JSON array of child TX IDs (for split decisions)")
+    num_splits: Optional[int] = Field(
+        None, description="Number of splits (for split decisions)"
+    )
+    child_tx_ids: Optional[str] = Field(
+        None, description="JSON array of child TX IDs (for split decisions)"
+    )
 
 
 class TickAgentStateRecord(BaseModel):
@@ -529,21 +574,37 @@ class TickAgentStateRecord(BaseModel):
     # Balance tracking
     balance: int = Field(..., description="Balance at end of tick (cents)")
     balance_change: int = Field(..., description="Change in balance this tick (cents)")
-    posted_collateral: int = Field(..., description="Posted collateral at end of tick (cents)")
+    posted_collateral: int = Field(
+        ..., description="Posted collateral at end of tick (cents)"
+    )
 
     # Cumulative costs (running totals)
     liquidity_cost: int = Field(..., description="Cumulative liquidity cost (cents)")
     delay_cost: int = Field(..., description="Cumulative delay cost (cents)")
-    collateral_cost: int = Field(..., description="Cumulative collateral opportunity cost (cents)")
+    collateral_cost: int = Field(
+        ..., description="Cumulative collateral opportunity cost (cents)"
+    )
     penalty_cost: int = Field(..., description="Cumulative deadline penalty (cents)")
-    split_friction_cost: int = Field(..., description="Cumulative split friction cost (cents)")
+    split_friction_cost: int = Field(
+        ..., description="Cumulative split friction cost (cents)"
+    )
 
     # Per-tick cost deltas (incremental changes)
-    liquidity_cost_delta: int = Field(..., description="Liquidity cost accrued this tick (cents)")
-    delay_cost_delta: int = Field(..., description="Delay cost accrued this tick (cents)")
-    collateral_cost_delta: int = Field(..., description="Collateral cost accrued this tick (cents)")
-    penalty_cost_delta: int = Field(..., description="Penalty accrued this tick (cents)")
-    split_friction_cost_delta: int = Field(..., description="Split friction accrued this tick (cents)")
+    liquidity_cost_delta: int = Field(
+        ..., description="Liquidity cost accrued this tick (cents)"
+    )
+    delay_cost_delta: int = Field(
+        ..., description="Delay cost accrued this tick (cents)"
+    )
+    collateral_cost_delta: int = Field(
+        ..., description="Collateral cost accrued this tick (cents)"
+    )
+    penalty_cost_delta: int = Field(
+        ..., description="Penalty accrued this tick (cents)"
+    )
+    split_friction_cost_delta: int = Field(
+        ..., description="Split friction accrued this tick (cents)"
+    )
 
 
 class TickQueueSnapshotRecord(BaseModel):
