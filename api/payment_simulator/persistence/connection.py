@@ -83,6 +83,19 @@ class DatabaseManager:
 
         self.migrations_dir.mkdir(exist_ok=True, parents=True)
 
+    def get_connection(self) -> duckdb.DuckDBPyConnection:
+        """Get the database connection.
+
+        Returns:
+            DuckDB connection object
+
+        Examples:
+            >>> manager = DatabaseManager("test.db")
+            >>> conn = manager.get_connection()
+            >>> conn.execute("SELECT 1")
+        """
+        return self.conn
+
     def initialize_schema(self):
         """Initialize database schema from Pydantic models.
 
