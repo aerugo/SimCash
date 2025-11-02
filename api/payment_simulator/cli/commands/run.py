@@ -3,41 +3,39 @@
 import json
 import time
 import uuid
-import yaml
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
-from typing_extensions import Annotated
 
-import typer
 import polars as pl
-
-from payment_simulator.cli.output import (
-    output_json,
-    output_jsonl,
-    log_info,
-    log_success,
-    log_error,
+import typer
+import yaml
+from payment_simulator._core import Orchestrator
+from payment_simulator.cli.output import (  # Enhanced verbose mode functions
     create_progress,
-    log_tick_start,
-    log_arrivals,
-    log_settlements,
-    log_lsm_activity,
-    log_agent_state,
-    log_costs,
-    log_tick_summary,
-    # Enhanced verbose mode functions
-    log_transaction_arrivals,
-    log_settlement_details,
     log_agent_queues_detailed,
-    log_policy_decisions,
+    log_agent_state,
+    log_arrivals,
     log_collateral_activity,
     log_cost_breakdown,
-    log_lsm_cycle_visualization,
+    log_costs,
     log_end_of_day_statistics,
+    log_error,
+    log_info,
+    log_lsm_activity,
+    log_lsm_cycle_visualization,
+    log_policy_decisions,
+    log_settlement_details,
+    log_settlements,
+    log_success,
+    log_tick_start,
+    log_tick_summary,
+    log_transaction_arrivals,
+    output_json,
+    output_jsonl,
 )
 from payment_simulator.config import SimulationConfig
-from payment_simulator._core import Orchestrator
+from typing_extensions import Annotated
 
 
 def _persist_day_data(
@@ -60,8 +58,8 @@ def _persist_day_data(
         quiet: Whether to suppress log messages
     """
     from payment_simulator.persistence.writers import (
-        write_transactions,
         write_daily_agent_metrics,
+        write_transactions,
     )
 
     # Write transactions for this day
@@ -81,15 +79,20 @@ def _persist_day_data(
     if collateral_events:
         df = pl.DataFrame(collateral_events)
         # Insert excluding auto-generated id column
-        db_manager.conn.execute("""
+        db_manager.conn.execute(
+            """
             INSERT INTO collateral_events (
                 simulation_id, agent_id, tick, day, action, amount, reason, layer,
                 balance_before, posted_collateral_before, posted_collateral_after,
                 available_capacity_after
             )
             SELECT * FROM df
-        """)
-        log_info(f"  Persisted {len(collateral_events)} collateral events for day {day}", quiet)
+        """
+        )
+        log_info(
+            f"  Persisted {len(collateral_events)} collateral events for day {day}",
+            quiet,
+        )
 
     # Write agent queue snapshots for this day
     queue_snapshot_count = 0
@@ -108,10 +111,14 @@ def _persist_day_data(
                 for idx, tx_id in enumerate(queue_contents)
             ]
             df = pl.DataFrame(queue_data)
-            db_manager.conn.execute("INSERT INTO agent_queue_snapshots SELECT * FROM df")
+            db_manager.conn.execute(
+                "INSERT INTO agent_queue_snapshots SELECT * FROM df"
+            )
             queue_snapshot_count += len(queue_contents)
     if queue_snapshot_count > 0:
-        log_info(f"  Persisted {queue_snapshot_count} queue snapshots for day {day}", quiet)
+        log_info(
+            f"  Persisted {queue_snapshot_count} queue snapshots for day {day}", quiet
+        )
 
     # Write LSM cycles for this day
     lsm_cycles = orch.get_lsm_cycles_for_day(day)
@@ -131,7 +138,8 @@ def _persist_day_data(
             for cycle in lsm_cycles
         ]
         df = pl.DataFrame(lsm_data)
-        db_manager.conn.execute("""
+        db_manager.conn.execute(
+            """
             INSERT INTO lsm_cycles (
                 simulation_id, tick, day, cycle_type, cycle_length,
                 agents, transactions, settled_value, total_value
@@ -139,7 +147,8 @@ def _persist_day_data(
                 simulation_id, tick, day, cycle_type, cycle_length,
                 agents, transactions, settled_value, total_value
             FROM df
-        """)
+        """
+        )
         log_info(f"  Persisted {len(lsm_cycles)} LSM cycles for day {day}", quiet)
 
 
@@ -182,55 +191,69 @@ def _persist_simulation_metadata(
     # Calculate timestamps
     end_time = datetime.now()
     start_time_dt = end_time - timedelta(seconds=sim_duration)
-    ticks_per_second = (ffi_dict["ticks_per_day"] * ffi_dict["num_days"]) / sim_duration if sim_duration > 0 else 0
+    ticks_per_second = (
+        (ffi_dict["ticks_per_day"] * ffi_dict["num_days"]) / sim_duration
+        if sim_duration > 0
+        else 0
+    )
 
-    db_manager.conn.execute("""
+    db_manager.conn.execute(
+        """
         INSERT INTO simulation_runs (
             simulation_id, config_name, config_hash, description,
             start_time, end_time,
             ticks_per_day, num_days, rng_seed,
             status, total_transactions
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, [
-        sim_id,
-        config.name,
-        config_hash,
-        f"Simulation run from {config.name}",
-        start_time_dt,
-        end_time,
-        ffi_dict["ticks_per_day"],
-        ffi_dict["num_days"],
-        ffi_dict["rng_seed"],
-        "completed",
-        total_arrivals,
-    ])
+    """,
+        [
+            sim_id,
+            config.name,
+            config_hash,
+            f"Simulation run from {config.name}",
+            start_time_dt,
+            end_time,
+            ffi_dict["ticks_per_day"],
+            ffi_dict["num_days"],
+            ffi_dict["rng_seed"],
+            "completed",
+            total_arrivals,
+        ],
+    )
+
+    # Serialize config to JSON for storage
+    config_json = json.dumps(config_dict)
 
     # Persist to simulations table (Phase 5 query interface)
-    db_manager.conn.execute("""
+    db_manager.conn.execute(
+        """
         INSERT INTO simulations (
             simulation_id, config_file, config_hash, rng_seed,
-            ticks_per_day, num_days, num_agents,
+            ticks_per_day, num_days, num_agents, config_json,
             status, started_at, completed_at,
             total_arrivals, total_settlements, total_cost_cents,
             duration_seconds, ticks_per_second
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, [
-        sim_id,
-        config.name,
-        config_hash,
-        ffi_dict["rng_seed"],
-        ffi_dict["ticks_per_day"],
-        ffi_dict["num_days"],
-        len(agent_ids),
-        "completed",
-        start_time_dt,
-        end_time,
-        total_arrivals,
-        total_settlements,
-        total_costs,
-        sim_duration,
-        ticks_per_second,
-    ])
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        [
+            sim_id,
+            config.name,
+            config_hash,
+            ffi_dict["rng_seed"],
+            ffi_dict["ticks_per_day"],
+            ffi_dict["num_days"],
+            len(agent_ids),
+            config_json,
+            "completed",
+            start_time_dt,
+            end_time,
+            total_arrivals,
+            total_settlements,
+            total_costs,
+            sim_duration,
+            ticks_per_second,
+        ],
+    )
 
     log_success(f"Simulation metadata persisted (ID: {sim_id})", quiet)
 
@@ -347,6 +370,7 @@ def run_simulation(
                 config_dict = yaml.safe_load(f)
             elif config.suffix == ".json":
                 import json
+
                 config_dict = json.load(f)
             else:
                 log_error(f"Unsupported file format: {config.suffix}")
@@ -373,10 +397,7 @@ def run_simulation(
         ffi_dict = sim_config.to_ffi_dict()
 
         # Calculate total ticks
-        total_ticks = (
-            ffi_dict["ticks_per_day"]
-            * ffi_dict["num_days"]
-        )
+        total_ticks = ffi_dict["ticks_per_day"] * ffi_dict["num_days"]
 
         log_info(f"Creating simulation (seed: {ffi_dict['rng_seed']})", quiet)
 
@@ -391,14 +412,15 @@ def run_simulation(
         db_manager = None
         sim_id = None
         if persist:
-            from payment_simulator.persistence.connection import DatabaseManager
-            from payment_simulator.persistence.writers import (
-                write_transactions,
-                write_daily_agent_metrics,
-                write_policy_snapshots,
-            )
             import hashlib
             import json
+
+            from payment_simulator.persistence.connection import DatabaseManager
+            from payment_simulator.persistence.writers import (
+                write_daily_agent_metrics,
+                write_policy_snapshots,
+                write_transactions,
+            )
 
             sim_id = simulation_id or f"sim-{uuid.uuid4().hex[:8]}"
             log_info(f"Persistence enabled (DB: {db_path}, ID: {sim_id})", quiet)
@@ -424,15 +446,17 @@ def run_simulation(
                 policy_json = json.dumps(policy["policy_config"], sort_keys=True)
                 policy_hash = hashlib.sha256(policy_json.encode()).hexdigest()
 
-                snapshots.append({
-                    "simulation_id": sim_id,
-                    "agent_id": policy["agent_id"],
-                    "snapshot_day": 0,
-                    "snapshot_tick": 0,
-                    "policy_hash": policy_hash,
-                    "policy_json": policy_json,
-                    "created_by": "init",
-                })
+                snapshots.append(
+                    {
+                        "simulation_id": sim_id,
+                        "agent_id": policy["agent_id"],
+                        "snapshot_day": 0,
+                        "snapshot_tick": 0,
+                        "policy_hash": policy_hash,
+                        "policy_json": policy_json,
+                        "created_by": "init",
+                    }
+                )
 
             if snapshots:
                 policy_count = write_policy_snapshots(db_manager.conn, snapshots)
@@ -441,13 +465,17 @@ def run_simulation(
         # Run simulation
         if verbose:
             # Verbose mode: show detailed events in real-time
-            log_info(f"Running {total_ticks} ticks (verbose mode)...", True)  # Always suppress this in verbose
+            log_info(
+                f"Running {total_ticks} ticks (verbose mode)...", True
+            )  # Always suppress this in verbose
 
             # Get agent IDs for state tracking
             agent_ids = orch.get_agent_ids()
 
             # Track previous balances for change detection
-            prev_balances = {agent_id: orch.get_agent_balance(agent_id) for agent_id in agent_ids}
+            prev_balances = {
+                agent_id: orch.get_agent_balance(agent_id) for agent_id in agent_ids
+            }
 
             # Track daily statistics for end-of-day summaries
             ticks_per_day = ffi_dict["ticks_per_day"]
@@ -460,7 +488,9 @@ def run_simulation(
 
             # Initialize buffers for full replay mode (if enabled)
             if persist and full_replay and db_manager:
-                log_info("Full replay mode enabled: collecting per-tick data", quiet=True)
+                log_info(
+                    "Full replay mode enabled: collecting per-tick data", quiet=True
+                )
                 # Buffers accumulate data during the day
                 day_policy_decisions = []
                 day_agent_states = []
@@ -494,25 +524,36 @@ def run_simulation(
                 # Full replay mode: collect data in memory
                 if persist and full_replay and db_manager:
                     import json
+
                     current_day = tick_num // ticks_per_day
 
                     # 1. Collect policy decisions
                     policy_events = [
-                        e for e in events
-                        if e.get("event_type") in ["PolicySubmit", "PolicyHold", "PolicyDrop", "PolicySplit"]
+                        e
+                        for e in events
+                        if e.get("event_type")
+                        in ["PolicySubmit", "PolicyHold", "PolicyDrop", "PolicySplit"]
                     ]
                     for event in policy_events:
-                        day_policy_decisions.append({
-                            "simulation_id": sim_id,
-                            "agent_id": event["agent_id"],
-                            "tick": tick_num,
-                            "day": current_day,
-                            "decision_type": event["event_type"].replace("Policy", "").lower(),
-                            "tx_id": event["tx_id"],
-                            "reason": event.get("reason"),
-                            "num_splits": event.get("num_splits"),
-                            "child_tx_ids": json.dumps(event.get("child_ids", [])) if event.get("child_ids") else None,
-                        })
+                        day_policy_decisions.append(
+                            {
+                                "simulation_id": sim_id,
+                                "agent_id": event["agent_id"],
+                                "tick": tick_num,
+                                "day": current_day,
+                                "decision_type": event["event_type"]
+                                .replace("Policy", "")
+                                .lower(),
+                                "tx_id": event["tx_id"],
+                                "reason": event.get("reason"),
+                                "num_splits": event.get("num_splits"),
+                                "child_tx_ids": (
+                                    json.dumps(event.get("child_ids", []))
+                                    if event.get("child_ids")
+                                    else None
+                                ),
+                            }
+                        )
 
                     # 2. Collect agent states
                     for agent_id in agent_ids:
@@ -523,25 +564,35 @@ def run_simulation(
                         # Calculate cost deltas
                         prev_costs = prev_agent_costs.get(agent_id, {})
 
-                        day_agent_states.append({
-                            "simulation_id": sim_id,
-                            "agent_id": agent_id,
-                            "tick": tick_num,
-                            "day": current_day,
-                            "balance": current_balance,
-                            "balance_change": current_balance - prev_balances[agent_id],
-                            "posted_collateral": collateral,
-                            "liquidity_cost": costs["liquidity_cost"],
-                            "delay_cost": costs["delay_cost"],
-                            "collateral_cost": costs["collateral_cost"],
-                            "penalty_cost": costs["deadline_penalty"],
-                            "split_friction_cost": costs["split_friction_cost"],
-                            "liquidity_cost_delta": costs["liquidity_cost"] - prev_costs.get("liquidity_cost", 0),
-                            "delay_cost_delta": costs["delay_cost"] - prev_costs.get("delay_cost", 0),
-                            "collateral_cost_delta": costs["collateral_cost"] - prev_costs.get("collateral_cost", 0),
-                            "penalty_cost_delta": costs["deadline_penalty"] - prev_costs.get("deadline_penalty", 0),
-                            "split_friction_cost_delta": costs["split_friction_cost"] - prev_costs.get("split_friction_cost", 0),
-                        })
+                        day_agent_states.append(
+                            {
+                                "simulation_id": sim_id,
+                                "agent_id": agent_id,
+                                "tick": tick_num,
+                                "day": current_day,
+                                "balance": current_balance,
+                                "balance_change": current_balance
+                                - prev_balances[agent_id],
+                                "posted_collateral": collateral,
+                                "liquidity_cost": costs["liquidity_cost"],
+                                "delay_cost": costs["delay_cost"],
+                                "collateral_cost": costs["collateral_cost"],
+                                "penalty_cost": costs["deadline_penalty"],
+                                "split_friction_cost": costs["split_friction_cost"],
+                                "liquidity_cost_delta": costs["liquidity_cost"]
+                                - prev_costs.get("liquidity_cost", 0),
+                                "delay_cost_delta": costs["delay_cost"]
+                                - prev_costs.get("delay_cost", 0),
+                                "collateral_cost_delta": costs["collateral_cost"]
+                                - prev_costs.get("collateral_cost", 0),
+                                "penalty_cost_delta": costs["deadline_penalty"]
+                                - prev_costs.get("deadline_penalty", 0),
+                                "split_friction_cost_delta": costs[
+                                    "split_friction_cost"
+                                ]
+                                - prev_costs.get("split_friction_cost", 0),
+                            }
+                        )
 
                         # Update previous costs for next tick
                         prev_agent_costs[agent_id] = costs
@@ -551,28 +602,32 @@ def run_simulation(
                         # Queue 1 (agent's internal queue)
                         queue1_contents = orch.get_agent_queue1_contents(agent_id)
                         for position, tx_id in enumerate(queue1_contents):
-                            day_queue_snapshots.append({
-                                "simulation_id": sim_id,
-                                "agent_id": agent_id,
-                                "tick": tick_num,
-                                "queue_type": "queue1",
-                                "position": position,
-                                "tx_id": tx_id,
-                            })
+                            day_queue_snapshots.append(
+                                {
+                                    "simulation_id": sim_id,
+                                    "agent_id": agent_id,
+                                    "tick": tick_num,
+                                    "queue_type": "queue1",
+                                    "position": position,
+                                    "tx_id": tx_id,
+                                }
+                            )
 
                     # RTGS queue (central queue)
                     rtgs_contents = orch.get_rtgs_queue_contents()
                     for position, tx_id in enumerate(rtgs_contents):
                         tx = orch.get_transaction_details(tx_id)
                         if tx:
-                            day_queue_snapshots.append({
-                                "simulation_id": sim_id,
-                                "agent_id": tx["sender_id"],
-                                "tick": tick_num,
-                                "queue_type": "rtgs",
-                                "position": position,
-                                "tx_id": tx_id,
-                            })
+                            day_queue_snapshots.append(
+                                {
+                                    "simulation_id": sim_id,
+                                    "agent_id": tx["sender_id"],
+                                    "tick": tick_num,
+                                    "queue_type": "rtgs",
+                                    "position": position,
+                                    "tx_id": tx_id,
+                                }
+                            )
 
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 1: ARRIVALS (detailed)
@@ -588,7 +643,10 @@ def run_simulation(
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 3: SETTLEMENTS (detailed with mechanisms)
                 # ═══════════════════════════════════════════════════════════
-                if result["num_settlements"] > 0 or any(e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"] for e in events):
+                if result["num_settlements"] > 0 or any(
+                    e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"]
+                    for e in events
+                ):
                     log_settlement_details(orch, events, tick_num)
 
                 # ═══════════════════════════════════════════════════════════
@@ -618,7 +676,9 @@ def run_simulation(
                     )
 
                     if balance_change != 0 or queue1_size > 0 or agent_in_rtgs:
-                        log_agent_queues_detailed(orch, agent_id, current_balance, balance_change)
+                        log_agent_queues_detailed(
+                            orch, agent_id, current_balance, balance_change
+                        )
 
                     prev_balances[agent_id] = current_balance
 
@@ -636,7 +696,7 @@ def run_simulation(
                     result["num_arrivals"],
                     result["num_settlements"],
                     result["num_lsm_releases"],
-                    total_queued
+                    total_queued,
                 )
 
                 # ═══════════════════════════════════════════════════════════
@@ -661,31 +721,39 @@ def run_simulation(
                         queue1_size = orch.get_queue1_size(agent_id)
                         rtgs_queue = orch.get_rtgs_queue_contents()
                         queue2_size = sum(
-                            1 for tx_id in rtgs_queue
-                            if orch.get_transaction_details(tx_id) and
-                            orch.get_transaction_details(tx_id).get("sender_id") == agent_id
+                            1
+                            for tx_id in rtgs_queue
+                            if orch.get_transaction_details(tx_id)
+                            and orch.get_transaction_details(tx_id).get("sender_id")
+                            == agent_id
                         )
 
                         # Get costs for this agent (cumulative for the day)
                         costs = orch.get_agent_accumulated_costs(agent_id)
                         agent_total_costs = 0
                         if costs:
-                            agent_total_costs = sum([
-                                costs.get("liquidity_cost", 0),
-                                costs.get("delay_cost", 0),
-                                costs.get("collateral_cost", 0),
-                                costs.get("deadline_penalty", 0),  # Note: FFI exports as "deadline_penalty"
-                                costs.get("split_friction_cost", 0),
-                            ])
+                            agent_total_costs = sum(
+                                [
+                                    costs.get("liquidity_cost", 0),
+                                    costs.get("delay_cost", 0),
+                                    costs.get("collateral_cost", 0),
+                                    costs.get(
+                                        "deadline_penalty", 0
+                                    ),  # Note: FFI exports as "deadline_penalty"
+                                    costs.get("split_friction_cost", 0),
+                                ]
+                            )
 
-                        agent_stats.append({
-                            "id": agent_id,
-                            "final_balance": balance,
-                            "credit_utilization": credit_util,
-                            "queue1_size": queue1_size,
-                            "queue2_size": queue2_size,
-                            "total_costs": agent_total_costs,
-                        })
+                        agent_stats.append(
+                            {
+                                "id": agent_id,
+                                "final_balance": balance,
+                                "credit_utilization": credit_util,
+                                "queue1_size": queue1_size,
+                                "queue2_size": queue2_size,
+                                "total_costs": agent_total_costs,
+                            }
+                        )
 
                     log_end_of_day_statistics(
                         day=current_day,
@@ -698,7 +766,9 @@ def run_simulation(
 
                     # Persist at end of day if enabled
                     if persist and db_manager:
-                        _persist_day_data(orch, db_manager, sim_id, current_day, quiet=True)
+                        _persist_day_data(
+                            orch, db_manager, sim_id, current_day, quiet=True
+                        )
 
                     # Full replay mode: batch write all data for this day
                     if persist and full_replay and db_manager:
@@ -708,35 +778,45 @@ def run_simulation(
                             write_tick_queue_snapshots_batch,
                         )
 
-                        log_info(f"  Writing full replay data for day {current_day}...", quiet=True)
+                        log_info(
+                            f"  Writing full replay data for day {current_day}...",
+                            quiet=True,
+                        )
                         batch_start = time.time()
 
                         # Write policy decisions
                         if day_policy_decisions:
                             policy_count = write_policy_decisions_batch(
-                                db_manager.conn,
-                                day_policy_decisions
+                                db_manager.conn, day_policy_decisions
                             )
-                            log_info(f"    → {policy_count} policy decisions", quiet=True)
+                            log_info(
+                                f"    → {policy_count} policy decisions", quiet=True
+                            )
 
                         # Write agent states
                         if day_agent_states:
                             states_count = write_tick_agent_states_batch(
-                                db_manager.conn,
-                                day_agent_states
+                                db_manager.conn, day_agent_states
                             )
-                            log_info(f"    → {states_count} agent state snapshots", quiet=True)
+                            log_info(
+                                f"    → {states_count} agent state snapshots",
+                                quiet=True,
+                            )
 
                         # Write queue snapshots
                         if day_queue_snapshots:
                             queues_count = write_tick_queue_snapshots_batch(
-                                db_manager.conn,
-                                day_queue_snapshots
+                                db_manager.conn, day_queue_snapshots
                             )
-                            log_info(f"    → {queues_count} queue snapshots", quiet=True)
+                            log_info(
+                                f"    → {queues_count} queue snapshots", quiet=True
+                            )
 
                         batch_duration = time.time() - batch_start
-                        log_info(f"  Full replay data written in {batch_duration:.2f}s", quiet=True)
+                        log_info(
+                            f"  Full replay data written in {batch_duration:.2f}s",
+                            quiet=True,
+                        )
 
                         # Clear buffers for next day
                         day_policy_decisions = []
@@ -754,17 +834,22 @@ def run_simulation(
             sim_duration = time.time() - sim_start
             ticks_per_second = total_ticks / sim_duration if sim_duration > 0 else 0
 
-            log_success(f"\nSimulation complete: {total_ticks} ticks in {sim_duration:.2f}s ({ticks_per_second:.1f} ticks/s)", False)
+            log_success(
+                f"\nSimulation complete: {total_ticks} ticks in {sim_duration:.2f}s ({ticks_per_second:.1f} ticks/s)",
+                False,
+            )
 
             # Build and output final summary as JSON
             agent_ids = orch.get_agent_ids()
             agents = []
             for agent_id in agent_ids:
-                agents.append({
-                    "id": agent_id,
-                    "final_balance": orch.get_agent_balance(agent_id),
-                    "queue1_size": orch.get_queue1_size(agent_id),
-                })
+                agents.append(
+                    {
+                        "id": agent_id,
+                        "final_balance": orch.get_agent_balance(agent_id),
+                        "queue1_size": orch.get_queue1_size(agent_id),
+                    }
+                )
 
             total_arrivals = sum(r["num_arrivals"] for r in tick_results)
             total_settlements = sum(r["num_settlements"] for r in tick_results)
@@ -783,7 +868,11 @@ def run_simulation(
                     "total_arrivals": total_arrivals,
                     "total_settlements": total_settlements,
                     "total_lsm_releases": total_lsm_releases,
-                    "settlement_rate": round(total_settlements / total_arrivals, 4) if total_arrivals > 0 else 0,
+                    "settlement_rate": (
+                        round(total_settlements / total_arrivals, 4)
+                        if total_arrivals > 0
+                        else 0
+                    ),
                 },
                 "agents": agents,
                 "costs": {
@@ -797,9 +886,17 @@ def run_simulation(
             # Persist simulation metadata if enabled
             if persist and db_manager:
                 _persist_simulation_metadata(
-                    db_manager, sim_id, config, config_dict, ffi_dict,
-                    agent_ids, total_arrivals, total_settlements,
-                    total_costs, sim_duration, quiet=False
+                    db_manager,
+                    sim_id,
+                    config,
+                    config_dict,
+                    ffi_dict,
+                    agent_ids,
+                    total_arrivals,
+                    total_settlements,
+                    total_costs,
+                    sim_duration,
+                    quiet=False,
                 )
 
                 # Add simulation_id to output
@@ -827,13 +924,15 @@ def run_simulation(
                     tick_results.append(tick_result)
 
                     # Stream output
-                    output_jsonl({
-                        "tick": tick_result["tick"],
-                        "arrivals": tick_result["num_arrivals"],
-                        "settlements": tick_result["num_settlements"],
-                        "lsm_releases": tick_result["num_lsm_releases"],
-                        "costs": tick_result["total_cost"],
-                    })
+                    output_jsonl(
+                        {
+                            "tick": tick_result["tick"],
+                            "arrivals": tick_result["num_arrivals"],
+                            "settlements": tick_result["num_settlements"],
+                            "lsm_releases": tick_result["num_lsm_releases"],
+                            "costs": tick_result["total_cost"],
+                        }
+                    )
 
                 # Persist at end of day if enabled
                 if persist and db_manager:
@@ -850,9 +949,17 @@ def run_simulation(
                 total_costs = sum(r["total_cost"] for r in tick_results)
 
                 _persist_simulation_metadata(
-                    db_manager, sim_id, config, config_dict, ffi_dict,
-                    agent_ids, total_arrivals, total_settlements,
-                    total_costs, sim_duration, quiet
+                    db_manager,
+                    sim_id,
+                    config,
+                    config_dict,
+                    ffi_dict,
+                    agent_ids,
+                    total_arrivals,
+                    total_settlements,
+                    total_costs,
+                    sim_duration,
+                    quiet,
                 )
 
         else:
@@ -870,8 +977,7 @@ def run_simulation(
             if not quiet:
                 with create_progress() as progress:
                     task = progress.add_task(
-                        f"[cyan]Running simulation...",
-                        total=total_ticks
+                        f"[cyan]Running simulation...", total=total_ticks
                     )
 
                     for day in range(num_days):
@@ -900,17 +1006,22 @@ def run_simulation(
             sim_duration = time.time() - sim_start
             ticks_per_second = total_ticks / sim_duration if sim_duration > 0 else 0
 
-            log_success(f"Completed in {sim_duration:.2f}s ({ticks_per_second:.1f} ticks/s)", quiet)
+            log_success(
+                f"Completed in {sim_duration:.2f}s ({ticks_per_second:.1f} ticks/s)",
+                quiet,
+            )
 
             # Collect final state
             agent_ids = orch.get_agent_ids()
             agents = []
             for agent_id in agent_ids:
-                agents.append({
-                    "id": agent_id,
-                    "final_balance": orch.get_agent_balance(agent_id),
-                    "queue1_size": orch.get_queue1_size(agent_id),
-                })
+                agents.append(
+                    {
+                        "id": agent_id,
+                        "final_balance": orch.get_agent_balance(agent_id),
+                        "queue1_size": orch.get_queue1_size(agent_id),
+                    }
+                )
 
             # Aggregate metrics
             total_arrivals = sum(r["num_arrivals"] for r in tick_results)
@@ -931,7 +1042,11 @@ def run_simulation(
                     "total_arrivals": total_arrivals,
                     "total_settlements": total_settlements,
                     "total_lsm_releases": total_lsm_releases,
-                    "settlement_rate": round(total_settlements / total_arrivals, 4) if total_arrivals > 0 else 0,
+                    "settlement_rate": (
+                        round(total_settlements / total_arrivals, 4)
+                        if total_arrivals > 0
+                        else 0
+                    ),
                 },
                 "agents": agents,
                 "costs": {
@@ -945,9 +1060,17 @@ def run_simulation(
             # Persist simulation metadata if enabled
             if persist and db_manager:
                 _persist_simulation_metadata(
-                    db_manager, sim_id, config, config_dict, ffi_dict,
-                    agent_ids, total_arrivals, total_settlements,
-                    total_costs, sim_duration, quiet
+                    db_manager,
+                    sim_id,
+                    config,
+                    config_dict,
+                    ffi_dict,
+                    agent_ids,
+                    total_arrivals,
+                    total_settlements,
+                    total_costs,
+                    sim_duration,
+                    quiet,
                 )
 
             # Output results
@@ -971,6 +1094,7 @@ def run_simulation(
         log_error(f"Error: {e}")
         if not quiet:
             import traceback
+
             console_err = typer.get_text_stream("stderr")
             console_err.write(traceback.format_exc())
         raise typer.Exit(1)
