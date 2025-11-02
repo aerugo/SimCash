@@ -883,6 +883,49 @@ impl Orchestrator {
         &self.accumulated_costs
     }
 
+    /// Check if a transaction is effectively settled (recursively)
+    ///
+    /// A transaction is considered effectively settled if:
+    /// 1. It is fully settled itself, OR
+    /// 2. All of its child transactions are effectively settled (recursive check)
+    ///
+    /// This enables correct settlement rate calculation for split transactions.
+    /// A split transaction family counts as ONE arrival but is only considered
+    /// settled when ALL children have settled.
+    ///
+    /// # Arguments
+    /// * `tx_id` - Transaction ID to check
+    /// * `transactions` - Map of all transactions
+    /// * `children_map` - Map from parent ID to list of child IDs
+    ///
+    /// # Returns
+    /// `true` if transaction is effectively settled, `false` otherwise
+    fn is_effectively_settled(
+        tx_id: &str,
+        transactions: &HashMap<String, Transaction>,
+        children_map: &HashMap<String, Vec<String>>,
+    ) -> bool {
+        let tx = match transactions.get(tx_id) {
+            Some(t) => t,
+            None => return false, // Transaction not found
+        };
+
+        // Base case 1: Transaction itself is fully settled
+        if tx.settled_amount() > 0 && tx.settled_amount() == tx.amount() {
+            return true;
+        }
+
+        // Base case 2: Transaction has children - check if ALL are settled
+        if let Some(child_ids) = children_map.get(tx_id) {
+            return child_ids.iter().all(|child_id| {
+                Self::is_effectively_settled(child_id, transactions, children_map)
+            });
+        }
+
+        // Base case 3: Not settled and no children = still pending
+        false
+    }
+
     /// Calculate comprehensive system-wide metrics
     ///
     /// Provides a snapshot of current system health including:
@@ -892,23 +935,40 @@ impl Orchestrator {
     ///
     /// Used by Phase 8 REST API endpoints for monitoring.
     pub fn calculate_system_metrics(&self) -> SystemMetrics {
-        // Count arrivals and settlements from transactions
+        // Step 1: Build parent → children mapping
+        let mut children_map: HashMap<String, Vec<String>> = HashMap::new();
+        for tx in self.state.transactions().values() {
+            if let Some(parent_id) = tx.parent_id() {
+                children_map
+                    .entry(parent_id.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(tx.id().to_string());
+            }
+        }
+
+        // Step 2: Count only original arrivals and check effective settlement
         let mut total_arrivals = 0;
         let mut total_settlements = 0;
         let mut delays = Vec::new();
 
         for tx in self.state.transactions().values() {
-            total_arrivals += 1;
+            // Only count original transactions (not splits)
+            if tx.parent_id().is_none() {
+                total_arrivals += 1;
 
-            // Check if settled (fully or partially)
-            if tx.settled_amount() > 0 {
-                total_settlements += 1;
+                // Check if effectively settled (recursively for splits)
+                if Self::is_effectively_settled(
+                    tx.id(),
+                    self.state.transactions(),
+                    &children_map,
+                ) {
+                    total_settlements += 1;
 
-                // Calculate delay: current_tick - arrival_tick
-                // If settled_at exists, use that; otherwise use current tick
-                let current_tick = self.current_tick();
-                let delay = current_tick.saturating_sub(tx.arrival_tick() as usize);
-                delays.push(delay);
+                    // Calculate delay for the original transaction
+                    let current_tick = self.current_tick();
+                    let delay = current_tick.saturating_sub(tx.arrival_tick() as usize);
+                    delays.push(delay);
+                }
             }
         }
 
@@ -2981,5 +3041,206 @@ mod tests {
         };
 
         assert_eq!(cost.total(), 3750); // 1000 + 500 + 2000 + 250
+    }
+
+    // ========================================================================
+    // Settlement Rate Tests (TDD for bug fix)
+    // ========================================================================
+
+    #[test]
+    fn test_settlement_rate_without_splits() {
+        // Test baseline: settlement rate calculation without any splits
+        let config = create_test_config();
+        let mut orch = Orchestrator::new(config).unwrap();
+
+        // Submit 3 normal transactions
+        let _tx1 = orch
+            .submit_transaction("BANK_A", "BANK_B", 100_000, 50, 5, false)
+            .unwrap();
+        let _tx2 = orch
+            .submit_transaction("BANK_A", "BANK_B", 200_000, 50, 5, false)
+            .unwrap();
+        let _tx3 = orch
+            .submit_transaction("BANK_B", "BANK_A", 150_000, 50, 5, false)
+            .unwrap();
+
+        // Run 10 ticks to settle
+        for _ in 0..10 {
+            orch.tick().unwrap();
+        }
+
+        // Get metrics - should show 3 arrivals, 3 settlements, 100% rate
+        let metrics = orch.calculate_system_metrics();
+        assert_eq!(
+            metrics.total_arrivals, 3,
+            "Should count 3 original arrivals"
+        );
+        assert_eq!(metrics.total_settlements, 3, "Should count 3 settlements");
+        assert_eq!(
+            metrics.settlement_rate, 1.0,
+            "Settlement rate should be 100%"
+        );
+    }
+
+    #[test]
+    fn test_settlement_rate_with_split_fully_settled() {
+        // Test: split transaction where ALL children settle
+        // Expected: Parent counted as 1 arrival, considered settled when all children settle
+        let config = create_test_config();
+        let mut orch = Orchestrator::new(config).unwrap();
+
+        // Submit 3 normal transactions that will settle
+        let _tx1 = orch
+            .submit_transaction("BANK_A", "BANK_B", 100_000, 50, 5, false)
+            .unwrap();
+        let _tx2 = orch
+            .submit_transaction("BANK_A", "BANK_B", 200_000, 50, 5, false)
+            .unwrap();
+        let _tx3 = orch
+            .submit_transaction("BANK_B", "BANK_A", 150_000, 50, 5, false)
+            .unwrap();
+
+        // Run 10 ticks to settle the normal transactions
+        for _ in 0..10 {
+            orch.tick().unwrap();
+        }
+
+        // Now manually create a split scenario
+        let parent_id = orch
+            .submit_transaction("BANK_A", "BANK_B", 1_000_000, 100, 5, false)
+            .unwrap();
+
+        // Manually create 2 children (simulating policy split decision)
+        let child1 = crate::models::Transaction::new_split(
+            "BANK_A".to_string(),
+            "BANK_B".to_string(),
+            500_000,
+            orch.current_tick(),
+            100,
+            parent_id.clone(),
+        );
+        let child1_id = child1.id().to_string();
+        orch.state_mut().add_transaction(child1);
+
+        let child2 = crate::models::Transaction::new_split(
+            "BANK_A".to_string(),
+            "BANK_B".to_string(),
+            500_000,
+            orch.current_tick(),
+            100,
+            parent_id.clone(),
+        );
+        let child2_id = child2.id().to_string();
+        orch.state_mut().add_transaction(child2);
+
+        // Get metrics before settling children
+        let metrics = orch.calculate_system_metrics();
+        assert_eq!(
+            metrics.total_arrivals, 4,
+            "Should count 4 original arrivals (including parent)"
+        );
+        assert_eq!(
+            metrics.total_settlements, 3,
+            "Parent not settled yet (children pending)"
+        );
+        assert!(
+            metrics.settlement_rate < 1.0,
+            "Settlement rate should be <100% with unsettled parent"
+        );
+
+        // Settle child1 only
+        let tick = orch.current_tick();
+        orch.state_mut()
+            .get_transaction_mut(&child1_id)
+            .unwrap()
+            .settle(500_000, tick)
+            .unwrap();
+
+        let metrics = orch.calculate_system_metrics();
+        assert_eq!(
+            metrics.total_settlements, 3,
+            "Parent still not fully settled (only 1 of 2 children settled)"
+        );
+
+        // Settle child2
+        let tick = orch.current_tick();
+        orch.state_mut()
+            .get_transaction_mut(&child2_id)
+            .unwrap()
+            .settle(500_000, tick)
+            .unwrap();
+
+        // Now parent should be considered effectively settled
+        let metrics = orch.calculate_system_metrics();
+        assert_eq!(
+            metrics.total_arrivals, 4,
+            "Should still count 4 original arrivals"
+        );
+        assert_eq!(
+            metrics.total_settlements, 4,
+            "All 4 arrivals effectively settled (including split parent)"
+        );
+        assert_eq!(
+            metrics.settlement_rate, 1.0,
+            "Settlement rate should be 100%"
+        );
+    }
+
+    #[test]
+    fn test_settlement_rate_with_partial_split() {
+        // Test: split where only SOME children settle
+        // Expected: Parent NOT considered settled (incomplete split family)
+        let config = create_test_config();
+        let mut orch = Orchestrator::new(config).unwrap();
+
+        // Create parent + split into 3 children
+        let parent_id = orch
+            .submit_transaction("BANK_A", "BANK_B", 1_500_000, 100, 5, false)
+            .unwrap();
+
+        // Create 3 children
+        let mut child_ids = Vec::new();
+        for _ in 0..3 {
+            let child = crate::models::Transaction::new_split(
+                "BANK_A".to_string(),
+                "BANK_B".to_string(),
+                500_000,
+                orch.current_tick(),
+                100,
+                parent_id.clone(),
+            );
+            let child_id = child.id().to_string();
+            child_ids.push(child_id.clone());
+            orch.state_mut().add_transaction(child);
+        }
+
+        // Settle only 2 of 3 children
+        let tick = orch.current_tick();
+        orch.state_mut()
+            .get_transaction_mut(&child_ids[0])
+            .unwrap()
+            .settle(500_000, tick)
+            .unwrap();
+        orch.state_mut()
+            .get_transaction_mut(&child_ids[1])
+            .unwrap()
+            .settle(500_000, tick)
+            .unwrap();
+        // child_ids[2] remains unsettled
+
+        // Parent should NOT be considered settled
+        let metrics = orch.calculate_system_metrics();
+        assert_eq!(
+            metrics.total_arrivals, 1,
+            "Should count 1 original arrival"
+        );
+        assert_eq!(
+            metrics.total_settlements, 0,
+            "Parent not settled (only 2/3 children settled)"
+        );
+        assert_eq!(
+            metrics.settlement_rate, 0.0,
+            "Settlement rate should be 0%"
+        );
     }
 }
