@@ -218,19 +218,22 @@ class AgentListResponse(BaseModel):
 
 
 class EventRecord(BaseModel):
-    """Single event in the timeline."""
+    """Single event in the timeline.
 
+    Updated for comprehensive event persistence (Phase 2).
+    Per docs/plans/event-timeline-enhancement.md
+    """
+
+    event_id: str
+    simulation_id: str
     tick: int
     day: int
     event_type: str
-    tx_id: Optional[str] = None
-    sender_id: Optional[str] = None
-    receiver_id: Optional[str] = None
+    event_timestamp: str
+    details: Dict[str, Any]
     agent_id: Optional[str] = None
-    amount: Optional[int] = None
-    priority: Optional[int] = None
-    deadline_tick: Optional[int] = None
-    timestamp: Optional[str] = None
+    tx_id: Optional[str] = None
+    created_at: str
 
 
 class EventListResponse(BaseModel):
@@ -240,6 +243,7 @@ class EventListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    filters: Optional[Dict[str, Any]] = None
 
 
 class DailyAgentMetric(BaseModel):
@@ -1624,148 +1628,94 @@ def get_agent_list(sim_id: str):
 @app.get("/simulations/{sim_id}/events", response_model=EventListResponse)
 def get_events(
     sim_id: str,
-    tick: Optional[int] = Query(None),
-    tick_min: Optional[int] = Query(None),
-    tick_max: Optional[int] = Query(None),
-    agent_id: Optional[str] = Query(None),
-    event_type: Optional[str] = Query(None),
-    limit: int = Query(100, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
+    tick: Optional[int] = Query(None, description="Exact tick filter"),
+    tick_min: Optional[int] = Query(None, description="Minimum tick (inclusive)"),
+    tick_max: Optional[int] = Query(None, description="Maximum tick (inclusive)"),
+    day: Optional[int] = Query(None, description="Filter by specific day"),
+    agent_id: Optional[str] = Query(None, description="Filter by agent ID (comprehensive search)"),
+    tx_id: Optional[str] = Query(None, description="Filter by transaction ID"),
+    event_type: Optional[str] = Query(None, description="Filter by event type (comma-separated for multiple)"),
+    limit: int = Query(100, ge=1, le=1000, description="Number of events per page"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    sort: str = Query("tick_asc", regex="^(tick_asc|tick_desc)$", description="Sort order"),
 ):
     """
-    Get paginated list of events with optional filtering.
+    Get paginated list of events with comprehensive filtering.
 
-    For in-memory simulations: reconstructs events from transaction tracking
-    For database simulations: queries full event history
+    Updated implementation using simulation_events table (Phase 2).
+    Per docs/plans/event-timeline-enhancement.md
+
+    Supports filtering by:
+    - Tick (exact, min, max, range)
+    - Day
+    - Agent ID (searches top-level agent_id and details fields)
+    - Transaction ID
+    - Event type (single or comma-separated multiple)
+
+    Returns events sorted by tick (ascending or descending) with pagination.
     """
     try:
-        # Check if simulation exists in memory
-        if sim_id in manager.simulations:
-            orch = manager.get_simulation(sim_id)
-            txs = manager.transactions.get(sim_id, {})
-
-            # Reconstruct events from tracked transactions
-            events = []
-            for tx_id, tx_data in txs.items():
-                arrival_tick = tx_data.get("submitted_at_tick", 0)
-
-                # Apply filters
-                if tick is not None and arrival_tick != tick:
-                    continue
-                if tick_min is not None and arrival_tick < tick_min:
-                    continue
-                if tick_max is not None and arrival_tick > tick_max:
-                    continue
-                if (
-                    agent_id
-                    and tx_data["sender"] != agent_id
-                    and tx_data["receiver"] != agent_id
-                ):
-                    continue
-
-                events.append(
-                    EventRecord(
-                        tick=arrival_tick,
-                        day=arrival_tick // 100,  # Assume 100 ticks per day
-                        event_type="Arrival",
-                        tx_id=tx_id,
-                        sender_id=tx_data["sender"],
-                        receiver_id=tx_data["receiver"],
-                        amount=tx_data["amount"],
-                        priority=tx_data["priority"],
-                        deadline_tick=tx_data["deadline_tick"],
-                        timestamp=None,
-                    )
-                )
-
-            # Sort and paginate
-            events.sort(key=lambda e: (e.tick, e.tx_id or ""))
-            total = len(events)
-            events = events[offset : offset + limit]
-
-            return EventListResponse(
-                events=events, total=total, limit=limit, offset=offset
+        # Validate tick_min/tick_max consistency
+        if tick_min is not None and tick_max is not None and tick_min > tick_max:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid parameters: tick_min ({tick_min}) cannot be greater than tick_max ({tick_max})"
             )
 
-        # Not in memory, try database
+        # Check database connection
         if not manager.db_manager:
             raise HTTPException(
-                status_code=404, detail=f"Simulation not found: {sim_id}"
+                status_code=404,
+                detail=f"Simulation not found: {sim_id}"
             )
 
         conn = manager.db_manager.get_connection()
 
-        # Build base query - get events from transactions (arrivals and settlements)
-        where_clauses = ["simulation_id = ?"]
-        params = [sim_id]
+        # Check if simulation exists (by checking if it has any events)
+        exists_check = conn.execute(
+            "SELECT COUNT(*) FROM simulation_events WHERE simulation_id = ?",
+            [sim_id]
+        ).fetchone()[0]
 
-        if tick is not None:
-            where_clauses.append("arrival_tick = ?")
-            params.append(tick)
-        elif tick_min is not None or tick_max is not None:
-            if tick_min is not None:
-                where_clauses.append("arrival_tick >= ?")
-                params.append(tick_min)
-            if tick_max is not None:
-                where_clauses.append("arrival_tick <= ?")
-                params.append(tick_max)
-
-        if agent_id:
-            where_clauses.append("(sender_id = ? OR receiver_id = ?)")
-            params.extend([agent_id, agent_id])
-
-        where_sql = " AND ".join(where_clauses)
-
-        # Get total count
-        count_query = f"SELECT COUNT(*) FROM transactions WHERE {where_sql}"
-        total = conn.execute(count_query, params).fetchone()[0]
-
-        if total == 0:
+        if exists_check == 0:
             raise HTTPException(
-                status_code=404, detail=f"Simulation not found: {sim_id}"
+                status_code=404,
+                detail=f"Simulation not found: {sim_id}"
             )
 
-        # Get paginated events
-        events_query = f"""
-            SELECT
-                arrival_tick as tick,
-                arrival_day as day,
-                'Arrival' as event_type,
-                tx_id,
-                sender_id,
-                receiver_id,
-                amount,
-                priority,
-                deadline_tick
-            FROM transactions
-            WHERE {where_sql}
-            ORDER BY arrival_tick, tx_id
-            LIMIT ? OFFSET ?
-        """
+        # Use the new query function
+        from payment_simulator.persistence.event_queries import get_simulation_events
 
-        params.extend([limit, offset])
-        results = conn.execute(events_query, params).fetchall()
+        result = get_simulation_events(
+            conn=conn,
+            simulation_id=sim_id,
+            tick=tick,
+            tick_min=tick_min,
+            tick_max=tick_max,
+            day=day,
+            agent_id=agent_id,
+            tx_id=tx_id,
+            event_type=event_type,
+            limit=limit,
+            offset=offset,
+            sort=sort,
+        )
 
-        events = [
-            EventRecord(
-                tick=int(row[0]),
-                day=int(row[1]),
-                event_type=str(row[2]),
-                tx_id=str(row[3]) if row[3] else None,
-                sender_id=str(row[4]) if row[4] else None,
-                receiver_id=str(row[5]) if row[5] else None,
-                amount=int(row[6]) if row[6] else None,
-                priority=int(row[7]) if row[7] else None,
-                deadline_tick=int(row[8]) if row[8] else None,
-                timestamp=None,
-            )
-            for row in results
-        ]
+        # Convert to response format
+        events = [EventRecord(**event) for event in result["events"]]
 
-        return EventListResponse(events=events, total=total, limit=limit, offset=offset)
+        return EventListResponse(
+            events=events,
+            total=result["total"],
+            limit=result["limit"],
+            offset=result["offset"],
+            filters=result["filters"]
+        )
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 

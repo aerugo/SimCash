@@ -17,14 +17,18 @@ from payment_simulator.cli.output import (  # Enhanced verbose mode functions
     log_agent_state,
     log_arrivals,
     log_collateral_activity,
+    log_cost_accrual_events,
     log_cost_breakdown,
     log_costs,
+    log_end_of_day_event,
     log_end_of_day_statistics,
     log_error,
+    log_event_chronological,
     log_info,
     log_lsm_activity,
     log_lsm_cycle_visualization,
     log_policy_decisions,
+    log_queued_rtgs,
     log_settlement_details,
     log_settlements,
     log_success,
@@ -34,6 +38,7 @@ from payment_simulator.cli.output import (  # Enhanced verbose mode functions
     output_json,
     output_jsonl,
 )
+from payment_simulator.cli.filters import EventFilter
 from payment_simulator.config import SimulationConfig
 from typing_extensions import Annotated
 
@@ -163,6 +168,7 @@ def _persist_simulation_metadata(
     total_settlements: int,
     total_costs: int,
     sim_duration: float,
+    orch: Orchestrator,
     quiet: bool = False,
 ) -> None:
     """Persist final simulation metadata to database tables.
@@ -181,6 +187,7 @@ def _persist_simulation_metadata(
         total_settlements: Total number of settlements
         total_costs: Total costs in cents
         sim_duration: Simulation duration in seconds
+        orch: Orchestrator instance (for event persistence)
         quiet: Whether to suppress log messages
     """
     import hashlib
@@ -255,6 +262,19 @@ def _persist_simulation_metadata(
         ],
     )
 
+    # Persist all simulation events (Phase 2 - Event Timeline Enhancement)
+    from payment_simulator.persistence.event_writer import write_events_batch
+
+    events = orch.get_all_events()
+    if events:
+        event_count = write_events_batch(
+            conn=db_manager.conn,
+            simulation_id=sim_id,
+            events=events,
+            ticks_per_day=ffi_dict["ticks_per_day"],
+        )
+        log_info(f"  Persisted {event_count} simulation events", quiet)
+
     log_success(f"Simulation metadata persisted (ID: {sim_id})", quiet)
 
 
@@ -304,7 +324,14 @@ def run_simulation(
         typer.Option(
             "--verbose",
             "-v",
-            help="Verbose mode: show detailed events in real-time",
+            help="Verbose mode: show detailed events in real-time (grouped by category)",
+        ),
+    ] = False,
+    event_stream: Annotated[
+        bool,
+        typer.Option(
+            "--event-stream",
+            help="Event stream mode: show all events chronologically (one-line format)",
         ),
     ] = False,
     persist: Annotated[
@@ -336,6 +363,34 @@ def run_simulation(
             help="Custom simulation ID (auto-generated if not provided)",
         ),
     ] = None,
+    filter_event_type: Annotated[
+        Optional[str],
+        typer.Option(
+            "--filter-event-type",
+            help="Filter events by type (comma-separated, e.g., 'Arrival,Settlement')",
+        ),
+    ] = None,
+    filter_agent: Annotated[
+        Optional[str],
+        typer.Option(
+            "--filter-agent",
+            help="Filter events by agent ID (matches agent_id or sender_id fields)",
+        ),
+    ] = None,
+    filter_tx: Annotated[
+        Optional[str],
+        typer.Option(
+            "--filter-tx",
+            help="Filter events by transaction ID",
+        ),
+    ] = None,
+    filter_tick_range: Annotated[
+        Optional[str],
+        typer.Option(
+            "--filter-tick-range",
+            help="Filter events by tick range (format: 'min-max', 'min-', or '-max')",
+        ),
+    ] = None,
 ):
     """Run a simulation from a configuration file.
 
@@ -355,8 +410,26 @@ def run_simulation(
 
         # Verbose mode: show detailed real-time events
         payment-sim run --config scenario.yaml --verbose --ticks 20
+
+        # Event stream mode: chronological one-line events
+        payment-sim run --config scenario.yaml --event-stream --ticks 50
     """
     try:
+        # Validate mutually exclusive flags
+        if verbose and event_stream:
+            log_error("--verbose and --event-stream are mutually exclusive")
+            raise typer.Exit(1)
+
+        # Validate filter flags require verbose or event-stream mode
+        has_filters = any(
+            [filter_event_type, filter_agent, filter_tx, filter_tick_range]
+        )
+        if has_filters and not (verbose or event_stream):
+            log_error(
+                "Event filters (--filter-*) require either --verbose or --event-stream mode"
+            )
+            raise typer.Exit(1)
+
         # Validate full_replay requires persist
         if full_replay and not persist:
             log_error("--full-replay requires --persist to be enabled")
@@ -407,6 +480,27 @@ def run_simulation(
         create_time = time.time() - start_time
 
         log_success(f"Simulation created in {create_time:.3f}s", quiet)
+
+        # Create event filter if any filters are specified
+        event_filter = None
+        if has_filters:
+            event_filter = EventFilter.from_cli_args(
+                filter_event_type=filter_event_type,
+                filter_agent=filter_agent,
+                filter_tx=filter_tx,
+                filter_tick_range=filter_tick_range,
+            )
+            # Log filter configuration
+            filter_desc = []
+            if filter_event_type:
+                filter_desc.append(f"types={filter_event_type}")
+            if filter_agent:
+                filter_desc.append(f"agent={filter_agent}")
+            if filter_tx:
+                filter_desc.append(f"tx={filter_tx}")
+            if filter_tick_range:
+                filter_desc.append(f"ticks={filter_tick_range}")
+            log_info(f"Event filtering enabled: {', '.join(filter_desc)}", quiet)
 
         # Initialize persistence if enabled
         db_manager = None
@@ -521,6 +615,14 @@ def run_simulation(
                 # Get all events for this tick
                 events = orch.get_tick_events(tick_num)
 
+                # Apply event filter if specified (for display only)
+                if event_filter:
+                    display_events = [
+                        e for e in events if event_filter.matches(e, tick_num)
+                    ]
+                else:
+                    display_events = events
+
                 # Full replay mode: collect data in memory
                 if persist and full_replay and db_manager:
                     import json
@@ -633,31 +735,36 @@ def run_simulation(
                 # SECTION 1: ARRIVALS (detailed)
                 # ═══════════════════════════════════════════════════════════
                 if result["num_arrivals"] > 0:
-                    log_transaction_arrivals(orch, events)
+                    log_transaction_arrivals(orch, display_events)
 
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 2: POLICY DECISIONS
                 # ═══════════════════════════════════════════════════════════
-                log_policy_decisions(events)
+                log_policy_decisions(display_events)
 
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 3: SETTLEMENTS (detailed with mechanisms)
                 # ═══════════════════════════════════════════════════════════
                 if result["num_settlements"] > 0 or any(
                     e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"]
-                    for e in events
+                    for e in display_events
                 ):
-                    log_settlement_details(orch, events, tick_num)
+                    log_settlement_details(orch, display_events, tick_num)
+
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 3.5: QUEUED TRANSACTIONS (RTGS)
+                # ═══════════════════════════════════════════════════════════
+                log_queued_rtgs(display_events)
 
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 4: LSM CYCLE VISUALIZATION
                 # ═══════════════════════════════════════════════════════════
-                log_lsm_cycle_visualization(events)
+                log_lsm_cycle_visualization(display_events)
 
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 5: COLLATERAL ACTIVITY
                 # ═══════════════════════════════════════════════════════════
-                log_collateral_activity(events)
+                log_collateral_activity(display_events)
 
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 6: AGENT STATES (detailed queues)
@@ -681,6 +788,11 @@ def run_simulation(
                         )
 
                     prev_balances[agent_id] = current_balance
+
+                # ═══════════════════════════════════════════════════════════
+                # SECTION 6.5: COST ACCRUAL EVENTS
+                # ═══════════════════════════════════════════════════════════
+                log_cost_accrual_events(display_events)
 
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 7: COST BREAKDOWN
@@ -754,6 +866,9 @@ def run_simulation(
                                 "total_costs": agent_total_costs,
                             }
                         )
+
+                    # Show EndOfDay event first
+                    log_end_of_day_event(display_events)
 
                     log_end_of_day_statistics(
                         day=current_day,
@@ -831,6 +946,32 @@ def run_simulation(
                         "costs": 0,
                     }
 
+        elif event_stream:
+            # Event stream mode: show events chronologically (one-line format)
+            log_info(
+                f"Running {total_ticks} ticks (event stream mode)...", True
+            )  # Always suppress this in event stream mode
+
+            sim_start = time.time()
+            tick_results = []
+            total_events_displayed = 0
+
+            for tick_num in range(total_ticks):
+                result = orch.tick()
+                tick_results.append(result)
+
+                # Get all events for this tick
+                events = orch.get_tick_events(tick_num)
+
+                # Apply event filter if specified
+                if event_filter:
+                    events = [e for e in events if event_filter.matches(e, tick_num)]
+
+                # Display each event chronologically
+                for event in events:
+                    log_event_chronological(event, tick_num, quiet=False)
+                    total_events_displayed += 1
+
             sim_duration = time.time() - sim_start
             ticks_per_second = total_ticks / sim_duration if sim_duration > 0 else 0
 
@@ -838,6 +979,7 @@ def run_simulation(
                 f"\nSimulation complete: {total_ticks} ticks in {sim_duration:.2f}s ({ticks_per_second:.1f} ticks/s)",
                 False,
             )
+            log_info(f"Total events displayed: {total_events_displayed}", False)
 
             # Build and output final summary as JSON
             agent_ids = orch.get_agent_ids()
@@ -881,6 +1023,7 @@ def run_simulation(
                 "performance": {
                     "ticks_per_second": round(ticks_per_second, 2),
                 },
+                "total_events": total_events_displayed,
             }
 
             # Persist simulation metadata if enabled
@@ -896,13 +1039,11 @@ def run_simulation(
                     total_settlements,
                     total_costs,
                     sim_duration,
-                    quiet=False,
+                    orch,
+                    quiet=True,
                 )
 
-                # Add simulation_id to output
-                output_data["simulation"]["simulation_id"] = sim_id
-                output_data["simulation"]["database"] = db_path
-
+            # Output final JSON
             output_json(output_data)
 
         elif stream:
@@ -959,6 +1100,7 @@ def run_simulation(
                     total_settlements,
                     total_costs,
                     sim_duration,
+                    orch,
                     quiet,
                 )
 
@@ -1070,6 +1212,7 @@ def run_simulation(
                     total_settlements,
                     total_costs,
                     sim_duration,
+                    orch,
                     quiet,
                 )
 
