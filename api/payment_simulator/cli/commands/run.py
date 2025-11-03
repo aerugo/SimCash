@@ -946,6 +946,36 @@ def run_simulation(
                         "costs": 0,
                     }
 
+            # After verbose mode completes, persist simulation metadata
+            sim_duration = time.time() - sim_start
+            ticks_per_second = total_ticks / sim_duration if sim_duration > 0 else 0
+
+            log_success(
+                f"\nSimulation complete: {total_ticks} ticks in {sim_duration:.2f}s ({ticks_per_second:.1f} ticks/s)",
+                False,
+            )
+
+            # Persist simulation metadata if enabled
+            if persist and db_manager:
+                total_arrivals = sum(r["num_arrivals"] for r in tick_results)
+                total_settlements = sum(r["num_settlements"] for r in tick_results)
+                total_costs = sum(r["total_cost"] for r in tick_results)
+
+                _persist_simulation_metadata(
+                    db_manager,
+                    sim_id,
+                    config,
+                    config_dict,
+                    ffi_dict,
+                    agent_ids,
+                    total_arrivals,
+                    total_settlements,
+                    total_costs,
+                    sim_duration,
+                    orch,
+                    quiet=True,
+                )
+
         elif event_stream:
             # Event stream mode: show events chronologically (one-line format)
             log_info(
@@ -956,21 +986,32 @@ def run_simulation(
             tick_results = []
             total_events_displayed = 0
 
-            for tick_num in range(total_ticks):
-                result = orch.tick()
-                tick_results.append(result)
+            # Track days for persistence
+            ticks_per_day = ffi_dict["ticks_per_day"]
+            num_days = ffi_dict["num_days"]
 
-                # Get all events for this tick
-                events = orch.get_tick_events(tick_num)
+            for day in range(num_days):
+                # Run ticks for this day
+                for tick_in_day in range(ticks_per_day):
+                    tick_num = day * ticks_per_day + tick_in_day
+                    result = orch.tick()
+                    tick_results.append(result)
 
-                # Apply event filter if specified
-                if event_filter:
-                    events = [e for e in events if event_filter.matches(e, tick_num)]
+                    # Get all events for this tick
+                    events = orch.get_tick_events(tick_num)
 
-                # Display each event chronologically
-                for event in events:
-                    log_event_chronological(event, tick_num, quiet=False)
-                    total_events_displayed += 1
+                    # Apply event filter if specified
+                    if event_filter:
+                        events = [e for e in events if event_filter.matches(e, tick_num)]
+
+                    # Display each event chronologically
+                    for event in events:
+                        log_event_chronological(event, tick_num, quiet=False)
+                        total_events_displayed += 1
+
+                # Persist at end of day if enabled (BUG FIX: was missing)
+                if persist and db_manager:
+                    _persist_day_data(orch, db_manager, sim_id, day, quiet=True)
 
             sim_duration = time.time() - sim_start
             ticks_per_second = total_ticks / sim_duration if sim_duration > 0 else 0
