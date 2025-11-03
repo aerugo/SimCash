@@ -2251,7 +2251,28 @@ impl Orchestrator {
         // Store LSM cycle events for persistence (Phase 4.2)
         self.state
             .lsm_cycle_events
-            .extend(lsm_result.cycle_events);
+            .extend(lsm_result.cycle_events.clone());
+
+        // Log LSM cycle settlement events
+        for cycle_event in &lsm_result.cycle_events {
+            // Determine if this is bilateral offset or multilateral cycle
+            if cycle_event.cycle_type == "bilateral" && cycle_event.transactions.len() >= 2 {
+                // Log as bilateral offset event
+                self.log_event(Event::LsmBilateralOffset {
+                    tick: cycle_event.tick,
+                    tx_id_a: cycle_event.transactions[0].clone(),
+                    tx_id_b: cycle_event.transactions[1].clone(),
+                    amount: cycle_event.settled_value,
+                });
+            } else {
+                // Log as cycle settlement event (multilateral or complex bilateral)
+                self.log_event(Event::LsmCycleSettlement {
+                    tick: cycle_event.tick,
+                    tx_ids: cycle_event.transactions.clone(),
+                    cycle_value: cycle_event.settled_value,
+                });
+            }
+        }
 
         // STEP 5.5: END-OF-TICK COLLATERAL MANAGEMENT (Layer 2)
         // Evaluate end-of-tick collateral decisions for each agent AFTER settlements complete

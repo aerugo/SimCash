@@ -963,6 +963,122 @@ impl PyOrchestrator {
         Ok(py_list.into())
     }
 
+    /// Get all events from the event log
+    ///
+    /// Returns complete event history for the simulation.
+    /// Used for database persistence and comprehensive analysis.
+    ///
+    /// # Returns
+    ///
+    /// List of event dictionaries, each containing:
+    /// - `event_type`: Event type name (e.g., "Arrival", "Settlement")
+    /// - `tick`: Tick when event occurred
+    /// - Additional fields specific to each event type
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// events = orch.get_all_events()
+    /// print(f"Total events: {len(events)}")
+    /// for event in events[:10]:  # First 10 events
+    ///     print(f"Tick {event['tick']}: {event['event_type']}")
+    /// ```
+    fn get_all_events(&self, py: Python) -> PyResult<Py<PyList>> {
+        let events = self.inner.event_log().events();
+
+        let py_list = PyList::empty(py);
+        for event in events {
+            let event_dict = PyDict::new(py);
+
+            // Set common fields
+            event_dict.set_item("event_type", event.event_type())?;
+            event_dict.set_item("tick", event.tick())?;
+
+            // Set event-specific fields based on event type
+            match event {
+                crate::models::event::Event::Arrival { tx_id, sender_id, receiver_id, amount, deadline, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                    event_dict.set_item("receiver_id", receiver_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("deadline", deadline)?;
+                }
+                crate::models::event::Event::PolicySubmit { agent_id, tx_id, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                }
+                crate::models::event::Event::PolicyHold { agent_id, tx_id, reason, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("reason", reason)?;
+                }
+                crate::models::event::Event::PolicyDrop { agent_id, tx_id, reason, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("reason", reason)?;
+                }
+                crate::models::event::Event::PolicySplit { agent_id, tx_id, num_splits, child_ids, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("num_splits", num_splits)?;
+                    event_dict.set_item("child_ids", child_ids)?;
+                }
+                crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("reason", reason)?;
+                    event_dict.set_item("new_total", new_total)?;
+                }
+                crate::models::event::Event::CollateralWithdraw { agent_id, amount, reason, new_total, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("reason", reason)?;
+                    event_dict.set_item("new_total", new_total)?;
+                }
+                crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                    event_dict.set_item("receiver_id", receiver_id)?;
+                    event_dict.set_item("amount", amount)?;
+                }
+                crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                }
+                crate::models::event::Event::LsmBilateralOffset { tx_id_a, tx_id_b, amount, .. } => {
+                    event_dict.set_item("tx_id_a", tx_id_a)?;
+                    event_dict.set_item("tx_id_b", tx_id_b)?;
+                    event_dict.set_item("amount", amount)?;
+                }
+                crate::models::event::Event::LsmCycleSettlement { tx_ids, cycle_value, .. } => {
+                    event_dict.set_item("tx_ids", tx_ids)?;
+                    event_dict.set_item("cycle_value", cycle_value)?;
+                }
+                crate::models::event::Event::CostAccrual { agent_id, costs, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    // Convert CostBreakdown to dict
+                    let cost_dict = PyDict::new(py);
+                    cost_dict.set_item("liquidity_cost", costs.liquidity_cost)?;
+                    cost_dict.set_item("delay_cost", costs.delay_cost)?;
+                    cost_dict.set_item("collateral_cost", costs.collateral_cost)?;
+                    cost_dict.set_item("penalty_cost", costs.penalty_cost)?;
+                    cost_dict.set_item("split_friction_cost", costs.split_friction_cost)?;
+                    cost_dict.set_item("total", costs.total())?;
+                    event_dict.set_item("costs", cost_dict)?;
+                }
+                crate::models::event::Event::EndOfDay { day, unsettled_count, total_penalties, .. } => {
+                    event_dict.set_item("day", day)?;
+                    event_dict.set_item("unsettled_count", unsettled_count)?;
+                    event_dict.set_item("total_penalties", total_penalties)?;
+                }
+            }
+
+            py_list.append(event_dict)?;
+        }
+
+        Ok(py_list.into())
+    }
+
     /// Get full details for a specific transaction
     ///
     /// # Arguments
