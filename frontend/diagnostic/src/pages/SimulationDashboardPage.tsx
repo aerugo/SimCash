@@ -181,7 +181,7 @@ export function SimulationDashboardPage() {
               View Events Timeline
             </Link>
             <Link
-              to={`/simulations/${simulation_id}/transactions`}
+              to={`/simulations/${simulation_id}/events`}
               className="block w-full px-4 py-3 bg-green-600 text-white text-center rounded-lg hover:bg-green-700 transition-colors font-medium"
             >
               View Transactions
