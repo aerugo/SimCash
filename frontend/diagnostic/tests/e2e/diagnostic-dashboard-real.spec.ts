@@ -6,24 +6,28 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { setupRealDatabase, type SimulationSetup } from "./setup-real-database";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
-// Global setup - run simulation once before all tests
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Read simulation setup from global setup
+interface SimulationSetup {
+  dbPath: string;
+  simulationId: string;
+}
+
 let simulationSetup: SimulationSetup;
 
 test.beforeAll(async () => {
-  // Run the 12-bank simulation and create test database
-  simulationSetup = await setupRealDatabase();
+  // Read simulation info created by global setup
+  const setupInfoPath = join(__dirname, ".test-setup-info.json");
+  const setupInfo = JSON.parse(readFileSync(setupInfoPath, "utf-8"));
+  simulationSetup = setupInfo;
 
-  // Set environment variable for API to use this database
-  process.env.DATABASE_PATH = simulationSetup.dbPath;
-});
-
-test.afterAll(async () => {
-  // Cleanup
-  if (simulationSetup?.cleanup) {
-    simulationSetup.cleanup();
-  }
+  console.log(`📖 Test using simulation: ${simulationSetup.simulationId}`);
 });
 
 test.describe("Diagnostic Dashboard with Real 12-Bank Data", () => {
@@ -31,7 +35,7 @@ test.describe("Diagnostic Dashboard with Real 12-Bank Data", () => {
     await page.goto("/");
 
     // Wait for the simulation list to load
-    await expect(page.locator("h1")).toContainText("Simulations");
+    await expect(page.locator("main h1")).toContainText("Simulations");
     await expect(page.locator("table")).toBeVisible();
 
     // Should have at least one simulation (our 12-bank run)
@@ -145,7 +149,7 @@ test.describe("Diagnostic Dashboard with Real 12-Bank Data", () => {
 
     // Wait for navigation
     await expect(page).toHaveURL(/\/agents\/ALM_CONSERVATIVE/);
-    await expect(page.locator("h1")).toContainText("ALM_CONSERVATIVE");
+    await expect(page.locator("main h1")).toContainText("ALM_CONSERVATIVE");
 
     // Should show agent details (implementation dependent)
     // Just verify we're on the agent page
@@ -212,6 +216,56 @@ test.describe("Diagnostic Dashboard with Real 12-Bank Data", () => {
     const mainContent = await page.locator("main").textContent();
     expect(mainContent).toContain("ALM_CONSERVATIVE");
     expect(mainContent).toContain("MIB_PROP_TRADING");
+  });
+
+  test("CRITICAL: transactions page displays transactions from database", async ({
+    page,
+  }) => {
+    // Navigate directly to transactions page
+    await page.goto(
+      `/simulations/${simulationSetup.simulationId}/transactions`
+    );
+
+    // Wait for page to load
+    await expect(page.locator("main h1")).toContainText(/transactions/i);
+
+    // CRITICAL: Check that transactions table exists and has rows
+    await expect(page.locator("table")).toBeVisible({ timeout: 10000 });
+
+    // Verify table has data rows (not just headers)
+    const tableRows = page.locator("table tbody tr");
+    await expect(tableRows).not.toHaveCount(0, { timeout: 10000 });
+
+    // Verify at least one transaction is visible
+    const firstRow = tableRows.first();
+    await expect(firstRow).toBeVisible();
+
+    // Verify transaction data structure - should have tx_id, sender, receiver, amount columns
+    await expect(page.locator("table th")).toContainText(/transaction|tx/i);
+    await expect(page.locator("table th")).toContainText(/sender/i);
+    await expect(page.locator("table th")).toContainText(/receiver/i);
+    await expect(page.locator("table th")).toContainText(/amount/i);
+
+    // Verify actual data is present in first row
+    const firstRowText = await firstRow.textContent();
+    expect(firstRowText).toBeTruthy();
+    expect(firstRowText!.length).toBeGreaterThan(0);
+  });
+
+  test("transactions page shows pagination controls", async ({ page }) => {
+    await page.goto(
+      `/simulations/${simulationSetup.simulationId}/transactions`
+    );
+
+    // Should have pagination since we have many transactions
+    await expect(page.locator("table")).toBeVisible();
+
+    // Check for pagination controls (Next/Previous buttons or page numbers)
+    const paginationControls = page.locator(
+      "button:has-text(/next|previous|page/i), nav"
+    );
+    const hasPagination = await paginationControls.count();
+    expect(hasPagination).toBeGreaterThan(0);
   });
 });
 
