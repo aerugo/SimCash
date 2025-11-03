@@ -237,7 +237,8 @@ def get_simulation_summary(
             total_settlements,
             total_cost_cents,
             duration_seconds,
-            ticks_per_second
+            ticks_per_second,
+            config_json
         FROM simulations
         WHERE simulation_id = ?
     """
@@ -274,6 +275,7 @@ def get_simulation_summary(
         "avg_daily_cost": total_cost_cents / num_days if num_days > 0 else 0.0,
         "duration_seconds": result[10] if result[10] else 0.0,
         "ticks_per_second": result[11] if result[11] else 0.0,
+        "config_json": result[12],  # Full configuration JSON for replay
     }
 
 
