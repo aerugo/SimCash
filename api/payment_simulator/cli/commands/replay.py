@@ -4,6 +4,7 @@ This command enables replaying a specific tick range from a persisted simulation
 producing identical verbose output to the original run.
 """
 
+import json
 import time
 import typer
 import yaml
@@ -33,13 +34,13 @@ from payment_simulator.cli.output import (
 from payment_simulator.persistence.connection import DatabaseManager
 from payment_simulator.persistence.queries import (
     get_simulation_summary,
-    get_transactions_by_tick,
     get_collateral_events_by_tick,
     get_lsm_cycles_by_tick,
     get_policy_decisions_by_tick,
     get_tick_agent_states,
     get_tick_queue_snapshots,
 )
+from payment_simulator.persistence.event_queries import get_simulation_events
 from payment_simulator.config import SimulationConfig
 from payment_simulator._core import Orchestrator
 
@@ -47,6 +48,64 @@ from payment_simulator._core import Orchestrator
 # ============================================================================
 # Event Reconstruction Helpers
 # ============================================================================
+
+
+def _reconstruct_arrival_events_from_simulation_events(events: list[dict]) -> list[dict]:
+    """Reconstruct arrival events from simulation_events table.
+
+    Args:
+        events: List of simulation event records with event_type = 'Arrival'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+
+    Examples:
+        >>> events = [{"event_type": "Arrival", "details": "{...}", ...}]
+        >>> arrivals = _reconstruct_arrival_events_from_simulation_events(events)
+        >>> arrivals[0]["event_type"]
+        'Arrival'
+    """
+    result = []
+    for event in events:
+        details = event["details"]  # Already parsed by get_simulation_events
+        result.append({
+            "event_type": "Arrival",
+            "tx_id": event["tx_id"],
+            "sender_id": details.get("sender_id"),
+            "receiver_id": details.get("receiver_id"),
+            "amount": details.get("amount"),
+            "priority": details.get("priority", 0),  # Default to 0 if not present
+            "deadline_tick": details.get("deadline_tick"),
+        })
+    return result
+
+
+def _reconstruct_settlement_events_from_simulation_events(events: list[dict]) -> list[dict]:
+    """Reconstruct settlement events from simulation_events table.
+
+    Args:
+        events: List of simulation event records with event_type = 'Settlement'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+
+    Examples:
+        >>> events = [{"event_type": "Settlement", "details": "...", ...}]
+        >>> settlements = _reconstruct_settlement_events_from_simulation_events(events)
+        >>> settlements[0]["event_type"]
+        'Settlement'
+    """
+    result = []
+    for event in events:
+        details = event["details"]  # Already parsed by get_simulation_events
+        result.append({
+            "event_type": "Settlement",
+            "tx_id": event["tx_id"],
+            "sender_id": details.get("sender_id"),
+            "receiver_id": details.get("receiver_id"),
+            "amount": details.get("amount"),
+        })
+    return result
 
 
 def _reconstruct_arrival_events(arrivals: list[dict]) -> list[dict]:
@@ -255,18 +314,6 @@ def replay_simulation(
             help="Simulation ID to replay from database",
         ),
     ],
-    config: Annotated[
-        Path,
-        typer.Option(
-            "--config",
-            "-c",
-            help="Original configuration file (YAML or JSON) used for this simulation",
-            exists=True,
-            file_okay=True,
-            dir_okay=False,
-            readable=True,
-        ),
-    ],
     from_tick: Annotated[
         int,
         typer.Option(
@@ -296,16 +343,21 @@ def replay_simulation(
             help="Verbose mode: show detailed events (default: True for replay)",
         ),
     ] = True,
+    event_stream: Annotated[
+        bool,
+        typer.Option(
+            "--event-stream",
+            help="Output events as JSON lines (one event per line, machine-readable format)",
+        ),
+    ] = False,
 ):
     """Replay a simulation from the database with verbose logging for a tick range.
 
-    This command loads a persisted simulation and re-runs it deterministically,
-    producing identical verbose output to the original run for the specified tick range.
+    This command loads a persisted simulation's configuration and data from the database,
+    displaying the tick-by-tick events that occurred during the original run.
 
-    The replay is guaranteed to be identical because:
-    1. Same RNG seed from original simulation
-    2. Same configuration
-    3. Deterministic simulation engine
+    The configuration is automatically loaded from the database, so you don't need
+    to provide the original config file.
 
     Examples:
 
@@ -317,10 +369,14 @@ def replay_simulation(
 
         # Replay entire simulation with verbose output
         payment-sim replay --simulation-id sim-abc123
+
+        # Output events as JSON lines (machine-readable)
+        payment-sim replay --simulation-id sim-abc123 --event-stream --from-tick 100 --to-tick 200
     """
     try:
         # Load simulation metadata from database
-        log_info(f"Loading simulation {simulation_id} from {db_path}", False)
+        if not event_stream:
+            log_info(f"Loading simulation {simulation_id} from {db_path}", False)
 
         db_manager = DatabaseManager(db_path)
 
@@ -363,26 +419,27 @@ def replay_simulation(
 
                 raise typer.Exit(1)
 
-        log_success(f"Found simulation: {summary['config_file']}", False)
-        log_info(f"  Seed: {summary['rng_seed']}", False)
-        log_info(f"  Ticks per day: {summary['ticks_per_day']}", False)
-        log_info(f"  Num days: {summary['num_days']}", False)
-        log_info(f"  Total ticks: {summary['ticks_per_day'] * summary['num_days']}", False)
+        if not event_stream:
+            log_success(f"Found simulation: {summary['config_file']}", False)
+            log_info(f"  Seed: {summary['rng_seed']}", False)
+            log_info(f"  Ticks per day: {summary['ticks_per_day']}", False)
+            log_info(f"  Num days: {summary['num_days']}", False)
+            log_info(f"  Total ticks: {summary['ticks_per_day'] * summary['num_days']}", False)
 
-        # Load configuration from file
-        log_info(f"Loading configuration from {config}", False)
-        with open(config) as f:
-            if config.suffix in [".yaml", ".yml"]:
-                config_dict = yaml.safe_load(f)
-            elif config.suffix == ".json":
-                import json
-                config_dict = json.load(f)
-            else:
-                log_error(f"Unsupported file format: {config.suffix}")
-                raise typer.Exit(1)
+            # Load configuration from database
+            log_info("Loading configuration from database", False)
 
-        # Override seed with the one from the database (ensures deterministic replay)
-        config_dict.setdefault("simulation", {})["rng_seed"] = summary["rng_seed"]
+        # Check if config_json is available in summary
+        if "config_json" not in summary or not summary["config_json"]:
+            log_error("Configuration not found in database.")
+            log_info("This simulation may have been created before config persistence was implemented.", False)
+            log_info("Config persistence was added on 2025-01-XX. Please re-run the simulation to enable replay.", False)
+            raise typer.Exit(1)
+
+        import json
+        config_dict = json.loads(summary["config_json"])
+        if not event_stream:
+            log_success("Configuration loaded from database", False)
 
         # Validate configuration
         try:
@@ -406,51 +463,83 @@ def replay_simulation(
             log_error(f"Invalid to_tick: {end_tick} (must be {from_tick} to {total_ticks-1})")
             raise typer.Exit(1)
 
-        log_info(f"Replaying ticks {from_tick} to {end_tick} ({end_tick - from_tick + 1} ticks)", False)
+        if not event_stream:
+            log_info(f"Replaying ticks {from_tick} to {end_tick} ({end_tick - from_tick + 1} ticks)", False)
 
-        # Build transaction cache for entire simulation
+        # Build transaction cache for entire simulation from simulation_events
         # This allows _MockOrchestrator to provide transaction details
-        log_info("Loading transaction data from database...", False)
+        if not event_stream:
+            log_info("Loading transaction data from simulation_events...", False)
         cache_start = time.time()
 
-        tx_cache_query = """
-            SELECT
-                tx_id,
-                sender_id,
-                receiver_id,
-                amount,
-                amount_settled,
-                priority,
-                is_divisible,
-                arrival_tick,
-                arrival_day,
-                deadline_tick,
-                settlement_tick,
-                status
-            FROM transactions
-            WHERE simulation_id = ?
-        """
-        tx_cache_result = db_manager.conn.execute(tx_cache_query, [simulation_id]).fetchall()
-
+        # Query all Arrival and Settlement events to build transaction cache
         tx_cache = {}
-        for row in tx_cache_result:
-            tx_cache[row[0]] = {
-                "tx_id": row[0],
-                "sender_id": row[1],
-                "receiver_id": row[2],
-                "amount": row[3],
-                "amount_settled": row[4],
-                "priority": row[5],
-                "is_divisible": row[6],
-                "arrival_tick": row[7],
-                "arrival_day": row[8],
-                "deadline_tick": row[9],
-                "settlement_tick": row[10],
-                "status": row[11],
-            }
+
+        # Get all Arrival events to populate initial transaction data (with pagination)
+        offset = 0
+        while True:
+            arrival_events_result = get_simulation_events(
+                conn=db_manager.conn,
+                simulation_id=simulation_id,
+                event_type="Arrival",
+                sort="tick_asc",
+                limit=1000,
+                offset=offset,
+            )
+
+            # Build transaction cache from arrival events
+            for event in arrival_events_result["events"]:
+                details = event["details"]  # Already parsed by get_simulation_events
+                tx_id = event["tx_id"]
+                if tx_id:
+                    tx_cache[tx_id] = {
+                        "tx_id": tx_id,
+                        "sender_id": details.get("sender_id"),
+                        "receiver_id": details.get("receiver_id"),
+                        "amount": details.get("amount", 0),
+                        "amount_settled": 0,  # Will be updated from settlement events
+                        "priority": details.get("priority", 0),  # Default to 0 if not present
+                        "is_divisible": details.get("is_divisible", False),
+                        "arrival_tick": event["tick"],
+                        "arrival_day": event["day"],
+                        "deadline_tick": details.get("deadline_tick", 0),
+                        "settlement_tick": None,  # Will be updated from settlement events
+                        "status": "pending",  # Will be updated from settlement events
+                    }
+
+            # Check if there are more events to fetch
+            if len(arrival_events_result["events"]) < 1000:
+                break
+            offset += 1000
+
+        # Update cache with settlement information (with pagination)
+        offset = 0
+        while True:
+            settlement_events_result = get_simulation_events(
+                conn=db_manager.conn,
+                simulation_id=simulation_id,
+                event_type="Settlement",
+                sort="tick_asc",
+                limit=1000,
+                offset=offset,
+            )
+
+            for event in settlement_events_result["events"]:
+                details = event["details"]  # Already parsed by get_simulation_events
+                tx_id = event["tx_id"]
+                if tx_id and tx_id in tx_cache:
+                    tx_cache[tx_id]["amount_settled"] = details.get("amount", 0)
+                    tx_cache[tx_id]["settlement_tick"] = event["tick"]
+                    tx_cache[tx_id]["status"] = "settled"
+
+            # Check if there are more events to fetch
+            if len(settlement_events_result["events"]) < 1000:
+                break
+            offset += 1000
 
         cache_duration = time.time() - cache_start
-        log_success(f"Loaded {len(tx_cache)} transactions in {cache_duration:.2f}s", False)
+        if not event_stream:
+            log_success(f"Loaded {len(tx_cache)} transactions in {cache_duration:.2f}s", False)
 
         # Create mock orchestrator for providing transaction details
         mock_orch = _MockOrchestrator(tx_cache)
@@ -458,8 +547,61 @@ def replay_simulation(
         # Check if this simulation has full replay data
         has_full_replay = _has_full_replay_data(db_manager.conn, simulation_id)
 
-        # Now run verbose mode from from_tick to end_tick (DATABASE-DRIVEN)
-        if verbose:
+        # Now run replay mode from from_tick to end_tick (DATABASE-DRIVEN)
+        if event_stream:
+            # Event stream mode: output events as JSON lines
+            import sys
+
+            replay_start = time.time()
+
+            for tick_num in range(from_tick, end_tick + 1):
+                # Query simulation_events for this tick
+                tick_events_result = get_simulation_events(
+                    conn=db_manager.conn,
+                    simulation_id=simulation_id,
+                    tick=tick_num,
+                    sort="tick_asc",
+                    limit=1000,
+                    offset=0,
+                )
+
+                # Output each event as a JSON line
+                for event in tick_events_result["events"]:
+                    # Create output event with tick information
+                    output_event = {
+                        "simulation_id": simulation_id,
+                        "tick": event["tick"],
+                        "day": event["day"],
+                        "event_type": event["event_type"],
+                        "event_id": event["event_id"],
+                        "timestamp": event["event_timestamp"],
+                        "details": event["details"],
+                    }
+
+                    # Add optional fields if present
+                    if event.get("tx_id"):
+                        output_event["tx_id"] = event["tx_id"]
+                    if event.get("agent_id"):
+                        output_event["agent_id"] = event["agent_id"]
+
+                    # Output as JSON line
+                    print(json.dumps(output_event), flush=True)
+
+            replay_duration = time.time() - replay_start
+
+            # Output final metadata as JSON line
+            metadata = {
+                "_metadata": True,
+                "replay_complete": True,
+                "simulation_id": simulation_id,
+                "from_tick": from_tick,
+                "to_tick": end_tick,
+                "duration_seconds": round(replay_duration, 3),
+                "ticks_per_second": round((end_tick - from_tick + 1) / replay_duration, 2) if replay_duration > 0 else 0,
+            }
+            print(json.dumps(metadata), flush=True)
+
+        elif verbose:
             log_info("Database replay mode: showing persisted events", False)
             if has_full_replay:
                 log_success("Full replay data available (policy decisions, agent states, costs)", False)
@@ -486,14 +628,40 @@ def replay_simulation(
                 # ═══════════════════════════════════════════════════════════
                 log_tick_start(tick_num)
 
-                # Query database for this tick's data
-                tick_data = get_transactions_by_tick(db_manager.conn, simulation_id, tick_num)
+                # Query simulation_events for this tick
+                tick_events_result = get_simulation_events(
+                    conn=db_manager.conn,
+                    simulation_id=simulation_id,
+                    tick=tick_num,
+                    sort="tick_asc",
+                    limit=1000,  # Max limit allowed by get_simulation_events
+                    offset=0,
+                )
+
+                # Organize events by type
+                arrival_events_raw = []
+                settlement_events_raw = []
+                lsm_events_raw = []
+                collateral_events_raw = []
+
+                for event in tick_events_result["events"]:
+                    event_type = event["event_type"]
+                    if event_type == "Arrival":
+                        arrival_events_raw.append(event)
+                    elif event_type == "Settlement":
+                        settlement_events_raw.append(event)
+                    elif event_type in ["LsmBilateralOffset", "LsmCycleSettlement"]:
+                        lsm_events_raw.append(event)
+                    elif event_type in ["CollateralPost", "CollateralWithdraw"]:
+                        collateral_events_raw.append(event)
+
+                # Also get collateral and LSM data from dedicated tables (for compatibility)
                 collateral_data = get_collateral_events_by_tick(db_manager.conn, simulation_id, tick_num)
                 lsm_data = get_lsm_cycles_by_tick(db_manager.conn, simulation_id, tick_num)
 
-                # Reconstruct events from database
-                arrival_events = _reconstruct_arrival_events(tick_data["arrivals"])
-                settlement_events = _reconstruct_settlement_events(tick_data["settlements"])
+                # Reconstruct events from database (using simulation_events data)
+                arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
+                settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
                 lsm_events = _reconstruct_lsm_events(lsm_data)
                 collateral_events = _reconstruct_collateral_events(collateral_data)
 
