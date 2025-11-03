@@ -77,8 +77,23 @@ def simulation_database(tmp_path_factory):
         pytest.fail(f"Simulation failed with return code {result.returncode}")
 
     # Parse the output to get simulation ID
+    # CLI may output initialization messages before JSON
     try:
-        output_data = json.loads(result.stdout)
+        output_lines = result.stdout.strip().split("\n")
+        # Find the line where JSON starts (first line with '{')
+        json_start_idx = -1
+        for i, line in enumerate(output_lines):
+            if line.strip().startswith("{"):
+                json_start_idx = i
+                break
+
+        if json_start_idx == -1:
+            print("Failed to find JSON in output:", result.stdout)
+            pytest.fail("No JSON found in simulation output")
+
+        # Join all lines from JSON start onwards
+        json_text = "\n".join(output_lines[json_start_idx:])
+        output_data = json.loads(json_text)
         sim_id = output_data["simulation"]["simulation_id"]
         print(f"📊 Simulation ID: {sim_id}")
     except (json.JSONDecodeError, KeyError) as e:
@@ -119,24 +134,31 @@ def simulation_database(tmp_path_factory):
     # Cleanup handled by tmp_path_factory
 
 
-@pytest.mark.e2e
-def test_simulation_metadata_endpoint(simulation_database):
-    """Test that simulation metadata endpoint returns correct data."""
-    from fastapi.testclient import TestClient
-    from payment_simulator.api.main import app
-
-    db_path = simulation_database["db_path"]
-    sim_id = simulation_database["simulation_id"]
-
-    # Override database path for API
+@pytest.fixture
+def api_client(simulation_database):
+    """Create API client with database configured."""
     import os
 
-    os.environ["DATABASE_PATH"] = db_path
+    from fastapi.testclient import TestClient
 
-    client = TestClient(app)
+    # Set environment variable BEFORE importing app
+    os.environ["PAYMENT_SIM_DB_PATH"] = simulation_database["db_path"]
+
+    # Import app after setting env var
+    from payment_simulator.api.main import app
+
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.mark.e2e
+def test_simulation_metadata_endpoint(simulation_database, api_client):
+    """Test that simulation metadata endpoint returns correct data."""
+    sim_id = simulation_database["simulation_id"]
+    client = api_client
 
     # Test GET /simulations/{sim_id}
-    response = client.get(f"/api/simulations/{sim_id}")
+    response = client.get(f"/simulations/{sim_id}")
     assert response.status_code == 200
 
     data = response.json()
@@ -160,22 +182,13 @@ def test_simulation_metadata_endpoint(simulation_database):
 
 
 @pytest.mark.e2e
-def test_agent_list_endpoint(simulation_database):
+def test_agent_list_endpoint(simulation_database, api_client):
     """Test that agent list endpoint returns correct data."""
-    from fastapi.testclient import TestClient
-    from payment_simulator.api.main import app
-
-    db_path = simulation_database["db_path"]
     sim_id = simulation_database["simulation_id"]
-
-    import os
-
-    os.environ["DATABASE_PATH"] = db_path
-
-    client = TestClient(app)
+    client = api_client
 
     # Test GET /simulations/{sim_id}/agents
-    response = client.get(f"/api/simulations/{sim_id}/agents")
+    response = client.get(f"/simulations/{sim_id}/agents")
     assert response.status_code == 200
 
     data = response.json()
@@ -211,54 +224,66 @@ def test_agent_list_endpoint(simulation_database):
 
 
 @pytest.mark.e2e
-def test_transactions_endpoint(simulation_database):
-    """Test that transactions endpoint returns paginated data."""
-    from fastapi.testclient import TestClient
-    from payment_simulator.api.main import app
-
-    db_path = simulation_database["db_path"]
+def test_transactions_endpoint_with_database(simulation_database, api_client):
+    """Test that transactions endpoint returns data from database."""
     sim_id = simulation_database["simulation_id"]
+    client = api_client
 
-    import os
-
-    os.environ["DATABASE_PATH"] = db_path
-
-    client = TestClient(app)
-
-    # Test GET /simulations/{sim_id}/transactions
-    response = client.get(f"/api/simulations/{sim_id}/transactions?limit=10")
+    # Test GET /simulations/{sim_id}/transactions (should work for database simulations)
+    response = client.get(f"/simulations/{sim_id}/transactions?limit=10")
     assert response.status_code == 200
 
     data = response.json()
     assert "transactions" in data
+
+    # Should have transactions from database
+    assert len(data["transactions"]) > 0
     assert len(data["transactions"]) <= 10
 
     # Verify transaction structure
-    if data["transactions"]:
-        tx = data["transactions"][0]
-        assert "tx_id" in tx
-        assert "sender_id" in tx
-        assert "receiver_id" in tx
-        assert "amount" in tx
+    tx = data["transactions"][0]
+    assert "tx_id" in tx
+    assert "sender_id" in tx
+    assert "receiver_id" in tx
+    assert "amount" in tx
+    assert "status" in tx
+    assert "arrival_tick" in tx
 
 
 @pytest.mark.e2e
-def test_simulation_list_endpoint(simulation_database):
-    """Test that simulation list endpoint includes our simulation."""
-    from fastapi.testclient import TestClient
-    from payment_simulator.api.main import app
-
-    db_path = simulation_database["db_path"]
+def test_events_endpoint(simulation_database, api_client):
+    """Test that events endpoint returns transaction data from database."""
     sim_id = simulation_database["simulation_id"]
+    client = api_client
 
-    import os
+    # Test GET /simulations/{sim_id}/events (works for database simulations)
+    response = client.get(f"/simulations/{sim_id}/events?limit=10")
+    assert response.status_code == 200
 
-    os.environ["DATABASE_PATH"] = db_path
+    data = response.json()
+    assert "events" in data
+    assert "total" in data
+    assert data["total"] > 0
+    assert len(data["events"]) <= 10
 
-    client = TestClient(app)
+    # Verify event structure
+    if data["events"]:
+        event = data["events"][0]
+        assert "tick" in event
+        assert "event_type" in event
+        assert "tx_id" in event
+        assert "sender_id" in event
+        assert "receiver_id" in event
+
+
+@pytest.mark.e2e
+def test_simulation_list_endpoint(simulation_database, api_client):
+    """Test that simulation list endpoint includes our simulation."""
+    sim_id = simulation_database["simulation_id"]
+    client = api_client
 
     # Test GET /simulations
-    response = client.get("/api/simulations")
+    response = client.get("/simulations")
     assert response.status_code == 200
 
     data = response.json()
@@ -283,7 +308,7 @@ def test_daily_metrics_data(simulation_database):
     result = db_manager.conn.execute(
         """
         SELECT agent_id, day, opening_balance, closing_balance, 
-               transactions_sent, transactions_received
+               num_sent, num_received
         FROM daily_agent_metrics
         WHERE simulation_id = ?
         ORDER BY agent_id, day
