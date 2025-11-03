@@ -278,6 +278,61 @@ def _persist_simulation_metadata(
     log_success(f"Simulation metadata persisted (ID: {sim_id})", quiet)
 
 
+def _create_output_strategy(
+    mode: str,
+    orch: Orchestrator,
+    agent_ids: list[str],
+    ticks_per_day: int,
+    quiet: bool,
+    event_filter: Optional[EventFilter] = None,
+    total_ticks: Optional[int] = None,
+):
+    """Factory function for creating mode-specific output strategies.
+
+    This function creates the appropriate OutputStrategy implementation
+    based on the execution mode (normal, verbose, stream, event_stream).
+
+    Args:
+        mode: Execution mode ("normal", "verbose", "stream", "event_stream")
+        orch: Orchestrator instance
+        agent_ids: List of agent IDs
+        ticks_per_day: Ticks in one simulated day
+        quiet: Whether to suppress progress output
+        event_filter: Optional event filter for verbose/event_stream modes
+        total_ticks: Total number of ticks (required for normal mode)
+
+    Returns:
+        OutputStrategy implementation for the specified mode
+
+    Example:
+        >>> strategy = _create_output_strategy(
+        ...     mode="verbose",
+        ...     orch=orch,
+        ...     agent_ids=["BANK_A", "BANK_B"],
+        ...     ticks_per_day=100,
+        ...     quiet=False,
+        ...     event_filter=None
+        ... )
+    """
+    from payment_simulator.cli.execution.strategies import (
+        EventStreamModeOutput,
+        NormalModeOutput,
+        StreamModeOutput,
+        VerboseModeOutput,
+    )
+
+    if mode == "verbose":
+        return VerboseModeOutput(orch, agent_ids, ticks_per_day, event_filter)
+    elif mode == "stream":
+        return StreamModeOutput()
+    elif mode == "event_stream":
+        return EventStreamModeOutput()
+    else:  # normal mode
+        if total_ticks is None:
+            raise ValueError("total_ticks is required for normal mode")
+        return NormalModeOutput(quiet, total_ticks)
+
+
 def run_simulation(
     config: Annotated[
         Path,
@@ -532,31 +587,101 @@ def run_simulation(
                     log_info("Schema incomplete, re-initializing...", quiet)
                     db_manager.initialize_schema()
 
-            # Capture initial policy snapshots (Phase 4: Policy Snapshot Tracking)
-            log_info("Capturing initial policy snapshots...", quiet)
-            policies = orch.get_agent_policies()
-            snapshots = []
-            for policy in policies:
-                policy_json = json.dumps(policy["policy_config"], sort_keys=True)
-                policy_hash = hashlib.sha256(policy_json.encode()).hexdigest()
+            # Check if using new runner (to avoid duplicate policy snapshot persistence)
+            import os as os_module
+            use_new_runner = os_module.getenv("USE_NEW_RUNNER", "false").lower() == "true"
 
-                snapshots.append(
-                    {
-                        "simulation_id": sim_id,
-                        "agent_id": policy["agent_id"],
-                        "snapshot_day": 0,
-                        "snapshot_tick": 0,
-                        "policy_hash": policy_hash,
-                        "policy_json": policy_json,
-                        "created_by": "init",
-                    }
+            # Capture initial policy snapshots (Phase 4: Policy Snapshot Tracking)
+            # Skip if using new runner - PersistenceManager handles this
+            if not use_new_runner:
+                log_info("Capturing initial policy snapshots...", quiet)
+                policies = orch.get_agent_policies()
+                snapshots = []
+                for policy in policies:
+                    policy_json = json.dumps(policy["policy_config"], sort_keys=True)
+                    policy_hash = hashlib.sha256(policy_json.encode()).hexdigest()
+
+                    snapshots.append(
+                        {
+                            "simulation_id": sim_id,
+                            "agent_id": policy["agent_id"],
+                            "snapshot_day": 0,
+                            "snapshot_tick": 0,
+                            "policy_hash": policy_hash,
+                            "policy_json": policy_json,
+                            "created_by": "init",
+                        }
+                    )
+
+                if snapshots:
+                    policy_count = write_policy_snapshots(db_manager.conn, snapshots)
+                    log_info(f"  Persisted {policy_count} initial policy snapshots", quiet)
+
+        # ═══════════════════════════════════════════════════════════
+        # FEATURE FLAG: New Runner (Phase 2 Migration)
+        # ═══════════════════════════════════════════════════════════
+        # Check if we should use the new SimulationRunner
+        import os as os_module
+        use_new_runner = os_module.getenv("USE_NEW_RUNNER", "false").lower() == "true"
+
+        if use_new_runner and verbose:
+            # NEW IMPLEMENTATION: Use SimulationRunner with VerboseModeOutput
+            from payment_simulator.cli.execution.runner import (
+                SimulationRunner,
+                SimulationConfig as RunnerConfig,
+            )
+            from payment_simulator.cli.execution.persistence import PersistenceManager
+
+            # Create output strategy
+            agent_ids = orch.get_agent_ids()
+            output = _create_output_strategy(
+                mode="verbose",
+                orch=orch,
+                agent_ids=agent_ids,
+                ticks_per_day=ffi_dict["ticks_per_day"],
+                quiet=quiet,
+                event_filter=event_filter,
+            )
+
+            # Create persistence manager if needed
+            persistence = None
+            if persist and db_manager:
+                persistence = PersistenceManager(db_manager, sim_id, full_replay)
+
+            # Create runner config
+            runner_config = RunnerConfig(
+                total_ticks=total_ticks,
+                ticks_per_day=ffi_dict["ticks_per_day"],
+                num_days=ffi_dict["num_days"],
+                persist=persist,
+                full_replay=full_replay,
+                event_filter=event_filter,
+            )
+
+            # Run simulation via new runner
+            sim_start = time.time()
+            runner = SimulationRunner(orch, runner_config, output, persistence)
+            final_stats = runner.run()
+            sim_duration = time.time() - sim_start
+
+            # Persist final metadata
+            if persist and db_manager:
+                persistence.persist_final_metadata(
+                    config_path=config,
+                    config_dict=config_dict,
+                    ffi_dict=ffi_dict,
+                    agent_ids=agent_ids,
+                    total_arrivals=final_stats["total_arrivals"],
+                    total_settlements=final_stats["total_settlements"],
+                    total_costs=final_stats["total_costs"],
+                    duration=sim_duration,
+                    orch=orch,
                 )
 
-            if snapshots:
-                policy_count = write_policy_snapshots(db_manager.conn, snapshots)
-                log_info(f"  Persisted {policy_count} initial policy snapshots", quiet)
+            # Return early - new runner handles everything
+            return
 
-        # Run simulation
+        # Run simulation (OLD IMPLEMENTATION - kept for A/B testing)
         if verbose:
             # Verbose mode: show detailed events in real-time
             log_info(
