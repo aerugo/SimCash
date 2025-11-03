@@ -801,27 +801,113 @@ def list_transactions(
     sim_id: str,
     status: Optional[str] = None,
     agent: Optional[str] = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
 ):
     """
     List all transactions in a simulation.
 
+    For in-memory simulations: returns tracked transactions
+    For database simulations: queries transaction history
+
     Optional filters:
     - status: Filter by transaction status (pending/settled/dropped)
     - agent: Filter by sender or receiver agent ID
+    - limit: Maximum number of transactions to return
+    - offset: Number of transactions to skip
 
     Returns all tracked transactions with optional filtering.
     """
     try:
-        # Verify simulation exists
-        orch = manager.get_simulation(sim_id)
+        # Check if simulation exists in memory
+        if sim_id in manager.simulations:
+            # In-memory simulation - use manager
+            transactions = manager.list_transactions(sim_id, status=status, agent=agent)
+            return TransactionListResponse(transactions=transactions)
 
-        # Get filtered transactions
-        transactions = manager.list_transactions(sim_id, status=status, agent=agent)
+        # Not in memory, try database
+        if not manager.db_manager:
+            raise HTTPException(
+                status_code=404, detail=f"Simulation not found: {sim_id}"
+            )
+
+        conn = manager.db_manager.get_connection()
+
+        # Build query with filters
+        where_clauses = ["simulation_id = ?"]
+        params = [sim_id]
+
+        if status:
+            where_clauses.append("status = ?")
+            params.append(status)
+
+        if agent:
+            where_clauses.append("(sender_id = ? OR receiver_id = ?)")
+            params.extend([agent, agent])
+
+        where_sql = " AND ".join(where_clauses)
+
+        # Get transactions from database
+        query = f"""
+            SELECT
+                tx_id,
+                sender_id,
+                receiver_id,
+                amount,
+                priority,
+                arrival_tick,
+                deadline_tick,
+                settlement_tick,
+                status,
+                delay_cost,
+                parent_tx_id,
+                split_index
+            FROM transactions
+            WHERE {where_sql}
+            ORDER BY arrival_tick DESC, tx_id
+            LIMIT ? OFFSET ?
+        """
+
+        params.extend([limit, offset])
+        results = conn.execute(query, params).fetchall()
+
+        if not results and offset == 0:
+            # No transactions at all - simulation might not exist
+            # Verify simulation exists
+            sim_check = conn.execute(
+                "SELECT COUNT(*) FROM simulations WHERE simulation_id = ?", [sim_id]
+            ).fetchone()
+
+            if not sim_check or sim_check[0] == 0:
+                raise HTTPException(
+                    status_code=404, detail=f"Simulation not found: {sim_id}"
+                )
+
+        transactions = []
+        for row in results:
+            tx_dict = {
+                "tx_id": str(row[0]),
+                "transaction_id": str(row[0]),  # Alias for compatibility
+                "sender": str(row[1]),
+                "sender_id": str(row[1]),  # Alias for compatibility
+                "receiver": str(row[2]),
+                "receiver_id": str(row[2]),  # Alias for compatibility
+                "amount": int(row[3]),
+                "priority": int(row[4]),
+                "arrival_tick": int(row[5]),
+                "deadline_tick": int(row[6]),
+                "settlement_tick": int(row[7]) if row[7] is not None else None,
+                "status": str(row[8]),
+                "delay_cost": int(row[9]) if row[9] else 0,
+                "parent_tx_id": str(row[10]) if row[10] else None,
+                "split_index": int(row[11]) if row[11] is not None else None,
+            }
+            transactions.append(tx_dict)
 
         return TransactionListResponse(transactions=transactions)
 
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
