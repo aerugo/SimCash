@@ -57,3 +57,4 @@ htmlcov/
 
 # Node modules
 node_modules/
+*.bak
