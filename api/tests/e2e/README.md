@@ -195,3 +195,174 @@ The tests verify:
 - ✅ Settlement rates are realistic (0-100%)
 - ✅ Configuration is persisted correctly (seed 42, etc.)
 - ✅ API responses match expected schema
+
+## CLI Usage Examples
+
+The payment simulator CLI provides powerful event filtering and display modes for analyzing simulations.
+
+### Basic Usage
+
+```bash
+# Run simulation with default output (JSON summary)
+payment-sim run --config ../examples/configs/12_bank_4_policy_comparison.yaml --ticks 100
+
+# Quiet mode (suppress logs, JSON only)
+payment-sim run --config scenario.yaml --quiet --ticks 50
+```
+
+### Verbose Mode (Categorized Events)
+
+Shows detailed events grouped by category (arrivals, policies, settlements, etc.):
+
+```bash
+# Verbose mode with all events
+payment-sim run --config scenario.yaml --verbose --ticks 100
+
+# Verbose mode with persistence
+payment-sim run --config scenario.yaml --verbose --persist --ticks 100
+```
+
+### Event Stream Mode (Chronological Display)
+
+Shows events in strict chronological order with compact one-line format:
+
+```bash
+# Event stream mode
+payment-sim run --config scenario.yaml --event-stream --ticks 50
+
+# Event stream with persistence
+payment-sim run --config scenario.yaml --event-stream --persist --ticks 100
+```
+
+### Event Filtering
+
+Filter events by type, agent, transaction, or tick range. **Filters require `--verbose` or `--event-stream` mode**.
+
+#### Filter by Event Type
+
+Show only specific event types (comma-separated):
+
+```bash
+# Show only Arrival events
+payment-sim run --config scenario.yaml --event-stream --filter-event-type Arrival
+
+# Show Arrivals and Settlements
+payment-sim run --config scenario.yaml --event-stream --filter-event-type "Arrival,Settlement"
+
+# Show policy decisions
+payment-sim run --config scenario.yaml --verbose --filter-event-type "PolicySubmit,PolicyHold,PolicyDrop"
+```
+
+Available event types:
+- Transaction lifecycle: `Arrival`, `Settlement`, `QueuedRtgs`
+- Policy decisions: `PolicySubmit`, `PolicyHold`, `PolicyDrop`, `PolicySplit`
+- LSM optimization: `LsmBilateralOffset`, `LsmCycleSettlement`
+- Collateral: `CollateralPost`, `CollateralWithdraw`
+- Cost tracking: `CostAccrual`
+- System: `EndOfDay`
+
+#### Filter by Agent
+
+Show only events involving a specific agent:
+
+```bash
+# Show all events from ALM_CONSERVATIVE
+payment-sim run --config scenario.yaml --verbose --filter-agent ALM_CONSERVATIVE
+
+# Show events from BANK_A
+payment-sim run --config scenario.yaml --event-stream --filter-agent BANK_A
+```
+
+Agent filter matches both:
+- `agent_id` field (policy events)
+- `sender_id` field (transaction events)
+
+#### Filter by Transaction
+
+Show events for a specific transaction ID:
+
+```bash
+# Track a specific transaction (you'll need the actual tx_id from output)
+payment-sim run --config scenario.yaml --event-stream --filter-tx "abc123def456"
+```
+
+#### Filter by Tick Range
+
+Show events within a specific tick range:
+
+```bash
+# Show events from tick 10 to 50
+payment-sim run --config scenario.yaml --event-stream --filter-tick-range "10-50"
+
+# Show events from tick 20 onwards
+payment-sim run --config scenario.yaml --event-stream --filter-tick-range "20-"
+
+# Show events up to tick 30
+payment-sim run --config scenario.yaml --event-stream --filter-tick-range "-30"
+```
+
+### Combining Filters (AND Logic)
+
+All filters use AND logic - events must match ALL specified criteria:
+
+```bash
+# Show Arrivals and Settlements from ALM_CONSERVATIVE in ticks 10-50
+payment-sim run --config scenario.yaml --event-stream \
+  --filter-event-type "Arrival,Settlement" \
+  --filter-agent ALM_CONSERVATIVE \
+  --filter-tick-range "10-50"
+
+# Show only Policy decisions from BANK_A in first 20 ticks
+payment-sim run --config scenario.yaml --verbose \
+  --filter-event-type "PolicySubmit,PolicyHold,PolicyDrop" \
+  --filter-agent BANK_A \
+  --filter-tick-range "-20"
+```
+
+### Common Use Cases
+
+#### Debugging a Specific Agent's Behavior
+
+```bash
+# See all events for a specific agent
+payment-sim run --config scenario.yaml --event-stream \
+  --filter-agent ALM_AGGRESSIVE \
+  --ticks 100
+```
+
+#### Analyzing Settlement Patterns
+
+```bash
+# Focus on settlements and queueing
+payment-sim run --config scenario.yaml --event-stream \
+  --filter-event-type "Settlement,QueuedRtgs" \
+  --ticks 100
+```
+
+#### Understanding Policy Decisions
+
+```bash
+# See all policy decisions in verbose mode
+payment-sim run --config scenario.yaml --verbose \
+  --filter-event-type "PolicySubmit,PolicyHold,PolicyDrop,PolicySplit" \
+  --ticks 50
+```
+
+#### Monitoring Early Tick Behavior
+
+```bash
+# Focus on first 20 ticks
+payment-sim run --config scenario.yaml --event-stream \
+  --filter-tick-range "-20"
+```
+
+### Error Handling
+
+```bash
+# ❌ Filters require --verbose or --event-stream
+payment-sim run --config scenario.yaml --filter-event-type Arrival
+# Error: Event filters (--filter-*) require either --verbose or --event-stream mode
+
+# ✅ Correct: Include --event-stream
+payment-sim run --config scenario.yaml --event-stream --filter-event-type Arrival
+```
