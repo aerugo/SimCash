@@ -402,10 +402,37 @@ The foundation implementation validated several critical design choices:
 - ✅ Commands: `run <scenario.yaml>` with full execution
 - ✅ Pretty-printed output (settlement stats, cost breakdowns)
 - ✅ Config file support (YAML scenario loading)
-- ✅ Verbose mode for detailed execution logging
+- ✅ Verbose mode for detailed execution logging (categorized events)
+- ✅ Event stream mode (`--event-stream`) for chronological one-line display
+- ✅ Event filtering (4 filter types with AND logic):
+  - `--filter-event-type`: Comma-separated event types (e.g., "Arrival,Settlement")
+  - `--filter-agent`: Filter by agent ID (matches agent_id or sender_id)
+  - `--filter-tx`: Filter by transaction ID
+  - `--filter-tick-range`: Filter by tick range ("min-max", "min-", or "-max")
 - ✅ Large-scale scenarios tested (200 agents, 100 ticks)
 
 **Performance**: 1,200 ticks/second, 8 seconds for 200-agent scenarios
+
+**Usage Examples**:
+```bash
+# Verbose mode with all event types
+payment-sim run --config scenario.yaml --verbose --ticks 100
+
+# Event stream mode (chronological, one-line format)
+payment-sim run --config scenario.yaml --event-stream --ticks 50
+
+# Filter to show only Arrival events
+payment-sim run --config scenario.yaml --event-stream --filter-event-type Arrival
+
+# Filter by specific agent
+payment-sim run --config scenario.yaml --verbose --filter-agent BANK_A
+
+# Combine multiple filters (AND logic)
+payment-sim run --config scenario.yaml --event-stream \
+  --filter-event-type "Arrival,Settlement" \
+  --filter-agent BANK_A \
+  --filter-tick-range "10-50"
+```
 
 #### Integration Testing ✅
 **Status**: Complete
