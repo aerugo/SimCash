@@ -1,0 +1,55 @@
+-- Migration 003: Add simulation_events table for comprehensive event timeline
+-- Created: 2025-11-03
+-- Purpose: Store all simulation events for event timeline feature
+--
+-- This migration adds the simulation_events table to support comprehensive
+-- event timeline functionality as specified in:
+-- docs/plans/event-timeline-enhancement.md Phase 2
+--
+-- The table stores events of all types:
+-- - Transaction lifecycle (Arrival, PolicySubmit, PolicyHold, Settlement, etc.)
+-- - Collateral events (CollateralPost, CollateralWithdraw)
+-- - LSM events (LsmBilateralOffset, LsmCycleSettlement)
+-- - Cost events (CostAccrual)
+-- - System events (EndOfDay)
+--
+-- Schema is defined by SimulationEventRecord Pydantic model in:
+-- api/payment_simulator/persistence/models.py
+--
+-- Note: Like previous migrations, this migration may be a no-op if the schema
+-- was already initialized with the new model. DuckDB doesn't support conditional
+-- DDL (IF NOT EXISTS for ALTER TABLE), so the table will be created automatically
+-- by initialize_schema() from the Pydantic model.
+--
+-- In production workflow:
+-- 1. Add the SimulationEventRecord model to models.py
+-- 2. Run DatabaseManager.setup() which calls initialize_schema()
+-- 3. The table and indexes are created automatically from the model
+--
+-- This migration file serves as documentation of the schema change and ensures
+-- the migration is tracked in the migrations log.
+
+-- DO NOTHING
+-- The simulation_events table will be created by initialize_schema() from the model.
+-- Indexes will be created automatically based on model_config.indexes
+
+-- Schema (for reference):
+-- CREATE TABLE simulation_events (
+--     event_id VARCHAR PRIMARY KEY,
+--     simulation_id VARCHAR NOT NULL,
+--     tick INTEGER NOT NULL CHECK (tick >= 0),
+--     day INTEGER NOT NULL CHECK (day >= 0),
+--     event_timestamp TIMESTAMP NOT NULL,
+--     event_type VARCHAR NOT NULL,
+--     details VARCHAR NOT NULL,  -- JSON-encoded
+--     agent_id VARCHAR,          -- NULL for system events
+--     tx_id VARCHAR,             -- NULL for non-transaction events
+--     created_at TIMESTAMP NOT NULL
+-- );
+--
+-- CREATE INDEX idx_sim_events_sim_tick ON simulation_events(simulation_id, tick);
+-- CREATE INDEX idx_sim_events_sim_agent ON simulation_events(simulation_id, agent_id);
+-- CREATE INDEX idx_sim_events_sim_tx ON simulation_events(simulation_id, tx_id);
+-- CREATE INDEX idx_sim_events_sim_type ON simulation_events(simulation_id, event_type);
+-- CREATE INDEX idx_sim_events_sim_day ON simulation_events(simulation_id, day);
+-- CREATE INDEX idx_sim_events_composite ON simulation_events(simulation_id, tick, event_type);

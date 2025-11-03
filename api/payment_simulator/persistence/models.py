@@ -630,3 +630,68 @@ class TickQueueSnapshotRecord(BaseModel):
     queue_type: str = Field(..., description="Queue type: queue1 or rtgs")
     position: int = Field(..., description="Position in queue (0-indexed)", ge=0)
     tx_id: str = Field(..., description="Transaction ID at this position")
+
+
+# ============================================================================
+# Simulation Event Record (Phase 2: Event Timeline Enhancement)
+# ============================================================================
+
+
+class SimulationEventRecord(BaseModel):
+    """Comprehensive event record for simulation timeline.
+
+    This model defines the schema for the simulation_events table.
+    Stores all events that occur during simulation execution for complete
+    event timeline functionality.
+
+    Per docs/plans/event-timeline-enhancement.md Phase 2:
+    - Captures all event types (arrival, policy, settlement, LSM, collateral, etc.)
+    - Supports filtering by tick, day, agent_id, tx_id, event_type
+    - Event details stored as JSON for flexibility
+    """
+
+    model_config = ConfigDict(
+        table_name="simulation_events",
+        primary_key=["event_id"],
+        indexes=[
+            ("idx_sim_events_sim_tick", ["simulation_id", "tick"]),
+            ("idx_sim_events_sim_agent", ["simulation_id", "agent_id"]),
+            ("idx_sim_events_sim_tx", ["simulation_id", "tx_id"]),
+            ("idx_sim_events_sim_type", ["simulation_id", "event_type"]),
+            ("idx_sim_events_sim_day", ["simulation_id", "day"]),
+            ("idx_sim_events_composite", ["simulation_id", "tick", "event_type"]),
+        ],
+    )
+
+    # Core identifiers
+    event_id: str = Field(..., description="Unique event identifier (UUID)")
+    simulation_id: str = Field(..., description="Foreign key to simulations table")
+
+    # Temporal information
+    tick: int = Field(..., description="Tick when event occurred", ge=0)
+    day: int = Field(..., description="Day when event occurred", ge=0)
+    event_timestamp: datetime = Field(
+        ..., description="Timestamp when event was created"
+    )
+
+    # Event classification
+    event_type: str = Field(
+        ...,
+        description="Event type (e.g., Arrival, PolicySubmit, Settlement, etc.)",
+    )
+
+    # Event details (JSON)
+    details: str = Field(
+        ..., description="JSON-encoded event-specific details"
+    )
+
+    # Optional filters for efficient querying
+    agent_id: Optional[str] = Field(
+        None, description="Agent ID if event relates to specific agent"
+    )
+    tx_id: Optional[str] = Field(
+        None, description="Transaction ID if event relates to specific transaction"
+    )
+
+    # Metadata
+    created_at: datetime = Field(..., description="When record was created")
