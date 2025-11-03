@@ -213,6 +213,136 @@ def log_tick_summary(arrivals: int, settlements: int, lsm: int, queued: int):
 
 
 # ============================================================================
+# Event Stream Mode - Chronological One-Line Event Display
+# ============================================================================
+
+def log_event_chronological(event: dict, tick: int, quiet: bool = False):
+    """Log a single event in compact one-line chronological format.
+
+    Designed for --event-stream mode where events are shown in strict chronological
+    order without categorization.
+
+    Args:
+        event: Event dict from get_tick_events()
+        tick: Tick number
+        quiet: Suppress output if True
+
+    Example Output:
+        [Tick 42] Arrival: TX a1b2c3d4 | BANK_A → BANK_B | $1,000.00
+        [Tick 42] PolicySubmit: BANK_A | TX a1b2c3d4
+        [Tick 42] Settlement: TX a1b2c3d4 | BANK_A → BANK_B | $1,000.00
+    """
+    if quiet:
+        return
+
+    event_type = event.get("event_type", "Unknown")
+    tx_id_short = event.get("tx_id", "")[:8] if event.get("tx_id") else ""
+
+    # Format based on event type
+    if event_type == "Arrival":
+        sender = event.get("sender_id", "?")
+        receiver = event.get("receiver_id", "?")
+        amount = event.get("amount", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] Arrival: TX {tx_id_short} | "
+            f"{sender} → {receiver} | ${amount / 100:,.2f}"
+        )
+
+    elif event_type == "PolicySubmit":
+        agent = event.get("agent_id", "?")
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [green]PolicySubmit[/green]: {agent} | TX {tx_id_short}"
+        )
+
+    elif event_type == "PolicyHold":
+        agent = event.get("agent_id", "?")
+        reason = event.get("reason", "")
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [yellow]PolicyHold[/yellow]: {agent} | TX {tx_id_short} - {reason}"
+        )
+
+    elif event_type == "PolicyDrop":
+        agent = event.get("agent_id", "?")
+        reason = event.get("reason", "")
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [red]PolicyDrop[/red]: {agent} | TX {tx_id_short} - {reason}"
+        )
+
+    elif event_type == "PolicySplit":
+        agent = event.get("agent_id", "?")
+        num_splits = event.get("num_splits", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [magenta]PolicySplit[/magenta]: {agent} | TX {tx_id_short} → {num_splits} children"
+        )
+
+    elif event_type == "Settlement":
+        sender = event.get("sender_id", "?")
+        receiver = event.get("receiver_id", "?")
+        amount = event.get("amount", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [green]Settlement[/green]: TX {tx_id_short} | "
+            f"{sender} → {receiver} | ${amount / 100:,.2f}"
+        )
+
+    elif event_type == "QueuedRtgs":
+        sender = event.get("sender_id", "?")
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [yellow]QueuedRtgs[/yellow]: TX {tx_id_short} | {sender}"
+        )
+
+    elif event_type == "LsmBilateralOffset":
+        tx_a = event.get("tx_id_a", "")[:8]
+        tx_b = event.get("tx_id_b", "")[:8]
+        amount = event.get("amount", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [magenta]LSM-Bilateral[/magenta]: TX {tx_a} ⟷ TX {tx_b} | ${amount / 100:,.2f}"
+        )
+
+    elif event_type == "LsmCycleSettlement":
+        tx_ids = event.get("tx_ids", [])
+        cycle_value = event.get("cycle_value", 0)
+        tx_count = len(tx_ids)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [magenta]LSM-Cycle[/magenta]: {tx_count} txs | ${cycle_value / 100:,.2f}"
+        )
+
+    elif event_type == "CollateralPost":
+        agent = event.get("agent_id", "?")
+        amount = event.get("amount", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [yellow]CollateralPost[/yellow]: {agent} | ${amount / 100:,.2f}"
+        )
+
+    elif event_type == "CollateralWithdraw":
+        agent = event.get("agent_id", "?")
+        amount = event.get("amount", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [yellow]CollateralWithdraw[/yellow]: {agent} | ${amount / 100:,.2f}"
+        )
+
+    elif event_type == "CostAccrual":
+        agent = event.get("agent_id", "?")
+        costs = event.get("costs", {})
+        total = costs.get("total", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [yellow]CostAccrual[/yellow]: {agent} | ${total / 100:,.2f}"
+        )
+
+    elif event_type == "EndOfDay":
+        day = event.get("day", 0)
+        unsettled = event.get("unsettled_count", 0)
+        penalties = event.get("total_penalties", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [bold cyan]EndOfDay[/bold cyan]: Day {day} | "
+            f"{unsettled} unsettled | ${penalties / 100:,.2f} penalties"
+        )
+
+    else:
+        # Generic fallback for unknown event types
+        console.print(f"[cyan][Tick {tick}][/cyan] {event_type}: {event}")
+
+
+# ============================================================================
 # Enhanced Verbose Mode - Detailed Transaction/Event Logging
 # ============================================================================
 
@@ -647,6 +777,130 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
         if costs.get("split_friction_cost", 0) > 0:
             console.print(f"   • Split: ${costs['split_friction_cost'] / 100:,.2f}")
 
+        console.print()
+
+
+def log_queued_rtgs(events, quiet=False):
+    """Log transactions entering Queue 2 (RTGS central queue) (verbose mode).
+
+    Shows when transactions are queued in the RTGS system due to insufficient
+    liquidity for immediate settlement.
+
+    Args:
+        events: List of events from get_tick_events()
+        quiet: Suppress output if True
+
+    Example Output:
+        📋 2 transaction(s) queued in RTGS:
+           • TX a1b2c3d4: BANK_A → BANK_B | $1,000.00 | Insufficient balance
+           • TX e5f6g7h8: BANK_C → BANK_D | $500.00 | Insufficient balance
+    """
+    if quiet:
+        return
+
+    queued_events = [e for e in events if e.get("event_type") == "QueuedRtgs"]
+    if not queued_events:
+        return
+
+    console.print()
+    console.print(f"📋 [yellow]{len(queued_events)} transaction(s) queued in RTGS:[/yellow]")
+
+    for event in queued_events:
+        tx_id = event.get("tx_id", "unknown")[:8]
+        sender_id = event.get("sender_id", "unknown")
+        # Note: QueuedRtgs event doesn't include receiver/amount in current Rust implementation
+        # We'd need to query the transaction details for full info
+        console.print(f"   • TX {tx_id}: {sender_id} | Insufficient balance")
+
+    console.print()
+
+
+def log_cost_accrual_events(events, quiet=False):
+    """Log individual cost accrual events (verbose mode).
+
+    Shows when costs are accrued by agents in real-time, providing visibility
+    into the cost accumulation process beyond just the aggregated breakdown.
+
+    Args:
+        events: List of events from get_tick_events()
+        quiet: Suppress output if True
+
+    Example Output:
+        💰 Cost Accruals (3):
+           BANK_A: $12.50
+           • Liquidity: $8.00 | Delay: $4.50
+
+           BANK_B: $25.00
+           • Delay: $25.00
+    """
+    if quiet:
+        return
+
+    cost_events = [e for e in events if e.get("event_type") == "CostAccrual"]
+    if not cost_events:
+        return
+
+    console.print()
+    console.print(f"💰 [yellow]Cost Accruals ({len(cost_events)}):[/yellow]")
+
+    for event in cost_events:
+        agent_id = event.get("agent_id", "unknown")
+        costs = event.get("costs", {})
+
+        # Calculate total from components
+        total = costs.get("total", 0)
+
+        console.print(f"   {agent_id}: ${total / 100:,.2f}")
+
+        # Show non-zero cost components
+        components = []
+        if costs.get("liquidity_cost", 0) > 0:
+            components.append(f"Liquidity: ${costs['liquidity_cost'] / 100:,.2f}")
+        if costs.get("delay_cost", 0) > 0:
+            components.append(f"Delay: ${costs['delay_cost'] / 100:,.2f}")
+        if costs.get("collateral_cost", 0) > 0:
+            components.append(f"Collateral: ${costs['collateral_cost'] / 100:,.2f}")
+        if costs.get("penalty_cost", 0) > 0:
+            components.append(f"Penalty: ${costs['penalty_cost'] / 100:,.2f}")
+        if costs.get("split_friction_cost", 0) > 0:
+            components.append(f"Split: ${costs['split_friction_cost'] / 100:,.2f}")
+
+        if components:
+            console.print(f"   • {' | '.join(components)}")
+        console.print()
+
+
+def log_end_of_day_event(events, quiet=False):
+    """Log structured EndOfDay event (verbose mode).
+
+    Shows the EndOfDay event as a structured notification before the detailed
+    end-of-day summary statistics.
+
+    Args:
+        events: List of events from get_tick_events()
+        quiet: Suppress output if True
+
+    Example Output:
+        🌙 End of Day 0 - 95 settled, 5 unsettled, $125.50 in penalties
+    """
+    if quiet:
+        return
+
+    eod_events = [e for e in events if e.get("event_type") == "EndOfDay"]
+    if not eod_events:
+        return
+
+    for event in eod_events:
+        day = event.get("day", 0)
+        unsettled_count = event.get("unsettled_count", 0)
+        total_penalties = event.get("total_penalties", 0)
+
+        console.print()
+        console.print(
+            f"🌙 [cyan]End of Day {day}[/cyan] - "
+            f"{unsettled_count} unsettled, "
+            f"${total_penalties / 100:,.2f} in penalties"
+        )
         console.print()
 
 
