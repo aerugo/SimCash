@@ -512,3 +512,256 @@ class TestModeSpecificOutput:
             assert data["tick"] == i
             assert "arrivals" in data
             assert "settlements" in data
+
+
+class TestCharacterizationForRefactoring:
+    """Characterization tests to ensure refactoring preserves behavior.
+
+    These tests document current behavior (including bugs) before refactoring.
+    Some tests will FAIL initially, documenting bugs that refactoring will fix.
+    """
+
+    def test_event_stream_mode_persists_simulation_metadata(self, config_with_arrivals, db_path):
+        """Event stream mode should persist simulation metadata (will FAIL - documents bug)."""
+        sim_id = "test-event-stream-metadata"
+
+        with patch('sys.stdout', new_callable=StringIO):
+            try:
+                run_simulation(
+                    config=config_with_arrivals,
+                    ticks=None,
+                    seed=None,
+                    quiet=True,
+                    output_format="json",
+                    stream=False,
+                    verbose=False,
+                    event_stream=True,
+                    persist=True,
+                    db_path=str(db_path),
+                    simulation_id=sim_id,
+                )
+            except SystemExit:
+                pass
+
+        # Verify simulation metadata was persisted
+        db = DatabaseManager(str(db_path))
+        sim_count = db.conn.execute(
+            "SELECT COUNT(*) FROM simulations WHERE simulation_id = ?",
+            [sim_id]
+        ).fetchone()[0]
+
+        assert sim_count == 1, "Event stream mode should persist simulation metadata"
+
+        # Verify simulation_runs record exists
+        runs_count = db.conn.execute(
+            "SELECT COUNT(*) FROM simulation_runs WHERE simulation_id = ?",
+            [sim_id]
+        ).fetchone()[0]
+        assert runs_count == 1, "Event stream mode should persist simulation_runs record"
+
+    def test_event_stream_mode_persists_eod_data(self, config_with_arrivals, db_path):
+        """Event stream mode should persist EOD data (will FAIL - documents bug)."""
+        sim_id = "test-event-stream-eod"
+
+        with patch('sys.stdout', new_callable=StringIO):
+            try:
+                run_simulation(
+                    config=config_with_arrivals,
+                    ticks=None,
+                    seed=None,
+                    quiet=True,
+                    output_format="json",
+                    stream=False,
+                    verbose=False,
+                    event_stream=True,
+                    persist=True,
+                    db_path=str(db_path),
+                    simulation_id=sim_id,
+                )
+            except SystemExit:
+                pass
+
+        # Verify EOD data was persisted
+        db = DatabaseManager(str(db_path))
+
+        # Should have transactions
+        tx_count = db.conn.execute(
+            "SELECT COUNT(*) FROM transactions WHERE simulation_id = ?",
+            [sim_id]
+        ).fetchone()[0]
+        assert tx_count > 0, "Event stream mode should persist transactions at EOD"
+
+        # Should have daily agent metrics (2 days * 2 agents = 4 records)
+        metrics_count = db.conn.execute(
+            "SELECT COUNT(*) FROM daily_agent_metrics WHERE simulation_id = ?",
+            [sim_id]
+        ).fetchone()[0]
+        assert metrics_count == 4, f"Event stream mode should persist daily metrics at EOD, got {metrics_count}"
+
+    def test_full_replay_mode_captures_tick_data(self, config_with_arrivals, db_path):
+        """Full replay mode should capture per-tick agent states and policy decisions."""
+        sim_id = "test-full-replay"
+
+        with patch('sys.stdout', new_callable=StringIO):
+            try:
+                run_simulation(
+                    config=config_with_arrivals,
+                    ticks=None,
+                    seed=None,
+                    quiet=False,
+                    output_format="json",
+                    stream=False,
+                    verbose=True,  # full_replay requires verbose mode
+                    event_stream=False,
+                    persist=True,
+                    full_replay=True,
+                    db_path=str(db_path),
+                    simulation_id=sim_id,
+                )
+            except SystemExit:
+                pass
+
+        db = DatabaseManager(str(db_path))
+
+        # Should have policy decisions
+        policy_count = db.conn.execute(
+            "SELECT COUNT(*) FROM policy_decisions WHERE simulation_id = ?",
+            [sim_id]
+        ).fetchone()[0]
+        assert policy_count > 0, "Full replay should capture policy decisions"
+
+        # Should have tick agent states (20 ticks * 2 agents = 40 records)
+        states_count = db.conn.execute(
+            "SELECT COUNT(*) FROM tick_agent_states WHERE simulation_id = ?",
+            [sim_id]
+        ).fetchone()[0]
+        assert states_count == 40, f"Full replay should capture tick agent states (expected 40, got {states_count})"
+
+        # May or may not have queue snapshots depending on simulation
+        # (not asserting specific count, just that table exists and is accessible)
+        queue_count = db.conn.execute(
+            "SELECT COUNT(*) FROM tick_queue_snapshots WHERE simulation_id = ?",
+            [sim_id]
+        ).fetchone()[0]
+        assert queue_count >= 0, "Full replay should have tick_queue_snapshots table"
+
+    def test_all_modes_persist_policy_snapshots_at_init(self, config_with_arrivals, tmp_path):
+        """All modes should persist initial policy snapshots at t=0."""
+        modes = [
+            ("normal", False, False, False),
+            ("verbose", False, True, False),
+            ("stream", True, False, False),
+            ("event_stream", False, False, True),
+        ]
+
+        for mode_name, is_stream, is_verbose, is_event_stream in modes:
+            db_path = tmp_path / f"{mode_name}.db"
+            sim_id = f"test-{mode_name}-init"
+
+            with patch('sys.stdout', new_callable=StringIO):
+                try:
+                    run_simulation(
+                        config=config_with_arrivals,
+                        ticks=10,  # Short run
+                        seed=42,
+                        quiet=True,
+                        output_format="json",
+                        stream=is_stream,
+                        verbose=is_verbose,
+                        event_stream=is_event_stream,
+                        persist=True,
+                        db_path=str(db_path),
+                        simulation_id=sim_id,
+                    )
+                except SystemExit:
+                    pass
+
+            # Verify policy snapshots were persisted
+            db = DatabaseManager(str(db_path))
+            snapshot_count = db.conn.execute(
+                "SELECT COUNT(*) FROM policy_snapshots WHERE simulation_id = ? AND snapshot_day = 0 AND snapshot_tick = 0",
+                [sim_id]
+            ).fetchone()[0]
+
+            assert snapshot_count == 2, f"{mode_name} mode should persist 2 initial policy snapshots, got {snapshot_count}"
+
+    def test_all_modes_detect_eod_at_correct_ticks(self, config_with_arrivals, tmp_path):
+        """All modes should detect EOD at exactly the right tick boundaries."""
+        # Config has 10 ticks_per_day, 2 days = EOD at ticks 9 and 19
+        modes = [
+            ("normal", False, False, False),
+            ("verbose", False, True, False),
+            ("stream", True, False, False),
+            # event_stream mode doesn't have EOD persistence in current code (bug)
+        ]
+
+        for mode_name, is_stream, is_verbose, is_event_stream in modes:
+            db_path = tmp_path / f"{mode_name}_eod.db"
+            sim_id = f"test-{mode_name}-eod"
+
+            with patch('sys.stdout', new_callable=StringIO):
+                try:
+                    run_simulation(
+                        config=config_with_arrivals,
+                        ticks=None,  # Full run (20 ticks)
+                        seed=42,
+                        quiet=True,
+                        output_format="json",
+                        stream=is_stream,
+                        verbose=is_verbose,
+                        event_stream=is_event_stream,
+                        persist=True,
+                        db_path=str(db_path),
+                        simulation_id=sim_id,
+                    )
+                except SystemExit:
+                    pass
+
+            # Verify daily agent metrics were persisted for exactly 2 days
+            db = DatabaseManager(str(db_path))
+            metrics_count = db.conn.execute(
+                "SELECT COUNT(*) FROM daily_agent_metrics WHERE simulation_id = ?",
+                [sim_id]
+            ).fetchone()[0]
+
+            # 2 agents * 2 days = 4 records
+            assert metrics_count == 4, f"{mode_name} mode should persist metrics for 2 days (got {metrics_count} records)"
+
+            # Verify metrics exist for day 0 and day 1
+            day_0_count = db.conn.execute(
+                "SELECT COUNT(*) FROM daily_agent_metrics WHERE simulation_id = ? AND day = 0",
+                [sim_id]
+            ).fetchone()[0]
+            day_1_count = db.conn.execute(
+                "SELECT COUNT(*) FROM daily_agent_metrics WHERE simulation_id = ? AND day = 1",
+                [sim_id]
+            ).fetchone()[0]
+
+            assert day_0_count == 2, f"{mode_name} mode should have 2 metrics for day 0"
+            assert day_1_count == 2, f"{mode_name} mode should have 2 metrics for day 1"
+
+    def test_event_stream_mode_with_filters_works(self, config_with_arrivals, tmp_path):
+        """Event stream mode with event filters should complete successfully."""
+        with patch('sys.stdout', new_callable=StringIO):
+            try:
+                run_simulation(
+                    config=config_with_arrivals,
+                    ticks=10,
+                    seed=42,
+                    quiet=True,
+                    output_format="json",
+                    stream=False,
+                    verbose=False,
+                    event_stream=True,
+                    persist=False,
+                    db_path=str(tmp_path / "unused.db"),
+                    simulation_id=None,
+                    filter_event_type="Settlement",
+                    filter_agent=None,
+                    filter_tx=None,
+                    filter_tick_range=None,
+                )
+            except SystemExit:
+                pass
+
+        # If we get here without exception, mode works with filters
