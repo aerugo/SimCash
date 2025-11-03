@@ -196,11 +196,14 @@ class SimulationRunner:
         # Calculate duration
         duration = time.time() - start_time
 
-        # Persist final metadata
-        if self.persistence:
-            # Note: These parameters would be passed via config in real implementation
-            # For now, this is a placeholder showing the interface
-            pass  # Will be implemented when integrating with run.py
+        # NOTE: Final metadata persistence (simulation record, config hash, etc.)
+        # is intentionally handled by the CALLER after run() completes.
+        # This maintains separation of concerns:
+        #   - SimulationRunner: Executes simulation, returns statistics
+        #   - Caller: Handles metadata persistence using returned statistics
+        #
+        # The caller should call persistence.persist_final_metadata() if needed.
+        # See run.py for the reference implementation.
 
         # Get final statistics
         final_stats = self.stats.to_dict()
