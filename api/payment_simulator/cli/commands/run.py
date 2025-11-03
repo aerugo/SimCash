@@ -1101,6 +1101,63 @@ def run_simulation(
                     quiet=True,
                 )
 
+        elif use_new_runner and event_stream:
+            # NEW IMPLEMENTATION: Use SimulationRunner with EventStreamModeOutput
+            from payment_simulator.cli.execution.runner import (
+                SimulationRunner,
+                SimulationConfig as RunnerConfig,
+            )
+            from payment_simulator.cli.execution.persistence import PersistenceManager
+
+            # Create output strategy
+            agent_ids = orch.get_agent_ids()
+            output = _create_output_strategy(
+                mode="event_stream",
+                orch=orch,
+                agent_ids=agent_ids,
+                ticks_per_day=ffi_dict["ticks_per_day"],
+                quiet=quiet,
+                event_filter=event_filter,
+            )
+
+            # Create persistence manager if needed
+            persistence = None
+            if persist and db_manager:
+                persistence = PersistenceManager(db_manager, sim_id, False)  # event_stream: no full_replay
+
+            # Create runner config
+            runner_config = RunnerConfig(
+                total_ticks=total_ticks,
+                ticks_per_day=ffi_dict["ticks_per_day"],
+                num_days=ffi_dict["num_days"],
+                persist=persist,
+                full_replay=False,
+                event_filter=event_filter,
+            )
+
+            # Run simulation via new runner
+            sim_start = time.time()
+            runner = SimulationRunner(orch, runner_config, output, persistence)
+            final_stats = runner.run()
+            sim_duration = time.time() - sim_start
+
+            # Persist final metadata
+            if persist and db_manager:
+                persistence.persist_final_metadata(
+                    config_path=config,
+                    config_dict=config_dict,
+                    ffi_dict=ffi_dict,
+                    agent_ids=agent_ids,
+                    total_arrivals=final_stats["total_arrivals"],
+                    total_settlements=final_stats["total_settlements"],
+                    total_costs=final_stats["total_costs"],
+                    duration=sim_duration,
+                    orch=orch,
+                )
+
+            # Return early - new runner handles everything (final JSON already output)
+            return
+
         elif event_stream:
             # Event stream mode: show events chronologically (one-line format)
             log_info(
@@ -1212,6 +1269,63 @@ def run_simulation(
             # Output final JSON
             output_json(output_data)
 
+        elif use_new_runner and stream:
+            # NEW IMPLEMENTATION: Use SimulationRunner with StreamModeOutput
+            from payment_simulator.cli.execution.runner import (
+                SimulationRunner,
+                SimulationConfig as RunnerConfig,
+            )
+            from payment_simulator.cli.execution.persistence import PersistenceManager
+
+            # Create output strategy
+            agent_ids = orch.get_agent_ids()
+            output = _create_output_strategy(
+                mode="stream",
+                orch=orch,
+                agent_ids=agent_ids,
+                ticks_per_day=ffi_dict["ticks_per_day"],
+                quiet=quiet,
+                event_filter=None,
+            )
+
+            # Create persistence manager if needed
+            persistence = None
+            if persist and db_manager:
+                persistence = PersistenceManager(db_manager, sim_id, False)  # stream mode: no full_replay
+
+            # Create runner config
+            runner_config = RunnerConfig(
+                total_ticks=total_ticks,
+                ticks_per_day=ffi_dict["ticks_per_day"],
+                num_days=ffi_dict["num_days"],
+                persist=persist,
+                full_replay=False,
+                event_filter=None,
+            )
+
+            # Run simulation via new runner
+            sim_start = time.time()
+            runner = SimulationRunner(orch, runner_config, output, persistence)
+            final_stats = runner.run()
+            sim_duration = time.time() - sim_start
+
+            # Persist final metadata
+            if persist and db_manager:
+                persistence.persist_final_metadata(
+                    config_path=config,
+                    config_dict=config_dict,
+                    ffi_dict=ffi_dict,
+                    agent_ids=agent_ids,
+                    total_arrivals=final_stats["total_arrivals"],
+                    total_settlements=final_stats["total_settlements"],
+                    total_costs=final_stats["total_costs"],
+                    duration=sim_duration,
+                    orch=orch,
+                )
+
+            # Return early - new runner handles everything
+            return
+
         elif stream:
             # Streaming mode: output JSONL
             log_info(f"Running {total_ticks} ticks (streaming)...", quiet)
@@ -1269,6 +1383,104 @@ def run_simulation(
                     orch,
                     quiet,
                 )
+
+        elif use_new_runner and not verbose and not stream and not event_stream:
+            # NEW IMPLEMENTATION: Use SimulationRunner with NormalModeOutput (normal mode)
+            from payment_simulator.cli.execution.runner import (
+                SimulationRunner,
+                SimulationConfig as RunnerConfig,
+            )
+            from payment_simulator.cli.execution.persistence import PersistenceManager
+
+            # Create output strategy
+            agent_ids = orch.get_agent_ids()
+            output = _create_output_strategy(
+                mode="normal",
+                orch=orch,
+                agent_ids=agent_ids,
+                ticks_per_day=ffi_dict["ticks_per_day"],
+                quiet=quiet,
+                event_filter=None,
+                total_ticks=total_ticks,
+            )
+
+            # Create persistence manager if needed
+            persistence = None
+            if persist and db_manager:
+                persistence = PersistenceManager(db_manager, sim_id, False)  # normal mode: no full_replay
+
+            # Create runner config
+            runner_config = RunnerConfig(
+                total_ticks=total_ticks,
+                ticks_per_day=ffi_dict["ticks_per_day"],
+                num_days=ffi_dict["num_days"],
+                persist=persist,
+                full_replay=False,
+                event_filter=None,
+            )
+
+            # Run simulation via new runner
+            sim_start = time.time()
+            runner = SimulationRunner(orch, runner_config, output, persistence)
+            final_stats = runner.run()
+            sim_duration = time.time() - sim_start
+
+            # Persist final metadata
+            if persist and db_manager:
+                persistence.persist_final_metadata(
+                    config_path=config,
+                    config_dict=config_dict,
+                    ffi_dict=ffi_dict,
+                    agent_ids=agent_ids,
+                    total_arrivals=final_stats["total_arrivals"],
+                    total_settlements=final_stats["total_settlements"],
+                    total_costs=final_stats["total_costs"],
+                    duration=sim_duration,
+                    orch=orch,
+                )
+
+            # Build and output final JSON
+            agent_ids = orch.get_agent_ids()
+            agents = []
+            for agent_id in agent_ids:
+                agents.append(
+                    {
+                        "id": agent_id,
+                        "final_balance": orch.get_agent_balance(agent_id),
+                        "queue1_size": orch.get_queue1_size(agent_id),
+                    }
+                )
+
+            output_data = {
+                "simulation": {
+                    "config_file": str(config),
+                    "seed": ffi_dict["rng_seed"],
+                    "ticks_executed": total_ticks,
+                    "duration_seconds": round(sim_duration, 3),
+                    "ticks_per_second": round(final_stats.get("ticks_per_second", 0), 2),
+                },
+                "metrics": {
+                    "total_arrivals": final_stats["total_arrivals"],
+                    "total_settlements": final_stats["total_settlements"],
+                    "total_lsm_releases": final_stats.get("total_lsm_releases", 0),
+                    "settlement_rate": final_stats.get("settlement_rate", 0),
+                },
+                "agents": agents,
+                "costs": {
+                    "total_cost": final_stats.get("total_costs", 0),
+                },
+                "performance": {
+                    "ticks_per_second": round(final_stats.get("ticks_per_second", 0), 2),
+                },
+            }
+
+            # Add simulation_id to output if persisted
+            if persist and sim_id:
+                output_data["simulation"]["simulation_id"] = sim_id
+                output_data["simulation"]["database"] = db_path
+
+            output_json(output_data)
+            return
 
         else:
             # Normal mode: run all ticks then output summary
