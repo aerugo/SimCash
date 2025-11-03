@@ -38,10 +38,13 @@ export async function fetchEvents(
     tick?: number
     tick_min?: number
     tick_max?: number
+    day?: number
     agent_id?: string
+    tx_id?: string
     event_type?: string
     limit?: number
     offset?: number
+    sort?: string
   }
 ): Promise<EventListResponse> {
   const searchParams = new URLSearchParams()

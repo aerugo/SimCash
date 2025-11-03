@@ -35,7 +35,7 @@ export function SimulationDashboardPage() {
   const settlementRatePercent = (summary.settlement_rate * 100).toFixed(1);
 
   // Handle both nested (config.simulation.{field}) and flat (config.{field}) structures
-  const simConfig = config.simulation || config;
+  const simConfig = (config as any).simulation || config;
   const agents = config.agents || [];
 
   return (

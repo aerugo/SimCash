@@ -81,16 +81,16 @@ export interface AgentListResponse {
 }
 
 export interface EventRecord {
+  event_id: string;
+  simulation_id: string;
   tick: number;
   day: number;
   event_type: string;
+  event_timestamp: string;
+  details: Record<string, any>;
+  agent_id?: string;
   tx_id?: string;
-  sender_id?: string;
-  receiver_id?: string;
-  amount?: number;
-  priority?: number;
-  deadline_tick?: number;
-  timestamp?: string;
+  created_at: string;
 }
 
 export interface EventListResponse {
@@ -98,6 +98,16 @@ export interface EventListResponse {
   total: number;
   limit: number;
   offset: number;
+  filters?: {
+    tick?: number;
+    tick_min?: number;
+    tick_max?: number;
+    day?: number;
+    agent_id?: string;
+    tx_id?: string;
+    event_type?: string;
+    sort?: string;
+  };
 }
 
 export interface DailyAgentMetric {
