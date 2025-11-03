@@ -1,4 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * Playwright configuration for e2e tests
@@ -6,6 +11,8 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./tests/e2e",
+  /* Global setup - runs once before all tests */
+  globalSetup: join(__dirname, "tests/e2e/global-setup.ts"),
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
