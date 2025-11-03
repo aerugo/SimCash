@@ -27,6 +27,7 @@ dist-ssr
 test-results/
 playwright-report/
 playwright/.cache/
+*.last-run.json
 
 # Test setup files (created by e2e tests)
 tests/e2e/.test-setup-info.json
