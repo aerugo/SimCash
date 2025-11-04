@@ -908,6 +908,12 @@ impl PyOrchestrator {
                     event_dict.set_item("num_splits", num_splits)?;
                     event_dict.set_item("child_ids", child_ids)?;
                 }
+                crate::models::event::Event::TransactionReprioritized { agent_id, tx_id, old_priority, new_priority, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("old_priority", old_priority)?;
+                    event_dict.set_item("new_priority", new_priority)?;
+                }
                 crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
                     event_dict.set_item("agent_id", agent_id)?;
                     event_dict.set_item("amount", amount)?;
@@ -1023,6 +1029,12 @@ impl PyOrchestrator {
                     event_dict.set_item("num_splits", num_splits)?;
                     event_dict.set_item("child_ids", child_ids)?;
                 }
+                crate::models::event::Event::TransactionReprioritized { agent_id, tx_id, old_priority, new_priority, .. } => {
+                    event_dict.set_item("agent_id", agent_id)?;
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("old_priority", old_priority)?;
+                    event_dict.set_item("new_priority", new_priority)?;
+                }
                 crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
                     event_dict.set_item("agent_id", agent_id)?;
                     event_dict.set_item("amount", amount)?;
@@ -1124,7 +1136,7 @@ impl PyOrchestrator {
                 crate::models::transaction::TransactionStatus::Pending => "Pending",
                 crate::models::transaction::TransactionStatus::PartiallySettled { .. } => "PartiallySettled",
                 crate::models::transaction::TransactionStatus::Settled { .. } => "Settled",
-                crate::models::transaction::TransactionStatus::Dropped { .. } => "Dropped",
+                crate::models::transaction::TransactionStatus::Overdue { .. } => "Overdue",
             };
             dict.set_item("status", status_str)?;
 

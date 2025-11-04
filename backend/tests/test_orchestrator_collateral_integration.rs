@@ -63,6 +63,7 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
             eod_penalty_per_transaction: 10000,
             deadline_penalty: 5000,
             split_friction_cost: 1000,
+            overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
         },
         lsm_config: LsmConfig::default(),
     }

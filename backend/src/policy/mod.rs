@@ -114,7 +114,44 @@ pub enum ReleaseDecision {
     ///
     /// Removes transaction from Queue 1 without submitting to RTGS.
     /// Typically used when transaction is past deadline or about to expire.
+    ///
+    /// NOTE: This variant is DEPRECATED. Use `Hold` instead. Transactions should
+    /// not be "dropped" - all obligations must eventually settle. See Phase 1
+    /// of realistic dropped transactions plan.
     Drop { tx_id: String },
+
+    /// Change transaction priority (Phase 4: Overdue Handling)
+    ///
+    /// Allows policy to adjust priority of queued transactions based on changing
+    /// conditions (e.g., overdue status, approaching deadline). Transaction remains
+    /// in Queue 1 after reprioritization.
+    ///
+    /// This action is independent of submission - a policy can reprioritize and
+    /// then separately decide whether to submit, hold, or split.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_id` - Transaction to reprioritize
+    /// * `new_priority` - New priority level (0-10, will be capped at 10)
+    ///
+    /// # Example Policy Use
+    ///
+    /// ```yaml
+    /// # Step 1: Reprioritize overdue transactions to highest priority
+    /// - if: is_overdue == 1
+    ///   then:
+    ///     action: reprioritize
+    ///     new_priority: 10
+    ///
+    /// # Step 2: Submit if liquidity available (separate decision)
+    /// - if: available_liquidity >= amount
+    ///   then:
+    ///     action: submit_full
+    /// ```
+    Reprioritize {
+        tx_id: String,
+        new_priority: u8,
+    },
 }
 
 /// Reason for holding a transaction in Queue 1
@@ -323,4 +360,54 @@ pub trait CashManagerPolicy: Send + Sync {
     /// concrete types (e.g., TreePolicy) to access specialized methods like
     /// `evaluate_strategic_collateral()` and `evaluate_end_of_tick_collateral()`.
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::Transaction;
+
+    // ========================================================================
+    // Phase 4: Reprioritize Action Tests (TDD)
+    // ========================================================================
+
+    #[test]
+    fn test_reprioritize_decision() {
+        let decision = ReleaseDecision::Reprioritize {
+            tx_id: "tx_123".to_string(),
+            new_priority: 10,
+        };
+
+        // Verify enum construction
+        match decision {
+            ReleaseDecision::Reprioritize { tx_id, new_priority } => {
+                assert_eq!(tx_id, "tx_123");
+                assert_eq!(new_priority, 10);
+            }
+            _ => panic!("Wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_reprioritize_changes_transaction_priority() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+        assert_eq!(tx.priority(), 5); // Default
+
+        // Reprioritize to 10
+        tx.set_priority(10);
+        assert_eq!(tx.priority(), 10);
+
+        // Reprioritize to 3
+        tx.set_priority(3);
+        assert_eq!(tx.priority(), 3);
+    }
+
+    #[test]
+    fn test_reprioritize_caps_at_10() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+
+        // Try to set priority > 10
+        tx.set_priority(255);
+        assert_eq!(tx.priority(), 10); // Capped
+    }
 }

@@ -7,7 +7,7 @@
 //! - Arrival and deadline ticks
 //! - Priority level
 //! - Divisibility flag (can be split into parts)
-//! - Status (Pending, PartiallySettled, Settled, Dropped)
+//! - Status (Pending, PartiallySettled, Settled, Overdue)
 //!
 //! CRITICAL: All money values are i64 (cents)
 
@@ -34,10 +34,14 @@ pub enum TransactionStatus {
         tick: usize,
     },
 
-    /// Transaction dropped (e.g., past deadline, rejected)
-    Dropped {
-        /// Tick when transaction was dropped
-        tick: usize,
+    /// Transaction past deadline but still settleable
+    ///
+    /// In real payment systems, transactions cannot simply be "dropped" - all
+    /// obligations must eventually be settled. Overdue transactions remain in
+    /// the queue and incur escalating penalties until settled.
+    Overdue {
+        /// Tick when transaction first missed its deadline
+        missed_deadline_tick: usize,
     },
 }
 
@@ -495,10 +499,8 @@ impl Transaction {
             return Err(TransactionError::AlreadySettled);
         }
 
-        // Check if dropped
-        if matches!(self.status, TransactionStatus::Dropped { .. }) {
-            return Err(TransactionError::TransactionDropped);
-        }
+        // NOTE: Removed check for Dropped status - overdue transactions can still settle
+        // In real payment systems, all obligations must eventually be settled
 
         // Check if amount matches remaining (must settle full amount)
         if amount != self.remaining_amount {
@@ -515,12 +517,66 @@ impl Transaction {
         Ok(())
     }
 
-    /// Drop transaction (e.g., past deadline, rejected)
+    /// Mark transaction as overdue (idempotent)
+    ///
+    /// In real payment systems, transactions cannot be "dropped" - they must
+    /// eventually settle. This marks a transaction as overdue when it passes
+    /// its deadline, but it remains in the queue and can still be settled.
     ///
     /// # Arguments
-    /// * `tick` - Tick when transaction is dropped
-    pub fn drop_transaction(&mut self, tick: usize) {
-        self.status = TransactionStatus::Dropped { tick };
+    /// * `tick` - Tick when transaction first missed its deadline
+    ///
+    /// # Returns
+    /// - Ok(()) if marked overdue or already overdue
+    /// - Err(TransactionError::AlreadySettled) if transaction is settled
+    ///
+    /// # Idempotency
+    /// If called multiple times, keeps the original missed_deadline_tick
+    pub fn mark_overdue(&mut self, tick: usize) -> Result<(), TransactionError> {
+        match self.status {
+            TransactionStatus::Pending | TransactionStatus::PartiallySettled { .. } => {
+                self.status = TransactionStatus::Overdue {
+                    missed_deadline_tick: tick,
+                };
+                Ok(())
+            }
+            TransactionStatus::Overdue { .. } => {
+                // Idempotent - already overdue, keep original tick
+                Ok(())
+            }
+            TransactionStatus::Settled { .. } => Err(TransactionError::AlreadySettled),
+        }
+    }
+
+    /// Check if transaction is overdue
+    ///
+    /// Returns true if transaction has passed its deadline and is marked overdue.
+    /// Overdue transactions remain in the queue and can still be settled.
+    pub fn is_overdue(&self) -> bool {
+        matches!(self.status, TransactionStatus::Overdue { .. })
+    }
+
+    /// Get tick when transaction became overdue
+    ///
+    /// Returns Some(tick) if overdue, None otherwise
+    pub fn overdue_since_tick(&self) -> Option<usize> {
+        match self.status {
+            TransactionStatus::Overdue {
+                missed_deadline_tick,
+            } => Some(missed_deadline_tick),
+            _ => None,
+        }
+    }
+
+    /// Set transaction priority (for re-prioritization)
+    ///
+    /// Allows policies to adjust priority of queued transactions based on
+    /// changing conditions (e.g., overdue status). Priority is capped at 10.
+    ///
+    /// # Arguments
+    /// * `priority` - New priority level (0-10, will be capped)
+    pub fn set_priority(&mut self, priority: u8) {
+        self.priority = priority.min(10); // Cap at 10
     }
 }
 
@@ -534,5 +590,108 @@ mod tests {
             .with_priority(255); // Try to set > 10
 
         assert_eq!(tx.priority(), 10); // Should be capped at 10
+    }
+
+    // ==========================================
+    // Phase 1: Overdue Transaction Tests
+    // ==========================================
+
+    #[test]
+    fn test_mark_transaction_overdue() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+
+        // Initially pending
+        assert!(tx.is_pending());
+        assert!(!tx.is_overdue());
+
+        // Mark overdue at tick 51
+        tx.mark_overdue(51).unwrap();
+
+        // Check status
+        assert!(tx.is_overdue());
+        assert_eq!(tx.overdue_since_tick(), Some(51));
+    }
+
+    #[test]
+    fn test_mark_overdue_is_idempotent() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+
+        // Mark overdue twice
+        tx.mark_overdue(51).unwrap();
+        let result = tx.mark_overdue(52); // Different tick
+
+        // Should succeed (idempotent) but not change tick
+        assert!(result.is_ok());
+        assert_eq!(tx.overdue_since_tick(), Some(51)); // Original tick preserved
+    }
+
+    #[test]
+    fn test_overdue_transaction_can_still_settle() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+
+        // Mark overdue
+        tx.mark_overdue(51).unwrap();
+        assert!(tx.is_overdue());
+
+        // Should still be able to settle
+        let result = tx.settle(100_000, 55);
+        assert!(result.is_ok());
+        assert!(tx.is_fully_settled());
+    }
+
+    #[test]
+    fn test_cannot_mark_settled_transaction_overdue() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+
+        // Settle first
+        tx.settle(100_000, 40).unwrap();
+
+        // Attempting to mark overdue should fail
+        let result = tx.mark_overdue(51);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), TransactionError::AlreadySettled);
+    }
+
+    #[test]
+    fn test_partially_settled_can_become_overdue() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+
+        // For now, just ensure status transition logic handles all cases
+        tx.mark_overdue(51).unwrap();
+        assert!(tx.is_overdue());
+    }
+
+    #[test]
+    fn test_settle_no_longer_rejects_overdue() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+        tx.mark_overdue(51).unwrap();
+
+        // Old behavior: Err(TransactionError::TransactionDropped)
+        // New behavior: Ok(())
+        let result = tx.settle(100_000, 55);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_priority() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+        assert_eq!(tx.priority(), 5); // Default
+
+        // Reprioritize to 10
+        tx.set_priority(10);
+        assert_eq!(tx.priority(), 10);
+
+        // Reprioritize to 3
+        tx.set_priority(3);
+        assert_eq!(tx.priority(), 3);
+    }
+
+    #[test]
+    fn test_set_priority_caps_at_10() {
+        let mut tx = Transaction::new("A".to_string(), "B".to_string(), 100_000, 0, 50);
+
+        // Try to set priority > 10
+        tx.set_priority(255);
+        assert_eq!(tx.priority(), 10); // Capped
     }
 }

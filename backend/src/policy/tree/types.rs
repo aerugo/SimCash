@@ -252,6 +252,10 @@ pub enum ActionType {
     /// Drop transaction (expired or unviable)
     Drop,
 
+    /// Reprioritize transaction (Phase 4: Overdue Handling)
+    /// Change transaction priority without moving from Queue 1
+    Reprioritize,
+
     // Phase 8: Collateral Management Actions
     /// Post collateral to increase available liquidity
     PostCollateral,

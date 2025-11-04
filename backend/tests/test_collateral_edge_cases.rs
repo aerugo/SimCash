@@ -55,6 +55,7 @@ fn create_test_config(
             eod_penalty_per_transaction: 100_000,
             deadline_penalty: 50_000,
             split_friction_cost: 100,
+            overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
         },
         lsm_config: LsmConfig::default(),
     }

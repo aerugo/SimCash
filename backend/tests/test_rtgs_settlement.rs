@@ -548,10 +548,11 @@ fn test_queue_fifo_ordering() {
 }
 
 #[test]
-fn test_drop_transaction_past_deadline() {
+fn test_mark_transaction_overdue_past_deadline() {
+    // Phase 4: Transactions past deadline are marked overdue but remain settleable
     use payment_simulator_core_rs::{
         settlement::{process_queue, submit_transaction},
-        SimulationState, TransactionStatus,
+        SimulationState,
     };
 
     // Setup: BANK_A has no liquidity
@@ -572,30 +573,30 @@ fn test_drop_transaction_past_deadline() {
     // Process queue before deadline (tick 9) - should remain queued
     let result = process_queue(&mut state, 9);
     assert_eq!(result.settled_count, 0, "No settlement without liquidity");
-    assert_eq!(result.dropped_count, 0, "Not past deadline yet");
     assert_eq!(result.remaining_queue_size, 1, "Still queued");
 
-    // Process queue past deadline (tick 11) - should drop
-    let result2 = process_queue(&mut state, 11);
-    assert_eq!(result2.settled_count, 0, "No settlement");
-    assert_eq!(result2.dropped_count, 1, "Should drop 1 transaction");
-    assert_eq!(result2.remaining_queue_size, 0, "Queue should be empty");
-
-    // Verify transaction dropped
+    // Verify transaction not yet overdue
     let tx_state = state.get_transaction(&tx_id).unwrap();
-    assert!(
-        matches!(tx_state.status(), TransactionStatus::Dropped { .. }),
-        "Transaction should be dropped"
-    );
-    assert_eq!(state.queue_size(), 0, "Queue should be empty");
+    assert!(!tx_state.is_overdue(), "Should not be overdue yet");
 
-    // Even if we add liquidity now, dropped transaction won't settle
+    // Process queue past deadline (tick 11) - should mark overdue but NOT remove
+    let result2 = process_queue(&mut state, 11);
+    assert_eq!(result2.settled_count, 0, "No settlement without liquidity");
+    assert_eq!(result2.remaining_queue_size, 1, "Should REMAIN in queue");
+
+    // Verify transaction marked as overdue
+    let tx_state = state.get_transaction(&tx_id).unwrap();
+    assert!(tx_state.is_overdue(), "Transaction should be marked overdue");
+    assert_eq!(state.queue_size(), 1, "Queue should still have 1 transaction");
+
+    // Key behavior change: Even after deadline, transaction CAN settle with liquidity
     state.get_agent_mut("BANK_A").unwrap().credit(500_000);
     let result3 = process_queue(&mut state, 12);
     assert_eq!(
-        result3.settled_count, 0,
-        "Dropped transaction should not settle"
+        result3.settled_count, 1,
+        "Overdue transaction SHOULD settle when liquidity available"
     );
+    assert_eq!(state.queue_size(), 0, "Queue should be empty after settlement");
 }
 
 // ============================================================================

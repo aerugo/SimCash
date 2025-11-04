@@ -476,6 +476,7 @@ mod tests {
             eod_penalty_per_transaction: 10000,
             deadline_penalty: 5000,
             split_friction_cost: 1000,
+            ..Default::default()
         }
     }
 

@@ -33,6 +33,7 @@ mod test_phase_9_5_integration {
             eod_penalty_per_transaction: 1000_00,  // $1,000 EOD penalty
             deadline_penalty: 500_00,               // $500 deadline penalty
             split_friction_cost: 10_00,             // $10 per split
+            ..Default::default()
         }
     }
 

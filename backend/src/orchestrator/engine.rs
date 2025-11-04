@@ -244,6 +244,15 @@ pub struct CostRates {
     /// This represents the operational overhead of creating and processing
     /// multiple payment instructions instead of a single instruction.
     pub split_friction_cost: i64,
+
+    /// Multiplier for delay cost when transaction is overdue (default: 5.0)
+    ///
+    /// Overdue transactions incur escalating costs to represent urgency.
+    /// If a transaction is overdue, its delay cost per tick is multiplied by this factor.
+    ///
+    /// Example: If delay_cost_per_tick_per_cent = 0.0001 and overdue_delay_multiplier = 5.0,
+    /// then an overdue $1M transaction costs $5/tick instead of $1/tick.
+    pub overdue_delay_multiplier: f64,
 }
 
 impl Default for CostRates {
@@ -255,6 +264,7 @@ impl Default for CostRates {
             eod_penalty_per_transaction: 10_000,  // $100 per unsettled tx
             deadline_penalty: 50_000,             // $500 per missed deadline
             split_friction_cost: 1000,            // $10 per split
+            overdue_delay_multiplier: 5.0,        // 5x multiplier for overdue
         }
     }
 }
@@ -2165,13 +2175,30 @@ impl Orchestrator {
                             reason: format!("{:?}", reason),
                         });
                     }
+                    ReleaseDecision::Reprioritize { tx_id, new_priority } => {
+                        // Phase 4: Update transaction priority
+                        // Transaction remains in Queue 1, only priority changes
+                        if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                            let old_priority = tx.priority();
+                            tx.set_priority(new_priority);
+
+                            // Log reprioritization event
+                            self.log_event(Event::TransactionReprioritized {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                tx_id: tx_id.clone(),
+                                old_priority,
+                                new_priority,
+                            });
+                        }
+                    }
                     ReleaseDecision::Drop { tx_id } => {
-                        // Remove from Queue 1, mark as dropped
+                        // Remove from Queue 1, mark as overdue (temporary - policies should handle this differently)
                         if let Some(agent) = self.state.get_agent_mut(&agent_id) {
                             agent.remove_from_queue(&tx_id);
                         }
                         if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
-                            tx.drop_transaction(current_tick);
+                            tx.mark_overdue(current_tick).ok(); // NOTE: Changed from drop_transaction
                         }
 
                         // Log policy drop event
@@ -2455,20 +2482,56 @@ impl Orchestrator {
         let agent_ids: Vec<String> = self.state.agents().keys().cloned().collect();
 
         for agent_id in agent_ids {
-            let agent = self.state.get_agent(&agent_id).unwrap();
+            // First pass: collect data and identify newly overdue transactions
+            // Check both Queue 1 (agent's outgoing queue) and Queue 2 (RTGS queue)
+            let (balance, collateral, newly_overdue_txs) = {
+                let agent = self.state.get_agent(&agent_id).unwrap();
+                let mut overdue = Vec::new();
+
+                // Check Queue 1 (agent's internal queue)
+                for tx_id in agent.outgoing_queue() {
+                    if let Some(tx) = self.state.get_transaction(tx_id) {
+                        if tx.is_past_deadline(tick) && !tx.is_overdue() {
+                            overdue.push(tx_id.clone());
+                        }
+                    }
+                }
+
+                // Check Queue 2 (RTGS queue) for this agent's transactions
+                // that were marked overdue in this tick (by RTGS process_queue in STEP 4)
+                for tx_id in self.state.rtgs_queue() {
+                    if let Some(tx) = self.state.get_transaction(tx_id) {
+                        if tx.sender_id() == agent_id
+                            && tx.is_overdue()
+                            && tx.overdue_since_tick() == Some(tick) {
+                            overdue.push(tx_id.clone());
+                        }
+                    }
+                }
+
+                (agent.balance(), agent.posted_collateral(), overdue)
+            };
+
+            // Mark transactions as overdue (mutable borrow, agent borrow released)
+            for tx_id in &newly_overdue_txs {
+                if let Some(tx_mut) = self.state.get_transaction_mut(tx_id) {
+                    tx_mut.mark_overdue(tick).ok();
+                }
+            }
+
+            // Calculate penalty cost
+            let penalty_cost = (newly_overdue_txs.len() as i64) * self.cost_rates.deadline_penalty;
 
             // Calculate overdraft cost (liquidity cost)
-            let liquidity_cost = self.calculate_overdraft_cost(agent.balance());
+            let liquidity_cost = self.calculate_overdraft_cost(balance);
 
             // Calculate delay cost for queued transactions
             let delay_cost = self.calculate_delay_cost(&agent_id);
 
             // Calculate collateral opportunity cost (Phase 8)
-            let collateral_cost = self.calculate_collateral_cost(agent.posted_collateral());
+            let collateral_cost = self.calculate_collateral_cost(collateral);
 
-            // No penalty or split friction cost in this step
-            // (penalties handled by policies and EOD, splits handled at decision time)
-            let penalty_cost = 0;
+            // Split friction cost handled at decision time
             let split_friction_cost = 0;
 
             let costs = CostBreakdown {
@@ -2482,7 +2545,7 @@ impl Orchestrator {
             // Accumulate costs
             if let Some(accumulator) = self.accumulated_costs.get_mut(&agent_id) {
                 accumulator.add(&costs);
-                accumulator.update_peak_debit(agent.balance());
+                accumulator.update_peak_debit(balance);
             }
 
             total_cost += costs.total();
@@ -2517,26 +2580,56 @@ impl Orchestrator {
 
     /// Calculate delay cost for queued transactions
     ///
-    /// Delay cost = sum of (queued transaction values) * delay_cost_per_tick_per_cent
+    /// Delay cost = sum of (queued transaction values × multiplier) * delay_cost_per_tick_per_cent
     ///
-    /// Only counts transactions in Queue 1 (agent's internal queue).
-    /// RTGS queue delays are not penalized (waiting for liquidity is expected).
+    /// Overdue transactions have their value multiplied by overdue_delay_multiplier
+    /// to represent escalating urgency.
+    ///
+    /// Counts transactions in both Queue 1 (agent's internal queue) and Queue 2 (RTGS queue).
+    /// All unsettled transactions accrue delay cost, as they represent unsettled obligations.
     fn calculate_delay_cost(&self, agent_id: &str) -> i64 {
         let agent = match self.state.get_agent(agent_id) {
             Some(a) => a,
             None => return 0,
         };
 
-        let mut total_queued_value = 0;
+        let mut total_weighted_value = 0.0;
 
-        // Sum up value of all transactions in Queue 1
+        // Sum up weighted value of all transactions in Queue 1
         for tx_id in agent.outgoing_queue() {
             if let Some(tx) = self.state.get_transaction(tx_id) {
-                total_queued_value += tx.remaining_amount();
+                let amount = tx.remaining_amount() as f64;
+
+                // Apply multiplier for overdue transactions
+                let multiplier = if tx.is_overdue() {
+                    self.cost_rates.overdue_delay_multiplier
+                } else {
+                    1.0
+                };
+
+                total_weighted_value += amount * multiplier;
             }
         }
 
-        let cost = (total_queued_value as f64) * self.cost_rates.delay_cost_per_tick_per_cent;
+        // Also sum up transactions in Queue 2 (RTGS queue) for this agent
+        for tx_id in self.state.rtgs_queue() {
+            if let Some(tx) = self.state.get_transaction(tx_id) {
+                if tx.sender_id() == agent_id {
+                    let amount = tx.remaining_amount() as f64;
+
+                    // Apply multiplier for overdue transactions
+                    let multiplier = if tx.is_overdue() {
+                        self.cost_rates.overdue_delay_multiplier
+                    } else {
+                        1.0
+                    };
+
+                    total_weighted_value += amount * multiplier;
+                }
+            }
+        }
+
+        let cost = total_weighted_value * self.cost_rates.delay_cost_per_tick_per_cent;
         cost.round() as i64 // Use rounding instead of truncation (Phase 8 fix)
     }
 
@@ -3062,6 +3155,133 @@ mod tests {
         };
 
         assert_eq!(cost.total(), 3750); // 1000 + 500 + 2000 + 250
+    }
+
+    // ========================================================================
+    // Phase 3: Overdue Cost Tests (TDD)
+    // ========================================================================
+
+    #[test]
+    fn test_overdue_delay_cost_multiplier() {
+        let cost_rates = CostRates {
+            delay_cost_per_tick_per_cent: 0.0001, // 1 bp per tick
+            overdue_delay_multiplier: 5.0,         // 5x for overdue
+            deadline_penalty: 100_000,             // $1000 one-time
+            ..Default::default()
+        };
+
+        // Create orchestrator with custom cost rates
+        let mut config = create_test_config();
+        config.cost_rates = cost_rates;
+        // Reduce BANK_A's balance and credit so transaction stays in queue
+        config.agent_configs[0].opening_balance = 500_000;
+        config.agent_configs[0].credit_limit = 0; // No credit to prevent immediate settlement
+        let mut orch = Orchestrator::new(config).unwrap();
+
+        // Submit a transaction that will become overdue
+        orch.submit_transaction("BANK_A", "BANK_B", 1_000_000, 50, 5, false).unwrap();
+
+        // Run to tick 1 - transaction pending, normal delay cost
+        orch.tick().unwrap();
+        let costs_normal = orch.get_costs("BANK_A").unwrap();
+        // Expected: 1_000_000 * 0.0001 = 100 cents
+        assert_eq!(costs_normal.total_delay_cost, 100);
+
+        // Mark transaction as overdue manually for testing
+        {
+            let tx_id = orch.state().transactions().keys().next().unwrap().clone();
+            let tx = orch.state.get_transaction_mut(&tx_id).unwrap();
+            tx.mark_overdue(51).unwrap();
+        }
+
+        // Run another tick - overdue, should have 5x multiplier
+        orch.tick().unwrap();
+        let costs_overdue = orch.get_costs("BANK_A").unwrap();
+        // Previous delay_cost was 100, now adding 1_000_000 * 0.0001 * 5.0 = 500
+        // Total should be 100 + 500 = 600
+        assert_eq!(costs_overdue.total_delay_cost, 600);
+    }
+
+    #[test]
+    fn test_one_time_deadline_penalty() {
+        let cost_rates = CostRates {
+            deadline_penalty: 100_000, // $1000
+            ..Default::default()
+        };
+
+        let mut config = create_test_config();
+        config.cost_rates = cost_rates;
+        // Reduce BANK_A's balance and credit so transaction stays in queue
+        config.agent_configs[0].opening_balance = 500_000;
+        config.agent_configs[0].credit_limit = 0; // No credit to prevent immediate settlement
+        let mut orch = Orchestrator::new(config).unwrap();
+
+        // Submit transaction with deadline at tick 2
+        orch.submit_transaction("BANK_A", "BANK_B", 1_000_000, 2, 5, false).unwrap();
+
+        // Tick 0: Before deadline
+        orch.tick().unwrap();
+        let costs_before = orch.get_costs("BANK_A").unwrap();
+        assert_eq!(costs_before.total_penalty_cost, 0);
+
+        // Tick 1: Still before deadline
+        orch.tick().unwrap();
+        let costs_tick_1 = orch.get_costs("BANK_A").unwrap();
+        assert_eq!(costs_tick_1.total_penalty_cost, 0);
+
+        // Tick 2: At deadline (last valid tick, not overdue yet)
+        orch.tick().unwrap();
+        let costs_at_deadline = orch.get_costs("BANK_A").unwrap();
+        assert_eq!(costs_at_deadline.total_penalty_cost, 0);
+
+        // Tick 3: Past deadline - penalty charged
+        orch.tick().unwrap();
+        let costs_after = orch.get_costs("BANK_A").unwrap();
+        assert_eq!(costs_after.total_penalty_cost, 100_000);
+    }
+
+    #[test]
+    fn test_deadline_penalty_only_charged_once() {
+        let cost_rates = CostRates {
+            delay_cost_per_tick_per_cent: 0.0001,
+            overdue_delay_multiplier: 5.0,
+            deadline_penalty: 100_000,
+            ..Default::default()
+        };
+
+        let mut config = create_test_config();
+        config.cost_rates = cost_rates;
+        // Reduce BANK_A's balance and credit so transaction stays in queue
+        config.agent_configs[0].opening_balance = 500_000;
+        config.agent_configs[0].credit_limit = 0; // No credit to prevent immediate settlement
+        let mut orch = Orchestrator::new(config).unwrap();
+
+        // Submit transaction with deadline at tick 2
+        orch.submit_transaction("BANK_A", "BANK_B", 1_000_000, 2, 5, false).unwrap();
+
+        // Run to tick 3 (past deadline) - need 4 ticks to process tick 3
+        for _ in 0..4 {
+            orch.tick().unwrap();
+        }
+
+        let costs_tick_3 = orch.get_costs("BANK_A").unwrap();
+        let penalty_tick_3 = costs_tick_3.total_penalty_cost;
+        let delay_cost_tick_3 = costs_tick_3.total_delay_cost;
+
+        // Penalty should be 100,000 (charged once during tick 3 processing)
+        assert_eq!(penalty_tick_3, 100_000);
+
+        // Run more ticks - penalty should NOT increase
+        for _ in 0..5 {
+            orch.tick().unwrap();
+        }
+
+        let costs_tick_8 = orch.get_costs("BANK_A").unwrap();
+        // Penalty cost should still be 100,000 (no additional deadline penalties)
+        assert_eq!(costs_tick_8.total_penalty_cost, 100_000);
+
+        // Delay cost should increase each tick due to multiplier
+        assert!(costs_tick_8.total_delay_cost > delay_cost_tick_3);
     }
 
     // ========================================================================
