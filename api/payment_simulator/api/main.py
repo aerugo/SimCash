@@ -235,6 +235,14 @@ class EventRecord(BaseModel):
     tx_id: Optional[str] = None
     created_at: str
 
+    # Flattened fields from details for API ergonomics
+    # These are populated by event_queries.py for common event types
+    sender_id: Optional[str] = None
+    receiver_id: Optional[str] = None
+    amount: Optional[int] = None
+    deadline: Optional[int] = None
+    priority: Optional[int] = None
+
 
 class EventListResponse(BaseModel):
     """Response model for paginated events."""
@@ -628,18 +636,33 @@ def list_simulations():
                 if any(s["simulation_id"] == row[0] for s in simulations):
                     continue
 
+                # Handle datetime conversion - row values might be datetime objects or strings
+                started_at = row[8]
+                if started_at:
+                    if hasattr(started_at, 'isoformat'):
+                        started_at = started_at.isoformat()
+                    else:
+                        started_at = str(started_at)
+
+                completed_at = row[9]
+                if completed_at:
+                    if hasattr(completed_at, 'isoformat'):
+                        completed_at = completed_at.isoformat()
+                    else:
+                        completed_at = str(completed_at)
+
                 simulations.append(
                     {
                         "simulation_id": str(row[0]),
                         "config_file": str(row[1]) if row[1] else None,
                         "config_hash": str(row[2]) if row[2] else None,
-                        "rng_seed": int(row[3]) if row[3] else None,
-                        "ticks_per_day": int(row[4]) if row[4] else None,
-                        "num_days": int(row[5]) if row[5] else None,
-                        "num_agents": int(row[6]) if row[6] else None,
+                        "rng_seed": int(row[3]) if row[3] is not None else None,
+                        "ticks_per_day": int(row[4]) if row[4] is not None else None,
+                        "num_days": int(row[5]) if row[5] is not None else None,
+                        "num_agents": int(row[6]) if row[6] is not None else None,
                         "status": str(row[7]) if row[7] else None,
-                        "started_at": row[8].isoformat() if row[8] else None,
-                        "completed_at": row[9].isoformat() if row[9] else None,
+                        "started_at": started_at,
+                        "completed_at": completed_at,
                     }
                 )
 
@@ -1637,7 +1660,7 @@ def get_events(
     event_type: Optional[str] = Query(None, description="Filter by event type (comma-separated for multiple)"),
     limit: int = Query(100, ge=1, le=1000, description="Number of events per page"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-    sort: str = Query("tick_asc", regex="^(tick_asc|tick_desc)$", description="Sort order"),
+    sort: str = Query("tick_asc", pattern="^(tick_asc|tick_desc)$", description="Sort order"),
 ):
     """
     Get paginated list of events with comprehensive filtering.
@@ -1662,6 +1685,27 @@ def get_events(
                 detail=f"Invalid parameters: tick_min ({tick_min}) cannot be greater than tick_max ({tick_max})"
             )
 
+        # Check if simulation exists (in-memory or database)
+        if sim_id in manager.simulations:
+            # In-memory simulation - events are not persisted
+            # Return empty list instead of 404
+            return EventListResponse(
+                events=[],
+                total=0,
+                limit=limit,
+                offset=offset,
+                filters={
+                    "tick": tick,
+                    "tick_min": tick_min,
+                    "tick_max": tick_max,
+                    "day": day,
+                    "agent_id": agent_id,
+                    "tx_id": tx_id,
+                    "event_type": event_type,
+                    "sort": sort,
+                }
+            )
+
         # Check database connection
         if not manager.db_manager:
             raise HTTPException(
@@ -1671,16 +1715,41 @@ def get_events(
 
         conn = manager.db_manager.get_connection()
 
-        # Check if simulation exists (by checking if it has any events)
+        # Check if simulation exists in database (by checking if it has any events)
         exists_check = conn.execute(
             "SELECT COUNT(*) FROM simulation_events WHERE simulation_id = ?",
             [sim_id]
         ).fetchone()[0]
 
         if exists_check == 0:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Simulation not found: {sim_id}"
+            # Verify simulation exists in simulations table
+            sim_check = conn.execute(
+                "SELECT COUNT(*) FROM simulations WHERE simulation_id = ?",
+                [sim_id]
+            ).fetchone()[0]
+
+            if sim_check == 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Simulation not found: {sim_id}"
+                )
+
+            # Simulation exists but has no events yet - return empty list
+            return EventListResponse(
+                events=[],
+                total=0,
+                limit=limit,
+                offset=offset,
+                filters={
+                    "tick": tick,
+                    "tick_min": tick_min,
+                    "tick_max": tick_max,
+                    "day": day,
+                    "agent_id": agent_id,
+                    "tx_id": tx_id,
+                    "event_type": event_type,
+                    "sort": sort,
+                }
             )
 
         # Use the new query function

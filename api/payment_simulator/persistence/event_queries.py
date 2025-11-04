@@ -117,10 +117,11 @@ def get_simulation_events(
         # - Top-level agent_id field
         # - sender_id in details JSON
         # - receiver_id in details JSON
+        # Note: Use json_extract_string to properly extract and compare string values
         where_clauses.append(
             "(agent_id = ? OR "
-            "json_extract(details, '$.sender_id') = ? OR "
-            "json_extract(details, '$.receiver_id') = ?)"
+            "json_extract_string(details, '$.sender_id') = ? OR "
+            "json_extract_string(details, '$.receiver_id') = ?)"
         )
         params.extend([agent_id, agent_id, agent_id])
 
@@ -159,6 +160,9 @@ def get_simulation_events(
     for row in rows:
         import json
 
+        details = json.loads(row[6]) if row[6] else {}
+
+        # Build base event structure
         event = {
             "event_id": row[0],
             "simulation_id": row[1],
@@ -166,11 +170,25 @@ def get_simulation_events(
             "day": row[3],
             "event_timestamp": row[4].isoformat() if row[4] else None,
             "event_type": row[5],
-            "details": json.loads(row[6]) if row[6] else {},
+            "details": details,
             "agent_id": row[7],
             "tx_id": row[8],
             "created_at": row[9].isoformat() if row[9] else None,
         }
+
+        # Flatten commonly-used fields from details to top level for API ergonomics
+        # This makes the API easier to use without needing to parse the details JSON
+        if "sender_id" in details:
+            event["sender_id"] = details["sender_id"]
+        if "receiver_id" in details:
+            event["receiver_id"] = details["receiver_id"]
+        if "amount" in details:
+            event["amount"] = details["amount"]
+        if "deadline" in details:
+            event["deadline"] = details["deadline"]
+        if "priority" in details:
+            event["priority"] = details["priority"]
+
         events.append(event)
 
     # Build response
