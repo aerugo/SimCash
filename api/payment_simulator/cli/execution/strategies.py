@@ -292,8 +292,8 @@ class NormalModeOutput:
         if self.progress:
             self.progress.__exit__(None, None, None)
 
-        from payment_simulator.cli.output import output_json
-        output_json(final_stats)
+        # Note: JSON output is handled by run.py after building full output structure
+        # with agent states, simulation metadata, etc. (lines 1442-1482 in run.py)
 
 
 class StreamModeOutput:
