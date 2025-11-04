@@ -406,8 +406,26 @@ When starting work on this project:
 3. ✅ Scan `api/CLAUDE.md` for Python patterns
 4. ✅ Review `docs/architecture.md` for system design
 5. ✅ Look at example configs to understand domain
-6. ✅ Run tests to verify setup: `cargo test --no-default-features` and `pytest`
-   - **Note**: Rust tests require `--no-default-features` flag
+6. ✅ Build and test:
+   ```bash
+   # Setup: Build Rust module and install everything (one command!)
+   cd api
+   uv sync --extra dev
+
+   # Run Python tests
+   .venv/bin/python -m pytest
+
+   # After Rust code changes, rebuild with:
+   uv sync --extra dev --reinstall-package payment-simulator
+
+   # Run Rust tests
+   cd ../backend
+   cargo test --no-default-features
+   ```
+   - **Note**: `uv sync --extra dev` automatically builds the Rust module and installs the package in editable mode
+   - After Python changes: No rebuild needed (editable mode)
+   - After Rust changes: Add `--reinstall-package payment-simulator` flag
+   - Rust tests require `--no-default-features` flag
 7. ✅ Create subagents as needed for specialized work
 
 ---
