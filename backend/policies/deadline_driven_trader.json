@@ -1,0 +1,340 @@
+{
+  "version": "1.0",
+  "policy_id": "deadline_driven_trader_v1",
+  "description": "Strategic policy that holds payments until deadlines approach, then uses credit liberally to meet obligations. Maximizes delay penalty avoidance while accepting moderate overdraft costs. Optimizes timing to benefit from incoming flows.",
+  "parameters": {
+    "urgency_threshold": 2.0,
+    "relaxed_threshold": 10.0,
+    "high_priority_threshold": 7.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "DDT-N1-EOD",
+    "description": "End of day rush?",
+    "condition": {
+      "op": "==",
+      "left": {"field": "is_eod_rush"},
+      "right": {"value": 1.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "DDT-N2-EOD-PastDeadline",
+      "description": "Already past deadline?",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "ticks_to_deadline"},
+        "right": {"value": 0.0}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "DDT-A1-EOD-Force",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "DDT-N3-EOD-HasLiquidity",
+        "description": "Can afford without credit?",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "available_liquidity"},
+          "right": {"field": "remaining_amount"}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "DDT-A2-EOD-Release",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "DDT-N4-EOD-HasCredit",
+          "description": "Can use credit?",
+          "condition": {
+            "op": ">",
+            "left": {"field": "headroom"},
+            "right": {
+              "compute": {
+                "op": "-",
+                "left": {"field": "remaining_amount"},
+                "right": {"field": "available_liquidity"}
+              }
+            }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "DDT-A3-EOD-Credit",
+            "action": "ReleaseWithCredit"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "DDT-A4-EOD-Hold",
+            "action": "Hold",
+            "parameters": {"reason": {"value": "EOD-NoOptions"}}
+          }
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "DDT-N5-PastDeadline",
+      "description": "Already past deadline? Absolutely must release",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "ticks_to_deadline"},
+        "right": {"value": 0.0}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "DDT-A5-Past-Force",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "DDT-N6-VeryUrgent",
+        "description": "Within urgency threshold?",
+        "condition": {
+          "op": "<=",
+          "left": {"field": "ticks_to_deadline"},
+          "right": {"param": "urgency_threshold"}
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "DDT-N7-Urgent-HasLiquidity",
+          "description": "Can afford it?",
+          "condition": {
+            "op": ">=",
+            "left": {"field": "available_liquidity"},
+            "right": {"field": "remaining_amount"}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "DDT-A6-Urgent-Release",
+            "action": "Release"
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "DDT-N8-Urgent-CostCompare",
+            "description": "Is overdraft cheaper than deadline penalty?",
+            "condition": {
+              "op": "<",
+              "left": {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "cost_overdraft_this_amount_one_tick"},
+                  "right": {"field": "ticks_to_deadline"}
+                }
+              },
+              "right": {"field": "cost_deadline_penalty"}
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "DDT-A7-Urgent-UseCredit",
+              "action": "ReleaseWithCredit"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "DDT-A8-Urgent-AcceptPenalty",
+              "action": "Hold",
+              "parameters": {"reason": {"value": "PenaltyCheaper"}}
+            }
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "DDT-N9-HighPriority",
+          "description": "Is this high priority?",
+          "condition": {
+            "op": ">=",
+            "left": {"field": "priority"},
+            "right": {"param": "high_priority_threshold"}
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "DDT-N10-HighPri-Affordable",
+            "description": "Can afford high priority?",
+            "condition": {
+              "op": ">=",
+              "left": {"field": "available_liquidity"},
+              "right": {"field": "remaining_amount"}
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "DDT-A9-HighPri-Release",
+              "action": "Release"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "DDT-A10-HighPri-Hold",
+              "action": "Hold",
+              "parameters": {"reason": {"value": "HighPri-WaitForLiquidity"}}
+            }
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "DDT-N11-ModerateUrgency",
+            "description": "Getting closer to deadline? (<10 ticks)",
+            "condition": {
+              "op": "<=",
+              "left": {"field": "ticks_to_deadline"},
+              "right": {"param": "relaxed_threshold"}
+            },
+            "on_true": {
+              "type": "condition",
+              "node_id": "DDT-N12-Moderate-Affordable",
+              "description": "Can afford without credit?",
+              "condition": {
+                "op": ">=",
+                "left": {"field": "available_liquidity"},
+                "right": {"field": "remaining_amount"}
+              },
+              "on_true": {
+                "type": "action",
+                "node_id": "DDT-A11-Moderate-Release",
+                "action": "Release"
+              },
+              "on_false": {
+                "type": "action",
+                "node_id": "DDT-A12-Moderate-Hold",
+                "action": "Hold",
+                "parameters": {"reason": {"value": "WaitingForInflows"}}
+              }
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "DDT-A13-Far-Hold",
+              "action": "Hold",
+              "parameters": {"reason": {"value": "DeadlineFar"}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "DDT-SC1-LargeGap",
+    "description": "Is there a significant gap (>0)?",
+    "condition": {
+      "op": ">",
+      "left": {"field": "queue1_liquidity_gap"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "DDT-SC2-LateDay",
+      "description": "Are we in late day (>70%)?",
+      "condition": {
+        "op": ">",
+        "left": {"field": "day_progress_fraction"},
+        "right": {"value": 0.7}
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "DDT-SC3-HasCapacity",
+        "description": "Do we have capacity to cover gap?",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "remaining_collateral_capacity"},
+          "right": {"field": "queue1_liquidity_gap"}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "DDT-SCA1-Post-Full",
+          "action": "PostCollateral",
+          "parameters": {
+            "amount": {"field": "queue1_liquidity_gap"},
+            "reason": {"value": "LateDayGap"}
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "DDT-SCA2-Post-Available",
+          "action": "PostCollateral",
+          "parameters": {
+            "amount": {"field": "remaining_collateral_capacity"},
+            "reason": {"value": "PartialLateDayGap"}
+          }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "DDT-SCA3-EarlyDay-Wait",
+        "action": "HoldCollateral"
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "DDT-SCA4-NoGap",
+      "action": "HoldCollateral"
+    }
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "DDT-EC1-Posted",
+    "description": "Have we posted collateral?",
+    "condition": {
+      "op": ">",
+      "left": {"field": "posted_collateral"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "DDT-EC2-GapGone",
+      "description": "Is the gap resolved?",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "queue1_liquidity_gap"},
+        "right": {"value": 0.0}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "DDT-ECA1-Withdraw-All",
+        "action": "WithdrawCollateral",
+        "parameters": {
+          "amount": {"field": "posted_collateral"},
+          "reason": {"value": "GapResolved"}
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "DDT-EC3-ExcessPosted",
+        "description": "Have we posted more than needed?",
+        "condition": {
+          "op": ">",
+          "left": {"field": "headroom"},
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": {"field": "queue1_liquidity_gap"},
+              "right": {"value": 1.5}
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "DDT-ECA2-Withdraw-Excess",
+          "action": "WithdrawCollateral",
+          "parameters": {
+            "amount": {
+              "compute": {
+                "op": "/",
+                "left": {"field": "posted_collateral"},
+                "right": {"value": 3.0}
+              }
+            },
+            "reason": {"value": "ExcessPosted"}
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "DDT-ECA3-Keep",
+          "action": "HoldCollateral"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "DDT-ECA4-NonePosted",
+      "action": "HoldCollateral"
+    }
+  }
+}

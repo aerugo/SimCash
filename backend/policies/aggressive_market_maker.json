@@ -1,0 +1,213 @@
+{
+  "version": "1.0",
+  "policy_id": "aggressive_market_maker_v1",
+  "description": "High-velocity trading bank that releases payments aggressively to maximize throughput. Uses credit liberally but monitors system congestion and delays when RTGS is overloaded. Optimizes for settlement speed over liquidity preservation.",
+  "parameters": {
+    "min_liquidity_floor": 50000.0,
+    "congestion_threshold": 0.7,
+    "trivial_amount_threshold": 10000.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "AMM-N1-EOD",
+    "description": "End of day? Release everything immediately",
+    "condition": {
+      "op": "==",
+      "left": {"field": "is_eod_rush"},
+      "right": {"value": 1.0}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "AMM-A1-EOD-Release",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "AMM-N5-HasLiquidity",
+      "description": "Do we have liquidity to cover this?",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "available_liquidity"},
+        "right": {"field": "remaining_amount"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "AMM-A5-Release-Liquid",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "AMM-N6-AboveFloor",
+        "description": "Would releasing with credit keep us above min floor?",
+        "condition": {
+          "op": ">=",
+          "left": {
+            "compute": {
+              "op": "+",
+              "left": {"field": "available_liquidity"},
+              "right": {"field": "headroom"}
+            }
+          },
+          "right": {
+            "compute": {
+              "op": "+",
+              "left": {"field": "remaining_amount"},
+              "right": {"param": "min_liquidity_floor"}
+            }
+          }
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "AMM-N7-CreditCheaper",
+          "description": "Is overdraft cheaper than delay for one tick?",
+          "condition": {
+            "op": "<",
+            "left": {"field": "cost_overdraft_this_amount_one_tick"},
+            "right": {"field": "cost_delay_this_tx_one_tick"}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "AMM-A6-Release-Credit",
+            "action": "ReleaseWithCredit"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "AMM-A7-Hold-DelayCheaper",
+            "action": "Hold",
+            "parameters": {"reason": {"value": "DelayCheaperThanCredit"}}
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "AMM-N8-VeryUrgent",
+          "description": "Is deadline imminent?",
+          "condition": {
+            "op": "<=",
+            "left": {"field": "ticks_to_deadline"},
+            "right": {"value": 1.0}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "AMM-A8-Force-Urgent",
+            "action": "ReleaseWithCredit"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "AMM-A9-Hold-WaitInflow",
+            "action": "Hold",
+            "parameters": {"reason": {"value": "BelowMinFloor"}}
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "AMM-SC1-GapExists",
+    "description": "Is there a liquidity gap?",
+    "condition": {
+      "op": ">",
+      "left": {"field": "queue1_liquidity_gap"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "AMM-SC2-HasCapacity",
+      "description": "Do we have collateral capacity?",
+      "condition": {
+        "op": ">",
+        "left": {"field": "remaining_collateral_capacity"},
+        "right": {"field": "queue1_liquidity_gap"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "AMM-SCA1-Post-Full",
+        "action": "PostCollateral",
+        "parameters": {
+          "amount": {"field": "queue1_liquidity_gap"},
+          "reason": {"value": "AggressiveFillGap"}
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "AMM-SC3-PostPartial",
+        "description": "Post whatever we have",
+        "condition": {
+          "op": ">",
+          "left": {"field": "remaining_collateral_capacity"},
+          "right": {"value": 0.0}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "AMM-SCA2-Post-Partial",
+          "action": "PostCollateral",
+          "parameters": {
+            "amount": {"field": "remaining_collateral_capacity"},
+            "reason": {"value": "PartialGap"}
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "AMM-SCA3-NoCapacity",
+          "action": "HoldCollateral"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "AMM-SCA4-NoGap",
+      "action": "HoldCollateral"
+    }
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "AMM-EC1-Posted",
+    "description": "Do we have collateral posted?",
+    "condition": {
+      "op": ">",
+      "left": {"field": "posted_collateral"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "AMM-EC2-ExcessHeadroom",
+      "description": "Do we have more than 2x queue1 value in headroom?",
+      "condition": {
+        "op": ">",
+        "left": {"field": "headroom"},
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "queue1_total_value"},
+            "right": {"value": 2.0}
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "AMM-ECA1-Withdraw-Excess",
+        "action": "WithdrawCollateral",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "/",
+              "left": {"field": "posted_collateral"},
+              "right": {"value": 2.0}
+            }
+          },
+          "reason": {"value": "ExcessHeadroom"}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "AMM-ECA2-Keep",
+        "action": "HoldCollateral"
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "AMM-ECA3-NonePosted",
+      "action": "HoldCollateral"
+    }
+  }
+}
