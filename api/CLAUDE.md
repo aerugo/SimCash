@@ -762,20 +762,23 @@ config = {
 ## Development Commands
 
 ```bash
-# Install dependencies (dev mode)
-pip install -e ".[dev]"
+# Setup: Build Rust module and install everything (ONE command!)
+uv sync --extra dev
 
-# Run tests
-pytest
+# Run tests (use .venv/bin/python to ensure correct environment)
+.venv/bin/python -m pytest
 
 # Run tests with coverage
-pytest --cov=payment_simulator --cov-report=html
+.venv/bin/python -m pytest --cov=payment_simulator --cov-report=html
 
 # Run specific test file
-pytest tests/integration/test_rust_ffi_determinism.py
+.venv/bin/python -m pytest tests/integration/test_rust_ffi_determinism.py
 
 # Run with verbose output
-pytest -v -s
+.venv/bin/python -m pytest -v -s
+
+# After Rust code changes, rebuild with:
+uv sync --extra dev --reinstall-package payment-simulator
 
 # Type checking
 mypy payment_simulator/
@@ -794,6 +797,190 @@ uvicorn payment_simulator.api.main:app --reload
 # Start API server (prod)
 gunicorn payment_simulator.api.main:app -w 4 -k uvicorn.workers.UvicornWorker
 ```
+
+---
+
+## CLI Execution Architecture (SimulationRunner)
+
+### Overview
+
+The CLI execution layer uses the **Template Method** and **Strategy** patterns to eliminate code duplication across 4 execution modes (normal, verbose, stream, event_stream).
+
+**Key Components:**
+- `SimulationRunner`: Core execution engine (template method)
+- `OutputStrategy` (Protocol): Mode-specific output behavior
+- `PersistenceManager`: Centralized database persistence
+- `SimulationStats`: Statistics tracking and aggregation
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  run_simulation() - CLI Entry Point                     │
+│  (/cli/commands/run.py)                                 │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│  _create_output_strategy()                              │
+│  Factory: mode → OutputStrategy                         │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│  SimulationRunner                                       │
+│  (/cli/execution/runner.py)                            │
+│                                                         │
+│  - Common execution flow (tick loop, EOD detection)    │
+│  - Calls output strategy hooks at lifecycle events     │
+│  - Manages persistence and statistics                  │
+└───────┬────────────────────────────────────┬───────────┘
+        │                                    │
+        ▼                                    ▼
+┌──────────────────────┐         ┌─────────────────────────┐
+│  OutputStrategy      │         │  PersistenceManager     │
+│  (Protocol)          │         │  (/cli/execution/       │
+│                      │         │   persistence.py)       │
+│  Implementations:    │         │                         │
+│  - VerboseModeOutput │         │  - EOD data persistence │
+│  - NormalModeOutput  │         │  - Full replay buffers  │
+│  - StreamModeOutput  │         │  - Metadata persistence │
+│  - EventStreamOutput │         └─────────────────────────┘
+└──────────────────────┘
+```
+
+### OutputStrategy Protocol
+
+Each execution mode implements this protocol:
+
+```python
+class OutputStrategy(Protocol):
+    def on_simulation_start(self, config: SimulationConfig) -> None:
+        """Called once before simulation starts."""
+        ...
+
+    def on_tick_start(self, tick: int) -> None:
+        """Called at start of each tick."""
+        ...
+
+    def on_tick_complete(self, result: TickResult, orch: Orchestrator) -> None:
+        """Called after tick execution completes."""
+        ...
+
+    def on_day_complete(self, day: int, day_stats: dict, orch: Orchestrator) -> None:
+        """Called at end of each day."""
+        ...
+
+    def on_simulation_complete(self, final_stats: dict) -> None:
+        """Called once after simulation completes."""
+        ...
+```
+
+### Execution Flow
+
+```python
+# 1. CLI parses arguments
+run_simulation(config, verbose=True, persist=True, ...)
+
+# 2. Create output strategy for mode
+output = _create_output_strategy(mode="verbose", ...)
+
+# 3. Create persistence manager (if enabled)
+persistence = PersistenceManager(db_manager, sim_id, full_replay)
+
+# 4. Create runner config
+runner_config = SimulationConfig(
+    total_ticks=100,
+    ticks_per_day=10,
+    num_days=10,
+    persist=True,
+    full_replay=False,
+)
+
+# 5. Run simulation
+runner = SimulationRunner(orch, runner_config, output, persistence)
+final_stats = runner.run()  # Returns statistics dict
+
+# 6. Persist final metadata (caller's responsibility)
+if persist:
+    persistence.persist_final_metadata(config_path, config_dict, ...)
+```
+
+### Adding a New Execution Mode
+
+To add a new execution mode:
+
+1. **Create OutputStrategy implementation** (`/cli/execution/strategies.py`):
+```python
+class MyNewModeOutput:
+    def on_simulation_start(self, config):
+        print("Starting my new mode!")
+
+    def on_tick_complete(self, result, orch):
+        # Custom output for each tick
+        print(f"Tick {result.tick}: {result.num_settlements} settlements")
+
+    # ... implement other hooks
+```
+
+2. **Add to factory** (`/cli/commands/run.py`):
+```python
+def _create_output_strategy(mode, ...):
+    if mode == "my_new_mode":
+        return MyNewModeOutput(...)
+    # ... existing modes
+```
+
+3. **Add CLI flag** (if needed):
+```python
+def run_simulation(..., my_new_mode: bool = False):
+    if my_new_mode:
+        output = _create_output_strategy("my_new_mode", ...)
+```
+
+### Persistence Pattern
+
+**Separation of Concerns:**
+- `SimulationRunner.run()`: Executes simulation, returns statistics
+- **Caller** (run.py): Handles metadata persistence after run() completes
+
+```python
+# SimulationRunner returns stats WITHOUT persisting metadata
+final_stats = runner.run()
+
+# Caller persists metadata using returned stats
+persistence.persist_final_metadata(
+    config_path=config,
+    config_dict=config_dict,
+    total_arrivals=final_stats["total_arrivals"],
+    ...
+)
+```
+
+**Why this pattern?**
+- SimulationRunner focuses on execution logic
+- Caller has access to config paths and other metadata
+- Clear separation prevents circular dependencies
+
+### Migration Notes
+
+**Feature Flag (Temporary):**
+```bash
+# Default (new runner)
+payment-sim run config.yaml
+
+# Legacy mode (for comparison testing)
+USE_NEW_RUNNER=false payment-sim run config.yaml
+```
+
+The `USE_NEW_RUNNER` flag enables A/B testing. Once fully validated, the old implementation will be removed entirely.
+
+**File Locations:**
+- Runner: `/cli/execution/runner.py`
+- Strategies: `/cli/execution/strategies.py`
+- Persistence: `/cli/execution/persistence.py`
+- Stats: `/cli/execution/stats.py`
+- Integration: `/cli/commands/run.py`
 
 ---
 
