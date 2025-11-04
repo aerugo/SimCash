@@ -1,0 +1,341 @@
+{
+  "version": "1.0",
+  "policy_id": "smart_splitter_v1",
+  "description": "Sophisticated policy that tactically splits large payments when liquidity-constrained. Compares split friction cost against delay and overdraft costs. Enables partial settlement to maximize throughput while managing costs.",
+  "parameters": {
+    "split_threshold": 300000.0,
+    "min_split_amount": 75000.0,
+    "max_splits": 4.0,
+    "urgency_threshold": 4.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "SS-N1-EOD",
+    "description": "End of day? Release everything",
+    "condition": {
+      "op": "==",
+      "left": {"field": "is_eod_rush"},
+      "right": {"value": 1.0}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "SS-A1-EOD-Release",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "SS-N2-CanAffordFull",
+      "description": "Can we afford the full amount?",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "available_liquidity"},
+        "right": {"field": "remaining_amount"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "SS-A2-Release-Full",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "SS-N3-UrgentDeadline",
+        "description": "Is deadline urgent?",
+        "condition": {
+          "op": "<=",
+          "left": {"field": "ticks_to_deadline"},
+          "right": {"param": "urgency_threshold"}
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "SS-N4-Urgent-SplitEligible",
+          "description": "Is amount large enough to split?",
+          "condition": {
+            "op": "and",
+            "conditions": [
+              {
+                "op": ">",
+                "left": {"field": "remaining_amount"},
+                "right": {"param": "split_threshold"}
+              },
+              {
+                "op": ">",
+                "left": {"field": "available_liquidity"},
+                "right": {"param": "min_split_amount"}
+              }
+            ]
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "SS-N5-Urgent-SplitWorthIt",
+            "description": "Is splitting cheaper than deadline penalty?",
+            "condition": {
+              "op": "<",
+              "left": {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "cost_split_friction"},
+                  "right": {
+                    "compute": {
+                      "op": "-",
+                      "left": {"param": "max_splits"},
+                      "right": {"value": 1.0}
+                    }
+                  }
+                }
+              },
+              "right": {"field": "cost_deadline_penalty"}
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "SS-A3-Urgent-Split",
+              "action": "Split",
+              "parameters": {
+                "num_splits": {"param": "max_splits"}
+              }
+            },
+            "on_false": {
+              "type": "condition",
+              "node_id": "SS-N6-Urgent-UseCredit",
+              "description": "Can use credit instead?",
+              "condition": {
+                "op": ">=",
+                "left": {"field": "headroom"},
+                "right": {
+                  "compute": {
+                    "op": "-",
+                    "left": {"field": "remaining_amount"},
+                    "right": {"field": "available_liquidity"}
+                  }
+                }
+              },
+              "on_true": {
+                "type": "action",
+                "node_id": "SS-A4-Urgent-Credit",
+                "action": "ReleaseWithCredit"
+              },
+              "on_false": {
+                "type": "action",
+                "node_id": "SS-A5-Urgent-Hold",
+                "action": "Hold",
+                "parameters": {"reason": {"value": "UrgentButNoOptions"}}
+              }
+            }
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "SS-N7-Urgent-TooSmallToSplit",
+            "description": "Amount too small to split, can use credit?",
+            "condition": {
+              "op": ">=",
+              "left": {"field": "headroom"},
+              "right": {
+                "compute": {
+                  "op": "-",
+                  "left": {"field": "remaining_amount"},
+                  "right": {"field": "available_liquidity"}
+                }
+              }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "SS-A6-Urgent-SmallCredit",
+              "action": "ReleaseWithCredit"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "SS-A7-Urgent-SmallHold",
+              "action": "Hold",
+              "parameters": {"reason": {"value": "TooSmallToSplit"}}
+            }
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "SS-N8-NotUrgent-SplitEligible",
+          "description": "Not urgent. Should we split proactively?",
+          "condition": {
+            "op": "and",
+            "conditions": [
+              {
+                "op": ">",
+                "left": {"field": "remaining_amount"},
+                "right": {"param": "split_threshold"}
+              },
+              {
+                "op": ">",
+                "left": {"field": "available_liquidity"},
+                "right": {"param": "min_split_amount"}
+              }
+            ]
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "SS-N9-NotUrgent-CostBenefit",
+            "description": "Compare: split friction vs (delay cost * ticks_to_deadline)",
+            "condition": {
+              "op": "<",
+              "left": {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "cost_split_friction"},
+                  "right": {"value": 2.0}
+                }
+              },
+              "right": {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "cost_delay_this_tx_one_tick"},
+                  "right": {"field": "ticks_to_deadline"}
+                }
+              }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "SS-A8-NotUrgent-Split",
+              "action": "Split",
+              "parameters": {
+                "num_splits": {"value": 2.0}
+              }
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "SS-A9-NotUrgent-HoldForInflow",
+              "action": "Hold",
+              "parameters": {"reason": {"value": "WaitingForInflows"}}
+            }
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "SS-N10-NotUrgent-SmallCostCheck",
+            "description": "Too small to split. Compare delay vs overdraft",
+            "condition": {
+              "op": "<",
+              "left": {"field": "cost_delay_this_tx_one_tick"},
+              "right": {"field": "cost_overdraft_this_amount_one_tick"}
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "SS-A10-NotUrgent-HoldCheap",
+              "action": "Hold",
+              "parameters": {"reason": {"value": "DelayCheaperThanCredit"}}
+            },
+            "on_false": {
+              "type": "condition",
+              "node_id": "SS-N11-NotUrgent-HasCredit",
+              "description": "Overdraft cheaper, can use it?",
+              "condition": {
+                "op": ">=",
+                "left": {"field": "headroom"},
+                "right": {
+                  "compute": {
+                    "op": "-",
+                    "left": {"field": "remaining_amount"},
+                    "right": {"field": "available_liquidity"}
+                  }
+                }
+              },
+              "on_true": {
+                "type": "action",
+                "node_id": "SS-A11-NotUrgent-UseCredit",
+                "action": "ReleaseWithCredit"
+              },
+              "on_false": {
+                "type": "action",
+                "node_id": "SS-A12-NotUrgent-FinalHold",
+                "action": "Hold",
+                "parameters": {"reason": {"value": "NoCredit Available"}}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "SS-SC1-NoProactive",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "SS-EC1-LargeGap",
+    "description": "Is there a gap AND we're past 75% of day?",
+    "condition": {
+      "op": "and",
+      "conditions": [
+        {
+          "op": ">",
+          "left": {"field": "queue1_liquidity_gap"},
+          "right": {"value": 0.0}
+        },
+        {
+          "op": ">",
+          "left": {"field": "day_progress_fraction"},
+          "right": {"value": 0.75}
+        }
+      ]
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "SS-EC2-CanCoverGap",
+      "description": "Can we cover the gap?",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "remaining_collateral_capacity"},
+        "right": {"field": "queue1_liquidity_gap"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "SS-ECA1-Post-Gap",
+        "action": "PostCollateral",
+        "parameters": {
+          "amount": {"field": "queue1_liquidity_gap"},
+          "reason": {"value": "LateDayGap"}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "SS-ECA2-Post-Available",
+        "action": "PostCollateral",
+        "parameters": {
+          "amount": {"field": "remaining_collateral_capacity"},
+          "reason": {"value": "PartialGap"}
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "SS-EC3-WithdrawCheck",
+      "description": "Should we withdraw excess collateral?",
+      "condition": {
+        "op": "and",
+        "conditions": [
+          {
+            "op": ">",
+            "left": {"field": "posted_collateral"},
+            "right": {"value": 0.0}
+          },
+          {
+            "op": "<=",
+            "left": {"field": "queue1_liquidity_gap"},
+            "right": {"value": 0.0}
+          }
+        ]
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "SS-ECA3-Withdraw",
+        "action": "WithdrawCollateral",
+        "parameters": {
+          "amount": {"field": "posted_collateral"},
+          "reason": {"value": "GapClosed"}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "SS-ECA4-Hold",
+        "action": "HoldCollateral"
+      }
+    }
+  }
+}

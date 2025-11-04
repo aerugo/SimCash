@@ -1,0 +1,247 @@
+{
+  "version": "1.0",
+  "policy_id": "cautious_liquidity_preserver_v1",
+  "description": "Ultra-conservative bank that maintains large liquidity buffers and only releases when absolutely safe or urgent. Avoids credit usage except for emergencies. Designed for liquidity-constrained environments where preserving cash is critical.",
+  "parameters": {
+    "buffer_multiplier": 2.5,
+    "urgency_threshold": 3.0,
+    "eod_threshold": 0.8
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "CLP-N1-EOD",
+    "description": "Is this end-of-day rush?",
+    "condition": {
+      "op": "==",
+      "left": {"field": "is_eod_rush"},
+      "right": {"value": 1.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "CLP-N2-EOD-PastDeadline",
+      "description": "Past deadline? Must release to avoid double penalty",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "ticks_to_deadline"},
+        "right": {"value": 0.0}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "CLP-A1-EOD-Force",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "CLP-N3-EOD-HasLiquidity",
+        "description": "Can afford without credit?",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "available_liquidity"},
+          "right": {"field": "remaining_amount"}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "CLP-A2-EOD-Release",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "CLP-A3-EOD-Hold",
+          "action": "Hold",
+          "parameters": {"reason": {"value": "EOD-NoLiquidity"}}
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "CLP-N4-VeryUrgent",
+      "description": "Within urgency threshold?",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "ticks_to_deadline"},
+        "right": {"param": "urgency_threshold"}
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "CLP-N5-Urgent-CanAfford",
+        "description": "Can afford it with current liquidity?",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "available_liquidity"},
+          "right": {"field": "remaining_amount"}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "CLP-A4-Urgent-Release",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "CLP-N6-Urgent-PenaltyCheaper",
+          "description": "Is deadline penalty cheaper than overdraft for remaining ticks?",
+          "condition": {
+            "op": "<",
+            "left": {"field": "cost_deadline_penalty"},
+            "right": {
+              "compute": {
+                "op": "*",
+                "left": {"field": "cost_overdraft_this_amount_one_tick"},
+                "right": {"field": "ticks_to_deadline"}
+              }
+            }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "CLP-A5-Urgent-AcceptPenalty",
+            "action": "Hold",
+            "parameters": {"reason": {"value": "PenaltyCheaperThanCredit"}}
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "CLP-A6-Urgent-ForceCredit",
+            "action": "ReleaseWithCredit"
+          }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "CLP-N7-StrongBuffer",
+        "description": "Do we have buffer_multiplier times the transaction amount?",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "available_liquidity"},
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": {"field": "remaining_amount"},
+              "right": {"param": "buffer_multiplier"}
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "CLP-A7-SafeRelease",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "CLP-N8-LateDay",
+          "description": "Are we late in the day? (>80% progress)",
+          "condition": {
+            "op": ">",
+            "left": {"field": "day_progress_fraction"},
+            "right": {"param": "eod_threshold"}
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "CLP-N9-LateDay-MinLiquidity",
+            "description": "Can barely afford it?",
+            "condition": {
+              "op": ">=",
+              "left": {"field": "available_liquidity"},
+              "right": {"field": "remaining_amount"}
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "CLP-A8-LateDay-Release",
+              "action": "Release"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "CLP-A9-LateDay-Hold",
+              "action": "Hold",
+              "parameters": {"reason": {"value": "LateDay-WaitForInflows"}}
+            }
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "CLP-A10-EarlyDay-Hold",
+            "action": "Hold",
+            "parameters": {"reason": {"value": "PreservingBuffer"}}
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "CLP-SC1-NeverProactive",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "CLP-EC1-HasPosted",
+    "description": "Do we have any collateral posted?",
+    "condition": {
+      "op": ">",
+      "left": {"field": "posted_collateral"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "CLP-EC2-NoGap",
+      "description": "Is there still a gap?",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "queue1_liquidity_gap"},
+        "right": {"value": 0.0}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "CLP-ECA1-WithdrawAll",
+        "action": "WithdrawCollateral",
+        "parameters": {
+          "amount": {"field": "posted_collateral"},
+          "reason": {"value": "GapClosed"}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "CLP-ECA2-KeepPosted",
+        "action": "HoldCollateral"
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "CLP-EC3-EmergencyGap",
+      "description": "Is there a critical gap and we're near EOD?",
+      "condition": {
+        "op": "and",
+        "conditions": [
+          {
+            "op": ">",
+            "left": {"field": "queue1_liquidity_gap"},
+            "right": {"value": 0.0}
+          },
+          {
+            "op": ">",
+            "left": {"field": "day_progress_fraction"},
+            "right": {"value": 0.85}
+          }
+        ]
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "CLP-ECA3-EmergencyPost",
+        "action": "PostCollateral",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "min",
+              "values": [
+                {"field": "queue1_liquidity_gap"},
+                {"field": "remaining_collateral_capacity"}
+              ]
+            }
+          },
+          "reason": {"value": "EmergencyEODGap"}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "CLP-ECA4-NoAction",
+        "action": "HoldCollateral"
+      }
+    }
+  }
+}
