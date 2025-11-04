@@ -385,7 +385,7 @@ pub struct TickEvents {
     pub arrivals: Vec<Transaction>,
     pub settlements: Vec<Settlement>,
     pub queued: Vec<String>, // Transaction IDs
-    pub dropped: Vec<String>,
+    pub overdue: Vec<String>, // Transactions past deadline (still in queue)
 }
 
 impl TickEvents {
@@ -395,7 +395,7 @@ impl TickEvents {
             arrivals: Vec::with_capacity(cap),
             settlements: Vec::with_capacity(cap),
             queued: Vec::with_capacity(cap / 2),
-            dropped: Vec::with_capacity(cap / 10),
+            overdue: Vec::with_capacity(cap / 10), // Overdue but not removed
         }
     }
 }
@@ -831,13 +831,13 @@ pub fn process_rtgs_queue(
     for tx_id in state.rtgs_queue.drain(..) {
         let transaction = state.transactions.get_mut(&tx_id).unwrap();
 
-        // Check if past deadline → drop
-        if transaction.is_past_deadline(tick) {
-            transaction.drop_transaction(tick);
-            continue;
+        // Check if past deadline → mark overdue (but keep in queue)
+        if transaction.is_past_deadline(tick) && !transaction.is_overdue() {
+            transaction.mark_overdue(tick).ok(); // System-enforced transition
+            // Overdue transactions remain in queue with escalated costs
         }
 
-        // Attempt settlement
+        // Attempt settlement (even if overdue)
         let sender = state.agents.get_mut(transaction.sender_id()).unwrap();
         let receiver = state.agents.get_mut(transaction.receiver_id()).unwrap();
 
@@ -847,7 +847,7 @@ pub fn process_rtgs_queue(
                 settled_value += transaction.amount();
             }
             Err(SettlementError::InsufficientLiquidity { .. }) => {
-                // Still can't settle, re-queue
+                // Still can't settle, re-queue (including overdue)
                 still_pending.push(tx_id);
             }
             Err(_) => {} // Other errors, don't re-queue
@@ -984,7 +984,12 @@ pub enum ReleaseDecision {
     /// Hold transaction in Queue 1 for later re-evaluation
     Hold { tx_id: String, reason: HoldReason },
 
+    /// Change transaction priority (remains in Queue 1)
+    /// Typically used to escalate overdue transactions
+    Reprioritize { tx_id: String, new_priority: u8 },
+
     /// Drop transaction (expired or unviable)
+    /// Note: System auto-marks overdue instead of dropping past deadline
     Drop { tx_id: String },
 }
 

@@ -31,6 +31,7 @@ mod test_cost_context {
             split_friction_cost: 1000,
             deadline_penalty: 100_000,
             eod_penalty_per_transaction: 500_000,
+            ..Default::default()
         };
 
         EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8)
@@ -189,6 +190,7 @@ mod test_cost_context {
             split_friction_cost: 0,
             deadline_penalty: 0,
             eod_penalty_per_transaction: 0,
+            ..Default::default()
         };
 
         let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8);

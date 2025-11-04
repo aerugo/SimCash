@@ -46,11 +46,14 @@ fn test_transaction_settle_full() {
 }
 
 #[test]
-fn test_transaction_drop() {
+fn test_transaction_mark_overdue() {
+    // Phase 4: Test marking transaction as overdue
     let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
-    tx.drop_transaction(60);
-    assert_eq!(tx.status(), &TransactionStatus::Dropped { tick: 60 });
+    // Transaction becomes overdue after deadline (tick 51)
+    tx.mark_overdue(51).unwrap();
+    assert!(tx.is_overdue());
+    assert_eq!(tx.overdue_since_tick(), Some(51));
 }
 
 #[test]
@@ -95,14 +98,18 @@ fn test_transaction_settle_already_settled() {
 }
 
 #[test]
-fn test_transaction_settle_dropped() {
+fn test_transaction_settle_overdue() {
+    // Phase 4: Overdue transactions CAN still be settled
     let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100000, 10, 50);
 
-    tx.drop_transaction(40);
+    // Mark transaction as overdue
+    tx.mark_overdue(51).unwrap();
+    assert!(tx.is_overdue());
 
-    // Try to settle a dropped transaction
-    let result = tx.settle(100000, 50);
-    assert!(result.is_err());
+    // Overdue transactions can still settle (key behavior change)
+    let result = tx.settle(100000, 55);
+    assert!(result.is_ok(), "Overdue transactions should be settleable");
+    assert!(tx.is_fully_settled());
 }
 
 #[test]

@@ -467,6 +467,13 @@ fn parse_cost_rates(py_costs: &Bound<'_, PyDict>) -> PyResult<CostRates> {
             .map(|v| v.extract())
             .transpose()?
             .unwrap_or(1000),
+
+        // Phase 3: Overdue delay cost multiplier
+        overdue_delay_multiplier: py_costs
+            .get_item("overdue_delay_multiplier")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or(5.0), // Default: 5x penalty for overdue transactions
     })
 }
 
@@ -566,24 +573,27 @@ pub fn transaction_to_py(
         }
     }
 
-    // Status
+    // Status (Phase 5: Updated for Overdue status)
     let status_str = match tx.status() {
         crate::models::TransactionStatus::Pending => "pending",
         crate::models::TransactionStatus::PartiallySettled { .. } => "settled", // Map partially settled to settled
         crate::models::TransactionStatus::Settled { .. } => "settled",
-        crate::models::TransactionStatus::Dropped { .. } => "dropped",
+        crate::models::TransactionStatus::Overdue { .. } => "overdue", // Phase 5: New overdue status
     };
     dict.set_item("status", status_str)?;
 
-    // Drop reason (if dropped)
+    // Overdue timing (Phase 5: Track when transaction became overdue)
     match tx.status() {
-        crate::models::TransactionStatus::Dropped { .. } => {
-            dict.set_item("drop_reason", "deadline_expired")?; // Default reason for now
+        crate::models::TransactionStatus::Overdue { missed_deadline_tick } => {
+            dict.set_item("overdue_since_tick", missed_deadline_tick)?;
         }
         _ => {
-            dict.set_item("drop_reason", py.None())?;
+            dict.set_item("overdue_since_tick", py.None())?;
         }
     }
+
+    // Drop reason (deprecated - kept for backward compatibility)
+    dict.set_item("drop_reason", py.None())?;
 
     // Settlement tracking
     dict.set_item("amount_settled", tx.settled_amount())?;

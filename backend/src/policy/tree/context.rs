@@ -139,6 +139,21 @@ impl EvalContext {
             if tx.is_past_deadline(tick) { 1.0 } else { 0.0 },
         );
 
+        // Phase 4: Overdue status fields
+        // Allows policies to detect and react to overdue transactions
+        fields.insert(
+            "is_overdue".to_string(),
+            if tx.is_overdue() { 1.0 } else { 0.0 },
+        );
+
+        // Calculate overdue duration (0 if not overdue)
+        let overdue_duration = if let Some(overdue_since) = tx.overdue_since_tick() {
+            tick.saturating_sub(overdue_since)
+        } else {
+            0
+        };
+        fields.insert("overdue_duration".to_string(), overdue_duration as f64);
+
         // Agent fields
         fields.insert("balance".to_string(), agent.balance() as f64);
         fields.insert("credit_limit".to_string(), agent.credit_limit() as f64);
@@ -619,5 +634,55 @@ mod tests {
 
         // Collateral utilization should be computable
         assert!(context.has_field("collateral_utilization"));
+    }
+
+    // ========================================================================
+    // Phase 4: Overdue Context Fields (TDD)
+    // ========================================================================
+
+    #[test]
+    fn test_context_includes_is_overdue_field() {
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
+        let state = SimulationState::new(vec![agent.clone()]);
+        let cost_rates = create_cost_rates();
+
+        // Pending transaction
+        let context = EvalContext::build(&tx, &agent, &state, 40, &cost_rates, 100, 0.8);
+        assert_eq!(context.get_field("is_overdue").unwrap(), 0.0);
+
+        // Overdue transaction
+        tx.mark_overdue(51).unwrap();
+        let context = EvalContext::build(&tx, &agent, &state, 55, &cost_rates, 100, 0.8);
+        assert_eq!(context.get_field("is_overdue").unwrap(), 1.0);
+    }
+
+    #[test]
+    fn test_context_includes_overdue_duration() {
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
+        let state = SimulationState::new(vec![agent.clone()]);
+        let cost_rates = create_cost_rates();
+
+        // Mark overdue at tick 51
+        tx.mark_overdue(51).unwrap();
+
+        // Current tick 60 → 9 ticks overdue
+        let context = EvalContext::build(&tx, &agent, &state, 60, &cost_rates, 100, 0.8);
+
+        assert_eq!(context.get_field("overdue_duration").unwrap(), 9.0);
+    }
+
+    #[test]
+    fn test_overdue_duration_zero_when_not_overdue() {
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
+        let state = SimulationState::new(vec![agent.clone()]);
+        let cost_rates = create_cost_rates();
+
+        // Not overdue - duration should be 0
+        let context = EvalContext::build(&tx, &agent, &state, 40, &cost_rates, 100, 0.8);
+
+        assert_eq!(context.get_field("overdue_duration").unwrap(), 0.0);
     }
 }

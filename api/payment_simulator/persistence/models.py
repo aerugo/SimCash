@@ -24,6 +24,7 @@ class TransactionStatus(str, Enum):
     PENDING = "pending"
     SETTLED = "settled"
     DROPPED = "dropped"
+    OVERDUE = "overdue"  # Phase 5: Transactions past deadline
 
 
 class SimulationStatus(str, Enum):
@@ -103,6 +104,9 @@ class TransactionRecord(BaseModel):
 
     # Status
     status: TransactionStatus = Field(..., description="Current status")
+    overdue_since_tick: Optional[int] = Field(
+        None, description="Tick when became overdue (Phase 5)"
+    )
     drop_reason: Optional[str] = Field(None, description="Why dropped (if applicable)")
 
     # Settlement tracking

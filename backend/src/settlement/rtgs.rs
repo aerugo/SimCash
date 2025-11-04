@@ -112,9 +112,8 @@ pub fn try_settle(
         return Err(SettlementError::AlreadySettled);
     }
 
-    if matches!(transaction.status(), TransactionStatus::Dropped { .. }) {
-        return Err(SettlementError::Dropped);
-    }
+    // NOTE: Removed check for Dropped status - overdue transactions can still settle
+    // In real payment systems, all obligations must eventually be settled
 
     let amount = transaction.remaining_amount();
 
@@ -161,7 +160,12 @@ pub struct QueueProcessingResult {
     pub remaining_queue_size: usize,
 
     /// Number of transactions dropped (past deadline)
+    /// DEPRECATED: Always 0 - transactions are now marked overdue, not dropped
+    #[deprecated(note = "Transactions are now marked overdue, not dropped")]
     pub dropped_count: usize,
+
+    /// Number of transactions newly marked overdue this tick
+    pub overdue_count: usize,
 }
 
 /// Submit a transaction to RTGS for settlement
@@ -318,7 +322,7 @@ pub fn submit_transaction(
 pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessingResult {
     let mut settled_count = 0;
     let mut settled_value = 0i64;
-    let mut dropped_count = 0;
+    let mut overdue_count = 0; // NEW: Count newly overdue transactions
     let mut still_pending = Vec::new();
 
     // Drain queue and process each transaction
@@ -333,13 +337,15 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
             continue;
         }
 
-        // Check if past deadline → drop
-        if transaction.is_past_deadline(tick) {
-            transaction.drop_transaction(tick);
-            dropped_count += 1;
-            continue;
+        // CRITICAL: System automatically marks overdue (not policy-driven!)
+        // This must happen here because Queue 2 has NO policy
+        if transaction.is_past_deadline(tick) && !transaction.is_overdue() {
+            transaction.mark_overdue(tick).ok(); // Ignore errors (defensive)
+            overdue_count += 1;
+            // One-time penalty will be charged in orchestrator cost calculation
         }
 
+        // Attempt settlement (regardless of overdue status)
         let sender_id = transaction.sender_id().to_string();
         let receiver_id = transaction.receiver_id().to_string();
         let amount = transaction.remaining_amount();
@@ -368,8 +374,8 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
             settled_count += 1;
             settled_value += amount;
         } else {
-            // Still can't settle, re-queue
-            still_pending.push(tx_id);
+            // Still can't settle, re-queue (even if overdue)
+            still_pending.push(tx_id.clone());
         }
     }
 
@@ -380,7 +386,8 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
         settled_count,
         settled_value,
         remaining_queue_size: state.queue_size(),
-        dropped_count,
+        dropped_count: 0, // Deprecated - always 0
+        overdue_count,
     }
 }
 
@@ -447,5 +454,110 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(sender.balance(), 300_000); // Unchanged
         assert_eq!(receiver.balance(), 0); // Unchanged
+    }
+
+    // ==========================================
+    // Phase 2: Overdue Transaction Tests (RTGS)
+    // ==========================================
+
+    #[test]
+    fn test_try_settle_accepts_overdue_transactions() {
+        let mut sender = create_agent("A", 1_000_000, 0);
+        let mut receiver = create_agent("B", 0, 0);
+        let mut tx = create_transaction("A", "B", 500_000, 0, 50);
+
+        // Mark overdue
+        tx.mark_overdue(51).unwrap();
+
+        // Should settle successfully
+        let result = try_settle(&mut sender, &mut receiver, &mut tx, 55);
+
+        assert!(result.is_ok());
+        assert!(tx.is_fully_settled());
+        assert_eq!(sender.balance(), 500_000);
+        assert_eq!(receiver.balance(), 500_000);
+    }
+
+    #[test]
+    fn test_overdue_transactions_remain_in_queue() {
+        let agents = vec![
+            create_agent("BANK_A", 100_000, 0), // Insufficient
+            create_agent("BANK_B", 0, 0),
+        ];
+        let mut state = SimulationState::new(agents);
+
+        let tx = create_transaction("BANK_A", "BANK_B", 500_000, 0, 50);
+        submit_transaction(&mut state, tx, 5).unwrap();
+
+        // Process at tick 51 (past deadline)
+        let result = process_queue(&mut state, 51);
+
+        // Old behavior: dropped_count = 1, remaining_queue_size = 0
+        // New behavior: transaction marked overdue but stays in queue
+        assert_eq!(result.overdue_count, 1); // New metric
+        assert_eq!(result.remaining_queue_size, 1);
+
+        // Transaction should be overdue but still in queue
+        let tx = state.transactions().values().next().unwrap();
+        assert!(tx.is_overdue());
+        assert_eq!(tx.overdue_since_tick(), Some(51));
+    }
+
+    #[test]
+    fn test_overdue_transaction_settles_when_liquidity_arrives() {
+        let agents = vec![
+            create_agent("BANK_A", 100_000, 0),
+            create_agent("BANK_B", 0, 0),
+        ];
+        let mut state = SimulationState::new(agents);
+
+        let tx = create_transaction("BANK_A", "BANK_B", 500_000, 0, 50);
+        submit_transaction(&mut state, tx, 5).unwrap();
+
+        // Tick 51: Past deadline, becomes overdue
+        process_queue(&mut state, 51);
+
+        // Verify overdue but still in queue
+        assert_eq!(state.queue_size(), 1);
+        let tx = state.transactions().values().next().unwrap();
+        assert!(tx.is_overdue());
+
+        // Add liquidity
+        state.get_agent_mut("BANK_A").unwrap().credit(500_000);
+
+        // Tick 52: Should settle despite being overdue
+        let result = process_queue(&mut state, 52);
+
+        assert_eq!(result.settled_count, 1);
+        assert_eq!(result.remaining_queue_size, 0);
+
+        let tx = state.transactions().values().next().unwrap();
+        assert!(tx.is_fully_settled());
+    }
+
+    #[test]
+    fn test_system_enforces_overdue_without_policy() {
+        // This test verifies the CRITICAL design decision:
+        // The system marks transactions overdue automatically,
+        // not relying on policy (which doesn't exist in Queue 2)
+
+        let agents = vec![
+            create_agent("BANK_A", 0, 0), // No liquidity
+            create_agent("BANK_B", 0, 0),
+        ];
+        let mut state = SimulationState::new(agents);
+
+        let tx = create_transaction("BANK_A", "BANK_B", 100_000, 0, 50);
+        submit_transaction(&mut state, tx, 5).unwrap();
+
+        // Process through deadline - NO POLICY INVOLVED
+        for tick in 6..=55 {
+            process_queue(&mut state, tick);
+        }
+
+        // Transaction should be overdue (system-enforced)
+        let tx = state.transactions().values().next().unwrap();
+        assert!(tx.is_overdue());
+        assert_eq!(tx.overdue_since_tick(), Some(51));
     }
 }

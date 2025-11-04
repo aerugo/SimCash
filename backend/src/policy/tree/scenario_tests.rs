@@ -26,6 +26,7 @@ mod tests {
             eod_penalty_per_transaction: 10000,
             deadline_penalty: 5000,
             split_friction_cost: 1000,
+            ..Default::default()
         }
     }
 
@@ -453,7 +454,8 @@ mod tests {
                 ReleaseDecision::SubmitFull { tx_id }
                 | ReleaseDecision::Hold { tx_id, .. }
                 | ReleaseDecision::Drop { tx_id }
-                | ReleaseDecision::SubmitPartial { tx_id, .. } => tx_id == &urgent_id,
+                | ReleaseDecision::SubmitPartial { tx_id, .. }
+                | ReleaseDecision::Reprioritize { tx_id, .. } => tx_id == &urgent_id,
             })
             .unwrap();
 
@@ -463,7 +465,8 @@ mod tests {
                 ReleaseDecision::SubmitFull { tx_id }
                 | ReleaseDecision::Hold { tx_id, .. }
                 | ReleaseDecision::Drop { tx_id }
-                | ReleaseDecision::SubmitPartial { tx_id, .. } => tx_id == &normal_id,
+                | ReleaseDecision::SubmitPartial { tx_id, .. }
+                | ReleaseDecision::Reprioritize { tx_id, .. } => tx_id == &normal_id,
             })
             .unwrap();
 

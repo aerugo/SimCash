@@ -84,6 +84,18 @@ pub enum Event {
         child_ids: Vec<String>,
     },
 
+    /// Policy reprioritized a transaction (Phase 4: Overdue Handling)
+    ///
+    /// Transaction priority changed while remaining in Queue 1.
+    /// Typically used to bump overdue transactions to higher priority.
+    TransactionReprioritized {
+        tick: usize,
+        agent_id: String,
+        tx_id: String,
+        old_priority: u8,
+        new_priority: u8,
+    },
+
     /// Agent posted collateral to increase available liquidity
     CollateralPost {
         tick: usize,
@@ -158,6 +170,7 @@ impl Event {
             Event::PolicyHold { tick, .. } => *tick,
             Event::PolicyDrop { tick, .. } => *tick,
             Event::PolicySplit { tick, .. } => *tick,
+            Event::TransactionReprioritized { tick, .. } => *tick,
             Event::CollateralPost { tick, .. } => *tick,
             Event::CollateralWithdraw { tick, .. } => *tick,
             Event::Settlement { tick, .. } => *tick,
@@ -177,6 +190,7 @@ impl Event {
             Event::PolicyHold { .. } => "PolicyHold",
             Event::PolicyDrop { .. } => "PolicyDrop",
             Event::PolicySplit { .. } => "PolicySplit",
+            Event::TransactionReprioritized { .. } => "TransactionReprioritized",
             Event::CollateralPost { .. } => "CollateralPost",
             Event::CollateralWithdraw { .. } => "CollateralWithdraw",
             Event::Settlement { .. } => "Settlement",
@@ -196,6 +210,7 @@ impl Event {
             Event::PolicyHold { tx_id, .. } => Some(tx_id),
             Event::PolicyDrop { tx_id, .. } => Some(tx_id),
             Event::PolicySplit { tx_id, .. } => Some(tx_id),
+            Event::TransactionReprioritized { tx_id, .. } => Some(tx_id),
             Event::Settlement { tx_id, .. } => Some(tx_id),
             Event::QueuedRtgs { tx_id, .. } => Some(tx_id),
             _ => None,
@@ -210,6 +225,7 @@ impl Event {
             Event::PolicyHold { agent_id, .. } => Some(agent_id),
             Event::PolicyDrop { agent_id, .. } => Some(agent_id),
             Event::PolicySplit { agent_id, .. } => Some(agent_id),
+            Event::TransactionReprioritized { agent_id, .. } => Some(agent_id),
             Event::CollateralPost { agent_id, .. } => Some(agent_id),
             Event::CollateralWithdraw { agent_id, .. } => Some(agent_id),
             Event::Settlement { sender_id, .. } => Some(sender_id),

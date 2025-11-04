@@ -116,9 +116,10 @@ orchestrator.process(my_python_dataclass)
 - **Sender/Receiver**: Agent IDs
 - **Arrival Tick**: When transaction enters the system
 - **Deadline**: Latest tick for settlement (or penalty applies)
-- **Priority**: Urgency level (higher = more important)
+- **Priority**: Urgency level (0-10, higher = more important)
 - **Divisible**: Can the payment be split into parts?
-- **Status**: pending → partially_settled → settled (or dropped)
+- **Status**: pending → overdue (if past deadline) → partially_settled → settled
+- **Overdue**: Transaction past its deadline but still settleable (with higher costs)
 
 ### Arrival Configurations
 Each agent has a configuration controlling automatic transaction generation:
@@ -136,6 +137,8 @@ Each agent has a configuration controlling automatic transaction generation:
 ### Costs
 - **Overdraft Cost**: Fee for negative balance (basis points per day)
 - **Delay Penalty**: Time-based cost per tick unsettled
+- **Overdue Delay Multiplier**: Cost multiplier for overdue transactions (default 5x)
+- **Deadline Penalty**: One-time penalty when transaction becomes overdue
 - **Split Fee**: Cost to divide a payment
 - **EOD Penalty**: Large penalty for transactions unsettled at day end
 

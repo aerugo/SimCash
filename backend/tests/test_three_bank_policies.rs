@@ -68,6 +68,7 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
             split_friction_cost: 100_00,
             deadline_penalty: 1000_00,
             eod_penalty_per_transaction: 5000_00,
+            overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
         },
         lsm_config: LsmConfig {
             enable_bilateral: true,

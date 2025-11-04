@@ -602,6 +602,26 @@ pub fn build_decision(
 
         ActionType::Drop => Ok(ReleaseDecision::Drop { tx_id }),
 
+        ActionType::Reprioritize => {
+            // Phase 4: Extract new_priority parameter
+            let new_priority_f64 =
+                evaluate_action_parameter(action_params, "new_priority", context, params)?;
+
+            // Convert to u8, capping at 255 (u8::MAX)
+            let new_priority = if new_priority_f64 < 0.0 {
+                0
+            } else if new_priority_f64 > 255.0 {
+                255
+            } else {
+                new_priority_f64 as u8
+            };
+
+            Ok(ReleaseDecision::Reprioritize {
+                tx_id,
+                new_priority,
+            })
+        }
+
         // Phase 8: Collateral actions are not valid in payment decision context
         // These should only appear in collateral-specific decision trees
         ActionType::PostCollateral
@@ -697,7 +717,8 @@ pub fn build_collateral_decision(
         | ActionType::PaceAndRelease
         | ActionType::Split
         | ActionType::Hold
-        | ActionType::Drop => Err(EvalError::InvalidActionType(format!(
+        | ActionType::Drop
+        | ActionType::Reprioritize => Err(EvalError::InvalidActionType(format!(
             "Payment action {:?} cannot be used in collateral decision tree. \
              Payment actions require separate tree evaluation.",
             action
@@ -2100,6 +2121,167 @@ mod tests {
         match result {
             Err(EvalError::MissingActionParameter(param)) => {
                 assert_eq!(param, "amount");
+            }
+            _ => panic!("Expected MissingActionParameter error"),
+        }
+    }
+
+    // ============================================================================
+    // PHASE 4: Reprioritize Action Tests (TDD)
+    // ============================================================================
+
+    #[test]
+    fn test_build_reprioritize_decision_with_literal_priority() {
+        let (context, params) = create_test_context();
+
+        // Reprioritize with literal new_priority = 10
+        let mut action_params = HashMap::new();
+        action_params.insert(
+            "new_priority".to_string(),
+            ValueOrCompute::Direct { value: json!(10) },
+        );
+
+        let action_node = TreeNode::Action {
+            node_id: "R1".to_string(),
+            action: ActionType::Reprioritize,
+            parameters: action_params,
+        };
+
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+
+        match decision {
+            ReleaseDecision::Reprioritize { tx_id, new_priority } => {
+                assert_eq!(tx_id, "tx_001");
+                assert_eq!(new_priority, 10);
+            }
+            _ => panic!("Expected Reprioritize decision"),
+        }
+    }
+
+    #[test]
+    fn test_build_reprioritize_decision_with_computed_priority() {
+        let (context, params) = create_test_context();
+
+        // Reprioritize with computed priority: min(is_overdue * 10, 10)
+        let mut action_params = HashMap::new();
+        action_params.insert(
+            "new_priority".to_string(),
+            ValueOrCompute::Compute {
+                compute: Computation::Min {
+                    values: vec![
+                        Value::Compute {
+                            compute: Box::new(Computation::Multiply {
+                                left: Value::Field {
+                                    field: "is_overdue".to_string(),
+                                },
+                                right: Value::Literal { value: json!(10) },
+                            }),
+                        },
+                        Value::Literal { value: json!(10) },
+                    ],
+                },
+            },
+        );
+
+        let action_node = TreeNode::Action {
+            node_id: "R2".to_string(),
+            action: ActionType::Reprioritize,
+            parameters: action_params,
+        };
+
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+
+        match decision {
+            ReleaseDecision::Reprioritize { tx_id, new_priority } => {
+                assert_eq!(tx_id, "tx_001");
+                // is_overdue is 0 for this transaction, so 0 * 10 = 0
+                assert_eq!(new_priority, 0);
+            }
+            _ => panic!("Expected Reprioritize decision"),
+        }
+    }
+
+    #[test]
+    fn test_build_reprioritize_decision_caps_priority_at_255() {
+        let (context, params) = create_test_context();
+
+        // Reprioritize with priority > 255 should be capped at 255
+        let mut action_params = HashMap::new();
+        action_params.insert(
+            "new_priority".to_string(),
+            ValueOrCompute::Direct { value: json!(300) },
+        );
+
+        let action_node = TreeNode::Action {
+            node_id: "R3".to_string(),
+            action: ActionType::Reprioritize,
+            parameters: action_params,
+        };
+
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+
+        match decision {
+            ReleaseDecision::Reprioritize { tx_id, new_priority } => {
+                assert_eq!(tx_id, "tx_001");
+                // u8 max is 255, should be capped
+                assert_eq!(new_priority, 255);
+            }
+            _ => panic!("Expected Reprioritize decision"),
+        }
+    }
+
+    #[test]
+    fn test_build_reprioritize_decision_from_field() {
+        let (context, params) = create_test_context();
+
+        // Reprioritize with priority from field (overdue_duration)
+        let mut action_params = HashMap::new();
+        action_params.insert(
+            "new_priority".to_string(),
+            ValueOrCompute::Field {
+                field: "priority".to_string(),
+            },
+        );
+
+        let action_node = TreeNode::Action {
+            node_id: "R4".to_string(),
+            action: ActionType::Reprioritize,
+            parameters: action_params,
+        };
+
+        let decision =
+            build_decision(&action_node, "tx_001".to_string(), &context, &params).unwrap();
+
+        match decision {
+            ReleaseDecision::Reprioritize { tx_id, new_priority } => {
+                assert_eq!(tx_id, "tx_001");
+                // priority field = 5 (default)
+                assert_eq!(new_priority, 5);
+            }
+            _ => panic!("Expected Reprioritize decision"),
+        }
+    }
+
+    #[test]
+    fn test_build_reprioritize_decision_missing_parameter() {
+        let (context, params) = create_test_context();
+
+        // Reprioritize without new_priority parameter should error
+        let action_node = TreeNode::Action {
+            node_id: "R5".to_string(),
+            action: ActionType::Reprioritize,
+            parameters: HashMap::new(),
+        };
+
+        let result = build_decision(&action_node, "tx_001".to_string(), &context, &params);
+        assert!(result.is_err(), "Should error when new_priority is missing");
+
+        match result {
+            Err(EvalError::MissingActionParameter(param)) => {
+                assert_eq!(param, "new_priority");
             }
             _ => panic!("Expected MissingActionParameter error"),
         }
