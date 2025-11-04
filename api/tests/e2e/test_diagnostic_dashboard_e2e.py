@@ -41,8 +41,9 @@ def simulation_database(tmp_path_factory):
 
     # Run the simulation with persistence
     # Use a small number of ticks for faster testing (override the 1000 ticks in config)
+    import sys
     cmd = [
-        "python",
+        sys.executable,  # Use the same Python interpreter running this test
         "-m",
         "payment_simulator.cli.main",
         "run",

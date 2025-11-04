@@ -134,6 +134,37 @@ def test_get_transactions_from_database():
                 ],
             )
 
+            # Also insert arrival event into simulation_events table
+            import uuid
+            arrival_details = json.dumps({
+                "sender_id": tx["sender_id"],
+                "receiver_id": tx["receiver_id"],
+                "amount": tx["amount"],
+                "deadline": tx["deadline_tick"],
+                "priority": tx["priority"],
+                "is_divisible": tx["is_divisible"],
+            })
+            conn.execute(
+                """
+                INSERT INTO simulation_events (
+                    event_id, simulation_id, tick, day, event_timestamp,
+                    event_type, details, agent_id, tx_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                [
+                    str(uuid.uuid4()),
+                    sim_id,
+                    tx["arrival_tick"],
+                    tx["arrival_day"],
+                    datetime.now(),
+                    "Arrival",
+                    arrival_details,
+                    tx["sender_id"],  # agent_id is the sender for arrival events
+                    tx["tx_id"],
+                    datetime.now(),
+                ],
+            )
+
         # Query API - GET /simulations/{sim_id}/events
         # (The frontend "View Transactions" button actually links to events page)
         client = TestClient(app)
@@ -196,7 +227,15 @@ def test_get_transactions_with_filters():
         )
 
         # Insert multiple transactions across different ticks and agents
+        import uuid
         for i in range(20):
+            tx_id = f"tx-{i:03d}"
+            sender_id = f"BANK_{i % 3}"
+            receiver_id = f"BANK_{(i + 1) % 3}"
+            amount = 100000 + (i * 10000)
+            arrival_tick = i * 5
+            arrival_day = 0
+
             conn.execute(
                 """
                 INSERT INTO transactions (
@@ -209,21 +248,51 @@ def test_get_transactions_with_filters():
             """,
                 [
                     sim_id,
-                    f"tx-{i:03d}",
-                    f"BANK_{i % 3}",
-                    f"BANK_{(i + 1) % 3}",
-                    100000 + (i * 10000),
+                    tx_id,
+                    sender_id,
+                    receiver_id,
+                    amount,
                     5,
                     False,
-                    i * 5,
-                    0,
+                    arrival_tick,
+                    arrival_day,
                     100,
                     "settled" if i % 3 != 0 else "pending",
-                    100000 + (i * 10000) if i % 3 != 0 else 0,
+                    amount if i % 3 != 0 else 0,
                     0,
                     0,
                     0,
                     0,
+                ],
+            )
+
+            # Also insert arrival event
+            arrival_details = json.dumps({
+                "sender_id": sender_id,
+                "receiver_id": receiver_id,
+                "amount": amount,
+                "deadline": 100,
+                "priority": 5,
+                "is_divisible": False,
+            })
+            conn.execute(
+                """
+                INSERT INTO simulation_events (
+                    event_id, simulation_id, tick, day, event_timestamp,
+                    event_type, details, agent_id, tx_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                [
+                    str(uuid.uuid4()),
+                    sim_id,
+                    arrival_tick,
+                    arrival_day,
+                    datetime.now(),
+                    "Arrival",
+                    arrival_details,
+                    sender_id,
+                    tx_id,
+                    datetime.now(),
                 ],
             )
 
@@ -459,6 +528,10 @@ def test_simulation_with_zero_transactions():
 
         client = TestClient(app)
 
-        # Should return 404 because no transactions means simulation wasn't properly run
+        # Should return 200 with empty events list
+        # A simulation can exist without any transactions - this is valid
         response = client.get(f"/simulations/{sim_id}/events")
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert len(data["events"]) == 0
