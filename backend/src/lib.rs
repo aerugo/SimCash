@@ -52,7 +52,7 @@ use pyo3::prelude::*;
 
 #[cfg(feature = "pyo3")]
 #[pymodule]
-fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn payment_simulator_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ffi::orchestrator::PyOrchestrator>()?;
     Ok(())
 }
