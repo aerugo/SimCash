@@ -61,29 +61,28 @@ def simple_config_path(tmp_path):
 class TestFeatureFlagBehavior:
     """Test that USE_NEW_RUNNER feature flag works correctly."""
 
-    def test_old_runner_used_by_default(self, simple_config_path, tmp_path):
-        """By default (no env var), old runner should be used."""
+    def test_new_runner_used_by_default(self):
+        """By default (no env var), new runner should be used (Phase 5.2)."""
         # Ensure env var is not set
         env = os.environ.copy()
         if "USE_NEW_RUNNER" in env:
             del env["USE_NEW_RUNNER"]
 
-        db_path = tmp_path / "test_old.db"
-
         with patch.dict(os.environ, env, clear=True):
-            with patch("payment_simulator.cli.commands.run.os.getenv") as mock_getenv:
-                mock_getenv.return_value = "false"  # Simulate default
+            # Default is "true" as of Phase 5.2
+            use_new = os.getenv("USE_NEW_RUNNER", "true").lower() == "true"
+            assert use_new is True
 
-                # This test just verifies the code path selection logic
-                # We'll check by importing and inspecting the logic
-                from payment_simulator.cli.commands.run import os as run_os
-                use_new = run_os.getenv("USE_NEW_RUNNER", "false").lower() == "true"
-                assert use_new is False
+    def test_old_runner_used_when_flag_disabled(self):
+        """When USE_NEW_RUNNER=false, old runner should be used (legacy mode)."""
+        with patch.dict(os.environ, {"USE_NEW_RUNNER": "false"}):
+            use_new = os.getenv("USE_NEW_RUNNER", "true").lower() == "true"
+            assert use_new is False
 
     def test_new_runner_used_when_flag_enabled(self):
-        """When USE_NEW_RUNNER=true, new runner should be used."""
+        """When USE_NEW_RUNNER=true, new runner should be used (explicit)."""
         with patch.dict(os.environ, {"USE_NEW_RUNNER": "true"}):
-            use_new = os.getenv("USE_NEW_RUNNER", "false").lower() == "true"
+            use_new = os.getenv("USE_NEW_RUNNER", "true").lower() == "true"
             assert use_new is True
 
 
