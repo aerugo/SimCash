@@ -139,7 +139,8 @@ class TestEventTypeFiltering:
         assert result.returncode == 0
 
         # Verify only Arrival events are shown
-        assert "Arrival:" in result.stderr or "arrivals" in result.stderr.lower()
+        # Check for "arrived" (from "N transaction(s) arrived:") or "Arrival" event type
+        assert "arrived" in result.stderr.lower() or "arrival" in result.stderr.lower()
 
         # Verify no Settlement events are shown (if any occurred)
         # Note: With low rate_per_tick, we might not have settlements
