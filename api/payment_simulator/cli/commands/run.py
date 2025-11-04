@@ -585,7 +585,7 @@ def run_simulation(
                 # Database exists - validate schema
                 if not db_manager.validate_schema(quiet=quiet):
                     log_info("Schema incomplete, re-initializing...", quiet)
-                    db_manager.initialize_schema()
+                    db_manager.initialize_schema(force_recreate=True)
 
             # Check if using new runner (to avoid duplicate policy snapshot persistence)
             import os as os_module
