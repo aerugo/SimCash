@@ -97,18 +97,33 @@ class DatabaseManager:
         """
         return self.conn
 
-    def initialize_schema(self):
+    def initialize_schema(self, force_recreate: bool = False):
         """Initialize database schema from Pydantic models.
 
         Generates DDL from all Pydantic models and executes it to create tables.
-        Uses CREATE TABLE IF NOT EXISTS, so safe to run multiple times.
+        Uses CREATE TABLE IF NOT EXISTS by default, so safe to run multiple times.
+
+        Args:
+            force_recreate: If True, drop existing tables before recreating them.
+                          Use this when schema validation fails and tables need to be updated.
 
         Examples:
             >>> manager.initialize_schema()
             Initializing database schema...
               ✓ Schema initialized
+
+            >>> # Force recreation when schema changes
+            >>> manager.initialize_schema(force_recreate=True)
+            Initializing database schema...
+              Dropping existing tables...
+              ✓ Schema initialized
         """
         print("Initializing database schema...")
+
+        # If force_recreate, drop existing tables first
+        if force_recreate:
+            print("  Dropping existing tables...")
+            self._drop_all_tables()
 
         # Generate DDL from models
         ddl = generate_full_schema_ddl()
@@ -292,6 +307,56 @@ class DatabaseManager:
             print(f"  ✓ Loaded {len(templates)} policy templates")
         else:
             print("  ⚠ No policy templates found")
+
+    def _drop_all_tables(self):
+        """Drop all tables managed by this system.
+
+        This is used when force_recreate=True to ensure old schema is removed
+        before creating new tables. Drops tables in reverse dependency order
+        to avoid foreign key constraint violations.
+
+        Note: This only drops tables that we manage (defined in our Pydantic models).
+              It does not drop user-created tables or other system tables.
+        """
+        # List of all tables we manage, in reverse dependency order
+        # (tables with foreign keys should be dropped first)
+        tables_to_drop = [
+            "tick_queue_snapshots",
+            "tick_agent_states",
+            "policy_decisions",
+            "lsm_cycles",
+            "simulation_events",
+            "simulation_checkpoints",
+            "policy_snapshots",
+            "agent_queue_snapshots",
+            "collateral_events",
+            "daily_agent_metrics",
+            "transactions",
+            "simulation_runs",
+            "simulations",
+            "schema_migrations",
+        ]
+
+        # Also drop sequences for auto-increment columns
+        sequences_to_drop = [
+            "collateral_events_id_seq",
+            "lsm_cycles_id_seq",
+            "policy_decisions_id_seq",
+        ]
+
+        for table_name in tables_to_drop:
+            try:
+                self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+            except Exception:
+                # Ignore errors if table doesn't exist or can't be dropped
+                pass
+
+        for sequence_name in sequences_to_drop:
+            try:
+                self.conn.execute(f"DROP SEQUENCE IF EXISTS {sequence_name}")
+            except Exception:
+                # Ignore errors if sequence doesn't exist
+                pass
 
     def close(self):
         """Close database connection.
