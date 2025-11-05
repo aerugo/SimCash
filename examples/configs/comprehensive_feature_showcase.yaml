@@ -1,0 +1,557 @@
+# Comprehensive Feature Showcase Scenario
+#
+# This scenario demonstrates ALL core features of the payment simulator:
+# ✅ LSM settlements (bilateral offsetting + cycle detection)
+# ✅ Posting and withdrawing collateral (strategic + reactive)
+# ✅ Credit usage (ranging from conservative to aggressive)
+# ✅ Liquidity buffers (varied strategies)
+# ✅ Cost accruals (delay, overdraft, collateral, EOD penalties)
+# ✅ Overdue penalties (deadline penalty + escalated delay costs)
+# ✅ Tactical holding (time-based and cost-aware strategies)
+# ✅ Different agent policies (4 distinct policy types)
+# ✅ Payment splitting (for constrained liquidity)
+#
+# NARRATIVE: "A Stressful Day in the Payment System"
+#
+# Five banks navigate a high-volume trading day with constrained liquidity,
+# each employing different strategies to manage costs and meet obligations.
+# The scenario creates natural stress points that force all features to activate.
+#
+# AGENTS:
+# 1. METRO_CENTRAL - Large money center bank (conservative, proactive collateral)
+# 2. REGIONAL_TRUST - Mid-sized regional bank (splitting strategy, reactive collateral)
+# 3. MOMENTUM_CAPITAL - Aggressive investment bank (tactical holding, minimal collateral)
+# 4. COMMUNITY_FIRST - Small undercapitalized bank (will use credit, face overdue situations)
+# 5. CORRESPONDENT_HUB - Central correspondent (creates circular flows for LSM)
+#
+# DESIGN RATIONALE:
+# - 100 ticks/day (each tick ≈ 5 minutes) for meaningful intraday dynamics
+# - 1 day simulation to focus on feature demonstration
+# - Circular counterparty weights to trigger LSM cycles
+# - Varied liquidity profiles to force different strategies
+# - Cost rates calibrated to make decisions economically meaningful
+
+simulation:
+  ticks_per_day: 100
+  num_days: 1
+  rng_seed: 42
+
+# ============================================================================
+# AGENT 1: METRO_CENTRAL - Large Money Center Bank
+# ============================================================================
+# Profile: Dominant market player with strong liquidity but conservative strategy
+# Strategy: Time-adaptive with proactive collateral management
+# Policy: Goliath National Bank (conservative, tiered buffers, proactive collateral)
+#
+# Key behaviors to showcase:
+# - Proactive collateral posting before gaps emerge (late day, >65% progress)
+# - Collateral withdrawal optimization at end-of-tick when excess headroom exists
+# - Time-based strategy: conservative early (1.5x buffer), aggressive late
+# - Will use credit only in late-day emergencies
+# - Creates bilateral flow opportunities with CORRESPONDENT_HUB
+
+agents:
+  - id: "METRO_CENTRAL"
+    opening_balance: 35000000         # $350,000 - Strong but not unlimited
+    credit_limit: 25000000            # $250,000 credit (conservative, rarely used)
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/goliath_national_bank.json"
+    arrival_config:
+      rate_per_tick: 0.8              # ~80 transactions/day (high volume)
+      amount_distribution:
+        type: "LogNormal"
+        mean: 11.8                    # ~$1,500 median (large payments)
+        std_dev: 0.9
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.40       # Heavy flow to hub (creates bilateral opportunities)
+        REGIONAL_TRUST: 0.25
+        MOMENTUM_CAPITAL: 0.20
+        COMMUNITY_FIRST: 0.15
+      deadline_range: [30, 70]        # Moderate deadlines (enough time to optimize)
+      priority: 6
+      divisible: false
+
+# ============================================================================
+# AGENT 2: REGIONAL_TRUST - Mid-Sized Regional Bank
+# ============================================================================
+# Profile: Well-managed regional bank with splitting capability
+# Strategy: Cost-optimizing with payment splitting and reactive collateral
+# Policy: Agile Regional Bank (splitting + reactive collateral)
+#
+# Key behaviors to showcase:
+# - Payment splitting when facing liquidity constraints (splits large payments >$3K)
+# - Split friction cost comparison (delay vs overdraft vs split fee)
+# - Reactive collateral posting when gaps appear (>75% day progress)
+# - Tactical splitting: 2-way for normal urgency, 4-way for urgent
+# - Balanced credit usage based on cost comparisons
+
+  - id: "REGIONAL_TRUST"
+    opening_balance: 22000000         # $220,000 - Moderate liquidity
+    credit_limit: 20000000            # $200,000 credit
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/agile_regional_bank.json"
+    arrival_config:
+      rate_per_tick: 0.7              # ~70 transactions/day
+      amount_distribution:
+        type: "Uniform"
+        min: 80000                    # $800 (some large enough to split)
+        max: 600000                   # $6,000
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35       # Heavy hub usage
+        METRO_CENTRAL: 0.25
+        MOMENTUM_CAPITAL: 0.20        # Creates cycle: REGIONAL→MOMENTUM→CORRESPONDENT→METRO→REGIONAL
+        COMMUNITY_FIRST: 0.20
+      deadline_range: [25, 65]
+      priority: 5
+      divisible: true                 # SPLITTING ENABLED - key feature!
+
+# ============================================================================
+# AGENT 3: MOMENTUM_CAPITAL - Aggressive Investment Bank
+# ============================================================================
+# Profile: High-velocity trading desk with aggressive liquidity management
+# Strategy: System-aware with tactical holding, minimal collateral usage
+# Policy: Momentum Investment Bank (aggressive release, congestion-aware)
+#
+# Key behaviors to showcase:
+# - Near-FIFO release when system not congested
+# - Tactical holding of trivial payments when RTGS overloaded (system congestion > 20 tx)
+# - NO collateral management (pure liquidity-based strategy)
+# - Liberal credit usage for large urgent payments
+# - Deprioritizes small payments (<$200) in favor of large ones
+
+  - id: "MOMENTUM_CAPITAL"
+    opening_balance: 28000000         # $280,000
+    credit_limit: 32000000            # $320,000 credit (aggressive, frequently used)
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/momentum_investment_bank.json"
+    arrival_config:
+      rate_per_tick: 1.0              # ~100 transactions/day (highest volume!)
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.5                    # ~$500 median (many small, some large)
+        std_dev: 1.4                  # High variance
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.30
+        METRO_CENTRAL: 0.25           # Creates bilateral with metro
+        REGIONAL_TRUST: 0.25          # Completes cycles
+        COMMUNITY_FIRST: 0.20
+      deadline_range: [15, 50]        # Tight deadlines (aggressive trading)
+      priority: 7                     # High priority
+      divisible: false
+
+# ============================================================================
+# AGENT 4: COMMUNITY_FIRST - Small Undercapitalized Bank
+# ============================================================================
+# Profile: Small bank with severe liquidity constraints
+# Strategy: Cost-aware but often forced into difficult choices
+# Policy: Adaptive Liquidity Manager (cost-aware, will use collateral and credit)
+#
+# Key behaviors to showcase:
+# - WILL face overdue situations (insufficient liquidity + high volume)
+# - Overdue penalty charging (one-time $2,500 + 5x escalated delay costs)
+# - Strategic collateral posting to cover Queue 1 gaps (late day)
+# - Cost comparison: delay vs overdraft vs deadline penalty
+# - Gridlock participation requiring LSM resolution
+# - Credit usage approaching limit
+
+  - id: "COMMUNITY_FIRST"
+    opening_balance: 12000000         # $120,000 - SEVERELY CONSTRAINED
+    credit_limit: 15000000            # $150,000 credit (will max out!)
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/adaptive_liquidity_manager.json"
+    arrival_config:
+      rate_per_tick: 0.9              # ~90 transactions/day (high for size!)
+      amount_distribution:
+        type: "LogNormal"
+        mean: 11.0                    # ~$600 median
+        std_dev: 1.2
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35       # Relies heavily on correspondent
+        METRO_CENTRAL: 0.25
+        REGIONAL_TRUST: 0.25
+        MOMENTUM_CAPITAL: 0.15
+      deadline_range: [20, 60]        # Moderate deadlines
+      priority: 6
+      divisible: false
+
+# ============================================================================
+# AGENT 5: CORRESPONDENT_HUB - Central Correspondent Bank
+# ============================================================================
+# Profile: Central hub that creates circular flows
+# Strategy: Balanced with smart splitting
+# Policy: Smart Splitter (tactical splitting + cost optimization)
+#
+# Key behaviors to showcase:
+# - Creates LSM opportunities via circular counterparty weights
+# - Payment splitting for large constrained payments
+# - Compares split friction vs delay/overdraft costs
+# - Tactical splitting based on urgency (urgent: 4-way, normal: 2-way)
+# - Late-day reactive collateral (>75% progress)
+
+  - id: "CORRESPONDENT_HUB"
+    opening_balance: 30000000         # $300,000
+    credit_limit: 28000000            # $280,000 credit
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/smart_splitter.json"
+    arrival_config:
+      rate_per_tick: 0.85             # ~85 transactions/day
+      amount_distribution:
+        type: "Uniform"
+        min: 100000                   # $1,000 (larger payments)
+        max: 700000                   # $7,000 (good split candidates)
+      counterparty_weights:
+        METRO_CENTRAL: 0.30           # Completes bilateral with metro
+        REGIONAL_TRUST: 0.25          # Creates cycle: HUB→REGIONAL→MOMENTUM→HUB
+        MOMENTUM_CAPITAL: 0.25
+        COMMUNITY_FIRST: 0.20
+      deadline_range: [30, 70]
+      priority: 6
+      divisible: true                 # Splitting enabled
+
+# ============================================================================
+# LSM CONFIGURATION
+# Enable both bilateral offsetting and cycle detection
+# ============================================================================
+# Expected LSM triggers:
+# 1. Bilateral offsetting:
+#    - METRO_CENTRAL (40%) ↔ CORRESPONDENT_HUB (30%) = heavy bilateral flow
+#    - MOMENTUM_CAPITAL (25%) ↔ METRO_CENTRAL (20%) = moderate bilateral
+#
+# 2. 3-agent cycles:
+#    - CORRESPONDENT_HUB → REGIONAL_TRUST → MOMENTUM_CAPITAL → HUB
+#    - METRO_CENTRAL → CORRESPONDENT_HUB → REGIONAL_TRUST → METRO
+#
+# 3. 4-agent cycles:
+#    - COMMUNITY → HUB → METRO → REGIONAL → COMMUNITY
+#    - MOMENTUM → HUB → METRO → REGIONAL → MOMENTUM
+#
+# 4. 5-agent full system cycle:
+#    - METRO → HUB → REGIONAL → MOMENTUM → METRO → ... (full circle)
+#
+# LSM will be CRITICAL for resolving gridlock when COMMUNITY_FIRST runs low on liquidity
+
+lsm_config:
+  enable_bilateral: true              # Enable bilateral offsetting (A↔B netting)
+  enable_cycles: true                 # Enable cycle detection (A→B→C→A)
+  max_cycle_length: 5                 # Detect cycles up to 5 agents (full system)
+  max_cycles_per_tick: 6              # Settle up to 6 cycles per tick
+
+# ============================================================================
+# COST CONFIGURATION
+# Calibrated to demonstrate cost-aware decision making
+# ============================================================================
+# Design notes:
+# - 100 ticks/day → each tick ≈ 5 minutes
+# - Costs scaled to make policy decisions economically meaningful
+# - Overdue multiplier set to demonstrate realistic penalty escalation
+# - Split friction cost makes splitting a real tradeoff
+
+cost_rates:
+  # Delay cost: $0.002 per $100 per tick ($0.024/tick for $1,200 payment)
+  delay_cost_per_tick_per_cent: 0.0002
+
+  # Overdraft cost: 1.0 bp per tick (annualized ~180% - expensive!)
+  overdraft_bps_per_tick: 1.0
+
+  # Collateral cost: 0.06 bp per tick (annualized ~10.8% - moderate)
+  collateral_cost_per_tick_bps: 0.0006
+
+  # EOD penalty: $5,000 for any transaction unsettled at end of day
+  eod_penalty_per_transaction: 500000
+
+  # Deadline penalty: $2,500 one-time penalty when transaction becomes overdue
+  deadline_penalty: 250000
+
+  # Overdue delay multiplier: 5x normal delay cost when overdue
+  # Example: $1,000 payment overdue for 10 ticks:
+  #   Normal delay: $0.002 × 10 × 10 ticks = $0.20
+  #   Overdue delay: $0.002 × 10 × 5.0 × 10 ticks = $1.00
+  #   One-time penalty: $2,500
+  #   Total overdue cost: $2,501.00 (vs $0.20 if on time!)
+  overdue_delay_multiplier: 5.0
+
+  # Split friction: $75 cost to split a payment
+  # Makes splitting a real tradeoff:
+  #   - Split $5,000 payment 2-way: $75 fee (1.5% cost)
+  #   - vs delay cost: $0.002 × 50 × 10 ticks = $1.00
+  #   - vs overdraft: 1.0 bp × $5,000 = $50/tick
+  # Splitting makes sense when avoiding expensive overdraft or long delay
+  split_friction_cost: 7500
+
+# ============================================================================
+# EXPECTED DYNAMICS - Feature Showcase Timeline
+# ============================================================================
+#
+# EARLY DAY (Ticks 0-30): Setting the Stage
+# ==========================================
+#
+# METRO_CENTRAL:
+# - Conservative early-day strategy: maintains 1.5x liquidity buffer
+# - Holds most payments initially, releases only when buffer comfortable
+# - NO collateral posted yet (early day, < 60% progress)
+#
+# REGIONAL_TRUST:
+# - Releases payments normally, hasn't faced splitting situations yet
+# - Building up queue of larger payments ($4K-$6K)
+#
+# MOMENTUM_CAPITAL:
+# - Aggressive near-FIFO release
+# - Starting to tap credit line for large urgent payments
+# - Holds trivial payments (<$200) to prioritize large ones
+#
+# COMMUNITY_FIRST:
+# - Already struggling due to undercapitalization
+# - Queue building up in Queue 1
+# - Cost-aware holding: comparing delay vs overdraft costs
+#
+# CORRESPONDENT_HUB:
+# - Smooth operation, balanced strategy
+# - Some large payments queued, not split yet
+#
+# LSM Activity:
+# ✅ BILATERAL OFFSETTING: METRO ↔ HUB bilateral netting active
+# ✅ 3-AGENT CYCLES: HUB→REGIONAL→MOMENTUM→HUB cycles starting to resolve
+#
+# MID-DAY (Ticks 30-60): Pressure Builds
+# =======================================
+#
+# METRO_CENTRAL:
+# - Transitioning to more aggressive stance (approaching 60% day progress)
+# - Still maintaining buffers, but releases accelerating
+# - Monitors Queue 1 for potential gaps
+#
+# REGIONAL_TRUST:
+# ✅ PAYMENT SPLITTING ACTIVATES:
+#   - Large $5K payment needs to go out
+#   - Liquidity buffer only $3K
+#   - Policy compares: split fee ($75) vs delay cost ($1/tick) vs overdraft ($50/tick)
+#   - Decision: SPLIT 2-WAY ($2.5K each) - saves overdraft cost
+#   - Later: urgent $6K payment, buffer still low → SPLIT 4-WAY ($1.5K each)
+# - Reactive collateral: No gap yet, holds off on posting
+#
+# MOMENTUM_CAPITAL:
+# ✅ TACTICAL HOLDING IN ACTION:
+#   - System congestion detected (Queue 2 has 25+ transactions)
+#   - Holds trivial payments (<$200) to reduce RTGS load
+#   - Releases only urgent (ticks_to_deadline < 10) or large (>$1K) payments
+# - Credit usage climbing to ~$150K borrowed
+#
+# COMMUNITY_FIRST:
+# ✅ FIRST OVERDUE TRANSACTION:
+#   - $800 payment hits deadline at tick 45
+#   - Still insufficient liquidity to settle (effective_liquidity = $300, need $800)
+#   - Transaction marked OVERDUE
+#   - Costs accrue:
+#     * One-time deadline penalty: $2,500 charged immediately
+#     * Escalated delay cost: 5.0 × $0.002 × 8 = $0.08 per tick (vs $0.016 normal)
+#   - Policy tries to post collateral but already near credit limit
+#   - LSM cycles become critical for resolving gridlock
+#
+# CORRESPONDENT_HUB:
+# ✅ PAYMENT SPLITTING:
+#   - $6.5K payment with tight deadline (ticks_to_deadline = 8)
+#   - Buffer insufficient ($2K available)
+#   - Compares: split 4-way ($1.6K each, $75 fee) vs overdraft ($65/tick)
+#   - Decision: SPLIT 4-WAY (urgent splitting strategy)
+#
+# LSM Activity:
+# ✅ BILATERAL: Multiple pairs actively offsetting
+# ✅ 3-CYCLES: Regular cycle resolution keeping system flowing
+# ✅ 4-CYCLES: Detected and settled: COMMUNITY→HUB→METRO→REGIONAL→COMMUNITY
+#
+# LATE DAY (Ticks 60-85): Maximum Stress
+# =======================================
+#
+# METRO_CENTRAL:
+# ✅ PROACTIVE COLLATERAL POSTING:
+#   - Day progress: 70% (>65% threshold)
+#   - Queue 1 liquidity gap detected: $180K needed, $100K available
+#   - Gap: $80K
+#   - Remaining collateral capacity: $200K
+#   - Decision: POST $80K collateral (exact gap coverage)
+#   - Reason: "EODLiquidityGap" - proactive gap management
+# - Accelerated release strategy active
+# - Uses credit sparingly ($50K borrowed) only for urgent payments
+#
+# REGIONAL_TRUST:
+# ✅ REACTIVE COLLATERAL POSTING:
+#   - Day progress: 78% (>75% threshold)
+#   - Queue 1 gap appears: $60K
+#   - Decision: POST $60K collateral
+#   - Reason: "ReactiveLateDay" - gap emerged, react quickly
+# ✅ Continued splitting of large payments ($4K+)
+#
+# MOMENTUM_CAPITAL:
+# - Maintains aggressive strategy
+# - NO collateral used (policy doesn't have collateral logic)
+# - Credit usage peaks at $220K borrowed
+# - Still holding trivial payments during congestion
+#
+# COMMUNITY_FIRST:
+# ✅ MULTIPLE OVERDUE TRANSACTIONS:
+#   - 3 transactions now overdue (missed deadlines at ticks 45, 52, 58)
+#   - Total overdue costs accumulating:
+#     * 3 × $2,500 = $7,500 in deadline penalties
+#     * Escalated delay costs: $0.08-$0.12 per tick per transaction
+#   - Credit limit nearly exhausted ($145K of $150K used)
+# ✅ STRATEGIC COLLATERAL (attempting):
+#   - Queue 1 gap: $95K
+#   - Remaining capacity: $5K (almost tapped out)
+#   - Posts remaining $5K (partial gap coverage)
+#   - Reason: "PartialEODGap"
+# - Desperately needs LSM cycles to settle obligations
+#
+# CORRESPONDENT_HUB:
+# ✅ LATE-DAY COLLATERAL:
+#   - Day progress: 76%
+#   - Gap: $70K
+#   - Posts $70K collateral
+# - Continues splitting large payments tactically
+#
+# LSM Activity:
+# ✅ ALL LSM FEATURES ACTIVE:
+#   - Bilateral offsetting: Heavy activity across all pairs
+#   - 3-cycles: Multiple per tick
+#   - 4-cycles: Critical for COMMUNITY_FIRST gridlock resolution
+#   - 5-cycle (full system): Detected and settled, resolves complex gridlock
+#
+# Example 5-cycle settlement:
+#   COMMUNITY owes METRO $1,200
+#   METRO owes HUB $1,200
+#   HUB owes REGIONAL $1,200
+#   REGIONAL owes MOMENTUM $1,200
+#   MOMENTUM owes COMMUNITY $1,200
+#   → Net: 0, gross: $6,000
+#   → LSM settles all 5 with ZERO liquidity consumed!
+#
+# EOD RUSH (Ticks 85-100): Final Sprint
+# ======================================
+#
+# ALL AGENTS:
+# - EOD rush flag active (is_eod_rush = 1)
+# - Policies prioritize avoiding EOD penalties ($5,000/transaction)
+# - Aggressive release even if means using credit
+#
+# METRO_CENTRAL:
+# ✅ COLLATERAL WITHDRAWAL OPTIMIZATION:
+#   - End of tick 90: Check headroom
+#   - Headroom: $120K
+#   - Queue 1 total value: $80K
+#   - Headroom > 0.5 × Queue 1 value? YES ($120K > $40K)
+#   - Collateral cost: 0.06 bp/tick (material)
+#   - Decision: WITHDRAW half of posted collateral ($40K)
+#   - Reason: "ExcessHeadroom" - optimize collateral costs
+# - Completes day with minimal EOD penalties
+#
+# REGIONAL_TRUST:
+# - Successfully splits final large payments
+# - Settles most transactions before EOD
+# - 1-2 low-priority transactions may incur EOD penalty
+#
+# MOMENTUM_CAPITAL:
+# - Releases ALL remaining payments (even trivial ones)
+# - Uses credit liberally to avoid EOD penalties
+# - Ends day with $280K borrowed (near limit)
+#
+# COMMUNITY_FIRST:
+# ✅ OVERDUE TRANSACTION FINALLY SETTLES:
+#   - Overdue transaction from tick 45 finally has incoming payment
+#   - Liquidity arrives from LSM cycle settlement
+#   - Transaction settles at tick 94 (49 ticks after deadline!)
+#   - Total cost for this transaction:
+#     * Deadline penalty: $2,500
+#     * Escalated delay: $0.08 × 49 ticks = $3.92
+#     * Total: $2,503.92 (vs ~$0.80 if settled on time)
+# - Still has 1-2 overdue transactions that will settle after EOD
+# - Incurs several EOD penalties
+#
+# CORRESPONDENT_HUB:
+# - Smooth EOD completion
+# - Minimal penalties
+# - Withdraws some excess collateral
+#
+# END OF DAY SUMMARY:
+# ===================
+#
+# ✅ ALL FEATURES DEMONSTRATED:
+#
+# 1. LSM Settlements:
+#    - Bilateral: ~150+ bilateral offsetting operations
+#    - 3-cycles: ~40+ cycle resolutions
+#    - 4-cycles: ~15+ complex cycle resolutions
+#    - 5-cycle: 3-5 full system cycle resolutions
+#    - Total liquidity saved by LSM: ~$500K+ (vs gross settlement)
+#
+# 2. Collateral Management:
+#    - METRO: Proactive posting ($80K), end-of-tick withdrawal ($40K)
+#    - REGIONAL: Reactive posting ($60K)
+#    - COMMUNITY: Strategic partial posting ($5K)
+#    - HUB: Late-day posting ($70K)
+#    - Total collateral posted: ~$210K peak
+#    - Collateral costs accrued: ~$1,200 total
+#
+# 3. Credit Usage:
+#    - MOMENTUM: Aggressive usage, peak $280K borrowed
+#    - COMMUNITY: Near limit, peak $145K borrowed
+#    - METRO: Conservative, peak $50K borrowed
+#    - REGIONAL: Moderate, peak $120K borrowed
+#    - HUB: Balanced, peak $140K borrowed
+#    - Total overdraft costs: ~$8,500
+#
+# 4. Payment Splitting:
+#    - REGIONAL: 8-12 split operations (mix of 2-way and 4-way)
+#    - HUB: 6-10 split operations
+#    - Split friction costs: ~$1,000 total
+#    - Liquidity freed by splitting: ~$40K effective
+#
+# 5. Overdue Transactions:
+#    - COMMUNITY: 3 transactions overdue
+#    - Deadline penalties: $7,500 (3 × $2,500)
+#    - Escalated delay costs: ~$200 total
+#    - Overdue duration: 15-49 ticks
+#    - All eventually settled (realistic persistence)
+#
+# 6. Cost Accruals:
+#    - Total delay costs: ~$800 (normal transactions)
+#    - Total overdraft costs: ~$8,500
+#    - Total collateral costs: ~$1,200
+#    - Total deadline penalties: ~$7,500
+#    - Total EOD penalties: ~$15,000 (3-4 transactions)
+#    - Total split friction: ~$1,000
+#    - Grand total system costs: ~$34,000
+#
+# 7. Tactical Holding:
+#    - MOMENTUM: Held ~50 trivial payments during congestion
+#    - METRO: Conservative early-day holding (150+ held initially)
+#    - COMMUNITY: Cost-aware holding (delay vs overdraft comparison)
+#    - All agents: EOD rush holding of low-priority to prioritize high-priority
+#
+# 8. Policy Diversity:
+#    - Goliath (METRO): Time-adaptive, proactive collateral, conservative buffers
+#    - Agile Regional (REGIONAL): Splitting + reactive collateral, cost optimization
+#    - Momentum (MOMENTUM): Aggressive, congestion-aware, no collateral
+#    - Adaptive Liquidity (COMMUNITY): Cost-aware, strategic collateral, gridlock management
+#    - Smart Splitter (HUB): Tactical splitting, late-day collateral, balanced
+#
+# EXPECTED SETTLEMENT RATES:
+# - METRO_CENTRAL: ~95% same-day settlement
+# - REGIONAL_TRUST: ~92% same-day settlement
+# - MOMENTUM_CAPITAL: ~90% same-day settlement
+# - COMMUNITY_FIRST: ~78% same-day settlement (overdue issues)
+# - CORRESPONDENT_HUB: ~94% same-day settlement
+# - System average: ~90% same-day settlement
+#
+# KEY INSIGHTS:
+# - LSM is CRITICAL: Without LSM, system would gridlock mid-day
+# - Collateral strategies matter: Proactive (METRO) vs reactive (REGIONAL) trade cost vs risk
+# - Splitting creates flexibility: REGIONAL/HUB avoid expensive overdraft via tactical splits
+# - Overdue penalties are severe: COMMUNITY's overdue costs dwarf normal operating costs
+# - Policy diversity leads to natural ecosystem: Aggressive traders + conservative banks + hubs
+#
+# This scenario provides a complete, realistic stress test of ALL core features
+# in a single narrative-driven business day.
