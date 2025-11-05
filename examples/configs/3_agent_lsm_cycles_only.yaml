@@ -1,0 +1,93 @@
+# 3-Agent LSM - Cycles Only (Bilateral Disabled)
+#
+# This scenario disables bilateral offsetting to force cycle detection.
+# In a pure ring (A→B→C→A), there should be no bilateral pairs,
+# so cycle detection must activate.
+
+simulation:
+  ticks_per_day: 15
+  num_days: 1
+  rng_seed: 42
+
+agents:
+  - id: "BANK_A"
+    opening_balance: 50000           # $500
+    credit_limit: 0
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 8.0
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.0
+        std_dev: 0.5
+      counterparty_weights:
+        BANK_B: 1.0                  # Only to B (ring)
+      deadline_range: [8, 15]
+      priority: 5
+      divisible: false
+      time_windows:
+        - tick_range: [0, 4]
+          rate_multiplier: 4.0
+        - tick_range: [5, 15]
+          rate_multiplier: 0.2
+
+  - id: "BANK_B"
+    opening_balance: 50000
+    credit_limit: 0
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 8.0
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.0
+        std_dev: 0.5
+      counterparty_weights:
+        BANK_C: 1.0                  # Only to C (ring)
+      deadline_range: [8, 15]
+      priority: 5
+      divisible: false
+      time_windows:
+        - tick_range: [0, 4]
+          rate_multiplier: 4.0
+        - tick_range: [5, 15]
+          rate_multiplier: 0.2
+
+  - id: "BANK_C"
+    opening_balance: 50000
+    credit_limit: 0
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 8.0
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.0
+        std_dev: 0.5
+      counterparty_weights:
+        BANK_A: 1.0                  # Back to A (completes ring)
+      deadline_range: [8, 15]
+      priority: 5
+      divisible: false
+      time_windows:
+        - tick_range: [0, 4]
+          rate_multiplier: 4.0
+        - tick_range: [5, 15]
+          rate_multiplier: 0.2
+
+lsm_config:
+  enable_bilateral: false            # ⬅️ DISABLE bilateral to force cycles
+  enable_cycles: true                # ⬅️ ONLY cycles
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+cost_rates:
+  overdraft_bps_per_tick: 2.0
+  delay_cost_per_tick_per_cent: 0.0004
+  collateral_cost_per_tick_bps: 0.0012
+  eod_penalty_per_transaction: 100000
+  deadline_penalty: 50000
+  split_friction_cost: 2500
+
+# Expected: cycles_settled > 0, bilateral_offsets = 0
