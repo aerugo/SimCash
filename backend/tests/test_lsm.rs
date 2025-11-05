@@ -390,7 +390,10 @@ fn test_settle_cycle_3_banks() {
     let result = settle_cycle(&mut state, &cycles[0], 5).unwrap();
 
     assert_eq!(result.cycle_length, 3);
-    assert_eq!(result.settled_value, 500_000);
+    assert_eq!(
+        result.settled_value, 1_500_000,
+        "T2-compliant: settle total value (500k + 500k + 500k = 1.5M)"
+    );
     assert_eq!(result.transactions_affected, 3);
 
     // Verify balances net to original (net-zero for cycle participants)
@@ -579,7 +582,10 @@ fn test_four_bank_ring_lsm_resolves_gridlock() {
 
     // Verify LSM resolved the gridlock
     assert!(result.cycles_settled >= 1, "LSM should detect 4-cycle");
-    assert_eq!(result.total_settled_value, 500_000, "Settle 500k on cycle");
+    assert_eq!(
+        result.total_settled_value, 2_000_000,
+        "T2-compliant: settle total value (500k × 4 = 2M)"
+    );
     assert_eq!(result.final_queue_size, 0, "Queue should be empty");
 
     // Verify all transactions settled
@@ -625,4 +631,203 @@ fn test_four_bank_ring_lsm_resolves_gridlock() {
     // Critical assertion: Gridlock resolved with ONLY initial 100k per bank
     // No liquidity injection needed!
     assert_eq!(state.total_balance(), 400_000, "Total balance preserved");
+}
+
+// ============================================================================
+// LSM Activation Investigation Tests (from lsm-splitting-investigation-plan.md)
+// ============================================================================
+
+/// Test 1: Minimal bilateral scenario with credit limits
+///
+/// Verifies that LSM bilateral offsetting activates in gridlock conditions
+/// where individual transactions cannot settle due to insufficient liquidity,
+/// but bilateral offsetting can resolve the deadlock.
+///
+/// This test specifically checks the scenario described in the simulation review
+/// where LSMs should have activated but didn't.
+#[test]
+fn test_lsm_bilateral_activates_in_gridlock() {
+    // Setup: A and B with mutual obligations, insufficient individual liquidity
+    // Both have $1k balance but owe each other $3k
+    // CRITICAL: Credit limit set to 0 so transactions MUST queue (cannot settle via credit)
+    let agents = vec![
+        create_agent("BANK_A", 100_000, 0), // $1k balance, NO credit
+        create_agent("BANK_B", 100_000, 0), // $1k balance, NO credit
+    ];
+    let mut state = SimulationState::new(agents);
+
+    // A→B $3k, B→A $3k (should net to zero via bilateral offset)
+    let tx_ab = create_transaction("BANK_A", "BANK_B", 300_000, 0, 100);
+    let tx_ba = create_transaction("BANK_B", "BANK_A", 300_000, 0, 100);
+
+    // Store transaction IDs before submission
+    let tx_ab_id = tx_ab.id().to_string();
+    let tx_ba_id = tx_ba.id().to_string();
+
+    // Submit both transactions (they should queue due to insufficient individual liquidity)
+    submit_transaction(&mut state, tx_ab, 1).unwrap();
+    submit_transaction(&mut state, tx_ba, 2).unwrap();
+
+    assert_eq!(
+        state.queue_size(),
+        2,
+        "Both transactions should be queued due to insufficient individual liquidity"
+    );
+
+    // Verify neither agent has sufficient balance to settle their outgoing payment
+    assert!(
+        state.get_agent("BANK_A").unwrap().balance() < 300_000,
+        "A cannot afford $3k payment with $1k balance"
+    );
+    assert!(
+        state.get_agent("BANK_B").unwrap().balance() < 300_000,
+        "B cannot afford $3k payment with $1k balance"
+    );
+
+    // Run LSM pass - this should detect and settle the bilateral pair
+    let lsm_config = LsmConfig::default();
+    let result = run_lsm_pass(&mut state, &lsm_config, 5, 100);
+
+    // CRITICAL ASSERTIONS - these verify LSM activates correctly
+    assert!(
+        result.bilateral_offsets >= 1,
+        "LSM should detect at least 1 bilateral pair (A↔B)"
+    );
+    assert_eq!(
+        state.queue_size(),
+        0,
+        "Both transactions should be settled via bilateral offset, queue should be empty"
+    );
+    assert!(
+        result.total_settled_value > 0,
+        "LSM should have settled some value"
+    );
+
+    // Verify net-zero settlement: each agent sent and received $3k
+    assert_eq!(
+        state.get_agent("BANK_A").unwrap().balance(),
+        100_000,
+        "A net zero: sent $3k, received $3k"
+    );
+    assert_eq!(
+        state.get_agent("BANK_B").unwrap().balance(),
+        100_000,
+        "B net zero: sent $3k, received $3k"
+    );
+
+    // Verify transactions are fully settled
+    let tx_ab_status = state.get_transaction(&tx_ab_id).unwrap();
+    let tx_ba_status = state.get_transaction(&tx_ba_id).unwrap();
+    assert!(
+        tx_ab_status.is_fully_settled(),
+        "A→B transaction should be fully settled"
+    );
+    assert!(
+        tx_ba_status.is_fully_settled(),
+        "B→A transaction should be fully settled"
+    );
+}
+
+/// Test 2: Minimal cycle scenario (3-agent ring)
+///
+/// Verifies that LSM cycle detection activates in a circular dependency
+/// scenario where A→B→C→A, and no agent has sufficient individual liquidity.
+///
+/// This tests the multilateral cycle settlement that should have occurred
+/// in the simulation review scenario.
+#[test]
+fn test_lsm_cycle_activates_in_ring() {
+    // Setup: A→B→C→A cycle, each lacks individual liquidity for their payment
+    // Each has $500 balance but owes $2k to next agent in ring
+    // CRITICAL: Credit limit set to 0 so transactions MUST queue (cannot settle via credit)
+    let agents = vec![
+        create_agent("BANK_A", 50_000, 0), // $500 balance, NO credit
+        create_agent("BANK_B", 50_000, 0), // $500 balance, NO credit
+        create_agent("BANK_C", 50_000, 0), // $500 balance, NO credit
+    ];
+    let mut state = SimulationState::new(agents);
+
+    // Create ring: A→B→C→A, each payment $2k
+    let tx_ab = create_transaction("BANK_A", "BANK_B", 200_000, 0, 100);
+    let tx_bc = create_transaction("BANK_B", "BANK_C", 200_000, 0, 100);
+    let tx_ca = create_transaction("BANK_C", "BANK_A", 200_000, 0, 100);
+
+    // Store transaction IDs before submission
+    let tx_ab_id = tx_ab.id().to_string();
+    let tx_bc_id = tx_bc.id().to_string();
+    let tx_ca_id = tx_ca.id().to_string();
+
+    // Submit all three transactions
+    submit_transaction(&mut state, tx_ab, 1).unwrap();
+    submit_transaction(&mut state, tx_bc, 2).unwrap();
+    submit_transaction(&mut state, tx_ca, 3).unwrap();
+
+    assert_eq!(
+        state.queue_size(),
+        3,
+        "All three transactions should be queued"
+    );
+
+    // Verify no agent has sufficient balance for their outgoing payment
+    assert!(
+        state.get_agent("BANK_A").unwrap().balance() < 200_000,
+        "A cannot afford $2k payment"
+    );
+    assert!(
+        state.get_agent("BANK_B").unwrap().balance() < 200_000,
+        "B cannot afford $2k payment"
+    );
+    assert!(
+        state.get_agent("BANK_C").unwrap().balance() < 200_000,
+        "C cannot afford $2k payment"
+    );
+
+    // Run LSM - should detect and settle the cycle
+    let lsm_config = LsmConfig::default();
+    let result = run_lsm_pass(&mut state, &lsm_config, 5, 100);
+
+    // CRITICAL ASSERTIONS - verify cycle detection works
+    assert!(
+        result.cycles_settled >= 1,
+        "LSM should detect at least 1 cycle (A→B→C→A)"
+    );
+    assert_eq!(
+        state.queue_size(),
+        0,
+        "Cycle settlement should clear all transactions from queue"
+    );
+
+    // Verify net-zero balances: each agent sent $2k and received $2k around the cycle
+    assert_eq!(
+        state.get_agent("BANK_A").unwrap().balance(),
+        50_000,
+        "A net zero: sent $2k to B, received $2k from C"
+    );
+    assert_eq!(
+        state.get_agent("BANK_B").unwrap().balance(),
+        50_000,
+        "B net zero: sent $2k to C, received $2k from A"
+    );
+    assert_eq!(
+        state.get_agent("BANK_C").unwrap().balance(),
+        50_000,
+        "C net zero: sent $2k to A, received $2k from B"
+    );
+
+    // Verify all transactions are fully settled
+    for (idx, tx_id) in [&tx_ab_id, &tx_bc_id, &tx_ca_id].iter().enumerate() {
+        let tx = state.get_transaction(tx_id).unwrap();
+        assert!(
+            tx.is_fully_settled(),
+            "Transaction {} should be fully settled",
+            idx + 1
+        );
+    }
+
+    // Verify total system balance is preserved (should still be $1.5k total)
+    assert_eq!(
+        state.total_balance(),
+        150_000,
+        "Total system balance should be preserved"
+    );
 }
