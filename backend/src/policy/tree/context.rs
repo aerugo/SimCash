@@ -32,6 +32,7 @@ pub enum ContextError {
 ///
 /// **Agent Fields**:
 /// - balance, credit_limit, available_liquidity, credit_used (i64 → f64)
+/// - effective_liquidity: balance + unused_credit_capacity (i64 → f64) - Phase 11 fix
 /// - liquidity_buffer, outgoing_queue_size, incoming_expected_count (i64/usize → f64)
 /// - is_using_credit (bool → 0.0/1.0)
 /// - liquidity_pressure (f64)
@@ -162,6 +163,24 @@ impl EvalContext {
             agent.available_liquidity() as f64,
         );
         fields.insert("credit_used".to_string(), agent.credit_used() as f64);
+
+        // Phase 11: Effective Liquidity Fix (from lsm-splitting-investigation-plan.md)
+        // effective_liquidity = balance + unused_credit_capacity
+        // This is what policies should use for "can I do X?" checks when in overdraft,
+        // as it represents the TRUE available capacity (both positive balance and credit headroom)
+        let credit_headroom = (agent.credit_limit() as i64) - agent.credit_used();
+        let effective_liquidity = agent.balance() + credit_headroom;
+
+        if std::env::var("POLICY_DEBUG").is_ok() {
+            eprintln!("[POLICY CONTEXT] Agent: {}", agent.id());
+            eprintln!("  balance: {}", agent.balance());
+            eprintln!("  credit_limit: {}", agent.credit_limit());
+            eprintln!("  credit_used: {}", agent.credit_used());
+            eprintln!("  credit_headroom: {}", credit_headroom);
+            eprintln!("  effective_liquidity: {}", effective_liquidity);
+        }
+
+        fields.insert("effective_liquidity".to_string(), effective_liquidity as f64);
         fields.insert(
             "is_using_credit".to_string(),
             if agent.is_using_credit() { 1.0 } else { 0.0 },
