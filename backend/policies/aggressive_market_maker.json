@@ -27,7 +27,7 @@
       "description": "Do we have liquidity to cover this?",
       "condition": {
         "op": ">=",
-        "left": {"field": "available_liquidity"},
+        "left": {"field": "effective_liquidity"},
         "right": {"field": "remaining_amount"}
       },
       "on_true": {
@@ -44,7 +44,7 @@
           "left": {
             "compute": {
               "op": "+",
-              "left": {"field": "available_liquidity"},
+              "left": {"field": "effective_liquidity"},
               "right": {"field": "headroom"}
             }
           },

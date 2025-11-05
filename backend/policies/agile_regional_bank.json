@@ -65,7 +65,7 @@
         "description": "Not urgent. Can we afford to send it now?",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {"field": "remaining_amount"}
         },
         "on_true": {
@@ -102,7 +102,7 @@
                 },
                 {
                   "op": ">",
-                  "left": {"field": "available_liquidity"},
+                  "left": {"field": "effective_liquidity"},
                   "right": {"param": "min_split_amount"}
                 }
               ]
@@ -126,7 +126,7 @@
                               "compute": {
                                 "op": "/",
                                 "left": {"field": "remaining_amount"},
-                                "right": {"field": "available_liquidity"}
+                                "right": {"field": "effective_liquidity"}
                               }
                             }
                           ]

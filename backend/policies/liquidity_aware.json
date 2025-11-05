@@ -33,7 +33,7 @@
         "description": "Check if can physically pay (even if violates buffer)",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {"field": "remaining_amount"}
         },
         "on_true": {
@@ -66,7 +66,7 @@
           "description": "Zero buffer: check if can physically pay",
           "condition": {
             "op": ">=",
-            "left": {"field": "available_liquidity"},
+            "left": {"field": "effective_liquidity"},
             "right": {"field": "remaining_amount"}
           },
           "on_true": {

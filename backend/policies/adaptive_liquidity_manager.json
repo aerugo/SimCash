@@ -32,7 +32,7 @@
         "description": "Check if we have enough liquidity",
         "condition": {
           "op": ">=",
-          "left": { "field": "available_liquidity" },
+          "left": { "field": "effective_liquidity" },
           "right": { "field": "remaining_amount" }
         },
         "on_true": {
@@ -83,7 +83,7 @@
         "description": "Urgent deadline: Check liquidity",
         "condition": {
           "op": ">=",
-          "left": { "field": "available_liquidity" },
+          "left": { "field": "effective_liquidity" },
           "right": { "field": "remaining_amount" }
         },
         "on_true": {
@@ -133,7 +133,7 @@
           "description": "Late day: Be more aggressive",
           "condition": {
             "op": ">=",
-            "left": { "field": "available_liquidity" },
+            "left": { "field": "effective_liquidity" },
             "right": { "field": "remaining_amount" }
           },
           "on_true": {
@@ -174,7 +174,7 @@
           "description": "Early day (< 60%): Conservative strategy",
           "condition": {
             "op": ">=",
-            "left": { "field": "available_liquidity" },
+            "left": { "field": "effective_liquidity" },
             "right": {
               "compute": {
                 "op": "*",
