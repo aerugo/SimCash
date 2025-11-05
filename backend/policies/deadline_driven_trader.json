@@ -36,7 +36,7 @@
         "description": "Can afford without credit?",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {"field": "remaining_amount"}
         },
         "on_true": {
@@ -55,7 +55,7 @@
               "compute": {
                 "op": "-",
                 "left": {"field": "remaining_amount"},
-                "right": {"field": "available_liquidity"}
+                "right": {"field": "effective_liquidity"}
               }
             }
           },
@@ -102,7 +102,7 @@
           "description": "Can afford it?",
           "condition": {
             "op": ">=",
-            "left": {"field": "available_liquidity"},
+            "left": {"field": "effective_liquidity"},
             "right": {"field": "remaining_amount"}
           },
           "on_true": {
@@ -153,7 +153,7 @@
             "description": "Can afford high priority?",
             "condition": {
               "op": ">=",
-              "left": {"field": "available_liquidity"},
+              "left": {"field": "effective_liquidity"},
               "right": {"field": "remaining_amount"}
             },
             "on_true": {
@@ -183,7 +183,7 @@
               "description": "Can afford without credit?",
               "condition": {
                 "op": ">=",
-                "left": {"field": "available_liquidity"},
+                "left": {"field": "effective_liquidity"},
                 "right": {"field": "remaining_amount"}
               },
               "on_true": {

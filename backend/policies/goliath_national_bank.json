@@ -40,7 +40,7 @@
         "description": "EOD: Use a 50% buffer.",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {
             "compute": {
               "op": "+",
@@ -82,7 +82,7 @@
           "description": "Early Day: Be very conservative (150% buffer).",
           "condition": {
             "op": ">=",
-            "left": {"field": "available_liquidity"},
+            "left": {"field": "effective_liquidity"},
             "right": {
               "compute": {
                 "op": "+",
@@ -115,7 +115,7 @@
           "description": "Mid-Day: Use standard 100% buffer.",
           "condition": {
             "op": ">=",
-            "left": {"field": "available_liquidity"},
+            "left": {"field": "effective_liquidity"},
             "right": {
               "compute": {
                 "op": "+",
@@ -152,7 +152,7 @@
           "right": {"param": "target_buffer"}
         }
       },
-      "right": {"field": "available_liquidity"}
+      "right": {"field": "effective_liquidity"}
     },
     "on_true": {
       "type": "action",
@@ -174,7 +174,7 @@
                       "right": {"param": "target_buffer"}
                     }
                   },
-                  "right": {"field": "available_liquidity"}
+                  "right": {"field": "effective_liquidity"}
                 }
               }
             ]

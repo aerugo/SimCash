@@ -40,7 +40,7 @@
         "description": "Can afford without credit?",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {"field": "remaining_amount"}
         },
         "on_true": {
@@ -92,7 +92,7 @@
         "description": "Early day: Do we have strong buffer (1.5x tx)?",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {
             "compute": {
               "op": "*",
@@ -121,7 +121,7 @@
             "description": "Can afford high priority?",
             "condition": {
               "op": ">=",
-              "left": {"field": "available_liquidity"},
+              "left": {"field": "effective_liquidity"},
               "right": {"field": "remaining_amount"}
             },
             "on_true": {
@@ -159,7 +159,7 @@
           "description": "Mid day: Can we afford it?",
           "condition": {
             "op": ">=",
-            "left": {"field": "available_liquidity"},
+            "left": {"field": "effective_liquidity"},
             "right": {"field": "remaining_amount"}
           },
           "on_true": {
@@ -181,7 +181,7 @@
                 },
                 {
                   "op": ">",
-                  "left": {"field": "available_liquidity"},
+                  "left": {"field": "effective_liquidity"},
                   "right": {"param": "min_split_amount"}
                 }
               ]
@@ -236,7 +236,7 @@
                     "compute": {
                       "op": "-",
                       "left": {"field": "remaining_amount"},
-                      "right": {"field": "available_liquidity"}
+                      "right": {"field": "effective_liquidity"}
                     }
                   }
                 },
@@ -267,7 +267,7 @@
           "description": "Late day (>60%): Be more aggressive",
           "condition": {
             "op": ">=",
-            "left": {"field": "available_liquidity"},
+            "left": {"field": "effective_liquidity"},
             "right": {
               "compute": {
                 "op": "*",
@@ -323,7 +323,7 @@
               "description": "Can barely afford it?",
               "condition": {
                 "op": ">=",
-                "left": {"field": "available_liquidity"},
+                "left": {"field": "effective_liquidity"},
                 "right": {"field": "remaining_amount"}
               },
               "on_true": {

@@ -36,7 +36,7 @@
         "description": "Can afford without credit?",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {"field": "remaining_amount"}
         },
         "on_true": {
@@ -67,7 +67,7 @@
         "description": "Can afford it with current liquidity?",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {"field": "remaining_amount"}
         },
         "on_true": {
@@ -109,7 +109,7 @@
         "description": "Do we have buffer_multiplier times the transaction amount?",
         "condition": {
           "op": ">=",
-          "left": {"field": "available_liquidity"},
+          "left": {"field": "effective_liquidity"},
           "right": {
             "compute": {
               "op": "*",
@@ -138,7 +138,7 @@
             "description": "Can barely afford it?",
             "condition": {
               "op": ">=",
-              "left": {"field": "available_liquidity"},
+              "left": {"field": "effective_liquidity"},
               "right": {"field": "remaining_amount"}
             },
             "on_true": {
