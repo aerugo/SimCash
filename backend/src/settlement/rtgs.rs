@@ -255,9 +255,27 @@ pub fn submit_transaction(
             let receiver = state.get_agent_mut(&receiver_id).unwrap();
             receiver.credit(amount);
         }
+
+        // Get parent_id before settling (need to read before mut borrow)
+        let parent_id = {
+            let transaction = state.get_transaction(&tx_id).unwrap();
+            transaction.parent_id().map(|s| s.to_string())
+        };
+
         {
             let transaction = state.get_transaction_mut(&tx_id).unwrap();
             transaction.settle(amount, tick)?;
+        }
+
+        // If this is a child transaction, update parent's remaining_amount
+        if let Some(parent_id) = parent_id {
+            let parent = state.get_transaction_mut(&parent_id).unwrap();
+            parent.reduce_remaining_for_child(amount)?;
+
+            // If parent now fully settled, mark it as settled
+            if parent.remaining_amount() == 0 {
+                parent.mark_fully_settled(tick)?;
+            }
         }
 
         Ok(SubmissionResult::SettledImmediately { tick })
@@ -366,9 +384,27 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
                 let receiver = state.get_agent_mut(&receiver_id).unwrap();
                 receiver.credit(amount);
             }
+
+            // Get parent_id before settling (need to read before mut borrow)
+            let parent_id = {
+                let transaction = state.get_transaction(&tx_id).unwrap();
+                transaction.parent_id().map(|s| s.to_string())
+            };
+
             {
                 let transaction = state.get_transaction_mut(&tx_id).unwrap();
                 transaction.settle(amount, tick).unwrap();
+            }
+
+            // If this is a child transaction, update parent's remaining_amount
+            if let Some(parent_id) = parent_id {
+                let parent = state.get_transaction_mut(&parent_id).unwrap();
+                parent.reduce_remaining_for_child(amount).ok(); // Defensive - ignore errors
+
+                // If parent now fully settled, mark it as settled
+                if parent.remaining_amount() == 0 {
+                    parent.mark_fully_settled(tick).ok(); // Defensive - ignore errors
+                }
             }
 
             settled_count += 1;

@@ -517,6 +517,91 @@ impl Transaction {
         Ok(())
     }
 
+    /// Reduce remaining amount when a child transaction settles
+    ///
+    /// This method is used internally by the settlement engine when a child
+    /// (split) transaction settles. The parent's remaining_amount is reduced
+    /// by the child's settled amount.
+    ///
+    /// When all children settle (remaining_amount reaches 0), the parent
+    /// should be marked as fully settled by the caller.
+    ///
+    /// # Arguments
+    /// * `amount` - Amount settled by the child (must be > 0 and <= remaining_amount)
+    ///
+    /// # Returns
+    /// - Ok(()) if reduction successful
+    /// - Err(TransactionError::InvalidAmount) if amount <= 0
+    /// - Err(TransactionError::AmountExceedsRemaining) if amount > remaining_amount
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // Parent transaction split into 4 children of 25,000 each
+    /// let mut parent = Transaction::new("A".into(), "B".into(), 100_000, 0, 10);
+    ///
+    /// // When first child settles
+    /// parent.reduce_remaining_for_child(25_000).unwrap();
+    /// assert_eq!(parent.remaining_amount(), 75_000);
+    ///
+    /// // When all children settle
+    /// parent.reduce_remaining_for_child(25_000).unwrap();
+    /// parent.reduce_remaining_for_child(25_000).unwrap();
+    /// parent.reduce_remaining_for_child(25_000).unwrap();
+    /// assert_eq!(parent.remaining_amount(), 0);
+    /// ```
+    pub(crate) fn reduce_remaining_for_child(&mut self, amount: i64) -> Result<(), TransactionError> {
+        // Validate amount
+        if amount <= 0 {
+            return Err(TransactionError::InvalidAmount);
+        }
+
+        if amount > self.remaining_amount {
+            return Err(TransactionError::AmountExceedsRemaining {
+                amount,
+                remaining: self.remaining_amount,
+            });
+        }
+
+        // Reduce remaining amount
+        self.remaining_amount -= amount;
+
+        Ok(())
+    }
+
+    /// Mark transaction as fully settled (used when all children settle)
+    ///
+    /// This is an internal method used by the settlement engine to mark a parent
+    /// transaction as fully settled after all its children have settled.
+    ///
+    /// # Arguments
+    /// * `tick` - Tick when the final child settled
+    ///
+    /// # Returns
+    /// - Ok(()) if successfully marked as settled
+    /// - Err(TransactionError::AlreadySettled) if already settled
+    ///
+    /// # Safety
+    /// This should only be called after verifying remaining_amount == 0
+    pub(crate) fn mark_fully_settled(&mut self, tick: usize) -> Result<(), TransactionError> {
+        if self.remaining_amount != 0 {
+            return Err(TransactionError::AmountExceedsRemaining {
+                amount: 0,
+                remaining: self.remaining_amount,
+            });
+        }
+
+        match self.status {
+            TransactionStatus::Settled { .. } => {
+                // Already settled, no-op (idempotent)
+                Ok(())
+            }
+            _ => {
+                self.status = TransactionStatus::Settled { tick };
+                Ok(())
+            }
+        }
+    }
+
     /// Mark transaction as overdue (idempotent)
     ///
     /// In real payment systems, transactions cannot be "dropped" - they must
