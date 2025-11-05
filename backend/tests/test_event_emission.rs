@@ -754,7 +754,7 @@ fn test_lsm_cycle_settlement_event() {
     {
         assert_eq!(*tick, 0);
         assert_eq!(tx_ids.len(), 3, "Cycle should involve 3 transactions");
-        assert_eq!(*cycle_value, 100_000, "Cycle value should be 100k");
+        assert_eq!(*cycle_value, 300_000, "Cycle value should be sum of all transactions (T2-compliant): 3 × 100k = 300k");
         assert!(tx_ids.contains(&tx1_id));
         assert!(tx_ids.contains(&tx2_id));
         assert!(tx_ids.contains(&tx3_id));
