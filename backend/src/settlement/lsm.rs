@@ -67,6 +67,17 @@ impl Default for LsmConfig {
 // Result Types
 // ============================================================================
 
+/// Information about a bilateral offset pair
+#[derive(Debug, Clone, PartialEq)]
+pub struct BilateralPair {
+    pub agent_a: String,
+    pub agent_b: String,
+    pub txs_a_to_b: Vec<String>,
+    pub txs_b_to_a: Vec<String>,
+    pub amount_a_to_b: i64,
+    pub amount_b_to_a: i64,
+}
+
 /// Result of bilateral offsetting pass
 #[derive(Debug, Clone, PartialEq)]
 pub struct BilateralOffsetResult {
@@ -78,6 +89,9 @@ pub struct BilateralOffsetResult {
 
     /// Number of transactions settled
     pub settlements_count: usize,
+
+    /// Details of bilateral pairs that were offset
+    pub offset_pairs: Vec<BilateralPair>,
 }
 
 /// Represents a detected payment cycle
@@ -194,6 +208,7 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
     let mut pairs_found = 0;
     let mut offset_value = 0i64;
     let mut settlements_count = 0;
+    let mut offset_pairs = Vec::new();
 
     // Build bilateral payment matrix: (sender, receiver) -> [tx_ids]
     let mut bilateral_map: HashMap<(String, String), Vec<String>> = HashMap::new();
@@ -246,6 +261,16 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
             if offset_amount > 0 {
                 settlements_count +=
                     settle_bilateral_pair(state, txs_ab, txs_ba, offset_amount, tick);
+
+                // Track this bilateral pair for event emission
+                offset_pairs.push(BilateralPair {
+                    agent_a: sender_a.clone(),
+                    agent_b: receiver_b.clone(),
+                    txs_a_to_b: txs_ab.clone(),
+                    txs_b_to_a: txs_ba.clone(),
+                    amount_a_to_b: sum_ab,
+                    amount_b_to_a: sum_ba,
+                });
             }
         }
     }
@@ -254,6 +279,7 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
         pairs_found,
         offset_value,
         settlements_count,
+        offset_pairs,
     }
 }
 
@@ -619,6 +645,28 @@ pub fn run_lsm_pass(
             let bilateral_result = bilateral_offset(state, tick);
             bilateral_offsets += bilateral_result.pairs_found;
             total_settled_value += bilateral_result.offset_value;
+
+            // Create cycle events for each bilateral offset
+            let day = tick / ticks_per_day;
+            for pair in &bilateral_result.offset_pairs {
+                let mut transactions = Vec::new();
+                transactions.extend(pair.txs_a_to_b.clone());
+                transactions.extend(pair.txs_b_to_a.clone());
+
+                let agents = vec![pair.agent_a.clone(), pair.agent_b.clone(), pair.agent_a.clone()];
+                let offset_amount = pair.amount_a_to_b.min(pair.amount_b_to_a);
+
+                cycle_events.push(LsmCycleEvent {
+                    tick,
+                    day,
+                    cycle_type: "bilateral".to_string(),
+                    cycle_length: 2,
+                    agents,
+                    transactions,
+                    settled_value: offset_amount,
+                    total_value: pair.amount_a_to_b + pair.amount_b_to_a,
+                });
+            }
 
             // Retry queue processing after bilateral settlements
             if bilateral_result.settlements_count > 0 {
