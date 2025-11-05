@@ -1,9 +1,9 @@
 //! LSM (Liquidity-Saving Mechanisms) Module
 //!
-//! Implements T2-style liquidity optimization through:
-//! - Bilateral offsetting (A↔B payment netting)
-//! - Cycle detection (A→B→C→A circular dependencies)
-//! - Coordinated optimization passes
+//! Implements T2 RTGS-compliant liquidity optimization through:
+//! - Bilateral offsetting (A↔B payment netting with unequal amounts)
+//! - Multilateral cycle settlement (A→B→C→A with unequal payment values)
+//! - Two-phase atomic settlement ensuring all-or-nothing execution
 //!
 //! # Overview
 //!
@@ -12,21 +12,56 @@
 //! > "LSM/optimisation tries offsetting and multilateral cycles/batches to release
 //! > queued items with minimal net liquidity."
 //!
+//! # T2-Compliant Behavior
+//!
+//! This implementation follows T2 RTGS specifications:
+//! - Supports **unequal payment values** in cycles (partial netting)
+//! - Each payment settles at **full value** or not at all (no transaction splitting)
+//! - Each participant must cover their **net position** (not the minimum amount)
+//! - Uses **two-phase commit** for atomic all-or-nothing execution
+//!
 //! # Example: Bilateral Offsetting
 //!
 //! ```rust
 //! // A owes B 500k, B owes A 300k
 //! // Without LSM: Need 800k total liquidity
-//! // With LSM: Net 200k (A→B), saves 300k liquidity
+//! // With LSM: Net 200k (A→B), settles BOTH transactions simultaneously
+//! //   - A needs 200k to cover net outflow
+//! //   - B needs 0 (net inflow)
 //! ```
 //!
-//! # Example: Cycle Settlement
+//! # Example: Cycle Settlement (Equal Amounts)
 //!
 //! ```rust
 //! // A→B→C→A cycle, each 500k
-//! // Without LSM: Need 500k per bank (1.5M total)
-//! // With LSM: Net zero per bank, settles with existing balances
+//! // Net positions: A: 0, B: 0, C: 0 (all net zero)
+//! // With LSM: Settles all 3 transactions (total value: 1.5M)
+//! // Each bank needs 0 liquidity (net zero)
 //! ```
+//!
+//! # Example: Cycle Settlement (Unequal Amounts - T2-Compliant)
+//!
+//! ```rust
+//! // A→B (500k), B→C (800k), C→A (700k)
+//! // Net positions:
+//! //   A: -500k + 700k = +200k (net inflow)
+//! //   B: +500k - 800k = -300k (net outflow, needs 300k liquidity)
+//! //   C: +800k - 700k = +100k (net inflow)
+//! // With LSM: If B has 300k available, settles ALL 3 transactions at full value
+//! // Total settled value: 2M (not 500k minimum)
+//! ```
+//!
+//! # Two-Phase Settlement Protocol
+//!
+//! 1. **Phase 1: Feasibility Check** (read-only, no state changes)
+//!    - Calculate net positions for all participants
+//!    - Verify conservation (sum of net positions = 0)
+//!    - Check each net payer can cover their net outflow
+//!
+//! 2. **Phase 2: Atomic Settlement** (all-or-nothing)
+//!    - Settle ALL transactions at FULL value
+//!    - Update all agent balances atomically
+//!    - If any step fails, entire cycle fails (rollback not needed due to Phase 1 check)
 
 use crate::models::state::SimulationState;
 use crate::settlement::rtgs::{process_queue, SettlementError};
@@ -116,11 +151,15 @@ pub struct CycleSettlementResult {
     /// Length of cycle settled
     pub cycle_length: usize,
 
-    /// Value settled on cycle
+    /// Value settled on cycle (T2-compliant: sum of all transaction values)
     pub settled_value: i64,
 
     /// Number of transactions affected
     pub transactions_affected: usize,
+
+    /// Net positions for each agent in cycle (T2-compliant)
+    /// Positive = net inflow, Negative = net outflow
+    pub net_positions: HashMap<String, i64>,
 }
 
 /// LSM cycle event for persistence (Phase 4)
@@ -211,6 +250,7 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
     let mut offset_pairs = Vec::new();
 
     // Build bilateral payment matrix: (sender, receiver) -> [tx_ids]
+    // LSM operates ONLY on Queue 2 (RTGS central queue), not Queue 1 (banks' internal queues)
     let mut bilateral_map: HashMap<(String, String), Vec<String>> = HashMap::new();
 
     for tx_id in state.rtgs_queue() {
@@ -366,6 +406,10 @@ fn settle_bilateral_pair(
                 .unwrap()
                 .settle(amount, tick)
                 .ok();
+
+            // Remove from Queue 2 (RTGS queue)
+            state.rtgs_queue_mut().retain(|id| id != tx_id);
+
             settlements += 1;
         }
     }
@@ -390,11 +434,133 @@ fn settle_bilateral_pair(
                 .unwrap()
                 .settle(amount, tick)
                 .ok();
+
+            // Remove from Queue 2 (RTGS queue)
+            state.rtgs_queue_mut().retain(|id| id != tx_id);
+
             settlements += 1;
         }
     }
 
     settlements
+}
+
+// ============================================================================
+// T2-Compliant LSM Helpers (Phase 1 & 2)
+// ============================================================================
+
+/// Calculate net position for each agent in a cycle (T2-compliant)
+///
+/// Net position = sum(incoming) - sum(outgoing) for each agent
+/// - Positive = net inflow (agent receives more than sends)
+/// - Negative = net outflow (agent sends more than receives, needs liquidity)
+///
+/// # Conservation Invariant
+///
+/// The sum of all net positions MUST equal zero (what flows out must flow in).
+/// This is validated in `check_cycle_feasibility()`.
+///
+/// # Example
+///
+/// ```rust
+/// // Cycle: A→B (500k), B→C (800k), C→A (700k)
+/// // Net positions:
+/// //   A: -500k + 700k = +200k (net inflow)
+/// //   B: -800k + 500k = -300k (net outflow, needs 300k liquidity)
+/// //   C: -700k + 800k = +100k (net inflow)
+/// // Sum: +200k - 300k + 100k = 0 ✓
+/// ```
+fn calculate_cycle_net_positions(
+    state: &SimulationState,
+    cycle: &Cycle,
+) -> HashMap<String, i64> {
+    let mut net_positions: HashMap<String, i64> = HashMap::new();
+
+    // Build flows from cycle transactions
+    for tx_id in &cycle.transactions {
+        if let Some(tx) = state.get_transaction(tx_id) {
+            let sender = tx.sender_id();
+            let receiver = tx.receiver_id();
+            let amount = tx.remaining_amount();
+
+            // Sender has outflow (negative)
+            *net_positions.entry(sender.to_string()).or_insert(0) -= amount;
+            // Receiver has inflow (positive)
+            *net_positions.entry(receiver.to_string()).or_insert(0) += amount;
+        }
+    }
+
+    net_positions
+}
+
+/// Error type for cycle feasibility checks
+#[derive(Debug)]
+enum CycleFeasibilityError {
+    /// Sum of net positions doesn't equal zero (conservation violated)
+    ConservationViolated { sum: i64 },
+    /// Agent not found in state
+    AgentNotFound { agent_id: String },
+    /// Agent lacks liquidity to cover net outflow
+    InsufficientLiquidity {
+        agent_id: String,
+        required: i64,
+        available: i64,
+    },
+}
+
+/// Check if cycle can settle given agent liquidity constraints (T2-compliant)
+///
+/// Returns Ok(()) if all agents with net outflow can cover it with balance + credit.
+/// Returns Err with first blocking agent if any agent lacks sufficient liquidity.
+///
+/// # T2 Principle
+///
+/// "If any participant lacks liquidity for their net position, the entire cycle fails
+/// and all transactions remain queued" - All-or-nothing atomicity
+///
+/// # Example
+///
+/// ```rust
+/// // Agent B has net -300k outflow, 200k balance, 100k credit
+/// // Available: 200k + 100k = 300k ✓ Can cover
+/// //
+/// // If B only had 250k available → Err(InsufficientLiquidity)
+/// ```
+fn check_cycle_feasibility(
+    state: &SimulationState,
+    _cycle: &Cycle,
+    net_positions: &HashMap<String, i64>,
+) -> Result<(), CycleFeasibilityError> {
+    // Validate conservation (sum of net positions must be zero)
+    let sum: i64 = net_positions.values().sum();
+    if sum != 0 {
+        return Err(CycleFeasibilityError::ConservationViolated { sum });
+    }
+
+    // Check each agent with net outflow can cover it
+    for (agent_id, net_position) in net_positions {
+        if *net_position < 0 {
+            // Agent has net outflow - check liquidity
+            let agent = state.get_agent(agent_id).ok_or_else(|| {
+                CycleFeasibilityError::AgentNotFound {
+                    agent_id: agent_id.clone(),
+                }
+            })?;
+
+            let available_liquidity = agent.balance() + agent.credit_limit();
+            let required_liquidity = net_position.abs();
+
+            if available_liquidity < required_liquidity {
+                return Err(CycleFeasibilityError::InsufficientLiquidity {
+                    agent_id: agent_id.clone(),
+                    required: required_liquidity,
+                    available: available_liquidity,
+                });
+            }
+        }
+    }
+
+    Ok(())
 }
 
 // ============================================================================
@@ -419,6 +585,7 @@ fn settle_bilateral_pair(
 /// ```
 pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cycle> {
     // Build payment graph: agent -> [(neighbor, tx_id, amount)]
+    // LSM operates ONLY on Queue 2 (RTGS central queue), not Queue 1 (banks' internal queues)
     let mut graph: HashMap<String, Vec<(String, String, i64)>> = HashMap::new();
 
     for tx_id in state.rtgs_queue() {
@@ -522,27 +689,43 @@ fn find_cycles_from_start(
     visited.remove(current_node);
 }
 
-/// Settle a detected cycle
+/// Settle a detected cycle (T2-compliant)
 ///
-/// Settles the minimum amount on the cycle, achieving net-zero balance changes
-/// for all participants.
+/// Implements T2 RTGS multilateral cycle settlement with unequal payment values.
+/// Uses two-phase commit for atomic all-or-nothing execution.
+///
+/// # T2 Principles
+///
+/// 1. **No Partial Settlement**: Each payment settles in full or not at all
+/// 2. **Unequal Values Supported**: Payments can have different amounts
+/// 3. **Net Position Coverage**: Each agent must cover their net outflow with balance + credit
+/// 4. **All-or-Nothing**: If any agent can't cover net, entire cycle fails
+///
+/// # Two-Phase Commit
+///
+/// **Phase 1 (Check)**: Calculate net positions and verify feasibility WITHOUT changing state
+/// **Phase 2 (Execute)**: Settle ALL transactions at full value atomically
 ///
 /// # Example
 ///
 /// ```rust
-/// // Cycle: A→B→C→A, amounts [500k, 600k, 700k]
-/// // Settle min (500k) on cycle:
-/// //   A: -500k + 500k = 0 (net)
-/// //   B: -500k + 500k = 0
-/// //   C: -500k + 500k = 0
+/// // Cycle: A→B (500k), B→C (800k), C→A (700k)
+/// // Net positions:
+/// //   A: -500k + 700k = +200k (inflow)
+/// //   B: -800k + 500k = -300k (outflow, needs 300k liquidity)
+/// //   C: -700k + 800k = +100k (inflow)
+/// //
+/// // Phase 1: Check B has 300k available → ✓
+/// // Phase 2: Settle ALL THREE at full value
+/// //   Total settled: 2M (not 500k min)
+/// //   Final balances: A=+200k, B=-300k, C=+100k
 /// ```
 pub fn settle_cycle(
     state: &mut SimulationState,
     cycle: &Cycle,
     tick: usize,
 ) -> Result<CycleSettlementResult, SettlementError> {
-    let settle_amount = cycle.min_amount;
-    let mut transactions_affected = 0;
+    // ========== PHASE 1: FEASIBILITY CHECK (No State Changes) ==========
 
     // Validate all transactions still exist and are queued
     for tx_id in &cycle.transactions {
@@ -560,36 +743,83 @@ pub fn settle_cycle(
         }
     }
 
-    // Settle each transaction in cycle
-    // IMPORTANT: Use adjust_balance instead of debit/credit because cycle settlement
-    // is net-zero - each agent sends and receives the same amount around the cycle
+    // Calculate net positions for all agents in cycle
+    let net_positions = calculate_cycle_net_positions(state, cycle);
+
+    // Check if cycle is feasible (all net outflows can be covered)
+    match check_cycle_feasibility(state, cycle, &net_positions) {
+        Err(CycleFeasibilityError::InsufficientLiquidity {
+            agent_id: _,
+            required,
+            available,
+        }) => {
+            return Err(SettlementError::AgentError(
+                crate::models::agent::AgentError::InsufficientLiquidity {
+                    required,
+                    available,
+                },
+            ));
+        }
+        Err(CycleFeasibilityError::ConservationViolated { sum }) => {
+            return Err(SettlementError::AgentError(
+                crate::models::agent::AgentError::InsufficientLiquidity {
+                    required: sum.abs(),
+                    available: 0,
+                },
+            ));
+        }
+        Err(CycleFeasibilityError::AgentNotFound { .. }) => {
+            return Err(SettlementError::AgentError(
+                crate::models::agent::AgentError::InsufficientLiquidity {
+                    required: 0,
+                    available: 0,
+                },
+            ));
+        }
+        Ok(()) => {
+            // Feasibility check passed, proceed to Phase 2
+        }
+    }
+
+    // ========== PHASE 2: ATOMIC SETTLEMENT (All or Nothing) ==========
+
+    let mut transactions_affected = 0;
+    let mut total_value = 0i64;
+
+    // Settle EACH transaction at its FULL value (T2-compliant)
     for tx_id in &cycle.transactions {
         let tx = state.get_transaction(tx_id).unwrap();
         let sender_id = tx.sender_id().to_string();
         let receiver_id = tx.receiver_id().to_string();
+        let amount = tx.remaining_amount(); // FULL amount, not min
 
-        // Perform settlement (net-zero for cycle)
-        // Use adjust_balance to bypass liquidity checks (flows cancel out)
+        // Settle full transaction amount
+        // Use adjust_balance to bypass liquidity checks (net positions already verified)
         state
             .get_agent_mut(&sender_id)
             .unwrap()
-            .adjust_balance(-(settle_amount as i64));
+            .adjust_balance(-(amount as i64));
         state
             .get_agent_mut(&receiver_id)
             .unwrap()
-            .adjust_balance(settle_amount as i64);
+            .adjust_balance(amount as i64);
         state
             .get_transaction_mut(tx_id)
             .unwrap()
-            .settle(settle_amount, tick)?;
+            .settle(amount, tick)?;
+
+        // Remove from Queue 2 (RTGS queue)
+        state.rtgs_queue_mut().retain(|id| id != tx_id);
 
         transactions_affected += 1;
+        total_value += amount;
     }
 
     Ok(CycleSettlementResult {
         cycle_length: cycle.agents.len() - 1,
-        settled_value: settle_amount,
+        settled_value: total_value, // Sum of ALL transaction values (T2-compliant)
         transactions_affected,
+        net_positions, // Include net positions for analysis
     })
 }
 
@@ -636,6 +866,7 @@ pub fn run_lsm_pass(
     let mut cycle_events = Vec::new();
     const MAX_ITERATIONS: usize = 3;
 
+    // LSM operates ONLY on Queue 2 (RTGS central queue)
     while iterations < MAX_ITERATIONS && !state.rtgs_queue().is_empty() {
         iterations += 1;
         let settled_this_iteration = total_settled_value;

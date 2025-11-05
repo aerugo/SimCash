@@ -840,6 +840,52 @@ impl PyOrchestrator {
         Ok(dict.into())
     }
 
+    /// Get detailed transaction counts for debugging settlement rate issues
+    ///
+    /// Returns raw transaction counts to help diagnose settlement rate bugs.
+    /// This bypasses the complex `is_effectively_settled()` recursion and provides
+    /// direct counts of transactions by parent/child status.
+    ///
+    /// # Returns
+    ///
+    /// Dictionary with transaction counts:
+    /// - `total_transactions`: Total number of transactions in the system
+    /// - `arrivals`: Count of transactions with parent_id = None (original arrivals)
+    /// - `children`: Count of transactions with parent_id set (split children)
+    /// - `settled_arrivals`: Count of fully settled arrival transactions
+    /// - `settled_children`: Count of fully settled child transactions
+    ///
+    /// # Debugging Notes
+    ///
+    /// This method is specifically designed to help diagnose the settlement rate > 100% bug.
+    /// Expected invariants:
+    /// - `total_transactions` should equal `arrivals + children`
+    /// - Settlement rate should be `settled_arrivals / arrivals` (ideally <= 1.0)
+    /// - If settlement rate > 1.0, check if parent_id is being set incorrectly
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// counts = orch.get_transaction_counts_debug()
+    /// print(f"Total: {counts['total_transactions']}")
+    /// print(f"Arrivals: {counts['arrivals']} (settled: {counts['settled_arrivals']})")
+    /// print(f"Children: {counts['children']} (settled: {counts['settled_children']})")
+    /// print(f"Manual rate: {counts['settled_arrivals'] / counts['arrivals']:.2%}")
+    /// ```
+    fn get_transaction_counts_debug(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let (total, arrivals, children, settled_arrivals, settled_children) =
+            self.inner.get_transaction_counts_debug();
+
+        let dict = PyDict::new(py);
+        dict.set_item("total_transactions", total)?;
+        dict.set_item("arrivals", arrivals)?;
+        dict.set_item("children", children)?;
+        dict.set_item("settled_arrivals", settled_arrivals)?;
+        dict.set_item("settled_children", settled_children)?;
+
+        Ok(dict.into())
+    }
+
     // ========================================================================
     // Verbose CLI Query Methods (Enhanced Monitoring)
     // ========================================================================
