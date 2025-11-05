@@ -557,7 +557,6 @@ fn test_end_of_day_event() {
 // ============================================================================
 
 #[test]
-#[ignore] // Ignore until LSM event logging is implemented
 fn test_lsm_bilateral_offset_event() {
     // ARRANGE: Create 2-agent orchestrator with LOW liquidity and offsetting transactions
     let mut config = create_test_config();
@@ -660,9 +659,9 @@ fn test_lsm_bilateral_offset_event() {
 // ============================================================================
 
 #[test]
-#[ignore] // Ignore until LSM event logging is implemented
 fn test_lsm_cycle_settlement_event() {
     // ARRANGE: Create 3-agent orchestrator with circular transactions
+    // IMPORTANT: Use LOW balances so transactions will queue (insufficient for RTGS)
     let mut config = OrchestratorConfig {
         ticks_per_day: 100,
         eod_rush_threshold: 0.8,
@@ -671,7 +670,7 @@ fn test_lsm_cycle_settlement_event() {
         agent_configs: vec![
             AgentConfig {
                 id: "BANK_A".to_string(),
-                opening_balance: 1_000_000,
+                opening_balance: 50_000,  // $500 - less than tx amount
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
@@ -679,7 +678,7 @@ fn test_lsm_cycle_settlement_event() {
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
-                opening_balance: 1_000_000,
+                opening_balance: 50_000,  // $500 - less than tx amount
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
@@ -687,7 +686,7 @@ fn test_lsm_cycle_settlement_event() {
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
-                opening_balance: 1_000_000,
+                opening_balance: 50_000,  // $500 - less than tx amount
                 credit_limit: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
@@ -705,7 +704,7 @@ fn test_lsm_cycle_settlement_event() {
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
-    // Create cycle: A→B→C→A
+    // Create cycle: A→B→C→A (each tx exceeds individual agent balance)
     let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 10);
     let tx2 = Transaction::new("BANK_B".to_string(), "BANK_C".to_string(), 100_000, 0, 10);
     let tx3 = Transaction::new("BANK_C".to_string(), "BANK_A".to_string(), 100_000, 0, 10);
