@@ -315,6 +315,67 @@ The foundation implementation validated several critical design choices:
 - Gridlock detection and LSM-based resolution
 - Four-bank ring scenario from Game Design Doc passes
 
+#### Phase 3.5: T2-Realistic LSM with Unequal Payment Values ⏳ **PLANNED**
+**Modules**: `backend/src/settlement/lsm.rs` (enhancement)
+
+**Status**: Planning complete, implementation not started
+
+**Goal**: Bring LSM into full compliance with T2 RTGS specifications for handling unequal payment values in multilateral cycles
+
+**Current Gap**: Our LSM implementation settles only the minimum amount on cycles (e.g., if cycle has [500k, 800k, 700k], we settle 500k from each). T2 actually settles the FULL value of each transaction, with each participant covering their net position.
+
+**What T2 Actually Does** (from research in [docs/lsm-in-t2.md](lsm-in-t2.md)):
+- **No partial settlement of individual payments**: Each payment settles in full or not at all
+- **Bilateral offsetting with unequal values**: Already implemented correctly ✅
+- **Multilateral cycles with unequal values**: T2 settles ALL transactions at full value, as long as each participant can cover their net position
+- **All-or-nothing execution**: If any participant lacks liquidity for their net position, the entire cycle fails
+
+**Key Implementation Changes**:
+1. **Net Position Calculation**: For each agent in cycle, calculate `net = sum(incoming) - sum(outgoing)`
+2. **Feasibility Check**: Verify all agents with net outflow can cover it BEFORE any settlements
+3. **Full Amount Settlement**: Settle complete transaction values (not min)
+4. **Atomic Execution**: Two-phase commit (check feasibility → execute all or nothing)
+
+**Example**:
+```rust
+// Cycle: A→B (500k), B→C (800k), C→A (700k)
+// Net positions:
+//   A: -500k + 700k = +200k (net inflow)
+//   B: -800k + 500k = -300k (net outflow, needs 300k liquidity)
+//   C: -700k + 800k = +100k (net inflow)
+//
+// Current: Settle 500k from each (min) → partial amounts remain queued
+// T2-compliant: Check if B has 300k → settle ALL three at full value
+//
+// Final balances: A=+200k, B=-300k, C=+100k (net=0, conservation maintained)
+```
+
+**Implementation Tasks** (see [docs/plans/t2-realistic-lsm-implementation.md](plans/t2-realistic-lsm-implementation.md)):
+1. ✅ Net position calculation for multilateral cycles
+2. ✅ Cycle feasibility check (verify liquidity before settlement)
+3. ✅ Two-phase atomic settlement (check → execute)
+4. ✅ Enhanced metrics (track net positions, liquidity efficiency)
+5. ✅ Comprehensive testing (8+ new test scenarios)
+
+**Benefits**:
+- More realistic modeling of T2 behavior
+- Better liquidity utilization (settle larger values with same net liquidity)
+- Accurate simulation of gridlock resolution mechanisms
+- Foundation for policy learning (agents can optimize for LSM benefits)
+
+**Backward Compatibility**:
+- Feature flag: `lsm_t2_compliant` (default: true)
+- Legacy implementation preserved for comparison
+- All existing tests pass
+
+**Tests**: 8+ new tests for unequal cycle scenarios, feasibility checking, atomicity
+
+**Estimated Effort**: 5-6 days (1 work week)
+
+**Dependencies**: None (enhancement to existing Phase 3)
+
+**Enables**: Better policy learning in Phase 11 (LLM can optimize for LSM with realistic net position requirements)
+
 #### Phase 4a: Queue 1 + Cash Manager Policies ✅
 **Modules**: `backend/src/policy/`, extended `backend/src/models/agent.rs`
 

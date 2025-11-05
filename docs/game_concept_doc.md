@@ -123,10 +123,12 @@ Transactions progress through the following states:
 * **Entry disposition:** each submitted payment triggers immediate settlement attempt; if not possible, it goes to **Queue 2 (RTGS central queue)**; the engine maintains **per-bank net debit** checks.
 * **LSM/optimisation pass (each tick on Queue 2):**
 
-  * **Bilateral offset** (A↔B min-match),
-  * **Cycle search** (A→B→C→…→A; settle min on cycle),
+  * **Bilateral offset** (A↔B with unequal amounts): Settles BOTH transactions simultaneously if the net difference can be covered. Example: A→B 500k, B→A 300k → both settle if A can cover net 200k outflow. Settles **full transaction values**, not partial amounts. ([docs/lsm-in-t2.md](lsm-in-t2.md))
+  * **Multilateral cycle search** (A→B→C→…→A with unequal amounts): Detects payment cycles and settles **all transactions at full value** if each participant can cover their net position. Example: A→B (500k), B→C (800k), C→A (700k) settles all three if B can cover -300k net outflow. **No splitting of individual payments** — each settles in full or not at all. ([docs/lsm-in-t2.md](lsm-in-t2.md))
+  * **All-or-nothing execution**: If any participant in a cycle lacks liquidity for their net position, the entire cycle fails and all transactions remain queued. This mirrors T2's atomic settlement behavior.
   * Optional **batch optimisation** under bank caps.
-    (Principle mirrors T2's continuous optimisation to dissolve queues.) ([European Central Bank][5])
+
+**Key T2 Principle**: LSM achieves liquidity savings through smart **grouping** of whole payments (not by splitting individual transactions). Cycles settle groups of unequal-value payments as long as net positions are fundable. ([European Central Bank][5], [docs/lsm-in-t2.md](lsm-in-t2.md))
 
 ## 5) Actions, transitions, rewards
 
@@ -214,9 +216,12 @@ We minimize **total intraday cost** (maximize its negative):
 
 * Process submitted items in priority/arrival order while payer bank's settlement balance + credit headroom ≥ 0; else push to **Queue 2 (RTGS central queue)**.
 
-**Add LSM/optimisation:**
+**Add LSM/optimisation (T2-realistic):**
 
-* **Bilateral offset**, **cycle search**, and **batch selection** subject to per-bank net debit caps; run every tick on **Queue 2**. Mirrors T2's **optimisation procedures** that continuously dissolve queues with reduced liquidity. ([European Central Bank][5])
+* **Bilateral offset with unequal amounts**: For each bank pair (A,B), if both have queued payments to each other, settle BOTH at full value if the net sender can cover the difference. No transaction splitting — each settles completely or remains queued.
+* **Multilateral cycle search with unequal amounts**: Detect payment cycles (A→B→C→A) and calculate each participant's net position. If all participants with net outflows can cover their positions, settle ALL transactions in the cycle at full value simultaneously. If any participant lacks liquidity, the entire cycle fails atomically.
+* **Batch selection** subject to per-bank net debit caps; run every tick on **Queue 2**.
+* Mirrors T2's **optimisation procedures** that continuously dissolve queues with reduced liquidity by smart grouping of whole payments, not by splitting individual transactions. ([European Central Bank][5], [docs/lsm-in-t2.md](lsm-in-t2.md))
 
 **T2-style options (toggles):**
 
@@ -258,9 +263,13 @@ We minimize **total intraday cost** (maximize its negative):
 ## 11) Test plan
 
 1. **Two-bank toy:** verify PD vs stag-hunt regimes by parameter flip; confirm equilibrium behavior.
-2. **Four-bank ring:** inject a large A→B, B→C, C→D, D→A cycle; ensure LSM clears with small liquidity.
-3. **No-LSM ablation:** show higher delays/liquidity usage; re-enable and compare. ([Nationalbanken][3])
-4. **Deadline stress:** verify prioritization/timed options reduce SLA misses when enabled (T2-style). ([European Central Bank][2])
+2. **Four-bank ring (equal amounts):** inject A→B, B→C, C→D, D→A cycle (all 500k); ensure LSM clears with small liquidity.
+3. **T2-realistic LSM with unequal amounts:**
+   - **Three-bank cycle (unequal):** A→B (500k), B→C (800k), C→A (700k). Verify: (a) all three settle at full value if B has 300k liquidity (net outflow), (b) cycle fails atomically if B lacks liquidity, leaving all three queued.
+   - **Bilateral offset (unequal):** A→B (500k), B→A (300k). Verify both settle simultaneously with A covering net 200k.
+   - **Net position calculation:** For any cycle, verify `sum(net_positions) = 0` (conservation).
+4. **No-LSM ablation:** show higher delays/liquidity usage; re-enable and compare. ([Nationalbanken][3])
+5. **Deadline stress:** verify prioritization/timed options reduce SLA misses when enabled (T2-style). ([European Central Bank][2])
 
 ---
 

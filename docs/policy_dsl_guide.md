@@ -271,7 +271,7 @@ Expressions evaluate to boolean values. Supported operators:
 
 {
   "op": ">",   // Greater than
-  "left": {"field": "available_liquidity"},
+  "left": {"field": "effective_liquidity"},
   "right": {"field": "amount"}
 }
 
@@ -379,7 +379,7 @@ Computations perform arithmetic on values. Supported operators:
 {
   "op": "-",  // Subtraction
   "left": {"field": "queue1_total_value"},
-  "right": {"field": "available_liquidity"}
+  "right": {"field": "effective_liquidity"}
 }
 
 {
@@ -410,7 +410,7 @@ Computations perform arithmetic on values. Supported operators:
 {
   "op": "min",  // Minimum of values
   "values": [
-    {"field": "available_liquidity"},
+    {"field": "effective_liquidity"},
     {"field": "amount"}
   ]
 }
@@ -626,10 +626,27 @@ When a tree is evaluated, you have access to 60+ fields from the simulation stat
 |:------|:-----|:------------|
 | `balance` | `f64` (cents) | Agent's current settlement account balance |
 | `credit_limit` | `f64` (cents) | Maximum overdraft allowed |
-| `available_liquidity` | `f64` (cents) | `balance + credit_limit + posted_collateral` |
+| `available_liquidity` | `f64` (cents) | ⚠️ **Deprecated**: `balance + credit_limit + posted_collateral` (can be negative when in overdraft - use `effective_liquidity` instead) |
+| `effective_liquidity` | `f64` (cents) | ✅ **Recommended**: `balance + credit_headroom` - TRUE available capacity (correctly represents usable funds even when in overdraft) |
 | `credit_used` | `f64` (cents) | Amount of overdraft currently in use |
 | `is_using_credit` | `f64` (bool) | `1.0` if `balance < 0`, `0.0` otherwise |
 | `liquidity_buffer` | `f64` (cents) | Configured soft target minimum balance |
+
+**💡 Important Note on `effective_liquidity` vs `available_liquidity`:**
+
+When agents are in overdraft (negative balance), `available_liquidity` can become negative, causing split eligibility checks and other capacity calculations to fail incorrectly. **Always use `effective_liquidity`** for:
+- Split eligibility checks
+- "Can I afford X?" decisions
+- Credit capacity calculations
+
+`effective_liquidity = balance + (credit_limit - credit_used)` correctly represents TRUE available capacity, whether the agent has a positive or negative balance.
+
+**Example:**
+- Agent balance: `-$1,000` (in overdraft)
+- Credit limit: `$5,000`
+- Credit used: `$1,000`
+- `available_liquidity`: negative (incorrect for capacity checks)
+- `effective_liquidity`: `$4,000` (correct - agent can still use $4k of credit)
 
 ### Agent Queue Fields
 
@@ -757,7 +774,7 @@ Common patterns for building effective policies.
   "description": "Check if liquidity remains above buffer after payment",
   "condition": {
     "op": ">=",
-    "left": {"field": "available_liquidity"},
+    "left": {"field": "effective_liquidity"},
     "right": {
       "compute": {
         "op": "+",
@@ -795,7 +812,7 @@ Common patterns for building effective policies.
     "conditions": [
       {
         "op": ">=",
-        "left": {"field": "available_liquidity"},
+        "left": {"field": "effective_liquidity"},
         "right": {"field": "remaining_amount"}
       },
       {
@@ -1109,7 +1126,7 @@ Adapt behavior based on time of day and EOD rush.
       "description": "Early day: conservative with buffer",
       "condition": {
         "op": ">=",
-        "left": {"field": "available_liquidity"},
+        "left": {"field": "effective_liquidity"},
         "right": {
           "compute": {
             "op": "*",
@@ -1147,7 +1164,7 @@ Adapt behavior based on time of day and EOD rush.
 {
   "condition": {
     "op": ">=",
-    "left": {"field": "available_liquidity"},
+    "left": {"field": "effective_liquidity"},
     "right": {
       "compute": {
         "op": "*",
@@ -1394,7 +1411,7 @@ Compute action parameters based on context instead of using fixed values.
       "description": "Not urgent. Check if we have enough liquidity",
       "condition": {
         "op": ">=",
-        "left": {"field": "available_liquidity"},
+        "left": {"field": "effective_liquidity"},
         "right": {
           "compute": {
             "op": "+",
@@ -1457,7 +1474,7 @@ Compute action parameters based on context instead of using fixed values.
       "description": "Small payment: check liquidity",
       "condition": {
         "op": ">=",
-        "left": {"field": "available_liquidity"},
+        "left": {"field": "effective_liquidity"},
         "right": {"field": "remaining_amount"}
       },
       "on_true": {
@@ -1511,7 +1528,7 @@ Compute action parameters based on context instead of using fixed values.
       "description": "Release immediately if have liquidity",
       "condition": {
         "op": ">=",
-        "left": {"field": "available_liquidity"},
+        "left": {"field": "effective_liquidity"},
         "right": {"field": "remaining_amount"}
       },
       "on_true": {
@@ -1673,7 +1690,7 @@ When computing amounts that should never be negative:
         "compute": {
           "op": "-",
           "left": {"field": "queue1_total_value"},
-          "right": {"field": "available_liquidity"}
+          "right": {"field": "effective_liquidity"}
         }
       },
       {"value": 0.0}
@@ -1928,7 +1945,7 @@ python -m payment_simulator.cli run --config test_config.yaml --ticks 100
 |:---------|:------|:---------|
 | Transaction | 8 | `amount`, `deadline_tick`, `priority` |
 | Derived Transaction | 2 | `ticks_to_deadline`, `queue_age` |
-| Agent Balance | 6 | `balance`, `credit_limit`, `available_liquidity` |
+| Agent Balance | 7 | `balance`, `credit_limit`, `effective_liquidity`, `credit_used` |
 | Agent Queue | 3 | `outgoing_queue_size`, `incoming_expected_count` |
 | Collateral | 9 | `posted_collateral`, `queue1_liquidity_gap`, `headroom` |
 | Queue 2 (RTGS) | 3 | `queue2_count_for_agent`, `queue2_nearest_deadline` |
@@ -1937,7 +1954,9 @@ python -m payment_simulator.cli run --config test_config.yaml --ticks 100
 | Time-of-Day | 6 | `is_eod_rush`, `day_progress_fraction`, `ticks_remaining_in_day` |
 | System | 4 | `current_tick`, `rtgs_queue_size`, `total_agents` |
 
-**Total:** 49 fields available in payment tree, 47 in collateral trees (no transaction-specific fields)
+**Total:** 50 fields available in payment tree, 48 in collateral trees (no transaction-specific fields)
+
+**Note:** `available_liquidity` is deprecated - use `effective_liquidity` instead for accurate capacity calculations when agents are in overdraft.
 
 ---
 
