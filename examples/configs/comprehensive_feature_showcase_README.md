@@ -6,21 +6,46 @@
 
 This scenario is designed to demonstrate **ALL core features** of the payment simulator in a single, narrative-driven business day. It tells the story of five banks with different profiles navigating a high-stress trading day with constrained liquidity.
 
+**Available Versions**:
+
+1. **Base** (`comprehensive_feature_showcase.yaml`)
+   - Well-capitalized scenario ($1.27M opening balances)
+   - Moderate transaction rates (~411 tx/day)
+   - **Result**: 100% settlement, minimal feature activation
+   - **Purpose**: Comfortable baseline for learning the system
+
+2. **Stressed** (`comprehensive_feature_showcase_stressed.yaml`)
+   - Reduced balances by 60% ($505K total)
+   - Increased rates by 30% (~531 tx/day)
+   - Credit limits: $150K-$320K
+   - **Result**: 100% settlement via overdraft, $1.72M costs, 0 LSM activations
+   - **Issue**: Excessive credit limits allowed settlement without queueing
+
+3. **Ultra-Stressed** (`comprehensive_feature_showcase_ultra_stressed.yaml`) ✅ **RECOMMENDED**
+   - Same balances as stressed ($505K)
+   - **Extreme credit limits: $5K-$10K** (limits collateral to $50K-$100K)
+   - Conservative policies (MOMENTUM, COMMUNITY changed)
+   - **Result**: ✅ **4 LSM operations, 14 LSM transaction releases, 98.7% settlement**
+   - **Total resources**: $923K vs $929K daily outflow (99% capacity)
+   - **Purpose**: Successfully demonstrates LSM activation and all advanced features
+
+**Key Insight**: The breakthrough for LSM activation was understanding that **collateral capacity = 10 × credit_limit** (hardcoded in Rust). With high credit limits, agents can post virtually unlimited collateral and settle everything immediately. Only by reducing credit to $5K-$10K does collateral capacity become constrained enough to force Queue 2 buildup where LSM operates.
+
 ## Quick Start
 
 ```bash
-# From the api directory
+# Recommended: Run the ultra-stressed version to see LSM in action
 cd api
+.venv/bin/python -m payment_simulator.cli.main run \
+  --config ../examples/configs/comprehensive_feature_showcase_ultra_stressed.yaml
 
-# Run the simulation
-.venv/bin/python -m payment_simulator.cli run-simulation \
-  ../examples/configs/comprehensive_feature_showcase.yaml \
-  --output results/comprehensive_showcase.json
+# Base version (comfortable)
+.venv/bin/python -m payment_simulator.cli.main run \
+  --config ../examples/configs/comprehensive_feature_showcase.yaml
 
-# Or use the shorter path if running from project root
-python -m payment_simulator.cli run-simulation \
-  examples/configs/comprehensive_feature_showcase.yaml \
-  --output results/comprehensive_showcase.json
+# Stressed version (no LSM but high costs)
+.venv/bin/python -m payment_simulator.cli.main run \
+  --config ../examples/configs/comprehensive_feature_showcase_stressed.yaml
 ```
 
 ## What This Scenario Demonstrates
