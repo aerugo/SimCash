@@ -920,19 +920,23 @@ impl Orchestrator {
             None => return false, // Transaction not found
         };
 
-        // Base case 1: Transaction itself is fully settled
-        if tx.settled_amount() > 0 && tx.settled_amount() == tx.amount() {
-            return true;
-        }
+        // CRITICAL FIX: Check for children FIRST before checking parent's settled status
+        // A split parent with children should ONLY be considered settled if ALL children are settled,
+        // regardless of the parent's own settled_amount.
 
-        // Base case 2: Transaction has children - check if ALL are settled
+        // Case 1: Transaction has children - check if ALL children are settled (recursive)
         if let Some(child_ids) = children_map.get(tx_id) {
             return child_ids.iter().all(|child_id| {
                 Self::is_effectively_settled(child_id, transactions, children_map)
             });
         }
 
-        // Base case 3: Not settled and no children = still pending
+        // Case 2: No children - check if transaction itself is fully settled
+        if tx.settled_amount() > 0 && tx.settled_amount() == tx.amount() {
+            return true;
+        }
+
+        // Case 3: No children and not fully settled = still pending
         false
     }
 
@@ -1035,6 +1039,38 @@ impl Orchestrator {
             peak_overdraft,
             agents_in_overdraft,
         }
+    }
+
+    /// Get detailed transaction counts for debugging
+    ///
+    /// Returns a breakdown of transaction counts to help diagnose
+    /// settlement rate calculation issues.
+    ///
+    /// # Returns
+    ///
+    /// Tuple of (total_txs, arrivals, children, settled_arrivals, settled_children)
+    pub fn get_transaction_counts_debug(&self) -> (usize, usize, usize, usize, usize) {
+        let total_txs = self.state.transactions().len();
+        let mut arrivals = 0;
+        let mut children = 0;
+        let mut settled_arrivals = 0;
+        let mut settled_children = 0;
+
+        for tx in self.state.transactions().values() {
+            if tx.parent_id().is_none() {
+                arrivals += 1;
+                if tx.is_fully_settled() {
+                    settled_arrivals += 1;
+                }
+            } else {
+                children += 1;
+                if tx.is_fully_settled() {
+                    settled_children += 1;
+                }
+            }
+        }
+
+        (total_txs, arrivals, children, settled_arrivals, settled_children)
     }
 
     // ========================================================================
@@ -2266,6 +2302,20 @@ impl Orchestrator {
 
         // STEP 5: LSM COORDINATOR
         // Find and release offsetting transactions
+
+        // DIAGNOSTIC LOGGING (Test 4 from lsm-splitting-investigation-plan.md)
+        // Enable by setting environment variable: LSM_DEBUG=1
+        if std::env::var("LSM_DEBUG").is_ok() {
+            eprintln!("[LSM DEBUG] Tick {}: Queue 2 (RTGS): {}, Queue 1 (Internal): {}",
+                current_tick, self.state.queue_size(), self.state.total_internal_queue_size());
+            eprintln!("[LSM DEBUG] Tick {}: LSM config: bilateral={}, cycles={}, max_cycle_length={}",
+                current_tick,
+                self.lsm_config.enable_bilateral,
+                self.lsm_config.enable_cycles,
+                self.lsm_config.max_cycle_length
+            );
+        }
+
         let lsm_result = lsm::run_lsm_pass(
             &mut self.state,
             &self.lsm_config,
@@ -2274,6 +2324,25 @@ impl Orchestrator {
         );
         let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
+
+        // DIAGNOSTIC LOGGING (continued)
+        if std::env::var("LSM_DEBUG").is_ok() {
+            eprintln!("[LSM DEBUG] Tick {}: LSM result: bilateral_offsets={}, cycles_settled={}, total_value=${:.2}, queue_after={}",
+                current_tick,
+                lsm_result.bilateral_offsets,
+                lsm_result.cycles_settled,
+                lsm_result.total_settled_value as f64 / 100.0,
+                self.state.queue_size()
+            );
+
+            if lsm_result.bilateral_offsets > 0 || lsm_result.cycles_settled > 0 {
+                eprintln!("[LSM DEBUG] Tick {}: ✓ LSM ACTIVATED - {} bilateral, {} cycles",
+                    current_tick, lsm_result.bilateral_offsets, lsm_result.cycles_settled);
+            } else if self.state.queue_size() > 0 {
+                eprintln!("[LSM DEBUG] Tick {}: ⚠ LSM did not find any settlements despite {} queued transactions",
+                    current_tick, self.state.queue_size());
+            }
+        }
 
         // Store LSM cycle events for persistence (Phase 4.2)
         self.state
@@ -2813,11 +2882,33 @@ impl Orchestrator {
                 let receiver = self.state.get_agent_mut(&receiver_id).unwrap();
                 receiver.credit(amount);
             }
+
+            // Get parent_id before settling (need to read before mut borrow)
+            let parent_id = {
+                let tx = self.state.get_transaction(tx_id).unwrap();
+                tx.parent_id().map(|s| s.to_string())
+            };
+
             {
                 let tx = self.state.get_transaction_mut(tx_id).unwrap();
                 tx.settle(amount, tick).map_err(|e| {
                     SimulationError::SettlementError(format!("Settle failed: {}", e))
                 })?;
+            }
+
+            // If this is a child transaction, update parent's remaining_amount
+            if let Some(parent_id) = parent_id {
+                let parent = self.state.get_transaction_mut(&parent_id).unwrap();
+                parent.reduce_remaining_for_child(amount).map_err(|e| {
+                    SimulationError::SettlementError(format!("Parent update failed: {}", e))
+                })?;
+
+                // If parent now fully settled, mark it as settled
+                if parent.remaining_amount() == 0 {
+                    parent.mark_fully_settled(tick).map_err(|e| {
+                        SimulationError::SettlementError(format!("Parent mark settled failed: {}", e))
+                    })?;
+                }
             }
 
             Ok(SettlementOutcome::Settled)
