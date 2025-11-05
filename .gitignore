@@ -55,6 +55,9 @@ htmlcov/
 .coverage.*
 .pytest_cache/
 
+# Debug logs
+*.log
+
 # Node modules
 node_modules/
 *.bak
