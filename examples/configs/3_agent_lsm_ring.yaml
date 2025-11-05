@@ -1,0 +1,138 @@
+# 3-Agent LSM Ring Scenario - Designed to Trigger LSM Activation
+#
+# This scenario is engineered to force LSM activation by creating conditions where:
+# 1. Transactions ARE submitted to Queue 2 (RTGS) via aggressive FIFO policies
+# 2. Insufficient individual liquidity prevents immediate settlement
+# 3. Circular flow pattern (A→B→C→A) creates cycle opportunities for LSM
+#
+# Design rationale:
+# - FIFO policies submit transactions to Queue 2 immediately (no Queue 1 holding)
+# - Very low opening balances (10% of expected outflow) force Queue 2 queueing
+# - Circular counterparty weights create perfect 3-agent cycle
+# - Moderate credit limits prevent settling everything via overdraft
+# - LSM MUST activate to resolve the circular dependency
+
+simulation:
+  ticks_per_day: 20
+  num_days: 1
+  rng_seed: 42
+
+# ============================================================================
+# AGENT A - FIFO policy submits everything to RTGS immediately
+# ============================================================================
+
+agents:
+  - id: "BANK_A"
+    opening_balance: 5000000         # $50,000 - Very constrained
+    credit_limit: 10000000           # $100,000 credit limit
+    policy:
+      type: "Fifo"                   # Submits to Queue 2 immediately
+    arrival_config:
+      rate_per_tick: 2.0             # ~40 transactions/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 11.5                   # Median ~$1,000
+        std_dev: 0.8
+      counterparty_weights:
+        BANK_B: 1.0                  # ALL payments go to B (creates ring)
+      deadline_range: [10, 20]
+      priority: 5
+      divisible: false
+
+# ============================================================================
+# AGENT B - FIFO policy submits everything to RTGS immediately
+# ============================================================================
+
+  - id: "BANK_B"
+    opening_balance: 5000000         # $50,000 - Very constrained
+    credit_limit: 10000000           # $100,000 credit limit
+    policy:
+      type: "Fifo"                   # Submits to Queue 2 immediately
+    arrival_config:
+      rate_per_tick: 2.0             # ~40 transactions/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 11.5                   # Median ~$1,000
+        std_dev: 0.8
+      counterparty_weights:
+        BANK_C: 1.0                  # ALL payments go to C (creates ring)
+      deadline_range: [10, 20]
+      priority: 5
+      divisible: false
+
+# ============================================================================
+# AGENT C - FIFO policy submits everything to RTGS immediately
+# ============================================================================
+
+  - id: "BANK_C"
+    opening_balance: 5000000         # $50,000 - Very constrained
+    credit_limit: 10000000           # $100,000 credit limit
+    policy:
+      type: "Fifo"                   # Submits to Queue 2 immediately
+    arrival_config:
+      rate_per_tick: 2.0             # ~40 transactions/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 11.5                   # Median ~$1,000
+        std_dev: 0.8
+      counterparty_weights:
+        BANK_A: 1.0                  # ALL payments go to A (completes ring: A→B→C→A)
+      deadline_range: [10, 20]
+      priority: 5
+      divisible: false
+
+# ============================================================================
+# LSM CONFIGURATION - Enable both bilateral and cycle detection
+# ============================================================================
+
+lsm_config:
+  enable_bilateral: true             # Enable bilateral offsetting
+  enable_cycles: true                # Enable cycle detection
+  max_cycle_length: 4                # Detect cycles up to 4 banks
+  max_cycles_per_tick: 10            # Settle up to 10 cycles per tick
+
+# ============================================================================
+# COST CONFIGURATION
+# ============================================================================
+
+cost_rates:
+  overdraft_bps_per_tick: 2.0                   # 2.0 bp/tick
+  delay_cost_per_tick_per_cent: 0.0004         # $0.004 per $100 per tick (Queue 1 only)
+  collateral_cost_per_tick_bps: 0.0012         # 0.12 bp/tick for collateral
+  eod_penalty_per_transaction: 100000          # $1,000 penalty for unsettled at EOD
+  deadline_penalty: 50000                       # $500 penalty for missing deadline
+  split_friction_cost: 2500                     # $25 cost per split
+
+# ============================================================================
+# EXPECTED DYNAMICS
+# ============================================================================
+#
+# ✅ HOW THIS TRIGGERS LSM:
+#
+# 1. FIFO policies submit ALL transactions to Queue 2 (RTGS) immediately
+#    - No Queue 1 holding
+#    - Everything enters RTGS queue right away
+#
+# 2. Insufficient individual liquidity creates Queue 2 backlog
+#    - Each bank has $50k balance
+#    - Each bank expects ~$40k outflow (2 tx/tick * 20 ticks * $1k avg)
+#    - First few transactions settle using opening balance
+#    - Remaining transactions queue in Queue 2 waiting for liquidity
+#
+# 3. Perfect circular flow creates 3-agent cycle
+#    - A→B payments (queued in Queue 2)
+#    - B→C payments (queued in Queue 2)
+#    - C→A payments (queued in Queue 2)
+#    - LSM detects cycle: A→B→C→A
+#
+# 4. LSM settles cycle with net-zero liquidity requirement
+#    - Each bank sends and receives equal amounts around the cycle
+#    - Net settlement requires zero additional liquidity
+#    - Queue 2 clears via LSM optimization
+#
+# Expected outcome:
+# - Early ticks: Transactions settle using opening balances
+# - Mid-day: Queue 2 builds up as balances deplete
+# - LSM activates: Detects and settles A→B→C→A cycles
+# - Result: High settlement rate despite low opening balances
+# - Metrics: total_lsm_releases > 0, cycles_settled > 0

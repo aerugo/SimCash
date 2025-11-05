@@ -1,0 +1,124 @@
+# 3-Agent LSM with Asymmetric Liquidity Awareness
+#
+# This scenario creates Queue 2 pressure through:
+# 1. LiquidityAware policies that submit aggressively but maintain small buffers
+# 2. Asymmetric transaction volumes (creates uneven flows)
+# 3. Ring topology (A→B→C→A) for cycle opportunities
+# 4. Tight liquidity constraints
+
+simulation:
+  ticks_per_day: 15
+  num_days: 1
+  rng_seed: 42
+
+agents:
+  # Bank A: High outflow, low buffer requirement → submits aggressively
+  - id: "BANK_A"
+    opening_balance: 1000000         # $10,000
+    credit_limit: 2000000            # $20,000 credit (moderate)
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 200000          # Only $2k buffer → aggressive submission
+      urgency_threshold: 3           # Submit urgent items early
+    arrival_config:
+      rate_per_tick: 4.0             # HIGH volume → 60 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.5                   # Median ~$330
+        std_dev: 0.9
+      counterparty_weights:
+        BANK_B: 1.0                  # All to B
+      deadline_range: [8, 15]
+      priority: 5
+      divisible: false
+
+  # Bank B: Moderate outflow, moderate buffer
+  - id: "BANK_B"
+    opening_balance: 1000000         # $10,000
+    credit_limit: 2000000            # $20,000 credit
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 300000          # $3k buffer → moderate
+      urgency_threshold: 3
+    arrival_config:
+      rate_per_tick: 3.0             # MODERATE volume → 45 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.5                   # Median ~$330
+        std_dev: 0.9
+      counterparty_weights:
+        BANK_C: 1.0                  # All to C
+      deadline_range: [8, 15]
+      priority: 5
+      divisible: false
+
+  # Bank C: Low outflow, higher buffer → more conservative
+  - id: "BANK_C"
+    opening_balance: 1000000         # $10,000
+    credit_limit: 2000000            # $20,000 credit
+    policy:
+      type: "LiquidityAware"
+      target_buffer: 400000          # $4k buffer → conservative
+      urgency_threshold: 3
+    arrival_config:
+      rate_per_tick: 2.0             # LOW volume → 30 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.5                   # Median ~$330
+        std_dev: 0.9
+      counterparty_weights:
+        BANK_A: 1.0                  # All to A (completes ring)
+      deadline_range: [8, 15]
+      priority: 5
+      divisible: false
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+cost_rates:
+  overdraft_bps_per_tick: 3.0
+  delay_cost_per_tick_per_cent: 0.0005
+  collateral_cost_per_tick_bps: 0.0015
+  eod_penalty_per_transaction: 150000
+  deadline_penalty: 75000
+  split_friction_cost: 3000
+
+# ============================================================================
+# EXPECTED DYNAMICS
+# ============================================================================
+#
+# Asymmetric Flow Creates Queue 2 Pressure:
+#
+# 1. Bank A (aggressive, high volume):
+#    - Sends 60 tx/day (~$20k total) to B
+#    - Only needs $2k buffer before submitting
+#    - Quickly depletes balance, starts using credit
+#    - Submits aggressively to Queue 2
+#
+# 2. Bank B (moderate):
+#    - Receives heavy inflow from A (~$20k)
+#    - Sends moderate outflow to C (~$15k)
+#    - Net positive, accumulates liquidity
+#    - Submits moderately to Queue 2
+#
+# 3. Bank C (conservative, low volume):
+#    - Receives moderate inflow from B (~$15k)
+#    - Sends low outflow to A (~$10k)
+#    - Maintains $4k buffer before submitting
+#    - More conservative about Queue 2 submission
+#
+# Queue 2 Dynamics:
+# - A submits many transactions to Queue 2 (aggressive + high volume)
+# - Some of A's transactions queue when credit exhausted
+# - B submits moderately
+# - C submits conservatively
+# - Circular pattern: A→B, B→C, C→A creates cycle opportunities
+# - LSM can detect and settle 3-agent cycles with net-zero liquidity
+#
+# With asymmetric volumes (4.0, 3.0, 2.0 rate_per_tick):
+# - Flow imbalances create temporary gridlock
+# - LSM cycle detection resolves circular dependencies
+# - Bilateral offsetting handles any A↔B, B↔C, or C↔A pairs

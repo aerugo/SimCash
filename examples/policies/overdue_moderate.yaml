@@ -1,0 +1,27 @@
+# Example policy: Gradual priority escalation for overdue
+name: "Gradual Overdue Escalation"
+description: "Increase priority based on how long transaction is overdue"
+
+release_policy:
+  # Extremely overdue (>20 ticks) → priority 10
+  - if: overdue_duration > 20
+    then:
+      action: reprioritize
+      new_priority: 10
+
+  # Very overdue (>10 ticks) → priority 8
+  - if: overdue_duration > 10
+    then:
+      action: reprioritize
+      new_priority: 8
+
+  # Recently overdue (>0 ticks) → priority 7
+  - if: is_overdue == 1
+    then:
+      action: reprioritize
+      new_priority: 7
+
+  # Submit if liquidity available
+  - if: available_liquidity >= amount
+    then:
+      action: submit_full
