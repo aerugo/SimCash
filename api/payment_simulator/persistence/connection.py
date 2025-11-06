@@ -118,11 +118,12 @@ class DatabaseManager:
               Dropping existing tables...
               ✓ Schema initialized
         """
-        print("Initializing database schema...")
+        import sys
+        print("Initializing database schema...", file=sys.stderr)
 
         # If force_recreate, drop existing tables first
         if force_recreate:
-            print("  Dropping existing tables...")
+            print("  Dropping existing tables...", file=sys.stderr)
             self._drop_all_tables()
 
         # Generate DDL from models
@@ -134,7 +135,7 @@ class DatabaseManager:
         for statement in statements:
             self.conn.execute(statement)
 
-        print("  ✓ Schema initialized")
+        print("  ✓ Schema initialized", file=sys.stderr)
 
     def is_initialized(self) -> bool:
         """Check if database has been initialized (has our tables).

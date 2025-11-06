@@ -185,25 +185,57 @@ def _reconstruct_lsm_events(lsm_cycles: list[dict]) -> list[dict]:
         if cycle["cycle_type"] == "bilateral":
             # Bilateral offset: 2 agents, 2 transactions
             if len(cycle["agent_ids"]) == 2 and len(cycle["tx_ids"]) == 2:
+                # Get transaction amounts from database (if available)
+                tx_amounts = cycle.get("tx_amounts", [])
+                if len(tx_amounts) >= 2:
+                    amount_a = tx_amounts[0]
+                    amount_b = tx_amounts[1]
+                else:
+                    # Fallback to simplified version
+                    amount_a = cycle["settled_value"]
+                    amount_b = cycle["settled_value"]
+
                 events.append({
                     "event_type": "LsmBilateralOffset",
                     "agent_a": cycle["agent_ids"][0],
                     "agent_b": cycle["agent_ids"][1],
                     "tx_id_a": cycle["tx_ids"][0],
                     "tx_id_b": cycle["tx_ids"][1],
-                    "amount_a": cycle["settled_value"],  # Note: This is simplified
-                    "amount_b": cycle["settled_value"],
+                    "amount_a": amount_a,
+                    "amount_b": amount_b,
                     "amount": cycle["settled_value"],
                 })
         else:
-            # Multilateral cycle
-            events.append({
+            # Multilateral cycle - include all detailed fields from database
+            event = {
                 "event_type": "LsmCycleSettlement",
                 "agent_ids": cycle["agent_ids"],
                 "tx_ids": cycle["tx_ids"],
-                "amounts": [cycle["settled_value"] // len(cycle["tx_ids"])] * len(cycle["tx_ids"]),  # Simplified
                 "settled_value": cycle["settled_value"],
-            })
+            }
+
+            # Include tx_amounts if available (otherwise fallback to simplified)
+            tx_amounts = cycle.get("tx_amounts", [])
+            if tx_amounts:
+                event["tx_amounts"] = tx_amounts
+            else:
+                # Simplified fallback
+                event["amounts"] = [cycle["settled_value"] // len(cycle["tx_ids"])] * len(cycle["tx_ids"])
+
+            # Include all additional fields that log_lsm_cycle_visualization uses
+            if "net_positions" in cycle and cycle["net_positions"]:
+                event["net_positions"] = cycle["net_positions"]
+
+            if "total_value" in cycle and cycle["total_value"] is not None:
+                event["total_value"] = cycle["total_value"]
+
+            if "max_net_outflow" in cycle and cycle["max_net_outflow"] is not None:
+                event["max_net_outflow"] = cycle["max_net_outflow"]
+
+            if "max_net_outflow_agent" in cycle and cycle["max_net_outflow_agent"]:
+                event["max_net_outflow_agent"] = cycle["max_net_outflow_agent"]
+
+            events.append(event)
 
     return events
 
