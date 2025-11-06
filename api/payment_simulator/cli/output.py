@@ -789,8 +789,11 @@ def log_collateral_activity(events, quiet=False):
         console.print()
 
 
-def log_cost_breakdown(orch, agent_ids, quiet=False):
-    """Log detailed cost breakdown by agent and type (verbose mode).
+def log_cost_breakdown(provider, agent_ids, quiet=False):
+    """Log detailed cost breakdown by agent and type (UNIFIED for live & replay).
+
+    Replaces both old log_cost_breakdown() and log_cost_breakdown_from_db().
+    Works with any StateProvider implementation (Orchestrator or Database).
 
     Shows costs accrued this tick broken down by:
     - Liquidity cost (overdraft/borrowing fees)
@@ -800,7 +803,7 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
     - Split friction cost (cost of splitting transactions)
 
     Args:
-        orch: Orchestrator instance
+        provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
         agent_ids: List of agent identifiers
         quiet: Suppress output if True
 
@@ -823,14 +826,15 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
     agent_costs = []
 
     for agent_id in agent_ids:
-        costs = orch.get_agent_accumulated_costs(agent_id)
+        costs = provider.get_agent_accumulated_costs(agent_id)
         if costs:
             # Calculate total from all cost components
+            # Note: Use "penalty_cost" (database format) instead of "deadline_penalty" (old FFI format)
             agent_total = (
                 costs.get("liquidity_cost", 0) +
                 costs.get("delay_cost", 0) +
                 costs.get("collateral_cost", 0) +
-                costs.get("deadline_penalty", 0) +  # Note: FFI exports as "deadline_penalty" not "penalty_cost"
+                costs.get("penalty_cost", 0) +
                 costs.get("split_friction_cost", 0)
             )
 
@@ -854,8 +858,8 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
             console.print(f"   • Delay: ${costs['delay_cost'] / 100:,.2f}")
         if costs.get("collateral_cost", 0) > 0:
             console.print(f"   • Collateral: ${costs['collateral_cost'] / 100:,.2f}")
-        if costs.get("deadline_penalty", 0) > 0:
-            console.print(f"   • Penalty: ${costs['deadline_penalty'] / 100:,.2f}")
+        if costs.get("penalty_cost", 0) > 0:
+            console.print(f"   • Penalty: ${costs['penalty_cost'] / 100:,.2f}")
         if costs.get("split_friction_cost", 0) > 0:
             console.print(f"   • Split: ${costs['split_friction_cost'] / 100:,.2f}")
 
