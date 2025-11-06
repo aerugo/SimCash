@@ -686,7 +686,46 @@ def run_simulation(
                     orch=orch,
                 )
 
-            # Return early - new runner handles everything
+            # Output final JSON summary (even in verbose mode)
+            agents = []
+            for agent_id in agent_ids:
+                agents.append(
+                    {
+                        "id": agent_id,
+                        "final_balance": orch.get_agent_balance(agent_id),
+                        "queue1_size": orch.get_queue1_size(agent_id),
+                    }
+                )
+
+            output_data = {
+                "simulation": {
+                    "config_file": str(config),
+                    "seed": ffi_dict["rng_seed"],
+                    "ticks_executed": total_ticks,
+                    "duration_seconds": round(sim_duration, 3),
+                    "ticks_per_second": round(final_stats.get("ticks_per_second", 0), 2),
+                },
+                "metrics": {
+                    "total_arrivals": final_stats["total_arrivals"],
+                    "total_settlements": final_stats["total_settlements"],
+                    "total_lsm_releases": final_stats.get("total_lsm_releases", 0),
+                    "settlement_rate": final_stats.get("settlement_rate", 0),
+                },
+                "agents": agents,
+                "costs": {
+                    "total_cost": final_stats.get("total_costs", 0),
+                },
+                "performance": {
+                    "ticks_per_second": round(final_stats.get("ticks_per_second", 0), 2),
+                },
+            }
+
+            # Add simulation_id to output if persisted
+            if persist and sim_id:
+                output_data["simulation"]["simulation_id"] = sim_id
+                output_data["simulation"]["database"] = db_path
+
+            output_json(output_data)
             return
 
         elif use_new_runner and event_stream:
