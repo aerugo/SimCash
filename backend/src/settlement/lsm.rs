@@ -188,6 +188,23 @@ pub struct LsmCycleEvent {
 
     /// Gross value (sum of all transaction amounts)
     pub total_value: i64,
+
+    /// Individual transaction amounts in cycle order
+    /// Used for detailed display of each payment in the cycle
+    pub tx_amounts: Vec<i64>,
+
+    /// Net positions for each agent in cycle
+    /// Positive = net inflow, Negative = net outflow (used liquidity)
+    /// Example: {"BANK_A": -200000, "BANK_B": 100000, "BANK_C": 100000}
+    pub net_positions: HashMap<String, i64>,
+
+    /// Maximum net outflow in cycle (largest liquidity requirement)
+    /// This is the actual liquidity used to settle the cycle
+    pub max_net_outflow: i64,
+
+    /// Agent ID that had the maximum net outflow
+    /// This agent required the most liquidity to participate in the cycle
+    pub max_net_outflow_agent: String,
 }
 
 /// Result of complete LSM pass
@@ -249,6 +266,8 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
     let mut settlements_count = 0;
     let mut offset_pairs = Vec::new();
 
+    let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
+
     // Build bilateral payment matrix: (sender, receiver) -> [tx_ids]
     // LSM operates ONLY on Queue 2 (RTGS central queue), not Queue 1 (banks' internal queues)
     let mut bilateral_map: HashMap<(String, String), Vec<String>> = HashMap::new();
@@ -273,11 +292,24 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
         // Check for reverse flow B→A
         let reverse_key = (receiver_b.clone(), sender_a.clone());
 
+        // Skip if we already processed this pair (either direction)
+        if processed_pairs.contains(&(sender_a.clone(), receiver_b.clone())) {
+            if lsm_debug {
+                eprintln!("[LSM DEBUG] Skipping already processed pair: {} ⇄ {}", sender_a, receiver_b);
+            }
+            continue;
+        }
+
         if bilateral_map.contains_key(&reverse_key) && !processed_pairs.contains(&reverse_key) {
             // Found bilateral pair A↔B
             pairs_found += 1;
             processed_pairs.insert((sender_a.clone(), receiver_b.clone()));
             processed_pairs.insert(reverse_key.clone());
+
+            if lsm_debug {
+                eprintln!("[LSM DEBUG] Found bilateral pair: {} ⇄ {} ({} txs A→B, {} txs B→A)",
+                    sender_a, receiver_b, txs_ab.len(), bilateral_map.get(&reverse_key).unwrap().len());
+            }
 
             // Calculate totals in each direction
             let sum_ab: i64 = txs_ab
@@ -408,6 +440,10 @@ fn settle_bilateral_pair(
                 .ok();
 
             // Remove from Queue 2 (RTGS queue)
+            let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
+            if lsm_debug {
+                eprintln!("[LSM DEBUG] Removing {} from queue", &tx_id[..8]);
+            }
             state.rtgs_queue_mut().retain(|id| id != tx_id);
 
             settlements += 1;
@@ -436,6 +472,10 @@ fn settle_bilateral_pair(
                 .ok();
 
             // Remove from Queue 2 (RTGS queue)
+            let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
+            if lsm_debug {
+                eprintln!("[LSM DEBUG] Removing {} from queue", &tx_id[..8]);
+            }
             state.rtgs_queue_mut().retain(|id| id != tx_id);
 
             settlements += 1;
@@ -866,7 +906,12 @@ pub fn run_lsm_pass(
     let mut cycle_events = Vec::new();
     const MAX_ITERATIONS: usize = 3;
 
+    let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
+
     // LSM operates ONLY on Queue 2 (RTGS central queue)
+    // Track settled transactions to prevent duplicate cycle events across iterations
+    let mut settled_tx_pairs: HashSet<(String, String)> = HashSet::new();
+
     while iterations < MAX_ITERATIONS && !state.rtgs_queue().is_empty() {
         iterations += 1;
         let settled_this_iteration = total_settled_value;
@@ -878,14 +923,73 @@ pub fn run_lsm_pass(
             total_settled_value += bilateral_result.offset_value;
 
             // Create cycle events for each bilateral offset
+            // BUT: Only create events for NEW pairs, not ones we've already processed in previous iterations
             let day = tick / ticks_per_day;
+            if lsm_debug {
+                eprintln!("[LSM DEBUG] Iteration {}: bilateral_offset returned {} pairs",
+                    iterations, bilateral_result.offset_pairs.len());
+            }
             for pair in &bilateral_result.offset_pairs {
+                // Create a unique key for this bilateral pair (sorted to handle both directions)
+                let pair_key = if pair.agent_a < pair.agent_b {
+                    (pair.agent_a.clone(), pair.agent_b.clone())
+                } else {
+                    (pair.agent_b.clone(), pair.agent_a.clone())
+                };
+
+                // Skip if we've already created an event for this pair in a previous iteration
+                if settled_tx_pairs.contains(&pair_key) {
+                    if lsm_debug {
+                        eprintln!("[LSM DEBUG] Skipping duplicate cycle event for {} ⇄ {} (already processed)",
+                            pair.agent_a, pair.agent_b);
+                    }
+                    continue;
+                }
+
+                settled_tx_pairs.insert(pair_key);
+
+                if lsm_debug {
+                    eprintln!("[LSM DEBUG] Tick {}: Creating bilateral cycle event for {} ⇄ {}",
+                        tick, pair.agent_a, pair.agent_b);
+                }
+                if lsm_debug {
+                    eprintln!("[LSM DEBUG] Cycle event for: {} ⇄ {}", pair.agent_a, pair.agent_b);
+                }
                 let mut transactions = Vec::new();
-                transactions.extend(pair.txs_a_to_b.clone());
-                transactions.extend(pair.txs_b_to_a.clone());
+                let mut tx_amounts = Vec::new();
+
+                // Collect individual transaction amounts for A→B
+                for tx_id in &pair.txs_a_to_b {
+                    if let Some(tx) = state.get_transaction(tx_id) {
+                        transactions.push(tx_id.clone());
+                        tx_amounts.push(tx.amount());
+                    }
+                }
+
+                // Collect individual transaction amounts for B→A
+                for tx_id in &pair.txs_b_to_a {
+                    if let Some(tx) = state.get_transaction(tx_id) {
+                        transactions.push(tx_id.clone());
+                        tx_amounts.push(tx.amount());
+                    }
+                }
 
                 let agents = vec![pair.agent_a.clone(), pair.agent_b.clone(), pair.agent_a.clone()];
                 let offset_amount = pair.amount_a_to_b.min(pair.amount_b_to_a);
+
+                // Calculate net positions for bilateral offset
+                let mut net_positions = HashMap::new();
+                let net_a = pair.amount_b_to_a as i64 - pair.amount_a_to_b as i64;
+                let net_b = pair.amount_a_to_b as i64 - pair.amount_b_to_a as i64;
+                net_positions.insert(pair.agent_a.clone(), net_a);
+                net_positions.insert(pair.agent_b.clone(), net_b);
+
+                // Calculate max net outflow and identify agent
+                let (max_net_outflow, max_net_outflow_agent) = if net_a.abs() >= net_b.abs() {
+                    (net_a.abs(), pair.agent_a.clone())
+                } else {
+                    (net_b.abs(), pair.agent_b.clone())
+                };
 
                 cycle_events.push(LsmCycleEvent {
                     tick,
@@ -896,6 +1000,10 @@ pub fn run_lsm_pass(
                     transactions,
                     settled_value: offset_amount,
                     total_value: pair.amount_a_to_b + pair.amount_b_to_a,
+                    tx_amounts,
+                    net_positions,
+                    max_net_outflow,
+                    max_net_outflow_agent,
                 });
             }
 
@@ -909,6 +1017,30 @@ pub fn run_lsm_pass(
         // 2. Cycle detection and settlement
         if config.enable_cycles && !state.rtgs_queue().is_empty() {
             let cycles = detect_cycles(state, config.max_cycle_length);
+
+            if lsm_debug && !cycles.is_empty() {
+                eprintln!("[LSM DEBUG] Tick {}: Detected {} cycles (before filtering)", tick, cycles.len());
+            }
+
+            // Filter out 2-agent "cycles" which are actually bilateral pairs
+            // These should be handled by bilateral offset, not multilateral cycle detection
+            let cycles: Vec<_> = cycles.into_iter()
+                .filter(|cycle| {
+                    // A true cycle has at least 3 unique agents
+                    // (agents vec has duplicate of first agent at end, so length > 3 means 3+ unique agents)
+                    let is_multilateral = cycle.agents.len() > 3;
+                    if !is_multilateral && lsm_debug {
+                        eprintln!("[LSM DEBUG] Filtering out 2-agent cycle {} ⇄ {} (should be handled by bilateral offset)",
+                            cycle.agents.get(0).unwrap_or(&"?".to_string()),
+                            cycle.agents.get(1).unwrap_or(&"?".to_string()));
+                    }
+                    is_multilateral
+                })
+                .collect();
+
+            if lsm_debug && !cycles.is_empty() {
+                eprintln!("[LSM DEBUG] Tick {}: Processing {} cycles (after filtering 2-agent pairs)", tick, cycles.len());
+            }
 
             for cycle in cycles.iter().take(config.max_cycles_per_tick) {
                 if let Ok(result) = settle_cycle(state, cycle, tick) {
@@ -924,6 +1056,26 @@ pub fn run_lsm_pass(
                         "multilateral".to_string()
                     };
 
+                    // Build tx_amounts vector from cycle transactions
+                    let tx_amounts: Vec<i64> = cycle.transactions.iter()
+                        .filter_map(|tx_id| state.get_transaction(tx_id))
+                        .map(|tx| tx.amount())
+                        .collect();
+
+                    // Calculate max net outflow from net_positions
+                    let max_net_outflow = result.net_positions.values()
+                        .filter(|&&v| v < 0)
+                        .map(|v| v.abs())
+                        .max()
+                        .unwrap_or(0);
+
+                    // Find agent with max net outflow
+                    let max_net_outflow_agent = result.net_positions.iter()
+                        .filter(|(_, &v)| v < 0)
+                        .max_by_key(|(_, v)| v.abs())
+                        .map(|(agent, _)| agent.clone())
+                        .unwrap_or_default();
+
                     let event = LsmCycleEvent {
                         tick,
                         day,
@@ -933,7 +1085,16 @@ pub fn run_lsm_pass(
                         transactions: cycle.transactions.clone(),
                         settled_value: result.settled_value,
                         total_value: cycle.total_value,
+                        tx_amounts,
+                        net_positions: result.net_positions.clone(),
+                        max_net_outflow,
+                        max_net_outflow_agent,
                     };
+
+                    if lsm_debug {
+                        eprintln!("[LSM DEBUG] Tick {}: Creating multilateral cycle event with {} agents",
+                            tick, cycle_length);
+                    }
 
                     cycle_events.push(event);
                 }

@@ -139,6 +139,10 @@ def _persist_day_data(
                 "transactions": json.dumps(cycle["transactions"]),
                 "settled_value": cycle["settled_value"],
                 "total_value": cycle["total_value"],
+                "tx_amounts": json.dumps(cycle.get("tx_amounts", [])),
+                "net_positions": json.dumps(cycle.get("net_positions", {})),
+                "max_net_outflow": cycle.get("max_net_outflow"),
+                "max_net_outflow_agent": cycle.get("max_net_outflow_agent"),
             }
             for cycle in lsm_cycles
         ]
@@ -147,10 +151,12 @@ def _persist_day_data(
             """
             INSERT INTO lsm_cycles (
                 simulation_id, tick, day, cycle_type, cycle_length,
-                agents, transactions, settled_value, total_value
+                agents, transactions, settled_value, total_value,
+                tx_amounts, net_positions, max_net_outflow, max_net_outflow_agent
             ) SELECT
                 simulation_id, tick, day, cycle_type, cycle_length,
-                agents, transactions, settled_value, total_value
+                agents, transactions, settled_value, total_value,
+                tx_amounts, net_positions, max_net_outflow, max_net_outflow_agent
             FROM df
         """
         )

@@ -556,15 +556,32 @@ def log_settlement_details(orch, events, tick, quiet=False):
         console.print(f"   [magenta]LSM Cycle ({len(lsm_cycles)}):[/magenta]")
         for event in lsm_cycles:
             agent_ids = event.get("agent_ids", [])
+            tx_amounts = event.get("tx_amounts", [])
+            net_positions = event.get("net_positions", {})
+
             if agent_ids:
                 cycle_str = " → ".join(agent_ids) + f" → {agent_ids[0]}"
                 console.print(f"   • Cycle: {cycle_str}")
 
+                # Show each transaction with sender/receiver if we have the data
                 tx_ids = event.get("tx_ids", [])
-                amounts = event.get("amounts", [])
                 for i, tx_id in enumerate(tx_ids):
-                    amount = amounts[i] if i < len(amounts) else 0
-                    console.print(f"     - TX {tx_id[:8]}: ${amount / 100:,.2f}")
+                    amount = tx_amounts[i] if i < len(tx_amounts) else 0
+                    if i < len(agent_ids):
+                        sender = agent_ids[i]
+                        receiver = agent_ids[(i + 1) % len(agent_ids)]
+                        console.print(f"     - {sender}→{receiver}: TX {tx_id[:8]} (${amount / 100:,.2f})")
+                    else:
+                        console.print(f"     - TX {tx_id[:8]}: ${amount / 100:,.2f}")
+
+                # Show liquidity metrics if available
+                total_value = event.get("total_value", 0)
+                max_net_outflow = event.get("max_net_outflow", 0)
+                if total_value > 0 and max_net_outflow is not None:
+                    liquidity_saved = total_value - max_net_outflow
+                    if liquidity_saved > 0:
+                        efficiency = (liquidity_saved / total_value) * 100
+                        console.print(f"     [green]✨ Saved: ${liquidity_saved / 100:,.2f} ({efficiency:.1f}%)[/green]")
         console.print()
 
 
@@ -990,10 +1007,11 @@ def log_end_of_day_event(events, quiet=False):
         console.print()
 
 
-def log_lsm_cycle_visualization(events, quiet=False):
+def log_lsm_cycle_visualization(orch, events, quiet=False):
     """Visualize LSM cycles showing circular payment chains (verbose mode).
 
     Args:
+        orch: Orchestrator instance (for querying transaction details)
         events: List of events from get_tick_events()
         quiet: Suppress output if True
 
@@ -1031,41 +1049,145 @@ def log_lsm_cycle_visualization(events, quiet=False):
     # Bilateral offsets
     for event in lsm_bilateral:
         console.print(f"   Cycle {cycle_num} (Bilateral):")
-        agent_a = event.get("agent_a", "unknown")
-        agent_b = event.get("agent_b", "unknown")
-        tx_a = event.get("tx_id_a", "unknown")[:8]
-        tx_b = event.get("tx_id_b", "unknown")[:8]
-        amount_a = event.get("amount_a", 0)
-        amount_b = event.get("amount_b", 0)
+
+        # Get transaction IDs
+        tx_id_a = event.get("tx_id_a", "")
+        tx_id_b = event.get("tx_id_b", "")
+
+        # Look up transaction details to get agent IDs and amounts
+        tx_a_details = orch.get_transaction_details(tx_id_a) if tx_id_a else None
+        tx_b_details = orch.get_transaction_details(tx_id_b) if tx_id_b else None
+
+        agent_a = tx_a_details.get("sender_id", "unknown") if tx_a_details else "unknown"
+        agent_b = tx_a_details.get("receiver_id", "unknown") if tx_a_details else "unknown"
+        amount_a = tx_a_details.get("amount", 0) if tx_a_details else 0
+        amount_b = tx_b_details.get("amount", 0) if tx_b_details else 0
 
         console.print(f"   {agent_a} ⇄ {agent_b}")
-        console.print(f"   • {agent_a}→{agent_b}: TX {tx_a} (${amount_a / 100:,.2f})")
-        console.print(f"   • {agent_b}→{agent_a}: TX {tx_b} (${amount_b / 100:,.2f})")
+        console.print(f"   • {agent_a}→{agent_b}: TX {tx_id_a[:8]} (${amount_a / 100:,.2f})")
+        console.print(f"   • {agent_b}→{agent_a}: TX {tx_id_b[:8]} (${amount_b / 100:,.2f})")
 
+        # Calculate offset vs liquidity breakdown
+        total_value = amount_a + amount_b
         net = abs(amount_a - amount_b)
+
         if net > 0:
-            console.print(f"   Net Settlement: ${net / 100:,.2f}")
+            # Determine direction
+            if amount_a > amount_b:
+                console.print(f"   💫 Net Settlement: {agent_a} → {agent_b}: ${net / 100:,.2f}")
+            else:
+                console.print(f"   💫 Net Settlement: {agent_b} → {agent_a}: ${net / 100:,.2f}")
+
+        # Show liquidity saved
+        if total_value > 0:
+            offset_amount = total_value - net  # Amount netted out (smaller of the two)
+            liquidity_saved = offset_amount
+            efficiency = (liquidity_saved / total_value) * 100
+            console.print(f"   [green]✨ Saved: ${liquidity_saved / 100:,.2f} ({efficiency:.1f}%)[/green]")
+
         console.print()
         cycle_num += 1
 
     # Multilateral cycles
     for event in lsm_cycles:
+        tx_ids = event.get("tx_ids", [])
         agent_ids = event.get("agent_ids", [])
-        num_agents = len(agent_ids)
+        tx_amounts = event.get("tx_amounts", [])
+        net_positions = event.get("net_positions", {})
+        total_value = event.get("total_value", 0)
+        max_net_outflow = event.get("max_net_outflow", 0)
+
+        num_agents = len(agent_ids) if agent_ids else len(tx_ids)
 
         console.print(f"   Cycle {cycle_num} (Multilateral - {num_agents} agents):")
 
-        if agent_ids:
+        # Use agent_ids from event if available (new data)
+        if agent_ids and tx_amounts:
             # Show cycle: A → B → C → A
-            cycle_str = " → ".join(agent_ids) + f" → {agent_ids[0]}"
+            cycle_str = " → ".join(agent_ids)
             console.print(f"   {cycle_str}")
 
+            # Show each transaction in cycle with sender/receiver
+            for i, tx_id in enumerate(tx_ids):
+                if i < len(agent_ids) and i < len(tx_amounts):
+                    sender = agent_ids[i]
+                    receiver = agent_ids[(i + 1) % len(agent_ids)]
+                    amount = tx_amounts[i]
+                    console.print(f"   • {sender}→{receiver}: TX {tx_id[:8]} (${amount / 100:,.2f})")
+
+        # Fallback to old method (lookup from orchestrator) for old data
+        elif tx_ids:
+            # Build the cycle visualization by looking up sender/receiver for each tx
+            agent_chain = []
+            amounts = []
+            for tx_id in tx_ids:
+                tx_details = orch.get_transaction_details(tx_id)
+                if tx_details:
+                    sender = tx_details.get("sender_id", "unknown")
+                    receiver = tx_details.get("receiver_id", "unknown")
+                    amount = tx_details.get("amount", 0)
+
+                    if not agent_chain:
+                        agent_chain.append(sender)
+                    agent_chain.append(receiver)
+                    amounts.append(amount)
+
+            # Show cycle: A → B → C → A
+            if agent_chain:
+                cycle_str = " → ".join(agent_chain)
+                console.print(f"   {cycle_str}")
+
             # Show each transaction in cycle
-            tx_ids = event.get("tx_ids", [])
-            amounts = event.get("amounts", [])
             for i, tx_id in enumerate(tx_ids):
                 amount = amounts[i] if i < len(amounts) else 0
                 console.print(f"   • TX {tx_id[:8]} (${amount / 100:,.2f})")
+
+        # Show liquidity metrics if available
+        console.print()
+        if total_value > 0:
+            console.print(f"   [cyan]💰 Gross Value: ${total_value / 100:,.2f}[/cyan]")
+
+            if max_net_outflow is not None and max_net_outflow > 0:
+                console.print(f"   [yellow]💫 Max Liquidity Used: ${max_net_outflow / 100:,.2f}[/yellow]")
+
+                liquidity_saved = total_value - max_net_outflow
+                if liquidity_saved > 0:
+                    efficiency = (liquidity_saved / total_value) * 100
+                    console.print(
+                        f"   [green]✨ Liquidity Saved: ${liquidity_saved / 100:,.2f} "
+                        f"({efficiency:.1f}%)[/green]"
+                    )
+
+        # Show net positions if available
+        if net_positions:
+            console.print()
+            console.print("   Net Positions:")
+            # Show in cycle order if we have agent_ids
+            if agent_ids:
+                for agent_id in agent_ids[:-1]:  # Exclude duplicate last agent
+                    if agent_id in net_positions:
+                        net_pos = net_positions[agent_id]
+                        if net_pos > 0:
+                            console.print(f"   • {agent_id}: [green]+${net_pos / 100:,.2f}[/green] (inflow)")
+                        elif net_pos < 0:
+                            console.print(
+                                f"   • {agent_id}: [red]-${abs(net_pos) / 100:,.2f}[/red] "
+                                "(outflow - used liquidity)"
+                            )
+                        else:
+                            console.print(f"   • {agent_id}: [dim]$0.00[/dim] (net zero)")
+            else:
+                # Fallback: show all net positions
+                for agent_id, net_pos in sorted(net_positions.items()):
+                    if net_pos > 0:
+                        console.print(f"   • {agent_id}: [green]+${net_pos / 100:,.2f}[/green] (inflow)")
+                    elif net_pos < 0:
+                        console.print(
+                            f"   • {agent_id}: [red]-${abs(net_pos) / 100:,.2f}[/red] "
+                            "(outflow - used liquidity)"
+                        )
+                    else:
+                        console.print(f"   • {agent_id}: [dim]$0.00[/dim] (net zero)")
 
         console.print()
         cycle_num += 1
