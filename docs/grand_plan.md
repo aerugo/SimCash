@@ -21,6 +21,7 @@ The Rust core backend is **complete and battle-tested**:
 
 - ✅ **Phase 1-2**: Time management, RNG (xorshift64*), Agent state, Transaction models
 - ✅ **Phase 3**: RTGS settlement engine + LSM (bilateral offsetting + cycle detection)
+- ✅ **Phase 3.5**: T2-compliant LSM with unequal payment values (net position settlement)
 - ✅ **Phase 4a**: Queue 1 (internal bank queues) + Cash Manager policies (FIFO, Deadline, LiquidityAware)
 - ✅ **Phase 4b**: Complete 9-step orchestrator tick loop integrating all components
 - ✅ **Phase 5**: Transaction splitting (agent-initiated payment pacing)
@@ -28,7 +29,7 @@ The Rust core backend is **complete and battle-tested**:
 - ✅ **Phase 7**: Integration layer complete (PyO3 FFI, FastAPI, CLI tool)
 - ✅ **Phase 9 (DSL)**: Complete policy DSL infrastructure (~4,880 lines) with expression evaluator, JSON decision trees, validation pipeline, and 50+ field accessors
 
-**Test Coverage**: 107+ passing tests with zero failures (60+ Rust core + 24 FFI + 23 API integration), including critical invariants (determinism, balance conservation, gridlock resolution). Policy DSL has 940+ lines of tests.
+**Test Coverage**: 117+ passing tests with zero failures (70+ Rust core + 24 FFI + 23 API integration), including critical invariants (determinism, balance conservation, gridlock resolution, T2-compliant LSM). Policy DSL has 940+ lines of tests.
 
 ### Where We're Going: Feature Expansion 🎯
 
@@ -315,14 +316,14 @@ The foundation implementation validated several critical design choices:
 - Gridlock detection and LSM-based resolution
 - Four-bank ring scenario from Game Design Doc passes
 
-#### Phase 3.5: T2-Realistic LSM with Unequal Payment Values ⏳ **PLANNED**
+#### Phase 3.5: T2-Realistic LSM with Unequal Payment Values ✅ **COMPLETE**
 **Modules**: `backend/src/settlement/lsm.rs` (enhancement)
 
-**Status**: Planning complete, implementation not started
+**Status**: Implemented and tested (2025-11-05)
 
-**Goal**: Bring LSM into full compliance with T2 RTGS specifications for handling unequal payment values in multilateral cycles
+**Goal**: Bring LSM into full compliance with T2 RTGS specifications for handling unequal payment values in multilateral cycles — **ACHIEVED**
 
-**Current Gap**: Our LSM implementation settles only the minimum amount on cycles (e.g., if cycle has [500k, 800k, 700k], we settle 500k from each). T2 actually settles the FULL value of each transaction, with each participant covering their net position.
+**What Was Implemented**: Full T2-compliant LSM that settles the FULL value of each transaction in multilateral cycles, with each participant covering their net position (not the minimum amount).
 
 **What T2 Actually Does** (from research in [docs/lsm-in-t2.md](lsm-in-t2.md)):
 - **No partial settlement of individual payments**: Each payment settles in full or not at all
@@ -368,9 +369,9 @@ The foundation implementation validated several critical design choices:
 - Legacy implementation preserved for comparison
 - All existing tests pass
 
-**Tests**: 8+ new tests for unequal cycle scenarios, feasibility checking, atomicity
+**Tests**: 10 comprehensive tests passing (all T2-compliant scenarios validated)
 
-**Estimated Effort**: 5-6 days (1 work week)
+**Completed**: 2025-11-05 (implementation + testing complete)
 
 **Dependencies**: None (enhancement to existing Phase 3)
 
