@@ -130,7 +130,7 @@ class VerboseModeOutput:
         # ═══════════════════════════════════════════════════════════
         # SECTION 4: LSM CYCLE VISUALIZATION
         # ═══════════════════════════════════════════════════════════
-        log_lsm_cycle_visualization(display_events)
+        log_lsm_cycle_visualization(orch, display_events)
 
         # ═══════════════════════════════════════════════════════════
         # SECTION 5: COLLATERAL ACTIVITY

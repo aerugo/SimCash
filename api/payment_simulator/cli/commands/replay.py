@@ -733,7 +733,7 @@ def replay_simulation(
                 # SECTION 4: LSM CYCLE VISUALIZATION
                 # ═══════════════════════════════════════════════════════════
                 if num_lsm > 0:
-                    log_lsm_cycle_visualization(lsm_events)
+                    log_lsm_cycle_visualization(mock_orch, lsm_events)
 
                 # ═══════════════════════════════════════════════════════════
                 # SECTION 5: COLLATERAL ACTIVITY

@@ -13,11 +13,12 @@ A hybrid Rust-Python simulator for modeling Real-Time Gross Settlement (RTGS) sy
 
 ### Settlement & Optimization
 
-- **RTGS Engine**: Real-time gross settlement
-- **LSM Optimization**: Bilateral offsetting and cycle detection
+- **RTGS Engine**: Real-time gross settlement with immediate finality
+- **T2-Compliant LSM**: Bilateral offsetting and multilateral cycle settlement with unequal payment values
+- **Net Position Settlement**: Settles full transaction values when participants can cover net positions
 - **Transaction Splitting**: Voluntary payment pacing for large transactions
 - **Gridlock Resolution**: Automatic detection and resolution via LSM
-- **Cost Modeling**: Overdraft, delay, split friction, deadline penalties
+- **Cost Modeling**: Overdraft, delay, split friction, deadline penalties, collateral costs
 
 ### Policy Framework
 
@@ -518,11 +519,20 @@ This ensures:
 
 ### Liquidity-Saving Mechanisms (LSM)
 
-**Bilateral Offsetting**: Net transactions between two banks
-- Example: Bank A owes B $100M, B owes A $80M → settle net $20M A→B
+**T2-Compliant Implementation**: Our LSM follows TARGET2 RTGS specifications for realistic settlement behavior.
 
-**Cycle Detection**: Find circular payment chains and settle simultaneously
-- Example: A→B→C→A cycle with $100M each → settles with zero net liquidity
+**Bilateral Offsetting with Unequal Amounts**:
+- Example: Bank A owes B $500k, B owes A $300k → both settle in full if A can cover net $200k outflow
+- Settles BOTH transactions at full value (not partial amounts)
+- Net sender must have liquidity to cover difference
+
+**Multilateral Cycle Detection with Unequal Amounts**:
+- Example: A→B ($500k), B→C ($800k), C→A ($700k)
+- Net positions: A: +$200k, B: -$300k, C: +$100k
+- If B has $300k liquidity → all three transactions settle at full value
+- All-or-nothing: If any participant lacks liquidity for net position, entire cycle fails atomically
+
+**Key T2 Principle**: Individual payments settle in full or not at all (no transaction splitting by LSM). Liquidity savings achieved through smart grouping of whole payments based on net positions.
 
 ### Determinism
 
@@ -604,6 +614,7 @@ See [CLAUDE.md](CLAUDE.md) for comprehensive development guidelines.
 - [x] Agent state & transaction models
 - [x] RTGS settlement engine
 - [x] LSM (bilateral offsetting + cycle detection)
+- [x] T2-compliant LSM with unequal payment values (net position settlement)
 - [x] Queue 1 (internal bank queues) + Cash manager policies
 - [x] 9-step orchestrator tick loop
 - [x] Transaction splitting with split friction costs
@@ -618,7 +629,7 @@ See [CLAUDE.md](CLAUDE.md) for comprehensive development guidelines.
 - [x] Large-scale validation (200 agents tested)
 - [x] Comprehensive documentation
 
-**Test Coverage**: 60+ Rust tests + 24 FFI tests + 23 API tests + 71 persistence tests = **178+ tests passing**
+**Test Coverage**: 70+ Rust tests + 24 FFI tests + 23 API tests + 71 persistence tests = **188+ tests passing**
 
 ---
 
@@ -903,8 +914,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Status**: Phase 7 (Integration) + Phase 10 (Persistence) Complete | Ready for Phase 11 (LLM Manager)
-**Version**: 0.10.0 | **Tests**: 178+ passing | **Performance**: 1000+ ticks/s
+**Status**: Phase 7 (Integration) + Phase 10 (Persistence) + Phase 3.5 (T2 LSM) Complete | Ready for Phase 11 (LLM Manager)
+**Version**: 0.10.1 | **Tests**: 188+ passing | **Performance**: 1000+ ticks/s
 **Next Milestone**: LLM-driven policy optimization with shadow replay validation (Phase 11)
 
 **Phase 10 Achievement**: Full database persistence with DuckDB + Polars (71 tests passing)

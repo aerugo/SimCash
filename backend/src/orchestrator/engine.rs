@@ -2350,9 +2350,17 @@ impl Orchestrator {
             .extend(lsm_result.cycle_events.clone());
 
         // Log LSM cycle settlement events
+        let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
+        if lsm_debug {
+            eprintln!("[LSM DEBUG] Logging {} LSM cycle events", lsm_result.cycle_events.len());
+        }
         for cycle_event in &lsm_result.cycle_events {
             // Determine if this is bilateral offset or multilateral cycle
             if cycle_event.cycle_type == "bilateral" && cycle_event.transactions.len() >= 2 {
+                if lsm_debug {
+                    eprintln!("[LSM DEBUG] Logging bilateral event with {} transactions: {:?}",
+                        cycle_event.transactions.len(), cycle_event.transactions);
+                }
                 // Log as bilateral offset event
                 self.log_event(Event::LsmBilateralOffset {
                     tick: cycle_event.tick,
