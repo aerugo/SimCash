@@ -149,18 +149,38 @@ def log_lsm_activity(bilateral: int = 0, cycles: int = 0):
         console.print(f"{emoji} [magenta]LSM freed {total} transaction(s)[/magenta] ({', '.join(parts)})")
 
 
-def log_agent_state(agent_id: str, balance: int, queue_size: int, balance_change: int = 0):
-    """Log agent state (verbose mode).
+def log_agent_state(provider, agent_id: str, balance_change: int = 0, quiet: bool = False):
+    """Log agent state with detailed queue contents (UNIFIED for live & replay).
+
+    Replaces both old log_agent_state() and log_agent_state_from_db().
+    Works with any StateProvider implementation (Orchestrator or Database).
+
+    Shows:
+    - Agent balance with color coding (overdraft = red, negative change = yellow)
+    - Queue 1 (internal) contents with transaction details
+    - Queue 2 (RTGS) contents for this agent's transactions
+    - Total queued value
+    - Credit utilization percentage
+    - Collateral posted (if any)
 
     Args:
+        provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
         agent_id: Agent identifier
-        balance: Current balance in cents
-        queue_size: Queue size
-        balance_change: Change in balance (if tracked)
+        balance_change: Balance change since last tick (cents)
+        quiet: Suppress output if True
     """
-    balance_str = f"${balance / 100:,.2f}"
+    if quiet:
+        return
 
-    # Color code balance
+    # Get agent state from provider
+    balance = provider.get_agent_balance(agent_id)
+    credit_limit = provider.get_agent_credit_limit(agent_id)
+    collateral = provider.get_agent_collateral_posted(agent_id)
+    queue1_contents = provider.get_agent_queue1_contents(agent_id)
+    rtgs_queue = provider.get_rtgs_queue_contents()
+
+    # Format balance with color coding
+    balance_str = f"${balance / 100:,.2f}"
     if balance < 0:
         balance_str = f"[red]{balance_str} (overdraft)[/red]"
     elif balance_change < 0:
@@ -168,16 +188,78 @@ def log_agent_state(agent_id: str, balance: int, queue_size: int, balance_change
     else:
         balance_str = f"[green]{balance_str}[/green]"
 
-    queue_str = ""
-    if queue_size > 0:
-        queue_str = f" | Queue: [yellow]{queue_size}[/yellow]"
-
+    # Balance change indicator
     change_str = ""
     if balance_change != 0:
         sign = "+" if balance_change > 0 else ""
         change_str = f" ({sign}${balance_change / 100:,.2f})"
 
-    console.print(f"  {agent_id}: {balance_str}{change_str}{queue_str}")
+    # Credit utilization
+    credit_str = ""
+    if credit_limit and credit_limit > 0:
+        used = max(0, credit_limit - balance)
+        utilization_pct = (used / credit_limit) * 100
+
+        if utilization_pct > 80:
+            util_str = f"[red]{utilization_pct:.0f}% used[/red]"
+        elif utilization_pct > 50:
+            util_str = f"[yellow]{utilization_pct:.0f}% used[/yellow]"
+        else:
+            util_str = f"[green]{utilization_pct:.0f}% used[/green]"
+
+        credit_str = f" | Credit: {util_str}"
+
+    console.print(f"  {agent_id}: {balance_str}{change_str}{credit_str}")
+
+    # Queue 1 (internal)
+    if queue1_contents:
+        total_value = 0
+        for tx_id in queue1_contents:
+            tx = provider.get_transaction_details(tx_id)
+            if tx:
+                total_value += tx.get("remaining_amount", 0)
+
+        console.print(f"     Queue 1 ({len(queue1_contents)} transactions, ${total_value / 100:,.2f} total):")
+        for tx_id in queue1_contents:
+            tx = provider.get_transaction_details(tx_id)
+            if tx:
+                priority_str = f"P:{tx['priority']}"
+                console.print(
+                    f"     • TX {tx_id[:8]} → {tx['receiver_id']}: "
+                    f"${tx['remaining_amount'] / 100:,.2f} | {priority_str} | "
+                    f"⏰ Tick {tx['deadline_tick']}"
+                )
+        console.print()
+
+    # Queue 2 (RTGS) - filter for this agent's transactions
+    agent_rtgs_txs = []
+    for tx_id in rtgs_queue:
+        tx = provider.get_transaction_details(tx_id)
+        if tx and tx.get("sender_id") == agent_id:
+            agent_rtgs_txs.append(tx_id)
+
+    if agent_rtgs_txs:
+        total_value = 0
+        for tx_id in agent_rtgs_txs:
+            tx = provider.get_transaction_details(tx_id)
+            if tx:
+                total_value += tx.get("remaining_amount", 0)
+
+        console.print(f"     Queue 2 - RTGS ({len(agent_rtgs_txs)} transactions, ${total_value / 100:,.2f}):")
+        for tx_id in agent_rtgs_txs:
+            tx = provider.get_transaction_details(tx_id)
+            if tx:
+                console.print(
+                    f"     • TX {tx_id[:8]} → {tx['receiver_id']}: "
+                    f"${tx['remaining_amount'] / 100:,.2f} | P:{tx['priority']} | "
+                    f"⏰ Tick {tx['deadline_tick']}"
+                )
+        console.print()
+
+    # Collateral
+    if collateral and collateral > 0:
+        console.print(f"     Collateral Posted: ${collateral / 100:,.2f}")
+        console.print()
 
 
 def log_costs(cost: int):
@@ -707,8 +789,11 @@ def log_collateral_activity(events, quiet=False):
         console.print()
 
 
-def log_cost_breakdown(orch, agent_ids, quiet=False):
-    """Log detailed cost breakdown by agent and type (verbose mode).
+def log_cost_breakdown(provider, agent_ids, quiet=False):
+    """Log detailed cost breakdown by agent and type (UNIFIED for live & replay).
+
+    Replaces both old log_cost_breakdown() and log_cost_breakdown_from_db().
+    Works with any StateProvider implementation (Orchestrator or Database).
 
     Shows costs accrued this tick broken down by:
     - Liquidity cost (overdraft/borrowing fees)
@@ -718,7 +803,7 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
     - Split friction cost (cost of splitting transactions)
 
     Args:
-        orch: Orchestrator instance
+        provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
         agent_ids: List of agent identifiers
         quiet: Suppress output if True
 
@@ -741,14 +826,15 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
     agent_costs = []
 
     for agent_id in agent_ids:
-        costs = orch.get_agent_accumulated_costs(agent_id)
+        costs = provider.get_agent_accumulated_costs(agent_id)
         if costs:
             # Calculate total from all cost components
+            # Note: Use "penalty_cost" (database format) instead of "deadline_penalty" (old FFI format)
             agent_total = (
                 costs.get("liquidity_cost", 0) +
                 costs.get("delay_cost", 0) +
                 costs.get("collateral_cost", 0) +
-                costs.get("deadline_penalty", 0) +  # Note: FFI exports as "deadline_penalty" not "penalty_cost"
+                costs.get("penalty_cost", 0) +
                 costs.get("split_friction_cost", 0)
             )
 
@@ -772,8 +858,8 @@ def log_cost_breakdown(orch, agent_ids, quiet=False):
             console.print(f"   • Delay: ${costs['delay_cost'] / 100:,.2f}")
         if costs.get("collateral_cost", 0) > 0:
             console.print(f"   • Collateral: ${costs['collateral_cost'] / 100:,.2f}")
-        if costs.get("deadline_penalty", 0) > 0:
-            console.print(f"   • Penalty: ${costs['deadline_penalty'] / 100:,.2f}")
+        if costs.get("penalty_cost", 0) > 0:
+            console.print(f"   • Penalty: ${costs['penalty_cost'] / 100:,.2f}")
         if costs.get("split_friction_cost", 0) > 0:
             console.print(f"   • Split: ${costs['split_friction_cost'] / 100:,.2f}")
 

@@ -578,6 +578,7 @@ class TickAgentStateRecord(BaseModel):
     # Balance tracking
     balance: int = Field(..., description="Balance at end of tick (cents)")
     balance_change: int = Field(..., description="Change in balance this tick (cents)")
+    credit_limit: int = Field(..., description="Agent credit limit (cents)", ge=0)
     posted_collateral: int = Field(
         ..., description="Posted collateral at end of tick (cents)"
     )
