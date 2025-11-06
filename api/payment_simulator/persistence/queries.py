@@ -954,7 +954,11 @@ def get_lsm_cycles_by_tick(
             agents,
             transactions,
             settled_value,
-            total_value
+            total_value,
+            tx_amounts,
+            net_positions,
+            max_net_outflow,
+            max_net_outflow_agent
         FROM lsm_cycles
         WHERE simulation_id = ? AND tick = ?
         ORDER BY id
@@ -971,6 +975,10 @@ def get_lsm_cycles_by_tick(
             "tx_ids": json.loads(row[5]),     # Parse JSON array
             "settled_value": row[6],
             "total_value": row[7],
+            "tx_amounts": json.loads(row[8]) if row[8] else [],
+            "net_positions": json.loads(row[9]) if row[9] else {},
+            "max_net_outflow": row[10],
+            "max_net_outflow_agent": row[11],
         }
         for row in result
     ]

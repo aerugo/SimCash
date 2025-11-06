@@ -512,6 +512,12 @@ class LsmCycleRecord(BaseModel):
     settled_value: int = Field(..., description="Net value settled (cents)")
     total_value: int = Field(..., description="Gross value before netting (cents)")
 
+    # Enhanced fields for offset/liquidity analysis
+    tx_amounts: Optional[str] = Field(None, description="JSON array of transaction amounts in cycle order (cents)")
+    net_positions: Optional[str] = Field(None, description="JSON object mapping agent ID to net position (cents)")
+    max_net_outflow: Optional[int] = Field(None, description="Maximum net outflow in cycle (actual liquidity used, cents)")
+    max_net_outflow_agent: Optional[str] = Field(None, description="Agent ID with maximum net outflow")
+
 
 # ============================================================================
 # Full Replay Tables (Per-Tick Data)
