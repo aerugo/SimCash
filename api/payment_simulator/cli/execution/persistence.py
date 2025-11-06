@@ -182,6 +182,7 @@ class PersistenceManager:
         # 2. Buffer agent state snapshots
         for agent_id in agent_ids:
             current_balance = orch.get_agent_balance(agent_id)
+            credit_limit = orch.get_agent_credit_limit(agent_id)
             costs = orch.get_agent_accumulated_costs(agent_id)
             collateral = orch.get_agent_collateral_posted(agent_id) or 0
 
@@ -200,6 +201,7 @@ class PersistenceManager:
                 "day": day,
                 "balance": current_balance,
                 "balance_change": balance_change,
+                "credit_limit": credit_limit,
                 "posted_collateral": collateral,
                 "liquidity_cost": costs["liquidity_cost"],
                 "delay_cost": costs["delay_cost"],
