@@ -1,0 +1,193 @@
+"""End-to-end test: Run and Replay must produce identical verbose output.
+
+This test captures the exact issue from the bug report: when you run a simulation
+with --persist --full-replay and then replay it, the verbose output should be
+byte-for-byte identical.
+
+Current failures:
+- Transaction metadata (priority shows P:0 instead of actual values, deadline shows Tick 0)
+- LSM cycles missing from replay output
+- Collateral activity missing from replay output
+- Cost accruals missing from replay output
+- Credit utilization shows 0% instead of actual values
+"""
+
+import pytest
+import tempfile
+import os
+from pathlib import Path
+from payment_simulator._core import Orchestrator
+from payment_simulator.persistence.connection import DatabaseManager
+from payment_simulator.persistence.event_writer import write_events_batch
+from payment_simulator.persistence.event_queries import get_simulation_events
+from io import StringIO
+from rich.console import Console
+import re
+
+
+def normalize_output(text: str) -> str:
+    """Normalize output for comparison by removing ANSI codes and normalizing whitespace."""
+    text = re.sub(r'\x1b\[[0-9;]*m', '', text)  # Remove ANSI
+    lines = [line.rstrip() for line in text.splitlines()]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    return '\n'.join(lines)
+
+
+def capture_console_output(func):
+    """Capture rich console output from a function."""
+    output = StringIO()
+    console = Console(file=output, force_terminal=False, width=120, legacy_windows=False)
+
+    import payment_simulator.cli.output as output_module
+    old_console = output_module.console
+    output_module.console = console
+
+    try:
+        result = func()
+        return output.getvalue(), result
+    finally:
+        output_module.console = old_console
+
+
+class TestRunReplayIdentity:
+    """THE ULTIMATE TEST: Verify run and replay produce identical output."""
+
+    @pytest.fixture
+    def temp_db(self):
+        """Create temporary database path for testing."""
+        # Create a unique path but don't create the file (DuckDB will create it)
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)  # Close the file descriptor
+        os.unlink(db_path)  # Delete the empty file (DuckDB will create its own)
+        yield db_path
+        # Cleanup
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        # Also cleanup WAL file if it exists
+        wal_path = db_path + ".wal"
+        if os.path.exists(wal_path):
+            os.unlink(wal_path)
+
+    def test_transaction_metadata_in_arrival_event(self):
+        """FAILING TEST: Event::Arrival should include priority and is_divisible.
+
+        This test demonstrates that the Rust Event::Arrival enum is missing
+        critical transaction metadata fields. When these fields are missing,
+        they cannot be persisted to the database, and replay will show
+        default values (priority=0, deadline=0) instead of the actual values.
+        """
+        config = {
+            "rng_seed": 42,
+            "ticks_per_day": 10,
+            "num_days": 1,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 1000000,
+                    "credit_limit": 0,
+                    "policy": {"type": "Fifo"},
+                },
+                {
+                    "id": "BANK_B",
+                    "opening_balance": 1000000,
+                    "credit_limit": 0,
+                    "policy": {"type": "Fifo"},
+                },
+            ],
+        }
+
+        # Run simulation
+        orch = Orchestrator.new(config)
+
+        # Submit a transaction with specific priority and divisibility
+        tx_id = orch.submit_transaction(
+            sender="BANK_A",
+            receiver="BANK_B",
+            amount=10000,
+            deadline_tick=20,  # Deadline at tick 20
+            priority=7,  # High priority
+            divisible=False,  # Not divisible
+        )
+
+        # Run a tick to process the transaction
+        orch.tick()
+
+        # Get events for tick 0 (the events are in raw dict format from Rust FFI)
+        tick_events = orch.get_tick_events(0)
+
+        # Find the Arrival event
+        arrival_events = [e for e in tick_events if e.get("event_type") == "Arrival"]
+
+        assert len(arrival_events) > 0, "No Arrival events found"
+
+        arrival = arrival_events[0]
+
+        # CRITICAL ASSERTIONS: These fields MUST be present in the event
+        # Otherwise replay will show incorrect values
+
+        # Priority must be in the event
+        assert "priority" in arrival, \
+            f"Priority field missing from Arrival event. Event keys: {list(arrival.keys())}"
+        assert arrival["priority"] == 7, \
+            f"Priority should be 7, got {arrival.get('priority', 'MISSING')}"
+
+        # Deadline must be in the event (not deadline_tick, the event uses 'deadline')
+        assert "deadline" in arrival or "deadline_tick" in arrival, \
+            f"Deadline field missing from Arrival event. Event keys: {list(arrival.keys())}"
+
+        deadline_value = arrival.get("deadline") or arrival.get("deadline_tick")
+        assert deadline_value == 20, \
+            f"Deadline should be 20, got {deadline_value}"
+
+        # is_divisible should be in the event
+        # Note: The event may not include is_divisible yet, this documents what SHOULD be there
+        # assert "is_divisible" in arrival or "divisible" in arrival, \
+        #     f"Divisibility field missing from Arrival event. Event keys: {list(arrival.keys())}"
+
+    def test_lsm_events_present_in_replay(self, temp_db):
+        """FAILING TEST: LSM cycle events should be present in replay output.
+
+        This test will need to create a scenario where LSM cycles occur,
+        then verify they're captured in events and shown in replay.
+        """
+        # TODO: Create config that triggers LSM cycles
+        # TODO: Verify LSM events are persisted
+        # TODO: Verify LSM events are reconstructed in replay
+        pytest.skip("LSM test scenario needs specific config to trigger cycles")
+
+    def test_collateral_events_present_in_replay(self, temp_db):
+        """FAILING TEST: Collateral events should be present in replay output.
+
+        This test will need to create a scenario where collateral is posted/withdrawn,
+        then verify these events are shown in replay.
+        """
+        # TODO: Create config that triggers collateral activity
+        # TODO: Verify collateral events are persisted
+        # TODO: Verify collateral events are shown in replay
+        pytest.skip("Collateral test scenario needs specific config")
+
+    def test_cost_accrual_events_present_in_replay(self, temp_db):
+        """FAILING TEST: Cost accrual events should be present in replay output.
+
+        This test verifies that cost accruals are captured and displayed in replay.
+        """
+        # TODO: Create scenario with costs
+        # TODO: Verify cost accrual events are persisted
+        # TODO: Verify cost accruals are shown in replay
+        pytest.skip("Cost accrual test scenario needs specific config")
+
+    def test_full_tick_output_identity(self, temp_db):
+        """THE ULTIMATE TEST: Full tick output from run vs replay must be identical.
+
+        This test runs a simulation, persists it with --full-replay data,
+        then replays it and compares the verbose output for each tick.
+        """
+        # TODO: Implement full end-to-end test once infrastructure is in place
+        pytest.skip("Full integration test needs completion")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

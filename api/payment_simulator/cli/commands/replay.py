@@ -75,8 +75,9 @@ def _reconstruct_arrival_events_from_simulation_events(events: list[dict]) -> li
             "sender_id": details.get("sender_id"),
             "receiver_id": details.get("receiver_id"),
             "amount": details.get("amount"),
-            "priority": details.get("priority", 0),  # Default to 0 if not present
-            "deadline_tick": details.get("deadline_tick"),
+            "priority": details.get("priority", 5),  # Default to 5 (standard priority)
+            "deadline_tick": details.get("deadline") or details.get("deadline_tick"),  # FFI uses "deadline"
+            "is_divisible": details.get("is_divisible", False),  # Include is_divisible
         })
     return result
 
