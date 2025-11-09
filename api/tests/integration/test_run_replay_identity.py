@@ -147,52 +147,11 @@ class TestRunReplayIdentity:
         # assert "is_divisible" in arrival or "divisible" in arrival, \
         #     f"Divisibility field missing from Arrival event. Event keys: {list(arrival.keys())}"
 
-    def test_lsm_events_reconstructed_from_database(self):
-        """TEST: LSM cycle events should be reconstructed from database.
-
-        When LSM cycles are stored in the lsm_cycles table, they should be
-        reconstructed as LsmBilateralOffset or LsmCycleSettlement events
-        during replay, so that log_lsm_cycle_visualization can display them.
-
-        NOTE: Bilateral cycles have agent_ids = [A, B, A] (length 3) as the
-        Rust backend models them as a cycle.
-        """
-        from payment_simulator.cli.commands.replay import _reconstruct_lsm_events
-
-        # Simulate an LSM bilateral cycle record from the database
-        lsm_cycles = [
-            {
-                "cycle_type": "bilateral",
-                "agent_ids": ["BANK_A", "BANK_B", "BANK_A"],  # Cycle format: [A, B, A]
-                "tx_ids": ["tx_001", "tx_002"],
-                "settled_value": 100000,  # $1,000.00
-                "tx_amounts": [100000, 100000],  # Both transactions for $1,000.00
-            }
-        ]
-
-        # Reconstruct events
-        events = _reconstruct_lsm_events(lsm_cycles)
-
-        # CRITICAL ASSERTIONS
-        assert len(events) == 1, "Should reconstruct 1 LSM event"
-
-        event = events[0]
-        assert event["event_type"] == "LsmBilateralOffset", \
-            f"Expected LsmBilateralOffset, got {event.get('event_type')}"
-
-        # Verify all required fields are present for visualization
-        assert "agent_a" in event, "Missing agent_a for bilateral offset"
-        assert "agent_b" in event, "Missing agent_b for bilateral offset"
-        assert "tx_id_a" in event, "Missing tx_id_a for bilateral offset"
-        assert "tx_id_b" in event, "Missing tx_id_b for bilateral offset"
-        assert "amount" in event, "Missing amount for bilateral offset"
-
-        # Verify values
-        assert event["agent_a"] == "BANK_A"
-        assert event["agent_b"] == "BANK_B"
-        assert event["tx_id_a"] == "tx_001"
-        assert event["tx_id_b"] == "tx_002"
-        assert event["amount"] == 100000
+    # REMOVED (Phase 6: Legacy Infrastructure Cleanup)
+    # This test verified legacy _reconstruct_lsm_events() function
+    # which has been removed in favor of unified replay architecture.
+    # LSM events are now stored enriched in simulation_events table.
+    # See test_replay_identity_gold_standard.py for current tests.
 
     def test_collateral_events_reconstructed_from_simulation_events(self):
         """TEST: Collateral events should be reconstructed from simulation_events.
@@ -241,56 +200,11 @@ class TestRunReplayIdentity:
         assert events[0]["agent_id"] == "BANK_A"
         assert events[0]["amount"] == 100000
 
-    def test_collateral_events_reconstructed_from_database(self):
-        """TEST: Collateral events should be reconstructed from database.
-
-        When collateral events are stored in the collateral_events table,
-        they should be reconstructed as CollateralPost/CollateralWithdraw events
-        during replay, so that log_collateral_activity can display them.
-        """
-        from payment_simulator.cli.commands.replay import _reconstruct_collateral_events
-
-        # Simulate collateral event records from the database
-        collateral_events = [
-            {
-                "action": "post",
-                "agent_id": "BANK_A",
-                "amount": 100000,  # $1,000.00
-                "reason": "PreemptivePosting",
-                "posted_collateral_after": 100000,
-            },
-            {
-                "action": "withdraw",
-                "agent_id": "BANK_A",
-                "amount": 50000,  # $500.00
-                "reason": "CostOptimization",
-                "posted_collateral_after": 50000,
-            },
-        ]
-
-        # Reconstruct events
-        events = _reconstruct_collateral_events(collateral_events)
-
-        # CRITICAL ASSERTIONS
-        assert len(events) == 2, f"Should reconstruct 2 collateral events, got {len(events)}"
-
-        # First event: CollateralPost
-        post_event = events[0]
-        assert post_event["event_type"] == "CollateralPost", \
-            f"Expected CollateralPost, got {post_event.get('event_type')}"
-        assert post_event["agent_id"] == "BANK_A"
-        assert post_event["amount"] == 100000
-        assert post_event["reason"] == "PreemptivePosting"
-        assert post_event["new_total"] == 100000
-
-        # Second event: CollateralWithdraw
-        withdraw_event = events[1]
-        assert withdraw_event["event_type"] == "CollateralWithdraw", \
-            f"Expected CollateralWithdraw, got {withdraw_event.get('event_type')}"
-        assert withdraw_event["agent_id"] == "BANK_A"
-        assert withdraw_event["amount"] == 50000
-        assert withdraw_event["reason"] == "CostOptimization"
-        assert withdraw_event["new_total"] == 50000
+    # REMOVED (Phase 6: Legacy Infrastructure Cleanup)
+    # This test verified legacy _reconstruct_collateral_events() function
+    # which has been removed in favor of unified replay architecture.
+    # Collateral events are now stored enriched in simulation_events table.
+    # See test_replay_identity_gold_standard.py for current tests.
 
     def test_cost_accrual_events_reconstructed_from_simulation_events(self):
         """TEST: Cost accrual events should be reconstructed from simulation_events.
@@ -446,46 +360,11 @@ class TestRunReplayIdentity:
         assert event["amount_a"] == 433387
         assert event["amount_b"] == 420300
 
-    def test_lsm_bilateral_offset_from_lsm_cycles_table(self):
-        """FAILING TEST: LSM bilateral offsets should be reconstructed from lsm_cycles table.
-
-        This is the FALLBACK path when simulation_events doesn't have LSM data.
-
-        Root cause identified by user analysis:
-        - Bilateral cycles in lsm_cycles table have agent_ids = ["A", "B", "A"] (length 3)
-        - Current code checks: if len(cycle["agent_ids"]) == 2
-        - This check ALWAYS FAILS for bilateral cycles
-
-        The fix should check for length 3:
-            if len(cycle["agent_ids"]) == 3 and len(cycle["tx_ids"]) == 2:
-        """
-        from payment_simulator.cli.commands.replay import _reconstruct_lsm_events
-
-        # Simulate LSM cycle data from lsm_cycles table
-        # NOTE: Bilateral cycles have agent_ids = [A, B, A] (length 3)
-        lsm_cycles = [
-            {
-                "cycle_type": "bilateral",
-                "agent_ids": ["REGIONAL_TRUST", "CORRESPONDENT_HUB", "REGIONAL_TRUST"],  # Length 3!
-                "tx_ids": ["da24c87d", "75e5817a"],
-                "tx_amounts": [433387, 420300],
-                "settled_value": 853687,
-            }
-        ]
-
-        # Reconstruct events
-        events = _reconstruct_lsm_events(lsm_cycles)
-
-        # Verify reconstruction
-        assert len(events) == 1, f"Expected 1 event, got {len(events)}"
-        event = events[0]
-        assert event["event_type"] == "LsmBilateralOffset"
-        assert event["agent_a"] == "REGIONAL_TRUST"
-        assert event["agent_b"] == "CORRESPONDENT_HUB"
-        assert event["tx_id_a"] == "da24c87d"
-        assert event["tx_id_b"] == "75e5817a"
-        assert event["amount_a"] == 433387
-        assert event["amount_b"] == 420300
+    # REMOVED (Phase 6: Legacy Infrastructure Cleanup)
+    # This test verified legacy _reconstruct_lsm_events() function from lsm_cycles table
+    # which has been removed in favor of unified replay architecture.
+    # The lsm_cycles table is now deprecated - all events stored in simulation_events.
+    # See test_replay_identity_gold_standard.py for current tests.
 
     def test_credit_utilization_in_replay_eod_statistics(self):
         """TEST: Credit utilization should be calculated correctly in replay EOD statistics.

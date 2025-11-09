@@ -869,6 +869,11 @@ def get_collateral_events_by_tick(
 ) -> list[dict[str, Any]]:
     """Get all collateral events for a specific tick.
 
+    .. deprecated::
+        Use get_simulation_events() with event_type filter instead.
+        This function queries the legacy collateral_events table.
+        The unified replay architecture uses simulation_events as single source of truth.
+
     Args:
         conn: DuckDB connection
         simulation_id: Simulation identifier
@@ -884,6 +889,12 @@ def get_collateral_events_by_tick(
         >>> events[0]["amount"]
         1000000
     """
+    import warnings
+    warnings.warn(
+        "get_collateral_events_by_tick() is deprecated. Use get_simulation_events() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     query = """
         SELECT
             agent_id,
@@ -928,6 +939,11 @@ def get_lsm_cycles_by_tick(
 ) -> list[dict[str, Any]]:
     """Get all LSM cycles settled on a specific tick.
 
+    .. deprecated::
+        Use get_simulation_events() with event_type filter instead.
+        This function queries the legacy lsm_cycles table.
+        The unified replay architecture uses simulation_events as single source of truth.
+
     Args:
         conn: DuckDB connection
         simulation_id: Simulation identifier
@@ -943,6 +959,12 @@ def get_lsm_cycles_by_tick(
         >>> cycles[0]["settled_value"]
         100000
     """
+    import warnings
+    warnings.warn(
+        "get_lsm_cycles_by_tick() is deprecated. Use get_simulation_events() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     import json
 
     query = """
