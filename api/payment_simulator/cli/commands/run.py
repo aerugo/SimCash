@@ -79,25 +79,14 @@ def _persist_day_data(
         metrics_count = write_daily_agent_metrics(db_manager.conn, sim_id, metrics)
         log_info(f"  Persisted {metrics_count} agent metrics for day {day}", quiet)
 
-    # Write collateral events for this day
-    collateral_events = orch.get_collateral_events_for_day(day)
-    if collateral_events:
-        df = pl.DataFrame(collateral_events)
-        # Insert excluding auto-generated id column
-        db_manager.conn.execute(
-            """
-            INSERT INTO collateral_events (
-                simulation_id, agent_id, tick, day, action, amount, reason, layer,
-                balance_before, posted_collateral_before, posted_collateral_after,
-                available_capacity_after
-            )
-            SELECT * FROM df
-        """
-        )
-        log_info(
-            f"  Persisted {len(collateral_events)} collateral events for day {day}",
-            quiet,
-        )
+    # LEGACY TABLE WRITE REMOVED (Phase 6: Unified Replay Architecture)
+    # Collateral events now stored in simulation_events table via EventWriter
+    # This legacy table write has been deprecated
+    # collateral_events = orch.get_collateral_events_for_day(day)
+    # if collateral_events:
+    #     df = pl.DataFrame(collateral_events)
+    #     db_manager.conn.execute(...)
+    #     log_info(f"  Persisted {len(collateral_events)} collateral events...", quiet)
 
     # Write agent queue snapshots for this day
     queue_snapshot_count = 0
@@ -125,42 +114,15 @@ def _persist_day_data(
             f"  Persisted {queue_snapshot_count} queue snapshots for day {day}", quiet
         )
 
-    # Write LSM cycles for this day
-    lsm_cycles = orch.get_lsm_cycles_for_day(day)
-    if lsm_cycles:
-        lsm_data = [
-            {
-                "simulation_id": sim_id,
-                "tick": cycle["tick"],
-                "day": cycle["day"],
-                "cycle_type": cycle["cycle_type"],
-                "cycle_length": cycle["cycle_length"],
-                "agents": json.dumps(cycle["agents"]),
-                "transactions": json.dumps(cycle["transactions"]),
-                "settled_value": cycle["settled_value"],
-                "total_value": cycle["total_value"],
-                "tx_amounts": json.dumps(cycle.get("tx_amounts", [])),
-                "net_positions": json.dumps(cycle.get("net_positions", {})),
-                "max_net_outflow": cycle.get("max_net_outflow"),
-                "max_net_outflow_agent": cycle.get("max_net_outflow_agent"),
-            }
-            for cycle in lsm_cycles
-        ]
-        df = pl.DataFrame(lsm_data)
-        db_manager.conn.execute(
-            """
-            INSERT INTO lsm_cycles (
-                simulation_id, tick, day, cycle_type, cycle_length,
-                agents, transactions, settled_value, total_value,
-                tx_amounts, net_positions, max_net_outflow, max_net_outflow_agent
-            ) SELECT
-                simulation_id, tick, day, cycle_type, cycle_length,
-                agents, transactions, settled_value, total_value,
-                tx_amounts, net_positions, max_net_outflow, max_net_outflow_agent
-            FROM df
-        """
-        )
-        log_info(f"  Persisted {len(lsm_cycles)} LSM cycles for day {day}", quiet)
+    # LEGACY TABLE WRITE REMOVED (Phase 6: Unified Replay Architecture)
+    # LSM cycles now stored in simulation_events table via EventWriter
+    # This legacy table write has been deprecated
+    # lsm_cycles = orch.get_lsm_cycles_for_day(day)
+    # if lsm_cycles:
+    #     lsm_data = [{"simulation_id": sim_id, ...} for cycle in lsm_cycles]
+    #     df = pl.DataFrame(lsm_data)
+    #     db_manager.conn.execute(...)
+    #     log_info(f"  Persisted {len(lsm_cycles)} LSM cycles...", quiet)
 
 
 def _persist_simulation_metadata(
