@@ -75,8 +75,9 @@ def _reconstruct_arrival_events_from_simulation_events(events: list[dict]) -> li
             "sender_id": details.get("sender_id"),
             "receiver_id": details.get("receiver_id"),
             "amount": details.get("amount"),
-            "priority": details.get("priority", 0),  # Default to 0 if not present
-            "deadline_tick": details.get("deadline_tick"),
+            "priority": details.get("priority", 5),  # Default to 5 (standard priority)
+            "deadline_tick": details.get("deadline") or details.get("deadline_tick"),  # FFI uses "deadline"
+            "is_divisible": details.get("is_divisible", False),  # Include is_divisible
         })
     return result
 
@@ -239,6 +240,67 @@ def _reconstruct_lsm_events(lsm_cycles: list[dict]) -> list[dict]:
             events.append(event)
 
     return events
+
+
+def _reconstruct_collateral_events_from_simulation_events(events: list[dict]) -> list[dict]:
+    """Reconstruct collateral events from simulation_events table.
+
+    Args:
+        events: List of simulation event records with event_type = 'CollateralPost' or 'CollateralWithdraw'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+
+    Examples:
+        >>> events = [{"event_type": "CollateralPost", "agent_id": "BANK_A", "details": {...}}]
+        >>> collateral = _reconstruct_collateral_events_from_simulation_events(events)
+        >>> collateral[0]["event_type"]
+        'CollateralPost'
+    """
+    result = []
+    for event in events:
+        event_type = event["event_type"]
+        details = event.get("details", {})
+
+        if event_type in ["CollateralPost", "CollateralWithdraw"]:
+            result.append({
+                "event_type": event_type,
+                "agent_id": event.get("agent_id") or details.get("agent_id"),
+                "amount": details.get("amount", 0),
+                "reason": details.get("reason", ""),
+                "new_total": details.get("new_total", 0),
+            })
+    return result
+
+
+def _reconstruct_cost_accrual_events(events: list[dict]) -> list[dict]:
+    """Reconstruct cost accrual events from simulation_events table.
+
+    Args:
+        events: List of simulation event records with event_type = 'CostAccrual'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+
+    Examples:
+        >>> events = [{"event_type": "CostAccrual", "agent_id": "BANK_A", "details": {"costs": {...}}}]
+        >>> cost_events = _reconstruct_cost_accrual_events(events)
+        >>> cost_events[0]["event_type"]
+        'CostAccrual'
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "CostAccrual":
+            details = event.get("details", {})
+            # Cost breakdown is in details.costs
+            costs = details.get("costs", {})
+
+            result.append({
+                "event_type": "CostAccrual",
+                "agent_id": event.get("agent_id") or details.get("agent_id"),
+                "costs": costs,
+            })
+    return result
 
 
 def _reconstruct_collateral_events(collateral_events: list[dict]) -> list[dict]:
@@ -697,6 +759,7 @@ def replay_simulation(
                 settlement_events_raw = []
                 lsm_events_raw = []
                 collateral_events_raw = []
+                cost_accrual_events_raw = []
 
                 for event in tick_events_result["events"]:
                     event_type = event["event_type"]
@@ -708,6 +771,8 @@ def replay_simulation(
                         lsm_events_raw.append(event)
                     elif event_type in ["CollateralPost", "CollateralWithdraw"]:
                         collateral_events_raw.append(event)
+                    elif event_type == "CostAccrual":
+                        cost_accrual_events_raw.append(event)
 
                 # Also get collateral and LSM data from dedicated tables (for compatibility)
                 collateral_data = get_collateral_events_by_tick(db_manager.conn, simulation_id, tick_num)
@@ -717,10 +782,19 @@ def replay_simulation(
                 arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
                 settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
                 lsm_events = _reconstruct_lsm_events(lsm_data)
-                collateral_events = _reconstruct_collateral_events(collateral_data)
+
+                # Reconstruct collateral events from BOTH sources (simulation_events and dedicated table)
+                collateral_from_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
+                collateral_from_table = _reconstruct_collateral_events(collateral_data)
+
+                # Prefer simulation_events if available (more complete), otherwise use table
+                collateral_events = collateral_from_events if collateral_from_events else collateral_from_table
+
+                # Reconstruct cost accrual events
+                cost_accrual_events = _reconstruct_cost_accrual_events(cost_accrual_events_raw)
 
                 # Combine all events
-                events = arrival_events + settlement_events + lsm_events + collateral_events
+                events = arrival_events + settlement_events + lsm_events + collateral_events + cost_accrual_events
 
                 # Update statistics
                 num_arrivals = len(arrival_events)
@@ -822,6 +896,12 @@ def replay_simulation(
                     # Get list of agent IDs from config
                     agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
 
+                    # Build mapping of agent_id -> credit_limit from config
+                    agent_credit_limits = {
+                        agent["id"]: agent.get("credit_limit", 0)
+                        for agent in config_dict.get("agents", [])
+                    }
+
                     agent_stats = []
                     day_total_costs = 0
                     for agent_id in agent_ids:
@@ -836,10 +916,18 @@ def replay_simulation(
                             agent_total_cost = row_dict["total_cost"]
                             day_total_costs += agent_total_cost
 
+                            # Calculate credit utilization
+                            balance = row_dict["closing_balance"]
+                            credit_limit = agent_credit_limits.get(agent_id, 0)
+                            credit_util = 0
+                            if credit_limit and credit_limit > 0:
+                                used = max(0, credit_limit - balance)
+                                credit_util = (used / credit_limit) * 100
+
                             agent_stats.append({
                                 "id": agent_id,
-                                "final_balance": row_dict["closing_balance"],
-                                "credit_utilization": 0,  # Not calculated
+                                "final_balance": balance,
+                                "credit_utilization": credit_util,
                                 "queue1_size": row_dict["queue1_eod_size"],
                                 "queue2_size": 0,  # Not tracked
                                 "total_costs": agent_total_cost,
