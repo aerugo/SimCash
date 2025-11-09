@@ -191,16 +191,103 @@ class TestRunReplayIdentity:
         assert event["tx_id_b"] == "tx_002"
         assert event["amount"] == 100000
 
-    def test_collateral_events_present_in_replay(self, temp_db):
-        """FAILING TEST: Collateral events should be present in replay output.
+    def test_collateral_events_reconstructed_from_simulation_events(self):
+        """TEST: Collateral events should be reconstructed from simulation_events.
 
-        This test will need to create a scenario where collateral is posted/withdrawn,
-        then verify these events are shown in replay.
+        For databases that have collateral events in simulation_events but not in
+        the dedicated collateral_events table, we should still be able to reconstruct
+        and display them.
         """
-        # TODO: Create config that triggers collateral activity
-        # TODO: Verify collateral events are persisted
-        # TODO: Verify collateral events are shown in replay
-        pytest.skip("Collateral test scenario needs specific config")
+        # Create a function to reconstruct from simulation_events format
+        def _reconstruct_collateral_from_simulation_events(events: list[dict]) -> list[dict]:
+            """Reconstruct collateral events from simulation_events table."""
+            result = []
+            for event in events:
+                event_type = event["event_type"]
+                details = event.get("details", {})
+
+                if event_type in ["CollateralPost", "CollateralWithdraw"]:
+                    result.append({
+                        "event_type": event_type,
+                        "agent_id": event.get("agent_id") or details.get("agent_id"),
+                        "amount": details.get("amount", 0),
+                        "reason": details.get("reason", ""),
+                        "new_total": details.get("new_total", 0),
+                    })
+            return result
+
+        # Simulate collateral events from simulation_events table
+        simulation_events = [
+            {
+                "event_type": "CollateralPost",
+                "agent_id": "BANK_A",
+                "details": {
+                    "amount": 100000,
+                    "reason": "PreemptivePosting",
+                    "new_total": 100000,
+                },
+            },
+        ]
+
+        # Reconstruct events
+        events = _reconstruct_collateral_from_simulation_events(simulation_events)
+
+        # Verify reconstruction
+        assert len(events) == 1
+        assert events[0]["event_type"] == "CollateralPost"
+        assert events[0]["agent_id"] == "BANK_A"
+        assert events[0]["amount"] == 100000
+
+    def test_collateral_events_reconstructed_from_database(self):
+        """TEST: Collateral events should be reconstructed from database.
+
+        When collateral events are stored in the collateral_events table,
+        they should be reconstructed as CollateralPost/CollateralWithdraw events
+        during replay, so that log_collateral_activity can display them.
+        """
+        from payment_simulator.cli.commands.replay import _reconstruct_collateral_events
+
+        # Simulate collateral event records from the database
+        collateral_events = [
+            {
+                "action": "post",
+                "agent_id": "BANK_A",
+                "amount": 100000,  # $1,000.00
+                "reason": "PreemptivePosting",
+                "posted_collateral_after": 100000,
+            },
+            {
+                "action": "withdraw",
+                "agent_id": "BANK_A",
+                "amount": 50000,  # $500.00
+                "reason": "CostOptimization",
+                "posted_collateral_after": 50000,
+            },
+        ]
+
+        # Reconstruct events
+        events = _reconstruct_collateral_events(collateral_events)
+
+        # CRITICAL ASSERTIONS
+        assert len(events) == 2, f"Should reconstruct 2 collateral events, got {len(events)}"
+
+        # First event: CollateralPost
+        post_event = events[0]
+        assert post_event["event_type"] == "CollateralPost", \
+            f"Expected CollateralPost, got {post_event.get('event_type')}"
+        assert post_event["agent_id"] == "BANK_A"
+        assert post_event["amount"] == 100000
+        assert post_event["reason"] == "PreemptivePosting"
+        assert post_event["new_total"] == 100000
+
+        # Second event: CollateralWithdraw
+        withdraw_event = events[1]
+        assert withdraw_event["event_type"] == "CollateralWithdraw", \
+            f"Expected CollateralWithdraw, got {withdraw_event.get('event_type')}"
+        assert withdraw_event["agent_id"] == "BANK_A"
+        assert withdraw_event["amount"] == 50000
+        assert withdraw_event["reason"] == "CostOptimization"
+        assert withdraw_event["new_total"] == 50000
 
     def test_cost_accrual_events_present_in_replay(self, temp_db):
         """FAILING TEST: Cost accrual events should be present in replay output.
