@@ -148,11 +148,14 @@ class TestRunReplayIdentity:
         #     f"Divisibility field missing from Arrival event. Event keys: {list(arrival.keys())}"
 
     def test_lsm_events_reconstructed_from_database(self):
-        """FAILING TEST: LSM cycle events should be reconstructed from database.
+        """TEST: LSM cycle events should be reconstructed from database.
 
         When LSM cycles are stored in the lsm_cycles table, they should be
         reconstructed as LsmBilateralOffset or LsmCycleSettlement events
         during replay, so that log_lsm_cycle_visualization can display them.
+
+        NOTE: Bilateral cycles have agent_ids = [A, B, A] (length 3) as the
+        Rust backend models them as a cycle.
         """
         from payment_simulator.cli.commands.replay import _reconstruct_lsm_events
 
@@ -160,7 +163,7 @@ class TestRunReplayIdentity:
         lsm_cycles = [
             {
                 "cycle_type": "bilateral",
-                "agent_ids": ["BANK_A", "BANK_B"],
+                "agent_ids": ["BANK_A", "BANK_B", "BANK_A"],  # Cycle format: [A, B, A]
                 "tx_ids": ["tx_001", "tx_002"],
                 "settled_value": 100000,  # $1,000.00
                 "tx_amounts": [100000, 100000],  # Both transactions for $1,000.00
@@ -408,19 +411,9 @@ class TestRunReplayIdentity:
             f"Expected ~200.0%, got {credit_util5}%"
 
     def test_lsm_bilateral_offset_events_reconstructed_from_simulation_events(self):
-        """FAILING TEST: LSM bilateral offset events should be reconstructed from simulation_events.
+        """TEST: LSM bilateral offset events should be reconstructed from simulation_events.
 
-        Currently, replay.py collects LSM events from simulation_events into lsm_events_raw
-        (line 771) but then doesn't use them! Instead, it uses lsm_data from the dedicated
-        lsm_cycles table (line 784).
-
-        This is inconsistent with how collateral events are handled (which use simulation_events
-        as primary source).
-
-        The fix should:
-        1. Create _reconstruct_lsm_events_from_simulation_events() function
-        2. Use it to reconstruct from lsm_events_raw
-        3. Fall back to lsm_data from table if needed (like collateral events do)
+        This verifies the primary reconstruction path from simulation_events table.
         """
         from payment_simulator.cli.commands.replay import _reconstruct_lsm_events_from_simulation_events
 
@@ -444,6 +437,47 @@ class TestRunReplayIdentity:
 
         # Verify reconstruction
         assert len(events) == 1
+        event = events[0]
+        assert event["event_type"] == "LsmBilateralOffset"
+        assert event["agent_a"] == "REGIONAL_TRUST"
+        assert event["agent_b"] == "CORRESPONDENT_HUB"
+        assert event["tx_id_a"] == "da24c87d"
+        assert event["tx_id_b"] == "75e5817a"
+        assert event["amount_a"] == 433387
+        assert event["amount_b"] == 420300
+
+    def test_lsm_bilateral_offset_from_lsm_cycles_table(self):
+        """FAILING TEST: LSM bilateral offsets should be reconstructed from lsm_cycles table.
+
+        This is the FALLBACK path when simulation_events doesn't have LSM data.
+
+        Root cause identified by user analysis:
+        - Bilateral cycles in lsm_cycles table have agent_ids = ["A", "B", "A"] (length 3)
+        - Current code checks: if len(cycle["agent_ids"]) == 2
+        - This check ALWAYS FAILS for bilateral cycles
+
+        The fix should check for length 3:
+            if len(cycle["agent_ids"]) == 3 and len(cycle["tx_ids"]) == 2:
+        """
+        from payment_simulator.cli.commands.replay import _reconstruct_lsm_events
+
+        # Simulate LSM cycle data from lsm_cycles table
+        # NOTE: Bilateral cycles have agent_ids = [A, B, A] (length 3)
+        lsm_cycles = [
+            {
+                "cycle_type": "bilateral",
+                "agent_ids": ["REGIONAL_TRUST", "CORRESPONDENT_HUB", "REGIONAL_TRUST"],  # Length 3!
+                "tx_ids": ["da24c87d", "75e5817a"],
+                "tx_amounts": [433387, 420300],
+                "settled_value": 853687,
+            }
+        ]
+
+        # Reconstruct events
+        events = _reconstruct_lsm_events(lsm_cycles)
+
+        # Verify reconstruction
+        assert len(events) == 1, f"Expected 1 event, got {len(events)}"
         event = events[0]
         assert event["event_type"] == "LsmBilateralOffset"
         assert event["agent_a"] == "REGIONAL_TRUST"
