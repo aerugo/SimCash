@@ -189,11 +189,11 @@ class DatabaseStateProvider:
 
     def get_agent_collateral_posted(self, agent_id: str) -> int:
         """Get collateral from agent_states."""
-        return self._agent_states[agent_id].get("collateral_posted", 0)
+        return self._agent_states.get(agent_id, {}).get("collateral_posted", 0)
 
     def get_agent_accumulated_costs(self, agent_id: str) -> dict:
         """Get costs from agent_states."""
-        state = self._agent_states[agent_id]
+        state = self._agent_states.get(agent_id, {})
         return {
             "liquidity_cost": state.get("liquidity_cost", 0),
             "delay_cost": state.get("delay_cost", 0),
