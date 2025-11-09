@@ -137,9 +137,12 @@ pub enum Event {
     /// Transaction settled via LSM bilateral offset
     LsmBilateralOffset {
         tick: usize,
+        agent_a: String,
+        agent_b: String,
         tx_id_a: String,
         tx_id_b: String,
-        amount: i64,
+        amount_a: i64,
+        amount_b: i64,
     },
 
     /// Transaction settled via LSM cycle detection

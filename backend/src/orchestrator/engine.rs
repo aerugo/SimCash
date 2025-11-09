@@ -2365,12 +2365,20 @@ impl Orchestrator {
                     eprintln!("[LSM DEBUG] Logging bilateral event with {} transactions: {:?}",
                         cycle_event.transactions.len(), cycle_event.transactions);
                 }
-                // Log as bilateral offset event
+                // Log as bilateral offset event with full details for visualization
+                let agent_a = cycle_event.agents.get(0).cloned().unwrap_or_else(|| "unknown".to_string());
+                let agent_b = cycle_event.agents.get(1).cloned().unwrap_or_else(|| "unknown".to_string());
+                let amount_a = cycle_event.tx_amounts.get(0).copied().unwrap_or(0);
+                let amount_b = cycle_event.tx_amounts.get(1).copied().unwrap_or(0);
+
                 self.log_event(Event::LsmBilateralOffset {
                     tick: cycle_event.tick,
+                    agent_a,
+                    agent_b,
                     tx_id_a: cycle_event.transactions[0].clone(),
                     tx_id_b: cycle_event.transactions[1].clone(),
-                    amount: cycle_event.settled_value,
+                    amount_a,
+                    amount_b,
                 });
             } else {
                 // Log as cycle settlement event (multilateral or complex bilateral)
