@@ -26,6 +26,7 @@ from payment_simulator.cli.output import (
     log_agent_state_from_db,
     log_cost_breakdown_from_db,
     log_lsm_cycle_visualization,
+    log_end_of_day_event,
     log_end_of_day_statistics,
     log_tick_summary,
     output_json,
@@ -655,10 +656,25 @@ def replay_simulation(
             tick_count_lsm = 0
 
             # Initialize previous balances for tracking changes
+            # For the first tick in replay range, we need the balances from the previous tick
+            # (or initial balances if from_tick == 0)
             prev_balances = {}
             agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
-            for agent_id in agent_ids:
-                prev_balances[agent_id] = 0  # Will be updated from database on first tick
+
+            if from_tick == 0:
+                # Use opening balances from config (stored in cents)
+                for agent_config in config_dict.get("agents", []):
+                    prev_balances[agent_config["id"]] = agent_config.get("opening_balance", 0)
+            else:
+                # Query agent states from previous tick
+                if has_full_replay:
+                    prev_tick_states = get_tick_agent_states(db_manager.conn, simulation_id, from_tick - 1)
+                    for state in prev_tick_states:
+                        prev_balances[state["agent_id"]] = state.get("balance", 0)
+                else:
+                    # Without full replay data, assume balances start at opening config values
+                    for agent_config in config_dict.get("agents", []):
+                        prev_balances[agent_config["id"]] = agent_config.get("opening_balance", 0)
 
             for tick_num in range(from_tick, end_tick + 1):
                 # ═══════════════════════════════════════════════════════════
@@ -828,6 +844,19 @@ def replay_simulation(
                                 "queue2_size": 0,  # Not tracked
                                 "total_costs": agent_total_cost,
                             })
+
+                    # Show end-of-day event (must match live execution output)
+                    # Query events from the last tick of the day
+                    last_tick_of_day = (current_day + 1) * ticks_per_day - 1
+                    eod_events_result = get_simulation_events(
+                        conn=db_manager.conn,
+                        simulation_id=simulation_id,
+                        tick=last_tick_of_day,
+                        sort="tick_asc",
+                        limit=1000,
+                        offset=0,
+                    )
+                    log_end_of_day_event(eod_events_result["events"])
 
                     log_end_of_day_statistics(
                         day=current_day,
