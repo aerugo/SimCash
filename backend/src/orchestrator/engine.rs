@@ -2329,6 +2329,11 @@ impl Orchestrator {
         let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
 
+        // Log LSM events for replay identity
+        for event in lsm_result.replay_events {
+            self.log_event(event);
+        }
+
         // DIAGNOSTIC LOGGING (continued)
         if std::env::var("LSM_DEBUG").is_ok() {
             eprintln!("[LSM DEBUG] Tick {}: LSM result: bilateral_offsets={}, cycles_settled={}, total_value=${:.2}, queue_after={}",
