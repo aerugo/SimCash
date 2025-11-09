@@ -22,7 +22,7 @@ use crate::models::agent::Agent;
 use crate::models::collateral_event::CollateralEvent;
 use crate::models::transaction::Transaction;
 use crate::settlement::lsm::LsmCycleEvent;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// Complete simulation state
 ///
@@ -46,10 +46,10 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct SimulationState {
     /// All agents (banks) in the system, indexed by ID
-    agents: HashMap<String, Agent>,
+    agents: BTreeMap<String, Agent>,
 
     /// All transactions, indexed by transaction ID
-    transactions: HashMap<String, Transaction>,
+    transactions: BTreeMap<String, Transaction>,
 
     /// Central RTGS queue: transaction IDs awaiting settlement
     ///
@@ -110,7 +110,7 @@ impl SimulationState {
 
         Self {
             agents: agents_map,
-            transactions: HashMap::new(),
+            transactions: BTreeMap::new(),
             rtgs_queue: Vec::new(),
             collateral_events: Vec::new(),
             lsm_cycle_events: Vec::new(),
@@ -121,8 +121,8 @@ impl SimulationState {
     ///
     /// # Arguments
     ///
-    /// * `agents` - HashMap of agents by ID
-    /// * `transactions` - HashMap of transactions by ID
+    /// * `agents` - BTreeMap of agents by ID
+    /// * `transactions` - BTreeMap of transactions by ID
     /// * `rtgs_queue` - Vector of transaction IDs in RTGS queue
     ///
     /// # Returns
@@ -135,8 +135,8 @@ impl SimulationState {
     /// - RTGS queue contains transaction IDs not in transactions map
     /// - Agents reference invalid transaction IDs in their queues
     pub fn from_parts(
-        agents: HashMap<String, Agent>,
-        transactions: HashMap<String, Transaction>,
+        agents: BTreeMap<String, Agent>,
+        transactions: BTreeMap<String, Transaction>,
         rtgs_queue: Vec<String>,
     ) -> Result<Self, String> {
         // Validate RTGS queue references
@@ -258,22 +258,22 @@ impl SimulationState {
     }
 
     /// Get reference to all agents
-    pub fn agents(&self) -> &HashMap<String, Agent> {
+    pub fn agents(&self) -> &BTreeMap<String, Agent> {
         &self.agents
     }
 
     /// Get mutable reference to all agents
-    pub fn agents_mut(&mut self) -> &mut HashMap<String, Agent> {
+    pub fn agents_mut(&mut self) -> &mut BTreeMap<String, Agent> {
         &mut self.agents
     }
 
     /// Get reference to all transactions
-    pub fn transactions(&self) -> &HashMap<String, Transaction> {
+    pub fn transactions(&self) -> &BTreeMap<String, Transaction> {
         &self.transactions
     }
 
     /// Get mutable reference to all transactions
-    pub fn transactions_mut(&mut self) -> &mut HashMap<String, Transaction> {
+    pub fn transactions_mut(&mut self) -> &mut BTreeMap<String, Transaction> {
         &mut self.transactions
     }
 
