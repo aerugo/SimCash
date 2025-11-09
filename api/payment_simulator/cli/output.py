@@ -1410,3 +1410,144 @@ def log_end_of_day_statistics(
 
     console.print("═" * 64)
     console.print()
+
+def log_transactions_near_deadline(
+    provider,
+    within_ticks: int,
+    current_tick: int,
+    quiet: bool = False
+) -> None:
+    """Display transactions approaching deadline (early warning).
+
+    Args:
+        provider: StateProvider instance
+        within_ticks: Number of ticks ahead to check (e.g., 2)
+        current_tick: Current tick number
+        quiet: If True, suppress output
+    """
+    if quiet:
+        return
+
+    transactions = provider.get_transactions_near_deadline(within_ticks)
+    if not transactions:
+        return
+
+    console.print()
+    console.print("[yellow]⚠️  Transactions Near Deadline (within 2 ticks):[/yellow]")
+
+    for tx in sorted(transactions, key=lambda t: t['deadline_tick']):
+        ticks_until = tx['ticks_until_deadline']
+        remaining = tx.get('remaining_amount', tx['amount'])
+
+        warning = "🔴 NEXT TICK!" if ticks_until <= 1 else "⚠️"
+
+        console.print(
+            f"  {warning} TX {tx['tx_id'][:8]}... | "
+            f"{tx['sender_id']} → {tx['receiver_id']} | "
+            f"${remaining / 100:,.2f} | "
+            f"Deadline: Tick {tx['deadline_tick']} ({ticks_until} tick{'s' if ticks_until != 1 else ''} away)"
+        )
+
+
+def log_overdue_transactions_summary(
+    provider,
+    quiet: bool = False
+) -> None:
+    """Display summary of all overdue transactions with costs.
+
+    Args:
+        provider: StateProvider instance
+        quiet: If True, suppress output
+    """
+    if quiet:
+        return
+
+    overdue_txs = provider.get_overdue_transactions()
+    if not overdue_txs:
+        return
+
+    console.print()
+    console.print("[red]🔥 Overdue Transactions:[/red]")
+
+    total_overdue_cost = 0
+
+    for tx in sorted(overdue_txs, key=lambda t: t.get('ticks_overdue', 0), reverse=True):
+        ticks_overdue = tx.get('ticks_overdue', 0)
+        total_cost = tx.get('total_overdue_cost', 0)
+        deadline_penalty = tx.get('deadline_penalty_cost', 0)
+        delay_cost = tx.get('estimated_delay_cost', 0)
+        remaining = tx.get('remaining_amount', tx['amount'])
+
+        total_overdue_cost += total_cost
+
+        console.print(
+            f"  🔥 TX {tx['tx_id'][:8]}... | "
+            f"{tx['sender_id']} → {tx['receiver_id']} | "
+            f"${remaining / 100:,.2f} | "
+            f"Overdue: {ticks_overdue} tick{'s' if ticks_overdue != 1 else ''}"
+        )
+        console.print(
+            f"     💸 Costs: Penalty ${deadline_penalty / 100:,.2f} + "
+            f"Delay ${delay_cost / 100:,.2f} = "
+            f"[bold red]${total_cost / 100:,.2f}[/bold red]"
+        )
+
+    if total_overdue_cost > 0:
+        console.print(f"\n  [bold red]Total Overdue Cost: ${total_overdue_cost / 100:,.2f}[/bold red]")
+
+
+def log_transaction_went_overdue_event(event: dict, quiet: bool = False) -> None:
+    """Log when a transaction becomes overdue.
+
+    Args:
+        event: TransactionWentOverdue event dict
+        quiet: If True, suppress output
+    """
+    if quiet:
+        return
+
+    console.print(
+        f"\n[red]❌ Transaction Went Overdue:[/red] TX {event['tx_id'][:8]}..."
+    )
+    console.print(
+        f"   {event['sender_id']} → {event['receiver_id']} | "
+        f"${event['remaining_amount'] / 100:,.2f}"
+    )
+    console.print(
+        f"   Deadline: Tick {event['deadline_tick']} | "
+        f"Current: Tick {event['tick']} | "
+        f"[red]{event['ticks_overdue']} tick{'s' if event['ticks_overdue'] != 1 else ''} late[/red]"
+    )
+    console.print(
+        f"   💸 Deadline Penalty Charged: [bold red]${event['deadline_penalty_cost'] / 100:,.2f}[/bold red]"
+    )
+
+
+def log_overdue_transaction_settled_event(event: dict, quiet: bool = False) -> None:
+    """Log when an overdue transaction is finally settled.
+
+    Args:
+        event: OverdueTransactionSettled event dict
+        quiet: If True, suppress output
+    """
+    if quiet:
+        return
+
+    console.print(
+        f"\n[green]✅ Overdue Transaction Settled:[/green] TX {event['tx_id'][:8]}..."
+    )
+    console.print(
+        f"   {event['sender_id']} → {event['receiver_id']} | "
+        f"${event['settled_amount'] / 100:,.2f}"
+    )
+    console.print(
+        f"   Was overdue for: [red]{event['total_ticks_overdue']} tick{'s' if event['total_ticks_overdue'] != 1 else ''}[/red] "
+        f"(Deadline: {event['deadline_tick']}, Overdue since: {event['overdue_since_tick']})"
+    )
+
+    total_cost = event['deadline_penalty_cost'] + event['estimated_delay_cost']
+    console.print(
+        f"   💸 Total Cost: Penalty ${event['deadline_penalty_cost'] / 100:,.2f} + "
+        f"Delay ${event['estimated_delay_cost'] / 100:,.2f} = "
+        f"[bold red]${total_cost / 100:,.2f}[/bold red]"
+    )
