@@ -433,7 +433,7 @@ def log_event_chronological(event: dict, tick: int, quiet: bool = False):
 # Enhanced Verbose Mode - Detailed Transaction/Event Logging
 # ============================================================================
 
-def log_transaction_arrivals(orch, events, quiet=False):
+def log_transaction_arrivals(provider, events, quiet=False):
     """Log detailed transaction arrivals (verbose mode).
 
     For each arrival event, shows:
@@ -444,7 +444,7 @@ def log_transaction_arrivals(orch, events, quiet=False):
     - Deadline tick
 
     Args:
-        orch: Orchestrator instance (for querying transaction details)
+        provider: StateProvider instance (for querying transaction details if needed)
         events: List of events from get_tick_events()
         quiet: Suppress output if True
 
@@ -469,13 +469,19 @@ def log_transaction_arrivals(orch, events, quiet=False):
         receiver = event["receiver_id"]
         amount = event["amount"]
 
-        # Get full transaction details for priority/deadline
-        tx_details = orch.get_transaction_details(event["tx_id"])
-        if not tx_details:
-            continue
+        # Prefer priority/deadline from event (replay), but fall back to querying (live)
+        priority = event.get("priority")
+        deadline = event.get("deadline_tick")
 
-        priority = tx_details["priority"]
-        deadline = tx_details["deadline_tick"]
+        if priority is None or deadline is None:
+            # Fall back to querying transaction details (live execution)
+            tx_details = provider.get_transaction_details(event["tx_id"])
+            if tx_details:
+                priority = tx_details.get("priority", 0)
+                deadline = tx_details.get("deadline_tick", 0)
+            else:
+                priority = 0
+                deadline = 0
 
         # Color code priority
         if priority >= 7:
@@ -491,7 +497,7 @@ def log_transaction_arrivals(orch, events, quiet=False):
         console.print(f"     {amount_str} | {priority_str} | ⏰ Tick {deadline}")
 
 
-def log_settlement_details(orch, events, tick, quiet=False):
+def log_settlement_details(provider, events, tick, quiet=False):
     """Log detailed settlements showing how each transaction settled.
 
     Categorizes settlements by mechanism:
@@ -500,7 +506,7 @@ def log_settlement_details(orch, events, tick, quiet=False):
     - LSM Cycle: Part of multilateral netting cycle
 
     Args:
-        orch: Orchestrator instance
+        provider: StateProvider instance (not currently used, for consistency)
         events: List of events from get_tick_events()
         tick: Current tick number
         quiet: Suppress output if True
@@ -1012,11 +1018,10 @@ def log_end_of_day_event(events, quiet=False):
         console.print()
 
 
-def log_lsm_cycle_visualization(orch, events, quiet=False):
+def log_lsm_cycle_visualization(events, quiet=False):
     """Visualize LSM cycles showing circular payment chains (verbose mode).
 
     Args:
-        orch: Orchestrator instance (for querying transaction details)
         events: List of events from get_tick_events()
         quiet: Suppress output if True
 
