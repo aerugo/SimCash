@@ -1371,7 +1371,7 @@ impl PyOrchestrator {
         // Iterate through all transactions
         for tx in self.inner.state().transactions().values() {
             // Skip if already settled or overdue
-            if tx.is_settled() || tx.is_overdue() {
+            if tx.is_fully_settled() || tx.is_overdue() {
                 continue;
             }
 
@@ -1416,15 +1416,15 @@ impl PyOrchestrator {
     /// ```
     fn get_overdue_transactions(&self, py: Python) -> PyResult<PyObject> {
         let current_tick = self.inner.current_tick();
-        // Access cost_rates directly from inner orchestrator
-        let cost_rates = &self.inner.cost_rates;
+        // Access cost_rates via getter method
+        let cost_rates = self.inner.cost_rates();
 
         let py_list = PyList::empty(py);
 
         // Iterate through all transactions
         for tx in self.inner.state().transactions().values() {
             // Only include overdue transactions that are not yet fully settled
-            if !tx.is_overdue() || tx.is_settled() {
+            if !tx.is_overdue() || tx.is_fully_settled() {
                 continue;
             }
 
