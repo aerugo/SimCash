@@ -62,6 +62,28 @@ class StateProvider(Protocol):
         """Get size of agent's internal queue."""
         ...
 
+    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
+        """Get transactions approaching their deadline.
+
+        Args:
+            within_ticks: Number of ticks ahead to check (e.g., 2 for "within 2 ticks")
+
+        Returns:
+            List of transaction dicts with keys: tx_id, sender_id, receiver_id,
+            amount, remaining_amount, deadline_tick, ticks_until_deadline
+        """
+        ...
+
+    def get_overdue_transactions(self) -> list[dict]:
+        """Get all currently overdue transactions with cost data.
+
+        Returns:
+            List of overdue transaction dicts with keys: tx_id, sender_id, receiver_id,
+            amount, remaining_amount, deadline_tick, overdue_since_tick, ticks_overdue,
+            estimated_delay_cost, deadline_penalty_cost, total_overdue_cost
+        """
+        ...
+
 
 class OrchestratorStateProvider:
     """StateProvider implementation wrapping live Orchestrator (FFI).
@@ -108,6 +130,14 @@ class OrchestratorStateProvider:
     def get_queue1_size(self, agent_id: str) -> int:
         """Delegate to orchestrator."""
         return self.orch.get_queue1_size(agent_id)
+
+    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
+        """Delegate to orchestrator."""
+        return self.orch.get_transactions_near_deadline(within_ticks)
+
+    def get_overdue_transactions(self) -> list[dict]:
+        """Delegate to orchestrator."""
+        return self.orch.get_overdue_transactions()
 
 
 class DatabaseStateProvider:
@@ -205,3 +235,82 @@ class DatabaseStateProvider:
     def get_queue1_size(self, agent_id: str) -> int:
         """Get queue1 size."""
         return len(self.get_agent_queue1_contents(agent_id))
+
+    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
+        """Get transactions approaching deadline from cache."""
+        threshold = self.tick + within_ticks
+        near_deadline = []
+
+        for tx_id, tx in self._tx_cache.items():
+            # Skip settled transactions
+            if tx.get("status") == "settled":
+                continue
+
+            # Skip if fully settled (check remaining amount)
+            amount_settled = tx.get("amount_settled", 0)
+            remaining = tx["amount"] - amount_settled
+            if remaining <= 0:
+                continue
+
+            # Check if near deadline (within threshold but not past)
+            deadline = tx["deadline_tick"]
+            if self.tick < deadline <= threshold:
+                near_deadline.append({
+                    "tx_id": tx["tx_id"],
+                    "sender_id": tx["sender_id"],
+                    "receiver_id": tx["receiver_id"],
+                    "amount": tx["amount"],
+                    "remaining_amount": remaining,
+                    "deadline_tick": deadline,
+                    "ticks_until_deadline": deadline - self.tick,
+                })
+
+        return near_deadline
+
+    def get_overdue_transactions(self) -> list[dict]:
+        """Get overdue transactions by querying simulation_events."""
+        # Query for TransactionWentOverdue events up to current tick
+        # to find which transactions are currently overdue
+        query = """
+            SELECT details
+            FROM simulation_events
+            WHERE simulation_id = ?
+                AND event_type = 'TransactionWentOverdue'
+                AND tick <= ?
+            ORDER BY tick ASC
+        """
+
+        import json
+        overdue_txs = {}  # Map tx_id -> overdue event details
+
+        rows = self.conn.execute(query, [self.simulation_id, self.tick]).fetchall()
+        for row in rows:
+            event = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            tx_id = event["tx_id"]
+
+            # Check if this transaction has been settled since going overdue
+            tx = self._tx_cache.get(tx_id)
+            if tx and tx.get("status") == "settled":
+                continue  # Skip settled transactions
+
+            # Calculate current overdue status
+            overdue_since = event["tick"]
+            ticks_overdue = self.tick - overdue_since
+
+            overdue_txs[tx_id] = {
+                "tx_id": tx_id,
+                "sender_id": event["sender_id"],
+                "receiver_id": event["receiver_id"],
+                "amount": event["amount"],
+                "remaining_amount": event.get("remaining_amount", event["amount"]),
+                "deadline_tick": event["deadline_tick"],
+                "overdue_since_tick": overdue_since,
+                "ticks_overdue": ticks_overdue,
+                "deadline_penalty_cost": event.get("deadline_penalty_cost", 0),
+                # Estimate current delay cost
+                # Note: This is a simplified calculation
+                "estimated_delay_cost": event.get("deadline_penalty_cost", 0) // 10 * ticks_overdue,
+                "total_overdue_cost": event.get("deadline_penalty_cost", 0) + (event.get("deadline_penalty_cost", 0) // 10 * ticks_overdue),
+            }
+
+        return list(overdue_txs.values())
