@@ -185,8 +185,9 @@ def _reconstruct_lsm_events(lsm_cycles: list[dict]) -> list[dict]:
 
     for cycle in lsm_cycles:
         if cycle["cycle_type"] == "bilateral":
-            # Bilateral offset: 2 agents, 2 transactions
-            if len(cycle["agent_ids"]) == 2 and len(cycle["tx_ids"]) == 2:
+            # Bilateral offset: agent_ids = [A, B, A] (length 3), 2 transactions
+            # The Rust backend models bilateral offsets as a cycle [A, B, A]
+            if len(cycle["agent_ids"]) == 3 and len(cycle["tx_ids"]) == 2:
                 # Get transaction amounts from database (if available)
                 tx_amounts = cycle.get("tx_amounts", [])
                 if len(tx_amounts) >= 2:
