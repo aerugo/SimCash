@@ -194,9 +194,13 @@ def test_get_overdue_transactions_with_overdue_tx():
     )
 
     # Advance past deadline
-    orch.tick()  # tick 1
-    orch.tick()  # tick 2
-    orch.tick()  # tick 3 - now overdue
+    # Note: deadline_tick=2 means "must settle by tick 2"
+    # Transaction becomes overdue at tick 3 (when current_tick > deadline_tick)
+    # We need to PROCESS tick 3 to detect this
+    orch.tick()  # Process tick 0, advance to tick 1
+    orch.tick()  # Process tick 1, advance to tick 2
+    orch.tick()  # Process tick 2, advance to tick 3
+    orch.tick()  # Process tick 3 - now overdue is detected
 
     overdue = orch.get_overdue_transactions()
     assert len(overdue) == 1
@@ -249,9 +253,11 @@ def test_get_overdue_transactions_accumulates_delay_cost():
     )
 
     # Advance to tick 3 (1 tick overdue)
-    orch.tick()
-    orch.tick()
-    orch.tick()
+    # Need to PROCESS tick 3 to detect overdue status
+    orch.tick()  # Process tick 0
+    orch.tick()  # Process tick 1
+    orch.tick()  # Process tick 2
+    orch.tick()  # Process tick 3 - detect overdue
 
     overdue_1 = orch.get_overdue_transactions()[0]
     assert overdue_1["ticks_overdue"] == 1
@@ -299,11 +305,13 @@ def test_transaction_went_overdue_event_emitted():
     )
 
     # Process up to deadline
-    orch.tick()  # tick 1
-    orch.tick()  # tick 2
+    orch.tick()  # Process tick 0
+    orch.tick()  # Process tick 1
+    orch.tick()  # Process tick 2 (deadline tick, still valid)
 
     # Should emit event when going overdue
-    orch.tick()  # tick 3 - becomes overdue
+    # Need to PROCESS tick 3 to detect overdue (when current_tick > deadline_tick)
+    orch.tick()  # Process tick 3 - becomes overdue
 
     events = orch.get_tick_events(3)
     overdue_events = [e for e in events if e.get("event_type") == "TransactionWentOverdue"]
