@@ -147,16 +147,49 @@ class TestRunReplayIdentity:
         # assert "is_divisible" in arrival or "divisible" in arrival, \
         #     f"Divisibility field missing from Arrival event. Event keys: {list(arrival.keys())}"
 
-    def test_lsm_events_present_in_replay(self, temp_db):
-        """FAILING TEST: LSM cycle events should be present in replay output.
+    def test_lsm_events_reconstructed_from_database(self):
+        """FAILING TEST: LSM cycle events should be reconstructed from database.
 
-        This test will need to create a scenario where LSM cycles occur,
-        then verify they're captured in events and shown in replay.
+        When LSM cycles are stored in the lsm_cycles table, they should be
+        reconstructed as LsmBilateralOffset or LsmCycleSettlement events
+        during replay, so that log_lsm_cycle_visualization can display them.
         """
-        # TODO: Create config that triggers LSM cycles
-        # TODO: Verify LSM events are persisted
-        # TODO: Verify LSM events are reconstructed in replay
-        pytest.skip("LSM test scenario needs specific config to trigger cycles")
+        from payment_simulator.cli.commands.replay import _reconstruct_lsm_events
+
+        # Simulate an LSM bilateral cycle record from the database
+        lsm_cycles = [
+            {
+                "cycle_type": "bilateral",
+                "agent_ids": ["BANK_A", "BANK_B"],
+                "tx_ids": ["tx_001", "tx_002"],
+                "settled_value": 100000,  # $1,000.00
+                "tx_amounts": [100000, 100000],  # Both transactions for $1,000.00
+            }
+        ]
+
+        # Reconstruct events
+        events = _reconstruct_lsm_events(lsm_cycles)
+
+        # CRITICAL ASSERTIONS
+        assert len(events) == 1, "Should reconstruct 1 LSM event"
+
+        event = events[0]
+        assert event["event_type"] == "LsmBilateralOffset", \
+            f"Expected LsmBilateralOffset, got {event.get('event_type')}"
+
+        # Verify all required fields are present for visualization
+        assert "agent_a" in event, "Missing agent_a for bilateral offset"
+        assert "agent_b" in event, "Missing agent_b for bilateral offset"
+        assert "tx_id_a" in event, "Missing tx_id_a for bilateral offset"
+        assert "tx_id_b" in event, "Missing tx_id_b for bilateral offset"
+        assert "amount" in event, "Missing amount for bilateral offset"
+
+        # Verify values
+        assert event["agent_a"] == "BANK_A"
+        assert event["agent_b"] == "BANK_B"
+        assert event["tx_id_a"] == "tx_001"
+        assert event["tx_id_b"] == "tx_002"
+        assert event["amount"] == 100000
 
     def test_collateral_events_present_in_replay(self, temp_db):
         """FAILING TEST: Collateral events should be present in replay output.

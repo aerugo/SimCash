@@ -984,10 +984,15 @@ impl PyOrchestrator {
                     event_dict.set_item("tx_id", tx_id)?;
                     event_dict.set_item("sender_id", sender_id)?;
                 }
-                crate::models::event::Event::LsmBilateralOffset { tx_id_a, tx_id_b, amount, .. } => {
+                crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_id_a, tx_id_b, amount_a, amount_b, .. } => {
+                    event_dict.set_item("agent_a", agent_a)?;
+                    event_dict.set_item("agent_b", agent_b)?;
                     event_dict.set_item("tx_id_a", tx_id_a)?;
                     event_dict.set_item("tx_id_b", tx_id_b)?;
-                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("amount_a", amount_a)?;
+                    event_dict.set_item("amount_b", amount_b)?;
+                    // Also set "amount" for backward compatibility (sum of the two)
+                    event_dict.set_item("amount", amount_a + amount_b)?;
                 }
                 crate::models::event::Event::LsmCycleSettlement { tx_ids, cycle_value, .. } => {
                     event_dict.set_item("tx_ids", tx_ids)?;
@@ -1107,10 +1112,15 @@ impl PyOrchestrator {
                     event_dict.set_item("tx_id", tx_id)?;
                     event_dict.set_item("sender_id", sender_id)?;
                 }
-                crate::models::event::Event::LsmBilateralOffset { tx_id_a, tx_id_b, amount, .. } => {
+                crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_id_a, tx_id_b, amount_a, amount_b, .. } => {
+                    event_dict.set_item("agent_a", agent_a)?;
+                    event_dict.set_item("agent_b", agent_b)?;
                     event_dict.set_item("tx_id_a", tx_id_a)?;
                     event_dict.set_item("tx_id_b", tx_id_b)?;
-                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("amount_a", amount_a)?;
+                    event_dict.set_item("amount_b", amount_b)?;
+                    // Also set "amount" for backward compatibility (sum of the two)
+                    event_dict.set_item("amount", amount_a + amount_b)?;
                 }
                 crate::models::event::Event::LsmCycleSettlement { tx_ids, cycle_value, .. } => {
                     event_dict.set_item("tx_ids", tx_ids)?;
