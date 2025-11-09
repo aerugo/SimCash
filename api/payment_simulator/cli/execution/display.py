@@ -64,11 +64,15 @@ def display_tick_verbose_output(
         log_cost_accrual_events,
         log_cost_breakdown,
         log_lsm_cycle_visualization,
+        log_overdue_transaction_settled_event,
+        log_overdue_transactions_summary,
         log_policy_decisions,
         log_queued_rtgs,
         log_settlement_details,
         log_tick_summary,
         log_transaction_arrivals,
+        log_transaction_went_overdue_event,
+        log_transactions_near_deadline,
     )
 
     if quiet:
@@ -84,6 +88,11 @@ def display_tick_verbose_output(
     # ═══════════════════════════════════════════════════════════
     if num_arrivals > 0:
         log_transaction_arrivals(provider, display_events)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 1.5: NEAR-DEADLINE WARNINGS (early warning system)
+    # ═══════════════════════════════════════════════════════════
+    log_transactions_near_deadline(provider, within_ticks=2, current_tick=tick_num)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 2: POLICY DECISIONS
@@ -113,6 +122,24 @@ def display_tick_verbose_output(
     # SECTION 5: COLLATERAL ACTIVITY
     # ═══════════════════════════════════════════════════════════
     log_collateral_activity(display_events)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 5.5: OVERDUE TRANSACTION EVENTS
+    # ═══════════════════════════════════════════════════════════
+    # Log when transactions become overdue
+    for event in display_events:
+        if event.get("event_type") == "TransactionWentOverdue":
+            log_transaction_went_overdue_event(event)
+
+    # Log when overdue transactions are settled
+    for event in display_events:
+        if event.get("event_type") == "OverdueTransactionSettled":
+            log_overdue_transaction_settled_event(event)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 5.6: OVERDUE TRANSACTIONS SUMMARY
+    # ═══════════════════════════════════════════════════════════
+    log_overdue_transactions_summary(provider)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 6: AGENT STATES (detailed queues)

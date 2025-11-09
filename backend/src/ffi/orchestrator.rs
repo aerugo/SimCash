@@ -1020,6 +1020,35 @@ impl PyOrchestrator {
                     event_dict.set_item("unsettled_count", unsettled_count)?;
                     event_dict.set_item("total_penalties", total_penalties)?;
                 }
+                crate::models::event::Event::TransactionWentOverdue {
+                    tx_id, sender_id, receiver_id, amount, remaining_amount,
+                    deadline_tick, ticks_overdue, deadline_penalty_cost, ..
+                } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                    event_dict.set_item("receiver_id", receiver_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("remaining_amount", remaining_amount)?;
+                    event_dict.set_item("deadline_tick", deadline_tick)?;
+                    event_dict.set_item("ticks_overdue", ticks_overdue)?;
+                    event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
+                }
+                crate::models::event::Event::OverdueTransactionSettled {
+                    tx_id, sender_id, receiver_id, amount, settled_amount,
+                    deadline_tick, overdue_since_tick, total_ticks_overdue,
+                    deadline_penalty_cost, estimated_delay_cost, ..
+                } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                    event_dict.set_item("receiver_id", receiver_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("settled_amount", settled_amount)?;
+                    event_dict.set_item("deadline_tick", deadline_tick)?;
+                    event_dict.set_item("overdue_since_tick", overdue_since_tick)?;
+                    event_dict.set_item("total_ticks_overdue", total_ticks_overdue)?;
+                    event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
+                    event_dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
+                }
             }
 
             py_list.append(event_dict)?;
@@ -1155,6 +1184,35 @@ impl PyOrchestrator {
                     event_dict.set_item("unsettled_count", unsettled_count)?;
                     event_dict.set_item("total_penalties", total_penalties)?;
                 }
+                crate::models::event::Event::TransactionWentOverdue {
+                    tx_id, sender_id, receiver_id, amount, remaining_amount,
+                    deadline_tick, ticks_overdue, deadline_penalty_cost, ..
+                } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                    event_dict.set_item("receiver_id", receiver_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("remaining_amount", remaining_amount)?;
+                    event_dict.set_item("deadline_tick", deadline_tick)?;
+                    event_dict.set_item("ticks_overdue", ticks_overdue)?;
+                    event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
+                }
+                crate::models::event::Event::OverdueTransactionSettled {
+                    tx_id, sender_id, receiver_id, amount, settled_amount,
+                    deadline_tick, overdue_since_tick, total_ticks_overdue,
+                    deadline_penalty_cost, estimated_delay_cost, ..
+                } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender_id", sender_id)?;
+                    event_dict.set_item("receiver_id", receiver_id)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("settled_amount", settled_amount)?;
+                    event_dict.set_item("deadline_tick", deadline_tick)?;
+                    event_dict.set_item("overdue_since_tick", overdue_since_tick)?;
+                    event_dict.set_item("total_ticks_overdue", total_ticks_overdue)?;
+                    event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
+                    event_dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
+                }
             }
 
             py_list.append(event_dict)?;
@@ -1281,5 +1339,126 @@ impl PyOrchestrator {
     /// ```
     fn get_agent_collateral_posted(&self, agent_id: String) -> Option<i64> {
         self.inner.get_agent_collateral_posted(&agent_id)
+    }
+
+    /// Get transactions approaching their deadline
+    ///
+    /// Returns transactions that will go overdue within the specified number of ticks.
+    /// Used for early warning displays in verbose output.
+    ///
+    /// # Arguments
+    ///
+    /// * `within_ticks` - Number of ticks ahead to check (e.g., 2 for "within 2 ticks")
+    ///
+    /// # Returns
+    ///
+    /// List of transaction dictionaries for transactions approaching deadline.
+    /// Only includes transactions that are not yet overdue.
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// near_deadline = orch.get_transactions_near_deadline(within_ticks=2)
+    /// for tx in near_deadline:
+    ///     print(f"TX {tx['tx_id']} will be overdue in {tx['deadline_tick'] - orch.current_tick()} ticks")
+    /// ```
+    fn get_transactions_near_deadline(&self, py: Python, within_ticks: usize) -> PyResult<PyObject> {
+        let current_tick = self.inner.current_tick();
+        let threshold = current_tick + within_ticks;
+
+        let py_list = PyList::empty(py);
+
+        // Iterate through all transactions
+        for tx in self.inner.state().transactions().values() {
+            // Skip if already settled or overdue
+            if tx.is_fully_settled() || tx.is_overdue() {
+                continue;
+            }
+
+            // Check if deadline is within threshold
+            if tx.deadline_tick() <= threshold && tx.deadline_tick() >= current_tick {
+                let tx_dict = PyDict::new(py);
+                tx_dict.set_item("tx_id", tx.id())?;
+                tx_dict.set_item("sender_id", tx.sender_id())?;
+                tx_dict.set_item("receiver_id", tx.receiver_id())?;
+                tx_dict.set_item("amount", tx.amount())?;
+                tx_dict.set_item("remaining_amount", tx.remaining_amount())?;
+                tx_dict.set_item("deadline_tick", tx.deadline_tick())?;
+                tx_dict.set_item("ticks_until_deadline", tx.deadline_tick() as i64 - current_tick as i64)?;
+
+                py_list.append(tx_dict)?;
+            }
+        }
+
+        Ok(py_list.into())
+    }
+
+    /// Get all currently overdue transactions with cost data
+    ///
+    /// Returns all transactions that are currently overdue (past their deadline).
+    /// Includes calculated cost information for each transaction.
+    ///
+    /// # Returns
+    ///
+    /// List of transaction dictionaries with overdue cost calculations:
+    /// - Standard transaction fields (tx_id, sender_id, etc.)
+    /// - `ticks_overdue`: How many ticks past deadline
+    /// - `estimated_delay_cost`: Accumulated delay costs while overdue
+    /// - `deadline_penalty_cost`: One-time penalty when became overdue
+    /// - `total_overdue_cost`: Total cost (penalty + delay)
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// overdue = orch.get_overdue_transactions()
+    /// for tx in overdue:
+    ///     print(f"TX {tx['tx_id']} overdue for {tx['ticks_overdue']} ticks, cost: ${tx['total_overdue_cost'] / 100:.2f}")
+    /// ```
+    fn get_overdue_transactions(&self, py: Python) -> PyResult<PyObject> {
+        let current_tick = self.inner.current_tick();
+        // Access cost_rates via getter method
+        let cost_rates = self.inner.cost_rates();
+
+        let py_list = PyList::empty(py);
+
+        // Iterate through all transactions
+        for tx in self.inner.state().transactions().values() {
+            // Only include overdue transactions that are not yet fully settled
+            if !tx.is_overdue() || tx.is_fully_settled() {
+                continue;
+            }
+
+            let tx_dict = PyDict::new(py);
+            tx_dict.set_item("tx_id", tx.id())?;
+            tx_dict.set_item("sender_id", tx.sender_id())?;
+            tx_dict.set_item("receiver_id", tx.receiver_id())?;
+            tx_dict.set_item("amount", tx.amount())?;
+            tx_dict.set_item("remaining_amount", tx.remaining_amount())?;
+            tx_dict.set_item("deadline_tick", tx.deadline_tick())?;
+
+            // Add overdue-specific fields
+            if let Some(overdue_since) = tx.overdue_since_tick() {
+                let ticks_overdue = current_tick - overdue_since;
+                tx_dict.set_item("overdue_since_tick", overdue_since)?;
+                tx_dict.set_item("ticks_overdue", ticks_overdue)?;
+
+                // Estimate accumulated delay cost
+                let delay_cost = (tx.remaining_amount() as f64
+                    * cost_rates.delay_cost_per_tick_per_cent
+                    * cost_rates.overdue_delay_multiplier
+                    * ticks_overdue as f64)
+                    .round() as i64;
+
+                tx_dict.set_item("estimated_delay_cost", delay_cost)?;
+                tx_dict.set_item("deadline_penalty_cost", cost_rates.deadline_penalty)?;
+
+                let total_cost = cost_rates.deadline_penalty + delay_cost;
+                tx_dict.set_item("total_overdue_cost", total_cost)?;
+            }
+
+            py_list.append(tx_dict)?;
+        }
+
+        Ok(py_list.into())
     }
 }
