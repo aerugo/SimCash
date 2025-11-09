@@ -170,6 +170,41 @@ pub enum Event {
         unsettled_count: usize,
         total_penalties: i64,
     },
+
+    /// Transaction crossed its deadline and became overdue
+    ///
+    /// Emitted when a transaction first becomes overdue. The one-time deadline penalty
+    /// is charged at this moment. Subsequent delay costs use the overdue multiplier
+    /// (typically 5x) for escalating penalties.
+    TransactionWentOverdue {
+        tick: usize,
+        tx_id: String,
+        sender_id: String,
+        receiver_id: String,
+        amount: i64,                    // Total transaction amount
+        remaining_amount: i64,          // Unsettled amount
+        deadline_tick: usize,           // Original deadline
+        ticks_overdue: usize,           // How many ticks late
+        deadline_penalty_cost: i64,     // One-time penalty charged
+    },
+
+    /// Overdue transaction was finally settled
+    ///
+    /// Emitted when a transaction that is overdue gets settled (fully or partially).
+    /// Includes cost breakdown showing the total financial impact of being overdue.
+    OverdueTransactionSettled {
+        tick: usize,
+        tx_id: String,
+        sender_id: String,
+        receiver_id: String,
+        amount: i64,                    // Total transaction amount
+        settled_amount: i64,            // Amount settled this tick
+        deadline_tick: usize,           // Original deadline
+        overdue_since_tick: usize,      // When it became overdue
+        total_ticks_overdue: usize,     // Duration overdue
+        deadline_penalty_cost: i64,     // One-time penalty (already paid)
+        estimated_delay_cost: i64,      // Accumulated delay costs while overdue
+    },
 }
 
 impl Event {
@@ -190,6 +225,8 @@ impl Event {
             Event::LsmCycleSettlement { tick, .. } => *tick,
             Event::CostAccrual { tick, .. } => *tick,
             Event::EndOfDay { tick, .. } => *tick,
+            Event::TransactionWentOverdue { tick, .. } => *tick,
+            Event::OverdueTransactionSettled { tick, .. } => *tick,
         }
     }
 
@@ -210,6 +247,8 @@ impl Event {
             Event::LsmCycleSettlement { .. } => "LsmCycleSettlement",
             Event::CostAccrual { .. } => "CostAccrual",
             Event::EndOfDay { .. } => "EndOfDay",
+            Event::TransactionWentOverdue { .. } => "TransactionWentOverdue",
+            Event::OverdueTransactionSettled { .. } => "OverdueTransactionSettled",
         }
     }
 
@@ -224,6 +263,8 @@ impl Event {
             Event::TransactionReprioritized { tx_id, .. } => Some(tx_id),
             Event::Settlement { tx_id, .. } => Some(tx_id),
             Event::QueuedRtgs { tx_id, .. } => Some(tx_id),
+            Event::TransactionWentOverdue { tx_id, .. } => Some(tx_id),
+            Event::OverdueTransactionSettled { tx_id, .. } => Some(tx_id),
             _ => None,
         }
     }
@@ -242,6 +283,8 @@ impl Event {
             Event::Settlement { sender_id, .. } => Some(sender_id),
             Event::QueuedRtgs { sender_id, .. } => Some(sender_id),
             Event::CostAccrual { agent_id, .. } => Some(agent_id),
+            Event::TransactionWentOverdue { sender_id, .. } => Some(sender_id),
+            Event::OverdueTransactionSettled { sender_id, .. } => Some(sender_id),
             _ => None,
         }
     }
@@ -557,5 +600,102 @@ mod tests {
         log.clear();
         assert_eq!(log.len(), 0);
         assert!(log.is_empty());
+    }
+
+    #[test]
+    fn test_transaction_went_overdue_event() {
+        let event = Event::TransactionWentOverdue {
+            tick: 11,
+            tx_id: "tx_001".to_string(),
+            sender_id: "BANK_A".to_string(),
+            receiver_id: "BANK_B".to_string(),
+            amount: 100_000,
+            remaining_amount: 100_000,
+            deadline_tick: 10,
+            ticks_overdue: 1,
+            deadline_penalty_cost: 50_000, // $500
+        };
+
+        assert_eq!(event.tick(), 11);
+        assert_eq!(event.event_type(), "TransactionWentOverdue");
+        assert_eq!(event.tx_id(), Some("tx_001"));
+        assert_eq!(event.agent_id(), Some("BANK_A"));
+    }
+
+    #[test]
+    fn test_overdue_transaction_settled_event() {
+        let event = Event::OverdueTransactionSettled {
+            tick: 15,
+            tx_id: "tx_001".to_string(),
+            sender_id: "BANK_A".to_string(),
+            receiver_id: "BANK_B".to_string(),
+            amount: 100_000,
+            settled_amount: 100_000,
+            deadline_tick: 10,
+            overdue_since_tick: 11,
+            total_ticks_overdue: 4, // ticks 11-14
+            deadline_penalty_cost: 50_000,
+            estimated_delay_cost: 20_000,
+        };
+
+        assert_eq!(event.tick(), 15);
+        assert_eq!(event.event_type(), "OverdueTransactionSettled");
+        assert_eq!(event.tx_id(), Some("tx_001"));
+        assert_eq!(event.agent_id(), Some("BANK_A"));
+    }
+
+    #[test]
+    fn test_overdue_events_in_event_log() {
+        let mut log = EventLog::new();
+
+        log.log(Event::TransactionWentOverdue {
+            tick: 11,
+            tx_id: "tx_001".to_string(),
+            sender_id: "BANK_A".to_string(),
+            receiver_id: "BANK_B".to_string(),
+            amount: 100_000,
+            remaining_amount: 100_000,
+            deadline_tick: 10,
+            ticks_overdue: 1,
+            deadline_penalty_cost: 50_000,
+        });
+
+        log.log(Event::OverdueTransactionSettled {
+            tick: 15,
+            tx_id: "tx_001".to_string(),
+            sender_id: "BANK_A".to_string(),
+            receiver_id: "BANK_B".to_string(),
+            amount: 100_000,
+            settled_amount: 100_000,
+            deadline_tick: 10,
+            overdue_since_tick: 11,
+            total_ticks_overdue: 4,
+            deadline_penalty_cost: 50_000,
+            estimated_delay_cost: 20_000,
+        });
+
+        assert_eq!(log.len(), 2);
+
+        // Query by type
+        let went_overdue = log.events_of_type("TransactionWentOverdue");
+        assert_eq!(went_overdue.len(), 1);
+
+        let settled = log.events_of_type("OverdueTransactionSettled");
+        assert_eq!(settled.len(), 1);
+
+        // Query by transaction
+        let tx_events = log.events_for_tx("tx_001");
+        assert_eq!(tx_events.len(), 2);
+
+        // Query by agent
+        let agent_events = log.events_for_agent("BANK_A");
+        assert_eq!(agent_events.len(), 2);
+
+        // Query by tick
+        let tick11_events = log.events_at_tick(11);
+        assert_eq!(tick11_events.len(), 1);
+
+        let tick15_events = log.events_at_tick(15);
+        assert_eq!(tick15_events.len(), 1);
     }
 }
