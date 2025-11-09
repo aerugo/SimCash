@@ -1433,6 +1433,8 @@ impl Orchestrator {
             receiver_id: receiver_id.to_string(),
             amount,
             deadline: deadline_tick,
+            priority,
+            is_divisible: divisible,
         });
 
         Ok(tx_id_clone)
@@ -1922,6 +1924,8 @@ impl Orchestrator {
                         receiver_id: tx.receiver_id().to_string(),
                         amount: tx.amount(),
                         deadline: tx.deadline_tick(),
+                        priority: tx.priority(),
+                        is_divisible: false, // TODO: Add is_divisible to Transaction struct
                     });
 
                     self.state.add_transaction(tx);
