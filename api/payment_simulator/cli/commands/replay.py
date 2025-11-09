@@ -654,6 +654,12 @@ def replay_simulation(
             tick_count_settlements = 0
             tick_count_lsm = 0
 
+            # Initialize previous balances for tracking changes
+            prev_balances = {}
+            agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
+            for agent_id in agent_ids:
+                prev_balances[agent_id] = 0  # Will be updated from database on first tick
+
             for tick_num in range(from_tick, end_tick + 1):
                 # ═══════════════════════════════════════════════════════════
                 # TICK HEADER
@@ -714,20 +720,12 @@ def replay_simulation(
                 tick_count_lsm += num_lsm
 
                 # ═══════════════════════════════════════════════════════════
-                # SECTION 1: ARRIVALS (detailed)
+                # PREPARE DATA FOR SHARED DISPLAY FUNCTION
                 # ═══════════════════════════════════════════════════════════
-                if num_arrivals > 0:
-                    log_transaction_arrivals(mock_orch, arrival_events)
-
-                # ═══════════════════════════════════════════════════════════
-                # SECTION 2: POLICY DECISIONS (from database if available)
-                # ═══════════════════════════════════════════════════════════
+                # Query policy decisions and add to events
+                policy_events = []
                 if has_full_replay:
-                    # Query policy decisions from database
                     policy_decisions = get_policy_decisions_by_tick(db_manager.conn, simulation_id, tick_num)
-
-                    # Convert to event format for display
-                    policy_events = []
                     for decision in policy_decisions:
                         event_type_map = {
                             "submit": "PolicySubmit",
@@ -736,88 +734,64 @@ def replay_simulation(
                             "split": "PolicySplit",
                         }
                         event_type = event_type_map.get(decision["decision_type"], "PolicySubmit")
-
                         policy_event = {
                             "event_type": event_type,
                             "agent_id": decision["agent_id"],
                             "tx_id": decision["tx_id"],
                             "reason": decision.get("reason"),
                         }
-
                         if event_type == "PolicySplit":
                             policy_event["num_splits"] = decision.get("num_splits")
                             if decision.get("child_tx_ids"):
                                 import json
                                 policy_event["child_ids"] = json.loads(decision["child_tx_ids"])
-
                         policy_events.append(policy_event)
 
-                    if policy_events:
-                        log_policy_decisions(policy_events)
+                # Add policy events to events list for display
+                all_events = events + policy_events
 
-                # ═══════════════════════════════════════════════════════════
-                # SECTION 3: SETTLEMENTS (detailed with mechanisms)
-                # ═══════════════════════════════════════════════════════════
-                if num_settlements > 0 or num_lsm > 0:
-                    log_settlement_details(mock_orch, events, tick_num)
-
-                # ═══════════════════════════════════════════════════════════
-                # SECTION 4: LSM CYCLE VISUALIZATION
-                # ═══════════════════════════════════════════════════════════
-                if num_lsm > 0:
-                    log_lsm_cycle_visualization(mock_orch, lsm_events)
-
-                # ═══════════════════════════════════════════════════════════
-                # SECTION 5: COLLATERAL ACTIVITY
-                # ═══════════════════════════════════════════════════════════
-                if len(collateral_events) > 0:
-                    log_collateral_activity(collateral_events)
-
-                # ═══════════════════════════════════════════════════════════
-                # SECTION 6: AGENT STATES (from database if available)
-                # ═══════════════════════════════════════════════════════════
+                # Query agent states and queue snapshots (needed for DatabaseStateProvider)
+                agent_states_list = []
+                queue_snapshots = {}
+                total_cost = 0
                 if has_full_replay:
-                    # Query agent states from database
-                    agent_states = get_tick_agent_states(db_manager.conn, simulation_id, tick_num)
-
-                    # Query queue snapshots from database
+                    agent_states_list = get_tick_agent_states(db_manager.conn, simulation_id, tick_num)
                     queue_snapshots = get_tick_queue_snapshots(db_manager.conn, simulation_id, tick_num)
+                    # Calculate total cost from agent states
+                    for state in agent_states_list:
+                        costs = state.get("costs", {})
+                        total_cost += costs.get("total", 0)
 
-                    # Display agent states
-                    console.print()
-                    console.print("  [bold]Agent States:[/bold]")
-
-                    # Group states by agent_id
-                    states_by_agent = {state["agent_id"]: state for state in agent_states}
-
-                    for agent_id, state in states_by_agent.items():
-                        # Get queue data for this agent
-                        agent_queues = queue_snapshots.get(agent_id, {})
-                        log_agent_state_from_db(mock_orch, agent_id, state, agent_queues)
+                # Convert agent_states list to dict for DatabaseStateProvider
+                agent_states_dict = {state["agent_id"]: state for state in agent_states_list}
 
                 # ═══════════════════════════════════════════════════════════
-                # SECTION 7: COST BREAKDOWN (from database if available)
+                # USE SHARED DISPLAY FUNCTION (SINGLE SOURCE OF TRUTH)
                 # ═══════════════════════════════════════════════════════════
-                if has_full_replay:
-                    # agent_states already queried above, use it for cost display
-                    log_cost_breakdown_from_db(agent_states)
+                from payment_simulator.cli.execution.display import display_tick_verbose_output
+                from payment_simulator.cli.execution.state_provider import DatabaseStateProvider
 
-                # ═══════════════════════════════════════════════════════════
-                # SECTION 8: TICK SUMMARY
-                # ═══════════════════════════════════════════════════════════
-                # Calculate real queued count from database if available
-                queued_count = 0
-                if has_full_replay:
-                    # Count all queued transactions from queue snapshots
-                    for agent_id, queues in queue_snapshots.items():
-                        queued_count += len(queues.get("queue1", []))
-                        queued_count += len(queues.get("rtgs", []))
+                # Create DatabaseStateProvider for replay
+                provider = DatabaseStateProvider(
+                    conn=db_manager.conn,
+                    simulation_id=simulation_id,
+                    tick=tick_num,
+                    tx_cache=mock_orch._tx_cache,
+                    agent_states=agent_states_dict,
+                    queue_snapshots=queue_snapshots,
+                )
 
-                log_tick_summary(
-                    num_arrivals,
-                    num_settlements,
-                    num_lsm,
-                    queued_count
+                # Call shared display function - ensures live and replay can NEVER diverge
+                prev_balances = display_tick_verbose_output(
+                    provider=provider,
+                    events=all_events,
+                    tick_num=tick_num,
+                    agent_ids=agent_ids,
+                    prev_balances=prev_balances,
+                    num_arrivals=num_arrivals,
+                    num_settlements=num_settlements,
+                    num_lsm_releases=num_lsm,
+                    total_cost=total_cost,
                 )
 
                 # ═══════════════════════════════════════════════════════════
