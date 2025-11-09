@@ -242,6 +242,37 @@ def _reconstruct_lsm_events(lsm_cycles: list[dict]) -> list[dict]:
     return events
 
 
+def _reconstruct_collateral_events_from_simulation_events(events: list[dict]) -> list[dict]:
+    """Reconstruct collateral events from simulation_events table.
+
+    Args:
+        events: List of simulation event records with event_type = 'CollateralPost' or 'CollateralWithdraw'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+
+    Examples:
+        >>> events = [{"event_type": "CollateralPost", "agent_id": "BANK_A", "details": {...}}]
+        >>> collateral = _reconstruct_collateral_events_from_simulation_events(events)
+        >>> collateral[0]["event_type"]
+        'CollateralPost'
+    """
+    result = []
+    for event in events:
+        event_type = event["event_type"]
+        details = event.get("details", {})
+
+        if event_type in ["CollateralPost", "CollateralWithdraw"]:
+            result.append({
+                "event_type": event_type,
+                "agent_id": event.get("agent_id") or details.get("agent_id"),
+                "amount": details.get("amount", 0),
+                "reason": details.get("reason", ""),
+                "new_total": details.get("new_total", 0),
+            })
+    return result
+
+
 def _reconstruct_collateral_events(collateral_events: list[dict]) -> list[dict]:
     """Reconstruct collateral events from database records.
 
@@ -718,7 +749,13 @@ def replay_simulation(
                 arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
                 settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
                 lsm_events = _reconstruct_lsm_events(lsm_data)
-                collateral_events = _reconstruct_collateral_events(collateral_data)
+
+                # Reconstruct collateral events from BOTH sources (simulation_events and dedicated table)
+                collateral_from_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
+                collateral_from_table = _reconstruct_collateral_events(collateral_data)
+
+                # Prefer simulation_events if available (more complete), otherwise use table
+                collateral_events = collateral_from_events if collateral_from_events else collateral_from_table
 
                 # Combine all events
                 events = arrival_events + settlement_events + lsm_events + collateral_events
