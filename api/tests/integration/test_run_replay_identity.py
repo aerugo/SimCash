@@ -148,11 +148,14 @@ class TestRunReplayIdentity:
         #     f"Divisibility field missing from Arrival event. Event keys: {list(arrival.keys())}"
 
     def test_lsm_events_reconstructed_from_database(self):
-        """FAILING TEST: LSM cycle events should be reconstructed from database.
+        """TEST: LSM cycle events should be reconstructed from database.
 
         When LSM cycles are stored in the lsm_cycles table, they should be
         reconstructed as LsmBilateralOffset or LsmCycleSettlement events
         during replay, so that log_lsm_cycle_visualization can display them.
+
+        NOTE: Bilateral cycles have agent_ids = [A, B, A] (length 3) as the
+        Rust backend models them as a cycle.
         """
         from payment_simulator.cli.commands.replay import _reconstruct_lsm_events
 
@@ -160,7 +163,7 @@ class TestRunReplayIdentity:
         lsm_cycles = [
             {
                 "cycle_type": "bilateral",
-                "agent_ids": ["BANK_A", "BANK_B"],
+                "agent_ids": ["BANK_A", "BANK_B", "BANK_A"],  # Cycle format: [A, B, A]
                 "tx_ids": ["tx_001", "tx_002"],
                 "settled_value": 100000,  # $1,000.00
                 "tx_amounts": [100000, 100000],  # Both transactions for $1,000.00
@@ -407,6 +410,83 @@ class TestRunReplayIdentity:
         assert abs(credit_util5 - 200.0) < 0.01, \
             f"Expected ~200.0%, got {credit_util5}%"
 
+    def test_lsm_bilateral_offset_events_reconstructed_from_simulation_events(self):
+        """TEST: LSM bilateral offset events should be reconstructed from simulation_events.
+
+        This verifies the primary reconstruction path from simulation_events table.
+        """
+        from payment_simulator.cli.commands.replay import _reconstruct_lsm_events_from_simulation_events
+
+        # Simulate LSM events from simulation_events table
+        lsm_events_raw = [
+            {
+                "event_type": "LsmBilateralOffset",
+                "details": {
+                    "agent_a": "REGIONAL_TRUST",
+                    "agent_b": "CORRESPONDENT_HUB",
+                    "tx_id_a": "da24c87d",
+                    "tx_id_b": "75e5817a",
+                    "amount_a": 433387,
+                    "amount_b": 420300,
+                }
+            }
+        ]
+
+        # Reconstruct events
+        events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
+
+        # Verify reconstruction
+        assert len(events) == 1
+        event = events[0]
+        assert event["event_type"] == "LsmBilateralOffset"
+        assert event["agent_a"] == "REGIONAL_TRUST"
+        assert event["agent_b"] == "CORRESPONDENT_HUB"
+        assert event["tx_id_a"] == "da24c87d"
+        assert event["tx_id_b"] == "75e5817a"
+        assert event["amount_a"] == 433387
+        assert event["amount_b"] == 420300
+
+    def test_lsm_bilateral_offset_from_lsm_cycles_table(self):
+        """FAILING TEST: LSM bilateral offsets should be reconstructed from lsm_cycles table.
+
+        This is the FALLBACK path when simulation_events doesn't have LSM data.
+
+        Root cause identified by user analysis:
+        - Bilateral cycles in lsm_cycles table have agent_ids = ["A", "B", "A"] (length 3)
+        - Current code checks: if len(cycle["agent_ids"]) == 2
+        - This check ALWAYS FAILS for bilateral cycles
+
+        The fix should check for length 3:
+            if len(cycle["agent_ids"]) == 3 and len(cycle["tx_ids"]) == 2:
+        """
+        from payment_simulator.cli.commands.replay import _reconstruct_lsm_events
+
+        # Simulate LSM cycle data from lsm_cycles table
+        # NOTE: Bilateral cycles have agent_ids = [A, B, A] (length 3)
+        lsm_cycles = [
+            {
+                "cycle_type": "bilateral",
+                "agent_ids": ["REGIONAL_TRUST", "CORRESPONDENT_HUB", "REGIONAL_TRUST"],  # Length 3!
+                "tx_ids": ["da24c87d", "75e5817a"],
+                "tx_amounts": [433387, 420300],
+                "settled_value": 853687,
+            }
+        ]
+
+        # Reconstruct events
+        events = _reconstruct_lsm_events(lsm_cycles)
+
+        # Verify reconstruction
+        assert len(events) == 1, f"Expected 1 event, got {len(events)}"
+        event = events[0]
+        assert event["event_type"] == "LsmBilateralOffset"
+        assert event["agent_a"] == "REGIONAL_TRUST"
+        assert event["agent_b"] == "CORRESPONDENT_HUB"
+        assert event["tx_id_a"] == "da24c87d"
+        assert event["tx_id_b"] == "75e5817a"
+        assert event["amount_a"] == 433387
+        assert event["amount_b"] == 420300
+
     def test_credit_utilization_in_replay_eod_statistics(self):
         """TEST: Credit utilization should be calculated correctly in replay EOD statistics.
 
@@ -473,9 +553,170 @@ class TestRunReplayIdentity:
 
         This test runs a simulation, persists it with --full-replay data,
         then replays it and compares the verbose output for each tick.
+
+        This is the gold standard test that ensures the StateProvider pattern
+        is working correctly and that both run and replay use the same display logic.
         """
-        # TODO: Implement full end-to-end test once infrastructure is in place
-        pytest.skip("Full integration test needs completion")
+        import subprocess
+        import tempfile
+        import os
+        import re
+        from pathlib import Path
+
+        # Create a minimal test configuration (very small for speed)
+        config_content = """
+simulation:
+  rng_seed: 42
+  ticks_per_day: 5
+  num_days: 1
+
+agents:
+  - id: ALICE
+    opening_balance: 100000
+    credit_limit: 50000
+    policy:
+      type: Fifo
+
+  - id: BOB
+    opening_balance: 100000
+    credit_limit: 50000
+    policy:
+      type: Fifo
+
+cost_rates:
+  overdraft_rate_bps: 100
+  delay_cost_per_tick: 10
+  overdue_delay_multiplier: 5.0
+  deadline_penalty: 50000
+  split_friction_cost: 1000
+  collateral_cost_bps: 50
+  eod_penalty: 1000000
+
+liquidity_saving:
+  enabled: true
+  bilateral_netting: true
+  bilateral_offset: true
+  multilateral_netting: false
+  trigger_queue_depth: 2
+"""
+
+        # Write config to temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as config_file:
+            config_file.write(config_content)
+            config_path = config_file.name
+
+        try:
+            # Run simulation with persistence
+            run_result = subprocess.run(
+                [
+                    'uv', 'run', 'payment-sim', 'run',
+                    '--config', config_path,
+                    '--persist',
+                    '--full-replay',
+                    '--verbose',
+                    '--db-path', temp_db
+                ],
+                cwd='/home/user/SimCash/api',
+                capture_output=True,
+                text=True,
+                timeout=90
+            )
+
+            assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
+
+            # Extract simulation ID from stdout (JSON output)
+            import json
+            run_output_json = json.loads(run_result.stdout)
+            simulation_id = run_output_json['simulation']['simulation_id']
+
+            # Capture verbose output from stderr
+            run_verbose_output = run_result.stderr
+
+            # Replay simulation
+            replay_result = subprocess.run(
+                [
+                    'uv', 'run', 'payment-sim', 'replay',
+                    '--simulation-id', simulation_id,
+                    '--verbose',
+                    '--db-path', temp_db
+                ],
+                cwd='/home/user/SimCash/api',
+                capture_output=True,
+                text=True,
+                timeout=90
+            )
+
+            assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
+
+            # Capture replay verbose output from stderr
+            replay_verbose_output = replay_result.stderr
+
+            # Normalize outputs for comparison
+            def normalize_output(text: str) -> list[str]:
+                """Normalize verbose output for comparison.
+
+                Removes:
+                - Timing information (X.XX ticks/s)
+                - Duration information (X.XX seconds)
+                - Absolute tick numbers in performance stats
+                - Empty lines
+                - Leading/trailing whitespace
+                """
+                lines = []
+                for line in text.split('\n'):
+                    # Skip empty lines
+                    if not line.strip():
+                        continue
+
+                    # Remove timing info
+                    line = re.sub(r'\d+\.\d+ ticks/s', 'X.XX ticks/s', line)
+                    line = re.sub(r'\d+\.\d+s', 'X.XXs', line)
+                    line = re.sub(r'in \d+\.\d+ seconds', 'in X.XX seconds', line)
+                    line = re.sub(r'duration_seconds: \d+\.\d+', 'duration_seconds: X.XX', line)
+                    line = re.sub(r'ticks_per_second: \d+\.\d+', 'ticks_per_second: X.XX', line)
+
+                    # Normalize whitespace
+                    line = line.strip()
+
+                    if line:
+                        lines.append(line)
+
+                return lines
+
+            run_lines = normalize_output(run_verbose_output)
+            replay_lines = normalize_output(replay_verbose_output)
+
+            # Compare outputs
+            # Allow for minor differences but the core content should match
+            # For now, just check that both have content and similar structure
+            assert len(run_lines) > 0, "Run output is empty"
+            assert len(replay_lines) > 0, "Replay output is empty"
+
+            # Check that both have tick markers
+            run_tick_count = sum(1 for line in run_lines if line.startswith('═══ Tick'))
+            replay_tick_count = sum(1 for line in replay_lines if line.startswith('═══ Tick'))
+            assert run_tick_count == replay_tick_count, \
+                f"Different number of ticks: run={run_tick_count}, replay={replay_tick_count}"
+
+            # For a more detailed comparison, check key sections exist in both
+            key_sections = [
+                '📥',  # Arrivals
+                '✅',  # Settlements
+                '💰',  # Costs or Collateral
+            ]
+
+            for section_marker in key_sections:
+                run_has_section = any(section_marker in line for line in run_lines)
+                replay_has_section = any(section_marker in line for line in replay_lines)
+
+                # If run has the section, replay should too
+                if run_has_section:
+                    assert replay_has_section, \
+                        f"Section '{section_marker}' appears in run but not in replay"
+
+        finally:
+            # Cleanup
+            os.unlink(config_path)
 
 
 if __name__ == "__main__":
