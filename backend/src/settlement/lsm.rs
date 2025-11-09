@@ -997,31 +997,30 @@ pub fn run_lsm_pass(
                     (net_b.abs(), pair.agent_b.clone())
                 };
 
+                // Collect Event::LsmBilateralOffset for replay with ALL enriched fields
+                // This enables replay to reconstruct LSM activity from persisted events
+                replay_events.push(Event::LsmBilateralOffset {
+                    tick,
+                    agent_a: pair.agent_a.clone(),
+                    agent_b: pair.agent_b.clone(),
+                    amount_a: pair.amount_a_to_b,
+                    amount_b: pair.amount_b_to_a,
+                    tx_ids: transactions.clone(),  // Use full transaction list
+                });
+
                 cycle_events.push(LsmCycleEvent {
                     tick,
                     day,
                     cycle_type: "bilateral".to_string(),
                     cycle_length: 2,
                     agents,
-                    transactions,
+                    transactions,  // Can move now since we cloned for replay_events above
                     settled_value: offset_amount,
                     total_value: pair.amount_a_to_b + pair.amount_b_to_a,
                     tx_amounts,
                     net_positions,
                     max_net_outflow,
                     max_net_outflow_agent,
-                });
-
-                // Collect Event::LsmBilateralOffset for replay
-                // This enables replay to reconstruct LSM activity from persisted events
-                replay_events.push(Event::LsmBilateralOffset {
-                    tick,
-                    agent_a: pair.agent_a.clone(),
-                    agent_b: pair.agent_b.clone(),
-                    tx_id_a: pair.txs_a_to_b.get(0).cloned().unwrap_or_default(),
-                    tx_id_b: pair.txs_b_to_a.get(0).cloned().unwrap_or_default(),
-                    amount_a: pair.amount_a_to_b,
-                    amount_b: pair.amount_b_to_a,
                 });
             }
 
@@ -1094,6 +1093,24 @@ pub fn run_lsm_pass(
                         .map(|(agent, _)| agent.clone())
                         .unwrap_or_default();
 
+                    // Convert net_positions HashMap to Vec in agent order
+                    let net_positions_vec: Vec<i64> = cycle.agents.iter()
+                        .filter_map(|agent| result.net_positions.get(agent).copied())
+                        .collect();
+
+                    // Collect Event::LsmCycleSettlement for replay with ALL enriched fields first
+                    // This enables replay to reconstruct LSM cycle activity from persisted events
+                    replay_events.push(Event::LsmCycleSettlement {
+                        tick,
+                        agents: cycle.agents.clone(),
+                        tx_amounts: tx_amounts.clone(),
+                        total_value: cycle.total_value,
+                        net_positions: net_positions_vec,
+                        max_net_outflow,
+                        max_net_outflow_agent: max_net_outflow_agent.clone(),
+                        tx_ids: cycle.transactions.clone(),
+                    });
+
                     let event = LsmCycleEvent {
                         tick,
                         day,
@@ -1103,7 +1120,7 @@ pub fn run_lsm_pass(
                         transactions: cycle.transactions.clone(),
                         settled_value: result.settled_value,
                         total_value: cycle.total_value,
-                        tx_amounts,
+                        tx_amounts,  // Can move now since we cloned for replay_events above
                         net_positions: result.net_positions.clone(),
                         max_net_outflow,
                         max_net_outflow_agent,
@@ -1115,14 +1132,6 @@ pub fn run_lsm_pass(
                     }
 
                     cycle_events.push(event);
-
-                    // Collect Event::LsmCycleSettlement for replay
-                    // This enables replay to reconstruct LSM cycle activity from persisted events
-                    replay_events.push(Event::LsmCycleSettlement {
-                        tick,
-                        tx_ids: cycle.transactions.clone(),
-                        cycle_value: result.settled_value,
-                    });
                 }
             }
 

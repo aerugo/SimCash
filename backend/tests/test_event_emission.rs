@@ -640,16 +640,27 @@ fn test_lsm_bilateral_offset_event() {
     // Verify event details
     if let Some(payment_simulator_core_rs::models::Event::LsmBilateralOffset {
         tick,
-        tx_id_a,
-        tx_id_b,
-        amount,
+        agent_a,
+        agent_b,
+        tx_ids,
+        amount_a,
+        amount_b,
     }) = lsm_events.first()
     {
         assert_eq!(*tick, 0);
-        assert_eq!(*amount, 50_000); // Min of the two amounts
+        // Verify the amounts match the original transaction amounts
+        // The bilateral offset settled both transactions:
+        // - tx1: BANK_A → BANK_B for 100_000
+        // - tx2: BANK_B → BANK_A for 50_000
+        // The event records the original amounts for each transaction
+        assert_eq!(tx_ids.len(), 2, "Bilateral offset should have exactly 2 transaction IDs");
         assert!(
-            (tx_id_a == &tx1_id && tx_id_b == &tx2_id)
-                || (tx_id_a == &tx2_id && tx_id_b == &tx1_id)
+            (agent_a == "BANK_A" && agent_b == "BANK_B"
+                && tx_ids.contains(&tx1_id) && tx_ids.contains(&tx2_id)
+                && *amount_a == 100_000 && *amount_b == 50_000)
+            || (agent_a == "BANK_B" && agent_b == "BANK_A"
+                && tx_ids.contains(&tx2_id) && tx_ids.contains(&tx1_id)
+                && *amount_a == 50_000 && *amount_b == 100_000)
         );
     }
 }
@@ -662,7 +673,7 @@ fn test_lsm_bilateral_offset_event() {
 fn test_lsm_cycle_settlement_event() {
     // ARRANGE: Create 3-agent orchestrator with circular transactions
     // IMPORTANT: Use LOW balances so transactions will queue (insufficient for RTGS)
-    let mut config = OrchestratorConfig {
+    let config = OrchestratorConfig {
         ticks_per_day: 100,
         eod_rush_threshold: 0.8,
         num_days: 1,
@@ -749,12 +760,13 @@ fn test_lsm_cycle_settlement_event() {
     if let Some(payment_simulator_core_rs::models::Event::LsmCycleSettlement {
         tick,
         tx_ids,
-        cycle_value,
+        total_value,
+        ..
     }) = lsm_cycle_events.first()
     {
         assert_eq!(*tick, 0);
         assert_eq!(tx_ids.len(), 3, "Cycle should involve 3 transactions");
-        assert_eq!(*cycle_value, 300_000, "Cycle value should be sum of all transactions (T2-compliant): 3 × 100k = 300k");
+        assert_eq!(*total_value, 300_000, "Cycle value should be sum of all transactions (T2-compliant): 3 × 100k = 300k");
         assert!(tx_ids.contains(&tx1_id));
         assert!(tx_ids.contains(&tx2_id));
         assert!(tx_ids.contains(&tx3_id));

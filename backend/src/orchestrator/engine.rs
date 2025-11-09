@@ -2329,11 +2329,6 @@ impl Orchestrator {
         let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
 
-        // Log LSM events for replay identity
-        for event in lsm_result.replay_events {
-            self.log_event(event);
-        }
-
         // DIAGNOSTIC LOGGING (continued)
         if std::env::var("LSM_DEBUG").is_ok() {
             eprintln!("[LSM DEBUG] Tick {}: LSM result: bilateral_offsets={}, cycles_settled={}, total_value=${:.2}, queue_after={}",
@@ -2358,41 +2353,17 @@ impl Orchestrator {
             .lsm_cycle_events
             .extend(lsm_result.cycle_events.clone());
 
-        // Log LSM cycle settlement events
+        // Log enriched LSM replay events (already contain all fields for display)
+        // These events are created in lsm.rs with complete data and don't need reconstruction
         let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
         if lsm_debug {
-            eprintln!("[LSM DEBUG] Logging {} LSM cycle events", lsm_result.cycle_events.len());
+            eprintln!("[LSM DEBUG] Logging {} LSM replay events", lsm_result.replay_events.len());
         }
-        for cycle_event in &lsm_result.cycle_events {
-            // Determine if this is bilateral offset or multilateral cycle
-            if cycle_event.cycle_type == "bilateral" && cycle_event.transactions.len() >= 2 {
-                if lsm_debug {
-                    eprintln!("[LSM DEBUG] Logging bilateral event with {} transactions: {:?}",
-                        cycle_event.transactions.len(), cycle_event.transactions);
-                }
-                // Log as bilateral offset event with full details for visualization
-                let agent_a = cycle_event.agents.get(0).cloned().unwrap_or_else(|| "unknown".to_string());
-                let agent_b = cycle_event.agents.get(1).cloned().unwrap_or_else(|| "unknown".to_string());
-                let amount_a = cycle_event.tx_amounts.get(0).copied().unwrap_or(0);
-                let amount_b = cycle_event.tx_amounts.get(1).copied().unwrap_or(0);
-
-                self.log_event(Event::LsmBilateralOffset {
-                    tick: cycle_event.tick,
-                    agent_a,
-                    agent_b,
-                    tx_id_a: cycle_event.transactions[0].clone(),
-                    tx_id_b: cycle_event.transactions[1].clone(),
-                    amount_a,
-                    amount_b,
-                });
-            } else {
-                // Log as cycle settlement event (multilateral or complex bilateral)
-                self.log_event(Event::LsmCycleSettlement {
-                    tick: cycle_event.tick,
-                    tx_ids: cycle_event.transactions.clone(),
-                    cycle_value: cycle_event.settled_value,
-                });
+        for event in &lsm_result.replay_events {
+            if lsm_debug {
+                eprintln!("[LSM DEBUG] Logging enriched event: {:?}", event.event_type());
             }
+            self.log_event(event.clone());
         }
 
         // STEP 5.5: END-OF-TICK COLLATERAL MANAGEMENT (Layer 2)

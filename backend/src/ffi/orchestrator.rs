@@ -984,19 +984,25 @@ impl PyOrchestrator {
                     event_dict.set_item("tx_id", tx_id)?;
                     event_dict.set_item("sender_id", sender_id)?;
                 }
-                crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_id_a, tx_id_b, amount_a, amount_b, .. } => {
+                crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_ids, amount_a, amount_b, .. } => {
                     event_dict.set_item("agent_a", agent_a)?;
                     event_dict.set_item("agent_b", agent_b)?;
-                    event_dict.set_item("tx_id_a", tx_id_a)?;
-                    event_dict.set_item("tx_id_b", tx_id_b)?;
+                    event_dict.set_item("tx_ids", tx_ids)?;
                     event_dict.set_item("amount_a", amount_a)?;
                     event_dict.set_item("amount_b", amount_b)?;
                     // Also set "amount" for backward compatibility (sum of the two)
                     event_dict.set_item("amount", amount_a + amount_b)?;
                 }
-                crate::models::event::Event::LsmCycleSettlement { tx_ids, cycle_value, .. } => {
+                crate::models::event::Event::LsmCycleSettlement { agents, tx_amounts, total_value, net_positions, max_net_outflow, max_net_outflow_agent, tx_ids, .. } => {
+                    event_dict.set_item("agents", agents)?;
+                    event_dict.set_item("tx_amounts", tx_amounts)?;
+                    event_dict.set_item("total_value", total_value)?;
+                    event_dict.set_item("net_positions", net_positions)?;
+                    event_dict.set_item("max_net_outflow", max_net_outflow)?;
+                    event_dict.set_item("max_net_outflow_agent", max_net_outflow_agent)?;
                     event_dict.set_item("tx_ids", tx_ids)?;
-                    event_dict.set_item("cycle_value", cycle_value)?;
+                    // Backward compatibility: also set "cycle_value"
+                    event_dict.set_item("cycle_value", total_value)?;
                 }
                 crate::models::event::Event::CostAccrual { agent_id, costs, .. } => {
                     event_dict.set_item("agent_id", agent_id)?;
@@ -1112,19 +1118,25 @@ impl PyOrchestrator {
                     event_dict.set_item("tx_id", tx_id)?;
                     event_dict.set_item("sender_id", sender_id)?;
                 }
-                crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_id_a, tx_id_b, amount_a, amount_b, .. } => {
+                crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_ids, amount_a, amount_b, .. } => {
                     event_dict.set_item("agent_a", agent_a)?;
                     event_dict.set_item("agent_b", agent_b)?;
-                    event_dict.set_item("tx_id_a", tx_id_a)?;
-                    event_dict.set_item("tx_id_b", tx_id_b)?;
+                    event_dict.set_item("tx_ids", tx_ids)?;
                     event_dict.set_item("amount_a", amount_a)?;
                     event_dict.set_item("amount_b", amount_b)?;
                     // Also set "amount" for backward compatibility (sum of the two)
                     event_dict.set_item("amount", amount_a + amount_b)?;
                 }
-                crate::models::event::Event::LsmCycleSettlement { tx_ids, cycle_value, .. } => {
+                crate::models::event::Event::LsmCycleSettlement { agents, tx_amounts, total_value, net_positions, max_net_outflow, max_net_outflow_agent, tx_ids, .. } => {
+                    event_dict.set_item("agents", agents)?;
+                    event_dict.set_item("tx_amounts", tx_amounts)?;
+                    event_dict.set_item("total_value", total_value)?;
+                    event_dict.set_item("net_positions", net_positions)?;
+                    event_dict.set_item("max_net_outflow", max_net_outflow)?;
+                    event_dict.set_item("max_net_outflow_agent", max_net_outflow_agent)?;
                     event_dict.set_item("tx_ids", tx_ids)?;
-                    event_dict.set_item("cycle_value", cycle_value)?;
+                    // Backward compatibility: also set "cycle_value"
+                    event_dict.set_item("cycle_value", total_value)?;
                 }
                 crate::models::event::Event::CostAccrual { agent_id, costs, .. } => {
                     event_dict.set_item("agent_id", agent_id)?;

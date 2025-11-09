@@ -139,17 +139,21 @@ pub enum Event {
         tick: usize,
         agent_a: String,
         agent_b: String,
-        tx_id_a: String,
-        tx_id_b: String,
         amount_a: i64,
         amount_b: i64,
+        tx_ids: Vec<String>,  // Changed from tx_id_a, tx_id_b to match test expectations
     },
 
     /// Transaction settled via LSM cycle detection
     LsmCycleSettlement {
         tick: usize,
+        agents: Vec<String>,           // NEW: Full list of agents in cycle
+        tx_amounts: Vec<i64>,          // NEW: Transaction amounts
+        total_value: i64,              // NEW: Total value settled (renamed from cycle_value)
+        net_positions: Vec<i64>,       // NEW: Net positions before settlement
+        max_net_outflow: i64,          // NEW: Maximum net outflow in cycle
+        max_net_outflow_agent: String, // NEW: Agent with max net outflow
         tx_ids: Vec<String>,
-        cycle_value: i64,
     },
 
     /// Costs accrued for an agent this tick
