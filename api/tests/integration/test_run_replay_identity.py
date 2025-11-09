@@ -407,6 +407,52 @@ class TestRunReplayIdentity:
         assert abs(credit_util5 - 200.0) < 0.01, \
             f"Expected ~200.0%, got {credit_util5}%"
 
+    def test_lsm_bilateral_offset_events_reconstructed_from_simulation_events(self):
+        """FAILING TEST: LSM bilateral offset events should be reconstructed from simulation_events.
+
+        Currently, replay.py collects LSM events from simulation_events into lsm_events_raw
+        (line 771) but then doesn't use them! Instead, it uses lsm_data from the dedicated
+        lsm_cycles table (line 784).
+
+        This is inconsistent with how collateral events are handled (which use simulation_events
+        as primary source).
+
+        The fix should:
+        1. Create _reconstruct_lsm_events_from_simulation_events() function
+        2. Use it to reconstruct from lsm_events_raw
+        3. Fall back to lsm_data from table if needed (like collateral events do)
+        """
+        from payment_simulator.cli.commands.replay import _reconstruct_lsm_events_from_simulation_events
+
+        # Simulate LSM events from simulation_events table
+        lsm_events_raw = [
+            {
+                "event_type": "LsmBilateralOffset",
+                "details": {
+                    "agent_a": "REGIONAL_TRUST",
+                    "agent_b": "CORRESPONDENT_HUB",
+                    "tx_id_a": "da24c87d",
+                    "tx_id_b": "75e5817a",
+                    "amount_a": 433387,
+                    "amount_b": 420300,
+                }
+            }
+        ]
+
+        # Reconstruct events
+        events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
+
+        # Verify reconstruction
+        assert len(events) == 1
+        event = events[0]
+        assert event["event_type"] == "LsmBilateralOffset"
+        assert event["agent_a"] == "REGIONAL_TRUST"
+        assert event["agent_b"] == "CORRESPONDENT_HUB"
+        assert event["tx_id_a"] == "da24c87d"
+        assert event["tx_id_b"] == "75e5817a"
+        assert event["amount_a"] == 433387
+        assert event["amount_b"] == 420300
+
     def test_credit_utilization_in_replay_eod_statistics(self):
         """TEST: Credit utilization should be calculated correctly in replay EOD statistics.
 
