@@ -273,6 +273,36 @@ def _reconstruct_collateral_events_from_simulation_events(events: list[dict]) ->
     return result
 
 
+def _reconstruct_cost_accrual_events(events: list[dict]) -> list[dict]:
+    """Reconstruct cost accrual events from simulation_events table.
+
+    Args:
+        events: List of simulation event records with event_type = 'CostAccrual'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+
+    Examples:
+        >>> events = [{"event_type": "CostAccrual", "agent_id": "BANK_A", "details": {"costs": {...}}}]
+        >>> cost_events = _reconstruct_cost_accrual_events(events)
+        >>> cost_events[0]["event_type"]
+        'CostAccrual'
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "CostAccrual":
+            details = event.get("details", {})
+            # Cost breakdown is in details.costs
+            costs = details.get("costs", {})
+
+            result.append({
+                "event_type": "CostAccrual",
+                "agent_id": event.get("agent_id") or details.get("agent_id"),
+                "costs": costs,
+            })
+    return result
+
+
 def _reconstruct_collateral_events(collateral_events: list[dict]) -> list[dict]:
     """Reconstruct collateral events from database records.
 
@@ -729,6 +759,7 @@ def replay_simulation(
                 settlement_events_raw = []
                 lsm_events_raw = []
                 collateral_events_raw = []
+                cost_accrual_events_raw = []
 
                 for event in tick_events_result["events"]:
                     event_type = event["event_type"]
@@ -740,6 +771,8 @@ def replay_simulation(
                         lsm_events_raw.append(event)
                     elif event_type in ["CollateralPost", "CollateralWithdraw"]:
                         collateral_events_raw.append(event)
+                    elif event_type == "CostAccrual":
+                        cost_accrual_events_raw.append(event)
 
                 # Also get collateral and LSM data from dedicated tables (for compatibility)
                 collateral_data = get_collateral_events_by_tick(db_manager.conn, simulation_id, tick_num)
@@ -757,8 +790,11 @@ def replay_simulation(
                 # Prefer simulation_events if available (more complete), otherwise use table
                 collateral_events = collateral_from_events if collateral_from_events else collateral_from_table
 
+                # Reconstruct cost accrual events
+                cost_accrual_events = _reconstruct_cost_accrual_events(cost_accrual_events_raw)
+
                 # Combine all events
-                events = arrival_events + settlement_events + lsm_events + collateral_events
+                events = arrival_events + settlement_events + lsm_events + collateral_events + cost_accrual_events
 
                 # Update statistics
                 num_arrivals = len(arrival_events)
