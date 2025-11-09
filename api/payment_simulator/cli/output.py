@@ -1060,18 +1060,13 @@ def log_lsm_cycle_visualization(events, quiet=False):
     for event in lsm_bilateral:
         console.print(f"   Cycle {cycle_num} (Bilateral):")
 
-        # Get transaction IDs
+        # Get all information from event (no orchestrator lookup needed)
         tx_id_a = event.get("tx_id_a", "")
         tx_id_b = event.get("tx_id_b", "")
-
-        # Look up transaction details to get agent IDs and amounts
-        tx_a_details = orch.get_transaction_details(tx_id_a) if tx_id_a else None
-        tx_b_details = orch.get_transaction_details(tx_id_b) if tx_id_b else None
-
-        agent_a = tx_a_details.get("sender_id", "unknown") if tx_a_details else "unknown"
-        agent_b = tx_a_details.get("receiver_id", "unknown") if tx_a_details else "unknown"
-        amount_a = tx_a_details.get("amount", 0) if tx_a_details else 0
-        amount_b = tx_b_details.get("amount", 0) if tx_b_details else 0
+        agent_a = event.get("agent_a", "unknown")
+        agent_b = event.get("agent_b", "unknown")
+        amount_a = event.get("amount_a", 0)
+        amount_b = event.get("amount_b", 0)
 
         console.print(f"   {agent_a} ⇄ {agent_b}")
         console.print(f"   • {agent_a}→{agent_b}: TX {tx_id_a[:8]} (${amount_a / 100:,.2f})")
@@ -1111,7 +1106,7 @@ def log_lsm_cycle_visualization(events, quiet=False):
 
         console.print(f"   Cycle {cycle_num} (Multilateral - {num_agents} agents):")
 
-        # Use agent_ids from event if available (new data)
+        # Display cycle information from event data
         if agent_ids and tx_amounts:
             # Show cycle: A → B → C → A
             cycle_str = " → ".join(agent_ids)
@@ -1124,33 +1119,11 @@ def log_lsm_cycle_visualization(events, quiet=False):
                     receiver = agent_ids[(i + 1) % len(agent_ids)]
                     amount = tx_amounts[i]
                     console.print(f"   • {sender}→{receiver}: TX {tx_id[:8]} (${amount / 100:,.2f})")
-
-        # Fallback to old method (lookup from orchestrator) for old data
         elif tx_ids:
-            # Build the cycle visualization by looking up sender/receiver for each tx
-            agent_chain = []
-            amounts = []
+            # Minimal display if agent_ids/amounts not available
+            console.print(f"   {len(tx_ids)} transactions in cycle")
             for tx_id in tx_ids:
-                tx_details = orch.get_transaction_details(tx_id)
-                if tx_details:
-                    sender = tx_details.get("sender_id", "unknown")
-                    receiver = tx_details.get("receiver_id", "unknown")
-                    amount = tx_details.get("amount", 0)
-
-                    if not agent_chain:
-                        agent_chain.append(sender)
-                    agent_chain.append(receiver)
-                    amounts.append(amount)
-
-            # Show cycle: A → B → C → A
-            if agent_chain:
-                cycle_str = " → ".join(agent_chain)
-                console.print(f"   {cycle_str}")
-
-            # Show each transaction in cycle
-            for i, tx_id in enumerate(tx_ids):
-                amount = amounts[i] if i < len(amounts) else 0
-                console.print(f"   • TX {tx_id[:8]} (${amount / 100:,.2f})")
+                console.print(f"   • TX {tx_id[:8]}")
 
         # Show liquidity metrics if available
         console.print()
