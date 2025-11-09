@@ -83,103 +83,26 @@ class VerboseModeOutput:
         log_tick_start(tick)
 
     def on_tick_complete(self, result: TickResult, orch: Orchestrator) -> None:
-        """Log detailed tick information across 8 sections."""
-        from payment_simulator.cli.output import (
-            log_transaction_arrivals,
-            log_policy_decisions,
-            log_settlement_details,
-            log_queued_rtgs,
-            log_lsm_cycle_visualization,
-            log_collateral_activity,
-            log_agent_queues_detailed,
-            log_cost_accrual_events,
-            log_cost_breakdown,
-            log_tick_summary,
-        )
+        """Log detailed tick information using shared display logic."""
+        from payment_simulator.cli.execution.display import display_tick_verbose_output
+        from payment_simulator.cli.execution.state_provider import OrchestratorStateProvider
 
-        # Apply event filter if specified
-        display_events = result.events
-        if self.event_filter:
-            display_events = [e for e in result.events if self.event_filter.matches(e, result.tick)]
+        # Create StateProvider wrapper for live orchestrator
+        provider = OrchestratorStateProvider(orch)
 
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 1: ARRIVALS (detailed)
-        # ═══════════════════════════════════════════════════════════
-        if result.num_arrivals > 0:
-            log_transaction_arrivals(orch, display_events)
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 2: POLICY DECISIONS
-        # ═══════════════════════════════════════════════════════════
-        log_policy_decisions(display_events)
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 3: SETTLEMENTS (detailed with mechanisms)
-        # ═══════════════════════════════════════════════════════════
-        if result.num_settlements > 0 or any(
-            e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"]
-            for e in display_events
-        ):
-            log_settlement_details(orch, display_events, result.tick)
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 3.5: QUEUED TRANSACTIONS (RTGS)
-        # ═══════════════════════════════════════════════════════════
-        log_queued_rtgs(display_events)
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 4: LSM CYCLE VISUALIZATION
-        # ═══════════════════════════════════════════════════════════
-        log_lsm_cycle_visualization(display_events)
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 5: COLLATERAL ACTIVITY
-        # ═══════════════════════════════════════════════════════════
-        log_collateral_activity(display_events)
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 6: AGENT STATES (detailed queues)
-        # ═══════════════════════════════════════════════════════════
-        for agent_id in self.agent_ids:
-            current_balance = orch.get_agent_balance(agent_id)
-            balance_change = current_balance - self.prev_balances[agent_id]
-
-            # Only show agents with activity or non-empty queues
-            queue1_size = orch.get_queue1_size(agent_id)
-            rtgs_queue = orch.get_rtgs_queue_contents()
-            agent_in_rtgs = any(
-                orch.get_transaction_details(tx_id).get("sender_id") == agent_id
-                for tx_id in rtgs_queue
-                if orch.get_transaction_details(tx_id)
-            )
-
-            if balance_change != 0 or queue1_size > 0 or agent_in_rtgs:
-                log_agent_queues_detailed(
-                    orch, agent_id, current_balance, balance_change
-                )
-
-            self.prev_balances[agent_id] = current_balance
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 6.5: COST ACCRUAL EVENTS
-        # ═══════════════════════════════════════════════════════════
-        log_cost_accrual_events(display_events)
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 7: COST BREAKDOWN
-        # ═══════════════════════════════════════════════════════════
-        if result.total_cost > 0:
-            log_cost_breakdown(orch, self.agent_ids)
-
-        # ═══════════════════════════════════════════════════════════
-        # SECTION 8: TICK SUMMARY
-        # ═══════════════════════════════════════════════════════════
-        total_queued = sum(orch.get_queue1_size(aid) for aid in self.agent_ids)
-        log_tick_summary(
-            result.num_arrivals,
-            result.num_settlements,
-            result.num_lsm_releases,
-            total_queued,
+        # Use shared display function (SINGLE SOURCE OF TRUTH)
+        # This ensures live execution and replay can NEVER diverge
+        self.prev_balances = display_tick_verbose_output(
+            provider=provider,
+            events=result.events,
+            tick_num=result.tick,
+            agent_ids=self.agent_ids,
+            prev_balances=self.prev_balances,
+            num_arrivals=result.num_arrivals,
+            num_settlements=result.num_settlements,
+            num_lsm_releases=result.num_lsm_releases,
+            total_cost=result.total_cost,
+            event_filter=self.event_filter,
         )
 
     def on_day_complete(self, day: int, day_stats: dict[str, Any], orch: Orchestrator) -> None:
