@@ -301,6 +301,95 @@ def _has_full_replay_data(conn, simulation_id: str) -> bool:
         return False
 
 
+def _get_summary_statistics(conn, simulation_id: str, from_tick: int, to_tick: int) -> dict:
+    """Efficiently gather summary statistics from database for tick range.
+
+    Args:
+        conn: DuckDB connection
+        simulation_id: Simulation identifier
+        from_tick: Starting tick (inclusive)
+        to_tick: Ending tick (inclusive)
+
+    Returns:
+        Dict with total_arrivals, total_settlements, total_lsm_releases, final_agent_states
+
+    Examples:
+        >>> stats = _get_summary_statistics(conn, "sim-abc", 0, 99)
+        >>> stats["total_arrivals"]
+        533
+    """
+    # Count arrivals in tick range
+    arrivals_query = """
+        SELECT COUNT(*) FROM simulation_events
+        WHERE simulation_id = ? AND event_type = 'Arrival'
+        AND tick BETWEEN ? AND ?
+    """
+    result = conn.execute(arrivals_query, [simulation_id, from_tick, to_tick]).fetchone()
+    total_arrivals = result[0] if result else 0
+
+    # Count settlements (both Settlement events and LSM events)
+    # For LSM events, we need to count the transactions they settle (from tx_ids array)
+    settlements_query = """
+        SELECT COUNT(*) FROM simulation_events
+        WHERE simulation_id = ? AND event_type = 'Settlement'
+        AND tick BETWEEN ? AND ?
+    """
+    result = conn.execute(settlements_query, [simulation_id, from_tick, to_tick]).fetchone()
+    total_settlements = result[0] if result else 0
+
+    # Count LSM-settled transactions by extracting tx_ids from event details
+    lsm_query = """
+        SELECT event_type, details FROM simulation_events
+        WHERE simulation_id = ?
+        AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
+        AND tick BETWEEN ? AND ?
+    """
+    lsm_results = conn.execute(lsm_query, [simulation_id, from_tick, to_tick]).fetchall()
+
+    total_lsm_releases = len(lsm_results)
+    lsm_settlements = 0
+    for event_type, details_json in lsm_results:
+        details = json.loads(details_json) if isinstance(details_json, str) else details_json
+        tx_ids = details.get("tx_ids", [])
+        lsm_settlements += len(tx_ids)
+
+    total_settlements += lsm_settlements
+
+    # Get final agent states from the last tick in range
+    # Try tick_agent_states first (if full replay data available)
+    agent_states = []
+    try:
+        agent_states_query = """
+            SELECT agent_id, balance, queue1_size, costs
+            FROM tick_agent_states
+            WHERE simulation_id = ? AND tick = ?
+        """
+        agent_states_results = conn.execute(agent_states_query, [simulation_id, to_tick]).fetchall()
+
+        for agent_id, balance, queue1_size, costs_json in agent_states_results:
+            costs = json.loads(costs_json) if isinstance(costs_json, str) else (costs_json or {})
+            agent_states.append({
+                "id": agent_id,
+                "final_balance": balance,
+                "queue1_size": queue1_size,
+                "total_cost": costs.get("total", 0),
+            })
+    except Exception:
+        # tick_agent_states not available, skip agent states
+        pass
+
+    # Calculate total cost
+    total_cost = sum(agent.get("total_cost", 0) for agent in agent_states)
+
+    return {
+        "total_arrivals": total_arrivals,
+        "total_settlements": total_settlements,
+        "total_lsm_releases": total_lsm_releases,
+        "agent_states": agent_states,
+        "total_cost": total_cost,
+    }
+
+
 class _MockOrchestrator:
     """Lightweight mock orchestrator for database replay.
 
@@ -378,9 +467,9 @@ def replay_simulation(
         typer.Option(
             "--verbose",
             "-v",
-            help="Verbose mode: show detailed events (default: True for replay)",
+            help="Verbose mode: show detailed tick-by-tick events",
         ),
-    ] = True,
+    ] = False,
     event_stream: Annotated[
         bool,
         typer.Option(
@@ -639,291 +728,328 @@ def replay_simulation(
             }
             print(json.dumps(metadata), flush=True)
 
-        elif verbose:
-            log_info("Database replay mode: showing persisted events", False)
-            if has_full_replay:
-                log_success("Full replay data available (policy decisions, agent states, costs)", False)
-            else:
-                log_info("Note: Policy decisions and per-tick agent states not available", False)
-                log_info("      (run with --persist --full-replay to capture full data)", False)
-
-            # Track daily statistics
-            ticks_per_day = summary["ticks_per_day"]
-            daily_stats = {
-                "arrivals": 0,
-                "settlements": 0,
-                "lsm_releases": 0,
-            }
-
+        else:
+            # Non-event-stream mode: either verbose tick-by-tick or summary only
             replay_start = time.time()
+
+            # Initialize statistics variables
             tick_count_arrivals = 0
             tick_count_settlements = 0
             tick_count_lsm = 0
+            ticks_replayed = end_tick - from_tick + 1
 
-            # Initialize previous balances for tracking changes
-            # For the first tick in replay range, we need the balances from the previous tick
-            # (or initial balances if from_tick == 0)
-            prev_balances = {}
-            agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
-
-            if from_tick == 0:
-                # Use opening balances from config (stored in cents)
-                for agent_config in config_dict.get("agents", []):
-                    prev_balances[agent_config["id"]] = agent_config.get("opening_balance", 0)
-            else:
-                # Query agent states from previous tick
+            if verbose:
+                # Verbose mode: show detailed tick-by-tick events
+                log_info("Database replay mode: showing persisted events", False)
                 if has_full_replay:
-                    prev_tick_states = get_tick_agent_states(db_manager.conn, simulation_id, from_tick - 1)
-                    for state in prev_tick_states:
-                        prev_balances[state["agent_id"]] = state.get("balance", 0)
+                    log_success("Full replay data available (policy decisions, agent states, costs)", False)
                 else:
-                    # Without full replay data, assume balances start at opening config values
+                    log_info("Note: Policy decisions and per-tick agent states not available", False)
+                    log_info("      (run with --persist --full-replay to capture full data)", False)
+
+                # Track daily statistics
+                ticks_per_day = summary["ticks_per_day"]
+                daily_stats = {
+                    "arrivals": 0,
+                    "settlements": 0,
+                    "lsm_releases": 0,
+                }
+
+                # Initialize previous balances for tracking changes
+                # For the first tick in replay range, we need the balances from the previous tick
+                # (or initial balances if from_tick == 0)
+                prev_balances = {}
+                agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
+
+                if from_tick == 0:
+                    # Use opening balances from config (stored in cents)
                     for agent_config in config_dict.get("agents", []):
                         prev_balances[agent_config["id"]] = agent_config.get("opening_balance", 0)
+                else:
+                    # Query agent states from previous tick
+                    if has_full_replay:
+                        prev_tick_states = get_tick_agent_states(db_manager.conn, simulation_id, from_tick - 1)
+                        for state in prev_tick_states:
+                            prev_balances[state["agent_id"]] = state.get("balance", 0)
+                    else:
+                        # Without full replay data, assume balances start at opening config values
+                        for agent_config in config_dict.get("agents", []):
+                            prev_balances[agent_config["id"]] = agent_config.get("opening_balance", 0)
 
-            for tick_num in range(from_tick, end_tick + 1):
-                # ═══════════════════════════════════════════════════════════
-                # TICK HEADER
-                # ═══════════════════════════════════════════════════════════
-                log_tick_start(tick_num)
+                for tick_num in range(from_tick, end_tick + 1):
+                    # ═══════════════════════════════════════════════════════════
+                    # TICK HEADER
+                    # ═══════════════════════════════════════════════════════════
+                    log_tick_start(tick_num)
 
-                # Query simulation_events for this tick
-                tick_events_result = get_simulation_events(
-                    conn=db_manager.conn,
-                    simulation_id=simulation_id,
-                    tick=tick_num,
-                    sort="tick_asc",
-                    limit=1000,  # Max limit allowed by get_simulation_events
-                    offset=0,
-                )
-
-                # Organize events by type
-                arrival_events_raw = []
-                settlement_events_raw = []
-                lsm_events_raw = []
-                collateral_events_raw = []
-                cost_accrual_events_raw = []
-
-                for event in tick_events_result["events"]:
-                    event_type = event["event_type"]
-                    if event_type == "Arrival":
-                        arrival_events_raw.append(event)
-                    elif event_type == "Settlement":
-                        settlement_events_raw.append(event)
-                    elif event_type in ["LsmBilateralOffset", "LsmCycleSettlement"]:
-                        lsm_events_raw.append(event)
-                    elif event_type in ["CollateralPost", "CollateralWithdraw"]:
-                        collateral_events_raw.append(event)
-                    elif event_type == "CostAccrual":
-                        cost_accrual_events_raw.append(event)
-
-                # Reconstruct events from database (using simulation_events table as SINGLE SOURCE)
-                # This is the unified replay architecture - NO manual reconstruction from legacy tables
-                arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
-                settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
-                lsm_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
-                collateral_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
-                cost_accrual_events = _reconstruct_cost_accrual_events(cost_accrual_events_raw)
-
-                # Combine all events
-                events = arrival_events + settlement_events + lsm_events + collateral_events + cost_accrual_events
-
-                # Update statistics
-                num_arrivals = len(arrival_events)
-
-                # CRITICAL: Count actual settlements, not just Settlement events
-                # LSM events settle multiple transactions - count them from tx_ids field
-                num_settlements = len(settlement_events)
-                num_lsm_settlements = 0
-                for lsm_event in lsm_events:
-                    tx_ids = lsm_event.get("tx_ids", [])
-                    num_lsm_settlements += len(tx_ids)
-                num_settlements += num_lsm_settlements  # Add LSM-settled transactions to total
-
-                num_lsm = len(lsm_events)
-
-                daily_stats["arrivals"] += num_arrivals
-                daily_stats["settlements"] += num_settlements
-                daily_stats["lsm_releases"] += num_lsm
-
-                tick_count_arrivals += num_arrivals
-                tick_count_settlements += num_settlements
-                tick_count_lsm += num_lsm
-
-                # ═══════════════════════════════════════════════════════════
-                # PREPARE DATA FOR SHARED DISPLAY FUNCTION
-                # ═══════════════════════════════════════════════════════════
-                # Query policy decisions and add to events
-                policy_events = []
-                if has_full_replay:
-                    policy_decisions = get_policy_decisions_by_tick(db_manager.conn, simulation_id, tick_num)
-                    for decision in policy_decisions:
-                        event_type_map = {
-                            "submit": "PolicySubmit",
-                            "hold": "PolicyHold",
-                            "drop": "PolicyDrop",
-                            "split": "PolicySplit",
-                        }
-                        event_type = event_type_map.get(decision["decision_type"], "PolicySubmit")
-                        policy_event = {
-                            "event_type": event_type,
-                            "agent_id": decision["agent_id"],
-                            "tx_id": decision["tx_id"],
-                            "reason": decision.get("reason"),
-                        }
-                        if event_type == "PolicySplit":
-                            policy_event["num_splits"] = decision.get("num_splits")
-                            if decision.get("child_tx_ids"):
-                                import json
-                                policy_event["child_ids"] = json.loads(decision["child_tx_ids"])
-                        policy_events.append(policy_event)
-
-                # Add policy events to events list for display
-                all_events = events + policy_events
-
-                # Query agent states and queue snapshots (needed for DatabaseStateProvider)
-                agent_states_list = []
-                queue_snapshots = {}
-                total_cost = 0
-                if has_full_replay:
-                    agent_states_list = get_tick_agent_states(db_manager.conn, simulation_id, tick_num)
-                    queue_snapshots = get_tick_queue_snapshots(db_manager.conn, simulation_id, tick_num)
-                    # Calculate total cost from agent states
-                    for state in agent_states_list:
-                        costs = state.get("costs", {})
-                        total_cost += costs.get("total", 0)
-
-                # Convert agent_states list to dict for DatabaseStateProvider
-                agent_states_dict = {state["agent_id"]: state for state in agent_states_list}
-
-                # ═══════════════════════════════════════════════════════════
-                # USE SHARED DISPLAY FUNCTION (SINGLE SOURCE OF TRUTH)
-                # ═══════════════════════════════════════════════════════════
-                from payment_simulator.cli.execution.display import display_tick_verbose_output
-                from payment_simulator.cli.execution.state_provider import DatabaseStateProvider
-
-                # Create DatabaseStateProvider for replay
-                provider = DatabaseStateProvider(
-                    conn=db_manager.conn,
-                    simulation_id=simulation_id,
-                    tick=tick_num,
-                    tx_cache=mock_orch._tx_cache,
-                    agent_states=agent_states_dict,
-                    queue_snapshots=queue_snapshots,
-                )
-
-                # Call shared display function - ensures live and replay can NEVER diverge
-                prev_balances = display_tick_verbose_output(
-                    provider=provider,
-                    events=all_events,
-                    tick_num=tick_num,
-                    agent_ids=agent_ids,
-                    prev_balances=prev_balances,
-                    num_arrivals=num_arrivals,
-                    num_settlements=num_settlements,
-                    num_lsm_releases=num_lsm,
-                    total_cost=total_cost,
-                )
-
-                # ═══════════════════════════════════════════════════════════
-                # END-OF-DAY SUMMARY (if applicable)
-                # ═══════════════════════════════════════════════════════════
-                if (tick_num + 1) % ticks_per_day == 0:
-                    current_day = tick_num // ticks_per_day
-
-                    # Query database for EOD agent metrics
-                    from payment_simulator.persistence.queries import get_agent_daily_metrics
-
-                    # Get list of agent IDs from config
-                    agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
-
-                    # Build mapping of agent_id -> credit_limit from config
-                    agent_credit_limits = {
-                        agent["id"]: agent.get("credit_limit", 0)
-                        for agent in config_dict.get("agents", [])
-                    }
-
-                    agent_stats = []
-                    day_total_costs = 0
-                    for agent_id in agent_ids:
-                        metrics_df = get_agent_daily_metrics(db_manager.conn, simulation_id, agent_id)
-
-                        # Filter for current day
-                        day_metrics = metrics_df.filter(metrics_df["day"] == current_day)
-
-                        if len(day_metrics) > 0:
-                            # Convert to dict to avoid Polars formatting issues
-                            row_dict = day_metrics.to_dicts()[0]
-                            agent_total_cost = row_dict["total_cost"]
-                            day_total_costs += agent_total_cost
-
-                            # Calculate credit utilization
-                            balance = row_dict["closing_balance"]
-                            credit_limit = agent_credit_limits.get(agent_id, 0)
-                            credit_util = 0
-                            if credit_limit and credit_limit > 0:
-                                used = max(0, credit_limit - balance)
-                                credit_util = (used / credit_limit) * 100
-
-                            agent_stats.append({
-                                "id": agent_id,
-                                "final_balance": balance,
-                                "credit_utilization": credit_util,
-                                "queue1_size": row_dict["queue1_eod_size"],
-                                "queue2_size": 0,  # Not tracked
-                                "total_costs": agent_total_cost,
-                            })
-
-                    # Show end-of-day event (must match live execution output)
-                    # Query events from the last tick of the day
-                    last_tick_of_day = (current_day + 1) * ticks_per_day - 1
-                    eod_events_result = get_simulation_events(
+                    # Query simulation_events for this tick
+                    tick_events_result = get_simulation_events(
                         conn=db_manager.conn,
                         simulation_id=simulation_id,
-                        tick=last_tick_of_day,
+                        tick=tick_num,
                         sort="tick_asc",
-                        limit=1000,
+                        limit=1000,  # Max limit allowed by get_simulation_events
                         offset=0,
                     )
-                    log_end_of_day_event(eod_events_result["events"])
 
-                    log_end_of_day_statistics(
-                        day=current_day,
-                        total_arrivals=daily_stats["arrivals"],
-                        total_settlements=daily_stats["settlements"],
-                        total_lsm_releases=daily_stats["lsm_releases"],
-                        total_costs=day_total_costs,
-                        agent_stats=agent_stats,
+                    # Organize events by type
+                    arrival_events_raw = []
+                    settlement_events_raw = []
+                    lsm_events_raw = []
+                    collateral_events_raw = []
+                    cost_accrual_events_raw = []
+
+                    for event in tick_events_result["events"]:
+                        event_type = event["event_type"]
+                        if event_type == "Arrival":
+                            arrival_events_raw.append(event)
+                        elif event_type == "Settlement":
+                            settlement_events_raw.append(event)
+                        elif event_type in ["LsmBilateralOffset", "LsmCycleSettlement"]:
+                            lsm_events_raw.append(event)
+                        elif event_type in ["CollateralPost", "CollateralWithdraw"]:
+                            collateral_events_raw.append(event)
+                        elif event_type == "CostAccrual":
+                            cost_accrual_events_raw.append(event)
+
+                    # Reconstruct events from database (using simulation_events table as SINGLE SOURCE)
+                    # This is the unified replay architecture - NO manual reconstruction from legacy tables
+                    arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
+                    settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
+                    lsm_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
+                    collateral_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
+                    cost_accrual_events = _reconstruct_cost_accrual_events(cost_accrual_events_raw)
+
+                    # Combine all events
+                    events = arrival_events + settlement_events + lsm_events + collateral_events + cost_accrual_events
+
+                    # Update statistics
+                    num_arrivals = len(arrival_events)
+
+                    # CRITICAL: Count actual settlements, not just Settlement events
+                    # LSM events settle multiple transactions - count them from tx_ids field
+                    num_settlements = len(settlement_events)
+                    num_lsm_settlements = 0
+                    for lsm_event in lsm_events:
+                        tx_ids = lsm_event.get("tx_ids", [])
+                        num_lsm_settlements += len(tx_ids)
+                    num_settlements += num_lsm_settlements  # Add LSM-settled transactions to total
+
+                    num_lsm = len(lsm_events)
+
+                    daily_stats["arrivals"] += num_arrivals
+                    daily_stats["settlements"] += num_settlements
+                    daily_stats["lsm_releases"] += num_lsm
+
+                    tick_count_arrivals += num_arrivals
+                    tick_count_settlements += num_settlements
+                    tick_count_lsm += num_lsm
+
+                    # ═══════════════════════════════════════════════════════════
+                    # PREPARE DATA FOR SHARED DISPLAY FUNCTION
+                    # ═══════════════════════════════════════════════════════════
+                    # Query policy decisions and add to events
+                    policy_events = []
+                    if has_full_replay:
+                        policy_decisions = get_policy_decisions_by_tick(db_manager.conn, simulation_id, tick_num)
+                        for decision in policy_decisions:
+                            event_type_map = {
+                                "submit": "PolicySubmit",
+                                "hold": "PolicyHold",
+                                "drop": "PolicyDrop",
+                                "split": "PolicySplit",
+                            }
+                            event_type = event_type_map.get(decision["decision_type"], "PolicySubmit")
+                            policy_event = {
+                                "event_type": event_type,
+                                "agent_id": decision["agent_id"],
+                                "tx_id": decision["tx_id"],
+                                "reason": decision.get("reason"),
+                            }
+                            if event_type == "PolicySplit":
+                                policy_event["num_splits"] = decision.get("num_splits")
+                                if decision.get("child_tx_ids"):
+                                    import json
+                                    policy_event["child_ids"] = json.loads(decision["child_tx_ids"])
+                            policy_events.append(policy_event)
+
+                    # Add policy events to events list for display
+                    all_events = events + policy_events
+
+                    # Query agent states and queue snapshots (needed for DatabaseStateProvider)
+                    agent_states_list = []
+                    queue_snapshots = {}
+                    total_cost = 0
+                    if has_full_replay:
+                        agent_states_list = get_tick_agent_states(db_manager.conn, simulation_id, tick_num)
+                        queue_snapshots = get_tick_queue_snapshots(db_manager.conn, simulation_id, tick_num)
+                        # Calculate total cost from agent states
+                        for state in agent_states_list:
+                            costs = state.get("costs", {})
+                            total_cost += costs.get("total", 0)
+
+                    # Convert agent_states list to dict for DatabaseStateProvider
+                    agent_states_dict = {state["agent_id"]: state for state in agent_states_list}
+
+                    # ═══════════════════════════════════════════════════════════
+                    # USE SHARED DISPLAY FUNCTION (SINGLE SOURCE OF TRUTH)
+                    # ═══════════════════════════════════════════════════════════
+                    from payment_simulator.cli.execution.display import display_tick_verbose_output
+                    from payment_simulator.cli.execution.state_provider import DatabaseStateProvider
+
+                    # Create DatabaseStateProvider for replay
+                    provider = DatabaseStateProvider(
+                        conn=db_manager.conn,
+                        simulation_id=simulation_id,
+                        tick=tick_num,
+                        tx_cache=mock_orch._tx_cache,
+                        agent_states=agent_states_dict,
+                        queue_snapshots=queue_snapshots,
                     )
 
-                    # Reset daily stats for next day
-                    daily_stats = {
-                        "arrivals": 0,
-                        "settlements": 0,
-                        "lsm_releases": 0,
-                    }
+                    # Call shared display function - ensures live and replay can NEVER diverge
+                    prev_balances = display_tick_verbose_output(
+                        provider=provider,
+                        events=all_events,
+                        tick_num=tick_num,
+                        agent_ids=agent_ids,
+                        prev_balances=prev_balances,
+                        num_arrivals=num_arrivals,
+                        num_settlements=num_settlements,
+                        num_lsm_releases=num_lsm,
+                        total_cost=total_cost,
+                    )
 
+                    # ═══════════════════════════════════════════════════════════
+                    # END-OF-DAY SUMMARY (if applicable)
+                    # ═══════════════════════════════════════════════════════════
+                    if (tick_num + 1) % ticks_per_day == 0:
+                        current_day = tick_num // ticks_per_day
+
+                        # Query database for EOD agent metrics
+                        from payment_simulator.persistence.queries import get_agent_daily_metrics
+
+                        # Get list of agent IDs from config
+                        agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
+
+                        # Build mapping of agent_id -> credit_limit from config
+                        agent_credit_limits = {
+                            agent["id"]: agent.get("credit_limit", 0)
+                            for agent in config_dict.get("agents", [])
+                        }
+
+                        agent_stats = []
+                        day_total_costs = 0
+                        for agent_id in agent_ids:
+                            metrics_df = get_agent_daily_metrics(db_manager.conn, simulation_id, agent_id)
+
+                            # Filter for current day
+                            day_metrics = metrics_df.filter(metrics_df["day"] == current_day)
+
+                            if len(day_metrics) > 0:
+                                # Convert to dict to avoid Polars formatting issues
+                                row_dict = day_metrics.to_dicts()[0]
+                                agent_total_cost = row_dict["total_cost"]
+                                day_total_costs += agent_total_cost
+
+                                # Calculate credit utilization
+                                balance = row_dict["closing_balance"]
+                                credit_limit = agent_credit_limits.get(agent_id, 0)
+                                credit_util = 0
+                                if credit_limit and credit_limit > 0:
+                                    used = max(0, credit_limit - balance)
+                                    credit_util = (used / credit_limit) * 100
+
+                                agent_stats.append({
+                                    "id": agent_id,
+                                    "final_balance": balance,
+                                    "credit_utilization": credit_util,
+                                    "queue1_size": row_dict["queue1_eod_size"],
+                                    "queue2_size": 0,  # Not tracked
+                                    "total_costs": agent_total_cost,
+                                })
+
+                        # Show end-of-day event (must match live execution output)
+                        # Query events from the last tick of the day
+                        last_tick_of_day = (current_day + 1) * ticks_per_day - 1
+                        eod_events_result = get_simulation_events(
+                            conn=db_manager.conn,
+                            simulation_id=simulation_id,
+                            tick=last_tick_of_day,
+                            sort="tick_asc",
+                            limit=1000,
+                            offset=0,
+                        )
+                        log_end_of_day_event(eod_events_result["events"])
+
+                        log_end_of_day_statistics(
+                            day=current_day,
+                            total_arrivals=daily_stats["arrivals"],
+                            total_settlements=daily_stats["settlements"],
+                            total_lsm_releases=daily_stats["lsm_releases"],
+                            total_costs=day_total_costs,
+                            agent_stats=agent_stats,
+                        )
+
+                        # Reset daily stats for next day
+                        daily_stats = {
+                            "arrivals": 0,
+                            "settlements": 0,
+                            "lsm_releases": 0,
+                        }
+
+                # Verbose mode statistics are already tracked in tick_count_* variables
+                log_success(f"\nReplay complete: {ticks_replayed} ticks", False)
+                log_info("Replayed from database (not re-executed)", False)
+
+            else:
+                # Non-verbose mode: get summary statistics efficiently from database
+                log_info("Loading summary statistics from database", False)
+                stats = _get_summary_statistics(db_manager.conn, simulation_id, from_tick, end_tick)
+                tick_count_arrivals = stats["total_arrivals"]
+                tick_count_settlements = stats["total_settlements"]
+                tick_count_lsm = stats["total_lsm_releases"]
+                agent_states_from_db = stats["agent_states"]
+
+            # Calculate replay duration and performance metrics
             replay_duration = time.time() - replay_start
-            ticks_replayed = end_tick - from_tick + 1
             ticks_per_second = ticks_replayed / replay_duration if replay_duration > 0 else 0
 
-            log_success(f"\nReplay complete: {ticks_replayed} ticks in {replay_duration:.2f}s ({ticks_per_second:.1f} ticks/s)", False)
-            log_info("Replayed from database (not re-executed)", False)
+            # Build and output final summary as JSON (matching run command format)
+            # Get agent states - try from _get_summary_statistics first (non-verbose mode)
+            if 'agent_states_from_db' in locals() and agent_states_from_db:
+                # Non-verbose mode: use stats from database
+                agents_output = agent_states_from_db
+                total_cost = sum(agent.get("total_cost", 0) for agent in agents_output)
+            elif has_full_replay:
+                # Verbose mode with full replay data: get final agent states
+                agent_states_list = get_tick_agent_states(db_manager.conn, simulation_id, end_tick)
+                agents_output = []
+                total_cost = 0
+                for state in agent_states_list:
+                    costs = state.get("costs", {})
+                    agent_total_cost = costs.get("total", 0) if isinstance(costs, dict) else 0
+                    total_cost += agent_total_cost
+                    agents_output.append({
+                        "id": state["agent_id"],
+                        "final_balance": state.get("balance", 0),
+                        "queue1_size": state.get("queue1_size", 0),
+                    })
+            else:
+                # No full replay data: minimal agent info
+                agents_output = [{"id": agent["id"]} for agent in config_dict.get("agents", [])]
+                total_cost = 0
 
-            # Build and output final summary as JSON
-            # Get list of agent IDs from config
-            agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
-
+            # Build output matching run command format
             output_data = {
-                "replay": {
-                    "simulation_id": simulation_id,
-                    "from_tick": from_tick,
-                    "to_tick": end_tick,
-                    "ticks_replayed": ticks_replayed,
+                "simulation": {
+                    "config_file": summary.get("config_file", "loaded from database"),
+                    "seed": summary["rng_seed"],
+                    "ticks_executed": ticks_replayed,
                     "duration_seconds": round(replay_duration, 3),
                     "ticks_per_second": round(ticks_per_second, 2),
-                    "source": "database",  # Indicates this is database replay, not re-execution
-                    "full_replay_data": has_full_replay,  # Indicates if policy decisions, agent states, costs available
+                    "simulation_id": simulation_id,
+                    "database": db_path,
                 },
                 "metrics": {
                     "total_arrivals": tick_count_arrivals,
@@ -931,7 +1057,13 @@ def replay_simulation(
                     "total_lsm_releases": tick_count_lsm,
                     "settlement_rate": round(tick_count_settlements / tick_count_arrivals, 4) if tick_count_arrivals > 0 else 0,
                 },
-                "agents": [{"id": aid} for aid in agent_ids],  # Simplified, no final balances
+                "agents": agents_output,
+                "costs": {
+                    "total_cost": total_cost,
+                },
+                "performance": {
+                    "ticks_per_second": round(ticks_per_second, 2),
+                },
             }
             output_json(output_data)
 
