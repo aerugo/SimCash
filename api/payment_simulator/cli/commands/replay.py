@@ -242,6 +242,53 @@ def _reconstruct_lsm_events(lsm_cycles: list[dict]) -> list[dict]:
     return events
 
 
+def _reconstruct_lsm_events_from_simulation_events(events: list[dict]) -> list[dict]:
+    """Reconstruct LSM events from simulation_events table.
+
+    Args:
+        events: List of simulation event records with event_type = 'LsmBilateralOffset' or 'LsmCycleSettlement'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+
+    Examples:
+        >>> events = [{"event_type": "LsmBilateralOffset", "details": {...}}]
+        >>> lsm_events = _reconstruct_lsm_events_from_simulation_events(events)
+        >>> lsm_events[0]["event_type"]
+        'LsmBilateralOffset'
+    """
+    result = []
+    for event in events:
+        event_type = event["event_type"]
+        details = event.get("details", {})
+
+        if event_type == "LsmBilateralOffset":
+            result.append({
+                "event_type": "LsmBilateralOffset",
+                "agent_a": details.get("agent_a", "unknown"),
+                "agent_b": details.get("agent_b", "unknown"),
+                "tx_id_a": details.get("tx_id_a", ""),
+                "tx_id_b": details.get("tx_id_b", ""),
+                "amount_a": details.get("amount_a", 0),
+                "amount_b": details.get("amount_b", 0),
+                "amount": details.get("amount", details.get("amount_a", 0) + details.get("amount_b", 0)),
+            })
+        elif event_type == "LsmCycleSettlement":
+            result.append({
+                "event_type": "LsmCycleSettlement",
+                "agent_ids": details.get("agent_ids", []),
+                "tx_ids": details.get("tx_ids", []),
+                "tx_amounts": details.get("tx_amounts", []),
+                "settled_value": details.get("settled_value", 0),
+                "net_positions": details.get("net_positions", []),
+                "total_value": details.get("total_value", 0),
+                "max_net_outflow": details.get("max_net_outflow", 0),
+                "max_net_outflow_agent": details.get("max_net_outflow_agent", ""),
+            })
+
+    return result
+
+
 def _reconstruct_collateral_events_from_simulation_events(events: list[dict]) -> list[dict]:
     """Reconstruct collateral events from simulation_events table.
 
@@ -597,7 +644,7 @@ def replay_simulation(
                         "is_divisible": details.get("is_divisible", False),
                         "arrival_tick": event["tick"],
                         "arrival_day": event["day"],
-                        "deadline_tick": details.get("deadline_tick", 0),
+                        "deadline_tick": details.get("deadline") or details.get("deadline_tick", 0),
                         "settlement_tick": None,  # Will be updated from settlement events
                         "status": "pending",  # Will be updated from settlement events
                     }
@@ -781,7 +828,13 @@ def replay_simulation(
                 # Reconstruct events from database (using simulation_events data)
                 arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
                 settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
-                lsm_events = _reconstruct_lsm_events(lsm_data)
+
+                # Reconstruct LSM events from BOTH sources (simulation_events and dedicated table)
+                lsm_from_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
+                lsm_from_table = _reconstruct_lsm_events(lsm_data)
+
+                # Prefer simulation_events if available (more complete), otherwise use table
+                lsm_events = lsm_from_events if lsm_from_events else lsm_from_table
 
                 # Reconstruct collateral events from BOTH sources (simulation_events and dedicated table)
                 collateral_from_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
