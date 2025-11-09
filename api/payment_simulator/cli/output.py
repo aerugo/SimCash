@@ -2,7 +2,12 @@
 
 Follows the golden rule:
 - stdout = machine-readable data (JSON, JSONL)
-- stderr = human-readable logs (progress, errors, info)
+- stderr = human-readable logs (progress, errors, info, verbose output)
+
+This separation allows:
+- Piping JSON to other tools while preserving colored logs in terminal
+- Capturing verbose logs to file while keeping colors: cmd 2> output.log
+- Redirecting both streams independently as needed
 """
 
 import sys
@@ -11,7 +16,7 @@ from typing import Any, Optional
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
-# stderr console for human logs (never goes to stdout)
+# stderr console for human logs (preserves colors when redirected)
 console = Console(stderr=True)
 
 
