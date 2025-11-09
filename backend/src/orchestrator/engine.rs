@@ -912,7 +912,7 @@ impl Orchestrator {
     /// `true` if transaction is effectively settled, `false` otherwise
     fn is_effectively_settled(
         tx_id: &str,
-        transactions: &HashMap<String, Transaction>,
+        transactions: &std::collections::BTreeMap<String, Transaction>,
         children_map: &HashMap<String, Vec<String>>,
     ) -> bool {
         let tx = match transactions.get(tx_id) {
@@ -1711,7 +1711,7 @@ impl Orchestrator {
         validate_snapshot(&snapshot, expected_balance)?;
 
         // Reconstruct state
-        let agents: HashMap<_, _> = snapshot
+        let agents: std::collections::BTreeMap<_, _> = snapshot
             .agents
             .into_iter()
             .map(|a| {
@@ -1720,7 +1720,7 @@ impl Orchestrator {
             })
             .collect();
 
-        let transactions: HashMap<_, _> = snapshot
+        let transactions: std::collections::BTreeMap<_, _> = snapshot
             .transactions
             .into_iter()
             .map(|t| {

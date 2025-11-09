@@ -66,7 +66,7 @@
 use crate::models::event::Event;
 use crate::models::state::SimulationState;
 use crate::settlement::rtgs::{process_queue, SettlementError};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 // ============================================================================
 // Configuration Types
@@ -160,7 +160,7 @@ pub struct CycleSettlementResult {
 
     /// Net positions for each agent in cycle (T2-compliant)
     /// Positive = net inflow, Negative = net outflow
-    pub net_positions: HashMap<String, i64>,
+    pub net_positions: BTreeMap<String, i64>,
 }
 
 /// LSM cycle event for persistence (Phase 4)
@@ -197,7 +197,7 @@ pub struct LsmCycleEvent {
     /// Net positions for each agent in cycle
     /// Positive = net inflow, Negative = net outflow (used liquidity)
     /// Example: {"BANK_A": -200000, "BANK_B": 100000, "BANK_C": 100000}
-    pub net_positions: HashMap<String, i64>,
+    pub net_positions: BTreeMap<String, i64>,
 
     /// Maximum net outflow in cycle (largest liquidity requirement)
     /// This is the actual liquidity used to settle the cycle
@@ -275,7 +275,7 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
 
     // Build bilateral payment matrix: (sender, receiver) -> [tx_ids]
     // LSM operates ONLY on Queue 2 (RTGS central queue), not Queue 1 (banks' internal queues)
-    let mut bilateral_map: HashMap<(String, String), Vec<String>> = HashMap::new();
+    let mut bilateral_map: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
 
     for tx_id in state.rtgs_queue() {
         if let Some(tx) = state.get_transaction(tx_id) {
@@ -518,8 +518,8 @@ fn settle_bilateral_pair(
 fn calculate_cycle_net_positions(
     state: &SimulationState,
     cycle: &Cycle,
-) -> HashMap<String, i64> {
-    let mut net_positions: HashMap<String, i64> = HashMap::new();
+) -> BTreeMap<String, i64> {
+    let mut net_positions: BTreeMap<String, i64> = BTreeMap::new();
 
     // Build flows from cycle transactions
     for tx_id in &cycle.transactions {
@@ -574,7 +574,7 @@ enum CycleFeasibilityError {
 fn check_cycle_feasibility(
     state: &SimulationState,
     _cycle: &Cycle,
-    net_positions: &HashMap<String, i64>,
+    net_positions: &BTreeMap<String, i64>,
 ) -> Result<(), CycleFeasibilityError> {
     // Validate conservation (sum of net positions must be zero)
     let sum: i64 = net_positions.values().sum();
@@ -631,7 +631,7 @@ fn check_cycle_feasibility(
 pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cycle> {
     // Build payment graph: agent -> [(neighbor, tx_id, amount)]
     // LSM operates ONLY on Queue 2 (RTGS central queue), not Queue 1 (banks' internal queues)
-    let mut graph: HashMap<String, Vec<(String, String, i64)>> = HashMap::new();
+    let mut graph: BTreeMap<String, Vec<(String, String, i64)>> = BTreeMap::new();
 
     for tx_id in state.rtgs_queue() {
         if let Some(tx) = state.get_transaction(tx_id) {
@@ -678,7 +678,7 @@ pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cy
 fn find_cycles_from_start(
     start_node: &str,
     current_node: &str,
-    graph: &HashMap<String, Vec<(String, String, i64)>>,
+    graph: &BTreeMap<String, Vec<(String, String, i64)>>,
     path: &mut Vec<(String, String, i64)>, // edges taken so far: (destination_node, tx_id, amount)
     visited: &mut HashSet<String>,
     cycles: &mut Vec<Cycle>,
@@ -984,7 +984,7 @@ pub fn run_lsm_pass(
                 let offset_amount = pair.amount_a_to_b.min(pair.amount_b_to_a);
 
                 // Calculate net positions for bilateral offset
-                let mut net_positions = HashMap::new();
+                let mut net_positions = BTreeMap::new();
                 let net_a = pair.amount_b_to_a as i64 - pair.amount_a_to_b as i64;
                 let net_b = pair.amount_a_to_b as i64 - pair.amount_b_to_a as i64;
                 net_positions.insert(pair.agent_a.clone(), net_a);
