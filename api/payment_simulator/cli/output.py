@@ -1018,11 +1018,10 @@ def log_end_of_day_event(events, quiet=False):
         console.print()
 
 
-def log_lsm_cycle_visualization(orch, events, quiet=False):
+def log_lsm_cycle_visualization(events, quiet=False):
     """Visualize LSM cycles showing circular payment chains (verbose mode).
 
     Args:
-        orch: Orchestrator instance (for querying transaction details)
         events: List of events from get_tick_events()
         quiet: Suppress output if True
 

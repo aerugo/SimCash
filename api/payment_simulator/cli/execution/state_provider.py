@@ -164,11 +164,17 @@ class DatabaseStateProvider:
 
     def get_agent_balance(self, agent_id: str) -> int:
         """Get balance from agent_states."""
-        return self._agent_states[agent_id]["balance"]
+        # Handle missing agent_id gracefully
+        if agent_id not in self._agent_states:
+            return 0
+        return self._agent_states[agent_id].get("balance", 0)
 
     def get_agent_credit_limit(self, agent_id: str) -> int:
         """Get credit limit from agent_states."""
-        return self._agent_states[agent_id]["credit_limit"]
+        # Handle missing credit_limit gracefully (older databases may not have it)
+        if agent_id not in self._agent_states:
+            return 0
+        return self._agent_states[agent_id].get("credit_limit", 0)
 
     def get_agent_queue1_contents(self, agent_id: str) -> list[str]:
         """Get queue1 from queue_snapshots."""
