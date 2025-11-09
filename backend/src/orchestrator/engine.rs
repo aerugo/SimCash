@@ -873,6 +873,11 @@ impl Orchestrator {
         &mut self.state
     }
 
+    /// Get reference to cost rates configuration
+    pub fn cost_rates(&self) -> &CostRates {
+        &self.cost_rates
+    }
+
     /// Get total events logged
     pub fn event_count(&self) -> usize {
         self.event_log.len()
