@@ -896,6 +896,12 @@ def replay_simulation(
                     # Get list of agent IDs from config
                     agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
 
+                    # Build mapping of agent_id -> credit_limit from config
+                    agent_credit_limits = {
+                        agent["id"]: agent.get("credit_limit", 0)
+                        for agent in config_dict.get("agents", [])
+                    }
+
                     agent_stats = []
                     day_total_costs = 0
                     for agent_id in agent_ids:
@@ -910,10 +916,18 @@ def replay_simulation(
                             agent_total_cost = row_dict["total_cost"]
                             day_total_costs += agent_total_cost
 
+                            # Calculate credit utilization
+                            balance = row_dict["closing_balance"]
+                            credit_limit = agent_credit_limits.get(agent_id, 0)
+                            credit_util = 0
+                            if credit_limit and credit_limit > 0:
+                                used = max(0, credit_limit - balance)
+                                credit_util = (used / credit_limit) * 100
+
                             agent_stats.append({
                                 "id": agent_id,
-                                "final_balance": row_dict["closing_balance"],
-                                "credit_utilization": 0,  # Not calculated
+                                "final_balance": balance,
+                                "credit_utilization": credit_util,
                                 "queue1_size": row_dict["queue1_eod_size"],
                                 "queue2_size": 0,  # Not tracked
                                 "total_costs": agent_total_cost,
