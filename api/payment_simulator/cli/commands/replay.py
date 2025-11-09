@@ -35,8 +35,6 @@ from payment_simulator.cli.output import (
 from payment_simulator.persistence.connection import DatabaseManager
 from payment_simulator.persistence.queries import (
     get_simulation_summary,
-    get_collateral_events_by_tick,
-    get_lsm_cycles_by_tick,
     get_policy_decisions_by_tick,
     get_tick_agent_states,
     get_tick_queue_snapshots,
@@ -166,83 +164,6 @@ def _reconstruct_settlement_events(settlements: list[dict]) -> list[dict]:
     ]
 
 
-def _reconstruct_lsm_events(lsm_cycles: list[dict]) -> list[dict]:
-    """Reconstruct LSM cycle events from database records.
-
-    Args:
-        lsm_cycles: List of LSM cycle records for current tick
-
-    Returns:
-        List of event dicts compatible with verbose output functions
-
-    Examples:
-        >>> cycles = [{"cycle_type": "bilateral", ...}]
-        >>> events = _reconstruct_lsm_events(cycles)
-        >>> events[0]["event_type"]
-        'LsmBilateralOffset'
-    """
-    events = []
-
-    for cycle in lsm_cycles:
-        if cycle["cycle_type"] == "bilateral":
-            # Bilateral offset: agent_ids = [A, B, A] (length 3), 2 transactions
-            # The Rust backend models bilateral offsets as a cycle [A, B, A]
-            if len(cycle["agent_ids"]) == 3 and len(cycle["tx_ids"]) == 2:
-                # Get transaction amounts from database (if available)
-                tx_amounts = cycle.get("tx_amounts", [])
-                if len(tx_amounts) >= 2:
-                    amount_a = tx_amounts[0]
-                    amount_b = tx_amounts[1]
-                else:
-                    # Fallback to simplified version
-                    amount_a = cycle["settled_value"]
-                    amount_b = cycle["settled_value"]
-
-                events.append({
-                    "event_type": "LsmBilateralOffset",
-                    "agent_a": cycle["agent_ids"][0],
-                    "agent_b": cycle["agent_ids"][1],
-                    "tx_id_a": cycle["tx_ids"][0],
-                    "tx_id_b": cycle["tx_ids"][1],
-                    "amount_a": amount_a,
-                    "amount_b": amount_b,
-                    "amount": cycle["settled_value"],
-                })
-        else:
-            # Multilateral cycle - include all detailed fields from database
-            event = {
-                "event_type": "LsmCycleSettlement",
-                "agent_ids": cycle["agent_ids"],
-                "tx_ids": cycle["tx_ids"],
-                "settled_value": cycle["settled_value"],
-            }
-
-            # Include tx_amounts if available (otherwise fallback to simplified)
-            tx_amounts = cycle.get("tx_amounts", [])
-            if tx_amounts:
-                event["tx_amounts"] = tx_amounts
-            else:
-                # Simplified fallback
-                event["amounts"] = [cycle["settled_value"] // len(cycle["tx_ids"])] * len(cycle["tx_ids"])
-
-            # Include all additional fields that log_lsm_cycle_visualization uses
-            if "net_positions" in cycle and cycle["net_positions"]:
-                event["net_positions"] = cycle["net_positions"]
-
-            if "total_value" in cycle and cycle["total_value"] is not None:
-                event["total_value"] = cycle["total_value"]
-
-            if "max_net_outflow" in cycle and cycle["max_net_outflow"] is not None:
-                event["max_net_outflow"] = cycle["max_net_outflow"]
-
-            if "max_net_outflow_agent" in cycle and cycle["max_net_outflow_agent"]:
-                event["max_net_outflow_agent"] = cycle["max_net_outflow_agent"]
-
-            events.append(event)
-
-    return events
-
-
 def _reconstruct_lsm_events_from_simulation_events(events: list[dict]) -> list[dict]:
     """Reconstruct LSM events from simulation_events table.
 
@@ -270,6 +191,7 @@ def _reconstruct_lsm_events_from_simulation_events(events: list[dict]) -> list[d
                 "agent_b": details.get("agent_b", "unknown"),
                 "tx_id_a": details.get("tx_id_a", ""),
                 "tx_id_b": details.get("tx_id_b", ""),
+                "tx_ids": details.get("tx_ids", []),  # CRITICAL: Extract tx_ids for settlement counting
                 "amount_a": details.get("amount_a", 0),
                 "amount_b": details.get("amount_b", 0),
                 "amount": details.get("amount", details.get("amount_a", 0) + details.get("amount_b", 0)),
@@ -349,33 +271,6 @@ def _reconstruct_cost_accrual_events(events: list[dict]) -> list[dict]:
                 "costs": costs,
             })
     return result
-
-
-def _reconstruct_collateral_events(collateral_events: list[dict]) -> list[dict]:
-    """Reconstruct collateral events from database records.
-
-    Args:
-        collateral_events: List of collateral event records for current tick
-
-    Returns:
-        List of event dicts compatible with verbose output functions
-
-    Examples:
-        >>> events = [{"action": "post", "amount": 100000, ...}]
-        >>> reconstructed = _reconstruct_collateral_events(events)
-        >>> reconstructed[0]["event_type"]
-        'CollateralPost'
-    """
-    return [
-        {
-            "event_type": "CollateralPost" if event["action"] == "post" else "CollateralWithdraw",
-            "agent_id": event["agent_id"],
-            "amount": event["amount"],
-            "reason": event["reason"],
-            "new_total": event["posted_collateral_after"],
-        }
-        for event in collateral_events
-    ]
 
 
 def _has_full_replay_data(conn, simulation_id: str) -> bool:
@@ -822,29 +717,12 @@ def replay_simulation(
                     elif event_type == "CostAccrual":
                         cost_accrual_events_raw.append(event)
 
-                # Also get collateral and LSM data from dedicated tables (for compatibility)
-                collateral_data = get_collateral_events_by_tick(db_manager.conn, simulation_id, tick_num)
-                lsm_data = get_lsm_cycles_by_tick(db_manager.conn, simulation_id, tick_num)
-
-                # Reconstruct events from database (using simulation_events data)
+                # Reconstruct events from database (using simulation_events table as SINGLE SOURCE)
+                # This is the unified replay architecture - NO manual reconstruction from legacy tables
                 arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
                 settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
-
-                # Reconstruct LSM events from BOTH sources (simulation_events and dedicated table)
-                lsm_from_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
-                lsm_from_table = _reconstruct_lsm_events(lsm_data)
-
-                # Prefer simulation_events if available (more complete), otherwise use table
-                lsm_events = lsm_from_events if lsm_from_events else lsm_from_table
-
-                # Reconstruct collateral events from BOTH sources (simulation_events and dedicated table)
-                collateral_from_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
-                collateral_from_table = _reconstruct_collateral_events(collateral_data)
-
-                # Prefer simulation_events if available (more complete), otherwise use table
-                collateral_events = collateral_from_events if collateral_from_events else collateral_from_table
-
-                # Reconstruct cost accrual events
+                lsm_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
+                collateral_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
                 cost_accrual_events = _reconstruct_cost_accrual_events(cost_accrual_events_raw)
 
                 # Combine all events
@@ -852,7 +730,16 @@ def replay_simulation(
 
                 # Update statistics
                 num_arrivals = len(arrival_events)
+
+                # CRITICAL: Count actual settlements, not just Settlement events
+                # LSM events settle multiple transactions - count them from tx_ids field
                 num_settlements = len(settlement_events)
+                num_lsm_settlements = 0
+                for lsm_event in lsm_events:
+                    tx_ids = lsm_event.get("tx_ids", [])
+                    num_lsm_settlements += len(tx_ids)
+                num_settlements += num_lsm_settlements  # Add LSM-settled transactions to total
+
                 num_lsm = len(lsm_events)
 
                 daily_stats["arrivals"] += num_arrivals
