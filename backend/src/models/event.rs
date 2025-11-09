@@ -29,6 +29,8 @@
 //!     receiver_id: "BANK_B".to_string(),
 //!     amount: 100_000,
 //!     deadline: 20,
+//!     priority: 5,
+//!     is_divisible: false,
 //! };
 //!
 //! println!("Event at tick {}: {:?}", event.tick(), event);
@@ -50,6 +52,8 @@ pub enum Event {
         receiver_id: String,
         amount: i64,
         deadline: usize,
+        priority: u8,
+        is_divisible: bool,
     },
 
     /// Policy decided to submit transaction from Queue 1 to settlement
@@ -133,9 +137,12 @@ pub enum Event {
     /// Transaction settled via LSM bilateral offset
     LsmBilateralOffset {
         tick: usize,
+        agent_a: String,
+        agent_b: String,
         tx_id_a: String,
         tx_id_b: String,
-        amount: i64,
+        amount_a: i64,
+        amount_b: i64,
     },
 
     /// Transaction settled via LSM cycle detection
@@ -318,6 +325,8 @@ mod tests {
             receiver_id: "BANK_B".to_string(),
             amount: 100_000,
             deadline: 50,
+            priority: 5,
+            is_divisible: false,
         };
 
         assert_eq!(event.tick(), 42);
@@ -373,6 +382,8 @@ mod tests {
             receiver_id: "BANK_B".to_string(),
             amount: 100_000,
             deadline: 10,
+            priority: 5,
+            is_divisible: false,
         });
 
         assert_eq!(log.len(), 1);
@@ -390,6 +401,8 @@ mod tests {
             receiver_id: "BANK_B".to_string(),
             amount: 100_000,
             deadline: 10,
+            priority: 5,
+            is_divisible: false,
         });
 
         log.log(Event::Settlement {
@@ -407,6 +420,8 @@ mod tests {
             receiver_id: "BANK_A".to_string(),
             amount: 200_000,
             deadline: 20,
+            priority: 5,
+            is_divisible: false,
         });
 
         let tick1_events = log.events_at_tick(1);
@@ -427,6 +442,8 @@ mod tests {
             receiver_id: "BANK_B".to_string(),
             amount: 100_000,
             deadline: 10,
+            priority: 5,
+            is_divisible: false,
         });
 
         log.log(Event::Settlement {
@@ -455,6 +472,8 @@ mod tests {
             receiver_id: "BANK_B".to_string(),
             amount: 100_000,
             deadline: 10,
+            priority: 5,
+            is_divisible: false,
         });
 
         log.log(Event::PolicySubmit {
@@ -486,6 +505,8 @@ mod tests {
             receiver_id: "BANK_B".to_string(),
             amount: 100_000,
             deadline: 10,
+            priority: 5,
+            is_divisible: false,
         });
 
         log.log(Event::PolicySubmit {
@@ -501,6 +522,8 @@ mod tests {
             receiver_id: "BANK_A".to_string(),
             amount: 200_000,
             deadline: 20,
+            priority: 5,
+            is_divisible: false,
         });
 
         let bank_a_events = log.events_for_agent("BANK_A");
@@ -521,6 +544,8 @@ mod tests {
             receiver_id: "BANK_B".to_string(),
             amount: 100_000,
             deadline: 10,
+            priority: 5,
+            is_divisible: false,
         });
 
         assert_eq!(log.len(), 1);
