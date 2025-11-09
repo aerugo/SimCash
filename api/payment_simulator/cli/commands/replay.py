@@ -302,7 +302,25 @@ def _has_full_replay_data(conn, simulation_id: str) -> bool:
 
 
 def _get_summary_statistics(conn, simulation_id: str, from_tick: int, to_tick: int) -> dict:
-    """Efficiently gather summary statistics from database for tick range.
+    """DEPRECATED: This function should NOT be used for replay summary statistics.
+
+    ⚠️  WARNING: This function recalculates statistics from simulation_events, which can
+    produce DIFFERENT results than the authoritative values persisted by the run command.
+    This violates the Replay Identity principle.
+
+    ✅  CORRECT APPROACH: Use get_simulation_summary() to get authoritative statistics
+    from the simulations table, which contains the exact values from the original run.
+
+    Historical context:
+    - This function was originally created to provide summary stats for replay
+    - It manually counts events and reconstructs agent states from tick_agent_states
+    - This approach is fragile and has caused discrepancies (e.g., settlement counts off by 20)
+
+    Replacement:
+    - For summary stats: Use get_simulation_summary(conn, simulation_id)
+    - For agent balances: Query daily_agent_metrics for the final day
+
+    This function is kept for backward compatibility but should be removed in a future cleanup.
 
     Args:
         conn: DuckDB connection
@@ -1003,24 +1021,54 @@ def replay_simulation(
                 log_info("Replayed from database (not re-executed)", False)
 
             else:
-                # Non-verbose mode: get summary statistics efficiently from database
+                # Non-verbose mode: get summary statistics from authoritative simulations table
+                # This ensures replay output matches run output exactly (Replay Identity principle)
                 log_info("Loading summary statistics from database", False)
-                stats = _get_summary_statistics(db_manager.conn, simulation_id, from_tick, end_tick)
-                tick_count_arrivals = stats["total_arrivals"]
-                tick_count_settlements = stats["total_settlements"]
-                tick_count_lsm = stats["total_lsm_releases"]
-                agent_states_from_db = stats["agent_states"]
+
+                # Use authoritative summary from simulations table (persisted by run command)
+                # This is the SINGLE SOURCE OF TRUTH for final statistics
+                tick_count_arrivals = summary["total_arrivals"]
+                tick_count_settlements = summary["total_settlements"]
+                total_cost = summary["total_cost_cents"]
+
+                # LSM release count not in summary table - calculate from events if needed
+                # (This is a minor metric, not critical for accuracy)
+                lsm_query = """
+                    SELECT COUNT(*) FROM simulation_events
+                    WHERE simulation_id = ?
+                    AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
+                    AND tick BETWEEN ? AND ?
+                """
+                result = db_manager.conn.execute(lsm_query, [simulation_id, from_tick, end_tick]).fetchone()
+                tick_count_lsm = result[0] if result else 0
+
+                # Get final agent balances from daily_agent_metrics (always available, not dependent on --full-replay)
+                final_day = summary["num_days"] - 1
+                agent_metrics_query = """
+                    SELECT agent_id, closing_balance, queue1_eod_size
+                    FROM daily_agent_metrics
+                    WHERE simulation_id = ? AND day = ?
+                """
+                agent_results = db_manager.conn.execute(agent_metrics_query, [simulation_id, final_day]).fetchall()
+                agent_states_from_db = [
+                    {
+                        "id": row[0],
+                        "final_balance": row[1],
+                        "queue1_size": row[2],
+                    }
+                    for row in agent_results
+                ]
 
             # Calculate replay duration and performance metrics
             replay_duration = time.time() - replay_start
             ticks_per_second = ticks_replayed / replay_duration if replay_duration > 0 else 0
 
             # Build and output final summary as JSON (matching run command format)
-            # Get agent states - try from _get_summary_statistics first (non-verbose mode)
+            # Determine which agent states to use based on execution mode
             if 'agent_states_from_db' in locals() and agent_states_from_db:
-                # Non-verbose mode: use stats from database
+                # Non-verbose mode: use authoritative stats from simulations table
                 agents_output = agent_states_from_db
-                total_cost = sum(agent.get("total_cost", 0) for agent in agents_output)
+                # total_cost already set from summary["total_cost_cents"] in non-verbose block
             elif has_full_replay:
                 # Verbose mode with full replay data: get final agent states
                 agent_states_list = get_tick_agent_states(db_manager.conn, simulation_id, end_tick)
