@@ -219,26 +219,157 @@ This is achieved through the **StateProvider Pattern**:
 
 **Key Strength**: If you update display logic, it automatically applies to both run and replay.
 
-### When Adding a New Display Feature
+### The Single Source of Truth Principle
 
-Follow this **mandatory workflow** to maintain replay identity:
+**GOLDEN RULE:** The `simulation_events` table is the ONLY source of events for replay. No legacy tables, no manual reconstruction.
 
-1. **Add Rust State**: Implement new metric/field in Rust backend
-2. **Expose via FFI**: Add getter method to `backend/src/ffi/orchestrator.rs`
-3. **Update StateProvider Protocol**:
-   - Add method signature to `StateProvider` protocol (`api/payment_simulator/cli/execution/state_provider.py`)
-   - Implement in `OrchestratorStateProvider` (calls FFI)
-   - Implement in `DatabaseStateProvider` (queries DB)
-4. **Update Persistence**:
-   - Modify `PersistenceManager` to save new data during `run --persist` (`api/payment_simulator/cli/execution/persistence.py`)
-   - Update database schema if needed (`api/payment_simulator/persistence/models.py`)
-5. **Add Event Reconstruction** (if displaying events):
-   - Add reconstruction logic in `replay.py` to convert DB records to event dicts
-   - Follow Primary + Fallback pattern (simulation_events first, dedicated table as fallback)
-6. **Update Display**: Use StateProvider method in `display_tick_verbose_output()` or relevant `log_*` function
-7. **Test Both Paths**:
-   - Write integration test verifying `run` output == `replay` output
-   - Add to `api/tests/integration/test_run_replay_identity.py`
+```
+Run Mode:     Rust Events → FFI → Python → Display
+                    ↓
+Replay Mode:  Database simulation_events → Python → Display
+```
+
+Both paths must produce identical output because they use the same enriched event data.
+
+### When Adding a New Event Type (Mandatory Workflow)
+
+Follow this **strictly enforced workflow** when adding a new event that should appear in verbose output:
+
+#### Step 1: Define Enriched Event in Rust
+
+**File:** `backend/src/models/event.rs`
+
+```rust
+pub enum Event {
+    // ... existing variants ...
+
+    MyNewEvent {
+        tick: i64,
+        // ⚠️ CRITICAL: Include ALL fields needed for display
+        // Don't store just IDs - store full display data
+        agent_id: String,
+        amount: i64,
+        reason: String,
+        calculation_details: Vec<i64>,  // Whatever display needs
+    },
+}
+```
+
+**Key Principle:** Events must be **self-contained**. Display code should never need to fetch additional data.
+
+#### Step 2: Generate Event at Source
+
+**File:** Wherever the event happens (e.g., `backend/src/settlement/lsm.rs`)
+
+```rust
+// When event occurs, create it with ALL data
+let event = Event::MyNewEvent {
+    tick: self.current_tick,
+    agent_id: agent.id.clone(),
+    amount: value,
+    reason: "liquidity_threshold_exceeded".to_string(),
+    calculation_details: vec![threshold, current_value, delta],
+};
+
+// Add to event log
+self.events.push(event);
+```
+
+#### Step 3: Serialize via FFI
+
+**File:** `backend/src/ffi/orchestrator.rs`
+
+In `get_tick_events()` and `get_all_events()`, add serialization:
+
+```rust
+Event::MyNewEvent { tick, agent_id, amount, reason, calculation_details } => {
+    let mut dict = HashMap::new();
+    dict.insert("event_type".to_string(), "my_new_event".into());
+    dict.insert("tick".to_string(), tick.into());
+    dict.insert("agent_id".to_string(), agent_id.into());
+    dict.insert("amount".to_string(), amount.into());
+    dict.insert("reason".to_string(), reason.into());
+    dict.insert("calculation_details".to_string(), calculation_details.into());
+    dict
+}
+```
+
+**⚠️ CRITICAL:** Serialize EVERY field. Missing fields break replay.
+
+#### Step 4: Verify Persistence (Usually Automatic)
+
+**File:** `api/payment_simulator/cli/execution/persistence.py`
+
+The `EventWriter` automatically stores events to `simulation_events.details` JSON column. Verify complex nested structures are handled:
+
+```python
+# Usually no changes needed - EventWriter handles it
+# But verify for complex types:
+
+def test_my_new_event_persists():
+    """Verify MyNewEvent is correctly stored and retrieved."""
+    # Create event, persist, retrieve, verify all fields present
+```
+
+#### Step 5: Add Display Logic
+
+**File:** `api/payment_simulator/cli/display/verbose_output.py`
+
+```python
+def log_my_new_event(event: Dict):
+    """Display MyNewEvent in verbose output."""
+    console.print(f"[cyan]New Event:[/cyan] {event['agent_id']}")
+    console.print(f"  Amount: ${event['amount']/100:.2f}")
+    console.print(f"  Reason: {event['reason']}")
+    # ... display calculation_details ...
+
+# In display_tick_verbose_output():
+for event in events:
+    if event['event_type'] == 'my_new_event':
+        log_my_new_event(event)
+```
+
+**Key Point:** This function receives events identically from both `run` (FFI) and `replay` (database).
+
+#### Step 6: Write TDD Tests
+
+**File:** `api/tests/integration/test_replay_identity_gold_standard.py`
+
+```python
+def test_my_new_event_has_all_fields():
+    """Verify MyNewEvent contains all required fields."""
+    # Create scenario that triggers event
+    orch = Orchestrator.new(config)
+    # ... trigger event ...
+
+    events = orch.get_tick_events(orch.current_tick())
+    my_events = [e for e in events if e['event_type'] == 'my_new_event']
+
+    assert len(my_events) > 0, "Event should have occurred"
+    event = my_events[0]
+
+    # Verify ALL fields exist
+    assert 'agent_id' in event
+    assert 'amount' in event
+    assert 'reason' in event
+    assert 'calculation_details' in event
+    assert isinstance(event['calculation_details'], list)
+```
+
+#### Step 7: Test Replay Identity
+
+```bash
+# Run with persistence
+payment-sim run --config test.yaml --persist output.db --verbose > run.txt
+
+# Replay
+payment-sim replay output.db --verbose > replay.txt
+
+# Compare (should be identical)
+diff <(grep -v "Duration:" run.txt) <(grep -v "Duration:" replay.txt)
+```
+
+**If diff shows differences:** Your event is missing fields or replay is using legacy reconstruction.
 
 ### Anti-Pattern: Bypassing StateProvider
 
@@ -258,35 +389,192 @@ def display_new_metric(provider: StateProvider):
     print(f"Metric: {value}")
 ```
 
-### Known Pitfalls (Learn from Past Bugs)
+### What NOT To Do ❌
 
-1. **Event Field Names**: Rust may use different field names than Python expects
-   - Example: Rust uses `deadline`, Python expected `deadline_tick`
-   - **Fix**: Check FFI serialization, use `field.get("name1") or field.get("name2", default)`
+#### 1. Never Create Legacy Tables
 
-2. **Bilateral Cycle Format**: LSM bilateral offsets have `agent_ids = [A, B, A]` (length 3), not `[A, B]` (length 2)
-   - **Why**: Rust models bilaterals as a cycle
-   - **Fix**: Check for `len(agent_ids) == 3`, not `len(agent_ids) == 2`
+❌ **BAD:**
+```python
+# In persistence code
+cursor.execute("""
+    CREATE TABLE my_special_events (
+        id INTEGER PRIMARY KEY,
+        tick INTEGER,
+        data TEXT
+    )
+""")
+```
 
-3. **Fallback Reconstruction Paths**: Always provide both primary and fallback data sources
-   - **Primary**: Reconstruct from `simulation_events` table (richest data)
-   - **Fallback**: Reconstruct from dedicated tables (for older databases)
-   - **Pattern**:
-     ```python
-     events_primary = _reconstruct_from_simulation_events(raw_events)
-     events_fallback = _reconstruct_from_dedicated_table(table_data)
-     events = events_primary if events_primary else events_fallback
-     ```
+✅ **GOOD:**
+```python
+# Events go into simulation_events automatically
+# No special tables needed!
+```
 
-4. **Calculated Metrics**: Some values must be calculated, not just retrieved
-   - Example: Credit utilization = `(used / credit_limit) * 100`
-   - **Fix**: Implement same calculation in both `run` and `replay` paths
+#### 2. Never Query Multiple Tables in Replay
 
-5. **Missing Fields**: New Event variants need complete FFI serialization
-   - **Check**: `backend/src/ffi/orchestrator.rs` must serialize ALL fields
-   - **Check**: Reconstruction code must extract ALL fields from `details`
+❌ **BAD:**
+```python
+# replay.py
+def replay_simulation(db, sim_id):
+    events = get_simulation_events(sim_id, tick=tick)
+    lsm_cycles = get_lsm_cycles_by_tick(sim_id, tick)  # ❌ LEGACY!
+    collateral = get_collateral_events_by_tick(sim_id, tick)  # ❌ LEGACY!
+    # ... manual reconstruction ...
+```
 
-See `docs/plans/replay-hardening.md` for comprehensive architectural hardening plan.
+✅ **GOOD:**
+```python
+# replay.py
+def replay_simulation(db, sim_id):
+    events = get_simulation_events(sim_id, tick=tick)  # ✅ ONLY SOURCE!
+    display_tick_verbose_output(provider, tick, events)
+```
+
+#### 3. Never Manually Reconstruct Events
+
+❌ **BAD:**
+```python
+def _reconstruct_lsm_events(lsm_cycles):
+    """Manually rebuild event structure from raw data."""
+    events = []
+    for cycle in lsm_cycles:
+        # Manual reconstruction - brittle!
+        if len(cycle['agent_ids']) == 2:
+            events.append({...})  # Bug: bilaterals have len==3!
+    return events
+```
+
+✅ **GOOD:**
+```python
+# No reconstruction needed!
+# Events are already complete from simulation_events table
+```
+
+#### 4. Never Store Partial Event Data
+
+❌ **BAD:**
+```rust
+Event::LsmCycleSettlement {
+    tx_ids: vec!["tx1", "tx2"],  // ❌ Insufficient!
+    // Missing: agents, amounts, net_positions, etc.
+}
+```
+
+✅ **GOOD:**
+```rust
+Event::LsmCycleSettlement {
+    tick,
+    agents: vec!["A", "B", "C"],
+    tx_ids: vec!["tx1", "tx2", "tx3"],
+    tx_amounts: vec![1000, 2000, 3000],
+    net_positions: vec![500, -200, -300],
+    max_net_outflow: 500,
+    max_net_outflow_agent: "A".to_string(),
+    total_value: 3000,
+}
+```
+
+### Troubleshooting Replay Divergence
+
+#### Symptom: "Replay output differs from run"
+
+**Diagnosis Steps:**
+
+1. **Check if replay uses legacy tables:**
+```bash
+# Search for legacy queries in replay.py
+cd api
+grep -n "get_lsm_cycles_by_tick\|get_collateral_events_by_tick" payment_simulator/cli/commands/replay.py
+```
+
+**Fix:** Remove legacy queries, use only `get_simulation_events()`.
+
+2. **Check if event has all fields:**
+```python
+# In test
+events = orch.get_tick_events(orch.current_tick())
+print(json.dumps(events[0], indent=2))  # Inspect actual event structure
+```
+
+**Fix:** Add missing fields to Event enum and FFI serialization.
+
+3. **Check if FFI serializes all fields:**
+```bash
+# In Rust
+cd backend
+grep -A 20 "Event::MyEventType" src/ffi/orchestrator.rs
+```
+
+**Fix:** Add missing `dict.insert()` calls.
+
+#### Symptom: "Test skipped: Event didn't occur"
+
+**Diagnosis:** Test scenario didn't trigger the event type.
+
+**Fix:** Adjust test configuration to reliably trigger the event:
+```python
+# Example: Trigger LSM by creating low liquidity
+config = {
+    "agent_configs": [
+        {"id": "A", "opening_balance": 1000, "credit_limit": 0},  # Low!
+        {"id": "B", "opening_balance": 1000, "credit_limit": 0},
+    ],
+}
+```
+
+#### Symptom: "KeyError: 'field_name'"
+
+**Diagnosis:** Display code expects field that doesn't exist in event.
+
+**Fix Options:**
+1. Add field to Event enum (if it should be there)
+2. Use defensive access: `event.get('field_name', default_value)`
+
+### Real-World Example: LSM Bilateral Offset Bug (Solved)
+
+**Historical Bug:** LSM bilateral offsets were not replaying.
+
+**Root Cause:**
+- Rust stored bilaterals as `[A, B, A]` (cycle representation, len==3)
+- Python reconstruction checked `if len(agent_ids) == 2`
+- Bilaterals were silently skipped ❌
+
+**Solution:**
+```rust
+// Rust: Store bilateral with explicit agent_a, agent_b fields
+Event::LsmBilateralOffset {
+    tick,
+    agent_a: cycle.agent_ids[0].clone(),  // ✅ Explicit
+    agent_b: cycle.agent_ids[1].clone(),  // ✅ Explicit
+    amount_a: cycle.tx_amounts[0],        // ✅ Explicit
+    amount_b: cycle.tx_amounts[1],        // ✅ Explicit
+    tx_ids: cycle.tx_ids.clone(),
+}
+```
+
+**Key Lesson:** Don't make Python guess Rust's data structure. Make events self-documenting.
+
+### Testing Checklist
+
+When implementing replay identity for a new event:
+
+- [ ] Event enum has ALL display fields
+- [ ] FFI serializes ALL fields to dict
+- [ ] Test verifies all fields exist (`test_replay_identity_gold_standard.py`)
+- [ ] Manual run+replay produces identical output
+- [ ] No new tables created
+- [ ] No manual reconstruction in `replay.py`
+- [ ] Display code uses StateProvider (if needed)
+- [ ] Integration test added
+
+### Additional Resources
+
+- **Implementation Guide:** [`docs/replay-unified-architecture-implementation.md`](docs/replay-unified-architecture-implementation.md)
+- **Detailed Plan:** [`docs/plans/unified-replay-architecture-completion.md`](docs/plans/unified-replay-architecture-completion.md)
+- **Gold Standard Tests:** [`api/tests/integration/test_replay_identity_gold_standard.py`](api/tests/integration/test_replay_identity_gold_standard.py)
+- **StateProvider Protocol:** [`api/payment_simulator/cli/execution/state_provider.py`](api/payment_simulator/cli/execution/state_provider.py)
+- **Replay Command Implementation:** [`api/payment_simulator/cli/commands/replay.py`](api/payment_simulator/cli/commands/replay.py)
 
 ---
 
