@@ -873,6 +873,11 @@ impl Orchestrator {
         &mut self.state
     }
 
+    /// Get reference to cost rates configuration
+    pub fn cost_rates(&self) -> &CostRates {
+        &self.cost_rates
+    }
+
     /// Get total events logged
     pub fn event_count(&self) -> usize {
         self.event_log.len()
@@ -2258,17 +2263,38 @@ impl Orchestrator {
         // Clone to avoid borrow checker issues
         let pending = self.pending_settlements.clone();
         for tx_id in pending.iter() {
-            // Get transaction details for event logging
-            let (sender_id, receiver_id, amount) = {
+            // Get transaction details for event logging (including overdue status before settlement)
+            let (sender_id, receiver_id, amount, was_overdue, overdue_data) = {
                 let tx = self
                     .state
                     .get_transaction(tx_id)
                     .ok_or_else(|| SimulationError::TransactionNotFound(tx_id.clone()))?;
-                (
-                    tx.sender_id().to_string(),
-                    tx.receiver_id().to_string(),
-                    tx.remaining_amount(),
-                )
+
+                let sender_id = tx.sender_id().to_string();
+                let receiver_id = tx.receiver_id().to_string();
+                let amount = tx.remaining_amount();
+                let was_overdue = tx.is_overdue();
+
+                // Collect overdue data if transaction is overdue
+                let overdue_data = if was_overdue {
+                    Some((
+                        tx.amount(),                          // total amount
+                        tx.deadline_tick(),                   // deadline_tick
+                        tx.overdue_since_tick().unwrap(),     // overdue_since_tick
+                        current_tick - tx.overdue_since_tick().unwrap(), // total_ticks_overdue
+                        self.cost_rates.deadline_penalty,     // deadline_penalty_cost
+                        // Estimate accumulated delay cost
+                        (tx.remaining_amount() as f64
+                            * self.cost_rates.delay_cost_per_tick_per_cent
+                            * self.cost_rates.overdue_delay_multiplier
+                            * (current_tick - tx.overdue_since_tick().unwrap()) as f64)
+                            .round() as i64,
+                    ))
+                } else {
+                    None
+                };
+
+                (sender_id, receiver_id, amount, was_overdue, overdue_data)
             };
 
             // Try to settle the transaction (already in state)
@@ -2278,7 +2304,27 @@ impl Orchestrator {
                 SettlementOutcome::Settled => {
                     num_settlements += 1;
 
-                    // Log settlement event
+                    // Log appropriate settlement event based on overdue status
+                    if was_overdue {
+                        if let Some((total_amount, deadline_tick, overdue_since_tick,
+                                    total_ticks_overdue, deadline_penalty_cost, estimated_delay_cost)) = overdue_data {
+                            self.log_event(Event::OverdueTransactionSettled {
+                                tick: current_tick,
+                                tx_id: tx_id.clone(),
+                                sender_id: sender_id.clone(),
+                                receiver_id: receiver_id.clone(),
+                                amount: total_amount,
+                                settled_amount: amount,
+                                deadline_tick,
+                                overdue_since_tick,
+                                total_ticks_overdue,
+                                deadline_penalty_cost,
+                                estimated_delay_cost,
+                            });
+                        }
+                    }
+
+                    // Always log standard settlement event for compatibility
                     self.log_event(Event::Settlement {
                         tick: current_tick,
                         tx_id: tx_id.clone(),
@@ -2577,10 +2623,31 @@ impl Orchestrator {
                 (agent.balance(), agent.posted_collateral(), overdue)
             };
 
-            // Mark transactions as overdue (mutable borrow, agent borrow released)
+            // Mark transactions as overdue and emit events (mutable borrow, agent borrow released)
             for tx_id in &newly_overdue_txs {
                 if let Some(tx_mut) = self.state.get_transaction_mut(tx_id) {
+                    // Collect transaction data before marking overdue
+                    let amount = tx_mut.amount();
+                    let remaining_amount = tx_mut.remaining_amount();
+                    let sender_id = tx_mut.sender_id().to_string();
+                    let receiver_id = tx_mut.receiver_id().to_string();
+                    let deadline_tick = tx_mut.deadline_tick();
+
+                    // Mark as overdue
                     tx_mut.mark_overdue(tick).ok();
+
+                    // Emit event
+                    self.log_event(Event::TransactionWentOverdue {
+                        tick,
+                        tx_id: tx_id.clone(),
+                        sender_id,
+                        receiver_id,
+                        amount,
+                        remaining_amount,
+                        deadline_tick,
+                        ticks_overdue: tick - deadline_tick,
+                        deadline_penalty_cost: self.cost_rates.deadline_penalty,
+                    });
                 }
             }
 
