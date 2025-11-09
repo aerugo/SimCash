@@ -182,6 +182,114 @@ Each agent has a configuration controlling automatic transaction generation:
 
 ---
 
+## 🎯 Critical Invariant: Replay Identity
+
+**RULE**: `payment-sim replay` output MUST be byte-for-byte identical to `payment-sim run` output (modulo timing information).
+
+This is achieved through the **StateProvider Pattern**:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│          display_tick_verbose_output()                  │
+│          (Single Source of Truth for Display)           │
+└────────────────┬───────────────────────────────────────┘
+                 │
+         ┌───────┴────────┐
+         │ StateProvider  │  ← Protocol (interface)
+         │   Protocol     │
+         └───────┬────────┘
+                 │
+    ┌────────────┴─────────────┐
+    │                          │
+    ▼                          ▼
+┌────────────────┐      ┌──────────────────┐
+│ Orchestrator   │      │ Database         │
+│ StateProvider  │      │ StateProvider    │
+│ (Live FFI)     │      │ (Replay)         │
+└────────────────┘      └──────────────────┘
+```
+
+### StateProvider Pattern
+
+1. **Shared Display Logic**: Both `run` and `replay` use the same `display_tick_verbose_output()` function
+2. **Data Abstraction**: Display code calls `StateProvider` methods, never touches Rust/DB directly
+3. **Two Implementations**:
+   - **OrchestratorStateProvider**: Wraps live Rust FFI (`run` mode)
+   - **DatabaseStateProvider**: Wraps DuckDB queries (`replay` mode)
+
+**Key Strength**: If you update display logic, it automatically applies to both run and replay.
+
+### When Adding a New Display Feature
+
+Follow this **mandatory workflow** to maintain replay identity:
+
+1. **Add Rust State**: Implement new metric/field in Rust backend
+2. **Expose via FFI**: Add getter method to `backend/src/ffi/orchestrator.rs`
+3. **Update StateProvider Protocol**:
+   - Add method signature to `StateProvider` protocol (`api/payment_simulator/cli/execution/state_provider.py`)
+   - Implement in `OrchestratorStateProvider` (calls FFI)
+   - Implement in `DatabaseStateProvider` (queries DB)
+4. **Update Persistence**:
+   - Modify `PersistenceManager` to save new data during `run --persist` (`api/payment_simulator/cli/execution/persistence.py`)
+   - Update database schema if needed (`api/payment_simulator/persistence/models.py`)
+5. **Add Event Reconstruction** (if displaying events):
+   - Add reconstruction logic in `replay.py` to convert DB records to event dicts
+   - Follow Primary + Fallback pattern (simulation_events first, dedicated table as fallback)
+6. **Update Display**: Use StateProvider method in `display_tick_verbose_output()` or relevant `log_*` function
+7. **Test Both Paths**:
+   - Write integration test verifying `run` output == `replay` output
+   - Add to `api/tests/integration/test_run_replay_identity.py`
+
+### Anti-Pattern: Bypassing StateProvider
+
+❌ **NEVER** access Rust/DB directly from display code:
+```python
+# BAD: Only works in run mode!
+def display_new_metric(orch: Orchestrator):
+    value = orch.get_new_metric_direct()  # Bypasses abstraction
+    print(f"Metric: {value}")
+```
+
+✅ **ALWAYS** use StateProvider:
+```python
+# GOOD: Works in both run AND replay
+def display_new_metric(provider: StateProvider):
+    value = provider.get_new_metric()  # Abstracted
+    print(f"Metric: {value}")
+```
+
+### Known Pitfalls (Learn from Past Bugs)
+
+1. **Event Field Names**: Rust may use different field names than Python expects
+   - Example: Rust uses `deadline`, Python expected `deadline_tick`
+   - **Fix**: Check FFI serialization, use `field.get("name1") or field.get("name2", default)`
+
+2. **Bilateral Cycle Format**: LSM bilateral offsets have `agent_ids = [A, B, A]` (length 3), not `[A, B]` (length 2)
+   - **Why**: Rust models bilaterals as a cycle
+   - **Fix**: Check for `len(agent_ids) == 3`, not `len(agent_ids) == 2`
+
+3. **Fallback Reconstruction Paths**: Always provide both primary and fallback data sources
+   - **Primary**: Reconstruct from `simulation_events` table (richest data)
+   - **Fallback**: Reconstruct from dedicated tables (for older databases)
+   - **Pattern**:
+     ```python
+     events_primary = _reconstruct_from_simulation_events(raw_events)
+     events_fallback = _reconstruct_from_dedicated_table(table_data)
+     events = events_primary if events_primary else events_fallback
+     ```
+
+4. **Calculated Metrics**: Some values must be calculated, not just retrieved
+   - Example: Credit utilization = `(used / credit_limit) * 100`
+   - **Fix**: Implement same calculation in both `run` and `replay` paths
+
+5. **Missing Fields**: New Event variants need complete FFI serialization
+   - **Check**: `backend/src/ffi/orchestrator.rs` must serialize ALL fields
+   - **Check**: Reconstruction code must extract ALL fields from `details`
+
+See `docs/plans/replay-hardening.md` for comprehensive architectural hardening plan.
+
+---
+
 ## Common Workflows
 
 ### Starting a New Feature

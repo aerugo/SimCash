@@ -63,6 +63,7 @@
 //!    - Update all agent balances atomically
 //!    - If any step fails, entire cycle fails (rollback not needed due to Phase 1 check)
 
+use crate::models::event::Event;
 use crate::models::state::SimulationState;
 use crate::settlement::rtgs::{process_queue, SettlementError};
 use std::collections::{HashMap, HashSet};
@@ -227,6 +228,10 @@ pub struct LsmPassResult {
 
     /// Detailed cycle events for persistence (Phase 4)
     pub cycle_events: Vec<LsmCycleEvent>,
+
+    /// Events to be logged for replay (Event::LsmBilateralOffset, Event::LsmCycleSettlement)
+    /// These are returned to the orchestrator which logs them to the event log
+    pub replay_events: Vec<Event>,
 }
 
 // ============================================================================
@@ -904,6 +909,7 @@ pub fn run_lsm_pass(
     let mut bilateral_offsets = 0;
     let mut cycles_settled = 0;
     let mut cycle_events = Vec::new();
+    let mut replay_events = Vec::new(); // Events to be logged by orchestrator
     const MAX_ITERATIONS: usize = 3;
 
     let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
@@ -1005,6 +1011,18 @@ pub fn run_lsm_pass(
                     max_net_outflow,
                     max_net_outflow_agent,
                 });
+
+                // Collect Event::LsmBilateralOffset for replay
+                // This enables replay to reconstruct LSM activity from persisted events
+                replay_events.push(Event::LsmBilateralOffset {
+                    tick,
+                    agent_a: pair.agent_a.clone(),
+                    agent_b: pair.agent_b.clone(),
+                    tx_id_a: pair.txs_a_to_b.get(0).cloned().unwrap_or_default(),
+                    tx_id_b: pair.txs_b_to_a.get(0).cloned().unwrap_or_default(),
+                    amount_a: pair.amount_a_to_b,
+                    amount_b: pair.amount_b_to_a,
+                });
             }
 
             // Retry queue processing after bilateral settlements
@@ -1097,6 +1115,14 @@ pub fn run_lsm_pass(
                     }
 
                     cycle_events.push(event);
+
+                    // Collect Event::LsmCycleSettlement for replay
+                    // This enables replay to reconstruct LSM cycle activity from persisted events
+                    replay_events.push(Event::LsmCycleSettlement {
+                        tick,
+                        tx_ids: cycle.transactions.clone(),
+                        cycle_value: result.settled_value,
+                    });
                 }
             }
 
@@ -1120,5 +1146,6 @@ pub fn run_lsm_pass(
         bilateral_offsets,
         cycles_settled,
         cycle_events,
+        replay_events,
     }
 }
