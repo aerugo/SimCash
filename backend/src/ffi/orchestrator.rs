@@ -153,6 +153,53 @@ impl PyOrchestrator {
         self.inner.get_agent_balance(agent_id)
     }
 
+    /// Get agent's credit limit
+    ///
+    /// Returns the maximum overdraft amount allowed for the agent.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    ///
+    /// # Returns
+    ///
+    /// Credit limit in cents (integer), or None if agent not found
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// credit_limit = orch.get_agent_credit_limit("BANK_A")
+    /// if credit_limit is not None:
+    ///     print(f"BANK_A credit limit: ${credit_limit / 100:.2f}")
+    /// ```
+    fn get_agent_credit_limit(&self, agent_id: &str) -> Option<i64> {
+        self.inner.get_agent_credit_limit(agent_id)
+    }
+
+    /// Get agent's arrival rate (transactions per tick)
+    ///
+    /// Returns the current transaction generation rate for the agent.
+    /// This can be dynamically modified by scenario events.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    ///
+    /// # Returns
+    ///
+    /// Rate per tick (float), or None if agent not found or has no arrival config
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// rate = orch.get_arrival_rate("BANK_A")
+    /// if rate is not None:
+    ///     print(f"BANK_A generates {rate:.2f} transactions per tick")
+    /// ```
+    fn get_arrival_rate(&self, agent_id: &str) -> Option<f64> {
+        self.inner.get_arrival_rate(agent_id)
+    }
+
     /// Get size of agent's internal queue (Queue 1)
     ///
     /// Returns the number of transactions waiting in the agent's
@@ -1051,7 +1098,8 @@ impl PyOrchestrator {
                 }
                 crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
                     event_dict.set_item("tick", tick)?;
-                    event_dict.set_item("event_type", event_type)?;
+                    event_dict.set_item("event_type", "ScenarioEventExecuted")?;
+                    event_dict.set_item("scenario_event_type", event_type)?;
                     // Convert JSON value to string, Python can parse it
                     let details_json = serde_json::to_string(details).unwrap_or_else(|_| "{}".to_string());
                     event_dict.set_item("details_json", details_json)?;
@@ -1222,7 +1270,8 @@ impl PyOrchestrator {
                 }
                 crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
                     event_dict.set_item("tick", tick)?;
-                    event_dict.set_item("event_type", event_type)?;
+                    event_dict.set_item("event_type", "ScenarioEventExecuted")?;
+                    event_dict.set_item("scenario_event_type", event_type)?;
                     // Convert JSON value to string, Python can parse it
                     let details_json = serde_json::to_string(details).unwrap_or_else(|_| "{}".to_string());
                     event_dict.set_item("details_json", details_json)?;
@@ -1307,29 +1356,6 @@ impl PyOrchestrator {
     /// ```
     fn get_rtgs_queue_contents(&self) -> Vec<String> {
         self.inner.get_rtgs_queue_contents()
-    }
-
-    /// Get agent's credit limit
-    ///
-    /// Returns the maximum credit/overdraft amount available to an agent.
-    ///
-    /// # Arguments
-    ///
-    /// * `agent_id` - Agent identifier
-    ///
-    /// # Returns
-    ///
-    /// Credit limit in cents, or None if agent not found
-    ///
-    /// # Example (from Python)
-    ///
-    /// ```python
-    /// limit = orch.get_agent_credit_limit("BANK_A")
-    /// if limit:
-    ///     print(f"Credit limit: ${limit / 100:,.2f}")
-    /// ```
-    fn get_agent_credit_limit(&self, agent_id: String) -> Option<i64> {
-        self.inner.get_agent_credit_limit(&agent_id)
     }
 
     /// Get agent's currently posted collateral
