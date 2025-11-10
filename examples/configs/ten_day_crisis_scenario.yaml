@@ -3,15 +3,14 @@
 # This scenario demonstrates ALL scenario event types over a 10-day simulation:
 # ✅ CustomTransactionArrival - Precise transaction timing for stress tests (IMPLEMENTED)
 # ✅ CollateralAdjustment - Margin calls and regulatory haircuts (IMPLEMENTED)
-# ⚠️  GlobalArrivalRateChange - Market-wide activity surges and slowdowns (NOT YET IMPLEMENTED)
-# ⚠️  AgentArrivalRateChange - Bank-specific operational issues and failures (NOT YET IMPLEMENTED)
-# ⚠️  CounterpartyWeightChange - Relationship changes and credit limit adjustments (NOT YET IMPLEMENTED)
-# ⚠️  DeadlineWindowChange - Urgency shifts and policy changes (NOT YET IMPLEMENTED)
+# ✅ GlobalArrivalRateChange - Market-wide activity surges and slowdowns (IMPLEMENTED)
+# ✅ AgentArrivalRateChange - Bank-specific operational issues and failures (IMPLEMENTED)
+# ✅ CounterpartyWeightChange - Relationship changes and credit limit adjustments (IMPLEMENTED)
+# ✅ DeadlineWindowChange - System-wide deadline policy shifts (IMPLEMENTED - GLOBAL)
 #
-# NOTE: This scenario file is intended as comprehensive documentation and a future
-# test case. Currently, only CustomTransactionArrival and CollateralAdjustment are
-# fully implemented in the Rust backend. The other event types will be implemented
-# in future phases.
+# NOTE: All scenario event types are now fully implemented and tested.
+# DeadlineWindowChange applies globally to all agents (system-wide policy shifts)
+# rather than per-agent. This models regulatory changes affecting all participants.
 #
 # NARRATIVE: "A Week That Shook the Payment System"
 #
@@ -223,10 +222,10 @@ scenario_events:
       type: OneTime
       tick: 130
 
-  # End of day (tick 145): Tighter deadlines for next day
+  # End of day (tick 145): System-wide deadline tightening ahead of Day 4
   - type: DeadlineWindowChange
-    agent: METRO_CENTRAL
-    new_deadline_range: [5, 15]   # Reduce from [15, 35] to tighter window
+    min_ticks_multiplier: 0.6  # Tighten min deadlines by 40%
+    max_ticks_multiplier: 0.5  # Tighten max deadlines by 50%
     schedule:
       type: OneTime
       tick: 145
@@ -282,31 +281,10 @@ scenario_events:
       type: OneTime
       tick: 168
 
-  # Afternoon (tick 180): All banks tighten deadlines in response
+  # Afternoon (tick 180): Regulatory response - further deadline tightening
   - type: DeadlineWindowChange
-    agent: REGIONAL_TRUST
-    new_deadline_range: [4, 12]
-    schedule:
-      type: OneTime
-      tick: 180
-
-  - type: DeadlineWindowChange
-    agent: MOMENTUM_CAPITAL
-    new_deadline_range: [3, 9]
-    schedule:
-      type: OneTime
-      tick: 180
-
-  - type: DeadlineWindowChange
-    agent: COMMUNITY_FIRST
-    new_deadline_range: [4, 12]
-    schedule:
-      type: OneTime
-      tick: 180
-
-  - type: DeadlineWindowChange
-    agent: CORRESPONDENT_HUB
-    new_deadline_range: [5, 15]
+    min_ticks_multiplier: 0.5  # Cut min deadlines in half
+    max_ticks_multiplier: 0.4  # Cut max deadlines by 60%
     schedule:
       type: OneTime
       tick: 180
@@ -432,17 +410,10 @@ scenario_events:
       type: OneTime
       tick: 325
 
-  # Afternoon (tick 340): Deadlines relax slightly
+  # Afternoon (tick 340): System-wide deadline relaxation (recovery begins)
   - type: DeadlineWindowChange
-    agent: METRO_CENTRAL
-    new_deadline_range: [6, 18]
-    schedule:
-      type: OneTime
-      tick: 340
-
-  - type: DeadlineWindowChange
-    agent: MOMENTUM_CAPITAL
-    new_deadline_range: [4, 12]
+    min_ticks_multiplier: 1.5  # Loosen min deadlines by 50%
+    max_ticks_multiplier: 1.3  # Loosen max deadlines by 30%
     schedule:
       type: OneTime
       tick: 340
@@ -522,38 +493,10 @@ scenario_events:
   # DAY 9 (Ticks 400-449): New Regulatory Framework
   # ========================================================================
 
-  # Morning (tick 405): New regulatory deadlines (tighter)
+  # Morning (tick 405): New regulatory framework establishes permanent deadlines
   - type: DeadlineWindowChange
-    agent: METRO_CENTRAL
-    new_deadline_range: [7, 23]   # More conservative than original
-    schedule:
-      type: OneTime
-      tick: 405
-
-  - type: DeadlineWindowChange
-    agent: REGIONAL_TRUST
-    new_deadline_range: [6, 18]
-    schedule:
-      type: OneTime
-      tick: 405
-
-  - type: DeadlineWindowChange
-    agent: MOMENTUM_CAPITAL
-    new_deadline_range: [5, 15]
-    schedule:
-      type: OneTime
-      tick: 405
-
-  - type: DeadlineWindowChange
-    agent: COMMUNITY_FIRST
-    new_deadline_range: [6, 18]
-    schedule:
-      type: OneTime
-      tick: 405
-
-  - type: DeadlineWindowChange
-    agent: CORRESPONDENT_HUB
-    new_deadline_range: [7, 23]
+    min_ticks_multiplier: 1.2  # Slightly longer than crisis lows
+    max_ticks_multiplier: 1.4  # New normal: more conservative than pre-crisis
     schedule:
       type: OneTime
       tick: 405
@@ -684,15 +627,15 @@ cost_rates:
 #   - Normal settlement patterns
 #   - Establish performance benchmarks
 #
-# Day 3: Market Stress (6 events)
+# Day 3: Market Stress (5 events)
 #   - GlobalArrivalRateChange: 2× → 1.5× → baseline
 #   - CustomTransactionArrival: 2 large institutional payments
-#   - DeadlineWindowChange: Tighter deadlines
+#   - DeadlineWindowChange: System-wide tightening
 #
-# Day 4: Regulatory Shock (10 events)
+# Day 4: Regulatory Shock (7 events)
 #   - GlobalArrivalRateChange: Return to normal
 #   - CollateralAdjustment: 5 haircuts (total -$105,000)
-#   - DeadlineWindowChange: 4 banks tighten deadlines
+#   - DeadlineWindowChange: Further system-wide tightening
 #
 # Day 5: Bank Failure (6 events)
 #   - AgentArrivalRateChange: REGIONAL halts operations
@@ -703,24 +646,24 @@ cost_rates:
 #   - CustomTransactionArrival: 2 central bank injections
 #   - GlobalArrivalRateChange: Panic surge → stabilization
 #
-# Day 7: Recovery (4 events)
+# Day 7: Recovery (3 events)
 #   - GlobalArrivalRateChange: Return to normal
 #   - CollateralAdjustment: Partial restoration
-#   - DeadlineWindowChange: Deadlines relax
+#   - DeadlineWindowChange: System-wide relaxation
 #
 # Day 8: Restoration (6 events)
 #   - AgentArrivalRateChange: REGIONAL 50% → 100%
 #   - CounterpartyWeightChange: 4 relationships rebuilt
 #
-# Day 9: New Normal (9 events)
-#   - DeadlineWindowChange: 5 new regulatory deadlines
+# Day 9: New Normal (5 events)
+#   - DeadlineWindowChange: 1 global regulatory deadline adjustment
 #   - CollateralAdjustment: 4 partial restorations
 #
 # Day 10: Final Test (6 events)
 #   - CustomTransactionArrival: 4 coordinated large payments
 #   - GlobalArrivalRateChange: Surge → normalize
 #
-# TOTAL EVENTS: 55 scenario events across 10 days
+# TOTAL EVENTS: 48 scenario events across 10 days
 #
 # EVENT TYPE USAGE:
 # - CustomTransactionArrival: 10 events (large payments, support)
@@ -728,7 +671,7 @@ cost_rates:
 # - GlobalArrivalRateChange: 9 events (surges + normalizations)
 # - AgentArrivalRateChange: 3 events (failure + recovery)
 # - CounterpartyWeightChange: 12 events (relationship changes)
-# - DeadlineWindowChange: 11 events (policy adjustments)
+# - DeadlineWindowChange: 4 events (system-wide policy shifts)
 #
 # KEY INSIGHTS:
 #
@@ -746,8 +689,9 @@ cost_rates:
 # 4. RELATIONSHIP DYNAMICS: CounterpartyWeightChange models credit
 #    risk management (reduce exposure) and trust rebuilding.
 #
-# 5. REGULATORY RESPONSE: DeadlineWindowChange models policy adaptation
-#    to crises (tighten → relax → new equilibrium).
+# 5. REGULATORY RESPONSE: DeadlineWindowChange models system-wide policy
+#    adaptation to crises (tighten → relax → new equilibrium). Global
+#    multipliers affect all agents simultaneously.
 #
 # 6. MULTI-DAY PERSISTENCE: 10 days allows observing long-term effects:
 #    - Days 1-2: Baseline costs $X
