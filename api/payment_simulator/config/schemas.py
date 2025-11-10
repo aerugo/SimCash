@@ -161,25 +161,15 @@ class AgentArrivalRateChangeEvent(BaseModel):
 
 
 class CounterpartyWeightChangeEvent(BaseModel):
-    """Change counterparty selection weights for an agent."""
+    """Change counterparty selection weight for a single counterparty."""
     type: Literal["CounterpartyWeightChange"] = "CounterpartyWeightChange"
     agent: str = Field(..., description="Agent whose weights to change")
-    new_weights: Dict[str, float] = Field(..., description="New counterparty weights")
+    counterparty: str = Field(..., description="Target counterparty")
+    new_weight: float = Field(..., description="New weight for this counterparty", ge=0, le=1)
     auto_balance_others: bool = Field(
         False, description="Redistribute remaining weight to other counterparties"
     )
     schedule: EventSchedule = Field(..., description="When event executes")
-
-    @field_validator("new_weights")
-    @classmethod
-    def validate_weights(cls, v):
-        """Validate counterparty weights sum to positive value."""
-        if not v:
-            raise ValueError("new_weights cannot be empty")
-        total = sum(v.values())
-        if total <= 0:
-            raise ValueError("new_weights must sum to positive value")
-        return v
 
 
 class DeadlineWindowChangeEvent(BaseModel):
@@ -402,11 +392,10 @@ class SimulationConfig(BaseModel):
                         )
                     # Additional validation for CounterpartyWeightChangeEvent
                     if isinstance(event, CounterpartyWeightChangeEvent):
-                        for counterparty in event.new_weights.keys():
-                            if counterparty not in agent_ids:
-                                raise ValueError(
-                                    f"Scenario event {i} references unknown counterparty in weights: {counterparty}"
-                                )
+                        if event.counterparty not in agent_ids:
+                            raise ValueError(
+                                f"Scenario event {i} references unknown counterparty: {event.counterparty}"
+                            )
 
         return self
 
@@ -586,7 +575,8 @@ class SimulationConfig(BaseModel):
             return {
                 "type": "CounterpartyWeightChange",
                 "agent": event.agent,
-                "new_weights": event.new_weights,
+                "counterparty": event.counterparty,
+                "new_weight": event.new_weight,
                 "auto_balance_others": event.auto_balance_others,
                 **schedule_dict,
             }
