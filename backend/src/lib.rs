@@ -20,6 +20,7 @@
 // Module declarations
 pub mod arrivals;
 pub mod core;
+pub mod events;
 pub mod models;
 pub mod orchestrator;
 pub mod policy;
