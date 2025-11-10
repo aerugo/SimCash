@@ -20,6 +20,7 @@
 
 use crate::models::agent::Agent;
 use crate::models::collateral_event::CollateralEvent;
+use crate::models::event::{Event, EventLog};
 use crate::models::transaction::Transaction;
 use crate::settlement::lsm::LsmCycleEvent;
 use std::collections::BTreeMap;
@@ -69,6 +70,12 @@ pub struct SimulationState {
     /// See `/docs/queue_architecture.md` for complete two-queue model explanation.
     rtgs_queue: Vec<String>,
 
+    /// Event log for replay and auditing
+    ///
+    /// Records all significant state changes during simulation.
+    /// Enables deterministic replay and debugging.
+    event_log: EventLog,
+
     /// Collateral management events (Phase 10 persistence)
     ///
     /// Tracks every collateral post/withdraw/hold decision with full context.
@@ -112,6 +119,7 @@ impl SimulationState {
             agents: agents_map,
             transactions: BTreeMap::new(),
             rtgs_queue: Vec::new(),
+            event_log: EventLog::new(),
             collateral_events: Vec::new(),
             lsm_cycle_events: Vec::new(),
         }
@@ -165,6 +173,7 @@ impl SimulationState {
             agents,
             transactions,
             rtgs_queue,
+            event_log: EventLog::new(),
             collateral_events: Vec::new(),
             lsm_cycle_events: Vec::new(),
         })
@@ -461,6 +470,66 @@ impl SimulationState {
                 .sum()
         } else {
             0
+        }
+    }
+
+    // =========================================================================
+    // Event Log Methods
+    // =========================================================================
+
+    /// Get reference to event log
+    pub fn event_log(&self) -> &EventLog {
+        &self.event_log
+    }
+
+    /// Get mutable reference to event log
+    pub fn event_log_mut(&mut self) -> &mut EventLog {
+        &mut self.event_log
+    }
+
+    /// Log an event
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - Event to log
+    pub fn log_event(&mut self, event: Event) {
+        self.event_log.log(event);
+    }
+
+    // =========================================================================
+    // Scenario Event Support Methods
+    // =========================================================================
+
+    /// Set credit limit for an agent
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent to modify
+    /// * `new_limit` - New credit limit (must be non-negative)
+    ///
+    /// # Panics
+    ///
+    /// Panics if agent not found or new_limit is negative
+    pub fn set_credit_limit(&mut self, agent_id: &str, new_limit: i64) {
+        assert!(new_limit >= 0, "Credit limit must be non-negative");
+
+        // We need to modify the agent's credit_limit field directly
+        // Since Agent doesn't have a setter, we'll need to work around this
+        if let Some(agent) = self.agents.get_mut(agent_id) {
+            // Create a new agent with updated credit limit
+            let new_agent = Agent::from_snapshot(
+                agent_id.to_string(),
+                agent.balance(),
+                new_limit,  // New credit limit
+                agent.outgoing_queue().to_vec(),
+                agent.incoming_expected().to_vec(),
+                agent.last_decision_tick(),
+                agent.liquidity_buffer(),
+                agent.posted_collateral(),
+            );
+            *agent = new_agent;
+        } else {
+            panic!("Agent not found: {}", agent_id);
         }
     }
 }

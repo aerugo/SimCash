@@ -243,6 +243,59 @@ impl ArrivalGenerator {
         let u2 = rng.next_f64();
         (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
     }
+
+    // ========================================================================
+    // Query Methods (for scenario events)
+    // ========================================================================
+
+    /// Get arrival rate for an agent
+    pub fn get_rate(&self, agent_id: &str) -> Option<f64> {
+        self.configs.get(agent_id).map(|c| c.rate_per_tick)
+    }
+
+    /// Get counterparty weight for an agent
+    pub fn get_counterparty_weight(&self, agent_id: &str, counterparty: &str) -> Option<f64> {
+        self.configs.get(agent_id).and_then(|c| {
+            c.counterparty_weights.get(counterparty).copied()
+        })
+    }
+
+    /// Get deadline range for an agent
+    pub fn get_deadline_range(&self, agent_id: &str) -> Option<(usize, usize)> {
+        self.configs.get(agent_id).map(|c| c.deadline_range)
+    }
+
+    // ========================================================================
+    // Mutation Methods (for scenario events)
+    // ========================================================================
+
+    /// Set arrival rate for a specific agent
+    pub fn set_rate(&mut self, agent_id: &str, new_rate: f64) {
+        if let Some(config) = self.configs.get_mut(agent_id) {
+            config.rate_per_tick = new_rate;
+        }
+    }
+
+    /// Multiply all arrival rates by a factor
+    pub fn multiply_all_rates(&mut self, multiplier: f64) {
+        for config in self.configs.values_mut() {
+            config.rate_per_tick *= multiplier;
+        }
+    }
+
+    /// Set counterparty weight for an agent
+    pub fn set_counterparty_weight(&mut self, agent_id: &str, counterparty: &str, weight: f64) {
+        if let Some(config) = self.configs.get_mut(agent_id) {
+            config.counterparty_weights.insert(counterparty.to_string(), weight);
+        }
+    }
+
+    /// Set deadline range for an agent
+    pub fn set_deadline_range(&mut self, agent_id: &str, range: (usize, usize)) {
+        if let Some(config) = self.configs.get_mut(agent_id) {
+            config.deadline_range = range;
+        }
+    }
 }
 
 #[cfg(test)]

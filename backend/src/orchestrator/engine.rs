@@ -124,6 +124,11 @@ pub struct OrchestratorConfig {
 
     /// LSM configuration
     pub lsm_config: LsmConfig,
+
+    /// Scenario events (optional)
+    /// Scheduled events that modify simulation state at specific ticks
+    #[serde(default)]
+    pub scenario_events: Option<Vec<crate::events::ScheduledEvent>>,
 }
 
 /// Per-agent configuration
@@ -589,6 +594,9 @@ pub struct Orchestrator {
     /// Historical daily metrics for completed days (Phase 3: Agent Metrics Collection)
     /// Key: (agent_id, day)
     historical_metrics: HashMap<(String, usize), DailyMetrics>,
+
+    /// Scenario event handler for scheduled events
+    scenario_event_handler: Option<crate::events::ScenarioEventHandler>,
 }
 
 /// Result of a single tick
@@ -715,6 +723,7 @@ impl Orchestrator {
     ///     ],
     ///     cost_rates: Default::default(),
     ///     lsm_config: LsmConfig::default(),
+    ///     scenario_events: None,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -792,21 +801,32 @@ impl Orchestrator {
             current_day_metrics.insert(agent_config.id.clone(), metrics);
         }
 
+        // Initialize scenario event handler (if events configured)
+        let scenario_event_handler = config
+            .scenario_events
+            .as_ref()
+            .map(|events| crate::events::ScenarioEventHandler::new(events.clone()));
+
+        // Clone values we need before moving config
+        let cost_rates = config.cost_rates.clone();
+        let lsm_config = config.lsm_config.clone();
+
         Ok(Self {
-            config: config.clone(),
+            config,
             state,
             time_manager,
             rng_manager,
             policies,
             arrival_generator,
-            cost_rates: config.cost_rates,
-            lsm_config: config.lsm_config,
+            cost_rates,
+            lsm_config,
             accumulated_costs,
             event_log: EventLog::new(),
             pending_settlements: Vec::new(),
             next_tx_id: 1,
             current_day_metrics,
             historical_metrics: HashMap::new(),
+            scenario_event_handler,
         })
     }
 
@@ -896,6 +916,222 @@ impl Orchestrator {
     /// Get all accumulated costs
     pub fn all_costs(&self) -> &HashMap<String, CostAccumulator> {
         &self.accumulated_costs
+    }
+
+    // ========================================================================
+    // Scenario Event Support - Query Methods
+    // ========================================================================
+    // Note: get_agent_balance and get_agent_credit_limit are defined
+    // in the "State Query Methods" section below (Phase 7: FFI Integration)
+
+    /// Get arrival rate for an agent
+    pub fn get_arrival_rate(&self, agent_id: &str) -> Option<f64> {
+        self.arrival_generator
+            .as_ref()
+            .and_then(|gen| gen.get_rate(agent_id))
+    }
+
+    /// Get counterparty weight for an agent
+    pub fn get_counterparty_weight(&self, agent_id: &str, counterparty: &str) -> Option<f64> {
+        self.arrival_generator
+            .as_ref()
+            .and_then(|gen| gen.get_counterparty_weight(agent_id, counterparty))
+    }
+
+    /// Get deadline range for an agent
+    pub fn get_deadline_range(&self, agent_id: &str) -> Option<(usize, usize)> {
+        self.arrival_generator
+            .as_ref()
+            .and_then(|gen| gen.get_deadline_range(agent_id))
+    }
+
+    // ========================================================================
+    // Scenario Event Execution
+    // ========================================================================
+
+    /// Execute a scenario event
+    ///
+    /// Handles both simple events (delegated to SimulationState) and complex events
+    /// (requiring Orchestrator-level coordination)
+    fn execute_scenario_event(
+        &mut self,
+        event: &crate::events::ScenarioEvent,
+        tick: usize,
+    ) -> Result<(), SimulationError> {
+        use crate::events::ScenarioEvent;
+        use serde_json::json;
+
+        match event {
+            // Simple events: delegate to SimulationState
+            ScenarioEvent::DirectTransfer { from_agent, to_agent, amount } => {
+                event.execute(&mut self.state, tick).map_err(|e| {
+                    SimulationError::InvalidConfig(format!("Scenario event failed: {}", e))
+                })?;
+
+                // Log to Orchestrator's event log
+                self.log_event(crate::models::Event::ScenarioEventExecuted {
+                    tick,
+                    event_type: "direct_transfer".to_string(),
+                    details: json!({
+                        "from_agent": from_agent,
+                        "to_agent": to_agent,
+                        "amount": amount,
+                    }),
+                });
+            }
+
+            ScenarioEvent::CollateralAdjustment { agent, delta } => {
+                event.execute(&mut self.state, tick).map_err(|e| {
+                    SimulationError::InvalidConfig(format!("Scenario event failed: {}", e))
+                })?;
+
+                // Log to Orchestrator's event log
+                self.log_event(crate::models::Event::ScenarioEventExecuted {
+                    tick,
+                    event_type: "collateral_adjustment".to_string(),
+                    details: json!({
+                        "agent": agent,
+                        "delta": delta,
+                    }),
+                });
+            }
+
+            // Complex events: handle at Orchestrator level
+            ScenarioEvent::GlobalArrivalRateChange { multiplier } => {
+                if *multiplier <= 0.0 {
+                    return Err(SimulationError::InvalidConfig(
+                        "Arrival rate multiplier must be positive".to_string(),
+                    ));
+                }
+
+                if let Some(generator) = &mut self.arrival_generator {
+                    generator.multiply_all_rates(*multiplier);
+
+                    // Log event
+                    self.log_event(crate::models::Event::ScenarioEventExecuted {
+                        tick,
+                        event_type: "global_arrival_rate_change".to_string(),
+                        details: json!({
+                            "multiplier": multiplier,
+                        }),
+                    });
+                }
+            }
+
+            ScenarioEvent::AgentArrivalRateChange { agent, multiplier } => {
+                if *multiplier <= 0.0 {
+                    return Err(SimulationError::InvalidConfig(
+                        "Arrival rate multiplier must be positive".to_string(),
+                    ));
+                }
+
+                if let Some(generator) = &mut self.arrival_generator {
+                    if let Some(old_rate) = generator.get_rate(agent) {
+                        let new_rate = old_rate * multiplier;
+                        generator.set_rate(agent, new_rate);
+
+                        // Log event
+                        self.log_event(crate::models::Event::ScenarioEventExecuted {
+                            tick,
+                            event_type: "agent_arrival_rate_change".to_string(),
+                            details: json!({
+                                "agent": agent,
+                                "multiplier": multiplier,
+                                "old_rate": old_rate,
+                                "new_rate": new_rate,
+                            }),
+                        });
+                    }
+                }
+            }
+
+            ScenarioEvent::CounterpartyWeightChange {
+                agent,
+                counterparty,
+                new_weight,
+                auto_balance_others,
+            } => {
+                if *new_weight < 0.0 {
+                    return Err(SimulationError::InvalidConfig(
+                        "Counterparty weight cannot be negative".to_string(),
+                    ));
+                }
+
+                if let Some(generator) = &mut self.arrival_generator {
+                    generator.set_counterparty_weight(agent, counterparty, *new_weight);
+
+                    // TODO: Implement auto_balance_others logic
+                    // For now, just set the weight directly
+
+                    // Log event
+                    self.log_event(crate::models::Event::ScenarioEventExecuted {
+                        tick,
+                        event_type: "counterparty_weight_change".to_string(),
+                        details: json!({
+                            "agent": agent,
+                            "counterparty": counterparty,
+                            "new_weight": new_weight,
+                            "auto_balance_others": auto_balance_others,
+                        }),
+                    });
+                }
+            }
+
+            ScenarioEvent::DeadlineWindowChange {
+                min_ticks_multiplier,
+                max_ticks_multiplier,
+            } => {
+                // Validate multipliers
+                if let Some(m) = min_ticks_multiplier {
+                    if *m <= 0.0 {
+                        return Err(SimulationError::InvalidConfig(
+                            "Deadline multiplier must be positive".to_string(),
+                        ));
+                    }
+                }
+                if let Some(m) = max_ticks_multiplier {
+                    if *m <= 0.0 {
+                        return Err(SimulationError::InvalidConfig(
+                            "Deadline multiplier must be positive".to_string(),
+                        ));
+                    }
+                }
+
+                if let Some(generator) = &mut self.arrival_generator {
+                    // Apply to all agents
+                    let agent_ids: Vec<String> = self.state.get_all_agent_ids();
+                    for agent_id in agent_ids {
+                        if let Some((old_min, old_max)) = generator.get_deadline_range(&agent_id) {
+                            let new_min = if let Some(m) = min_ticks_multiplier {
+                                ((old_min as f64) * m).round() as usize
+                            } else {
+                                old_min
+                            };
+
+                            let new_max = if let Some(m) = max_ticks_multiplier {
+                                ((old_max as f64) * m).round() as usize
+                            } else {
+                                old_max
+                            };
+
+                            generator.set_deadline_range(&agent_id, (new_min, new_max));
+                        }
+                    }
+
+                    // Log event
+                    self.log_event(crate::models::Event::ScenarioEventExecuted {
+                        tick,
+                        event_type: "deadline_window_change".to_string(),
+                        details: json!({
+                            "min_ticks_multiplier": min_ticks_multiplier,
+                            "max_ticks_multiplier": max_ticks_multiplier,
+                        }),
+                    });
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Check if a transaction is effectively settled (recursively)
@@ -1799,21 +2035,32 @@ impl Orchestrator {
         let current_day_metrics: HashMap<String, DailyMetrics> = HashMap::new();
         let historical_metrics: HashMap<(String, usize), DailyMetrics> = HashMap::new();
 
+        // Initialize scenario event handler (if events configured)
+        let scenario_event_handler = config
+            .scenario_events
+            .as_ref()
+            .map(|events| crate::events::ScenarioEventHandler::new(events.clone()));
+
+        // Clone values we need before moving config
+        let cost_rates = config.cost_rates.clone();
+        let lsm_config = config.lsm_config.clone();
+
         Ok(Self {
-            config: config.clone(),
+            config,
             state,
             time_manager,
             rng_manager,
             policies,
             arrival_generator,
-            cost_rates: config.cost_rates.clone(),
-            lsm_config: config.lsm_config.clone(),
+            cost_rates,
+            lsm_config,
             accumulated_costs,
             event_log: crate::models::event::EventLog::new(),
             pending_settlements: Vec::new(),
             next_tx_id: 0, // Will be updated on next transaction
             current_day_metrics,
             historical_metrics,
+            scenario_event_handler,
         })
     }
 
@@ -1899,6 +2146,20 @@ impl Orchestrator {
                 if let Some(accumulator) = self.accumulated_costs.get_mut(&agent_id) {
                     *accumulator = CostAccumulator::new();
                 }
+            }
+        }
+
+        // STEP 0.5: EXECUTE SCENARIO EVENTS
+        // Execute scheduled scenario events before arrivals (they may modify rates, etc.)
+        if let Some(handler) = &self.scenario_event_handler {
+            // Collect events first to avoid borrow checker conflicts
+            let events: Vec<_> = handler.get_events_for_tick(current_tick)
+                .into_iter()
+                .cloned()
+                .collect();
+
+            for event in events {
+                self.execute_scenario_event(&event, current_tick)?;
             }
         }
 
@@ -3149,6 +3410,7 @@ mod tests {
             ],
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
+            scenario_events: None,
         }
     }
 
@@ -3197,6 +3459,7 @@ mod tests {
             agent_configs: vec![],
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
+            scenario_events: None,
         };
 
         let result = Orchestrator::new(config);
@@ -3243,6 +3506,7 @@ mod tests {
             ],
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
+            scenario_events: None,
         };
 
         let result = Orchestrator::new(config);
