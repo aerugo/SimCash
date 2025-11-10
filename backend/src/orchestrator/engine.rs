@@ -124,6 +124,11 @@ pub struct OrchestratorConfig {
 
     /// LSM configuration
     pub lsm_config: LsmConfig,
+
+    /// Scenario events (optional)
+    /// Scheduled events that modify simulation state at specific ticks
+    #[serde(default)]
+    pub scenario_events: Option<Vec<crate::events::ScheduledEvent>>,
 }
 
 /// Per-agent configuration
