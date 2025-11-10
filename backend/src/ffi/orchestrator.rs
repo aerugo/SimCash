@@ -1049,6 +1049,13 @@ impl PyOrchestrator {
                     event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
                     event_dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
                 }
+                crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
+                    event_dict.set_item("tick", tick)?;
+                    event_dict.set_item("event_type", event_type)?;
+                    // Convert JSON value to string, Python can parse it
+                    let details_json = serde_json::to_string(details).unwrap_or_else(|_| "{}".to_string());
+                    event_dict.set_item("details_json", details_json)?;
+                }
             }
 
             py_list.append(event_dict)?;
@@ -1212,6 +1219,13 @@ impl PyOrchestrator {
                     event_dict.set_item("total_ticks_overdue", total_ticks_overdue)?;
                     event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
                     event_dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
+                }
+                crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
+                    event_dict.set_item("tick", tick)?;
+                    event_dict.set_item("event_type", event_type)?;
+                    // Convert JSON value to string, Python can parse it
+                    let details_json = serde_json::to_string(details).unwrap_or_else(|_| "{}".to_string());
+                    event_dict.set_item("details_json", details_json)?;
                 }
             }
 

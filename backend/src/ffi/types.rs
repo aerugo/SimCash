@@ -7,6 +7,7 @@ use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
 
 use crate::arrivals::{AmountDistribution, ArrivalConfig};
+use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
 use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, TickResult};
 use crate::settlement::lsm::LsmConfig;
 
@@ -76,6 +77,14 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         0.8
     };
 
+    // Parse optional scenario_events (default to None if not provided)
+    let scenario_events = if let Some(py_events) = py_config.get_item("scenario_events")? {
+        let events_list: Bound<'_, PyList> = py_events.downcast_into()?;
+        Some(parse_scenario_events(&events_list)?)
+    } else {
+        None
+    };
+
     Ok(OrchestratorConfig {
         ticks_per_day,
         eod_rush_threshold,
@@ -84,6 +93,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         agent_configs,
         cost_rates,
         lsm_config,
+        scenario_events,
     })
 }
 
@@ -742,4 +752,196 @@ pub fn collateral_event_to_py(
     dict.set_item("available_capacity_after", event.available_capacity_after)?;
 
     Ok(dict.into())
+}
+
+/// Parse scenario events from Python list
+///
+/// Converts a Python list of event dicts to a vector of ScheduledEvent.
+///
+/// # Errors
+///
+/// Returns PyErr if:
+/// - Event type is invalid
+/// - Required fields are missing
+/// - Schedule type is invalid
+fn parse_scenario_events(py_events: &Bound<'_, PyList>) -> PyResult<Vec<ScheduledEvent>> {
+    let mut events = Vec::new();
+
+    for py_event in py_events.iter() {
+        let event_dict: Bound<'_, PyDict> = py_event.downcast_into()?;
+
+        // Parse event type
+        let event_type: String = event_dict
+            .get_item("type")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing event 'type'"))?
+            .extract()?;
+
+        // Parse schedule
+        let schedule_type: String = event_dict
+            .get_item("schedule")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'schedule'"))?
+            .extract()?;
+
+        let schedule = match schedule_type.as_str() {
+            "OneTime" => {
+                let tick: usize = event_dict
+                    .get_item("tick")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "OneTime schedule requires 'tick'"
+                    ))?
+                    .extract()?;
+                EventSchedule::OneTime { tick }
+            }
+            "Repeating" => {
+                let start_tick: usize = event_dict
+                    .get_item("start_tick")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "Repeating schedule requires 'start_tick'"
+                    ))?
+                    .extract()?;
+                let interval: usize = event_dict
+                    .get_item("interval")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "Repeating schedule requires 'interval'"
+                    ))?
+                    .extract()?;
+                EventSchedule::Repeating { start_tick, interval }
+            }
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Invalid schedule type: {}. Must be 'OneTime' or 'Repeating'",
+                    schedule_type
+                )));
+            }
+        };
+
+        // Parse event based on type
+        let event = match event_type.as_str() {
+            "DirectTransfer" => {
+                let from_agent: String = event_dict
+                    .get_item("from_agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "DirectTransfer requires 'from_agent'"
+                    ))?
+                    .extract()?;
+                let to_agent: String = event_dict
+                    .get_item("to_agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "DirectTransfer requires 'to_agent'"
+                    ))?
+                    .extract()?;
+                let amount: i64 = event_dict
+                    .get_item("amount")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "DirectTransfer requires 'amount'"
+                    ))?
+                    .extract()?;
+
+                ScenarioEvent::DirectTransfer {
+                    from_agent,
+                    to_agent,
+                    amount,
+                }
+            }
+            "CollateralAdjustment" => {
+                let agent: String = event_dict
+                    .get_item("agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "CollateralAdjustment requires 'agent'"
+                    ))?
+                    .extract()?;
+                let delta: i64 = event_dict
+                    .get_item("delta")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "CollateralAdjustment requires 'delta'"
+                    ))?
+                    .extract()?;
+
+                ScenarioEvent::CollateralAdjustment { agent, delta }
+            }
+            "GlobalArrivalRateChange" => {
+                let multiplier: f64 = event_dict
+                    .get_item("multiplier")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "GlobalArrivalRateChange requires 'multiplier'"
+                    ))?
+                    .extract()?;
+
+                ScenarioEvent::GlobalArrivalRateChange { multiplier }
+            }
+            "AgentArrivalRateChange" => {
+                let agent: String = event_dict
+                    .get_item("agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "AgentArrivalRateChange requires 'agent'"
+                    ))?
+                    .extract()?;
+                let multiplier: f64 = event_dict
+                    .get_item("multiplier")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "AgentArrivalRateChange requires 'multiplier'"
+                    ))?
+                    .extract()?;
+
+                ScenarioEvent::AgentArrivalRateChange { agent, multiplier }
+            }
+            "CounterpartyWeightChange" => {
+                let agent: String = event_dict
+                    .get_item("agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "CounterpartyWeightChange requires 'agent'"
+                    ))?
+                    .extract()?;
+                let counterparty: String = event_dict
+                    .get_item("counterparty")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "CounterpartyWeightChange requires 'counterparty'"
+                    ))?
+                    .extract()?;
+                let new_weight: f64 = event_dict
+                    .get_item("new_weight")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "CounterpartyWeightChange requires 'new_weight'"
+                    ))?
+                    .extract()?;
+                let auto_balance_others: bool = if let Some(abo) = event_dict.get_item("auto_balance_others")? {
+                    abo.extract()?
+                } else {
+                    false
+                };
+
+                ScenarioEvent::CounterpartyWeightChange {
+                    agent,
+                    counterparty,
+                    new_weight,
+                    auto_balance_others,
+                }
+            }
+            "DeadlineWindowChange" => {
+                let min_ticks_multiplier: Option<f64> = event_dict
+                    .get_item("min_ticks_multiplier")?
+                    .map(|v| v.extract())
+                    .transpose()?;
+                let max_ticks_multiplier: Option<f64> = event_dict
+                    .get_item("max_ticks_multiplier")?
+                    .map(|v| v.extract())
+                    .transpose()?;
+
+                ScenarioEvent::DeadlineWindowChange {
+                    min_ticks_multiplier,
+                    max_ticks_multiplier,
+                }
+            }
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Invalid event type: {}",
+                    event_type
+                )));
+            }
+        };
+
+        events.push(ScheduledEvent { event, schedule });
+    }
+
+    Ok(events)
 }
