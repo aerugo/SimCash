@@ -63,7 +63,7 @@ fn create_test_config() -> OrchestratorConfig {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
-            scenario_events: None,
+        scenario_events: None,
     }
 }
 
@@ -712,6 +712,7 @@ fn test_lsm_cycle_settlement_event() {
             max_cycle_length: 4,
             max_cycles_per_tick: 10,
         },
+        scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

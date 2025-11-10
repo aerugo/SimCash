@@ -76,6 +76,7 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
             max_cycle_length: 5,
             max_cycles_per_tick: 10,
         },
+        scenario_events: None,
     }
 }
 

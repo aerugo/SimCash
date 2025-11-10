@@ -723,6 +723,7 @@ impl Orchestrator {
     ///     ],
     ///     cost_rates: Default::default(),
     ///     lsm_config: LsmConfig::default(),
+    ///     scenario_events: None,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();

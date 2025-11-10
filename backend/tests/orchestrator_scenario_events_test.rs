@@ -42,7 +42,6 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
-            scenario_events: None,
         scenario_events: Some(events),
     }
 }
@@ -93,7 +92,6 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
-            scenario_events: None,
         scenario_events: Some(events),
     }
 }
