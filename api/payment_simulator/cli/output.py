@@ -817,6 +817,75 @@ def log_collateral_activity(events, quiet=False):
         console.print()
 
 
+def log_scenario_events(events, quiet=False):
+    """Log scenario event executions (verbose mode).
+
+    Args:
+        events: List of events from get_tick_events()
+        quiet: Suppress output if True
+
+    Example Output:
+        🎬 Scenario Events (2):
+           • DirectTransfer: BANK_A → BANK_B ($100,000.00)
+           • CollateralAdjustment: BANK_A +$200,000.00 collateral
+    """
+    if quiet:
+        return
+
+    scenario_events = [
+        e for e in events
+        if e.get("event_type") == "ScenarioEventExecuted"
+    ]
+
+    if not scenario_events:
+        return
+
+    console.print()
+    console.print(f"🎬 [magenta]Scenario Events ({len(scenario_events)}):[/magenta]")
+
+    for event in scenario_events:
+        scenario_type = event.get("scenario_event_type", "Unknown")
+        details = event.get("details", {})
+
+        if scenario_type == "DirectTransfer":
+            from_agent = details.get("from_agent", "?")
+            to_agent = details.get("to_agent", "?")
+            amount = details.get("amount", 0)
+            console.print(f"   • [cyan]DirectTransfer:[/cyan] {from_agent} → {to_agent} (${amount / 100:,.2f})")
+
+        elif scenario_type == "CollateralAdjustment":
+            agent_id = details.get("agent", "?")
+            delta = details.get("delta", 0)
+            sign = "+" if delta >= 0 else ""
+            console.print(f"   • [yellow]CollateralAdjustment:[/yellow] {agent_id} {sign}${delta / 100:,.2f} collateral")
+
+        elif scenario_type == "GlobalArrivalRateChange":
+            multiplier = details.get("multiplier", 1.0)
+            console.print(f"   • [blue]GlobalArrivalRateChange:[/blue] All arrival rates × {multiplier:.2f}")
+
+        elif scenario_type == "AgentArrivalRateChange":
+            agent_id = details.get("agent", "?")
+            multiplier = details.get("multiplier", 1.0)
+            console.print(f"   • [blue]AgentArrivalRateChange:[/blue] {agent_id} arrival rate × {multiplier:.2f}")
+
+        elif scenario_type == "CounterpartyWeightChange":
+            agent_id = details.get("agent", "?")
+            counterparty = details.get("counterparty", "?")
+            new_weight = details.get("new_weight", 0.0)
+            console.print(f"   • [green]CounterpartyWeightChange:[/green] {agent_id} → {counterparty} weight = {new_weight:.2f}")
+
+        elif scenario_type == "DeadlineWindowChange":
+            agent_id = details.get("agent", "?")
+            new_window = details.get("new_window", 0)
+            console.print(f"   • [yellow]DeadlineWindowChange:[/yellow] {agent_id} deadline window = {new_window} ticks")
+
+        else:
+            # Generic fallback for unknown event types
+            console.print(f"   • [dim]{scenario_type}:[/dim] {details}")
+
+    console.print()
+
+
 def log_cost_breakdown(provider, agent_ids, quiet=False):
     """Log detailed cost breakdown by agent and type (UNIFIED for live & replay).
 
