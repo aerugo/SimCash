@@ -1,0 +1,800 @@
+# Ten-Day Financial Crisis Scenario with Comprehensive Scenario Events
+#
+# This scenario demonstrates ALL scenario event types over a 10-day simulation:
+# ✅ CustomTransactionArrival - Precise transaction timing for stress tests (IMPLEMENTED)
+# ✅ CollateralAdjustment - Margin calls and regulatory haircuts (IMPLEMENTED)
+# ⚠️  GlobalArrivalRateChange - Market-wide activity surges and slowdowns (NOT YET IMPLEMENTED)
+# ⚠️  AgentArrivalRateChange - Bank-specific operational issues and failures (NOT YET IMPLEMENTED)
+# ⚠️  CounterpartyWeightChange - Relationship changes and credit limit adjustments (NOT YET IMPLEMENTED)
+# ⚠️  DeadlineWindowChange - Urgency shifts and policy changes (NOT YET IMPLEMENTED)
+#
+# NOTE: This scenario file is intended as comprehensive documentation and a future
+# test case. Currently, only CustomTransactionArrival and CollateralAdjustment are
+# fully implemented in the Rust backend. The other event types will be implemented
+# in future phases.
+#
+# NARRATIVE: "A Week That Shook the Payment System"
+#
+# Five banks navigate a tumultuous 10-day period featuring:
+# - Days 1-2: Normal operations (baseline)
+# - Day 3: Morning market surge, large institutional payment stress
+# - Day 4: Regulatory shock (collateral haircuts across the system)
+# - Day 5: REGIONAL_TRUST operational failure and counterparty exodus
+# - Day 6: Emergency central bank liquidity support begins
+# - Day 7: Partial recovery as markets stabilize
+# - Day 8: REGIONAL_TRUST resumes operations, relationships rebuild
+# - Day 9: New regulatory deadlines implemented
+# - Day 10: Final stress test with simultaneous shocks
+#
+# Configuration: 50 ticks/day × 10 days = 500 total ticks
+
+simulation:
+  ticks_per_day: 50   # 50 ticks per day (vs 100 in original)
+  num_days: 10        # 10-day scenario
+  rng_seed: 42        # Deterministic for reproducibility
+
+# ============================================================================
+# AGENTS - Same structure as ultra-stressed, scaled for 50 ticks/day
+# ============================================================================
+
+agents:
+  # METRO_CENTRAL - Large Money Center Bank
+  - id: "METRO_CENTRAL"
+    opening_balance: 14000000         # $140,000
+    credit_limit: 1000000             # $10,000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/goliath_national_bank.json"
+    arrival_config:
+      rate_per_tick: 0.525            # ~26 tx/day (half of 1.05 for 50 ticks)
+      amount_distribution:
+        type: "LogNormal"
+        mean: 11.8                    # ~$1,500 median
+        std_dev: 0.9
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.40
+        REGIONAL_TRUST: 0.25
+        MOMENTUM_CAPITAL: 0.20
+        COMMUNITY_FIRST: 0.15
+      deadline_range: [15, 35]        # Scaled for 50 ticks
+      priority: 6
+      divisible: false
+
+  # REGIONAL_TRUST - Regional Bank (will experience failure Day 5)
+  - id: "REGIONAL_TRUST"
+    opening_balance: 9000000          # $90,000
+    credit_limit: 700000              # $7,000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/agile_regional_bank.json"
+    arrival_config:
+      rate_per_tick: 0.475            # ~24 tx/day
+      amount_distribution:
+        type: "Uniform"
+        min: 80000                    # $800
+        max: 600000                   # $6,000
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35
+        METRO_CENTRAL: 0.25
+        MOMENTUM_CAPITAL: 0.20
+        COMMUNITY_FIRST: 0.20
+      deadline_range: [12, 32]
+      priority: 5
+      divisible: true
+
+  # MOMENTUM_CAPITAL - Investment Bank (conservative policy)
+  - id: "MOMENTUM_CAPITAL"
+    opening_balance: 11000000         # $110,000
+    credit_limit: 800000              # $8,000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+    arrival_config:
+      rate_per_tick: 0.65             # ~32 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.5                    # ~$500 median
+        std_dev: 1.4
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.30
+        METRO_CENTRAL: 0.25
+        REGIONAL_TRUST: 0.25
+        COMMUNITY_FIRST: 0.20
+      deadline_range: [7, 25]
+      priority: 7
+      divisible: false
+
+  # COMMUNITY_FIRST - Small Undercapitalized Bank
+  - id: "COMMUNITY_FIRST"
+    opening_balance: 5000000          # $50,000
+    credit_limit: 500000              # $5,000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/balanced_cost_optimizer.json"
+    arrival_config:
+      rate_per_tick: 0.6              # ~30 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 11.0                    # ~$600 median
+        std_dev: 1.2
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35
+        METRO_CENTRAL: 0.25
+        REGIONAL_TRUST: 0.25
+        MOMENTUM_CAPITAL: 0.15
+      deadline_range: [10, 30]
+      priority: 6
+      divisible: false
+
+  # CORRESPONDENT_HUB - Central Correspondent Bank
+  - id: "CORRESPONDENT_HUB"
+    opening_balance: 12000000         # $120,000
+    credit_limit: 800000              # $8,000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/smart_splitter.json"
+    arrival_config:
+      rate_per_tick: 0.55             # ~27 tx/day
+      amount_distribution:
+        type: "Uniform"
+        min: 100000                   # $1,000
+        max: 700000                   # $7,000
+      counterparty_weights:
+        METRO_CENTRAL: 0.30
+        REGIONAL_TRUST: 0.25
+        MOMENTUM_CAPITAL: 0.25
+        COMMUNITY_FIRST: 0.20
+      deadline_range: [15, 35]
+      priority: 6
+      divisible: true
+
+  # CENTRAL_BANK - Emergency Liquidity Provider (passive, receives only)
+  - id: "CENTRAL_BANK"
+    opening_balance: 100000000        # $1,000,000 (large reserve)
+    credit_limit: 0                   # No credit needed
+    policy:
+      type: "Fifo"
+    arrival_config:
+      rate_per_tick: 0.0              # Doesn't send payments
+      amount_distribution:
+        type: "Uniform"
+        min: 100000
+        max: 200000                   # Fixed: max must be > min
+      counterparty_weights:
+        METRO_CENTRAL: 1.0
+      deadline_range: [10, 20]
+      priority: 5
+      divisible: false
+
+# ============================================================================
+# SCENARIO EVENTS - Complete 10-Day Crisis Timeline
+# ============================================================================
+
+scenario_events:
+  # ========================================================================
+  # DAY 1 (Ticks 0-49): Normal Operations
+  # ========================================================================
+  # No events - establish baseline behavior
+
+  # ========================================================================
+  # DAY 2 (Ticks 50-99): Pre-Crisis Calm
+  # ========================================================================
+  # No events - continue baseline
+
+  # ========================================================================
+  # DAY 3 (Ticks 100-149): Market Stress Begins
+  # ========================================================================
+
+  # Morning (tick 105): Market surge - global activity doubles
+  - type: GlobalArrivalRateChange
+    multiplier: 2.0  # Double all arrival rates
+    schedule:
+      type: OneTime
+      tick: 105
+
+  # Mid-morning (tick 110): Large institutional payment (stress test)
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: CORRESPONDENT_HUB
+    amount: 5000000   # $50,000 (large payment)
+    priority: 9       # High urgency
+    deadline: 15      # Tight deadline
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 110
+
+  # Late morning (tick 115): Another large payment
+  - type: CustomTransactionArrival
+    from_agent: CORRESPONDENT_HUB
+    to_agent: METRO_CENTRAL
+    amount: 4500000   # $45,000
+    priority: 8
+    deadline: 20
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 115
+
+  # Afternoon (tick 130): Markets stabilize slightly
+  - type: GlobalArrivalRateChange
+    multiplier: 1.5  # Reduce to 1.5× normal
+    schedule:
+      type: OneTime
+      tick: 130
+
+  # End of day (tick 145): Tighter deadlines for next day
+  - type: DeadlineWindowChange
+    agent: METRO_CENTRAL
+    new_deadline_range: [5, 15]   # Reduce from [15, 35] to tighter window
+    schedule:
+      type: OneTime
+      tick: 145
+
+  # ========================================================================
+  # DAY 4 (Ticks 150-199): Regulatory Shock
+  # ========================================================================
+
+  # Morning (tick 155): Return to normal arrival rates
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0  # Back to normal
+    schedule:
+      type: OneTime
+      tick: 155
+
+  # Mid-morning (tick 160): Regulatory collateral haircut - METRO
+  - type: CollateralAdjustment
+    agent: METRO_CENTRAL
+    delta: -500000  # Lose $5,000 (50% of credit limit)
+    schedule:
+      type: OneTime
+      tick: 160
+
+  # Tick 162: Collateral haircut - REGIONAL
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: -350000  # Lose $3,500 (50% of credit limit)
+    schedule:
+      type: OneTime
+      tick: 162
+
+  # Tick 164: Collateral haircut - MOMENTUM
+  - type: CollateralAdjustment
+    agent: MOMENTUM_CAPITAL
+    delta: -400000  # Lose $4,000 (50% of credit limit)
+    schedule:
+      type: OneTime
+      tick: 164
+
+  # Tick 166: Collateral haircut - COMMUNITY (most severe)
+  - type: CollateralAdjustment
+    agent: COMMUNITY_FIRST
+    delta: -250000  # Lose $2,500 (50% of credit limit)
+    schedule:
+      type: OneTime
+      tick: 166
+
+  # Tick 168: Collateral haircut - HUB
+  - type: CollateralAdjustment
+    agent: CORRESPONDENT_HUB
+    delta: -400000  # Lose $4,000 (50% of credit limit)
+    schedule:
+      type: OneTime
+      tick: 168
+
+  # Afternoon (tick 180): All banks tighten deadlines in response
+  - type: DeadlineWindowChange
+    agent: REGIONAL_TRUST
+    new_deadline_range: [4, 12]
+    schedule:
+      type: OneTime
+      tick: 180
+
+  - type: DeadlineWindowChange
+    agent: MOMENTUM_CAPITAL
+    new_deadline_range: [3, 9]
+    schedule:
+      type: OneTime
+      tick: 180
+
+  - type: DeadlineWindowChange
+    agent: COMMUNITY_FIRST
+    new_deadline_range: [4, 12]
+    schedule:
+      type: OneTime
+      tick: 180
+
+  - type: DeadlineWindowChange
+    agent: CORRESPONDENT_HUB
+    new_deadline_range: [5, 15]
+    schedule:
+      type: OneTime
+      tick: 180
+
+  # ========================================================================
+  # DAY 5 (Ticks 200-249): REGIONAL_TRUST Operational Failure
+  # ========================================================================
+
+  # Morning (tick 205): REGIONAL_TRUST experiences system outage
+  - type: AgentArrivalRateChange
+    agent: REGIONAL_TRUST
+    multiplier: 0.001  # Near-complete halt (0.1% of normal rate)
+    schedule:
+      type: OneTime
+      tick: 205
+
+  # Tick 210: METRO reduces exposure to REGIONAL
+  - type: CounterpartyWeightChange
+    agent: METRO_CENTRAL
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.05  # Reduce from 0.25 to 0.05
+    schedule:
+      type: OneTime
+      tick: 210
+
+  # Tick 212: MOMENTUM reduces exposure to REGIONAL
+  - type: CounterpartyWeightChange
+    agent: MOMENTUM_CAPITAL
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.05  # Reduce from 0.25 to 0.05
+    schedule:
+      type: OneTime
+      tick: 212
+
+  # Tick 215: COMMUNITY reduces exposure to REGIONAL
+  - type: CounterpartyWeightChange
+    agent: COMMUNITY_FIRST
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.05  # Reduce from 0.25 to 0.05
+    schedule:
+      type: OneTime
+      tick: 215
+
+  # Tick 218: HUB reduces exposure to REGIONAL
+  - type: CounterpartyWeightChange
+    agent: CORRESPONDENT_HUB
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.05  # Reduce from 0.25 to 0.05
+    schedule:
+      type: OneTime
+      tick: 218
+
+  # Afternoon (tick 230): Large payment forces stress on HUB
+  - type: CustomTransactionArrival
+    from_agent: CORRESPONDENT_HUB
+    to_agent: METRO_CENTRAL
+    amount: 3500000   # $35,000 (large payment during crisis)
+    priority: 8
+    deadline: 10
+    is_divisible: true  # Allow splitting
+    schedule:
+      type: OneTime
+      tick: 230
+
+  # ========================================================================
+  # DAY 6 (Ticks 250-299): Emergency Central Bank Support
+  # ========================================================================
+
+  # Morning (tick 255): Central bank emergency liquidity - COMMUNITY
+  - type: CustomTransactionArrival
+    from_agent: CENTRAL_BANK
+    to_agent: COMMUNITY_FIRST
+    amount: 2000000   # $20,000 emergency support
+    priority: 10      # Maximum priority
+    deadline: 5       # Immediate settlement
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 255
+
+  # Tick 258: Emergency liquidity - HUB
+  - type: CustomTransactionArrival
+    from_agent: CENTRAL_BANK
+    to_agent: CORRESPONDENT_HUB
+    amount: 3000000   # $30,000
+    priority: 10
+    deadline: 5
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 258
+
+  # Midday (tick 270): Market activity surges (panic trading)
+  - type: GlobalArrivalRateChange
+    multiplier: 2.5  # 2.5× normal rates
+    schedule:
+      type: OneTime
+      tick: 270
+
+  # Afternoon (tick 285): Surge subsides
+  - type: GlobalArrivalRateChange
+    multiplier: 1.2  # Slightly elevated
+    schedule:
+      type: OneTime
+      tick: 285
+
+  # ========================================================================
+  # DAY 7 (Ticks 300-349): Partial Recovery
+  # ========================================================================
+
+  # Morning (tick 305): Markets return to normal
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0  # Normal rates restored
+    schedule:
+      type: OneTime
+      tick: 305
+
+  # Midday (tick 325): REGIONAL_TRUST collateral restored (partial)
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: 175000   # Restore $1,750 (half of what was lost)
+    schedule:
+      type: OneTime
+      tick: 325
+
+  # Afternoon (tick 340): Deadlines relax slightly
+  - type: DeadlineWindowChange
+    agent: METRO_CENTRAL
+    new_deadline_range: [6, 18]
+    schedule:
+      type: OneTime
+      tick: 340
+
+  - type: DeadlineWindowChange
+    agent: MOMENTUM_CAPITAL
+    new_deadline_range: [4, 12]
+    schedule:
+      type: OneTime
+      tick: 340
+
+  # ========================================================================
+  # DAY 8 (Ticks 350-399): REGIONAL_TRUST Resumes Operations
+  # ========================================================================
+
+  # Morning (tick 355): REGIONAL_TRUST systems restored (partial capacity)
+  - type: AgentArrivalRateChange
+    agent: REGIONAL_TRUST
+    multiplier: 0.5  # 50% capacity restored
+    schedule:
+      type: OneTime
+      tick: 355
+
+  # Tick 360: METRO begins rebuilding relationship with REGIONAL
+  - type: CounterpartyWeightChange
+    agent: METRO_CENTRAL
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.15  # Increase from 0.05 to 0.15
+    schedule:
+      type: OneTime
+      tick: 360
+
+  # Tick 365: HUB rebuilds relationship with REGIONAL
+  - type: CounterpartyWeightChange
+    agent: CORRESPONDENT_HUB
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.15  # Increase from 0.05
+    schedule:
+      type: OneTime
+      tick: 365
+
+  # Afternoon (tick 380): REGIONAL_TRUST full capacity restored
+  - type: AgentArrivalRateChange
+    agent: REGIONAL_TRUST
+    multiplier: 1.0  # Full capacity
+    schedule:
+      type: OneTime
+      tick: 380
+
+  # Late day (tick 390): All relationships normalized
+  - type: CounterpartyWeightChange
+    agent: METRO_CENTRAL
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.25  # Back to original
+    schedule:
+      type: OneTime
+      tick: 390
+
+  - type: CounterpartyWeightChange
+    agent: MOMENTUM_CAPITAL
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.25  # Back to original
+    schedule:
+      type: OneTime
+      tick: 390
+
+  - type: CounterpartyWeightChange
+    agent: COMMUNITY_FIRST
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.25  # Back to original
+    schedule:
+      type: OneTime
+      tick: 390
+
+  - type: CounterpartyWeightChange
+    agent: CORRESPONDENT_HUB
+    counterparty: REGIONAL_TRUST
+    new_weight: 0.25  # Back to original
+    schedule:
+      type: OneTime
+      tick: 390
+
+  # ========================================================================
+  # DAY 9 (Ticks 400-449): New Regulatory Framework
+  # ========================================================================
+
+  # Morning (tick 405): New regulatory deadlines (tighter)
+  - type: DeadlineWindowChange
+    agent: METRO_CENTRAL
+    new_deadline_range: [7, 23]   # More conservative than original
+    schedule:
+      type: OneTime
+      tick: 405
+
+  - type: DeadlineWindowChange
+    agent: REGIONAL_TRUST
+    new_deadline_range: [6, 18]
+    schedule:
+      type: OneTime
+      tick: 405
+
+  - type: DeadlineWindowChange
+    agent: MOMENTUM_CAPITAL
+    new_deadline_range: [5, 15]
+    schedule:
+      type: OneTime
+      tick: 405
+
+  - type: DeadlineWindowChange
+    agent: COMMUNITY_FIRST
+    new_deadline_range: [6, 18]
+    schedule:
+      type: OneTime
+      tick: 405
+
+  - type: DeadlineWindowChange
+    agent: CORRESPONDENT_HUB
+    new_deadline_range: [7, 23]
+    schedule:
+      type: OneTime
+      tick: 405
+
+  # Midday (tick 425): Collateral requirements restored (partial)
+  - type: CollateralAdjustment
+    agent: METRO_CENTRAL
+    delta: 250000   # Restore $2,500 (half of Day 4 loss)
+    schedule:
+      type: OneTime
+      tick: 425
+
+  - type: CollateralAdjustment
+    agent: MOMENTUM_CAPITAL
+    delta: 200000   # Restore $2,000
+    schedule:
+      type: OneTime
+      tick: 425
+
+  - type: CollateralAdjustment
+    agent: COMMUNITY_FIRST
+    delta: 125000    # Restore $1,250
+    schedule:
+      type: OneTime
+      tick: 425
+
+  - type: CollateralAdjustment
+    agent: CORRESPONDENT_HUB
+    delta: 200000   # Restore $2,000
+    schedule:
+      type: OneTime
+      tick: 425
+
+  # ========================================================================
+  # DAY 10 (Ticks 450-499): Final Stress Test
+  # ========================================================================
+
+  # Morning (tick 455): Coordinated large payments (stress test)
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: CORRESPONDENT_HUB
+    amount: 4000000   # $40,000
+    priority: 8
+    deadline: 20
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 455
+
+  - type: CustomTransactionArrival
+    from_agent: CORRESPONDENT_HUB
+    to_agent: REGIONAL_TRUST
+    amount: 3500000   # $35,000
+    priority: 8
+    deadline: 20
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 455
+
+  - type: CustomTransactionArrival
+    from_agent: REGIONAL_TRUST
+    to_agent: MOMENTUM_CAPITAL
+    amount: 3000000   # $30,000
+    priority: 8
+    deadline: 20
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 455
+
+  # Midday (tick 470): Market surge (final test)
+  - type: GlobalArrivalRateChange
+    multiplier: 1.8  # Elevated activity
+    schedule:
+      type: OneTime
+      tick: 470
+
+  # Afternoon (tick 485): Markets normalize
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0  # Back to normal
+    schedule:
+      type: OneTime
+      tick: 485
+
+  # End of day (tick 495): Final central bank support (preventive)
+  - type: CustomTransactionArrival
+    from_agent: CENTRAL_BANK
+    to_agent: COMMUNITY_FIRST
+    amount: 1000000   # $10,000 final support
+    priority: 10
+    deadline: 3
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 495
+
+# ============================================================================
+# LSM CONFIGURATION - Critical for crisis resolution
+# ============================================================================
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 5
+  max_cycles_per_tick: 6
+
+# ============================================================================
+# COST CONFIGURATION - Same as ultra-stressed
+# ============================================================================
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.0002
+  overdraft_bps_per_tick: 1.0
+  collateral_cost_per_tick_bps: 0.0006
+  eod_penalty_per_transaction: 500000
+  deadline_penalty: 250000
+  overdue_delay_multiplier: 5.0
+  split_friction_cost: 7500
+
+# ============================================================================
+# EXPECTED DYNAMICS - 10-Day Crisis Scenario
+# ============================================================================
+#
+# EVENT SUMMARY BY DAY:
+#
+# Day 1-2: Baseline (no events)
+#   - Normal settlement patterns
+#   - Establish performance benchmarks
+#
+# Day 3: Market Stress (6 events)
+#   - GlobalArrivalRateChange: 2× → 1.5× → baseline
+#   - CustomTransactionArrival: 2 large institutional payments
+#   - DeadlineWindowChange: Tighter deadlines
+#
+# Day 4: Regulatory Shock (10 events)
+#   - GlobalArrivalRateChange: Return to normal
+#   - CollateralAdjustment: 5 haircuts (total -$105,000)
+#   - DeadlineWindowChange: 4 banks tighten deadlines
+#
+# Day 5: Bank Failure (6 events)
+#   - AgentArrivalRateChange: REGIONAL halts operations
+#   - CounterpartyWeightChange: 4 banks reduce exposure
+#   - CustomTransactionArrival: Large payment during crisis
+#
+# Day 6: Emergency Support (4 events)
+#   - CustomTransactionArrival: 2 central bank injections
+#   - GlobalArrivalRateChange: Panic surge → stabilization
+#
+# Day 7: Recovery (4 events)
+#   - GlobalArrivalRateChange: Return to normal
+#   - CollateralAdjustment: Partial restoration
+#   - DeadlineWindowChange: Deadlines relax
+#
+# Day 8: Restoration (6 events)
+#   - AgentArrivalRateChange: REGIONAL 50% → 100%
+#   - CounterpartyWeightChange: 4 relationships rebuilt
+#
+# Day 9: New Normal (9 events)
+#   - DeadlineWindowChange: 5 new regulatory deadlines
+#   - CollateralAdjustment: 4 partial restorations
+#
+# Day 10: Final Test (6 events)
+#   - CustomTransactionArrival: 4 coordinated large payments
+#   - GlobalArrivalRateChange: Surge → normalize
+#
+# TOTAL EVENTS: 55 scenario events across 10 days
+#
+# EVENT TYPE USAGE:
+# - CustomTransactionArrival: 10 events (large payments, support)
+# - CollateralAdjustment: 10 events (haircuts + restorations)
+# - GlobalArrivalRateChange: 9 events (surges + normalizations)
+# - AgentArrivalRateChange: 3 events (failure + recovery)
+# - CounterpartyWeightChange: 12 events (relationship changes)
+# - DeadlineWindowChange: 11 events (policy adjustments)
+#
+# KEY INSIGHTS:
+#
+# 1. SCENARIO EVENT DENSITY: 5-6 events per crisis day, demonstrating
+#    the power of deterministic interventions for stress testing.
+#
+# 2. CASCADING EFFECTS: Events trigger chain reactions:
+#    - Day 4 collateral haircuts → Day 5 bank failure
+#    - Day 5 failure → Day 6 emergency support
+#    - Day 7-8 gradual recovery → Day 9 new normal
+#
+# 3. CENTRAL BANK ROLE: CustomTransactionArrival used for emergency
+#    liquidity (vs DirectTransfer), testing realistic settlement paths.
+#
+# 4. RELATIONSHIP DYNAMICS: CounterpartyWeightChange models credit
+#    risk management (reduce exposure) and trust rebuilding.
+#
+# 5. REGULATORY RESPONSE: DeadlineWindowChange models policy adaptation
+#    to crises (tighten → relax → new equilibrium).
+#
+# 6. MULTI-DAY PERSISTENCE: 10 days allows observing long-term effects:
+#    - Days 1-2: Baseline costs $X
+#    - Days 3-6: Crisis costs $5-8X
+#    - Days 7-10: Recovery costs $2-3X
+#
+# 7. LSM CRITICAL PERIODS: Expect heavy LSM usage on:
+#    - Day 3 afternoon (market surge aftermath)
+#    - Day 4 (post-haircut liquidity crunch)
+#    - Day 5 (REGIONAL failure gridlock)
+#    - Day 10 (coordinated stress test)
+#
+# 8. POLICY EFFECTIVENESS TESTING: Different policies face identical
+#    shocks, enabling comparative analysis:
+#    - Which policy minimizes Day 3-5 costs?
+#    - Which recovers fastest (Days 6-8)?
+#    - Which best handles Day 10 final test?
+#
+# 9. DETERMINISTIC REPRODUCIBILITY: Fixed seed + deterministic events
+#    = perfect replay for peer review and validation.
+#
+# 10. REAL-WORLD ANALOGY: Resembles 2008-2009 crisis timeline:
+#     - Initial market stress (Lehman weekend)
+#     - Bank failures (Lehman, Bear Stearns)
+#     - Emergency central bank interventions (TARP, QE)
+#     - Gradual recovery and new regulations (Dodd-Frank)
+#
+# USAGE:
+# ======
+#
+# # Run full 10-day scenario with persistence
+# payment-sim run \
+#   --config examples/configs/ten_day_crisis_scenario.yaml \
+#   --persist \
+#   --db-path ten_day_crisis.db \
+#   --verbose
+#
+# # Replay specific crisis day (e.g., Day 5 bank failure)
+# payment-sim replay \
+#   --simulation-id <id> \
+#   --config examples/configs/ten_day_crisis_scenario.yaml \
+#   --from-tick 200 \
+#   --to-tick 249 \
+#   --verbose
+#
+# # Query scenario events from database
+# SELECT tick, event_type, details FROM simulation_events
+# WHERE event_type = 'ScenarioEventExecuted'
+# AND tick BETWEEN 200 AND 249
+# ORDER BY tick;
