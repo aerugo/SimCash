@@ -843,6 +843,49 @@ fn parse_scenario_events(py_events: &Bound<'_, PyList>) -> PyResult<Vec<Schedule
                     amount,
                 }
             }
+            "CustomTransactionArrival" => {
+                let from_agent: String = event_dict
+                    .get_item("from_agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "CustomTransactionArrival requires 'from_agent'"
+                    ))?
+                    .extract()?;
+                let to_agent: String = event_dict
+                    .get_item("to_agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "CustomTransactionArrival requires 'to_agent'"
+                    ))?
+                    .extract()?;
+                let amount: i64 = event_dict
+                    .get_item("amount")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "CustomTransactionArrival requires 'amount'"
+                    ))?
+                    .extract()?;
+
+                // Optional fields with defaults
+                let priority: Option<u8> = event_dict
+                    .get_item("priority")?
+                    .map(|v| v.extract())
+                    .transpose()?;
+                let deadline: Option<usize> = event_dict
+                    .get_item("deadline")?
+                    .map(|v| v.extract())
+                    .transpose()?;
+                let is_divisible: Option<bool> = event_dict
+                    .get_item("is_divisible")?
+                    .map(|v| v.extract())
+                    .transpose()?;
+
+                ScenarioEvent::CustomTransactionArrival {
+                    from_agent,
+                    to_agent,
+                    amount,
+                    priority,
+                    deadline,
+                    is_divisible,
+                }
+            }
             "CollateralAdjustment" => {
                 let agent: String = event_dict
                     .get_item("agent")?

@@ -69,6 +69,11 @@ impl ScenarioEvent {
                 execute_collateral_adjustment(state, tick, agent, *delta)
             }
 
+            // CustomTransactionArrival is handled at Orchestrator level
+            ScenarioEvent::CustomTransactionArrival { .. } => {
+                Err("CustomTransactionArrival must be handled at Orchestrator level".to_string())
+            }
+
             // TODO: Implement these at Orchestrator level
             ScenarioEvent::GlobalArrivalRateChange { .. } => {
                 Err("GlobalArrivalRateChange not yet implemented".to_string())
