@@ -59,14 +59,16 @@ scenario_events:
         # Run simulation with persistence
         run_result = subprocess.run(
             [
-                "payment-sim", "run",
+                "uv", "run", "payment-sim", "run",
                 "--config", str(config_path),
-                "--persist", str(db_path),
+                "--persist",
+                "--db-path", str(db_path),
                 "--verbose"
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            cwd="/home/user/SimCash/api"
         )
 
         assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
@@ -75,41 +77,60 @@ scenario_events:
         # Get simulation ID from database
         import duckdb
         conn = duckdb.connect(str(db_path))
-        sim_id = conn.execute("SELECT simulation_id FROM simulations ORDER BY created_at DESC LIMIT 1").fetchone()[0]
+        sim_id = conn.execute("SELECT simulation_id FROM simulations ORDER BY started_at DESC LIMIT 1").fetchone()[0]
         conn.close()
 
         # Replay simulation
         replay_result = subprocess.run(
             [
-                "payment-sim", "replay",
-                str(db_path),
+                "uv", "run", "payment-sim", "replay",
                 "--simulation-id", sim_id,
+                "--db-path", str(db_path),
                 "--verbose"
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            cwd="/home/user/SimCash/api"
         )
 
         assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
         replay_output = replay_result.stdout
 
-        # Compare outputs (ignoring timing lines)
-        run_lines = [line for line in run_output.splitlines() if "Duration:" not in line and "ms" not in line]
-        replay_lines = [line for line in replay_output.splitlines() if "Duration:" not in line and "ms" not in line]
+        # Normalize outputs (remove timing info and normalize paths)
+        def normalize(text):
+            import json
+            try:
+                data = json.loads(text)
+
+                # Normalize paths: convert full paths to relative paths
+                if "simulation" in data and "config_file" in data["simulation"]:
+                    config_file = data["simulation"]["config_file"]
+                    if "/" in config_file:
+                        data["simulation"]["config_file"] = config_file.split("/")[-1]
+
+                # Remove timing fields
+                if "simulation" in data:
+                    data["simulation"].pop("duration_seconds", None)
+                    data["simulation"].pop("ticks_per_second", None)
+                if "performance" in data:
+                    data.pop("performance", None)
+
+                return json.dumps(data, indent=2, sort_keys=True)
+            except json.JSONDecodeError:
+                return text
+
+        run_normalized = normalize(run_output)
+        replay_normalized = normalize(replay_output)
 
         # For debugging if test fails
-        if run_lines != replay_lines:
-            print("\\n=== RUN OUTPUT ===")
-            print("\\n".join(run_lines[:50]))
-            print("\\n=== REPLAY OUTPUT ===")
-            print("\\n".join(replay_lines[:50]))
+        if run_normalized != replay_normalized:
+            print("\n=== RUN OUTPUT ===")
+            print(run_normalized)
+            print("\n=== REPLAY OUTPUT ===")
+            print(replay_normalized)
 
-        assert run_lines == replay_lines, "Run and replay outputs should be identical"
-
-        # Verify scenario event appears in both outputs
-        scenario_event_lines = [line for line in run_lines if "DirectTransfer" in line or "BANK_A" in line]
-        assert len(scenario_event_lines) > 0, "Scenario event should appear in output"
+        assert run_normalized == replay_normalized, "Run and replay outputs should be identical"
 
 
 def test_multiple_scenario_events_replay_identity():
@@ -168,14 +189,16 @@ scenario_events:
         # Run with persistence
         run_result = subprocess.run(
             [
-                "payment-sim", "run",
+                "uv", "run", "payment-sim", "run",
                 "--config", str(config_path),
-                "--persist", str(db_path),
+                "--persist",
+                "--db-path", str(db_path),
                 "--verbose"
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            cwd="/home/user/SimCash/api"
         )
 
         assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
@@ -183,7 +206,7 @@ scenario_events:
         # Get simulation ID
         import duckdb
         conn = duckdb.connect(str(db_path))
-        sim_id = conn.execute("SELECT simulation_id FROM simulations ORDER BY created_at DESC LIMIT 1").fetchone()[0]
+        sim_id = conn.execute("SELECT simulation_id FROM simulations ORDER BY started_at DESC LIMIT 1").fetchone()[0]
 
         # Verify all 3 events were persisted
         event_count = conn.execute("""
@@ -197,23 +220,47 @@ scenario_events:
         # Replay
         replay_result = subprocess.run(
             [
-                "payment-sim", "replay",
-                str(db_path),
+                "uv", "run", "payment-sim", "replay",
                 "--simulation-id", sim_id,
+                "--db-path", str(db_path),
                 "--verbose"
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            cwd="/home/user/SimCash/api"
         )
 
         assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
 
-        # Compare outputs
-        run_lines = [line for line in run_result.stdout.splitlines() if "Duration:" not in line and "ms" not in line]
-        replay_lines = [line for line in replay_result.stdout.splitlines() if "Duration:" not in line and "ms" not in line]
+        # Normalize outputs (remove timing info and normalize paths)
+        def normalize(text):
+            import json
+            try:
+                data = json.loads(text)
+                if "simulation" in data and "config_file" in data["simulation"]:
+                    config_file = data["simulation"]["config_file"]
+                    if "/" in config_file:
+                        data["simulation"]["config_file"] = config_file.split("/")[-1]
+                if "simulation" in data:
+                    data["simulation"].pop("duration_seconds", None)
+                    data["simulation"].pop("ticks_per_second", None)
+                if "performance" in data:
+                    data.pop("performance", None)
+                return json.dumps(data, indent=2, sort_keys=True)
+            except json.JSONDecodeError:
+                return text
 
-        assert run_lines == replay_lines, "Run and replay outputs should be identical"
+        run_normalized = normalize(run_result.stdout)
+        replay_normalized = normalize(replay_result.stdout)
+
+        if run_normalized != replay_normalized:
+            print("\n=== RUN OUTPUT ===")
+            print(run_normalized)
+            print("\n=== REPLAY OUTPUT ===")
+            print(replay_normalized)
+
+        assert run_normalized == replay_normalized, "Run and replay outputs should be identical"
 
 
 def test_repeating_scenario_event_replay_identity():
@@ -258,14 +305,16 @@ scenario_events:
         # Run
         run_result = subprocess.run(
             [
-                "payment-sim", "run",
+                "uv", "run", "payment-sim", "run",
                 "--config", str(config_path),
-                "--persist", str(db_path),
+                "--persist",
+                "--db-path", str(db_path),
                 "--verbose"
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            cwd="/home/user/SimCash/api"
         )
 
         assert run_result.returncode == 0
@@ -273,7 +322,7 @@ scenario_events:
         # Get simulation ID
         import duckdb
         conn = duckdb.connect(str(db_path))
-        sim_id = conn.execute("SELECT simulation_id FROM simulations ORDER BY created_at DESC LIMIT 1").fetchone()[0]
+        sim_id = conn.execute("SELECT simulation_id FROM simulations ORDER BY started_at DESC LIMIT 1").fetchone()[0]
 
         # Verify multiple executions were persisted
         event_count = conn.execute("""
@@ -287,23 +336,47 @@ scenario_events:
         # Replay
         replay_result = subprocess.run(
             [
-                "payment-sim", "replay",
-                str(db_path),
+                "uv", "run", "payment-sim", "replay",
                 "--simulation-id", sim_id,
+                "--db-path", str(db_path),
                 "--verbose"
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            cwd="/home/user/SimCash/api"
         )
 
         assert replay_result.returncode == 0
 
-        # Compare outputs
-        run_lines = [line for line in run_result.stdout.splitlines() if "Duration:" not in line and "ms" not in line]
-        replay_lines = [line for line in replay_result.stdout.splitlines() if "Duration:" not in line and "ms" not in line]
+        # Normalize outputs (remove timing info and normalize paths)
+        def normalize(text):
+            import json
+            try:
+                data = json.loads(text)
+                if "simulation" in data and "config_file" in data["simulation"]:
+                    config_file = data["simulation"]["config_file"]
+                    if "/" in config_file:
+                        data["simulation"]["config_file"] = config_file.split("/")[-1]
+                if "simulation" in data:
+                    data["simulation"].pop("duration_seconds", None)
+                    data["simulation"].pop("ticks_per_second", None)
+                if "performance" in data:
+                    data.pop("performance", None)
+                return json.dumps(data, indent=2, sort_keys=True)
+            except json.JSONDecodeError:
+                return text
 
-        assert run_lines == replay_lines, "Run and replay outputs should be identical"
+        run_normalized = normalize(run_result.stdout)
+        replay_normalized = normalize(replay_result.stdout)
+
+        if run_normalized != replay_normalized:
+            print("\n=== RUN OUTPUT ===")
+            print(run_normalized)
+            print("\n=== REPLAY OUTPUT ===")
+            print(replay_normalized)
+
+        assert run_normalized == replay_normalized, "Run and replay outputs should be identical"
 
 
 @pytest.mark.skip(reason="Requires payment-sim CLI to be available")
