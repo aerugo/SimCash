@@ -173,26 +173,22 @@ class CounterpartyWeightChangeEvent(BaseModel):
 
 
 class DeadlineWindowChangeEvent(BaseModel):
-    """Change deadline range for future transactions from an agent."""
+    """Change deadline ranges for ALL agents using multipliers.
+
+    Applies globally to all agents that have arrival configs. Multiplies
+    the min/max of existing deadline ranges by the provided multipliers.
+    """
     type: Literal["DeadlineWindowChange"] = "DeadlineWindowChange"
-    agent: str = Field(..., description="Agent ID")
-    new_deadline_range: List[int] = Field(
-        ..., description="[min_ticks, max_ticks] until deadline", min_length=2, max_length=2
-    )
+    min_ticks_multiplier: Optional[float] = Field(None, description="Multiplier for min deadline", gt=0)
+    max_ticks_multiplier: Optional[float] = Field(None, description="Multiplier for max deadline", gt=0)
     schedule: EventSchedule = Field(..., description="When event executes")
 
-    @field_validator("new_deadline_range")
-    @classmethod
-    def validate_deadline_range(cls, v):
-        """Validate deadline range [min, max]."""
-        if len(v) != 2:
-            raise ValueError("new_deadline_range must have exactly 2 elements [min, max]")
-        min_val, max_val = v
-        if min_val <= 0:
-            raise ValueError("deadline range min must be > 0")
-        if max_val < min_val:
-            raise ValueError("deadline range max must be >= min")
-        return v
+    @model_validator(mode="after")
+    def validate_at_least_one_multiplier(self):
+        """At least one multiplier must be provided."""
+        if self.min_ticks_multiplier is None and self.max_ticks_multiplier is None:
+            raise ValueError("At least one of min_ticks_multiplier or max_ticks_multiplier must be provided")
+        return self
 
 
 # Union type for all scenario events
@@ -581,12 +577,15 @@ class SimulationConfig(BaseModel):
                 **schedule_dict,
             }
         elif isinstance(event, DeadlineWindowChangeEvent):
-            return {
+            result = {
                 "type": "DeadlineWindowChange",
-                "agent": event.agent,
-                "new_deadline_range": event.new_deadline_range,
                 **schedule_dict,
             }
+            if event.min_ticks_multiplier is not None:
+                result["min_ticks_multiplier"] = event.min_ticks_multiplier
+            if event.max_ticks_multiplier is not None:
+                result["max_ticks_multiplier"] = event.max_ticks_multiplier
+            return result
         else:
             raise ValueError(f"Unknown scenario event type: {type(event)}")
 
