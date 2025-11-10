@@ -219,6 +219,14 @@ class TestAIIntegration:
     def test_jq_compatibility(self, test_config):
         """Test that output can be piped to jq."""
         import os
+        import sys
+
+        # Use the venv's payment-sim if it exists
+        venv_bin = Path(sys.prefix) / "bin" / "payment-sim"
+        if venv_bin.exists():
+            cli_cmd = str(venv_bin)
+        else:
+            cli_cmd = "payment-sim"
 
         # Set PYTHONPATH for subprocess
         env = os.environ.copy()
@@ -231,7 +239,7 @@ class TestAIIntegration:
 
         # Run with quiet mode for clean JSON
         result = subprocess.run(
-            f"payment-sim run --config {test_config} --quiet | jq -r '.metrics.settlement_rate'",
+            f"{cli_cmd} run --config {test_config} --quiet | jq -r '.metrics.settlement_rate'",
             shell=True,
             capture_output=True,
             text=True,

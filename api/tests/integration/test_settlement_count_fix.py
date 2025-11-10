@@ -77,17 +77,26 @@ def test_replay_counts_lsm_settled_transactions():
 
         # Setup database and persist events
         db = DatabaseManager(db_path)
-        db.apply_migrations()  # Ensure schema is created
+        db.initialize_schema()  # Create base tables
+        db.apply_migrations()  # Apply any pending migrations
 
         sim_id = "test-lsm-settlement-count"
+        import hashlib
+        config_json = json.dumps(config)
+        config_hash = hashlib.sha256(config_json.encode()).hexdigest()
+
         db.conn.execute(
-            "INSERT INTO simulations (simulation_id, config, status) VALUES (?, ?, ?)",
-            [sim_id, json.dumps(config), "completed"],
+            """INSERT INTO simulations
+               (simulation_id, config_file, config_hash, config_json, rng_seed, ticks_per_day, num_days, num_agents, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [sim_id, "test_config.yaml", config_hash, config_json,
+             config["rng_seed"], config["ticks_per_day"], config["num_days"],
+             len(config["agent_configs"]), "completed"],
         )
 
         # Write all events to database
         for tick in range(11):
-            events = orch.get_events_for_tick(tick)
+            events = orch.get_tick_events(tick)
             if events:
                 write_events_batch(db.conn, sim_id, events, 100)
 
