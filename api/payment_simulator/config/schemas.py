@@ -97,6 +97,114 @@ class ArrivalConfig(BaseModel):
 
 
 # ============================================================================
+# Scenario Events Configuration
+# ============================================================================
+
+class OneTimeSchedule(BaseModel):
+    """One-time event schedule (executes once)."""
+    type: Literal["OneTime"] = "OneTime"
+    tick: int = Field(..., description="Tick number when event executes", ge=0)
+
+
+class RepeatingSchedule(BaseModel):
+    """Repeating event schedule (executes at regular intervals)."""
+    type: Literal["Repeating"] = "Repeating"
+    start_tick: int = Field(..., description="First tick when event executes", ge=0)
+    interval: int = Field(..., description="Ticks between executions", gt=0)
+
+
+EventSchedule = Union[OneTimeSchedule, RepeatingSchedule]
+
+
+class DirectTransferEvent(BaseModel):
+    """Direct balance transfer between agents."""
+    type: Literal["DirectTransfer"] = "DirectTransfer"
+    from_agent: str = Field(..., description="Source agent ID")
+    to_agent: str = Field(..., description="Destination agent ID")
+    amount: int = Field(..., description="Amount to transfer (cents)", gt=0)
+    schedule: EventSchedule = Field(..., description="When event executes")
+
+
+class CollateralAdjustmentEvent(BaseModel):
+    """Adjust agent's credit limit (collateral)."""
+    type: Literal["CollateralAdjustment"] = "CollateralAdjustment"
+    agent: str = Field(..., description="Agent ID")
+    delta: int = Field(..., description="Change in credit limit (cents)")
+    schedule: EventSchedule = Field(..., description="When event executes")
+
+
+class GlobalArrivalRateChangeEvent(BaseModel):
+    """Multiply all agents' arrival rates by a factor."""
+    type: Literal["GlobalArrivalRateChange"] = "GlobalArrivalRateChange"
+    multiplier: float = Field(..., description="Multiply all rates by this factor", gt=0)
+    schedule: EventSchedule = Field(..., description="When event executes")
+
+
+class AgentArrivalRateChangeEvent(BaseModel):
+    """Multiply specific agent's arrival rate by a factor."""
+    type: Literal["AgentArrivalRateChange"] = "AgentArrivalRateChange"
+    agent: str = Field(..., description="Agent ID")
+    multiplier: float = Field(..., description="Multiply rate by this factor", gt=0)
+    schedule: EventSchedule = Field(..., description="When event executes")
+
+
+class CounterpartyWeightChangeEvent(BaseModel):
+    """Change counterparty selection weights for an agent."""
+    type: Literal["CounterpartyWeightChange"] = "CounterpartyWeightChange"
+    agent: str = Field(..., description="Agent whose weights to change")
+    new_weights: Dict[str, float] = Field(..., description="New counterparty weights")
+    auto_balance_others: bool = Field(
+        False, description="Redistribute remaining weight to other counterparties"
+    )
+    schedule: EventSchedule = Field(..., description="When event executes")
+
+    @field_validator("new_weights")
+    @classmethod
+    def validate_weights(cls, v):
+        """Validate counterparty weights sum to positive value."""
+        if not v:
+            raise ValueError("new_weights cannot be empty")
+        total = sum(v.values())
+        if total <= 0:
+            raise ValueError("new_weights must sum to positive value")
+        return v
+
+
+class DeadlineWindowChangeEvent(BaseModel):
+    """Change deadline range for future transactions from an agent."""
+    type: Literal["DeadlineWindowChange"] = "DeadlineWindowChange"
+    agent: str = Field(..., description="Agent ID")
+    new_deadline_range: List[int] = Field(
+        ..., description="[min_ticks, max_ticks] until deadline", min_length=2, max_length=2
+    )
+    schedule: EventSchedule = Field(..., description="When event executes")
+
+    @field_validator("new_deadline_range")
+    @classmethod
+    def validate_deadline_range(cls, v):
+        """Validate deadline range [min, max]."""
+        if len(v) != 2:
+            raise ValueError("new_deadline_range must have exactly 2 elements [min, max]")
+        min_val, max_val = v
+        if min_val <= 0:
+            raise ValueError("deadline range min must be > 0")
+        if max_val < min_val:
+            raise ValueError("deadline range max must be >= min")
+        return v
+
+
+# Union type for all scenario events
+ScenarioEvent = Union[
+    DirectTransferEvent,
+    CollateralAdjustmentEvent,
+    GlobalArrivalRateChangeEvent,
+    AgentArrivalRateChangeEvent,
+    CounterpartyWeightChangeEvent,
+    DeadlineWindowChangeEvent,
+]
+
+
+# ============================================================================
 # Policy Configuration
 # ============================================================================
 
@@ -229,6 +337,9 @@ class SimulationConfig(BaseModel):
     agents: List[AgentConfig] = Field(..., description="Agent configurations", min_length=1)
     cost_rates: CostRates = Field(default_factory=CostRates, description="Cost calculation rates")
     lsm_config: LsmConfig = Field(default_factory=LsmConfig, description="LSM configuration")
+    scenario_events: Optional[List[ScenarioEvent]] = Field(
+        None, description="Optional scenario events to execute during simulation"
+    )
 
     @field_validator("agents")
     @classmethod
@@ -241,10 +352,11 @@ class SimulationConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_counterparty_references(self):
-        """Validate that counterparty weights reference existing agents."""
+    def validate_references(self):
+        """Validate that all agent references are valid."""
         agent_ids = {agent.id for agent in self.agents}
 
+        # Validate counterparty references
         for agent in self.agents:
             if agent.arrival_config:
                 for counterparty in agent.arrival_config.counterparty_weights.keys():
@@ -253,11 +365,41 @@ class SimulationConfig(BaseModel):
                             f"Agent {agent.id} references unknown counterparty: {counterparty}"
                         )
 
+        # Validate scenario event references
+        if self.scenario_events:
+            for i, event in enumerate(self.scenario_events):
+                if isinstance(event, DirectTransferEvent):
+                    if event.from_agent not in agent_ids:
+                        raise ValueError(
+                            f"Scenario event {i} references unknown from_agent: {event.from_agent}"
+                        )
+                    if event.to_agent not in agent_ids:
+                        raise ValueError(
+                            f"Scenario event {i} references unknown to_agent: {event.to_agent}"
+                        )
+                elif isinstance(event, (
+                    CollateralAdjustmentEvent,
+                    AgentArrivalRateChangeEvent,
+                    CounterpartyWeightChangeEvent,
+                    DeadlineWindowChangeEvent,
+                )):
+                    if event.agent not in agent_ids:
+                        raise ValueError(
+                            f"Scenario event {i} references unknown agent: {event.agent}"
+                        )
+                    # Additional validation for CounterpartyWeightChangeEvent
+                    if isinstance(event, CounterpartyWeightChangeEvent):
+                        for counterparty in event.new_weights.keys():
+                            if counterparty not in agent_ids:
+                                raise ValueError(
+                                    f"Scenario event {i} references unknown counterparty in weights: {counterparty}"
+                                )
+
         return self
 
     def to_ffi_dict(self) -> dict:
         """Convert to dictionary format expected by FFI layer."""
-        return {
+        result = {
             "ticks_per_day": self.simulation.ticks_per_day,
             "num_days": self.simulation.num_days,
             "rng_seed": self.simulation.rng_seed,
@@ -277,6 +419,14 @@ class SimulationConfig(BaseModel):
                 "max_cycles_per_tick": self.lsm_config.max_cycles_per_tick,
             },
         }
+
+        # Add scenario_events if present
+        if self.scenario_events:
+            result["scenario_events"] = [
+                self._scenario_event_to_ffi_dict(event) for event in self.scenario_events
+            ]
+
+        return result
 
     def _agent_to_ffi_dict(self, agent: AgentConfig) -> dict:
         """Convert agent config to FFI dict format."""
@@ -358,6 +508,68 @@ class SimulationConfig(BaseModel):
             return {"type": "Exponential", "lambda": dist.lambda_}
         else:
             raise ValueError(f"Unknown distribution type: {type(dist)}")
+
+    def _scenario_event_to_ffi_dict(self, event: ScenarioEvent) -> dict:
+        """Convert scenario event config to FFI dict format."""
+        # Extract schedule info
+        schedule_dict: dict
+        if isinstance(event.schedule, OneTimeSchedule):
+            schedule_dict = {"schedule": "OneTime", "tick": event.schedule.tick}
+        elif isinstance(event.schedule, RepeatingSchedule):
+            schedule_dict = {
+                "schedule": "Repeating",
+                "start_tick": event.schedule.start_tick,
+                "interval": event.schedule.interval,
+            }
+        else:
+            raise ValueError(f"Unknown schedule type: {type(event.schedule)}")
+
+        # Build event dict based on type
+        if isinstance(event, DirectTransferEvent):
+            return {
+                "type": "DirectTransfer",
+                "from_agent": event.from_agent,
+                "to_agent": event.to_agent,
+                "amount": event.amount,
+                **schedule_dict,
+            }
+        elif isinstance(event, CollateralAdjustmentEvent):
+            return {
+                "type": "CollateralAdjustment",
+                "agent": event.agent,
+                "delta": event.delta,
+                **schedule_dict,
+            }
+        elif isinstance(event, GlobalArrivalRateChangeEvent):
+            return {
+                "type": "GlobalArrivalRateChange",
+                "multiplier": event.multiplier,
+                **schedule_dict,
+            }
+        elif isinstance(event, AgentArrivalRateChangeEvent):
+            return {
+                "type": "AgentArrivalRateChange",
+                "agent": event.agent,
+                "multiplier": event.multiplier,
+                **schedule_dict,
+            }
+        elif isinstance(event, CounterpartyWeightChangeEvent):
+            return {
+                "type": "CounterpartyWeightChange",
+                "agent": event.agent,
+                "new_weights": event.new_weights,
+                "auto_balance_others": event.auto_balance_others,
+                **schedule_dict,
+            }
+        elif isinstance(event, DeadlineWindowChangeEvent):
+            return {
+                "type": "DeadlineWindowChange",
+                "agent": event.agent,
+                "new_deadline_range": event.new_deadline_range,
+                **schedule_dict,
+            }
+        else:
+            raise ValueError(f"Unknown scenario event type: {type(event)}")
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> "SimulationConfig":
