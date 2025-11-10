@@ -125,6 +125,18 @@ class DirectTransferEvent(BaseModel):
     schedule: EventSchedule = Field(..., description="When event executes")
 
 
+class CustomTransactionArrivalEvent(BaseModel):
+    """Schedule a custom transaction arrival through normal settlement path."""
+    type: Literal["CustomTransactionArrival"] = "CustomTransactionArrival"
+    from_agent: str = Field(..., description="Source agent ID")
+    to_agent: str = Field(..., description="Destination agent ID")
+    amount: int = Field(..., description="Amount to transfer (cents)", gt=0)
+    priority: Optional[int] = Field(None, description="Transaction priority (0-10, default 5)", ge=0, le=10)
+    deadline: Optional[int] = Field(None, description="Deadline in ticks from arrival (default: auto)", gt=0)
+    is_divisible: Optional[bool] = Field(None, description="Whether transaction can be split (default: false)")
+    schedule: EventSchedule = Field(..., description="When event executes")
+
+
 class CollateralAdjustmentEvent(BaseModel):
     """Adjust agent's credit limit (collateral)."""
     type: Literal["CollateralAdjustment"] = "CollateralAdjustment"
@@ -196,6 +208,7 @@ class DeadlineWindowChangeEvent(BaseModel):
 # Union type for all scenario events
 ScenarioEvent = Union[
     DirectTransferEvent,
+    CustomTransactionArrivalEvent,
     CollateralAdjustmentEvent,
     GlobalArrivalRateChangeEvent,
     AgentArrivalRateChangeEvent,
@@ -368,7 +381,7 @@ class SimulationConfig(BaseModel):
         # Validate scenario event references
         if self.scenario_events:
             for i, event in enumerate(self.scenario_events):
-                if isinstance(event, DirectTransferEvent):
+                if isinstance(event, (DirectTransferEvent, CustomTransactionArrivalEvent)):
                     if event.from_agent not in agent_ids:
                         raise ValueError(
                             f"Scenario event {i} references unknown from_agent: {event.from_agent}"
@@ -533,6 +546,22 @@ class SimulationConfig(BaseModel):
                 "amount": event.amount,
                 **schedule_dict,
             }
+        elif isinstance(event, CustomTransactionArrivalEvent):
+            result = {
+                "type": "CustomTransactionArrival",
+                "from_agent": event.from_agent,
+                "to_agent": event.to_agent,
+                "amount": event.amount,
+                **schedule_dict,
+            }
+            # Add optional fields if present
+            if event.priority is not None:
+                result["priority"] = event.priority
+            if event.deadline is not None:
+                result["deadline"] = event.deadline
+            if event.is_divisible is not None:
+                result["is_divisible"] = event.is_divisible
+            return result
         elif isinstance(event, CollateralAdjustmentEvent):
             return {
                 "type": "CollateralAdjustment",

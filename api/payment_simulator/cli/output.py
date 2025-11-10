@@ -825,8 +825,10 @@ def log_scenario_events(events, quiet=False):
         quiet: Suppress output if True
 
     Example Output:
-        🎬 Scenario Events (2):
+        🎬 Scenario Events (3):
            • DirectTransfer: BANK_A → BANK_B ($100,000.00)
+           • CustomTransactionArrival: BANK_A → BANK_B ($50,000.00)
+             Priority: 7, TX: tx_123
            • CollateralAdjustment: BANK_A +$200,000.00 collateral
     """
     if quiet:
@@ -845,13 +847,31 @@ def log_scenario_events(events, quiet=False):
 
     for event in scenario_events:
         scenario_type = event.get("scenario_event_type", "Unknown")
+
+        # Handle both formats: details dict (from replay) or details_json string (from FFI)
         details = event.get("details", {})
+        if not details:
+            import json
+            details_json = event.get("details_json", "{}")
+            if isinstance(details_json, str):
+                details = json.loads(details_json)
+            else:
+                details = details_json
 
         if scenario_type == "DirectTransfer":
             from_agent = details.get("from_agent", "?")
             to_agent = details.get("to_agent", "?")
             amount = details.get("amount", 0)
             console.print(f"   • [cyan]DirectTransfer:[/cyan] {from_agent} → {to_agent} (${amount / 100:,.2f})")
+
+        elif scenario_type == "custom_transaction_arrival":
+            from_agent = details.get("from_agent", "?")
+            to_agent = details.get("to_agent", "?")
+            amount = details.get("amount", 0)
+            priority = details.get("priority", 5)
+            tx_id = details.get("tx_id", "?")
+            console.print(f"   • [green]CustomTransactionArrival:[/green] {from_agent} → {to_agent} (${amount / 100:,.2f})")
+            console.print(f"     Priority: {priority}, TX: {tx_id}")
 
         elif scenario_type == "CollateralAdjustment":
             agent_id = details.get("agent", "?")
