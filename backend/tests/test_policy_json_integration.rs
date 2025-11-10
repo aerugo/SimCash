@@ -25,6 +25,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     // Should successfully create orchestrator with JSON-loaded policy
@@ -61,6 +62,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -100,6 +102,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -140,6 +143,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -216,6 +220,7 @@ fn test_multi_agent_different_json_policies() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     // Should successfully create orchestrator with all three JSON policies
@@ -249,6 +254,7 @@ fn test_determinism_with_json_policies() {
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     // Run simulation 1

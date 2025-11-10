@@ -273,6 +273,44 @@ def _reconstruct_cost_accrual_events(events: list[dict]) -> list[dict]:
     return result
 
 
+def _reconstruct_scenario_events_from_simulation_events(events: list[dict]) -> list[dict]:
+    """Reconstruct scenario events from simulation_events table.
+
+    Args:
+        events: List of simulation event records with event_type = 'ScenarioEventExecuted'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+
+    Examples:
+        >>> events = [{"event_type": "ScenarioEventExecuted", "details": {...}}]
+        >>> scenario_events = _reconstruct_scenario_events_from_simulation_events(events)
+        >>> scenario_events[0]["event_type"]
+        'ScenarioEventExecuted'
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "ScenarioEventExecuted":
+            outer_details = event.get("details", {})
+            scenario_event_type = outer_details.get("scenario_event_type", "Unknown")
+
+            # Parse inner details JSON
+            details_json = outer_details.get("details_json", "{}")
+            if isinstance(details_json, str):
+                inner_details = json.loads(details_json)
+            else:
+                inner_details = details_json
+
+            # Build event dict with all fields
+            result.append({
+                "event_type": "ScenarioEventExecuted",
+                "scenario_event_type": scenario_event_type,
+                "tick": event["tick"],
+                "details": inner_details,
+            })
+    return result
+
+
 def _has_full_replay_data(conn, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
@@ -816,6 +854,7 @@ def replay_simulation(
                     lsm_events_raw = []
                     collateral_events_raw = []
                     cost_accrual_events_raw = []
+                    scenario_events_raw = []
 
                     for event in tick_events_result["events"]:
                         event_type = event["event_type"]
@@ -829,6 +868,8 @@ def replay_simulation(
                             collateral_events_raw.append(event)
                         elif event_type == "CostAccrual":
                             cost_accrual_events_raw.append(event)
+                        elif event_type == "ScenarioEventExecuted":
+                            scenario_events_raw.append(event)
 
                     # Reconstruct events from database (using simulation_events table as SINGLE SOURCE)
                     # This is the unified replay architecture - NO manual reconstruction from legacy tables
@@ -837,9 +878,10 @@ def replay_simulation(
                     lsm_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
                     collateral_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
                     cost_accrual_events = _reconstruct_cost_accrual_events(cost_accrual_events_raw)
+                    scenario_events = _reconstruct_scenario_events_from_simulation_events(scenario_events_raw)
 
                     # Combine all events
-                    events = arrival_events + settlement_events + lsm_events + collateral_events + cost_accrual_events
+                    events = arrival_events + settlement_events + lsm_events + collateral_events + cost_accrual_events + scenario_events
 
                     # Update statistics
                     num_arrivals = len(arrival_events)
@@ -1089,6 +1131,39 @@ def replay_simulation(
                 total_cost = 0
 
             # Build output matching run command format
+            # Determine agents output: try multiple sources in priority order
+            if 'agent_states_from_db' in locals() and agent_states_from_db:
+                # Best: Non-verbose mode queried daily_agent_metrics
+                final_agents_output = agent_states_from_db
+            elif has_full_replay and 'agents_output' in locals():
+                # Good: Verbose mode with full replay data
+                final_agents_output = agents_output
+            elif not has_full_replay:
+                # Fallback: Query daily_agent_metrics for final balances
+                # This handles verbose mode without full replay data
+                final_day = summary["num_days"] - 1
+                agent_metrics_query = """
+                    SELECT agent_id, closing_balance, queue1_eod_size
+                    FROM daily_agent_metrics
+                    WHERE simulation_id = ? AND day = ?
+                """
+                try:
+                    agent_results = db_manager.conn.execute(agent_metrics_query, [simulation_id, final_day]).fetchall()
+                    final_agents_output = [
+                        {
+                            "id": row[0],
+                            "final_balance": row[1],
+                            "queue1_size": row[2],
+                        }
+                        for row in agent_results
+                    ]
+                except Exception:
+                    # Last resort: agent IDs only
+                    final_agents_output = [{"id": agent["id"]} for agent in config_dict.get("agents", [])]
+            else:
+                # Last resort: agent IDs only
+                final_agents_output = [{"id": agent["id"]} for agent in config_dict.get("agents", [])]
+
             output_data = {
                 "simulation": {
                     "config_file": summary.get("config_file", "loaded from database"),
@@ -1105,7 +1180,7 @@ def replay_simulation(
                     "total_lsm_releases": tick_count_lsm,
                     "settlement_rate": round(tick_count_settlements / tick_count_arrivals, 4) if tick_count_arrivals > 0 else 0,
                 },
-                "agents": agents_output,
+                "agents": final_agents_output,
                 "costs": {
                     "total_cost": total_cost,
                 },

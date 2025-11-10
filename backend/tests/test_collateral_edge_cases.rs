@@ -58,6 +58,7 @@ fn create_test_config(
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
         },
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     }
 }
 
@@ -615,6 +616,7 @@ fn test_cross_agent_collateral_isolation() {
         rng_seed: 12345,
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
@@ -739,6 +741,7 @@ fn test_hold_collateral_action_is_noop() {
         rng_seed: 12345,
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

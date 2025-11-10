@@ -205,6 +205,17 @@ pub enum Event {
         deadline_penalty_cost: i64,     // One-time penalty (already paid)
         estimated_delay_cost: i64,      // Accumulated delay costs while overdue
     },
+
+    /// Scenario event executed
+    ///
+    /// Emitted when a configured scenario event executes (direct transfer,
+    /// collateral adjustment, arrival rate change, etc.). Contains full details
+    /// for replay identity.
+    ScenarioEventExecuted {
+        tick: usize,
+        event_type: String,           // Type of event (e.g., "direct_transfer")
+        details: serde_json::Value,   // Full event data as JSON
+    },
 }
 
 impl Event {
@@ -227,6 +238,7 @@ impl Event {
             Event::EndOfDay { tick, .. } => *tick,
             Event::TransactionWentOverdue { tick, .. } => *tick,
             Event::OverdueTransactionSettled { tick, .. } => *tick,
+            Event::ScenarioEventExecuted { tick, .. } => *tick,
         }
     }
 
@@ -249,6 +261,7 @@ impl Event {
             Event::EndOfDay { .. } => "EndOfDay",
             Event::TransactionWentOverdue { .. } => "TransactionWentOverdue",
             Event::OverdueTransactionSettled { .. } => "OverdueTransactionSettled",
+            Event::ScenarioEventExecuted { .. } => "ScenarioEventExecuted",
         }
     }
 

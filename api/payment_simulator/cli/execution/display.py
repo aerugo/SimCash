@@ -68,6 +68,7 @@ def display_tick_verbose_output(
         log_overdue_transactions_summary,
         log_policy_decisions,
         log_queued_rtgs,
+        log_scenario_events,
         log_settlement_details,
         log_tick_summary,
         log_transaction_arrivals,
@@ -122,6 +123,11 @@ def display_tick_verbose_output(
     # SECTION 5: COLLATERAL ACTIVITY
     # ═══════════════════════════════════════════════════════════
     log_collateral_activity(display_events)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 5.25: SCENARIO EVENTS
+    # ═══════════════════════════════════════════════════════════
+    log_scenario_events(display_events)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 5.5: OVERDUE TRANSACTION EVENTS

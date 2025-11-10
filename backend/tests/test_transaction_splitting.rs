@@ -683,6 +683,7 @@ fn create_basic_config() -> OrchestratorConfig {
             max_cycle_length: 4,
             max_cycles_per_tick: 10,
         },
+        scenario_events: None,
     }
 }
 
