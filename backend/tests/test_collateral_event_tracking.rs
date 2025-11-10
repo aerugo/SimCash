@@ -25,6 +25,7 @@ fn create_test_config() -> OrchestratorConfig {
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     }
 }
 
@@ -67,6 +68,7 @@ fn test_collateral_events_filter_by_day() {
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

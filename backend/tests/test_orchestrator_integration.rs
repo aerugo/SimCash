@@ -40,6 +40,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     }
 }
 
@@ -332,6 +333,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -553,6 +555,7 @@ fn test_orchestrator_automatic_arrivals() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -609,6 +612,7 @@ fn test_orchestrator_arrival_determinism() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     // Run two simulations with same seed
@@ -684,6 +688,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -768,6 +773,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

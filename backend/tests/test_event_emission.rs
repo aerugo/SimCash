@@ -63,6 +63,7 @@ fn create_test_config() -> OrchestratorConfig {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     }
 }
 

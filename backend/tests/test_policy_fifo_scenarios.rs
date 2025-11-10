@@ -50,6 +50,7 @@ fn test_fifo_preserves_arrival_order() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -118,6 +119,7 @@ fn test_fifo_partial_submission() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -211,6 +213,7 @@ fn test_fifo_vs_deadline_under_pressure() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
