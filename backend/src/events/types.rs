@@ -32,6 +32,23 @@ pub enum ScenarioEvent {
         amount: i64, // Integer cents
     },
 
+    /// Schedule a custom transaction arrival
+    ///
+    /// Creates a transaction that goes through normal arrival → settlement flow.
+    /// Unlike DirectTransfer which bypasses settlement, this allows testing
+    /// transaction behavior with precise control over timing and parameters.
+    ///
+    /// # Example
+    /// Scheduled high-priority payment from Bank A → Bank B
+    CustomTransactionArrival {
+        from_agent: String,
+        to_agent: String,
+        amount: i64,
+        priority: Option<u8>,     // Default: 5
+        deadline: Option<usize>,  // Default: calculated from config
+        is_divisible: Option<bool>, // Default: false
+    },
+
     /// Adjust agent's credit limit (collateral)
     ///
     /// Positive delta increases credit, negative decreases.
