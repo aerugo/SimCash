@@ -996,6 +996,55 @@ impl Orchestrator {
                 });
             }
 
+            // CustomTransactionArrival: create transaction through normal arrival path
+            ScenarioEvent::CustomTransactionArrival {
+                from_agent,
+                to_agent,
+                amount,
+                priority,
+                deadline,
+                is_divisible,
+            } => {
+                // Apply defaults
+                let priority = priority.unwrap_or(5);
+                let is_divisible = is_divisible.unwrap_or(false);
+
+                // Calculate deadline: if provided, it's relative to arrival tick
+                // Otherwise use config default or reasonable fallback
+                let deadline_tick = if let Some(rel_deadline) = deadline {
+                    tick + rel_deadline
+                } else {
+                    // Use default from config or 10% of day length
+                    tick + (self.config.ticks_per_day / 10).max(5)
+                };
+
+                // Submit through normal transaction submission path
+                // This handles validation, transaction creation, and arrival event logging
+                let tx_id = self.submit_transaction(
+                    from_agent,
+                    to_agent,
+                    *amount,
+                    deadline_tick,
+                    priority,
+                    is_divisible,
+                )?;
+
+                // Also log as scenario event for replay identity
+                self.log_event(crate::models::Event::ScenarioEventExecuted {
+                    tick,
+                    event_type: "custom_transaction_arrival".to_string(),
+                    details: json!({
+                        "from_agent": from_agent,
+                        "to_agent": to_agent,
+                        "amount": amount,
+                        "priority": priority,
+                        "deadline": deadline_tick,
+                        "is_divisible": is_divisible,
+                        "tx_id": tx_id,
+                    }),
+                });
+            }
+
             // Complex events: handle at Orchestrator level
             ScenarioEvent::GlobalArrivalRateChange { multiplier } => {
                 if *multiplier <= 0.0 {
