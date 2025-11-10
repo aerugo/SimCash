@@ -551,6 +551,235 @@ Critical for:
 
 ---
 
+## 🎬 Scenario Events
+
+**Scenario events** enable precise control over simulation state through scheduled interventions. Unlike random arrivals, scenario events execute deterministically at specified ticks, allowing researchers to model shock scenarios, policy changes, and controlled experiments.
+
+### Event Types
+
+#### 1. DirectTransfer
+Instantly transfers money between agents, bypassing normal settlement.
+
+**Use cases:** Emergency liquidity injection, interbank loans, central bank operations
+
+```yaml
+scenario_events:
+  - type: DirectTransfer
+    from_agent: CENTRAL_BANK
+    to_agent: BANK_A
+    amount: 500000  # $5,000 in cents
+    schedule:
+      type: OneTime
+      tick: 50
+```
+
+#### 2. CustomTransactionArrival
+Creates a transaction through the normal arrival → settlement path (Queue 1 → RTGS → LSM).
+
+**Use cases:** Testing settlement behavior with precise timing, controlled stress tests
+
+```yaml
+scenario_events:
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 250000        # $2,500
+    priority: 8           # 0-10, higher = more urgent
+    deadline: 10          # Ticks from arrival
+    is_divisible: false   # Can be split?
+    schedule:
+      type: OneTime
+      tick: 25
+```
+
+**Key difference from DirectTransfer:** Goes through Queue 1 (policy decides timing) → Queue 2 (RTGS) → potential LSM optimization. Tests real settlement behavior.
+
+#### 3. CollateralAdjustment
+Modifies agent's available collateral, affecting credit capacity.
+
+**Use cases:** Margin calls, collateral haircuts, regulatory changes
+
+```yaml
+scenario_events:
+  - type: CollateralAdjustment
+    agent: BANK_A
+    delta: -100000  # Reduce collateral by $1,000
+    schedule:
+      type: OneTime
+      tick: 75
+```
+
+#### 4. GlobalArrivalRateChange
+Scales all agents' arrival rates by a multiplier.
+
+**Use cases:** Market-wide activity surges, holiday slowdowns
+
+```yaml
+scenario_events:
+  - type: GlobalArrivalRateChange
+    multiplier: 2.0  # Double all arrival rates
+    schedule:
+      type: OneTime
+      tick: 30
+```
+
+#### 5. AgentArrivalRateChange
+Adjusts a specific agent's transaction arrival rate.
+
+**Use cases:** Bank-specific shocks, operational changes
+
+```yaml
+scenario_events:
+  - type: AgentArrivalRateChange
+    agent: BANK_C
+    multiplier: 0.5  # Halve arrival rate
+    schedule:
+      type: OneTime
+      tick: 40
+```
+
+#### 6. CounterpartyWeightChange
+Modifies preferred counterparty relationships.
+
+**Use cases:** Correspondent banking changes, credit limit adjustments
+
+```yaml
+scenario_events:
+  - type: CounterpartyWeightChange
+    agent: BANK_A
+    counterparty: BANK_B
+    new_weight: 0.5
+    schedule:
+      type: OneTime
+      tick: 60
+```
+
+#### 7. DeadlineWindowChange
+Adjusts agent's default deadline window for new transactions.
+
+**Use cases:** Policy changes, urgency shifts
+
+```yaml
+scenario_events:
+  - type: DeadlineWindowChange
+    agent: BANK_A
+    new_window: 20  # Ticks
+    schedule:
+      type: OneTime
+      tick: 10
+```
+
+### Scheduling
+
+**OneTime Execution:**
+```yaml
+schedule:
+  type: OneTime
+  tick: 50  # Execute once at tick 50
+```
+
+**Repeating Execution:**
+```yaml
+schedule:
+  type: Repeating
+  start_tick: 10
+  interval: 5      # Every 5 ticks
+  end_tick: 50     # Stop after tick 50 (optional)
+```
+
+### Example: Liquidity Crisis Scenario
+
+```yaml
+simulation:
+  ticks_per_day: 100
+  num_days: 1
+  rng_seed: 42
+
+agents:
+  - id: BANK_A
+    opening_balance: 1000000
+    credit_limit: 200000
+    policy: {type: LiquidityAware, buffer_target: 100000}
+  - id: BANK_B
+    opening_balance: 1000000
+    credit_limit: 200000
+    policy: {type: Fifo}
+
+scenario_events:
+  # Morning: Normal operations
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 150000
+    priority: 5
+    deadline: 20
+    schedule: {type: OneTime, tick: 10}
+
+  # Midday: Liquidity shock (margin call)
+  - type: DirectTransfer
+    from_agent: BANK_A
+    to_agent: CLEARING_HOUSE
+    amount: 500000
+    schedule: {type: OneTime, tick: 50}
+
+  # Afternoon: Reduced collateral capacity
+  - type: CollateralAdjustment
+    agent: BANK_A
+    delta: -100000
+    schedule: {type: OneTime, tick: 60}
+
+  # Result: BANK_A faces tight liquidity, policy must adapt
+```
+
+### Replay Identity
+
+Scenario events are **fully deterministic** and persist to the database:
+- Events logged to `simulation_events` table with complete details
+- Replay produces byte-for-byte identical output
+- Event execution visible in verbose mode (`--verbose`)
+
+```bash
+# Run with persistence
+payment-sim run --config crisis.yaml --persist --verbose > run.log
+
+# Replay exact scenario
+payment-sim replay --simulation-id <id> --config crisis.yaml --verbose > replay.log
+
+# Verify identical output
+diff <(grep -v "Duration:" run.log) <(grep -v "Duration:" replay.log)
+```
+
+### Verbose Output
+
+Scenario events appear in verbose mode with full details:
+
+```
+🎬 Scenario Events (3):
+   • DirectTransfer: CENTRAL_BANK → BANK_A ($5,000.00)
+   • CustomTransactionArrival: BANK_A → BANK_B ($2,500.00)
+     Priority: 8, TX: tx_abc123
+   • CollateralAdjustment: BANK_A -$1,000.00 collateral
+```
+
+### Use Cases
+
+**Stress Testing:**
+- Liquidity shocks (large outflows at specific times)
+- Collateral haircuts (regulatory changes mid-day)
+- Counterparty failures (zero new arrivals from failed bank)
+
+**Policy Evaluation:**
+- Test policy behavior under known conditions
+- Compare DirectTransfer (instant) vs CustomTransactionArrival (realistic settlement)
+- Validate gridlock resolution strategies
+
+**Reproducible Research:**
+- Exact control over experimental conditions
+- Deterministic shock timing enables peer review
+- Database persistence ensures full provenance
+
+---
+
 ## 📊 Performance & Scale
 
 **Hardware**: Apple M1 Max, 32GB RAM
