@@ -40,6 +40,14 @@ lsm_config:
 def run_cli(args, check=True):
     """Helper to run CLI command and capture output."""
     import os
+    import sys
+
+    # Use the venv's payment-sim if it exists, otherwise fall back to system PATH
+    venv_bin = Path(sys.prefix) / "bin" / "payment-sim"
+    if venv_bin.exists():
+        cli_cmd = str(venv_bin)
+    else:
+        cli_cmd = "payment-sim"
 
     # Set PYTHONPATH to include the api directory so the package can be imported
     env = os.environ.copy()
@@ -51,7 +59,7 @@ def run_cli(args, check=True):
         env['PYTHONPATH'] = api_dir
 
     result = subprocess.run(
-        ["payment-sim"] + args,
+        [cli_cmd] + args,
         capture_output=True,
         text=True,
         check=check,

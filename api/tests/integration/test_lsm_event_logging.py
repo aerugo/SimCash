@@ -156,13 +156,13 @@ class TestLsmEventLogging:
             "agent_configs": [
                 {
                     "id": "BANK_A",
-                    "opening_balance": 500000,
+                    "opening_balance": 100000,  # $1,000 - insufficient for $3,000 payment
                     "credit_limit": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
-                    "opening_balance": 500000,
+                    "opening_balance": 100000,  # $1,000 - insufficient for $3,000 payment
                     "credit_limit": 0,
                     "policy": {"type": "Fifo"},
                 },
@@ -246,19 +246,19 @@ class TestLsmEventLogging:
             "agent_configs": [
                 {
                     "id": "BANK_A",
-                    "opening_balance": 500000,
+                    "opening_balance": 100000,  # $1,000 - insufficient for $2,000 payment
                     "credit_limit": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
-                    "opening_balance": 500000,
+                    "opening_balance": 100000,  # $1,000 - insufficient for $2,000 payment
                     "credit_limit": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_C",
-                    "opening_balance": 500000,
+                    "opening_balance": 100000,  # $1,000 - insufficient for $2,000 payment
                     "credit_limit": 0,
                     "policy": {"type": "Fifo"},
                 },
@@ -301,4 +301,4 @@ class TestLsmEventLogging:
         cycle_event = lsm_cycle_events[0]
         assert cycle_event["event_type"] == "LsmCycleSettlement"
         assert len(cycle_event["tx_ids"]) == 3, "Cycle should involve 3 transactions"
-        assert cycle_event["cycle_value"] == 200000, "Cycle value should be $2,000"
+        assert cycle_event["cycle_value"] == 600000, "Cycle value should be $6,000 (sum of 3 × $2,000)"

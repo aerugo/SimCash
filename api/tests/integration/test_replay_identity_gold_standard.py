@@ -373,25 +373,23 @@ class TestPersistenceCompleteness:
             orch = Orchestrator.new(config)
 
             # Create bilateral scenario
-            orch.submit_transaction({
-                "id": "TX_AB",
-                "sender": "A",
-                "receiver": "B",
-                "amount": 60000,
-                "priority": 5,
-                "arrival_tick": 1,
-                "deadline": 50,
-            })
+            orch.submit_transaction(
+                sender="A",
+                receiver="B",
+                amount=60000,
+                deadline_tick=50,
+                priority=5,
+                divisible=False,
+            )
 
-            orch.submit_transaction({
-                "id": "TX_BA",
-                "sender": "B",
-                "receiver": "A",
-                "amount": 60000,
-                "priority": 5,
-                "arrival_tick": 1,
-                "deadline": 50,
-            })
+            orch.submit_transaction(
+                sender="B",
+                receiver="A",
+                amount=60000,
+                deadline_tick=50,
+                priority=5,
+                divisible=False,
+            )
 
             # TODO: Need to actually persist events to database
             # This requires running through the CLI or using PersistenceManager directly
