@@ -2685,6 +2685,11 @@ impl Orchestrator {
         let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
 
+        // STEP 5.5: REBUILD QUEUE 2 INDEX
+        // Performance optimization: Rebuild index after all queue modifications (RTGS + LSM)
+        // Enables O(1) lookups in cost calculations and policy evaluation
+        self.state.rebuild_queue2_index();
+
         // DIAGNOSTIC LOGGING (continued)
         if std::env::var("LSM_DEBUG").is_ok() {
             eprintln!("[LSM DEBUG] Tick {}: LSM result: bilateral_offsets={}, cycles_settled={}, total_value=${:.2}, queue_after={}",
@@ -3054,20 +3059,20 @@ impl Orchestrator {
         }
 
         // Also sum up transactions in Queue 2 (RTGS queue) for this agent
-        for tx_id in self.state.rtgs_queue() {
+        // Performance optimization: Use index for O(1) lookup instead of O(Queue2_Size) scan
+        let agent_queue2_txs = self.state.queue2_index().get_agent_transactions(agent_id);
+        for tx_id in agent_queue2_txs {
             if let Some(tx) = self.state.get_transaction(tx_id) {
-                if tx.sender_id() == agent_id {
-                    let amount = tx.remaining_amount() as f64;
+                let amount = tx.remaining_amount() as f64;
 
-                    // Apply multiplier for overdue transactions
-                    let multiplier = if tx.is_overdue() {
-                        self.cost_rates.overdue_delay_multiplier
-                    } else {
-                        1.0
-                    };
+                // Apply multiplier for overdue transactions
+                let multiplier = if tx.is_overdue() {
+                    self.cost_rates.overdue_delay_multiplier
+                } else {
+                    1.0
+                };
 
-                    total_weighted_value += amount * multiplier;
-                }
+                total_weighted_value += amount * multiplier;
             }
         }
 
