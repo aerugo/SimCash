@@ -184,20 +184,18 @@ def test_determinism_comprehensive_showcase_config():
 def test_determinism_tick_by_tick():
     """Verify determinism at each tick, not just final results."""
     config = {
-        "simulation": {
-            "ticks_per_day": 50,
-            "num_days": 1,
-            "seed": 12345,
-        },
-        "agents": [
+        "rng_seed": 12345,
+        "ticks_per_day": 50,
+        "num_days": 1,
+        "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 5000000,
                 "credit_limit": 2000000,
-                "policy": {"type": "immediate"},
-                "arrivals": {
+                "policy": {"type": "Fifo"},
+                "arrival_config": {
                     "rate_per_tick": 2.0,
-                    "amount_distribution": {"type": "uniform", "min": 50000, "max": 200000},
+                    "amount_distribution": {"type": "Uniform", "min": 50000, "max": 200000},
                     "counterparty_weights": {"B": 0.7, "C": 0.3},
                 },
             },
@@ -205,10 +203,10 @@ def test_determinism_tick_by_tick():
                 "id": "B",
                 "opening_balance": 5000000,
                 "credit_limit": 2000000,
-                "policy": {"type": "immediate"},
-                "arrivals": {
+                "policy": {"type": "Fifo"},
+                "arrival_config": {
                     "rate_per_tick": 2.0,
-                    "amount_distribution": {"type": "uniform", "min": 50000, "max": 200000},
+                    "amount_distribution": {"type": "Uniform", "min": 50000, "max": 200000},
                     "counterparty_weights": {"A": 0.5, "C": 0.5},
                 },
             },
@@ -216,10 +214,10 @@ def test_determinism_tick_by_tick():
                 "id": "C",
                 "opening_balance": 5000000,
                 "credit_limit": 2000000,
-                "policy": {"type": "immediate"},
-                "arrivals": {
+                "policy": {"type": "Fifo"},
+                "arrival_config": {
                     "rate_per_tick": 2.0,
-                    "amount_distribution": {"type": "uniform", "min": 50000, "max": 200000},
+                    "amount_distribution": {"type": "Uniform", "min": 50000, "max": 200000},
                     "counterparty_weights": {"A": 0.6, "B": 0.4},
                 },
             },
@@ -230,29 +228,32 @@ def test_determinism_tick_by_tick():
     orch1 = Orchestrator.new(config)
     orch2 = Orchestrator.new(config)
 
-    tick = 0
-    while not orch1.is_simulation_complete():
+    # Calculate total ticks
+    total_ticks = config["ticks_per_day"] * config["num_days"]
+
+    for tick in range(1, total_ticks + 1):
         # Execute tick on both
         orch1.tick()
         orch2.tick()
-        tick += 1
 
         # Verify state is identical after each tick
         assert orch1.current_tick() == orch2.current_tick() == tick
 
         for agent_id in ["A", "B", "C"]:
-            balance1 = orch1.get_balance(agent_id)
-            balance2 = orch2.get_balance(agent_id)
+            balance1 = orch1.get_agent_balance(agent_id)
+            balance2 = orch2.get_agent_balance(agent_id)
             assert balance1 == balance2, (
                 f"Tick {tick}: Agent {agent_id} balance differs: "
                 f"{balance1} vs {balance2}"
             )
 
         # Check global metrics
-        assert orch1.total_arrivals() == orch2.total_arrivals(), (
+        metrics1 = orch1.get_system_metrics()
+        metrics2 = orch2.get_system_metrics()
+        assert metrics1["total_arrivals"] == metrics2["total_arrivals"], (
             f"Tick {tick}: Total arrivals differ"
         )
-        assert orch1.total_settlements() == orch2.total_settlements(), (
+        assert metrics1["total_settlements"] == metrics2["total_settlements"], (
             f"Tick {tick}: Total settlements differ"
         )
 
@@ -260,19 +261,17 @@ def test_determinism_tick_by_tick():
 def test_determinism_different_seeds_produce_different_results():
     """Verify that different seeds produce different results (sanity check)."""
     config_template = {
-        "simulation": {
-            "ticks_per_day": 100,
-            "num_days": 1,
-        },
-        "agents": [
+        "ticks_per_day": 100,
+        "num_days": 1,
+        "agent_configs": [
             {
                 "id": "X",
                 "opening_balance": 10000000,
                 "credit_limit": 0,
-                "policy": {"type": "immediate"},
-                "arrivals": {
+                "policy": {"type": "Fifo"},
+                "arrival_config": {
                     "rate_per_tick": 1.0,
-                    "amount_distribution": {"type": "uniform", "min": 100000, "max": 500000},
+                    "amount_distribution": {"type": "Uniform", "min": 100000, "max": 500000},
                     "counterparty_weights": {"Y": 1.0},
                 },
             },
@@ -280,10 +279,10 @@ def test_determinism_different_seeds_produce_different_results():
                 "id": "Y",
                 "opening_balance": 10000000,
                 "credit_limit": 0,
-                "policy": {"type": "immediate"},
-                "arrivals": {
+                "policy": {"type": "Fifo"},
+                "arrival_config": {
                     "rate_per_tick": 1.0,
-                    "amount_distribution": {"type": "uniform", "min": 100000, "max": 500000},
+                    "amount_distribution": {"type": "Uniform", "min": 100000, "max": 500000},
                     "counterparty_weights": {"X": 1.0},
                 },
             },
@@ -293,17 +292,21 @@ def test_determinism_different_seeds_produce_different_results():
     results = []
     for seed in [42, 123, 999]:
         config = config_template.copy()
-        config["simulation"]["seed"] = seed
+        config["rng_seed"] = seed
 
         orch = Orchestrator.new(config)
-        while not orch.is_simulation_complete():
+
+        # Run simulation for specified duration
+        total_ticks = config["ticks_per_day"] * config["num_days"]
+        for _ in range(total_ticks):
             orch.tick()
 
+        metrics = orch.get_system_metrics()
         results.append({
             "seed": seed,
-            "arrivals": orch.total_arrivals(),
-            "settlements": orch.total_settlements(),
-            "balance_X": orch.get_balance("X"),
+            "arrivals": metrics["total_arrivals"],
+            "settlements": metrics["total_settlements"],
+            "balance_X": orch.get_agent_balance("X"),
         })
 
     # Different seeds should produce different results
