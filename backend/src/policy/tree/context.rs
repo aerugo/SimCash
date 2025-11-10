@@ -258,35 +258,24 @@ impl EvalContext {
         // Total size of Queue 2 (all agents)
         fields.insert("queue2_size".to_string(), state.rtgs_queue().len() as f64);
 
-        let queue2_count = state
-            .rtgs_queue()
-            .iter()
-            .filter(|tx_id| {
-                state
-                    .get_transaction(tx_id)
-                    .map(|t| t.sender_id() == agent.id())
-                    .unwrap_or(false)
-            })
-            .count();
-        fields.insert("queue2_count_for_agent".to_string(), queue2_count as f64);
-
-        let queue2_nearest_deadline = state
-            .rtgs_queue()
-            .iter()
-            .filter_map(|tx_id| state.get_transaction(tx_id))
-            .filter(|t| t.sender_id() == agent.id())
-            .map(|t| t.deadline_tick())
-            .min()
-            .unwrap_or(usize::MAX);
+        // Performance optimization: Use Queue2 index for O(1) lookup instead of O(Queue2_Size) scans
+        let queue2_metrics = state.queue2_index().get_metrics(agent.id());
         fields.insert(
-            "queue2_nearest_deadline".to_string(),
-            queue2_nearest_deadline as f64,
+            "queue2_count_for_agent".to_string(),
+            queue2_metrics.count as f64,
         );
 
-        let ticks_to_nearest_queue2_deadline = if queue2_nearest_deadline == usize::MAX {
+        fields.insert(
+            "queue2_nearest_deadline".to_string(),
+            queue2_metrics.nearest_deadline as f64,
+        );
+
+        let ticks_to_nearest_queue2_deadline = if queue2_metrics.nearest_deadline == usize::MAX {
             f64::INFINITY
         } else {
-            queue2_nearest_deadline.saturating_sub(tick) as f64
+            queue2_metrics
+                .nearest_deadline
+                .saturating_sub(tick) as f64
         };
         fields.insert(
             "ticks_to_nearest_queue2_deadline".to_string(),
