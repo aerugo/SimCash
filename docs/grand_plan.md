@@ -45,13 +45,26 @@ The Rust core backend is **complete and battle-tested**:
   - ✅ FFI bindings (get_agent_accumulated_costs, get_system_metrics)
   - ✅ REST API endpoints (/costs, /metrics)
   - ✅ 41 comprehensive tests (all passing)
+- **Phase 10** (Data Persistence): ✅ **100% complete** (2025-11-05)
+  - ✅ DuckDB + Polars columnar storage with zero-copy Arrow
+  - ✅ Mandatory end-of-day persistence (transactions + agent metrics)
+  - ✅ Schema-as-code with Pydantic models
+  - ✅ Checkpoint system for save/load orchestrator state
+  - ✅ Query interface with 9 analytical functions
+  - ✅ 71 persistence tests (all passing)
+- **Phase 14-15** (Scenario Events): ✅ **100% complete** (2025-11-10)
+  - ✅ 7 event types: DirectTransfer, CustomTransactionArrival, CollateralAdjustment, GlobalArrivalRateChange, AgentArrivalRateChange, CounterpartyWeightChange, DeadlineWindowChange
+  - ✅ OneTime and Repeating schedules
+  - ✅ Full replay identity support (events persist to simulation_events table)
+  - ✅ Verbose output display for both live and replay modes
+  - ✅ Pydantic validation schemas with FFI integration
+  - ✅ 29 scenario event tests (all passing)
 
-**Next Steps** (10-14 weeks):
-1. ✅ Phase 10: Data Persistence (DuckDB + Polars, schema-as-code, batch writes) - COMPLETE
-3. ❌ Phase 11: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
-4. ❌ Phase 12: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
-5. ❌ Phase 13: Shock scenarios (outages, liquidity squeezes, counterparty stress) (1 week)
-6. ❌ Phase 14: Production readiness (WebSocket streaming, frontend, observability) (3 weeks)
+**Next Steps** (8-12 weeks):
+1. ❌ Phase 11: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
+2. ❌ Phase 12: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
+3. ❌ Phase 13: Enhanced shock scenarios (outages, liquidity squeezes, counterparty stress) (1 week)
+4. ❌ Phase 16: Production readiness (WebSocket streaming, frontend, observability) (3 weeks)
 
 ---
 
@@ -273,6 +286,139 @@ The foundation implementation validated several critical design choices:
 - Four-bank ring test settles with minimal liquidity (Section 11 from Game Design Doc)
 - Bilateral offsetting reduces settlement liquidity by 30-40% in balanced scenarios
 - Cycle detection resolves simple gridlocks automatically
+
+### 2.7 Scenario Events: Controlled Interventions
+
+**Scenario events** enable researchers to inject deterministic state changes at specific ticks, modeling shock scenarios, policy changes, and controlled experiments. Unlike random arrivals, scenario events execute predictably, enabling reproducible stress tests.
+
+#### Event Categories
+
+**1. Liquidity Management:**
+- **DirectTransfer**: Instant balance changes bypassing settlement (e.g., central bank emergency liquidity, interbank loans)
+- **CollateralAdjustment**: Modify posted collateral (margin calls, haircut changes, regulatory adjustments)
+
+**2. Transaction Control:**
+- **CustomTransactionArrival**: Create transactions through normal arrival → settlement path (tests Queue 1 policy decisions and RTGS settlement)
+- **Key difference from DirectTransfer**: Goes through Queue 1 (policy evaluation) → Queue 2 (RTGS) → potential LSM optimization
+
+**3. System-Wide Shocks:**
+- **GlobalArrivalRateChange**: Scale all agents' arrival rates (market surges, holiday slowdowns)
+- **AgentArrivalRateChange**: Adjust specific agent's rate (bank-specific operational changes)
+
+**4. Relationship Changes:**
+- **CounterpartyWeightChange**: Modify correspondent banking preferences
+- **DeadlineWindowChange**: Adjust agent's default deadline expectations
+
+#### Scheduling Flexibility
+
+**OneTime Events:**
+```yaml
+schedule:
+  type: OneTime
+  tick: 50  # Execute once at tick 50
+```
+
+**Repeating Events:**
+```yaml
+schedule:
+  type: Repeating
+  start_tick: 10
+  interval: 5      # Every 5 ticks
+  end_tick: 50     # Optional end boundary
+```
+
+#### Implementation Architecture
+
+**Rust Layer:**
+- Events defined as `ScenarioEvent` enum with all variants
+- Executed at tick start, before normal arrivals
+- Logged to `simulation_events` table with full details JSON
+
+**Python Layer:**
+- Pydantic schemas validate events at config load time
+- FFI conversion handles optional parameters (priority, deadline, divisibility)
+- Display logic works identically in live and replay modes
+
+**Replay Identity:**
+- Events persist to database with complete execution details
+- Replay produces byte-for-byte identical output
+- Critical for reproducible research and debugging
+
+#### Use Cases
+
+**Stress Testing:**
+- Model liquidity crises with timed large outflows
+- Test collateral haircut shocks mid-day
+- Simulate counterparty failures (zero arrival rates)
+- Validate gridlock resolution under extreme conditions
+
+**Policy Evaluation:**
+- Test how policies respond to known shocks (controlled conditions)
+- Compare DirectTransfer (instant) vs CustomTransactionArrival (realistic settlement)
+- Measure policy adaptation speed to liquidity changes
+
+**Reproducible Research:**
+- Exact control over experimental conditions (deterministic timing)
+- Database persistence ensures complete provenance
+- Peer review enabled by deterministic replay
+
+#### Example: Liquidity Crisis Scenario
+
+```yaml
+agents:
+  - id: BANK_A
+    opening_balance: 1000000
+    credit_limit: 200000
+    policy: {type: LiquidityAware, buffer_target: 100000}
+
+scenario_events:
+  # Morning: Normal large payment
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 150000
+    priority: 5
+    deadline: 20
+    schedule: {type: OneTime, tick: 10}
+
+  # Midday: Liquidity shock (margin call to clearing house)
+  - type: DirectTransfer
+    from_agent: BANK_A
+    to_agent: CLEARING_HOUSE
+    amount: 500000  # Large outflow
+    schedule: {type: OneTime, tick: 50}
+
+  # Afternoon: Reduced collateral capacity
+  - type: CollateralAdjustment
+    agent: BANK_A
+    delta: -100000  # Collateral haircut
+    schedule: {type: OneTime, tick: 60}
+
+  # Result: Tests how BANK_A policy adapts under cascading stress
+```
+
+**Expected Behavior:**
+- Tick 10: CustomTransactionArrival tests normal queue decision
+- Tick 50: DirectTransfer causes immediate liquidity drain
+- Tick 60: Collateral reduction limits credit access
+- **Research question:** Does LiquidityAware policy prevent gridlock?
+
+#### Integration with Other Features
+
+**Cost Model:** Scenario events can trigger:
+- Liquidity costs (overdraft after DirectTransfer outflow)
+- Deadline penalties (if CustomTransactionArrival doesn't settle in time)
+- Collateral costs (opportunity cost after CollateralAdjustment)
+
+**Persistence Layer:**
+- Events stored in `simulation_events.details` as JSON
+- Query interface enables analysis: "Find all sims with collateral shocks"
+- Checkpoint system can save state before/after event execution
+
+**Policy Testing:**
+- LLM Manager (Phase 11) can propose policies tested against scenario library
+- Shadow replay validates policies on 100+ shock scenarios
+- Statistical comparison: does new policy handle shocks better?
 
 ---
 
