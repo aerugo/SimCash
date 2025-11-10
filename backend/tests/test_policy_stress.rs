@@ -59,6 +59,7 @@ fn test_high_frequency_arrivals_single_agent() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -158,6 +159,7 @@ fn test_sustained_high_load_100_ticks() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -260,6 +262,7 @@ fn test_extreme_high_frequency_arrivals() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -357,6 +360,7 @@ fn test_50_agent_high_frequency_simulation() {
         agent_configs,
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     println!("Initializing 50-agent simulation...");

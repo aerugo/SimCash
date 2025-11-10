@@ -57,6 +57,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -139,6 +140,7 @@ fn test_liquidity_aware_buffer_recovery() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -244,6 +246,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -343,6 +346,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     // Aggressive (high urgency threshold = more overrides)
@@ -373,6 +377,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     };
 
     let mut orch_conservative = Orchestrator::new(config_conservative).unwrap();

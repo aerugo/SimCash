@@ -34,6 +34,7 @@ fn create_test_config() -> OrchestratorConfig {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+        scenario_events: None,
     }
 }
 
@@ -137,6 +138,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+        scenario_events: None,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

@@ -115,7 +115,7 @@ impl EventSchedule {
 }
 
 /// A scenario event paired with its schedule
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScheduledEvent {
     pub event: ScenarioEvent,
     pub schedule: EventSchedule,

@@ -66,6 +66,7 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
         },
         lsm_config: LsmConfig::default(),
+            scenario_events: None,
     }
 }
 
