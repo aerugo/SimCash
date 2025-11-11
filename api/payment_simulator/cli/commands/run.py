@@ -648,13 +648,18 @@ def run_simulation(
 
             # Persist final metadata
             if persist and db_manager:
+                # FIX: Use correct metrics from Rust instead of buggy tick counters
+                # The tick counters count ALL settlements (including split children)
+                # but get_system_metrics() correctly counts only effectively settled parents
+                corrected_metrics = orch.get_system_metrics()
+
                 persistence.persist_final_metadata(
                     config_path=config,
                     config_dict=config_dict,
                     ffi_dict=ffi_dict,
                     agent_ids=agent_ids,
-                    total_arrivals=final_stats["total_arrivals"],
-                    total_settlements=final_stats["total_settlements"],
+                    total_arrivals=corrected_metrics["total_arrivals"],
+                    total_settlements=corrected_metrics["total_settlements"],
                     total_costs=final_stats["total_costs"],
                     duration=sim_duration,
                     orch=orch,
@@ -744,13 +749,18 @@ def run_simulation(
 
             # Persist final metadata
             if persist and db_manager:
+                # FIX: Use correct metrics from Rust instead of buggy tick counters
+                # The tick counters count ALL settlements (including split children)
+                # but get_system_metrics() correctly counts only effectively settled parents
+                corrected_metrics = orch.get_system_metrics()
+
                 persistence.persist_final_metadata(
                     config_path=config,
                     config_dict=config_dict,
                     ffi_dict=ffi_dict,
                     agent_ids=agent_ids,
-                    total_arrivals=final_stats["total_arrivals"],
-                    total_settlements=final_stats["total_settlements"],
+                    total_arrivals=corrected_metrics["total_arrivals"],
+                    total_settlements=corrected_metrics["total_settlements"],
                     total_costs=final_stats["total_costs"],
                     duration=sim_duration,
                     orch=orch,
@@ -801,13 +811,18 @@ def run_simulation(
 
             # Persist final metadata
             if persist and db_manager:
+                # FIX: Use correct metrics from Rust instead of buggy tick counters
+                # The tick counters count ALL settlements (including split children)
+                # but get_system_metrics() correctly counts only effectively settled parents
+                corrected_metrics = orch.get_system_metrics()
+
                 persistence.persist_final_metadata(
                     config_path=config,
                     config_dict=config_dict,
                     ffi_dict=ffi_dict,
                     agent_ids=agent_ids,
-                    total_arrivals=final_stats["total_arrivals"],
-                    total_settlements=final_stats["total_settlements"],
+                    total_arrivals=corrected_metrics["total_arrivals"],
+                    total_settlements=corrected_metrics["total_settlements"],
                     total_costs=final_stats["total_costs"],
                     duration=sim_duration,
                     orch=orch,
@@ -860,13 +875,18 @@ def run_simulation(
 
             # Persist final metadata
             if persist and db_manager:
+                # FIX: Use correct metrics from Rust instead of buggy tick counters
+                # The tick counters count ALL settlements (including split children)
+                # but get_system_metrics() correctly counts only effectively settled parents
+                corrected_metrics = orch.get_system_metrics()
+
                 persistence.persist_final_metadata(
                     config_path=config,
                     config_dict=config_dict,
                     ffi_dict=ffi_dict,
                     agent_ids=agent_ids,
-                    total_arrivals=final_stats["total_arrivals"],
-                    total_settlements=final_stats["total_settlements"],
+                    total_arrivals=corrected_metrics["total_arrivals"],
+                    total_settlements=corrected_metrics["total_settlements"],
                     total_costs=final_stats["total_costs"],
                     duration=sim_duration,
                     orch=orch,

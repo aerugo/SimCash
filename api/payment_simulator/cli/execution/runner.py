@@ -135,6 +135,10 @@ class SimulationRunner:
         self.persistence = persistence
         self.stats = SimulationStats()
 
+        # Track cumulative metrics for computing correct per-day stats
+        self.previous_cumulative_arrivals = 0
+        self.previous_cumulative_settlements = 0
+
     def run(self) -> dict[str, Any]:
         """Execute simulation with configured strategy.
 
@@ -183,6 +187,23 @@ class SimulationRunner:
                 day = tick // self.config.ticks_per_day
                 day_stats = self.stats.get_day_stats(day)
 
+                # FIX: Replace buggy stats with corrected metrics from Rust
+                # The SimulationStats accumulates from tick results which count split children
+                # But get_system_metrics() correctly counts only effectively settled parents
+                corrected_metrics = self.orch.get_system_metrics()
+
+                # Calculate delta from previous cumulative metrics (for this day only)
+                day_arrivals = corrected_metrics["total_arrivals"] - self.previous_cumulative_arrivals
+                day_settlements = corrected_metrics["total_settlements"] - self.previous_cumulative_settlements
+
+                # Update day_stats with corrected values
+                day_stats["arrivals"] = day_arrivals
+                day_stats["settlements"] = day_settlements
+
+                # Update previous cumulative for next day
+                self.previous_cumulative_arrivals = corrected_metrics["total_arrivals"]
+                self.previous_cumulative_settlements = corrected_metrics["total_settlements"]
+
                 # Notify output strategy
                 self.output.on_day_complete(day, day_stats, self.orch)
 
@@ -211,6 +232,14 @@ class SimulationRunner:
         final_stats["ticks_per_second"] = (
             self.config.total_ticks / duration if duration > 0 else 0
         )
+
+        # FIX: Override with corrected metrics from Rust
+        # The SimulationStats tick counters count ALL settlements (including split children)
+        # but get_system_metrics() correctly counts only effectively settled parents
+        corrected_metrics = self.orch.get_system_metrics()
+        final_stats["total_arrivals"] = corrected_metrics["total_arrivals"]
+        final_stats["total_settlements"] = corrected_metrics["total_settlements"]
+        final_stats["settlement_rate"] = corrected_metrics["settlement_rate"]
 
         # Notify output strategy
         self.output.on_simulation_complete(final_stats)
