@@ -53,12 +53,15 @@ def display_tick_verbose_output(
         4. Queued RTGS
         5. LSM Cycle Visualization
         6. Collateral Activity
-        7. Agent States (detailed queues)
-        8. Cost Accruals
-        9. Cost Breakdown
-        10. Tick Summary
+        7. Overdue Transactions Summary
+        8. Agent Financial Stats (comprehensive table)
+        9. Agent States (detailed queues)
+        10. Cost Accruals
+        11. Cost Breakdown
+        12. Tick Summary
     """
     from payment_simulator.cli.output import (
+        log_agent_financial_stats_table,
         log_agent_state,
         log_collateral_activity,
         log_cost_accrual_events,
@@ -69,6 +72,7 @@ def display_tick_verbose_output(
         log_policy_decisions,
         log_queued_rtgs,
         log_scenario_events,
+        log_section_separator,
         log_settlement_details,
         log_tick_summary,
         log_transaction_arrivals,
@@ -109,6 +113,9 @@ def display_tick_verbose_output(
     ):
         log_settlement_details(provider, display_events, tick_num)
 
+    # Visual separator: Transaction flow → Settlement mechanisms
+    log_section_separator()
+
     # ═══════════════════════════════════════════════════════════
     # SECTION 3.5: QUEUED TRANSACTIONS (RTGS)
     # ═══════════════════════════════════════════════════════════
@@ -147,6 +154,17 @@ def display_tick_verbose_output(
     # ═══════════════════════════════════════════════════════════
     log_overdue_transactions_summary(provider)
 
+    # Visual separator: Settlement mechanisms → Financial overview
+    log_section_separator()
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 5.7: AGENT FINANCIAL STATS (comprehensive table)
+    # ═══════════════════════════════════════════════════════════
+    log_agent_financial_stats_table(provider, agent_ids)
+
+    # Visual separator: Financial overview → Agent queue details
+    log_section_separator()
+
     # ═══════════════════════════════════════════════════════════
     # SECTION 6: AGENT STATES (detailed queues)
     # ═══════════════════════════════════════════════════════════
@@ -169,6 +187,9 @@ def display_tick_verbose_output(
 
         updated_balances[agent_id] = current_balance
 
+    # Visual separator: Agent states → Cost tracking
+    log_section_separator()
+
     # ═══════════════════════════════════════════════════════════
     # SECTION 6.5: COST ACCRUAL EVENTS
     # ═══════════════════════════════════════════════════════════
@@ -179,6 +200,9 @@ def display_tick_verbose_output(
     # ═══════════════════════════════════════════════════════════
     if total_cost > 0:
         log_cost_breakdown(provider, agent_ids)
+
+    # Visual separator: Cost details → Tick summary
+    log_section_separator()
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 8: TICK SUMMARY
