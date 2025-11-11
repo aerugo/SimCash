@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 /// Test LSM cycle detection with perfect 3-agent ring
 ///
 /// This test creates the simplest possible scenario for cycle detection:
@@ -86,8 +87,9 @@ fn test_detect_simple_3_agent_cycle() {
     assert_eq!(cycle.transactions.len(), 3);
     assert_eq!(cycle.min_amount, 100_000); // All equal, so min = $1000
 
-    // Settle the cycle
-    let result = settle_cycle(&mut state, cycle, 0).expect("Cycle settlement failed");
+    // Settle the cycle (with batch removal pattern)
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 0, &mut to_remove).expect("Cycle settlement failed");
 
     assert_eq!(result.cycle_length, 3);
     assert_eq!(
@@ -95,6 +97,9 @@ fn test_detect_simple_3_agent_cycle() {
         "T2-compliant: settle total value (100k + 100k + 100k = 300k)"
     );
     assert_eq!(result.transactions_affected, 3);
+
+    // Perform batch removal from queue
+    state.rtgs_queue_mut().retain(|id| !to_remove.contains_key(id));
 
     // Verify Queue 2 is empty (all removed)
     assert_eq!(state.queue_size(), 0);
@@ -144,14 +149,18 @@ fn test_detect_cycle_with_unequal_amounts() {
     let cycle = &cycles[0];
     assert_eq!(cycle.min_amount, 30_000); // Min of 50k, 30k, 40k = 30k
 
-    // Settle cycle
-    let result = settle_cycle(&mut state, cycle, 0).expect("Cycle settlement failed");
+    // Settle cycle (with batch removal pattern)
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 0, &mut to_remove).expect("Cycle settlement failed");
 
     assert_eq!(
         result.settled_value, 120_000,
         "T2-compliant: settle total value (50k + 30k + 40k = 120k)"
     );
     assert_eq!(result.transactions_affected, 3);
+
+    // Perform batch removal from queue
+    state.rtgs_queue_mut().retain(|id| !to_remove.contains_key(id));
 
     // T2-compliant behavior: ALL transactions settle at FULL value
     // Net positions: A: -10k, B: +20k, C: -10k
