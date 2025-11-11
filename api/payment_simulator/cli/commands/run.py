@@ -834,6 +834,7 @@ def run_simulation(
                 quiet=quiet,
                 event_filter=None,
                 total_ticks=total_ticks,
+                show_debug=debug,
             )
 
             # Create persistence manager if needed
