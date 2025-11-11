@@ -9,6 +9,7 @@
 //! 3. Each participant must cover their net position (incoming - outgoing)
 //! 4. All-or-nothing atomicity (if one participant can't cover, cycle fails)
 
+use std::collections::BTreeMap;
 use payment_simulator_core_rs::models::agent::Agent;
 use payment_simulator_core_rs::models::state::SimulationState;
 use payment_simulator_core_rs::models::transaction::{Transaction, TransactionStatus};
@@ -81,7 +82,8 @@ fn test_bilateral_offset_unequal_amounts_unchanged() {
     assert_eq!(cycle.agents.len(), 3, "Cycle: A, B, A (3 nodes)");
 
     // Settle cycle
-    let result = settle_cycle(&mut state, cycle, 5).expect("Settlement should succeed");
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Settlement should succeed");
 
     // Both transactions should settle
     assert_eq!(result.transactions_affected, 2);
@@ -124,7 +126,8 @@ fn test_cycle_equal_amounts_backward_compatible() {
     assert_eq!(cycle.agents.len(), 4, "Cycle: A, B, C, A");
 
     // Settle cycle
-    let result = settle_cycle(&mut state, cycle, 5).expect("Settlement should succeed");
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Settlement should succeed");
 
     assert_eq!(result.transactions_affected, 3);
     // T2-compliant: settled_value is SUM of all transaction values, not min
@@ -171,7 +174,8 @@ fn test_cycle_unequal_amounts_t2_compliant() {
     let cycle = &cycles[0];
 
     // Settle cycle
-    let result = settle_cycle(&mut state, cycle, 5).expect("Settlement should succeed");
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Settlement should succeed");
 
     // ALL transactions should settle at FULL value (not min)
     assert_eq!(result.transactions_affected, 3, "All 3 transactions should settle");
@@ -252,7 +256,8 @@ fn test_cycle_insufficient_liquidity_fails_atomically() {
     let cycle = &cycles[0];
 
     // Attempt to settle cycle - should FAIL
-    let result = settle_cycle(&mut state, cycle, 5);
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove);
 
     assert!(result.is_err(), "Settlement should fail due to insufficient liquidity");
 
@@ -305,7 +310,8 @@ fn test_cycle_net_outflow_covered_by_credit() {
     let cycles = detect_cycles(&state, 4);
     let cycle = &cycles[0];
 
-    let result = settle_cycle(&mut state, cycle, 5).expect("Should settle using credit");
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Should settle using credit");
 
     assert_eq!(result.transactions_affected, 3);
     assert_eq!(result.settled_value, 2_000_000);
@@ -346,7 +352,8 @@ fn test_four_agent_cycle_unequal() {
     let cycle = &cycles[0];
     assert_eq!(cycle.agents.len(), 5, "Cycle: A, B, C, D, A");
 
-    let result = settle_cycle(&mut state, cycle, 5).expect("Should settle with available liquidity");
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Should settle with available liquidity");
 
     assert_eq!(result.transactions_affected, 4);
     assert_eq!(
@@ -385,7 +392,8 @@ fn test_net_positions_sum_to_zero() {
     let cycles = detect_cycles(&state, 4);
     let cycle = &cycles[0];
 
-    let result = settle_cycle(&mut state, cycle, 5).expect("Should settle");
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Should settle");
 
     // Sum of all balance changes should be zero
     let balance_changes = state.get_agent("A").unwrap().balance()
@@ -420,7 +428,8 @@ fn test_lsm_determinism_with_unequal_cycles() {
 
         let cycles = detect_cycles(&state, 4);
         let cycle = &cycles[0];
-        let result = settle_cycle(&mut state, cycle, 5).expect("Should settle");
+        let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Should settle");
 
         let balances = vec![
             state.get_agent("A").unwrap().balance(),
@@ -462,7 +471,8 @@ fn test_cycle_exceeding_credit_limit_fails() {
     let cycles = detect_cycles(&state, 4);
     let cycle = &cycles[0];
 
-    let result = settle_cycle(&mut state, cycle, 5);
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove);
 
     assert!(
         result.is_err(),
