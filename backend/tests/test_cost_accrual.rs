@@ -48,7 +48,7 @@ fn create_test_config() -> OrchestratorConfig {
 fn test_overdraft_cost_calculation() {
     // Create orchestrator with specific cost rates
     let mut config = create_test_config();
-    config.cost_rates.overdraft_bps_per_tick = 0.001; // 1 bp per tick
+    config.cost_rates.overdraft_bps_per_tick = 1.0; // 1 bps per tick (FIXED: was 0.001)
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
@@ -72,16 +72,17 @@ fn test_overdraft_cost_calculation() {
     let bank_a = orchestrator.state().get_agent("BANK_A").unwrap();
     assert_eq!(bank_a.balance(), -200_000);
 
-    // Costs are accrued at end of tick, so tick 0 already has 200 cost
+    // Costs are accrued at end of tick, so tick 0 already has cost
     // Execute another tick to accrue more
     orchestrator.tick().unwrap();
 
     // Check overdraft cost was accrued
-    // Tick 0: -200k * 0.001 = 200 cents
-    // Tick 1: -200k * 0.001 = 200 cents
-    // Total = 400 cents = $4
+    // CORRECTED: 1 bps = 0.0001 as fraction
+    // Tick 0: 200,000 × (1.0 / 10,000) = 200,000 × 0.0001 = 20 cents
+    // Tick 1: 200,000 × (1.0 / 10,000) = 200,000 × 0.0001 = 20 cents
+    // Total = 40 cents
     let costs = orchestrator.get_costs("BANK_A").unwrap();
-    assert_eq!(costs.total_liquidity_cost, 400);
+    assert_eq!(costs.total_liquidity_cost, 40); // FIXED: was 400
 }
 
 #[test]
@@ -147,7 +148,7 @@ fn test_no_cost_for_positive_balance() {
 fn test_cost_accumulation_over_multiple_ticks() {
     // Create orchestrator with specific cost rates
     let mut config = create_test_config();
-    config.cost_rates.overdraft_bps_per_tick = 0.001;
+    config.cost_rates.overdraft_bps_per_tick = 1.0; // FIXED: was 0.001
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
@@ -161,17 +162,19 @@ fn test_cost_accumulation_over_multiple_ticks() {
         .unwrap()
         .queue_outgoing(tx.id().to_string());
 
-    orchestrator.tick().unwrap(); // Tick 0: settle transaction, accrue first cost (200)
+    orchestrator.tick().unwrap(); // Tick 0: settle transaction, accrue first cost
 
     // Run 5 more ticks with overdraft
     for _ in 0..5 {
         orchestrator.tick().unwrap();
     }
 
-    // Total overdraft cost = 6 ticks * 200 cents = 1200 cents = $12
-    // (Tick 0 + 5 more ticks)
+    // CORRECTED: 1 bps = 0.0001 as fraction
+    // Balance: -200,000 cents
+    // Per tick: 200,000 × (1.0 / 10,000) = 20 cents
+    // Total: 6 ticks × 20 cents = 120 cents
     let costs = orchestrator.get_costs("BANK_A").unwrap();
-    assert_eq!(costs.total_liquidity_cost, 1200);
+    assert_eq!(costs.total_liquidity_cost, 120); // FIXED: was 1200
 }
 
 #[test]
@@ -271,7 +274,7 @@ fn test_end_of_day_penalty() {
 #[test]
 fn test_cost_event_logging() {
     let mut config = create_test_config();
-    config.cost_rates.overdraft_bps_per_tick = 0.001;
+    config.cost_rates.overdraft_bps_per_tick = 1.0; // FIXED: was 0.001
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
@@ -300,7 +303,7 @@ fn test_cost_event_logging() {
 #[test]
 fn test_multiple_agents_cost_accrual() {
     let mut config = create_test_config();
-    config.cost_rates.overdraft_bps_per_tick = 0.001;
+    config.cost_rates.overdraft_bps_per_tick = 1.0; // FIXED: was 0.001
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
@@ -338,12 +341,13 @@ fn test_multiple_agents_cost_accrual() {
     let costs_a = orchestrator.get_costs("BANK_A").unwrap();
     let costs_b = orchestrator.get_costs("BANK_B").unwrap();
 
+    // CORRECTED: 1 bps = 0.0001 as fraction
     // BANK_A: started at 1M, sent 1.2M = -200k
-    // Tick 0: -200k overdraft = 200 cost
+    // Tick 0: 200,000 × (1.0 / 10,000) = 20 cents
     // Received 2.2M in tick 1, now at 2M (positive), so no more overdraft
     // Tick 1: 0 overdraft (balance positive after receiving)
-    // Total: 200
-    assert_eq!(costs_a.total_liquidity_cost, 200);
+    // Total: 20 cents
+    assert_eq!(costs_a.total_liquidity_cost, 20); // FIXED: was 200
 
     // BANK_B: started at 2M, received 1.2M = 3.2M, sent 2.2M = 1M (positive)
     // Actually BANK_B never goes into overdraft with this sequence
@@ -355,7 +359,7 @@ fn test_multiple_agents_cost_accrual() {
 fn test_collateral_cost_calculation() {
     // Create orchestrator with specific collateral cost rate
     let mut config = create_test_config();
-    config.cost_rates.collateral_cost_per_tick_bps = 0.0002; // 2 bps annualized / 100 ticks
+    config.cost_rates.collateral_cost_per_tick_bps = 2.0; // FIXED: was 0.0002 (2 bps per tick)
 
     // Set up agent with posted collateral
     config.agent_configs[0].posted_collateral = Some(1_000_000); // $10,000 collateral
@@ -369,8 +373,9 @@ fn test_collateral_cost_calculation() {
 
     let costs = orchestrator.get_costs("BANK_A").unwrap();
 
-    // Verify collateral cost was accrued
-    // Expected: 1,000,000 * 0.0002 * 10 = 2000 cents = $20
+    // CORRECTED: 2 bps = 0.0002 as fraction
+    // Per tick: 1,000,000 × (2.0 / 10,000) = 1,000,000 × 0.0002 = 200 cents
+    // Total: 200 × 10 ticks = 2,000 cents = $20
     assert!(
         costs.total_collateral_cost > 0,
         "Should have collateral cost"
@@ -381,7 +386,7 @@ fn test_collateral_cost_calculation() {
 #[test]
 fn test_collateral_accumulation_over_ticks() {
     let mut config = create_test_config();
-    config.cost_rates.collateral_cost_per_tick_bps = 0.0002;
+    config.cost_rates.collateral_cost_per_tick_bps = 2.0; // FIXED: was 0.0002
     config.agent_configs[0].posted_collateral = Some(500_000); // $5,000 collateral
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -403,7 +408,8 @@ fn test_collateral_accumulation_over_ticks() {
     // Cost should grow linearly
     assert!(cost_after_2 > cost_after_1, "Cost should accumulate");
 
-    // Expected: 500,000 * 0.0002 = 100 cents per tick
+    // CORRECTED: 2 bps = 0.0002 as fraction
+    // Per tick: 500,000 × (2.0 / 10,000) = 500,000 × 0.0002 = 100 cents
     assert_eq!(cost_after_1, 100);
     assert_eq!(cost_after_2, 200);
 }
@@ -432,9 +438,9 @@ fn test_zero_collateral_has_no_cost() {
 fn test_all_cost_types_together() {
     // Set up orchestrator with all cost types enabled
     let mut config = create_test_config();
-    config.cost_rates.overdraft_bps_per_tick = 0.001; // Liquidity cost
-    config.cost_rates.delay_cost_per_tick_per_cent = 0.0001; // Delay cost
-    config.cost_rates.collateral_cost_per_tick_bps = 0.0002; // Collateral cost
+    config.cost_rates.overdraft_bps_per_tick = 1.0; // 1 bps (was 0.001, wrong interpretation)
+    config.cost_rates.delay_cost_per_tick_per_cent = 0.0001; // Delay cost (already a fraction, not bps)
+    config.cost_rates.collateral_cost_per_tick_bps = 2.0; // 2 bps (was 0.0002, wrong interpretation)
     config.agent_configs[0].posted_collateral = Some(1_000_000); // $10,000 collateral
     config.agent_configs[0].policy = PolicyConfig::LiquidityAware {
         target_buffer: 500_000, // Lower buffer so urgent tx can settle

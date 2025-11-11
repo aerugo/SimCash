@@ -2520,6 +2520,20 @@ impl Orchestrator {
                             let child_id = child.id().to_string();
                             child_ids.push(child_id.clone());
 
+                            // Emit Arrival event for child transaction (Issue #3 fix)
+                            // This ensures replay can reconstruct split children from events
+                            // Child transactions are not divisible (can't split a split)
+                            self.log_event(Event::Arrival {
+                                tick: current_tick,
+                                tx_id: child_id.clone(),
+                                sender_id: child.sender_id().to_string(),
+                                receiver_id: child.receiver_id().to_string(),
+                                amount: child_amount,
+                                deadline: child.deadline_tick(),
+                                priority: child.priority(),
+                                is_divisible: false, // Child transactions are not divisible
+                            });
+
                             // Add child to state and pending settlements
                             self.state.add_transaction(child);
                             self.pending_settlements.push(child_id);
@@ -2704,6 +2718,17 @@ impl Orchestrator {
         let rtgs_queue_start = Instant::now();
         let queue_result = rtgs::process_queue(&mut self.state, current_tick);
         num_settlements += queue_result.settled_count;
+
+        // Emit Settlement events for Queue 2 settlements (Issue #2 fix: visibility into Queue 2 activity)
+        for settled_tx in &queue_result.settled_transactions {
+            self.log_event(Event::Settlement {
+                tick: current_tick,
+                tx_id: settled_tx.tx_id.clone(),
+                sender_id: settled_tx.sender_id.clone(),
+                receiver_id: settled_tx.receiver_id.clone(),
+                amount: settled_tx.amount,
+            });
+        }
 
         // Capture timing for RTGS queue processing phase
         timing.rtgs_queue_micros = rtgs_queue_start.elapsed().as_micros() as u64;
@@ -3081,7 +3106,9 @@ impl Orchestrator {
         }
 
         let overdraft_amount = (-balance) as f64;
-        let cost = overdraft_amount * self.cost_rates.overdraft_bps_per_tick;
+        // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
+        // Example: 1 bps on $100k = $100k × (1/10,000) = $10
+        let cost = overdraft_amount * (self.cost_rates.overdraft_bps_per_tick / 10_000.0);
         cost.round() as i64 // Use rounding instead of truncation (Phase 8 fix)
     }
 
@@ -3142,19 +3169,21 @@ impl Orchestrator {
 
     /// Calculate collateral opportunity cost (Phase 8)
     ///
-    /// Collateral cost = posted_collateral * collateral_cost_per_tick_bps
+    /// Collateral cost = posted_collateral * (collateral_cost_per_tick_bps / 10,000)
     ///
     /// Represents the opportunity cost of having assets posted as collateral
     /// rather than deployed in other earning activities.
     ///
-    /// Example: $1,000,000 collateral at 0.0002 bps/tick = 200 cents = $2
+    /// Example: $1,000,000 collateral at 2 bps/tick = $1M × (2/10,000) = $200 = 20,000 cents
     fn calculate_collateral_cost(&self, posted_collateral: i64) -> i64 {
         if posted_collateral <= 0 {
             return 0;
         }
 
         let collateral_amount = posted_collateral as f64;
-        let cost = collateral_amount * self.cost_rates.collateral_cost_per_tick_bps;
+        // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
+        // Example: 2 bps on $1M = $1M × (2/10,000) = $200
+        let cost = collateral_amount * (self.cost_rates.collateral_cost_per_tick_bps / 10_000.0);
         cost.round() as i64
     }
 
