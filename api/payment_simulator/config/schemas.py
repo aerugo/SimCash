@@ -380,7 +380,6 @@ class SimulationConfig(BaseModel):
                     CollateralAdjustmentEvent,
                     AgentArrivalRateChangeEvent,
                     CounterpartyWeightChangeEvent,
-                    DeadlineWindowChangeEvent,
                 )):
                     if event.agent not in agent_ids:
                         raise ValueError(
@@ -392,6 +391,7 @@ class SimulationConfig(BaseModel):
                             raise ValueError(
                                 f"Scenario event {i} references unknown counterparty: {event.counterparty}"
                             )
+                # DeadlineWindowChangeEvent is global (no agent field) - no validation needed
 
         return self
 
