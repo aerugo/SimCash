@@ -110,8 +110,8 @@ class VerboseModeOutput:
         )
 
         # Show performance diagnostics if debug mode is enabled
-        if self.show_debug and "timing" in result:
-            log_performance_diagnostics(result["timing"], result.tick)
+        if self.show_debug and result.timing:
+            log_performance_diagnostics(result.timing, result.tick)
 
     def on_day_complete(self, day: int, day_stats: dict[str, Any], orch: Orchestrator) -> None:
         """Log end-of-day summary with agent performance."""
