@@ -327,6 +327,122 @@ class TransactionLifecycleResponse(BaseModel):
 
 
 # ============================================================================
+# Phase 1: Enhanced Diagnostic Response Models
+# ============================================================================
+
+
+class QueueTransaction(BaseModel):
+    """Transaction in a queue."""
+
+    tx_id: str
+    receiver_id: str
+    amount: int
+    priority: int
+    deadline_tick: int
+
+
+class QueueContents(BaseModel):
+    """Contents of a queue."""
+
+    size: int
+    transactions: List[QueueTransaction]
+    total_value: int
+
+
+class AgentQueuesResponse(BaseModel):
+    """Response model for GET /simulations/{id}/agents/{agentId}/queues."""
+
+    agent_id: str
+    simulation_id: str
+    tick: int
+    day: int
+    queue1: QueueContents
+    queue2_filtered: QueueContents
+
+
+class NearDeadlineTransaction(BaseModel):
+    """Transaction approaching deadline."""
+
+    tx_id: str
+    sender_id: str
+    receiver_id: str
+    amount: int
+    remaining_amount: int
+    deadline_tick: int
+    ticks_until_deadline: int
+
+
+class NearDeadlineTransactionsResponse(BaseModel):
+    """Response model for GET /simulations/{id}/transactions/near-deadline."""
+
+    simulation_id: str
+    current_tick: int
+    within_ticks: int
+    threshold_tick: int
+    transactions: List[NearDeadlineTransaction]
+    count: int
+
+
+class OverdueTransaction(BaseModel):
+    """Overdue transaction with cost information."""
+
+    tx_id: str
+    sender_id: str
+    receiver_id: str
+    amount: int
+    remaining_amount: int
+    deadline_tick: int
+    overdue_since_tick: int
+    ticks_overdue: int
+    estimated_delay_cost: int
+    deadline_penalty_cost: int
+    total_overdue_cost: int
+
+
+class OverdueTransactionsResponse(BaseModel):
+    """Response model for GET /simulations/{id}/transactions/overdue."""
+
+    simulation_id: str
+    current_tick: int
+    transactions: List[OverdueTransaction]
+    count: int
+    total_overdue_cost: int
+
+
+class AgentStateSnapshot(BaseModel):
+    """Agent state at a specific tick."""
+
+    balance: int
+    credit_limit: int
+    liquidity: int
+    headroom: int
+    queue1_size: int
+    queue2_size: int
+    costs: AgentCostBreakdown
+
+
+class SystemStateSnapshot(BaseModel):
+    """System-wide state at a specific tick."""
+
+    total_arrivals: int
+    total_settlements: int
+    settlement_rate: float
+    queue1_total_size: int
+    queue2_total_size: int
+    total_system_cost: int
+
+
+class TickStateResponse(BaseModel):
+    """Response model for GET /simulations/{id}/ticks/{tick}/state."""
+
+    simulation_id: str
+    tick: int
+    day: int
+    agents: Dict[str, AgentStateSnapshot]
+    system: SystemStateSnapshot
+
+
+# ============================================================================
 # Simulation Manager (In-Memory State)
 # ============================================================================
 
@@ -787,6 +903,123 @@ def submit_transaction(sim_id: str, tx: TransactionSubmission):
     except RuntimeError as e:
         # FFI errors (agent not found, invalid amount, etc.)
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get(
+    "/simulations/{sim_id}/transactions/near-deadline",
+    response_model=NearDeadlineTransactionsResponse,
+)
+def get_near_deadline_transactions(
+    sim_id: str, within_ticks: int = Query(2, ge=1, le=100)
+):
+    """
+    Get transactions approaching their deadline.
+
+    Returns transactions that are within the specified number of ticks from their
+    deadline but not yet overdue. Useful for deadline warning displays.
+
+    Args:
+        within_ticks: Number of ticks ahead to check (default: 2, range: 1-100)
+
+    Returns:
+        List of transactions with countdown information
+    """
+    try:
+        # Verify simulation exists
+        orch = manager.get_simulation(sim_id)
+
+        # Get current tick
+        current_tick = orch.current_tick()
+        threshold_tick = current_tick + within_ticks
+
+        # Get near-deadline transactions from orchestrator
+        near_deadline_txs = orch.get_transactions_near_deadline(within_ticks)
+
+        # Convert to response format
+        transactions = [
+            NearDeadlineTransaction(
+                tx_id=tx["tx_id"],
+                sender_id=tx["sender_id"],
+                receiver_id=tx["receiver_id"],
+                amount=tx["amount"],
+                remaining_amount=tx["remaining_amount"],
+                deadline_tick=tx["deadline_tick"],
+                ticks_until_deadline=tx["ticks_until_deadline"],
+            )
+            for tx in near_deadline_txs
+        ]
+
+        return NearDeadlineTransactionsResponse(
+            simulation_id=sim_id,
+            current_tick=current_tick,
+            within_ticks=within_ticks,
+            threshold_tick=threshold_tick,
+            transactions=transactions,
+            count=len(transactions),
+        )
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get(
+    "/simulations/{sim_id}/transactions/overdue",
+    response_model=OverdueTransactionsResponse,
+)
+def get_overdue_transactions(sim_id: str):
+    """
+    Get all currently overdue transactions with cost breakdown.
+
+    Returns transactions that have passed their deadline but are not yet settled.
+    Includes cost information for overdue delay penalties.
+
+    This endpoint provides data for overdue transaction warnings and cost analysis.
+    """
+    try:
+        # Verify simulation exists
+        orch = manager.get_simulation(sim_id)
+
+        # Get current tick
+        current_tick = orch.current_tick()
+
+        # Get overdue transactions from orchestrator
+        overdue_txs = orch.get_overdue_transactions()
+
+        # Convert to response format and calculate totals
+        transactions = []
+        total_overdue_cost = 0
+
+        for tx in overdue_txs:
+            overdue_tx = OverdueTransaction(
+                tx_id=tx["tx_id"],
+                sender_id=tx["sender_id"],
+                receiver_id=tx["receiver_id"],
+                amount=tx["amount"],
+                remaining_amount=tx["remaining_amount"],
+                deadline_tick=tx["deadline_tick"],
+                overdue_since_tick=tx["overdue_since_tick"],
+                ticks_overdue=tx["ticks_overdue"],
+                estimated_delay_cost=tx.get("estimated_delay_cost", 0),
+                deadline_penalty_cost=tx.get("deadline_penalty_cost", 0),
+                total_overdue_cost=tx.get("total_overdue_cost", 0),
+            )
+            transactions.append(overdue_tx)
+            total_overdue_cost += overdue_tx.total_overdue_cost
+
+        return OverdueTransactionsResponse(
+            simulation_id=sim_id,
+            current_tick=current_tick,
+            transactions=transactions,
+            count=len(transactions),
+            total_overdue_cost=total_overdue_cost,
+        )
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
@@ -2048,6 +2281,226 @@ def get_transaction_lifecycle(sim_id: str, tx_id: str):
             related_transactions=related_transactions,
         )
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+# ============================================================================
+# Phase 1: Enhanced Diagnostic Endpoints
+# ============================================================================
+
+
+@app.get(
+    "/simulations/{sim_id}/agents/{agent_id}/queues",
+    response_model=AgentQueuesResponse,
+)
+def get_agent_queues(sim_id: str, agent_id: str):
+    """
+    Get queue contents for a specific agent.
+
+    Returns both Queue 1 (internal agent queue) and Queue 2 (RTGS queue) filtered
+    to transactions sent by this agent. Includes transaction details and total values.
+
+    This endpoint provides the data needed for the Agent Dashboard queue visualizations.
+    """
+    try:
+        # Verify simulation exists
+        orch = manager.get_simulation(sim_id)
+
+        # Verify agent exists
+        if agent_id not in orch.get_agent_ids():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent {agent_id} not found in simulation {sim_id}",
+            )
+
+        # Get current tick and day
+        current_tick = orch.current_tick()
+        current_day = orch.current_day()
+
+        # Get Queue 1 contents (internal agent queue)
+        queue1_tx_ids = orch.get_agent_queue1_contents(agent_id)
+        queue1_transactions = []
+        queue1_total_value = 0
+
+        for tx_id in queue1_tx_ids:
+            tx = orch.get_transaction_details(tx_id)
+            if tx:
+                queue1_transactions.append(
+                    QueueTransaction(
+                        tx_id=tx["id"],
+                        receiver_id=tx["receiver_id"],
+                        amount=tx["amount"],
+                        priority=tx["priority"],
+                        deadline_tick=tx["deadline_tick"],
+                    )
+                )
+                queue1_total_value += tx["amount"]
+
+        # Get Queue 2 contents (RTGS queue) filtered to this agent
+        rtgs_tx_ids = orch.get_rtgs_queue_contents()
+        queue2_transactions = []
+        queue2_total_value = 0
+
+        for tx_id in rtgs_tx_ids:
+            tx = orch.get_transaction_details(tx_id)
+            if tx and tx["sender_id"] == agent_id:
+                queue2_transactions.append(
+                    QueueTransaction(
+                        tx_id=tx["id"],
+                        receiver_id=tx["receiver_id"],
+                        amount=tx["amount"],
+                        priority=tx["priority"],
+                        deadline_tick=tx["deadline_tick"],
+                    )
+                )
+                queue2_total_value += tx["amount"]
+
+        return AgentQueuesResponse(
+            agent_id=agent_id,
+            simulation_id=sim_id,
+            tick=current_tick,
+            day=current_day,
+            queue1=QueueContents(
+                size=len(queue1_transactions),
+                transactions=queue1_transactions,
+                total_value=queue1_total_value,
+            ),
+            queue2_filtered=QueueContents(
+                size=len(queue2_transactions),
+                transactions=queue2_transactions,
+                total_value=queue2_total_value,
+            ),
+        )
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get(
+    "/simulations/{sim_id}/ticks/{tick}/state",
+    response_model=TickStateResponse,
+)
+def get_tick_state(sim_id: str, tick: int):
+    """
+    Get complete state snapshot at a specific tick.
+
+    Returns detailed agent states and system metrics for the specified tick.
+    For in-memory simulations, only the current tick is supported.
+    For database simulations, historical ticks can be queried.
+
+    This endpoint provides data for the tick-by-tick replay and state inspection.
+
+    Args:
+        tick: Tick number (must be >= 0 and <= current_tick for live simulations)
+
+    Returns:
+        Complete state snapshot including all agents and system metrics
+    """
+    try:
+        # Validate tick
+        if tick < 0:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid tick: {tick} (must be >= 0)"
+            )
+
+        # Verify simulation exists
+        orch = manager.get_simulation(sim_id)
+
+        # Get current tick and validate
+        current_tick = orch.current_tick()
+        if tick > current_tick:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tick {tick} is in the future (current tick: {current_tick})",
+            )
+
+        # For live simulations, only current tick is fully supported
+        if tick != current_tick:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Historical tick state only available for database simulations. Current tick: {current_tick}",
+            )
+
+        # Get current day
+        current_day = orch.current_day()
+
+        # Build agent states
+        config = manager.configs[sim_id]["original"]
+        agent_list = config.get("agents") or config.get("agent_configs")
+
+        agents = {}
+        queue1_total = 0
+        queue2_total = 0
+        total_system_cost = 0
+
+        for agent_config in agent_list:
+            agent_id = agent_config["id"]
+
+            balance = orch.get_agent_balance(agent_id)
+            credit_limit = agent_config.get("credit_limit", 0)
+            queue1_size = orch.get_queue1_size(agent_id)
+
+            # Calculate liquidity (balance + available credit)
+            liquidity = balance + credit_limit
+
+            # Calculate headroom (unused credit)
+            headroom = credit_limit - max(0, -balance)
+
+            # Get costs
+            costs_dict = orch.get_agent_accumulated_costs(agent_id)
+            costs = AgentCostBreakdown(**costs_dict)
+
+            # Get queue2 size for this agent (transactions in RTGS queue)
+            rtgs_tx_ids = orch.get_rtgs_queue_contents()
+            queue2_size = sum(
+                1
+                for tx_id in rtgs_tx_ids
+                if orch.get_transaction_details(tx_id)
+                and orch.get_transaction_details(tx_id)["sender_id"] == agent_id
+            )
+
+            agents[agent_id] = AgentStateSnapshot(
+                balance=balance,
+                credit_limit=credit_limit,
+                liquidity=liquidity,
+                headroom=headroom,
+                queue1_size=queue1_size,
+                queue2_size=queue2_size,
+                costs=costs,
+            )
+
+            queue1_total += queue1_size
+            queue2_total += queue2_size
+            total_system_cost += costs.total_cost
+
+        # Build system metrics
+        metrics_dict = orch.get_system_metrics()
+        system = SystemStateSnapshot(
+            total_arrivals=metrics_dict["total_arrivals"],
+            total_settlements=metrics_dict["total_settlements"],
+            settlement_rate=metrics_dict["settlement_rate"],
+            queue1_total_size=queue1_total,
+            queue2_total_size=queue2_total,
+            total_system_cost=total_system_cost,
+        )
+
+        return TickStateResponse(
+            simulation_id=sim_id,
+            tick=current_tick,
+            day=current_day,
+            agents=agents,
+            system=system,
+        )
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
     except HTTPException:
         raise
     except Exception as e:
