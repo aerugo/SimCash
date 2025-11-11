@@ -35,6 +35,9 @@ export {
   OverdueEventCard,
 }
 
+// Export LSM Cycle Visualizer
+export { LsmCycleVisualizer, type LsmCycle, type LsmCycleVisualizerProps } from './LsmCycleVisualizer'
+
 /**
  * Generic fallback card for events without specific implementations
  */
