@@ -21,6 +21,7 @@
 use crate::models::agent::Agent;
 use crate::models::collateral_event::CollateralEvent;
 use crate::models::event::{Event, EventLog};
+use crate::models::queue_index::AgentQueueIndex;
 use crate::models::transaction::Transaction;
 use crate::settlement::lsm::LsmCycleEvent;
 use std::collections::BTreeMap;
@@ -87,6 +88,14 @@ pub struct SimulationState {
     /// Tracks every LSM cycle settled (bilateral offsets and multilateral cycles).
     /// Enables analysis of liquidity-saving mechanism effectiveness.
     pub lsm_cycle_events: Vec<LsmCycleEvent>,
+
+    /// Agent-indexed view of RTGS queue for O(1) lookups
+    ///
+    /// Performance optimization: Maps agent IDs to their Queue 2 transactions.
+    /// Eliminates O(N × M) nested loops in cost calculations and policy evaluation.
+    ///
+    /// Must be rebuilt after any modification to rtgs_queue via `rebuild_queue2_index()`.
+    queue2_index: AgentQueueIndex,
 }
 
 impl SimulationState {
@@ -122,6 +131,7 @@ impl SimulationState {
             event_log: EventLog::new(),
             collateral_events: Vec::new(),
             lsm_cycle_events: Vec::new(),
+            queue2_index: AgentQueueIndex::new(),
         }
     }
 
@@ -176,6 +186,7 @@ impl SimulationState {
             event_log: EventLog::new(),
             collateral_events: Vec::new(),
             lsm_cycle_events: Vec::new(),
+            queue2_index: AgentQueueIndex::new(),
         })
     }
 
@@ -531,6 +542,75 @@ impl SimulationState {
         } else {
             panic!("Agent not found: {}", agent_id);
         }
+    }
+
+    // =========================================================================
+    // Queue 2 Index Methods - Performance Optimization
+    // =========================================================================
+
+    /// Rebuild Queue 2 index after modifications
+    ///
+    /// **MUST** be called after any operation that modifies rtgs_queue:
+    /// - Adding transactions to queue
+    /// - Removing transactions from queue
+    /// - Settling transactions via RTGS or LSM
+    ///
+    /// Complexity: O(Queue2_Size) - single scan to rebuild index
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000, 0)];
+    /// let mut state = SimulationState::new(agents);
+    ///
+    /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
+    /// state.add_transaction(tx.clone());
+    /// state.rtgs_queue_mut().push(tx.id().to_string());
+    ///
+    /// // CRITICAL: Rebuild index after modifying queue
+    /// state.rebuild_queue2_index();
+    ///
+    /// // Now index can be used for O(1) lookups
+    /// assert_eq!(state.queue2_index().get_agent_transactions("BANK_A").len(), 1);
+    /// ```
+    pub fn rebuild_queue2_index(&mut self) {
+        let rtgs_queue = &self.rtgs_queue;
+        let transactions = &self.transactions;
+        self.queue2_index.rebuild(rtgs_queue, transactions);
+    }
+
+    /// Get reference to Queue 2 index
+    ///
+    /// Provides O(1) lookup of transactions by agent ID instead of O(Queue2_Size) linear scan.
+    ///
+    /// # Returns
+    ///
+    /// Reference to AgentQueueIndex for transaction lookups
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
+    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000, 0)];
+    /// let mut state = SimulationState::new(agents);
+    ///
+    /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
+    /// state.add_transaction(tx.clone());
+    /// state.rtgs_queue_mut().push(tx.id().to_string());
+    /// state.rebuild_queue2_index();
+    ///
+    /// // Fast O(1) lookup via index
+    /// let agent_txs = state.queue2_index().get_agent_transactions("BANK_A");
+    /// assert_eq!(agent_txs.len(), 1);
+    ///
+    /// // Get cached metrics
+    /// let metrics = state.queue2_index().get_metrics("BANK_A");
+    /// assert_eq!(metrics.count, 1);
+    /// assert_eq!(metrics.total_value, 100_000);
+    /// ```
+    pub fn queue2_index(&self) -> &AgentQueueIndex {
+        &self.queue2_index
     }
 }
 
