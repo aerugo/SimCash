@@ -27,6 +27,7 @@ from payment_simulator.cli.output import (  # Enhanced verbose mode functions
     log_info,
     log_lsm_activity,
     log_lsm_cycle_visualization,
+    log_performance_diagnostics,
     log_policy_decisions,
     log_queued_rtgs,
     log_settlement_details,
@@ -254,6 +255,7 @@ def _create_output_strategy(
     quiet: bool,
     event_filter: Optional[EventFilter] = None,
     total_ticks: Optional[int] = None,
+    show_debug: bool = False,
 ):
     """Factory function for creating mode-specific output strategies.
 
@@ -266,6 +268,7 @@ def _create_output_strategy(
         agent_ids: List of agent IDs
         ticks_per_day: Ticks in one simulated day
         quiet: Whether to suppress progress output
+        show_debug: If True, show performance diagnostics (verbose mode only)
         event_filter: Optional event filter for verbose/event_stream modes
         total_ticks: Total number of ticks (required for normal mode)
 
@@ -290,7 +293,7 @@ def _create_output_strategy(
     )
 
     if mode == "verbose":
-        return VerboseModeOutput(orch, agent_ids, ticks_per_day, event_filter)
+        return VerboseModeOutput(orch, agent_ids, ticks_per_day, event_filter, show_debug)
     elif mode == "stream":
         return StreamModeOutput()
     elif mode == "event_stream":
@@ -348,6 +351,13 @@ def run_simulation(
             "--verbose",
             "-v",
             help="Verbose mode: show detailed events in real-time (grouped by category)",
+        ),
+    ] = False,
+    debug: Annotated[
+        bool,
+        typer.Option(
+            "--debug",
+            help="Show performance diagnostics for each tick (requires --verbose)",
         ),
     ] = False,
     event_stream: Annotated[
@@ -611,6 +621,7 @@ def run_simulation(
                 ticks_per_day=ffi_dict["ticks_per_day"],
                 quiet=quiet,
                 event_filter=event_filter,
+                show_debug=debug,
             )
 
             # Create persistence manager if needed

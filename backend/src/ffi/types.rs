@@ -526,6 +526,17 @@ pub fn tick_result_to_py(py: Python, result: &TickResult) -> PyResult<Py<PyDict>
     dict.set_item("num_lsm_releases", result.num_lsm_releases)?;
     dict.set_item("total_cost", result.total_cost)?;
 
+    // Add timing data
+    let timing_dict = PyDict::new(py);
+    timing_dict.set_item("arrivals_micros", result.timing.arrivals_micros)?;
+    timing_dict.set_item("policy_eval_micros", result.timing.policy_eval_micros)?;
+    timing_dict.set_item("rtgs_settlement_micros", result.timing.rtgs_settlement_micros)?;
+    timing_dict.set_item("rtgs_queue_micros", result.timing.rtgs_queue_micros)?;
+    timing_dict.set_item("lsm_micros", result.timing.lsm_micros)?;
+    timing_dict.set_item("cost_accrual_micros", result.timing.cost_accrual_micros)?;
+    timing_dict.set_item("total_micros", result.timing.total_micros)?;
+    dict.set_item("timing", timing_dict)?;
+
     Ok(dict.into())
 }
 
