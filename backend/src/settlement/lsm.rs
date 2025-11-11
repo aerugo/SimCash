@@ -630,9 +630,11 @@ fn check_cycle_feasibility(
 /// // detect_cycles will find: Cycle([A,B,C,A], min=500k)
 /// ```
 pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cycle> {
-    // Phase 2 hybrid: Fast triangles + DFS fallback for longer cycles
-    // Fast path (triangles): O(V·E) with SCC prefiltering
-    // Slow path (4+): Exponential DFS (rare, will be optimized in Phase 3)
+    // Phase 2 optimization: Fast triangles + conditional DFS for 4+ cycles
+    // Architecture:
+    // - Bilateral (2-cycle): Handled by bilateral_offset() (Phase 1)
+    // - Triangles (3-cycle): Fast SCC + triangle enumeration (Phase 2)
+    // - Length 4-5: Conditional DFS fallback (Phase 3 will optimize)
 
     let mut all_cycles = Vec::new();
 
@@ -655,25 +657,36 @@ pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cy
         }
     }
 
-    // ========== SLOW PATH: DFS for non-triangle cycles (Phase 3 TODO) ==========
+    // ========== CONDITIONAL DFS: Only for 4+ Cycles When Needed ==========
 
-    // Also search for non-triangle cycles using DFS (bilateral + 4+ cycles)
-    // This maintains backward compatibility while Phase 2 optimizes triangles
-    // Phase 3 will replace this with:
-    // - Bilateral handled by bilateral_offset() only
-    // - 4-5 cycles via bounded Johnson
-    let dfs_cycles = detect_cycles_dfs(state, max_cycle_length);
+    // Only search for 4+ cycles if:
+    // 1. max_cycle_length >= 4 (config allows longer cycles)
+    // 2. Queue is not too large (prevent exponential blowup)
+    const DFS_QUEUE_THRESHOLD: usize = 100; // Skip DFS on queues larger than this
 
-    // Filter out triangles (already found by fast path) but keep bilateral (2-agent) and 4+ cycles
-    let non_triangle_cycles: Vec<_> = dfs_cycles
-        .into_iter()
-        .filter(|c| {
-            let cycle_length = c.agents.len() - 1;
-            cycle_length != 3 // Keep bilateral (2) and longer (4+), exclude triangles (3)
-        })
-        .collect();
+    if max_cycle_length >= 4 {
+        let queue_size = state.rtgs_queue().len();
 
-    all_cycles.extend(non_triangle_cycles);
+        if queue_size <= DFS_QUEUE_THRESHOLD {
+            // Safe to run DFS on moderate queue sizes
+            let dfs_cycles = detect_cycles_dfs(state, max_cycle_length);
+
+            // Filter: Keep only 4+ cycles (triangles already found by fast path)
+            let long_cycles: Vec<_> = dfs_cycles
+                .into_iter()
+                .filter(|c| {
+                    let cycle_length = c.agents.len() - 1;
+                    cycle_length >= 4 // Only 4+ cycles
+                })
+                .collect();
+
+            all_cycles.extend(long_cycles);
+        } else {
+            // Queue too large for DFS - skip to prevent exponential blowup
+            // This is acceptable: triangles (80%+ of multilateral cycles) are already found
+            // Phase 3 will add bounded Johnson for efficient 4-5 cycle search
+        }
+    }
 
     // Sort all cycles by total value (descending) for priority
     all_cycles.sort_by(|a, b| b.total_value.cmp(&a.total_value));
