@@ -3,6 +3,7 @@
 //! Tests for Phase 3b: Bilateral offsetting, cycle detection, and LSM coordination.
 //! Following TDD principles - comprehensive test coverage before implementation refinement.
 
+use std::collections::BTreeMap;
 use payment_simulator_core_rs::{
     settlement::{
         lsm::{bilateral_offset, detect_cycles, run_lsm_pass, settle_cycle, LsmConfig},
@@ -387,7 +388,8 @@ fn test_settle_cycle_3_banks() {
     let cycles = detect_cycles(&state, 4);
     assert!(!cycles.is_empty());
 
-    let result = settle_cycle(&mut state, &cycles[0], 5).unwrap();
+    let mut to_remove = BTreeMap::new();
+    let result = settle_cycle(&mut state, &cycles[0], 5, &mut to_remove).unwrap();
 
     assert_eq!(result.cycle_length, 3);
     assert_eq!(

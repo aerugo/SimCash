@@ -66,7 +66,14 @@
 use crate::models::event::Event;
 use crate::models::state::SimulationState;
 use crate::settlement::rtgs::{process_queue, SettlementError};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
+
+// ============================================================================
+// Submodules
+// ============================================================================
+
+pub mod pair_index;
+pub mod graph;
 
 // ============================================================================
 // Configuration Types
@@ -273,83 +280,74 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
 
     let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
 
-    // Build bilateral payment matrix: (sender, receiver) -> [tx_ids]
-    // LSM operates ONLY on Queue 2 (RTGS central queue), not Queue 1 (banks' internal queues)
-    let mut bilateral_map: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+    // Collect transaction IDs to remove (batch removal pattern for performance)
+    let mut to_remove: BTreeMap<String, ()> = BTreeMap::new();
 
-    for tx_id in state.rtgs_queue() {
-        if let Some(tx) = state.get_transaction(tx_id) {
-            let sender = tx.sender_id().to_string();
-            let receiver = tx.receiver_id().to_string();
-            let key = (sender.clone(), receiver.clone());
+    // Phase 1: Build incremental pair index (O(N log N) instead of O(N²))
+    // This eliminates the need for full queue rescans on every bilateral offset pass
+    let mut pair_index = pair_index::PairIndex::from_queue(state);
 
-            bilateral_map
-                .entry(key)
-                .or_insert_with(Vec::new)
-                .push(tx_id.clone());
+    if lsm_debug {
+        eprintln!("[LSM DEBUG] Built PairIndex with {} ready pairs", pair_index.ready_count());
+    }
+
+    // Phase 2: Pop ready pairs in deterministic priority order
+    // Priority: highest liquidity release first, tie-break by agent IDs
+    while let Some(key) = pair_index.pop_ready() {
+        pairs_found += 1;
+
+        let agent_a = key.agent_a();
+        let agent_b = key.agent_b();
+        let liquidity_release = key.liquidity_release();
+
+        if lsm_debug {
+            eprintln!(
+                "[LSM DEBUG] Processing bilateral pair: {} ⇄ {} (liquidity_release={})",
+                agent_a, agent_b, liquidity_release
+            );
+        }
+
+        // Get transaction lists for both directions
+        let (txs_ab, txs_ba) = pair_index.get_transactions(&key);
+
+        // Calculate totals in each direction (for event tracking)
+        let sum_ab = pair_index.flow_sum(agent_a, agent_b);
+        let sum_ba = pair_index.flow_sum(agent_b, agent_a);
+
+        // Offset amount is minimum of both directions
+        let offset_amount = sum_ab.min(sum_ba);
+        offset_value += offset_amount;
+
+        if lsm_debug {
+            eprintln!(
+                "[LSM DEBUG]   {} txs A→B ({}), {} txs B→A ({}), offset={}",
+                txs_ab.len(), sum_ab, txs_ba.len(), sum_ba, offset_amount
+            );
+        }
+
+        // Settle in both directions up to offset amount
+        if offset_amount > 0 {
+            settlements_count +=
+                settle_bilateral_pair(state, &txs_ab, &txs_ba, offset_amount, tick, &mut to_remove);
+
+            // Track this bilateral pair for event emission
+            offset_pairs.push(BilateralPair {
+                agent_a: agent_a.to_string(),
+                agent_b: agent_b.to_string(),
+                txs_a_to_b: txs_ab,
+                txs_b_to_a: txs_ba,
+                amount_a_to_b: sum_ab,
+                amount_b_to_a: sum_ba,
+            });
         }
     }
 
-    // Find bilateral pairs and calculate net flows
-    let mut processed_pairs: HashSet<(String, String)> = HashSet::new();
-
-    for ((sender_a, receiver_b), txs_ab) in bilateral_map.iter() {
-        // Check for reverse flow B→A
-        let reverse_key = (receiver_b.clone(), sender_a.clone());
-
-        // Skip if we already processed this pair (either direction)
-        if processed_pairs.contains(&(sender_a.clone(), receiver_b.clone())) {
-            if lsm_debug {
-                eprintln!("[LSM DEBUG] Skipping already processed pair: {} ⇄ {}", sender_a, receiver_b);
-            }
-            continue;
+    // Batch removal: single pass over queue (performance optimization)
+    if !to_remove.is_empty() {
+        if lsm_debug {
+            eprintln!("[LSM DEBUG] Batch removing {} transactions from queue", to_remove.len());
         }
-
-        if bilateral_map.contains_key(&reverse_key) && !processed_pairs.contains(&reverse_key) {
-            // Found bilateral pair A↔B
-            pairs_found += 1;
-            processed_pairs.insert((sender_a.clone(), receiver_b.clone()));
-            processed_pairs.insert(reverse_key.clone());
-
-            if lsm_debug {
-                eprintln!("[LSM DEBUG] Found bilateral pair: {} ⇄ {} ({} txs A→B, {} txs B→A)",
-                    sender_a, receiver_b, txs_ab.len(), bilateral_map.get(&reverse_key).unwrap().len());
-            }
-
-            // Calculate totals in each direction
-            let sum_ab: i64 = txs_ab
-                .iter()
-                .filter_map(|id| state.get_transaction(id))
-                .map(|tx| tx.remaining_amount())
-                .sum();
-
-            let txs_ba = bilateral_map.get(&reverse_key).unwrap();
-            let sum_ba: i64 = txs_ba
-                .iter()
-                .filter_map(|id| state.get_transaction(id))
-                .map(|tx| tx.remaining_amount())
-                .sum();
-
-            // Offset the minimum
-            let offset_amount = sum_ab.min(sum_ba);
-            offset_value += offset_amount;
-
-            // Settle in both directions up to offset amount
-            if offset_amount > 0 {
-                settlements_count +=
-                    settle_bilateral_pair(state, txs_ab, txs_ba, offset_amount, tick);
-
-                // Track this bilateral pair for event emission
-                offset_pairs.push(BilateralPair {
-                    agent_a: sender_a.clone(),
-                    agent_b: receiver_b.clone(),
-                    txs_a_to_b: txs_ab.clone(),
-                    txs_b_to_a: txs_ba.clone(),
-                    amount_a_to_b: sum_ab,
-                    amount_b_to_a: sum_ba,
-                });
-            }
-        }
+        state.rtgs_queue_mut().retain(|id| !to_remove.contains_key(id));
     }
 
     BilateralOffsetResult {
@@ -370,12 +368,15 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
 /// - Settle A→B fully (500k): A-=500k, B+=500k
 /// - Net: A=-500k+300k=-200k, B=+500k-300k=+200k (net 200k flow A→B)
 /// - Liquidity requirement: Only 200k net (not 500k + 300k = 800k gross)
+///
+/// Returns (number of settlements, set of transaction IDs to remove from queue)
 fn settle_bilateral_pair(
     state: &mut SimulationState,
     txs_ab: &[String],
     txs_ba: &[String],
     _offset_amount: i64, // Unused: we calculate net flows ourselves
     tick: usize,
+    to_remove: &mut BTreeMap<String, ()>,
 ) -> usize {
     let mut settlements = 0;
 
@@ -444,12 +445,12 @@ fn settle_bilateral_pair(
                 .settle(amount, tick)
                 .ok();
 
-            // Remove from Queue 2 (RTGS queue)
+            // Mark for removal (deferred until batch compaction)
             let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
             if lsm_debug {
-                eprintln!("[LSM DEBUG] Removing {} from queue", &tx_id[..8]);
+                eprintln!("[LSM DEBUG] Marking {} for removal", &tx_id[..8]);
             }
-            state.rtgs_queue_mut().retain(|id| id != tx_id);
+            to_remove.insert(tx_id.clone(), ());
 
             settlements += 1;
         }
@@ -476,12 +477,12 @@ fn settle_bilateral_pair(
                 .settle(amount, tick)
                 .ok();
 
-            // Remove from Queue 2 (RTGS queue)
+            // Mark for removal (deferred until batch compaction)
             let lsm_debug = std::env::var("LSM_DEBUG").is_ok();
             if lsm_debug {
-                eprintln!("[LSM DEBUG] Removing {} from queue", &tx_id[..8]);
+                eprintln!("[LSM DEBUG] Marking {} for removal", &tx_id[..8]);
             }
-            state.rtgs_queue_mut().retain(|id| id != tx_id);
+            to_remove.insert(tx_id.clone(), ());
 
             settlements += 1;
         }
@@ -629,8 +630,64 @@ fn check_cycle_feasibility(
 /// // detect_cycles will find: Cycle([A,B,C,A], min=500k)
 /// ```
 pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cycle> {
+    // Phase 2 hybrid: Fast triangles + DFS fallback for longer cycles
+    // Fast path (triangles): O(V·E) with SCC prefiltering
+    // Slow path (4+): Exponential DFS (rare, will be optimized in Phase 3)
+
+    let mut all_cycles = Vec::new();
+
+    // ========== FAST PATH: SCC + Triangles (Phase 2 Optimization) ==========
+
+    // Step 1: Build aggregated graph from queue
+    let agg_graph = graph::AggregatedGraph::from_queue(state);
+
+    if agg_graph.vertex_count() > 0 {
+        // Step 2: Find strongly connected components (only SCCs with size ≥ 3 can have multilateral cycles)
+        let sccs = graph::SccFinder::find_sccs(&agg_graph);
+        let large_sccs: Vec<_> = sccs.iter().filter(|scc| scc.len() >= 3).collect();
+
+        // Step 3: Find all triangles (3-cycles are the most common multilateral cycles)
+        // In practice, triangles satisfy 80%+ of multilateral settlements
+        if !large_sccs.is_empty() {
+            let candidates = graph::TriangleFinder::find_triangles(&agg_graph);
+            let triangles: Vec<Cycle> = candidates.iter().map(|c| c.to_cycle()).collect();
+            all_cycles.extend(triangles);
+        }
+    }
+
+    // ========== SLOW PATH: DFS for non-triangle cycles (Phase 3 TODO) ==========
+
+    // Also search for non-triangle cycles using DFS (bilateral + 4+ cycles)
+    // This maintains backward compatibility while Phase 2 optimizes triangles
+    // Phase 3 will replace this with:
+    // - Bilateral handled by bilateral_offset() only
+    // - 4-5 cycles via bounded Johnson
+    let dfs_cycles = detect_cycles_dfs(state, max_cycle_length);
+
+    // Filter out triangles (already found by fast path) but keep bilateral (2-agent) and 4+ cycles
+    let non_triangle_cycles: Vec<_> = dfs_cycles
+        .into_iter()
+        .filter(|c| {
+            let cycle_length = c.agents.len() - 1;
+            cycle_length != 3 // Keep bilateral (2) and longer (4+), exclude triangles (3)
+        })
+        .collect();
+
+    all_cycles.extend(non_triangle_cycles);
+
+    // Sort all cycles by total value (descending) for priority
+    all_cycles.sort_by(|a, b| b.total_value.cmp(&a.total_value));
+
+    all_cycles
+}
+
+/// Legacy DFS-based cycle detection (fallback for 4+ cycles)
+///
+/// This function uses the old exponential DFS algorithm.
+/// It's kept as a fallback for cycles of length > 3 until Phase 3 implements
+/// bounded Johnson algorithm for efficient 4-5 cycle enumeration.
+fn detect_cycles_dfs(state: &SimulationState, max_cycle_length: usize) -> Vec<Cycle> {
     // Build payment graph: agent -> [(neighbor, tx_id, amount)]
-    // LSM operates ONLY on Queue 2 (RTGS central queue), not Queue 1 (banks' internal queues)
     let mut graph: BTreeMap<String, Vec<(String, String, i64)>> = BTreeMap::new();
 
     for tx_id in state.rtgs_queue() {
@@ -647,11 +704,11 @@ pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cy
     }
 
     let mut cycles = Vec::new();
-    let mut visited_global: HashSet<String> = HashSet::new();
+    let mut visited_global: BTreeMap<String, ()> = BTreeMap::new();
 
     // Try DFS from each node to find cycles starting at that node
     for start_node in graph.keys() {
-        if visited_global.contains(start_node) {
+        if visited_global.contains_key(start_node) {
             continue;
         }
 
@@ -659,45 +716,38 @@ pub fn detect_cycles(state: &SimulationState, max_cycle_length: usize) -> Vec<Cy
             start_node,
             start_node,
             &graph,
-            &mut Vec::new(), // path of (node, tx_id, amount) tuples
-            &mut HashSet::new(),
+            &mut Vec::new(),
+            &mut BTreeMap::new(),
             &mut cycles,
             max_cycle_length,
         );
 
-        visited_global.insert(start_node.clone());
+        visited_global.insert(start_node.clone(), ());
     }
-
-    // Sort cycles by total value (descending)
-    cycles.sort_by(|a, b| b.total_value.cmp(&a.total_value));
 
     cycles
 }
 
-/// DFS helper to find cycles starting from start_node, currently at current_node
+/// DFS helper to find cycles starting from start_node
 fn find_cycles_from_start(
     start_node: &str,
     current_node: &str,
     graph: &BTreeMap<String, Vec<(String, String, i64)>>,
-    path: &mut Vec<(String, String, i64)>, // edges taken so far: (destination_node, tx_id, amount)
-    visited: &mut HashSet<String>,
+    path: &mut Vec<(String, String, i64)>,
+    visited: &mut BTreeMap<String, ()>,
     cycles: &mut Vec<Cycle>,
     max_length: usize,
 ) {
-    // Don't explore paths longer than max_length
     if path.len() >= max_length {
         return;
     }
 
-    // Mark current node as visited
-    visited.insert(current_node.to_string());
+    visited.insert(current_node.to_string(), ());
 
-    // Explore neighbors
     if let Some(neighbors) = graph.get(current_node) {
         for (next_node, tx_id, amount) in neighbors {
             if next_node == start_node && !path.is_empty() {
-                // Found a cycle back to start!
-                // Build cycle from start_node + path + closing edge
+                // Found a cycle back to start
                 let mut agents = vec![start_node.to_string()];
                 let mut transactions = Vec::new();
                 let mut min_amount = *amount;
@@ -711,7 +761,7 @@ fn find_cycles_from_start(
                 }
 
                 transactions.push(tx_id.clone());
-                agents.push(start_node.to_string()); // Close the cycle
+                agents.push(start_node.to_string());
 
                 cycles.push(Cycle {
                     agents,
@@ -719,18 +769,14 @@ fn find_cycles_from_start(
                     min_amount,
                     total_value,
                 });
-            } else if !visited.contains(next_node) {
-                // Continue DFS
+            } else if !visited.contains_key(next_node) {
                 path.push((next_node.clone(), tx_id.clone(), *amount));
-                find_cycles_from_start(
-                    start_node, next_node, graph, path, visited, cycles, max_length,
-                );
+                find_cycles_from_start(start_node, next_node, graph, path, visited, cycles, max_length);
                 path.pop();
             }
         }
     }
 
-    // Unmark current node when backtracking
     visited.remove(current_node);
 }
 
@@ -769,6 +815,7 @@ pub fn settle_cycle(
     state: &mut SimulationState,
     cycle: &Cycle,
     tick: usize,
+    to_remove: &mut BTreeMap<String, ()>,
 ) -> Result<CycleSettlementResult, SettlementError> {
     // ========== PHASE 1: FEASIBILITY CHECK (No State Changes) ==========
 
@@ -853,8 +900,8 @@ pub fn settle_cycle(
             .unwrap()
             .settle(amount, tick)?;
 
-        // Remove from Queue 2 (RTGS queue)
-        state.rtgs_queue_mut().retain(|id| id != tx_id);
+        // Mark for removal (deferred until batch compaction)
+        to_remove.insert(tx_id.clone(), ());
 
         transactions_affected += 1;
         total_value += amount;
@@ -916,7 +963,8 @@ pub fn run_lsm_pass(
 
     // LSM operates ONLY on Queue 2 (RTGS central queue)
     // Track settled transactions to prevent duplicate cycle events across iterations
-    let mut settled_tx_pairs: HashSet<(String, String)> = HashSet::new();
+    // Use BTreeMap for deterministic iteration order
+    let mut settled_tx_pairs: BTreeMap<(String, String), ()> = BTreeMap::new();
 
     while iterations < MAX_ITERATIONS && !state.rtgs_queue().is_empty() {
         iterations += 1;
@@ -944,7 +992,7 @@ pub fn run_lsm_pass(
                 };
 
                 // Skip if we've already created an event for this pair in a previous iteration
-                if settled_tx_pairs.contains(&pair_key) {
+                if settled_tx_pairs.contains_key(&pair_key) {
                     if lsm_debug {
                         eprintln!("[LSM DEBUG] Skipping duplicate cycle event for {} ⇄ {} (already processed)",
                             pair.agent_a, pair.agent_b);
@@ -952,7 +1000,7 @@ pub fn run_lsm_pass(
                     continue;
                 }
 
-                settled_tx_pairs.insert(pair_key);
+                settled_tx_pairs.insert(pair_key, ());
 
                 if lsm_debug {
                     eprintln!("[LSM DEBUG] Tick {}: Creating bilateral cycle event for {} ⇄ {}",
@@ -1033,6 +1081,9 @@ pub fn run_lsm_pass(
 
         // 2. Cycle detection and settlement
         if config.enable_cycles && !state.rtgs_queue().is_empty() {
+            // Collect transaction IDs to remove (batch removal pattern for performance)
+            let mut cycle_to_remove: BTreeMap<String, ()> = BTreeMap::new();
+
             let cycles = detect_cycles(state, config.max_cycle_length);
 
             if lsm_debug && !cycles.is_empty() {
@@ -1060,7 +1111,7 @@ pub fn run_lsm_pass(
             }
 
             for cycle in cycles.iter().take(config.max_cycles_per_tick) {
-                if let Ok(result) = settle_cycle(state, cycle, tick) {
+                if let Ok(result) = settle_cycle(state, cycle, tick, &mut cycle_to_remove) {
                     total_settled_value += result.settled_value;
                     cycles_settled += 1;
 
@@ -1135,6 +1186,14 @@ pub fn run_lsm_pass(
                 }
             }
 
+            // Batch removal: single pass over queue (performance optimization)
+            if !cycle_to_remove.is_empty() {
+                if lsm_debug {
+                    eprintln!("[LSM DEBUG] Batch removing {} transactions from queue after cycles", cycle_to_remove.len());
+                }
+                state.rtgs_queue_mut().retain(|id| !cycle_to_remove.contains_key(id));
+            }
+
             // Retry queue processing after cycle settlements
             if !cycles.is_empty() {
                 let queue_result = process_queue(state, tick);
@@ -1147,6 +1206,31 @@ pub fn run_lsm_pass(
             break; // No progress, stop iterating
         }
     }
+
+    // Sort events for deterministic output (Phase 0: Determinism)
+    // Sort by: (tick, cycle_type, settled_value DESC, total_value DESC, agents, transactions)
+    cycle_events.sort_by(|a, b| {
+        a.tick.cmp(&b.tick)
+            .then(a.cycle_type.cmp(&b.cycle_type))
+            .then(b.settled_value.cmp(&a.settled_value))  // DESC
+            .then(b.total_value.cmp(&a.total_value))      // DESC
+            .then(a.agents.cmp(&b.agents))
+            .then(a.transactions.cmp(&b.transactions))
+    });
+
+    // Sort replay events by tick and event type for deterministic replay
+    replay_events.sort_by(|a, b| {
+        use Event::*;
+        let tick_a = match a {
+            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } => tick,
+            _ => &0,
+        };
+        let tick_b = match b {
+            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } => tick,
+            _ => &0,
+        };
+        tick_a.cmp(tick_b)
+    });
 
     LsmPassResult {
         iterations_run: iterations,
