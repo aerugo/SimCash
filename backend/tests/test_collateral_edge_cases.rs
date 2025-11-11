@@ -49,9 +49,9 @@ fn create_test_config(
         eod_rush_threshold: 0.8,        num_days: 1,
         rng_seed: 12345,
         cost_rates: CostRates {
-            overdraft_bps_per_tick: 0.0005,
+            overdraft_bps_per_tick: 5.0, // 5 bps (was 0.0005, which was wrong interpretation)
             delay_cost_per_tick_per_cent: 0.0001,
-            collateral_cost_per_tick_bps: 0.0002,
+            collateral_cost_per_tick_bps: 2.0, // 2 bps (was 0.0002, which was wrong interpretation)
             eod_penalty_per_transaction: 100_000,
             deadline_penalty: 50_000,
             split_friction_cost: 100,
