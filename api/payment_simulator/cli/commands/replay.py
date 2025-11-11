@@ -1012,12 +1012,15 @@ def replay_simulation(
                                 agent_total_cost = row_dict["total_cost"]
                                 day_total_costs += agent_total_cost
 
-                                # Calculate credit utilization
+                                # Calculate credit utilization (Issue #4 fix)
+                                # Credit is only "used" when balance is negative (overdraft)
                                 balance = row_dict["closing_balance"]
                                 credit_limit = agent_credit_limits.get(agent_id, 0)
                                 credit_util = 0
                                 if credit_limit and credit_limit > 0:
-                                    used = max(0, credit_limit - balance)
+                                    # If balance is negative, we're using credit equal to the overdraft amount
+                                    # If balance is positive, we're not using any credit
+                                    used = max(0, -balance)
                                     credit_util = (used / credit_limit) * 100
 
                                 agent_stats.append({
