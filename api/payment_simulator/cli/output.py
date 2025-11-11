@@ -1466,7 +1466,8 @@ def log_end_of_day_statistics(
     console.print(f"• Total Transactions: {total_arrivals:,}")
     console.print(f"• Settled: {total_settlements:,} ({settlement_rate:.1f}%)")
     console.print(f"• Unsettled: {unsettled:,} ({(unsettled/total_arrivals*100) if total_arrivals > 0 else 0:.1f}%)")
-    console.print(f"• LSM Releases: {total_lsm_releases:,} ({lsm_pct:.1f}% of settlements)")
+    # FIX: LSM releases now uses corrected count (parent transactions only)
+    console.print(f"• LSM Settled: {total_lsm_releases:,} ({lsm_pct:.1f}% of settlements)")
     console.print(f"• Settlement Rate: {settlement_rate:.1f}%")
     console.print()
 
