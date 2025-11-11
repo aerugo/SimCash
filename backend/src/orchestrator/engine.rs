@@ -2520,6 +2520,20 @@ impl Orchestrator {
                             let child_id = child.id().to_string();
                             child_ids.push(child_id.clone());
 
+                            // Emit Arrival event for child transaction (Issue #3 fix)
+                            // This ensures replay can reconstruct split children from events
+                            // Child transactions are not divisible (can't split a split)
+                            self.log_event(Event::Arrival {
+                                tick: current_tick,
+                                tx_id: child_id.clone(),
+                                sender_id: child.sender_id().to_string(),
+                                receiver_id: child.receiver_id().to_string(),
+                                amount: child_amount,
+                                deadline: child.deadline_tick(),
+                                priority: child.priority(),
+                                is_divisible: false, // Child transactions are not divisible
+                            });
+
                             // Add child to state and pending settlements
                             self.state.add_transaction(child);
                             self.pending_settlements.push(child_id);
