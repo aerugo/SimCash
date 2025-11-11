@@ -112,6 +112,15 @@ def log_tick_start(tick: int):
     console.print(f"\n[bold cyan]═══ Tick {tick} ═══[/bold cyan]")
 
 
+def log_section_separator():
+    """Log a visual separator between major sections within a tick.
+
+    Uses a lighter style than tick headers to create visual hierarchy
+    without being too noisy.
+    """
+    console.print("\n[dim]" + "─" * 70 + "[/dim]\n")
+
+
 def log_arrivals(count: int, details: str = ""):
     """Log transaction arrivals (verbose mode).
 
@@ -264,6 +273,104 @@ def log_agent_state(provider, agent_id: str, balance_change: int = 0, quiet: boo
     # Collateral
     if collateral and collateral > 0:
         console.print(f"     Collateral Posted: ${collateral / 100:,.2f}")
+        console.print()
+
+
+def log_agent_financial_stats_table(provider, agent_ids: list[str], quiet: bool = False):
+    """Display comprehensive financial stats for all agents.
+
+    Shows a unified view of all financial metrics for each agent:
+    - Balance (settlement account)
+    - Credit Limit (maximum overdraft allowed)
+    - Credit Used (current overdraft amount)
+    - Available Liquidity (balance + credit + collateral)
+    - Headroom (percentage of available liquidity remaining)
+    - Posted Collateral
+    - Queue 1 Size and Value
+    - Total Costs
+
+    Args:
+        provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
+        agent_ids: List of agent IDs to display
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    console.print()
+    console.print("[bold cyan]💰 Agent Financial Stats[/bold cyan]")
+    console.print()
+
+    for agent_id in agent_ids:
+        balance = provider.get_agent_balance(agent_id)
+        credit_limit = provider.get_agent_credit_limit(agent_id) or 0
+        collateral = provider.get_agent_collateral_posted(agent_id) or 0
+        queue1_contents = provider.get_agent_queue1_contents(agent_id)
+        costs = provider.get_agent_accumulated_costs(agent_id)
+
+        # Calculate derived metrics
+        credit_used = max(0, -balance) if balance < 0 else 0
+        available_liquidity = balance + credit_limit + collateral
+
+        # Calculate headroom percentage
+        max_liquidity = credit_limit + collateral
+        if max_liquidity > 0:
+            headroom_pct = (available_liquidity / max_liquidity) * 100
+        else:
+            headroom_pct = 100.0 if balance >= 0 else 0.0
+
+        # Calculate queue value
+        queue1_value = 0
+        for tx_id in queue1_contents:
+            tx = provider.get_transaction_details(tx_id)
+            if tx:
+                queue1_value += tx.get("remaining_amount", 0)
+
+        # Total costs
+        total_cost = costs.get("total_cost", 0)
+
+        # Format balance with color coding
+        balance_str = f"${balance / 100:,.2f}"
+        if balance < 0:
+            balance_str = f"[red]{balance_str} (overdraft)[/red]"
+        elif balance < 100000:  # Less than $1000
+            balance_str = f"[yellow]{balance_str}[/yellow]"
+        else:
+            balance_str = f"[green]{balance_str}[/green]"
+
+        # Format headroom with color coding
+        if headroom_pct < 20:
+            headroom_str = f"[red]{headroom_pct:.1f}%[/red]"
+        elif headroom_pct < 50:
+            headroom_str = f"[yellow]{headroom_pct:.1f}%[/yellow]"
+        else:
+            headroom_str = f"[green]{headroom_pct:.1f}%[/green]"
+
+        # Display agent stats
+        console.print(f"[bold]{agent_id}[/bold]")
+        console.print(f"  Balance:            {balance_str}")
+        console.print(f"  Credit Limit:       ${credit_limit / 100:,.2f}" if credit_limit > 0 else "  Credit Limit:       None")
+        if credit_used > 0:
+            console.print(f"  Credit Used:        [yellow]${credit_used / 100:,.2f}[/yellow]")
+        console.print(f"  Available Liquidity: ${available_liquidity / 100:,.2f}")
+        console.print(f"  Headroom:           {headroom_str}")
+        if collateral > 0:
+            console.print(f"  Posted Collateral:  [magenta]${collateral / 100:,.2f}[/magenta]")
+        if len(queue1_contents) > 0:
+            console.print(f"  Queue 1:            {len(queue1_contents)} txs, ${queue1_value / 100:,.2f} total")
+        if total_cost > 0:
+            console.print(f"  Total Costs:        [red]${total_cost / 100:,.2f}[/red]")
+            # Show cost breakdown
+            if costs.get("liquidity_cost", 0) > 0:
+                console.print(f"    • Liquidity:      ${costs['liquidity_cost'] / 100:,.2f}")
+            if costs.get("collateral_cost", 0) > 0:
+                console.print(f"    • Collateral:     ${costs['collateral_cost'] / 100:,.2f}")
+            if costs.get("delay_cost", 0) > 0:
+                console.print(f"    • Delay:          ${costs['delay_cost'] / 100:,.2f}")
+            if costs.get("split_friction_cost", 0) > 0:
+                console.print(f"    • Split Friction: ${costs['split_friction_cost'] / 100:,.2f}")
+            if costs.get("deadline_penalty", 0) > 0:
+                console.print(f"    • Deadline Miss:  ${costs['deadline_penalty'] / 100:,.2f}")
         console.print()
 
 
