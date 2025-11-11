@@ -28,6 +28,7 @@ from payment_simulator.cli.output import (  # Enhanced verbose mode functions
     log_lsm_activity,
     log_lsm_cycle_visualization,
     log_performance_diagnostics,
+    log_performance_diagnostics_compact,
     log_policy_decisions,
     log_queued_rtgs,
     log_settlement_details,
@@ -268,7 +269,7 @@ def _create_output_strategy(
         agent_ids: List of agent IDs
         ticks_per_day: Ticks in one simulated day
         quiet: Whether to suppress progress output
-        show_debug: If True, show performance diagnostics (verbose mode only)
+        show_debug: If True, show performance diagnostics (verbose: detailed table, normal: compact)
         event_filter: Optional event filter for verbose/event_stream modes
         total_ticks: Total number of ticks (required for normal mode)
 
@@ -301,7 +302,7 @@ def _create_output_strategy(
     else:  # normal mode
         if total_ticks is None:
             raise ValueError("total_ticks is required for normal mode")
-        return NormalModeOutput(quiet, total_ticks)
+        return NormalModeOutput(quiet, total_ticks, show_debug)
 
 
 def run_simulation(

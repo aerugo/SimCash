@@ -1685,3 +1685,41 @@ def log_performance_diagnostics(timing: dict, tick: int) -> None:
 
     console.print(table)
     console.print()  # Blank line for spacing
+
+
+def log_performance_diagnostics_compact(timing: dict, tick: int) -> None:
+    """Display compact performance summary for a single tick.
+
+    Shows total time and top phases in a single line format suitable for
+    non-verbose mode with progress bar.
+
+    Args:
+        timing: Dict containing microsecond timings for each phase
+        tick: Current tick number
+    """
+    total = timing["total_micros"]
+    millis_total = total / 1000.0
+
+    phases = [
+        ("Arrivals", timing["arrivals_micros"]),
+        ("Policy", timing["policy_eval_micros"]),
+        ("RTGS", timing["rtgs_settlement_micros"]),
+        ("Queue", timing["rtgs_queue_micros"]),
+        ("LSM", timing["lsm_micros"]),
+        ("Costs", timing["cost_accrual_micros"]),
+    ]
+
+    # Sort by time descending and take top 3
+    sorted_phases = sorted(phases, key=lambda x: x[1], reverse=True)
+    top_phases = sorted_phases[:3]
+
+    # Format top phases with percentages
+    phase_strs = []
+    for name, micros in top_phases:
+        pct = (micros / total * 100) if total > 0 else 0
+        if pct >= 1.0:  # Only show phases that are at least 1%
+            phase_strs.append(f"{name}:{pct:.0f}%")
+
+    phase_info = ", ".join(phase_strs) if phase_strs else "balanced"
+
+    console.print(f"[dim]⏱️  Tick {tick}: {millis_total:.2f}ms ({phase_info})[/dim]")
