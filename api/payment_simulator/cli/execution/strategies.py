@@ -231,12 +231,12 @@ class NormalModeOutput:
             # Sort and take top 2
             sorted_phases = sorted(phases, key=lambda x: x[1], reverse=True)[:2]
 
-            # Format phase info
+            # Format phase info with milliseconds
             phase_strs = []
             for name, micros in sorted_phases:
-                pct = (micros / result.timing["total_micros"] * 100) if result.timing["total_micros"] > 0 else 0
-                if pct >= 1.0:
-                    phase_strs.append(f"{name}:{pct:.0f}%")
+                ms = micros / 1000.0
+                if ms >= 0.01:  # Only show phases that took at least 0.01ms
+                    phase_strs.append(f"{name}:{ms:.2f}ms")
 
             phase_info = ", ".join(phase_strs) if phase_strs else "balanced"
 
