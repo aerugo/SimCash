@@ -23,6 +23,7 @@ class TickResult:
         num_lsm_releases: Number of transactions released from LSM this tick
         total_cost: Total costs accrued this tick (cents)
         events: List of all events that occurred this tick
+        timing: Optional timing information for performance diagnostics
     """
 
     tick: int
@@ -32,6 +33,7 @@ class TickResult:
     num_lsm_releases: int
     total_cost: int
     events: list[dict[str, Any]]
+    timing: dict[str, Any] | None = None
 
 
 class SimulationStats:

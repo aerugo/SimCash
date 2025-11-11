@@ -250,6 +250,7 @@ class SimulationRunner:
             num_lsm_releases=raw_result["num_lsm_releases"],
             total_cost=raw_result["total_cost"],
             events=events,
+            timing=raw_result.get("timing"),
         )
 
     def _is_end_of_day(self, tick: int) -> bool:
