@@ -6,9 +6,9 @@
  */
 
 export { AgentFinancialOverview, type AgentFinancialOverviewProps } from './AgentFinancialOverview'
+export { AgentCostBreakdown, type AgentCostBreakdownProps } from './AgentCostBreakdown'
 
 // Future exports:
-// export { AgentCostBreakdown } from './AgentCostBreakdown'
 // export { AgentQueueCard } from './AgentQueueCard'
 // export { TransactionTable } from './TransactionTable'
 // export { AgentActivityTimeline } from './AgentActivityTimeline'
