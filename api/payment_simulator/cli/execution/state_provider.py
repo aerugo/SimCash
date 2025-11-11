@@ -272,7 +272,7 @@ class DatabaseStateProvider:
         # Query for TransactionWentOverdue events up to current tick
         # to find which transactions are currently overdue
         query = """
-            SELECT details
+            SELECT details, tx_id, tick, agent_id
             FROM simulation_events
             WHERE simulation_id = ?
                 AND event_type = 'TransactionWentOverdue'
@@ -286,7 +286,12 @@ class DatabaseStateProvider:
         rows = self.conn.execute(query, [self.simulation_id, self.tick]).fetchall()
         for row in rows:
             event = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-            tx_id = event["tx_id"]
+            # Merge in the separate columns
+            tx_id = row[1]  # tx_id column
+            event["tx_id"] = tx_id
+            event["tick"] = row[2]  # tick column
+            if row[3]:  # agent_id column (nullable)
+                event["agent_id"] = row[3]
 
             # Check if this transaction has been settled since going overdue
             tx = self._tx_cache.get(tx_id)
