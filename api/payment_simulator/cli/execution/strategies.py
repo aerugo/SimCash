@@ -126,10 +126,13 @@ class VerboseModeOutput:
             balance = orch.get_agent_balance(agent_id)
             credit_limit = orch.get_agent_credit_limit(agent_id)
 
-            # Calculate credit utilization
+            # Calculate credit utilization (Issue #4 fix)
+            # Credit is only "used" when balance is negative (overdraft)
             credit_util = 0
             if credit_limit and credit_limit > 0:
-                used = max(0, credit_limit - balance)
+                # If balance is negative, we're using credit equal to the overdraft amount
+                # If balance is positive, we're not using any credit
+                used = max(0, -balance)
                 credit_util = (used / credit_limit) * 100
 
             # Get queue sizes
