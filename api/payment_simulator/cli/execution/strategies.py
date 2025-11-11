@@ -214,25 +214,37 @@ class NormalModeOutput:
         pass
 
     def on_tick_complete(self, result: TickResult, orch: Orchestrator) -> None:
+        # Show compact performance diagnostics if debug mode is enabled
+        # Print to stderr so it appears alongside the progress bar
+        if self.show_debug and result.timing:
+            import sys
+            total_ms = result.timing["total_micros"] / 1000.0
+
+            # Get top phases
+            phases = [
+                ("Arrivals", result.timing["arrivals_micros"]),
+                ("Policy", result.timing["policy_eval_micros"]),
+                ("RTGS", result.timing["rtgs_settlement_micros"]),
+                ("LSM", result.timing["lsm_micros"]),
+            ]
+
+            # Sort and take top 2
+            sorted_phases = sorted(phases, key=lambda x: x[1], reverse=True)[:2]
+
+            # Format phase info
+            phase_strs = []
+            for name, micros in sorted_phases:
+                pct = (micros / result.timing["total_micros"] * 100) if result.timing["total_micros"] > 0 else 0
+                if pct >= 1.0:
+                    phase_strs.append(f"{name}:{pct:.0f}%")
+
+            phase_info = ", ".join(phase_strs) if phase_strs else "balanced"
+
+            # Print directly to stderr (bypasses Rich's Live display)
+            print(f"⏱️  Tick {result.tick}: {total_ms:.2f}ms ({phase_info})", file=sys.stderr)
+
         if self.progress:
-            # Update progress bar with timing info if debug mode enabled
-            if self.show_debug and result.timing:
-                total_ms = result.timing["total_micros"] / 1000.0
-
-                # Get top phase
-                phases = [
-                    ("Arrivals", result.timing["arrivals_micros"]),
-                    ("Policy", result.timing["policy_eval_micros"]),
-                    ("RTGS", result.timing["rtgs_settlement_micros"]),
-                    ("LSM", result.timing["lsm_micros"]),
-                ]
-                top_phase = max(phases, key=lambda x: x[1])
-                pct = (top_phase[1] / result.timing["total_micros"] * 100) if result.timing["total_micros"] > 0 else 0
-
-                description = f"[cyan]Running simulation... [dim]⏱️ {total_ms:.2f}ms (top: {top_phase[0]} {pct:.0f}%)[/dim]"
-                self.progress.update(self.task, description=description, advance=1)
-            else:
-                self.progress.update(self.task, advance=1)
+            self.progress.update(self.task, advance=1)
 
     def on_day_complete(self, day: int, day_stats: dict[str, Any], orch: Orchestrator) -> None:
         pass
