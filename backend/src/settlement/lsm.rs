@@ -69,6 +69,12 @@ use crate::settlement::rtgs::{process_queue, SettlementError};
 use std::collections::BTreeMap;
 
 // ============================================================================
+// Submodules
+// ============================================================================
+
+pub mod pair_index;
+
+// ============================================================================
 // Configuration Types
 // ============================================================================
 
@@ -276,83 +282,62 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
     // Collect transaction IDs to remove (batch removal pattern for performance)
     let mut to_remove: BTreeMap<String, ()> = BTreeMap::new();
 
-    // Build bilateral payment matrix: (sender, receiver) -> [tx_ids]
-    // LSM operates ONLY on Queue 2 (RTGS central queue), not Queue 1 (banks' internal queues)
-    let mut bilateral_map: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+    // Phase 1: Build incremental pair index (O(N log N) instead of O(N²))
+    // This eliminates the need for full queue rescans on every bilateral offset pass
+    let mut pair_index = pair_index::PairIndex::from_queue(state);
 
-    for tx_id in state.rtgs_queue() {
-        if let Some(tx) = state.get_transaction(tx_id) {
-            let sender = tx.sender_id().to_string();
-            let receiver = tx.receiver_id().to_string();
-            let key = (sender.clone(), receiver.clone());
-
-            bilateral_map
-                .entry(key)
-                .or_insert_with(Vec::new)
-                .push(tx_id.clone());
-        }
+    if lsm_debug {
+        eprintln!("[LSM DEBUG] Built PairIndex with {} ready pairs", pair_index.ready_count());
     }
 
-    // Find bilateral pairs and calculate net flows
-    // Use BTreeSet for deterministic iteration order
-    let mut processed_pairs: BTreeMap<(String, String), ()> = BTreeMap::new();
+    // Phase 2: Pop ready pairs in deterministic priority order
+    // Priority: highest liquidity release first, tie-break by agent IDs
+    while let Some(key) = pair_index.pop_ready() {
+        pairs_found += 1;
 
-    for ((sender_a, receiver_b), txs_ab) in bilateral_map.iter() {
-        // Check for reverse flow B→A
-        let reverse_key = (receiver_b.clone(), sender_a.clone());
+        let agent_a = key.agent_a();
+        let agent_b = key.agent_b();
+        let liquidity_release = key.liquidity_release();
 
-        // Skip if we already processed this pair (either direction)
-        if processed_pairs.contains_key(&(sender_a.clone(), receiver_b.clone())) {
-            if lsm_debug {
-                eprintln!("[LSM DEBUG] Skipping already processed pair: {} ⇄ {}", sender_a, receiver_b);
-            }
-            continue;
+        if lsm_debug {
+            eprintln!(
+                "[LSM DEBUG] Processing bilateral pair: {} ⇄ {} (liquidity_release={})",
+                agent_a, agent_b, liquidity_release
+            );
         }
 
-        if bilateral_map.contains_key(&reverse_key) && !processed_pairs.contains_key(&reverse_key) {
-            // Found bilateral pair A↔B
-            pairs_found += 1;
-            processed_pairs.insert((sender_a.clone(), receiver_b.clone()), ());
-            processed_pairs.insert(reverse_key.clone(), ());
+        // Get transaction lists for both directions
+        let (txs_ab, txs_ba) = pair_index.get_transactions(&key);
 
-            if lsm_debug {
-                eprintln!("[LSM DEBUG] Found bilateral pair: {} ⇄ {} ({} txs A→B, {} txs B→A)",
-                    sender_a, receiver_b, txs_ab.len(), bilateral_map.get(&reverse_key).unwrap().len());
-            }
+        // Calculate totals in each direction (for event tracking)
+        let sum_ab = pair_index.flow_sum(agent_a, agent_b);
+        let sum_ba = pair_index.flow_sum(agent_b, agent_a);
 
-            // Calculate totals in each direction
-            let sum_ab: i64 = txs_ab
-                .iter()
-                .filter_map(|id| state.get_transaction(id))
-                .map(|tx| tx.remaining_amount())
-                .sum();
+        // Offset amount is minimum of both directions
+        let offset_amount = sum_ab.min(sum_ba);
+        offset_value += offset_amount;
 
-            let txs_ba = bilateral_map.get(&reverse_key).unwrap();
-            let sum_ba: i64 = txs_ba
-                .iter()
-                .filter_map(|id| state.get_transaction(id))
-                .map(|tx| tx.remaining_amount())
-                .sum();
+        if lsm_debug {
+            eprintln!(
+                "[LSM DEBUG]   {} txs A→B ({}), {} txs B→A ({}), offset={}",
+                txs_ab.len(), sum_ab, txs_ba.len(), sum_ba, offset_amount
+            );
+        }
 
-            // Offset the minimum
-            let offset_amount = sum_ab.min(sum_ba);
-            offset_value += offset_amount;
+        // Settle in both directions up to offset amount
+        if offset_amount > 0 {
+            settlements_count +=
+                settle_bilateral_pair(state, &txs_ab, &txs_ba, offset_amount, tick, &mut to_remove);
 
-            // Settle in both directions up to offset amount
-            if offset_amount > 0 {
-                settlements_count +=
-                    settle_bilateral_pair(state, txs_ab, txs_ba, offset_amount, tick, &mut to_remove);
-
-                // Track this bilateral pair for event emission
-                offset_pairs.push(BilateralPair {
-                    agent_a: sender_a.clone(),
-                    agent_b: receiver_b.clone(),
-                    txs_a_to_b: txs_ab.clone(),
-                    txs_b_to_a: txs_ba.clone(),
-                    amount_a_to_b: sum_ab,
-                    amount_b_to_a: sum_ba,
-                });
-            }
+            // Track this bilateral pair for event emission
+            offset_pairs.push(BilateralPair {
+                agent_a: agent_a.to_string(),
+                agent_b: agent_b.to_string(),
+                txs_a_to_b: txs_ab,
+                txs_b_to_a: txs_ba,
+                amount_a_to_b: sum_ab,
+                amount_b_to_a: sum_ba,
+            });
         }
     }
 
