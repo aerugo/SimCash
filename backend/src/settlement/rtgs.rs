@@ -147,6 +147,15 @@ pub enum SubmissionResult {
     },
 }
 
+/// Details of a transaction that settled from Queue 2 (RTGS queue)
+#[derive(Debug, Clone, PartialEq)]
+pub struct SettledTransactionDetail {
+    pub tx_id: String,
+    pub sender_id: String,
+    pub receiver_id: String,
+    pub amount: i64,
+}
+
 /// Statistics from processing the RTGS queue
 #[derive(Debug, Clone, PartialEq)]
 pub struct QueueProcessingResult {
@@ -166,6 +175,10 @@ pub struct QueueProcessingResult {
 
     /// Number of transactions newly marked overdue this tick
     pub overdue_count: usize,
+
+    /// Details of transactions that settled from Queue 2 this tick
+    /// Added to support event emission for Queue 2 settlements (Issue #2)
+    pub settled_transactions: Vec<SettledTransactionDetail>,
 }
 
 /// Submit a transaction to RTGS for settlement
@@ -342,6 +355,7 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
     let mut settled_value = 0i64;
     let mut overdue_count = 0; // NEW: Count newly overdue transactions
     let mut still_pending = Vec::new();
+    let mut settled_transactions = Vec::new(); // Track settled tx details for event emission
 
     // Drain queue and process each transaction
     let queue = state.rtgs_queue_mut();
@@ -409,6 +423,14 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
 
             settled_count += 1;
             settled_value += amount;
+
+            // Collect settlement details for event emission (Issue #2 fix)
+            settled_transactions.push(SettledTransactionDetail {
+                tx_id: tx_id.clone(),
+                sender_id: sender_id.clone(),
+                receiver_id: receiver_id.clone(),
+                amount,
+            });
         } else {
             // Still can't settle, re-queue (even if overdue)
             still_pending.push(tx_id.clone());
@@ -424,6 +446,7 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
         remaining_queue_size: state.queue_size(),
         dropped_count: 0, // Deprecated - always 0
         overdue_count,
+        settled_transactions, // Issue #2 fix: Return details for event emission
     }
 }
 

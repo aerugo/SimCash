@@ -2705,6 +2705,17 @@ impl Orchestrator {
         let queue_result = rtgs::process_queue(&mut self.state, current_tick);
         num_settlements += queue_result.settled_count;
 
+        // Emit Settlement events for Queue 2 settlements (Issue #2 fix: visibility into Queue 2 activity)
+        for settled_tx in &queue_result.settled_transactions {
+            self.log_event(Event::Settlement {
+                tick: current_tick,
+                tx_id: settled_tx.tx_id.clone(),
+                sender_id: settled_tx.sender_id.clone(),
+                receiver_id: settled_tx.receiver_id.clone(),
+                amount: settled_tx.amount,
+            });
+        }
+
         // Capture timing for RTGS queue processing phase
         timing.rtgs_queue_micros = rtgs_queue_start.elapsed().as_micros() as u64;
 
