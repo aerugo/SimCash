@@ -599,6 +599,31 @@ pub struct Orchestrator {
     scenario_event_handler: Option<crate::events::ScenarioEventHandler>,
 }
 
+/// Performance timing data for a single tick
+#[derive(Debug, Clone, Default)]
+pub struct TickTiming {
+    /// Time spent generating transaction arrivals (microseconds)
+    pub arrivals_micros: u64,
+
+    /// Time spent evaluating agent policies (microseconds)
+    pub policy_eval_micros: u64,
+
+    /// Time spent on RTGS immediate settlement (microseconds)
+    pub rtgs_settlement_micros: u64,
+
+    /// Time spent processing RTGS queue (microseconds)
+    pub rtgs_queue_micros: u64,
+
+    /// Time spent on LSM cycle detection and settlement (microseconds)
+    pub lsm_micros: u64,
+
+    /// Time spent accruing costs (microseconds)
+    pub cost_accrual_micros: u64,
+
+    /// Total tick execution time (microseconds)
+    pub total_micros: u64,
+}
+
 /// Result of a single tick
 #[derive(Debug, Clone)]
 pub struct TickResult {
@@ -616,6 +641,9 @@ pub struct TickResult {
 
     /// Total cost accrued across all agents this tick
     pub total_cost: i64,
+
+    /// Performance timing diagnostics for this tick
+    pub timing: TickTiming,
 }
 
 /// Simulation error types
@@ -2179,6 +2207,10 @@ impl Orchestrator {
     /// ```
     pub fn tick(&mut self) -> Result<TickResult, SimulationError> {
         use crate::settlement::{lsm, rtgs};
+        use std::time::Instant;
+
+        let tick_start = Instant::now();
+        let mut timing = TickTiming::default();
 
         let current_tick = self.current_tick();
         let mut num_settlements = 0;
@@ -2257,6 +2289,10 @@ impl Orchestrator {
         for event in arrival_events {
             self.log_event(event);
         }
+
+        // Capture timing for arrivals phase
+        let arrivals_start = tick_start;
+        timing.arrivals_micros = arrivals_start.elapsed().as_micros() as u64;
 
         // STEP 1.5: STRATEGIC COLLATERAL MANAGEMENT (Layer 1)
         // Evaluate strategic collateral decisions BEFORE policy evaluation
@@ -2383,6 +2419,7 @@ impl Orchestrator {
 
         // STEP 2: POLICY EVALUATION
         // Get agents with queued transactions (Queue 1)
+        let policy_eval_start = Instant::now();
         let agents_with_queues: Vec<String> = self
             .state
             .agents_with_queued_transactions()
@@ -2568,8 +2605,12 @@ impl Orchestrator {
             }
         }
 
+        // Capture timing for policy evaluation phase
+        timing.policy_eval_micros = policy_eval_start.elapsed().as_micros() as u64;
+
         // STEP 3: RTGS SETTLEMENT
         // Process pending settlements (Queue 1 → RTGS)
+        let rtgs_settlement_start = Instant::now();
         // Clone to avoid borrow checker issues
         let pending = self.pending_settlements.clone();
         for tx_id in pending.iter() {
@@ -2655,13 +2696,21 @@ impl Orchestrator {
             }
         }
 
+        // Capture timing for RTGS settlement phase
+        timing.rtgs_settlement_micros = rtgs_settlement_start.elapsed().as_micros() as u64;
+
         // STEP 4: PROCESS RTGS QUEUE (Queue 2)
         // Retry queued transactions
+        let rtgs_queue_start = Instant::now();
         let queue_result = rtgs::process_queue(&mut self.state, current_tick);
         num_settlements += queue_result.settled_count;
 
+        // Capture timing for RTGS queue processing phase
+        timing.rtgs_queue_micros = rtgs_queue_start.elapsed().as_micros() as u64;
+
         // STEP 5: LSM COORDINATOR
         // Find and release offsetting transactions
+        let lsm_start = Instant::now();
 
         // DIAGNOSTIC LOGGING (Test 4 from lsm-splitting-investigation-plan.md)
         // Enable by setting environment variable: LSM_DEBUG=1
@@ -2864,8 +2913,15 @@ impl Orchestrator {
             }
         }
 
+        // Capture timing for LSM phase
+        timing.lsm_micros = lsm_start.elapsed().as_micros() as u64;
+
         // STEP 6: COST ACCRUAL (Phase 4b.3 - minimal for now)
+        let cost_accrual_start = Instant::now();
         let mut total_cost = self.accrue_costs(current_tick);
+
+        // Capture timing for cost accrual phase
+        timing.cost_accrual_micros = cost_accrual_start.elapsed().as_micros() as u64;
 
         // STEP 7: DEADLINE ENFORCEMENT (handled by policies in STEP 2)
         // Policies drop expired transactions via ReleaseDecision::Drop
@@ -2884,12 +2940,16 @@ impl Orchestrator {
         // Track balance changes, queue sizes, and collateral for all agents
         self.update_tick_metrics();
 
+        // Calculate total timing
+        timing.total_micros = tick_start.elapsed().as_micros() as u64;
+
         Ok(TickResult {
             tick: current_tick,
             num_arrivals,
             num_settlements,
             num_lsm_releases,
             total_cost,
+            timing,
         })
     }
 

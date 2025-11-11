@@ -52,7 +52,8 @@ class VerboseModeOutput:
         orch: Orchestrator,
         agent_ids: list[str],
         ticks_per_day: int,
-        event_filter: Optional[EventFilter] = None
+        event_filter: Optional[EventFilter] = None,
+        show_debug: bool = False
     ):
         """Initialize verbose mode output.
 
@@ -61,11 +62,13 @@ class VerboseModeOutput:
             agent_ids: List of agent IDs
             ticks_per_day: Ticks in one simulated day
             event_filter: Optional event filter
+            show_debug: If True, show performance diagnostics
         """
         self.orch = orch
         self.agent_ids = agent_ids
         self.ticks_per_day = ticks_per_day
         self.event_filter = event_filter
+        self.show_debug = show_debug
 
         # Track previous balances for change detection
         self.prev_balances = {
@@ -86,6 +89,7 @@ class VerboseModeOutput:
         """Log detailed tick information using shared display logic."""
         from payment_simulator.cli.execution.display import display_tick_verbose_output
         from payment_simulator.cli.execution.state_provider import OrchestratorStateProvider
+        from payment_simulator.cli.output import log_performance_diagnostics
 
         # Create StateProvider wrapper for live orchestrator
         provider = OrchestratorStateProvider(orch)
@@ -104,6 +108,10 @@ class VerboseModeOutput:
             total_cost=result.total_cost,
             event_filter=self.event_filter,
         )
+
+        # Show performance diagnostics if debug mode is enabled
+        if self.show_debug and "timing" in result:
+            log_performance_diagnostics(result["timing"], result.tick)
 
     def on_day_complete(self, day: int, day_stats: dict[str, Any], orch: Orchestrator) -> None:
         """Log end-of-day summary with agent performance."""
