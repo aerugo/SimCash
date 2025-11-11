@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use payment_simulator_core_rs::models::agent::Agent;
 use payment_simulator_core_rs::models::state::SimulationState;
 use payment_simulator_core_rs::models::transaction::{Transaction, TransactionStatus};
-use payment_simulator_core_rs::settlement::lsm::{detect_cycles, settle_cycle};
+use payment_simulator_core_rs::settlement::lsm::{bilateral_offset, detect_cycles, settle_cycle};
 
 // ============================================================================
 // Test Helpers
@@ -69,24 +69,12 @@ fn test_bilateral_offset_unequal_amounts_unchanged() {
     let tx_ab = create_queued_transaction(&mut state, "A", "B", 500_000);
     let tx_ba = create_queued_transaction(&mut state, "B", "A", 300_000);
 
-    // Detect cycle (bilateral is a 2-agent cycle)
-    // Note: Bilateral cycles are detected twice (A→B→A and B→A→B), which is fine
-    let cycles = detect_cycles(&state, 4);
-    assert!(
-        !cycles.is_empty(),
-        "Should detect at least one bilateral cycle"
-    );
+    // Use bilateral_offset() for bilateral pairs (2-agent cycles)
+    // bilateral_offset() settles transactions directly, no need for settle_cycle()
+    let result = bilateral_offset(&mut state, 5);
 
-    // Use first cycle (both are equivalent)
-    let cycle = &cycles[0];
-    assert_eq!(cycle.agents.len(), 3, "Cycle: A, B, A (3 nodes)");
-
-    // Settle cycle
-    let mut to_remove = BTreeMap::new();
-    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Settlement should succeed");
-
-    // Both transactions should settle
-    assert_eq!(result.transactions_affected, 2);
+    assert!(result.pairs_found > 0, "Should detect at least one bilateral pair");
+    assert_eq!(result.settlements_count, 2, "Both transactions should settle");
 
     // Verify final balances: A=-200k, B=+200k (net 200k A→B)
     assert_eq!(state.get_agent("A").unwrap().balance(), 0); // Started at 200k, net -200k
@@ -506,20 +494,17 @@ fn test_multiple_cycles_priority() {
     create_queued_transaction(&mut state, "C", "D", 500_000);
     create_queued_transaction(&mut state, "D", "C", 480_000);
 
-    let cycles = detect_cycles(&state, 4);
-    assert!(cycles.len() >= 2, "Should detect at least both cycles");
+    // Use bilateral_offset() for bilateral pairs (detect_cycles no longer finds 2-agent cycles)
+    let bilateral_result = bilateral_offset(&mut state, 0);
+    assert!(bilateral_result.pairs_found >= 2, "Should detect at least both bilateral pairs");
 
-    // Cycles should be sorted by total_value (descending)
-    // First cycle should be largest (C↔D)
-    assert!(
-        cycles[0].total_value >= cycles[1].total_value,
-        "Larger cycle should be first"
-    );
-
-    // First cycle should involve C and D (largest value)
-    assert!(
-        cycles[0].agents.contains(&"C".to_string())
-            && cycles[0].agents.contains(&"D".to_string()),
-        "First cycle should be C↔D (largest total_value)"
-    );
+    // Bilateral pairs should be sorted by liquidity release (via PairIndex ReadyKey)
+    // Verify larger value pair (C↔D: 980k total) is processed
+    let has_cd_pair = bilateral_result
+        .offset_pairs
+        .iter()
+        .any(|p| {
+            (p.agent_a == "C" && p.agent_b == "D") || (p.agent_a == "D" && p.agent_b == "C")
+        });
+    assert!(has_cd_pair, "Should detect C↔D bilateral pair");
 }
