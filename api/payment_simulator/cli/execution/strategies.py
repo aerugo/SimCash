@@ -193,9 +193,10 @@ class VerboseModeOutput:
 class NormalModeOutput:
     """Normal mode: progress bar + final JSON output."""
 
-    def __init__(self, quiet: bool, total_ticks: int):
+    def __init__(self, quiet: bool, total_ticks: int, show_debug: bool = False):
         self.quiet = quiet
         self.total_ticks = total_ticks
+        self.show_debug = show_debug
         self.progress = None
         self.task = None
 
@@ -214,7 +215,24 @@ class NormalModeOutput:
 
     def on_tick_complete(self, result: TickResult, orch: Orchestrator) -> None:
         if self.progress:
-            self.progress.update(self.task, advance=1)
+            # Update progress bar with timing info if debug mode enabled
+            if self.show_debug and result.timing:
+                total_ms = result.timing["total_micros"] / 1000.0
+
+                # Get top phase
+                phases = [
+                    ("Arrivals", result.timing["arrivals_micros"]),
+                    ("Policy", result.timing["policy_eval_micros"]),
+                    ("RTGS", result.timing["rtgs_settlement_micros"]),
+                    ("LSM", result.timing["lsm_micros"]),
+                ]
+                top_phase = max(phases, key=lambda x: x[1])
+                pct = (top_phase[1] / result.timing["total_micros"] * 100) if result.timing["total_micros"] > 0 else 0
+
+                description = f"[cyan]Running simulation... [dim]⏱️ {total_ms:.2f}ms (top: {top_phase[0]} {pct:.0f}%)[/dim]"
+                self.progress.update(self.task, description=description, advance=1)
+            else:
+                self.progress.update(self.task, advance=1)
 
     def on_day_complete(self, day: int, day_stats: dict[str, Any], orch: Orchestrator) -> None:
         pass
