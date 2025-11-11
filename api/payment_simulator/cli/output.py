@@ -1640,3 +1640,48 @@ def log_overdue_transaction_settled_event(event: dict, quiet: bool = False) -> N
         f"Delay ${event['estimated_delay_cost'] / 100:,.2f} = "
         f"[bold red]${total_cost / 100:,.2f}[/bold red]"
     )
+
+
+def log_performance_diagnostics(timing: dict, tick: int) -> None:
+    """Display performance breakdown for a single tick.
+
+    Shows microsecond and millisecond timings for each phase of tick execution,
+    along with percentage of total time spent in each phase.
+
+    Args:
+        timing: Dict containing microsecond timings for each phase
+        tick: Current tick number
+    """
+    from rich.table import Table
+
+    table = Table(title=f"⏱️  Performance Diagnostics - Tick {tick}", show_header=True, header_style="bold magenta")
+    table.add_column("Phase", style="cyan", no_wrap=True, width=25)
+    table.add_column("Time (μs)", justify="right", style="yellow", width=15)
+    table.add_column("Time (ms)", justify="right", style="yellow", width=12)
+    table.add_column("% of Total", justify="right", style="green", width=12)
+
+    total = timing["total_micros"]
+
+    phases = [
+        ("Arrivals", timing["arrivals_micros"]),
+        ("Policy Evaluation", timing["policy_eval_micros"]),
+        ("RTGS Settlement", timing["rtgs_settlement_micros"]),
+        ("RTGS Queue Processing", timing["rtgs_queue_micros"]),
+        ("LSM Coordinator", timing["lsm_micros"]),
+        ("Cost Accrual", timing["cost_accrual_micros"]),
+    ]
+
+    for name, micros in phases:
+        pct = (micros / total * 100) if total > 0 else 0
+        millis = micros / 1000.0
+        table.add_row(name, f"{micros:,}", f"{millis:.2f}", f"{pct:.1f}%")
+
+    # Add separator row
+    table.add_row("", "", "", "", style="dim")
+
+    # Add total row
+    millis_total = total / 1000.0
+    table.add_row("TOTAL", f"{total:,}", f"{millis_total:.2f}", "100.0%", style="bold")
+
+    console.print(table)
+    console.print()  # Blank line for spacing
