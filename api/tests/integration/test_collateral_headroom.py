@@ -9,22 +9,23 @@ Tests verify that:
 """
 
 import pytest
-from payment_simulator.backends.orchestrator import Orchestrator
+from payment_simulator._core import Orchestrator
 
 
 def test_posted_collateral_increases_available_liquidity():
     """Posted collateral immediately increases available liquidity via headroom."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": -50000,  # Overdraft
-                "credit_limit": 60000,
+                "credit_limit": 60000, "policy": {"type": "Fifo"}},
                 "collateral_haircut": 0.95,  # 95% of collateral counts toward headroom
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -72,16 +73,17 @@ def test_posted_collateral_increases_available_liquidity():
 def test_collateral_enables_settlement_of_queued_transactions():
     """Posting collateral should allow queued transactions to settle."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "credit_limit": 20000, "policy": {"type": "Fifo"}},
                 "collateral_haircut": 0.95,
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -121,16 +123,17 @@ def test_collateral_enables_settlement_of_queued_transactions():
 def test_collateral_minimum_holding_period_prevents_immediate_withdrawal():
     """Cannot withdraw collateral before minimum holding period expires."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 100000,
-                "credit_limit": 50000,
+                "credit_limit": 50000, "policy": {"type": "Fifo"}},
                 "collateral_min_holding_ticks": 5,
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -172,19 +175,20 @@ def test_collateral_minimum_holding_period_prevents_immediate_withdrawal():
 def test_collateral_policy_hysteresis_posting_threshold():
     """Collateral policy only posts when liquidity gap exceeds threshold."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "credit_limit": 20000, "policy": {"type": "Fifo"}},
                 "collateral_policy": {
                     "posting_threshold_pct": 0.10,  # Only post if gap > 10% of queue value
                     "min_holding_ticks": 5,
                 },
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -228,19 +232,20 @@ def test_collateral_policy_hysteresis_posting_threshold():
 def test_collateral_policy_hysteresis_withdrawal_threshold():
     """Collateral policy only withdraws when excess liquidity exceeds threshold."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "credit_limit": 20000, "policy": {"type": "Fifo"}},
                 "collateral_policy": {
                     "withdrawal_threshold_pct": 0.20,  # Only withdraw if excess > 20% of queue
                     "min_holding_ticks": 1,  # Short for testing
                 },
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -270,20 +275,21 @@ def test_collateral_policy_hysteresis_withdrawal_threshold():
 def test_no_collateral_oscillation_under_sustained_pressure():
     """Agent does not post/withdraw collateral every tick under sustained queue pressure."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "credit_limit": 20000, "policy": {"type": "Fifo"}},
                 "collateral_policy": {
                     "min_holding_ticks": 5,
                     "posting_threshold_pct": 0.10,
                     "withdrawal_threshold_pct": 0.20,
                 },
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -313,15 +319,16 @@ def test_no_collateral_oscillation_under_sustained_pressure():
 def test_collateral_events_have_specific_reasons_not_vague():
     """Collateral events must have specific, actionable reasons (not 'DeadlineEmergency')."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 5000,
-                "credit_limit": 10000,
+                "credit_limit": 10000, "policy": {"type": "Fifo"}},
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -360,16 +367,17 @@ def test_collateral_events_have_specific_reasons_not_vague():
 def test_collateral_withdrawal_reason_is_specific():
     """Collateral withdrawal events have specific reasons."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "credit_limit": 20000, "policy": {"type": "Fifo"}},
                 "collateral_min_holding_ticks": 1,
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -397,16 +405,17 @@ def test_collateral_withdrawal_reason_is_specific():
 def test_available_liquidity_calculation_includes_collateral():
     """Agent.available_liquidity() formula: balance + (credit + collateral*haircut - credit_used)."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
             {
                 "id": "A",
                 "opening_balance": 20000,
-                "credit_limit": 50000,
+                "credit_limit": 50000, "policy": {"type": "Fifo"}},
                 "collateral_haircut": 0.90,
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 

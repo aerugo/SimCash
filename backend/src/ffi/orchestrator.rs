@@ -1021,11 +1021,28 @@ impl PyOrchestrator {
                     event_dict.set_item("reason", reason)?;
                     event_dict.set_item("new_total", new_total)?;
                 }
+                #[allow(deprecated)]
                 crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
                     event_dict.set_item("tx_id", tx_id)?;
                     event_dict.set_item("sender_id", sender_id)?;
                     event_dict.set_item("receiver_id", receiver_id)?;
                     event_dict.set_item("amount", amount)?;
+                }
+                crate::models::event::Event::RtgsImmediateSettlement { tx_id, sender, receiver, amount, sender_balance_before, sender_balance_after, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("sender_balance_before", sender_balance_before)?;
+                    event_dict.set_item("sender_balance_after", sender_balance_after)?;
+                }
+                crate::models::event::Event::Queue2LiquidityRelease { tx_id, sender, receiver, amount, queue_wait_ticks, release_reason, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
+                    event_dict.set_item("release_reason", release_reason)?;
                 }
                 crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
                     event_dict.set_item("tx_id", tx_id)?;
@@ -1199,11 +1216,28 @@ impl PyOrchestrator {
                     event_dict.set_item("reason", reason)?;
                     event_dict.set_item("new_total", new_total)?;
                 }
+                #[allow(deprecated)]
                 crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
                     event_dict.set_item("tx_id", tx_id)?;
                     event_dict.set_item("sender_id", sender_id)?;
                     event_dict.set_item("receiver_id", receiver_id)?;
                     event_dict.set_item("amount", amount)?;
+                }
+                crate::models::event::Event::RtgsImmediateSettlement { tx_id, sender, receiver, amount, sender_balance_before, sender_balance_after, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("sender_balance_before", sender_balance_before)?;
+                    event_dict.set_item("sender_balance_after", sender_balance_after)?;
+                }
+                crate::models::event::Event::Queue2LiquidityRelease { tx_id, sender, receiver, amount, queue_wait_ticks, release_reason, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
+                    event_dict.set_item("release_reason", release_reason)?;
                 }
                 crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
                     event_dict.set_item("tx_id", tx_id)?;
