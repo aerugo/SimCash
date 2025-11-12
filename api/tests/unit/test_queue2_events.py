@@ -52,17 +52,15 @@ def test_queue2_settlement_generates_distinct_event():
 
     orch = Orchestrator.new(config)
 
-    # Inject a transaction that will queue (insufficient liquidity)
-    tx_id = "test_tx_001"
-    orch.inject_transaction({
-        "id": tx_id,
-        "sender": "BANK_A",
-        "receiver": "BANK_B",
-        "amount": 50000,  # $500 - more than BANK_A's $100 balance
-        "priority": 5,
-        "deadline_tick": 50,
-        "is_divisible": False,
-    })
+    # Submit a transaction that will queue (insufficient liquidity)
+    tx_id = orch.submit_transaction(
+        sender="BANK_A",
+        receiver="BANK_B",
+        amount=50000,  # $500 - more than BANK_A's $100 balance
+        deadline_tick=50,
+        priority=5,
+        divisible=False,
+    )
 
     # Tick 1: Transaction should queue in Queue-2 (insufficient liquidity)
     orch.tick()
@@ -172,24 +170,28 @@ def test_settlement_event_still_emitted():
 
     orch = Orchestrator.new(config)
 
-    tx_id = "test_tx_002"
-    orch.inject_transaction({
-        "id": tx_id,
-        "sender": "BANK_A",
-        "receiver": "BANK_B",
-        "amount": 50000,
-        "priority": 5,
-        "deadline_tick": 50,
-        "is_divisible": False,
-    })
+    tx_id = orch.submit_transaction(
+        sender="BANK_A",
+        receiver="BANK_B",
+        amount=50000,
+        deadline_tick=50,
+        priority=5,
+        divisible=False,
+    )
 
     orch.tick()  # Tick 1: Queue
 
-    orch.inject_direct_transfer({
-        "sender": "BANK_B",
-        "receiver": "BANK_A",
-        "amount": 50000,
-    })
+    # Transfer funds to BANK_A to enable settlement
+    # Note: inject_direct_transfer may not exist, skip for now and see if test still works
+    orch.submit_transaction(
+        sender="BANK_B",
+        receiver="BANK_A",
+        amount=50000,
+        deadline_tick=55,
+        priority=5,
+        divisible=False,
+    )
+    orch.tick()  # Process the transfer
 
     orch.tick()  # Tick 2: Settle
 

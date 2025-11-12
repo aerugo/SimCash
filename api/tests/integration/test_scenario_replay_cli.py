@@ -66,7 +66,7 @@ scenario_events:
             capture_output=True,
             text=True,
             timeout=60,
-            cwd="/home/user/SimCash/api"
+            cwd=str(Path(__file__).parent.parent.parent)
         )
 
         print(f"Run exit code: {run_result.returncode}")
@@ -109,7 +109,7 @@ scenario_events:
             capture_output=True,
             text=True,
             timeout=60,
-            cwd="/home/user/SimCash/api"
+            cwd=str(Path(__file__).parent.parent.parent)
         )
 
         print(f"Replay exit code: {replay_result.returncode}")

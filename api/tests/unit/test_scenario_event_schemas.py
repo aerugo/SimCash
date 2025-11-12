@@ -128,58 +128,76 @@ def test_counterparty_weight_change_validation():
     # Valid
     event = CounterpartyWeightChangeEvent(
         agent="BANK_A",
-        new_weights={"BANK_B": 0.7, "BANK_C": 0.3},
+        counterparty="BANK_B",
+        new_weight=0.7,
         auto_balance_others=False,
         schedule=OneTimeSchedule(tick=10),
     )
-    assert event.new_weights == {"BANK_B": 0.7, "BANK_C": 0.3}
+    assert event.counterparty == "BANK_B"
+    assert event.new_weight == 0.7
 
-    # Invalid - empty weights
+    # Invalid - weight out of range
     with pytest.raises(ValidationError) as exc_info:
         CounterpartyWeightChangeEvent(
             agent="BANK_A",
-            new_weights={},
+            counterparty="BANK_B",
+            new_weight=1.5,  # > 1
             schedule=OneTimeSchedule(tick=10),
         )
-    assert "cannot be empty" in str(exc_info.value)
+    assert "less than or equal to 1" in str(exc_info.value)
 
-    # Invalid - negative total weight
+    # Invalid - negative weight
     with pytest.raises(ValidationError) as exc_info:
         CounterpartyWeightChangeEvent(
             agent="BANK_A",
-            new_weights={"BANK_B": -0.5, "BANK_C": -0.5},
+            counterparty="BANK_B",
+            new_weight=-0.5,
             schedule=OneTimeSchedule(tick=10),
         )
-    assert "must sum to positive value" in str(exc_info.value)
+    assert "greater than or equal to 0" in str(exc_info.value)
 
 
 def test_deadline_window_change_validation():
     """Test DeadlineWindowChangeEvent validation."""
-    # Valid
+    # Valid - both multipliers
     event = DeadlineWindowChangeEvent(
-        agent="BANK_A",
-        new_deadline_range=[10, 50],
+        min_ticks_multiplier=1.5,
+        max_ticks_multiplier=2.0,
         schedule=OneTimeSchedule(tick=10),
     )
-    assert event.new_deadline_range == [10, 50]
+    assert event.min_ticks_multiplier == 1.5
+    assert event.max_ticks_multiplier == 2.0
 
-    # Invalid - min <= 0
+    # Valid - only min multiplier
+    event = DeadlineWindowChangeEvent(
+        min_ticks_multiplier=0.5,
+        schedule=OneTimeSchedule(tick=10),
+    )
+    assert event.min_ticks_multiplier == 0.5
+    assert event.max_ticks_multiplier is None
+
+    # Valid - only max multiplier
+    event = DeadlineWindowChangeEvent(
+        max_ticks_multiplier=1.5,
+        schedule=OneTimeSchedule(tick=10),
+    )
+    assert event.min_ticks_multiplier is None
+    assert event.max_ticks_multiplier == 1.5
+
+    # Invalid - no multipliers
     with pytest.raises(ValidationError) as exc_info:
         DeadlineWindowChangeEvent(
-            agent="BANK_A",
-            new_deadline_range=[0, 50],
             schedule=OneTimeSchedule(tick=10),
         )
-    assert "must be > 0" in str(exc_info.value)
+    assert "At least one" in str(exc_info.value)
 
-    # Invalid - max < min
+    # Invalid - negative multiplier
     with pytest.raises(ValidationError) as exc_info:
         DeadlineWindowChangeEvent(
-            agent="BANK_A",
-            new_deadline_range=[50, 10],
+            min_ticks_multiplier=-0.5,
             schedule=OneTimeSchedule(tick=10),
         )
-    assert "max must be >= min" in str(exc_info.value)
+    assert "greater than 0" in str(exc_info.value)
 
 
 def test_simulation_config_with_scenario_events():
@@ -399,14 +417,15 @@ def test_all_event_types_to_ffi():
             {
                 "type": "CounterpartyWeightChange",
                 "agent": "BANK_A",
-                "new_weights": {"BANK_B": 1.0},
+                "counterparty": "BANK_B",
+                "new_weight": 1.0,
                 "auto_balance_others": False,
                 "schedule": {"type": "OneTime", "tick": 30},
             },
             {
                 "type": "DeadlineWindowChange",
-                "agent": "BANK_A",
-                "new_deadline_range": [5, 25],
+                "min_ticks_multiplier": 0.5,
+                "max_ticks_multiplier": 0.5,
                 "schedule": {"type": "OneTime", "tick": 35},
             },
         ],
