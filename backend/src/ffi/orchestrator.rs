@@ -200,6 +200,215 @@ impl PyOrchestrator {
         self.inner.get_arrival_rate(agent_id)
     }
 
+    /// Get comprehensive agent state including collateral information
+    ///
+    /// Returns a dictionary with all agent financial state:
+    /// - balance: Current settlement account balance (cents)
+    /// - credit_used: Amount of credit facility currently in use (cents)
+    /// - credit_limit: Maximum overdraft allowed (cents)
+    /// - available_liquidity: Usable funds including balance, credit, and collateral headroom (cents)
+    /// - posted_collateral: Amount of collateral posted (cents)
+    /// - collateral_haircut: Discount factor applied to collateral (0.0-1.0)
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    ///
+    /// # Returns
+    /// Dictionary with agent state, or raises exception if agent not found
+    ///
+    /// # Example (from Python)
+    /// ```python
+    /// state = orch.get_agent_state("BANK_A")
+    /// print(f"Balance: ${state['balance']/100:.2f}")
+    /// print(f"Available: ${state['available_liquidity']/100:.2f}")
+    /// print(f"Collateral: ${state['posted_collateral']/100:.2f}")
+    /// ```
+    fn get_agent_state(&self, py: Python, agent_id: &str) -> PyResult<Py<PyDict>> {
+        let state = self.inner.state();
+        let agent = state.get_agent(agent_id)
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Agent '{}' not found", agent_id)
+            ))?;
+
+        let dict = PyDict::new(py);
+        dict.set_item("balance", agent.balance())?;
+        dict.set_item("credit_used", agent.credit_used())?;
+        dict.set_item("credit_limit", agent.credit_limit())?;
+        dict.set_item("available_liquidity", agent.available_liquidity())?;
+        dict.set_item("posted_collateral", agent.posted_collateral())?;
+        dict.set_item("collateral_haircut", agent.collateral_haircut())?;
+        dict.set_item("queue1_size", agent.outgoing_queue().len())?;
+
+        Ok(dict.into())
+    }
+
+    /// Post collateral to increase available liquidity headroom
+    ///
+    /// Posts collateral which increases the agent's available liquidity by
+    /// (amount * collateral_haircut). The collateral is locked for a minimum
+    /// holding period to prevent oscillation.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    /// * `amount` - Collateral amount in cents (must be positive)
+    ///
+    /// # Returns
+    /// Dictionary with:
+    /// - success: bool
+    /// - message: str (description)
+    ///
+    /// # Example (from Python)
+    /// ```python
+    /// result = orch.post_collateral("BANK_A", 100000)  # $1,000
+    /// if result['success']:
+    ///     print(f"Posted collateral: {result['message']}")
+    /// ```
+    fn post_collateral(&mut self, py: Python, agent_id: &str, amount: i64) -> PyResult<Py<PyDict>> {
+        let dict = PyDict::new(py);
+
+        if amount <= 0 {
+            dict.set_item("success", false)?;
+            dict.set_item("message", "Collateral amount must be positive")?;
+            return Ok(dict.into());
+        }
+
+        let current_tick = self.inner.current_tick();
+
+        // Update agent state and get new total (scope to drop mutable borrow)
+        let new_total = {
+            let state = self.inner.state_mut();
+            match state.get_agent_mut(agent_id) {
+                Some(agent) => {
+                    let new_total = agent.posted_collateral() + amount;
+                    agent.set_posted_collateral(new_total);
+                    agent.set_collateral_posted_at_tick(current_tick);
+                    Some(new_total)
+                }
+                None => None,
+            }
+        }; // Mutable borrow of state dropped here
+
+        match new_total {
+            Some(new_total) => {
+                // Log event
+                self.inner.log_event(crate::models::Event::CollateralPost {
+                    tick: current_tick,
+                    agent_id: agent_id.to_string(),
+                    amount,
+                    reason: "ManualPost".to_string(),
+                    new_total,
+                });
+
+                dict.set_item("success", true)?;
+                dict.set_item("message", format!("Posted {} cents collateral at tick {}", amount, current_tick))?;
+                Ok(dict.into())
+            }
+            None => {
+                dict.set_item("success", false)?;
+                dict.set_item("message", format!("Agent '{}' not found", agent_id))?;
+                Ok(dict.into())
+            }
+        }
+    }
+
+    /// Withdraw collateral (subject to minimum holding period)
+    ///
+    /// Attempts to withdraw collateral. Will fail if:
+    /// - Minimum holding period has not elapsed (default 5 ticks)
+    /// - Agent doesn't have enough collateral posted
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    /// * `amount` - Collateral amount to withdraw in cents (must be positive)
+    ///
+    /// # Returns
+    /// Dictionary with:
+    /// - success: bool
+    /// - message: str (description or error reason)
+    ///
+    /// # Example (from Python)
+    /// ```python
+    /// result = orch.withdraw_collateral("BANK_A", 50000)  # $500
+    /// if not result['success']:
+    ///     print(f"Withdrawal failed: {result['message']}")
+    /// ```
+    fn withdraw_collateral(&mut self, py: Python, agent_id: &str, amount: i64) -> PyResult<Py<PyDict>> {
+        const MIN_HOLDING_TICKS: usize = 5; // Configurable default
+
+        let dict = PyDict::new(py);
+
+        if amount <= 0 {
+            dict.set_item("success", false)?;
+            dict.set_item("message", "Withdrawal amount must be positive")?;
+            return Ok(dict.into());
+        }
+
+        let current_tick = self.inner.current_tick();
+
+        // Validate and update agent state (scope to drop mutable borrow)
+        let withdrawal_result: Result<i64, String> = {
+            let state = self.inner.state_mut();
+            match state.get_agent_mut(agent_id) {
+                Some(agent) => {
+                    // Check minimum holding period
+                    if !agent.can_withdraw_collateral(current_tick, MIN_HOLDING_TICKS) {
+                        let posted_at = agent.collateral_posted_at_tick().unwrap_or(0);
+                        let ticks_remaining = (posted_at + MIN_HOLDING_TICKS).saturating_sub(current_tick);
+                        Err(format!(
+                            "Minimum holding period not met. {} tick(s) remaining",
+                            ticks_remaining
+                        ))
+                    } else {
+                        // Check sufficient collateral
+                        let current_collateral = agent.posted_collateral();
+                        if amount > current_collateral {
+                            Err(format!(
+                                "Insufficient collateral: requested {}, available {}",
+                                amount, current_collateral
+                            ))
+                        } else {
+                            // Withdraw collateral
+                            let new_total = current_collateral - amount;
+                            agent.set_posted_collateral(new_total);
+
+                            // Clear posted_at_tick if all collateral withdrawn
+                            if new_total == 0 {
+                                agent.set_collateral_posted_at_tick(0);
+                            }
+
+                            Ok(new_total)
+                        }
+                    }
+                }
+                None => {
+                    Err(format!("Agent '{}' not found", agent_id))
+                }
+            }
+        }; // Mutable borrow of state dropped here
+
+        match withdrawal_result {
+            Ok(new_total) => {
+                // Log event
+                self.inner.log_event(crate::models::Event::CollateralWithdraw {
+                    tick: current_tick,
+                    agent_id: agent_id.to_string(),
+                    amount,
+                    reason: "ManualWithdraw".to_string(),
+                    new_total,
+                });
+
+                dict.set_item("success", true)?;
+                dict.set_item("message", format!("Withdrew {} cents collateral", amount))?;
+                Ok(dict.into())
+            }
+            Err(err_msg) => {
+                dict.set_item("success", false)?;
+                dict.set_item("message", err_msg)?;
+                Ok(dict.into())
+            }
+        }
+    }
+
     /// Get size of agent's internal queue (Queue 1)
     ///
     /// Returns the number of transactions waiting in the agent's
@@ -1021,11 +1230,28 @@ impl PyOrchestrator {
                     event_dict.set_item("reason", reason)?;
                     event_dict.set_item("new_total", new_total)?;
                 }
+                #[allow(deprecated)]
                 crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
                     event_dict.set_item("tx_id", tx_id)?;
                     event_dict.set_item("sender_id", sender_id)?;
                     event_dict.set_item("receiver_id", receiver_id)?;
                     event_dict.set_item("amount", amount)?;
+                }
+                crate::models::event::Event::RtgsImmediateSettlement { tx_id, sender, receiver, amount, sender_balance_before, sender_balance_after, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("sender_balance_before", sender_balance_before)?;
+                    event_dict.set_item("sender_balance_after", sender_balance_after)?;
+                }
+                crate::models::event::Event::Queue2LiquidityRelease { tx_id, sender, receiver, amount, queue_wait_ticks, release_reason, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
+                    event_dict.set_item("release_reason", release_reason)?;
                 }
                 crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
                     event_dict.set_item("tx_id", tx_id)?;
@@ -1199,11 +1425,28 @@ impl PyOrchestrator {
                     event_dict.set_item("reason", reason)?;
                     event_dict.set_item("new_total", new_total)?;
                 }
+                #[allow(deprecated)]
                 crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
                     event_dict.set_item("tx_id", tx_id)?;
                     event_dict.set_item("sender_id", sender_id)?;
                     event_dict.set_item("receiver_id", receiver_id)?;
                     event_dict.set_item("amount", amount)?;
+                }
+                crate::models::event::Event::RtgsImmediateSettlement { tx_id, sender, receiver, amount, sender_balance_before, sender_balance_after, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("sender_balance_before", sender_balance_before)?;
+                    event_dict.set_item("sender_balance_after", sender_balance_after)?;
+                }
+                crate::models::event::Event::Queue2LiquidityRelease { tx_id, sender, receiver, amount, queue_wait_ticks, release_reason, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
+                    event_dict.set_item("release_reason", release_reason)?;
                 }
                 crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
                     event_dict.set_item("tx_id", tx_id)?;
