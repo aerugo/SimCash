@@ -85,6 +85,9 @@ pub struct ArrivalGenerator {
 
     /// Next transaction ID counter
     next_tx_id: usize,
+
+    /// Episode end tick (for deadline capping) - Issue #6 fix
+    episode_end_tick: usize,
 }
 
 impl ArrivalGenerator {
@@ -94,11 +97,17 @@ impl ArrivalGenerator {
     ///
     /// * `configs` - Map of agent ID to arrival configuration
     /// * `all_agent_ids` - List of all agent IDs in the simulation
-    pub fn new(configs: HashMap<String, ArrivalConfig>, all_agent_ids: Vec<String>) -> Self {
+    /// * `episode_end_tick` - Final tick of the simulation (for deadline capping)
+    pub fn new(
+        configs: HashMap<String, ArrivalConfig>,
+        all_agent_ids: Vec<String>,
+        episode_end_tick: usize,
+    ) -> Self {
         Self {
             configs,
             all_agent_ids,
             next_tx_id: 0,
+            episode_end_tick,
         }
     }
 
@@ -226,6 +235,9 @@ impl ArrivalGenerator {
     }
 
     /// Generate a deadline for the transaction.
+    ///
+    /// Deadlines are capped at episode_end_tick to prevent impossible deadlines
+    /// (Issue #6 fix).
     fn generate_deadline(
         &self,
         arrival_tick: usize,
@@ -234,7 +246,10 @@ impl ArrivalGenerator {
     ) -> usize {
         let (min_offset, max_offset) = range;
         let offset = rng.range(min_offset as i64, max_offset as i64 + 1) as usize;
-        arrival_tick + offset
+        let raw_deadline = arrival_tick + offset;
+
+        // Cap deadline at episode end (Issue #6 fix)
+        raw_deadline.min(self.episode_end_tick)
     }
 
     /// Sample from standard normal distribution using Box-Muller transform.
@@ -340,7 +355,7 @@ mod tests {
         );
 
         let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
-        let generator = ArrivalGenerator::new(configs, all_agents);
+        let generator = ArrivalGenerator::new(configs, all_agents, 1000); // Episode ends at tick 1000
 
         assert_eq!(generator.next_tx_id, 0);
     }
@@ -366,12 +381,12 @@ mod tests {
         let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
 
         // Generate with seed 42
-        let mut generator1 = ArrivalGenerator::new(configs.clone(), all_agents.clone());
+        let mut generator1 = ArrivalGenerator::new(configs.clone(), all_agents.clone(), 1000);
         let mut rng1 = RngManager::new(42);
         let arrivals1 = generator1.generate_for_agent("BANK_A", 0, &mut rng1);
 
         // Generate again with same seed
-        let mut generator2 = ArrivalGenerator::new(configs, all_agents);
+        let mut generator2 = ArrivalGenerator::new(configs, all_agents, 1000);
         let mut rng2 = RngManager::new(42);
         let arrivals2 = generator2.generate_for_agent("BANK_A", 0, &mut rng2);
 
@@ -403,6 +418,7 @@ mod tests {
         let mut generator = ArrivalGenerator::new(
             vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
+            1000, // Episode end tick
         );
         let mut rng = RngManager::new(42);
 
@@ -437,6 +453,7 @@ mod tests {
         let mut generator = ArrivalGenerator::new(
             vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
+            1000, // Episode end tick
         );
         let mut rng = RngManager::new(42);
 
@@ -467,6 +484,7 @@ mod tests {
         let mut generator = ArrivalGenerator::new(
             vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
+            1000, // Episode end tick
         );
         let mut rng = RngManager::new(42);
 
@@ -506,6 +524,7 @@ mod tests {
         let mut generator = ArrivalGenerator::new(
             vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
+            1000, // Episode end tick
         );
         let mut rng = RngManager::new(42);
 
