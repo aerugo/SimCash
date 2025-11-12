@@ -68,7 +68,7 @@ scenario_events:
             capture_output=True,
             text=True,
             timeout=30,
-            cwd="/home/user/SimCash/api"
+            cwd=str(Path(__file__).parent.parent.parent)
         )
 
         assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
@@ -91,7 +91,7 @@ scenario_events:
             capture_output=True,
             text=True,
             timeout=30,
-            cwd="/home/user/SimCash/api"
+            cwd=str(Path(__file__).parent.parent.parent)
         )
 
         assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
@@ -198,7 +198,7 @@ scenario_events:
             capture_output=True,
             text=True,
             timeout=30,
-            cwd="/home/user/SimCash/api"
+            cwd=str(Path(__file__).parent.parent.parent)
         )
 
         assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
@@ -228,7 +228,7 @@ scenario_events:
             capture_output=True,
             text=True,
             timeout=30,
-            cwd="/home/user/SimCash/api"
+            cwd=str(Path(__file__).parent.parent.parent)
         )
 
         assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
@@ -314,7 +314,7 @@ scenario_events:
             capture_output=True,
             text=True,
             timeout=30,
-            cwd="/home/user/SimCash/api"
+            cwd=str(Path(__file__).parent.parent.parent)
         )
 
         assert run_result.returncode == 0
@@ -344,7 +344,7 @@ scenario_events:
             capture_output=True,
             text=True,
             timeout=30,
-            cwd="/home/user/SimCash/api"
+            cwd=str(Path(__file__).parent.parent.parent)
         )
 
         assert replay_result.returncode == 0

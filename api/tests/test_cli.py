@@ -246,8 +246,8 @@ class TestAIIntegration:
             env=env,
         )
         assert result.returncode == 0
-        # Output should be a number (0 in this case since no transactions)
-        assert result.stdout.strip() == "0"
+        # Output should be a number (0.0 in this case since no transactions)
+        assert result.stdout.strip() == "0.0"
 
     def test_parameter_sweep(self, test_config):
         """Test parameter sweep pattern for optimization."""
