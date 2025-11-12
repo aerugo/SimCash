@@ -22,6 +22,7 @@ fn create_test_config() -> OrchestratorConfig {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -30,6 +31,7 @@ fn create_test_config() -> OrchestratorConfig {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -126,6 +128,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -134,6 +137,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),

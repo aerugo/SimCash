@@ -47,6 +47,7 @@ fn test_high_frequency_arrivals_single_agent() {
                 },
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -55,6 +56,7 @@ fn test_high_frequency_arrivals_single_agent() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -147,6 +149,7 @@ fn test_sustained_high_load_100_ticks() {
                 },
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -155,6 +158,7 @@ fn test_sustained_high_load_100_ticks() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -250,6 +254,7 @@ fn test_extreme_high_frequency_arrivals() {
                 policy: PolicyConfig::Fifo, // Simple policy for speed
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -258,6 +263,7 @@ fn test_extreme_high_frequency_arrivals() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -350,6 +356,7 @@ fn test_50_agent_high_frequency_simulation() {
             },
             arrival_config: Some(arrival_config.clone()),
             posted_collateral: None,
+                    collateral_haircut: None,
         });
     }
 

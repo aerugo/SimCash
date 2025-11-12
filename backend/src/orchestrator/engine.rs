@@ -752,6 +752,7 @@ impl Orchestrator {
     ///             policy: PolicyConfig::Fifo,
     ///             arrival_config: None,
     ///             posted_collateral: None,
+                    collateral_haircut: None,
     ///         },
     ///     ],
     ///     cost_rates: Default::default(),
@@ -3609,6 +3610,7 @@ mod tests {
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
                     posted_collateral: None,
+                    collateral_haircut: None,
                 },
                 AgentConfig {
                     id: "BANK_B".to_string(),
@@ -3620,6 +3622,7 @@ mod tests {
                     },
                     arrival_config: None,
                     posted_collateral: None,
+                    collateral_haircut: None,
                 },
             ],
             cost_rates: CostRates::default(),
@@ -3708,6 +3711,8 @@ mod tests {
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
                     posted_collateral: None,
+                    collateral_haircut: None,
+                    collateral_haircut: None,
                 },
                 AgentConfig {
                     id: "BANK_A".to_string(), // Duplicate!
@@ -3716,6 +3721,8 @@ mod tests {
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
                     posted_collateral: None,
+                    collateral_haircut: None,
+                    collateral_haircut: None,
                 },
             ],
             cost_rates: CostRates::default(),

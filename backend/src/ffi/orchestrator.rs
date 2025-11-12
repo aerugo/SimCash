@@ -237,6 +237,7 @@ impl PyOrchestrator {
         dict.set_item("available_liquidity", agent.available_liquidity())?;
         dict.set_item("posted_collateral", agent.posted_collateral())?;
         dict.set_item("collateral_haircut", agent.collateral_haircut())?;
+        dict.set_item("queue1_size", agent.outgoing_queue().len())?;
 
         Ok(dict.into())
     }
