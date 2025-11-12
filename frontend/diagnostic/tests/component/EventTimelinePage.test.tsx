@@ -55,22 +55,39 @@ describe('EventTimelinePage', () => {
     vi.spyOn(simulationsApi, 'fetchEvents').mockResolvedValue({
       events: [
         {
+          event_id: 'evt-001',
+          simulation_id: 'sim-001',
           tick: 10,
+          day: 1,
           event_type: 'Arrival',
+          event_timestamp: '2025-01-01T10:00:00Z',
           tx_id: 'tx-001',
-          sender_id: 'BANK_A',
-          receiver_id: 'BANK_B',
-          amount: 100000,
-          priority: 5,
-          deadline_tick: 50,
+          details: {
+            tx_id: 'tx-001',
+            sender_id: 'BANK_A',
+            receiver_id: 'BANK_B',
+            amount: 100000,
+            priority: 5,
+            deadline_tick: 50,
+          },
+          created_at: '2025-01-01T10:00:00Z',
         },
         {
+          event_id: 'evt-002',
+          simulation_id: 'sim-001',
           tick: 15,
+          day: 1,
           event_type: 'Settlement',
+          event_timestamp: '2025-01-01T10:00:05Z',
           tx_id: 'tx-001',
-          sender_id: 'BANK_A',
-          receiver_id: 'BANK_B',
-          amount: 100000,
+          details: {
+            tx_id: 'tx-001',
+            sender_id: 'BANK_A',
+            receiver_id: 'BANK_B',
+            amount: 100000,
+            settlement_type: 'RTGS',
+          },
+          created_at: '2025-01-01T10:00:05Z',
         },
       ],
       total: 150,
@@ -87,9 +104,9 @@ describe('EventTimelinePage', () => {
     // Should show page title
     expect(screen.getByText(/events/i)).toBeInTheDocument()
 
-    // Should show events
+    // Should show events (may include icons/badges)
     expect(screen.getByText('Arrival')).toBeInTheDocument()
-    expect(screen.getByText('Settlement')).toBeInTheDocument()
+    expect(screen.getByText(/Settlement/i)).toBeInTheDocument()
 
     // Should show pagination info
     expect(screen.getByText(/showing/i)).toBeInTheDocument()
@@ -100,14 +117,22 @@ describe('EventTimelinePage', () => {
     vi.spyOn(simulationsApi, 'fetchEvents').mockResolvedValue({
       events: [
         {
+          event_id: 'evt-001',
+          simulation_id: 'sim-001',
           tick: 10,
+          day: 1,
           event_type: 'Arrival',
+          event_timestamp: '2025-01-01T10:00:00Z',
           tx_id: 'tx-001',
-          sender_id: 'BANK_A',
-          receiver_id: 'BANK_B',
-          amount: 100000,
-          priority: 5,
-          deadline_tick: 50,
+          details: {
+            tx_id: 'tx-001',
+            sender_id: 'BANK_A',
+            receiver_id: 'BANK_B',
+            amount: 100000,
+            priority: 5,
+            deadline_tick: 50,
+          },
+          created_at: '2025-01-01T10:00:00Z',
         },
       ],
       total: 1,
