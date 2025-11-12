@@ -1096,6 +1096,13 @@ impl PyOrchestrator {
                     event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
                     event_dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
                 }
+                crate::models::event::Event::RtgsQueue2Settle { tx_id, sender, receiver, amount, reason, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("reason", reason)?;
+                }
                 crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
                     event_dict.set_item("tick", tick)?;
                     event_dict.set_item("event_type", "ScenarioEventExecuted")?;
@@ -1267,6 +1274,13 @@ impl PyOrchestrator {
                     event_dict.set_item("total_ticks_overdue", total_ticks_overdue)?;
                     event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
                     event_dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
+                }
+                crate::models::event::Event::RtgsQueue2Settle { tx_id, sender, receiver, amount, reason, .. } => {
+                    event_dict.set_item("tx_id", tx_id)?;
+                    event_dict.set_item("sender", sender)?;
+                    event_dict.set_item("receiver", receiver)?;
+                    event_dict.set_item("amount", amount)?;
+                    event_dict.set_item("reason", reason)?;
                 }
                 crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
                     event_dict.set_item("tick", tick)?;

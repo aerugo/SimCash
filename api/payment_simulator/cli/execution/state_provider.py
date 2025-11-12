@@ -174,10 +174,23 @@ class DatabaseStateProvider:
         self._queue_snapshots = queue_snapshots
 
     def get_transaction_details(self, tx_id: str) -> dict | None:
-        """Get transaction from cache."""
+        """Get transaction from cache with tick-aware remaining_amount.
+
+        CRITICAL FIX (Issue #3):
+        Only count amount_settled if the transaction was settled BY the current tick.
+        This prevents future settlements from affecting past tick displays.
+        """
         tx = self._tx_cache.get(tx_id)
         if not tx:
             return None
+
+        # Calculate remaining_amount based on settlement status AT current tick
+        amount_settled = 0
+        settlement_tick = tx.get("settlement_tick")
+        if settlement_tick is not None and settlement_tick <= self.tick:
+            # Transaction was settled by this tick, so amount_settled counts
+            amount_settled = tx.get("amount_settled", 0)
+        # else: Transaction not yet settled at this tick, amount_settled = 0
 
         # Convert database format to orchestrator format
         return {
@@ -185,7 +198,7 @@ class DatabaseStateProvider:
             "sender_id": tx["sender_id"],
             "receiver_id": tx["receiver_id"],
             "amount": tx["amount"],
-            "remaining_amount": tx.get("amount", 0) - tx.get("amount_settled", 0),
+            "remaining_amount": tx.get("amount", 0) - amount_settled,
             "priority": tx["priority"],
             "deadline_tick": tx["deadline_tick"],
             "status": tx["status"],

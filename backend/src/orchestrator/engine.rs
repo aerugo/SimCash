@@ -2721,12 +2721,23 @@ impl Orchestrator {
 
         // Emit Settlement events for Queue 2 settlements (Issue #2 fix: visibility into Queue 2 activity)
         for settled_tx in &queue_result.settled_transactions {
+            // Emit generic Settlement event for backward compatibility
             self.log_event(Event::Settlement {
                 tick: current_tick,
                 tx_id: settled_tx.tx_id.clone(),
                 sender_id: settled_tx.sender_id.clone(),
                 receiver_id: settled_tx.receiver_id.clone(),
                 amount: settled_tx.amount,
+            });
+
+            // Emit explicit RtgsQueue2Settle event for audit trail (Issue #2 fix)
+            self.log_event(Event::RtgsQueue2Settle {
+                tick: current_tick,
+                tx_id: settled_tx.tx_id.clone(),
+                sender: settled_tx.sender_id.clone(),
+                receiver: settled_tx.receiver_id.clone(),
+                amount: settled_tx.amount,
+                reason: "liquidity_available".to_string(),
             });
         }
 
