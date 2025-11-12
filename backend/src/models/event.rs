@@ -216,6 +216,19 @@ pub enum Event {
         event_type: String,           // Type of event (e.g., "direct_transfer")
         details: serde_json::Value,   // Full event data as JSON
     },
+
+    /// Transaction settled from Queue-2 (RTGS queue)
+    ///
+    /// Emitted when a queued transaction settles after liquidity becomes available.
+    /// Provides explicit audit trail for Queue-2 activity (Issue #2 fix).
+    RtgsQueue2Settle {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        receiver: String,
+        amount: i64,
+        reason: String,  // "liquidity_restored", "lsm_freed_funds", etc.
+    },
 }
 
 impl Event {
@@ -239,6 +252,7 @@ impl Event {
             Event::TransactionWentOverdue { tick, .. } => *tick,
             Event::OverdueTransactionSettled { tick, .. } => *tick,
             Event::ScenarioEventExecuted { tick, .. } => *tick,
+            Event::RtgsQueue2Settle { tick, .. } => *tick,
         }
     }
 
@@ -262,6 +276,7 @@ impl Event {
             Event::TransactionWentOverdue { .. } => "TransactionWentOverdue",
             Event::OverdueTransactionSettled { .. } => "OverdueTransactionSettled",
             Event::ScenarioEventExecuted { .. } => "ScenarioEventExecuted",
+            Event::RtgsQueue2Settle { .. } => "RtgsQueue2Settle",
         }
     }
 
@@ -278,6 +293,7 @@ impl Event {
             Event::QueuedRtgs { tx_id, .. } => Some(tx_id),
             Event::TransactionWentOverdue { tx_id, .. } => Some(tx_id),
             Event::OverdueTransactionSettled { tx_id, .. } => Some(tx_id),
+            Event::RtgsQueue2Settle { tx_id, .. } => Some(tx_id),
             _ => None,
         }
     }
@@ -298,6 +314,7 @@ impl Event {
             Event::CostAccrual { agent_id, .. } => Some(agent_id),
             Event::TransactionWentOverdue { sender_id, .. } => Some(sender_id),
             Event::OverdueTransactionSettled { sender_id, .. } => Some(sender_id),
+            Event::RtgsQueue2Settle { sender, .. } => Some(sender),
             _ => None,
         }
     }
