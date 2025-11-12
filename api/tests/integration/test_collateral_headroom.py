@@ -22,8 +22,9 @@ def test_posted_collateral_increases_available_liquidity():
             {
                 "id": "A",
                 "opening_balance": -50000,  # Overdraft
-                "credit_limit": 60000, "policy": {"type": "Fifo"}},
+                "credit_limit": 60000,
                 "collateral_haircut": 0.95,  # 95% of collateral counts toward headroom
+                "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
@@ -61,7 +62,7 @@ def test_posted_collateral_increases_available_liquidity():
 
     # Verify event logged the headroom increase
     events = orch.get_tick_events(orch.current_tick())
-    collateral_events = [e for e in events if e.get('event_type') == 'collateral_posted']
+    collateral_events = [e for e in events if e.get('event_type') == 'CollateralPost']
 
     assert len(collateral_events) == 1
     event = collateral_events[0]
@@ -80,8 +81,9 @@ def test_collateral_enables_settlement_of_queued_transactions():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000, "policy": {"type": "Fifo"}},
+                "credit_limit": 20000,
                 "collateral_haircut": 0.95,
+                "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
@@ -116,7 +118,7 @@ def test_collateral_enables_settlement_of_queued_transactions():
 
     # Check that it was a queue release (not RTGS immediate)
     all_events = orch.get_all_events()
-    queue_releases = [e for e in all_events if e.get('event_type') == 'queue2_liquidity_release']
+    queue_releases = [e for e in all_events if e.get('event_type') == 'Queue2LiquidityRelease']
     assert any(e.get('tx_id') == 'tx1' for e in queue_releases)
 
 
@@ -130,8 +132,9 @@ def test_collateral_minimum_holding_period_prevents_immediate_withdrawal():
             {
                 "id": "A",
                 "opening_balance": 100000,
-                "credit_limit": 50000, "policy": {"type": "Fifo"}},
+                "credit_limit": 50000,
                 "collateral_min_holding_ticks": 5,
+                "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
@@ -167,7 +170,7 @@ def test_collateral_minimum_holding_period_prevents_immediate_withdrawal():
 
     # Verify event includes ticks_held
     events = orch.get_tick_events(orch.current_tick())
-    withdraw_events = [e for e in events if e.get('event_type') == 'collateral_withdrawn']
+    withdraw_events = [e for e in events if e.get('event_type') == 'CollateralWithdraw']
     assert len(withdraw_events) == 1
     assert withdraw_events[0]['ticks_held'] == 5
 
@@ -207,7 +210,7 @@ def test_collateral_policy_hysteresis_posting_threshold():
 
     # Check that collateral was NOT auto-posted (gap too small)
     events = orch.get_tick_events(orch.current_tick())
-    collateral_events = [e for e in events if e.get('event_type') == 'collateral_posted']
+    collateral_events = [e for e in events if e.get('event_type') == 'CollateralPost']
     assert len(collateral_events) == 0, "Collateral should not be posted for small gap"
 
     # Now create larger queue (gap above threshold)
@@ -224,7 +227,7 @@ def test_collateral_policy_hysteresis_posting_threshold():
 
     # Check that collateral WAS auto-posted (gap large enough)
     events = orch.get_tick_events(orch.current_tick())
-    collateral_events = [e for e in events if e.get('event_type') == 'collateral_posted']
+    collateral_events = [e for e in events if e.get('event_type') == 'CollateralPost']
     # May or may not post depending on policy implementation
     # This test verifies hysteresis logic exists
 
@@ -306,8 +309,8 @@ def test_no_collateral_oscillation_under_sustained_pressure():
 
     # Count collateral events
     all_events = orch.get_all_events()
-    posted_events = [e for e in all_events if e.get('event_type') == 'collateral_posted']
-    withdrawn_events = [e for e in all_events if e.get('event_type') == 'collateral_withdrawn']
+    posted_events = [e for e in all_events if e.get('event_type') == 'CollateralPost']
+    withdrawn_events = [e for e in all_events if e.get('event_type') == 'CollateralWithdraw']
 
     # Should post at most a few times (not every tick)
     assert len(posted_events) <= 4, f"Too many collateral postings: {len(posted_events)} in 20 ticks"
@@ -348,7 +351,7 @@ def test_collateral_events_have_specific_reasons_not_vague():
 
     # Check event has specific reason (not vague)
     events = orch.get_tick_events(orch.current_tick())
-    collateral_events = [e for e in events if e.get('event_type') == 'collateral_posted']
+    collateral_events = [e for e in events if e.get('event_type') == 'CollateralPost']
 
     if len(collateral_events) > 0:
         event = collateral_events[0]
@@ -374,8 +377,9 @@ def test_collateral_withdrawal_reason_is_specific():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000, "policy": {"type": "Fifo"}},
+                "credit_limit": 20000,
                 "collateral_min_holding_ticks": 1,
+                "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
@@ -391,7 +395,7 @@ def test_collateral_withdrawal_reason_is_specific():
 
     # Check event reason
     events = orch.get_tick_events(orch.current_tick())
-    withdraw_events = [e for e in events if e.get('event_type') == 'collateral_withdrawn']
+    withdraw_events = [e for e in events if e.get('event_type') == 'CollateralWithdraw']
 
     if len(withdraw_events) > 0:
         event = withdraw_events[0]
@@ -412,8 +416,9 @@ def test_available_liquidity_calculation_includes_collateral():
             {
                 "id": "A",
                 "opening_balance": 20000,
-                "credit_limit": 50000, "policy": {"type": "Fifo"}},
+                "credit_limit": 50000,
                 "collateral_haircut": 0.90,
+                "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
