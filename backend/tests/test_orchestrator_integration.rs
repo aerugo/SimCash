@@ -25,6 +25,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -36,6 +37,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 },
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -321,6 +323,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -329,6 +332,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
                 policy: PolicyConfig::Fifo, // Use FIFO to ensure submission
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -543,6 +547,7 @@ fn test_orchestrator_automatic_arrivals() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -551,6 +556,7 @@ fn test_orchestrator_automatic_arrivals() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -600,6 +606,7 @@ fn test_orchestrator_arrival_determinism() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -608,6 +615,7 @@ fn test_orchestrator_arrival_determinism() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None, // No arrivals for BANK_B
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -668,6 +676,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -676,6 +685,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -684,6 +694,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -761,6 +772,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -769,6 +781,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),

@@ -22,6 +22,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
             policy: PolicyConfig::Fifo, // Should load from policies/fifo.json
             arrival_config: None,
             posted_collateral: None,
+                    collateral_haircut: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -59,6 +60,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
             },
             arrival_config: None,
             posted_collateral: None,
+                    collateral_haircut: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -99,6 +101,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
             },
             arrival_config: None,
             posted_collateral: None,
+                    collateral_haircut: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -140,6 +143,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
             },
             arrival_config: None,
             posted_collateral: None,
+                    collateral_haircut: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -195,6 +199,7 @@ fn test_multi_agent_different_json_policies() {
                 policy: PolicyConfig::Fifo, // FIFO from JSON
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -205,6 +210,7 @@ fn test_multi_agent_different_json_policies() {
                 }, // Deadline from JSON
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -216,6 +222,7 @@ fn test_multi_agent_different_json_policies() {
                 }, // LiquidityAware from JSON
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -251,6 +258,7 @@ fn test_determinism_with_json_policies() {
             },
             arrival_config: None,
             posted_collateral: None,
+                    collateral_haircut: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
