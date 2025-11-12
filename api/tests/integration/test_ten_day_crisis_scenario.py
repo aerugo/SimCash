@@ -1,7 +1,7 @@
 """
-Integration test for ten_day_crisis_scenario.yaml.
+Integration test for three_day_realistic_crisis_scenario.yaml.
 
-This test verifies that the full 10-day crisis scenario runs successfully
+This test verifies that the 3-day realistic crisis scenario runs successfully
 with all scenario event types (GlobalArrivalRateChange, AgentArrivalRateChange,
 CounterpartyWeightChange, DeadlineWindowChange, CollateralAdjustment, CustomTransactionArrival).
 """
@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from payment_simulator._core import Orchestrator
 
 
@@ -27,9 +26,12 @@ def load_policy_json(json_path: str) -> str:
     return json.dumps(policy_data)
 
 
-def load_ten_day_crisis_config():
-    """Load and prepare the ten_day_crisis_scenario.yaml config."""
-    config_file = Path(__file__).parent.parent.parent.parent / "examples/configs/ten_day_crisis_scenario.yaml"
+def load_three_day_realistic_crisis_config():
+    """Load and prepare the three_day_realistic_crisis_scenario.yaml config."""
+    config_file = (
+        Path(__file__).parent.parent.parent.parent
+        / "examples/configs/three_day_realistic_crisis_scenario.yaml"
+    )
 
     if not config_file.exists():
         pytest.skip(f"Config file not found: {config_file}. This test requires example config files.")
@@ -39,7 +41,10 @@ def load_ten_day_crisis_config():
 
     # Load and embed policy JSON files
     for agent_config in config["agents"]:
-        if "policy" in agent_config and agent_config["policy"].get("type") == "FromJson":
+        if (
+            "policy" in agent_config
+            and agent_config["policy"].get("type") == "FromJson"
+        ):
             json_path = agent_config["policy"].get("json_path")
             if json_path:
                 agent_config["policy"]["json"] = load_policy_json(json_path)
@@ -68,9 +73,9 @@ def load_ten_day_crisis_config():
     return flat_config
 
 
-def test_ten_day_crisis_scenario_loads():
+def test_three_day_realistic_crisis_scenario_loads():
     """Test that the scenario config loads without errors."""
-    config = load_ten_day_crisis_config()
+    config = load_three_day_realistic_crisis_config()
 
     assert config["ticks_per_day"] == 50
     assert config["num_days"] == 10
@@ -78,9 +83,9 @@ def test_ten_day_crisis_scenario_loads():
     assert len(config["scenario_events"]) >= 40
 
 
-def test_ten_day_crisis_scenario_runs_full_simulation():
+def test_three_day_realistic_crisis_scenario_runs_full_simulation():
     """Test that the full 500-tick simulation completes successfully."""
-    config = load_ten_day_crisis_config()
+    config = load_three_day_realistic_crisis_config()
 
     # Create orchestrator
     orch = Orchestrator.new(config)
@@ -97,9 +102,9 @@ def test_ten_day_crisis_scenario_runs_full_simulation():
     assert len(events) > 0
 
 
-def test_ten_day_crisis_scenario_executes_all_event_types():
+def test_three_day_realistic_crisis_scenario_executes_all_event_types():
     """Test that all scenario event types are executed."""
-    config = load_ten_day_crisis_config()
+    config = load_three_day_realistic_crisis_config()
 
     orch = Orchestrator.new(config)
 
@@ -109,7 +114,9 @@ def test_ten_day_crisis_scenario_executes_all_event_types():
 
     # Get all scenario events
     events = orch.get_all_events()
-    scenario_events = [e for e in events if e.get("event_type") == "ScenarioEventExecuted"]
+    scenario_events = [
+        e for e in events if e.get("event_type") == "ScenarioEventExecuted"
+    ]
 
     # Count by type
     event_types = {}
@@ -128,14 +135,16 @@ def test_ten_day_crisis_scenario_executes_all_event_types():
     ]
 
     for expected_type in expected_types:
-        assert expected_type in event_types, f"Missing scenario event type: {expected_type}"
+        assert (
+            expected_type in event_types
+        ), f"Missing scenario event type: {expected_type}"
         assert event_types[expected_type] > 0, f"No {expected_type} events executed"
 
 
-def test_ten_day_crisis_scenario_event_counts():
+def test_three_day_realistic_crisis_scenario_event_counts():
     """Test that the expected number of scenario events are executed."""
     pytest.skip("Test expects 48 events but only 44 are generated. Requires investigation of scenario event execution logic.")
-    config = load_ten_day_crisis_config()
+    config = load_three_day_realistic_crisis_config()
 
     orch = Orchestrator.new(config)
 
@@ -145,17 +154,21 @@ def test_ten_day_crisis_scenario_event_counts():
 
     # Get all scenario events
     events = orch.get_all_events()
-    scenario_events = [e for e in events if e.get("event_type") == "ScenarioEventExecuted"]
+    scenario_events = [
+        e for e in events if e.get("event_type") == "ScenarioEventExecuted"
+    ]
 
     # According to the scenario file, there should be 48 scenario events total
     # (10 CustomTransactionArrival + 10 CollateralAdjustment + 9 GlobalArrivalRateChange +
     #  3 AgentArrivalRateChange + 12 CounterpartyWeightChange + 4 DeadlineWindowChange)
-    assert len(scenario_events) == 48, f"Expected 48 scenario events, got {len(scenario_events)}"
+    assert (
+        len(scenario_events) == 48
+    ), f"Expected 48 scenario events, got {len(scenario_events)}"
 
 
-def test_ten_day_crisis_scenario_crisis_days_have_events():
+def test_three_day_realistic_crisis_scenario_crisis_days_have_events():
     """Test that the crisis days (3-10) have scenario events."""
-    config = load_ten_day_crisis_config()
+    config = load_three_day_realistic_crisis_config()
 
     orch = Orchestrator.new(config)
 
@@ -165,7 +178,9 @@ def test_ten_day_crisis_scenario_crisis_days_have_events():
 
     # Get all scenario events
     events = orch.get_all_events()
-    scenario_events = [e for e in events if e.get("event_type") == "ScenarioEventExecuted"]
+    scenario_events = [
+        e for e in events if e.get("event_type") == "ScenarioEventExecuted"
+    ]
 
     # Group by day
     events_by_day = {}
