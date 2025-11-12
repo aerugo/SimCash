@@ -181,6 +181,8 @@ impl Agent {
             last_decision_tick: None,
             liquidity_buffer,
             posted_collateral: 0, // Default: no collateral posted
+            collateral_haircut: 0.95, // Default: 95% haircut
+            collateral_posted_at_tick: None, // Not yet posted
         }
     }
 
@@ -224,6 +226,8 @@ impl Agent {
         last_decision_tick: Option<usize>,
         liquidity_buffer: i64,
         posted_collateral: i64,
+        collateral_haircut: f64,
+        collateral_posted_at_tick: Option<usize>,
     ) -> Self {
         Self {
             id,
@@ -234,6 +238,8 @@ impl Agent {
             last_decision_tick,
             liquidity_buffer,
             posted_collateral,
+            collateral_haircut,
+            collateral_posted_at_tick,
         }
     }
 
@@ -431,30 +437,6 @@ impl Agent {
     /// ```
     pub fn is_using_credit(&self) -> bool {
         self.balance < 0
-    }
-
-    /// Get amount of credit currently being used
-    ///
-    /// # Returns
-    /// - 0 if balance >= 0
-    /// - abs(balance) if balance < 0
-    ///
-    /// # Example
-    /// ```
-    /// use payment_simulator_core_rs::Agent;
-    ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
-    /// assert_eq!(agent.credit_used(), 0);
-    ///
-    /// agent.debit(1200000).unwrap();
-    /// assert_eq!(agent.credit_used(), 200000);
-    /// ```
-    pub fn credit_used(&self) -> i64 {
-        if self.balance < 0 {
-            self.balance.abs()
-        } else {
-            0
-        }
     }
 
     // =========================================================================

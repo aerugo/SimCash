@@ -537,6 +537,8 @@ impl SimulationState {
                 agent.last_decision_tick(),
                 agent.liquidity_buffer(),
                 agent.posted_collateral(),
+                agent.collateral_haircut(),
+                agent.collateral_posted_at_tick(),
             );
             *agent = new_agent;
         } else {

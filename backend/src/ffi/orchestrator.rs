@@ -272,12 +272,31 @@ impl PyOrchestrator {
         }
 
         let current_tick = self.inner.current_tick();
-        let state = self.inner.state_mut();
 
-        match state.get_agent_mut(agent_id) {
-            Some(agent) => {
-                agent.set_posted_collateral(agent.posted_collateral() + amount);
-                agent.set_collateral_posted_at_tick(current_tick);
+        // Update agent state and get new total (scope to drop mutable borrow)
+        let new_total = {
+            let state = self.inner.state_mut();
+            match state.get_agent_mut(agent_id) {
+                Some(agent) => {
+                    let new_total = agent.posted_collateral() + amount;
+                    agent.set_posted_collateral(new_total);
+                    agent.set_collateral_posted_at_tick(current_tick);
+                    Some(new_total)
+                }
+                None => None,
+            }
+        }; // Mutable borrow of state dropped here
+
+        match new_total {
+            Some(new_total) => {
+                // Log event
+                self.inner.log_event(crate::models::Event::CollateralPost {
+                    tick: current_tick,
+                    agent_id: agent_id.to_string(),
+                    amount,
+                    reason: "ManualPost".to_string(),
+                    new_total,
+                });
 
                 dict.set_item("success", true)?;
                 dict.set_item("message", format!("Posted {} cents collateral at tick {}", amount, current_tick))?;
@@ -324,48 +343,66 @@ impl PyOrchestrator {
         }
 
         let current_tick = self.inner.current_tick();
-        let state = self.inner.state_mut();
 
-        match state.get_agent_mut(agent_id) {
-            Some(agent) => {
-                // Check minimum holding period
-                if !agent.can_withdraw_collateral(current_tick, MIN_HOLDING_TICKS) {
-                    dict.set_item("success", false)?;
-                    let posted_at = agent.collateral_posted_at_tick().unwrap_or(0);
-                    let ticks_remaining = (posted_at + MIN_HOLDING_TICKS).saturating_sub(current_tick);
-                    dict.set_item("message", format!(
-                        "Minimum holding period not met. {} tick(s) remaining",
-                        ticks_remaining
-                    ))?;
-                    return Ok(dict.into());
+        // Validate and update agent state (scope to drop mutable borrow)
+        let withdrawal_result: Result<i64, String> = {
+            let state = self.inner.state_mut();
+            match state.get_agent_mut(agent_id) {
+                Some(agent) => {
+                    // Check minimum holding period
+                    if !agent.can_withdraw_collateral(current_tick, MIN_HOLDING_TICKS) {
+                        let posted_at = agent.collateral_posted_at_tick().unwrap_or(0);
+                        let ticks_remaining = (posted_at + MIN_HOLDING_TICKS).saturating_sub(current_tick);
+                        Err(format!(
+                            "Minimum holding period not met. {} tick(s) remaining",
+                            ticks_remaining
+                        ))
+                    } else {
+                        // Check sufficient collateral
+                        let current_collateral = agent.posted_collateral();
+                        if amount > current_collateral {
+                            Err(format!(
+                                "Insufficient collateral: requested {}, available {}",
+                                amount, current_collateral
+                            ))
+                        } else {
+                            // Withdraw collateral
+                            let new_total = current_collateral - amount;
+                            agent.set_posted_collateral(new_total);
+
+                            // Clear posted_at_tick if all collateral withdrawn
+                            if new_total == 0 {
+                                agent.set_collateral_posted_at_tick(0);
+                            }
+
+                            Ok(new_total)
+                        }
+                    }
                 }
-
-                // Check sufficient collateral
-                let current_collateral = agent.posted_collateral();
-                if amount > current_collateral {
-                    dict.set_item("success", false)?;
-                    dict.set_item("message", format!(
-                        "Insufficient collateral: requested {}, available {}",
-                        amount, current_collateral
-                    ))?;
-                    return Ok(dict.into());
+                None => {
+                    Err(format!("Agent '{}' not found", agent_id))
                 }
+            }
+        }; // Mutable borrow of state dropped here
 
-                // Withdraw collateral
-                agent.set_posted_collateral(current_collateral - amount);
-
-                // Clear posted_at_tick if all collateral withdrawn
-                if agent.posted_collateral() == 0 {
-                    agent.set_collateral_posted_at_tick(0); // Reset (will be set to None implicitly)
-                }
+        match withdrawal_result {
+            Ok(new_total) => {
+                // Log event
+                self.inner.log_event(crate::models::Event::CollateralWithdraw {
+                    tick: current_tick,
+                    agent_id: agent_id.to_string(),
+                    amount,
+                    reason: "ManualWithdraw".to_string(),
+                    new_total,
+                });
 
                 dict.set_item("success", true)?;
                 dict.set_item("message", format!("Withdrew {} cents collateral", amount))?;
                 Ok(dict.into())
             }
-            None => {
+            Err(err_msg) => {
                 dict.set_item("success", false)?;
-                dict.set_item("message", format!("Agent '{}' not found", agent_id))?;
+                dict.set_item("message", err_msg)?;
                 Ok(dict.into())
             }
         }

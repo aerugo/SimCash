@@ -68,7 +68,8 @@ def test_posted_collateral_increases_available_liquidity():
     event = collateral_events[0]
     assert event['agent_id'] == "A"
     assert event['amount'] == 100000
-    assert event['headroom_increase'] == 95000  # 100000 * 0.95
+    assert event['new_total'] == 100000  # Total collateral posted
+    assert event['reason'] == "ManualPost"  # Manual operation via FFI
 
 
 def test_collateral_enables_settlement_of_queued_transactions():
@@ -185,7 +186,8 @@ def test_collateral_policy_hysteresis_posting_threshold():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000, "policy": {"type": "Fifo"}},
+                "credit_limit": 20000,
+                "policy": {"type": "Fifo"},
                 "collateral_policy": {
                     "posting_threshold_pct": 0.10,  # Only post if gap > 10% of queue value
                     "min_holding_ticks": 5,
@@ -242,7 +244,8 @@ def test_collateral_policy_hysteresis_withdrawal_threshold():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000, "policy": {"type": "Fifo"}},
+                "credit_limit": 20000,
+                "policy": {"type": "Fifo"},
                 "collateral_policy": {
                     "withdrawal_threshold_pct": 0.20,  # Only withdraw if excess > 20% of queue
                     "min_holding_ticks": 1,  # Short for testing
@@ -285,7 +288,8 @@ def test_no_collateral_oscillation_under_sustained_pressure():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000, "policy": {"type": "Fifo"}},
+                "credit_limit": 20000,
+                "policy": {"type": "Fifo"},
                 "collateral_policy": {
                     "min_holding_ticks": 5,
                     "posting_threshold_pct": 0.10,
@@ -329,7 +333,8 @@ def test_collateral_events_have_specific_reasons_not_vague():
             {
                 "id": "A",
                 "opening_balance": 5000,
-                "credit_limit": 10000, "policy": {"type": "Fifo"}},
+                "credit_limit": 10000,
+                "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
