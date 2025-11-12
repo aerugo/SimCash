@@ -207,12 +207,17 @@ class TestUnifiedLogAgentState:
         assert "overdraft" in output.lower()
 
     def test_log_agent_state_with_credit_utilization(self):
-        """Should display credit utilization percentage."""
+        """Should display credit utilization percentage.
+
+        Credit utilization = amount of credit line currently borrowed.
+        - If balance is positive: no credit used (0%)
+        - If balance is negative: credit used = |balance| / credit_limit
+        """
         mock_data = {
             "tx_cache": {},
             "agent_states": {
                 "BANK_A": {
-                    "balance": 200000,  # Used 300K of 500K credit
+                    "balance": -300000,  # Using 300K of 500K credit line
                     "credit_limit": 500000,
                     "collateral_posted": 0,
                     "liquidity_cost": 0,
@@ -240,7 +245,8 @@ class TestUnifiedLogAgentState:
 
         output = self.capture_stderr(output_func)
         assert "Credit:" in output
-        assert "60%" in output  # (500000-200000)/500000 = 60%
+        assert "60%" in output  # 300000 / 500000 = 60% credit utilization
+        assert "overdraft" in output.lower()  # Balance is negative
 
     def test_log_agent_state_with_queue_contents(self):
         """Should display queue contents with transaction details."""

@@ -116,6 +116,10 @@ scenario_events:
                 if "performance" in data:
                     data.pop("performance", None)
 
+                # Normalize numeric types (int 0 -> float 0.0 for settlement_rate)
+                if "metrics" in data and "settlement_rate" in data["metrics"]:
+                    data["metrics"]["settlement_rate"] = float(data["metrics"]["settlement_rate"])
+
                 return json.dumps(data, indent=2, sort_keys=True)
             except json.JSONDecodeError:
                 return text
@@ -247,6 +251,9 @@ scenario_events:
                     data["simulation"].pop("ticks_per_second", None)
                 if "performance" in data:
                     data.pop("performance", None)
+                # Normalize numeric types (int 0 -> float 0.0 for settlement_rate)
+                if "metrics" in data and "settlement_rate" in data["metrics"]:
+                    data["metrics"]["settlement_rate"] = float(data["metrics"]["settlement_rate"])
                 return json.dumps(data, indent=2, sort_keys=True)
             except json.JSONDecodeError:
                 return text
@@ -363,6 +370,9 @@ scenario_events:
                     data["simulation"].pop("ticks_per_second", None)
                 if "performance" in data:
                     data.pop("performance", None)
+                # Normalize numeric types (int 0 -> float 0.0 for settlement_rate)
+                if "metrics" in data and "settlement_rate" in data["metrics"]:
+                    data["metrics"]["settlement_rate"] = float(data["metrics"]["settlement_rate"])
                 return json.dumps(data, indent=2, sort_keys=True)
             except json.JSONDecodeError:
                 return text

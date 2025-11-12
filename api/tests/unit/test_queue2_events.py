@@ -62,11 +62,11 @@ def test_queue2_settlement_generates_distinct_event():
         divisible=False,
     )
 
-    # Tick 1: Transaction should queue in Queue-2 (insufficient liquidity)
+    # Tick 0: Transaction should queue in Queue-2 (insufficient liquidity)
     orch.tick()
 
-    tick1_events = orch.get_tick_events(1)
-    queued_events = [e for e in tick1_events if e.get("event_type") == "queued_rtgs"]
+    tick0_events = orch.get_tick_events(0)
+    queued_events = [e for e in tick0_events if e.get("event_type") == "QueuedRtgs"]
     assert len(queued_events) == 1, "Transaction should be queued in Queue-2"
     assert queued_events[0]["tx_id"] == tx_id
 
@@ -74,25 +74,28 @@ def test_queue2_settlement_generates_distinct_event():
     rtgs_queue = orch.get_rtgs_queue_contents()
     assert tx_id in rtgs_queue, f"TX {tx_id} should be in RTGS queue"
 
-    # Add liquidity to BANK_A
-    orch.inject_direct_transfer({
-        "sender": "BANK_B",
-        "receiver": "BANK_A",
-        "amount": 50000,  # Give BANK_A enough to settle
-    })
+    # Add liquidity to BANK_A by submitting a transaction from BANK_B
+    orch.submit_transaction(
+        sender="BANK_B",
+        receiver="BANK_A",
+        amount=50000,  # Give BANK_A enough to settle
+        deadline_tick=50,
+        priority=10,  # High priority to settle immediately
+        divisible=False,
+    )
 
-    # Tick 2: Transaction should settle from Queue-2
+    # Tick 1: Transaction should settle from Queue-2
     orch.tick()
 
-    tick2_events = orch.get_tick_events(2)
+    tick1_events = orch.get_tick_events(1)
 
     # ASSERTION: Expect distinct RtgsQueue2Settle event (not generic Settlement)
-    queue2_settle_events = [e for e in tick2_events if e.get("event_type") == "rtgs_queue2_settle"]
+    queue2_settle_events = [e for e in tick1_events if e.get("event_type") == "RtgsQueue2Settle"]
 
     assert len(queue2_settle_events) == 1, (
         f"Expected 1 rtgs_queue2_settle event for Queue-2 settlement, "
         f"but got {len(queue2_settle_events)}. "
-        f"Available events: {[e.get('event_type') for e in tick2_events]}"
+        f"Available events: {[e.get('event_type') for e in tick1_events]}"
     )
 
     settle_event = queue2_settle_events[0]
@@ -179,10 +182,10 @@ def test_settlement_event_still_emitted():
         divisible=False,
     )
 
-    orch.tick()  # Tick 1: Queue
+    orch.tick()  # Tick 0: Queue
 
     # Transfer funds to BANK_A to enable settlement
-    # Note: inject_direct_transfer may not exist, skip for now and see if test still works
+    # The transaction settles in the same tick as it arrives and then triggers queue processing
     orch.submit_transaction(
         sender="BANK_B",
         receiver="BANK_A",
@@ -191,15 +194,13 @@ def test_settlement_event_still_emitted():
         priority=5,
         divisible=False,
     )
-    orch.tick()  # Process the transfer
+    orch.tick()  # Tick 1: Process transfer and settle queued transaction
 
-    orch.tick()  # Tick 2: Settle
-
-    tick2_events = orch.get_tick_events(2)
+    tick1_events = orch.get_tick_events(1)
 
     # Should have BOTH events
-    settlement_events = [e for e in tick2_events if e.get("event_type") == "settlement"]
-    queue2_settle_events = [e for e in tick2_events if e.get("event_type") == "rtgs_queue2_settle"]
+    settlement_events = [e for e in tick1_events if e.get("event_type") == "Settlement"]
+    queue2_settle_events = [e for e in tick1_events if e.get("event_type") == "RtgsQueue2Settle"]
 
     assert len(settlement_events) >= 1, "Generic Settlement event should still exist for compatibility"
     assert len(queue2_settle_events) == 1, "RtgsQueue2Settle event should also exist for audit trail"

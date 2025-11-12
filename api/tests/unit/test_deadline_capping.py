@@ -104,6 +104,18 @@ def test_deadline_offset_respects_episode_boundary():
                 "credit_limit": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
+                "arrival_config": {
+                    "rate_per_tick": 3.0,
+                    "amount_distribution": {
+                        "type": "Normal",
+                        "mean": 10000,
+                        "std_dev": 500,
+                    },
+                    "counterparty_weights": {"BANK_B": 1.0},
+                    "deadline_range": [5, 30],  # Add deadline range for arrival generation
+                    "priority": 5,
+                    "divisible": False,
+                },
             },
             {
                 "id": "BANK_B",
@@ -111,19 +123,6 @@ def test_deadline_offset_respects_episode_boundary():
                 "credit_limit": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
-            },
-        ],
-        "arrival_configs": [
-            {
-                "agent_id": "BANK_A",
-                "rate_per_tick": 3.0,
-                "amount_distribution": {
-                    "type": "Normal",
-                    "mean": 10000,
-                    "std_dev": 500,
-                },
-                "counterparty_weights": {"BANK_B": 1.0},
-                "time_window_pattern": {"type": "Uniform"},
             },
         ],
         "cost_model": {
@@ -144,23 +143,26 @@ def test_deadline_offset_respects_episode_boundary():
     episode_end_tick = 2 * 20  # 2 days × 20 ticks/day = 39
 
     # Run entire episode
-    for tick in range(1, episode_end_tick + 1):
+    for tick in range(episode_end_tick):
         orch.tick()
 
-    # Get ALL events across entire episode
-    all_events = orch.get_all_events()
+    # Get all transactions created during the episode
+    all_transactions = []
+    for day in range(2):  # 2 days
+        day_txs = orch.get_transactions_for_day(day)
+        all_transactions.extend(day_txs)
 
-    arrival_events = [e for e in all_events if e.get("event_type") == "arrival"]
-
-    assert len(arrival_events) > 0, "Should have generated arrivals"
+    assert len(all_transactions) > 0, "Should have generated transactions"
 
     # ASSERTION: NONE of the deadlines should exceed episode_end_tick
     invalid_deadlines = [
-        (e["tick"], e["deadline"]) for e in arrival_events if e["deadline"] > episode_end_tick
+        (tx["arrival_tick"], tx["deadline_tick"])
+        for tx in all_transactions
+        if tx["deadline_tick"] > episode_end_tick
     ]
 
     assert len(invalid_deadlines) == 0, (
-        f"Found {len(invalid_deadlines)} arrivals with deadlines beyond episode end ({episode_end_tick}). "
+        f"Found {len(invalid_deadlines)} transactions with deadlines beyond episode end ({episode_end_tick}). "
         f"Examples: {invalid_deadlines[:5]}"
     )
 
@@ -184,6 +186,18 @@ def test_deadlines_reasonable_within_episode():
                 "credit_limit": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
+                "arrival_config": {
+                    "rate_per_tick": 5.0,
+                    "amount_distribution": {
+                        "type": "Normal",
+                        "mean": 10000,
+                        "std_dev": 1000,
+                    },
+                    "counterparty_weights": {"BANK_B": 1.0},
+                    "deadline_range": [10, 50],  # Add deadline range for arrival generation
+                    "priority": 5,
+                    "divisible": False,
+                },
             },
             {
                 "id": "BANK_B",
@@ -191,19 +205,6 @@ def test_deadlines_reasonable_within_episode():
                 "credit_limit": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
-            },
-        ],
-        "arrival_configs": [
-            {
-                "agent_id": "BANK_A",
-                "rate_per_tick": 5.0,
-                "amount_distribution": {
-                    "type": "Normal",
-                    "mean": 10000,
-                    "std_dev": 1000,
-                },
-                "counterparty_weights": {"BANK_B": 1.0},
-                "time_window_pattern": {"type": "Uniform"},
             },
         ],
         "cost_model": {
@@ -222,22 +223,22 @@ def test_deadlines_reasonable_within_episode():
     orch = Orchestrator.new(config)
 
     # Run just first 50 ticks (early in episode)
-    for tick in range(1, 51):
+    for tick in range(50):
         orch.tick()
 
-    all_events = orch.get_all_events()
-    arrival_events = [e for e in all_events if e.get("event_type") == "arrival"]
+    # Get all transactions from day 0
+    all_transactions = orch.get_transactions_for_day(0)
 
-    assert len(arrival_events) > 0, "Should have arrivals"
+    assert len(all_transactions) > 0, "Should have generated transactions"
 
     # Check that NOT ALL deadlines are at episode_end_tick
-    episode_end = 299
-    capped_count = sum(1 for e in arrival_events if e["deadline"] == episode_end)
+    episode_end = 299  # 3 days * 100 ticks/day - 1
+    capped_count = sum(1 for tx in all_transactions if tx["deadline_tick"] == episode_end)
 
-    # Most deadlines should NOT be capped when generated early
-    capped_ratio = capped_count / len(arrival_events)
+    # Most deadlines should NOT be capped when generated early in the episode
+    capped_ratio = capped_count / len(all_transactions)
     assert capped_ratio < 0.1, (
-        f"Too many deadlines capped at episode end: {capped_count}/{len(arrival_events)} = {capped_ratio:.1%}. "
+        f"Too many deadlines capped at episode end: {capped_count}/{len(all_transactions)} = {capped_ratio:.1%}. "
         f"This suggests deadline generation is broken, not just capping."
     )
 

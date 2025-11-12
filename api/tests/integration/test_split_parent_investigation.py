@@ -5,6 +5,7 @@ but not fully settled themselves.
 
 import json
 import yaml
+import pytest
 from pathlib import Path
 from payment_simulator._core import Orchestrator
 
