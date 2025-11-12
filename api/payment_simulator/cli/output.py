@@ -208,10 +208,11 @@ def log_agent_state(provider, agent_id: str, balance_change: int = 0, quiet: boo
         sign = "+" if balance_change > 0 else ""
         change_str = f" ({sign}${balance_change / 100:,.2f})"
 
-    # Credit utilization
+    # Credit utilization (Issue #4 fix)
     credit_str = ""
     if credit_limit and credit_limit > 0:
-        used = max(0, credit_limit - balance)
+        # Credit is only "used" when balance is negative (overdraft)
+        used = max(0, -balance)
         utilization_pct = (used / credit_limit) * 100
 
         if utilization_pct > 80:
@@ -747,12 +748,12 @@ def log_agent_queues_detailed(orch, agent_id, balance, balance_change, quiet=Fal
         sign = "+" if balance_change > 0 else ""
         change_str = f" ({sign}${balance_change / 100:,.2f})"
 
-    # Credit utilization
+    # Credit utilization (Issue #4 fix)
     credit_limit = orch.get_agent_credit_limit(agent_id)
     credit_str = ""
     if credit_limit and credit_limit > 0:
-        # Utilization = (credit_limit - balance) / credit_limit
-        used = max(0, credit_limit - balance)
+        # Credit is only "used" when balance is negative (overdraft)
+        used = max(0, -balance)
         utilization_pct = (used / credit_limit) * 100
 
         if utilization_pct > 80:
