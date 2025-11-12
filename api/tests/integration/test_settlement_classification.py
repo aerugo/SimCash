@@ -72,17 +72,17 @@ def test_queue_release_creates_correct_event():
     tick_released = orch.current_tick()
     orch.tick()  # tx2 settles immediately, tx1 should release from queue
 
-    # Check that queue2_liquidity_release event was created (NOT rtgs_immediate)
-    events_tick2 = orch.get_tick_events(orch.current_tick())
-    queue_release_events = [e for e in events_tick2 if e.get('event_type') == 'Queue2LiquidityRelease']
+    # Check that queue2_liquidity_release event was created at tick_released (NOT rtgs_immediate)
+    events_at_release = orch.get_tick_events(tick_released)
+    queue_release_events = [e for e in events_at_release if e.get('event_type') == 'Queue2LiquidityRelease']
 
     assert len(queue_release_events) >= 1, "Expected at least one queue release event"
 
     # Find tx1 release
-    tx1_release = next((e for e in queue_release_events if e.get('tx_id') == 'tx1'), None)
+    tx1_release = next((e for e in queue_release_events if e.get('tx_id') == tx1), None)
     assert tx1_release is not None, "tx1 should have been released from queue"
 
-    assert tx1_release['tx_id'] == "tx1"
+    assert tx1_release['tx_id'] == tx1
     assert tx1_release['sender'] == "A"
     assert tx1_release['receiver'] == "B"
     assert tx1_release['amount'] == 20000
@@ -116,12 +116,12 @@ def test_queue_release_not_labeled_as_rtgs_immediate():
     all_events = orch.get_all_events()
     rtgs_immediate_events = [e for e in all_events if e.get('event_type') == 'RtgsImmediateSettlement']
 
-    tx_queued_in_rtgs = any(e.get('tx_id') == 'tx_queued' for e in rtgs_immediate_events)
+    tx_queued_in_rtgs = any(e.get('tx_id') == tx_queued for e in rtgs_immediate_events)
     assert not tx_queued_in_rtgs, "Queued transaction must not appear in RTGS immediate events"
 
     # Verify tx_queued IS in queue_release events
     queue_release_events = [e for e in all_events if e.get('event_type') == 'Queue2LiquidityRelease']
-    tx_queued_in_queue = any(e.get('tx_id') == 'tx_queued' for e in queue_release_events)
+    tx_queued_in_queue = any(e.get('tx_id') == tx_queued for e in queue_release_events)
     assert tx_queued_in_queue, "Queued transaction must appear in queue release events"
 
 
@@ -160,9 +160,10 @@ def test_lsm_bilateral_creates_correct_event():
         event = lsm_events[0]
 
         assert set([event['agent_a'], event['agent_b']]) == {'A', 'B'}
-        assert event['net_settled'] == 8000  # min(10000, 8000)
-        assert 'tx_a_to_b' in event
-        assert 'tx_b_to_a' in event
+        assert event['amount_a'] == 10000
+        assert event['amount_b'] == 8000
+        assert 'tx_ids' in event
+        assert len(event['tx_ids']) == 2  # Both transactions in the offset
 
 
 def test_lsm_cycle_creates_correct_event():
@@ -221,13 +222,10 @@ def test_settlement_event_types_are_mutually_exclusive():
 
     # Run several transactions
     for i in range(10):
-        orch.inject_transaction({
-            "id": f"tx{i}",
-            "sender": "A" if i % 2 == 0 else "B",
-            "receiver": "B" if i % 2 == 0 else "A",
-            "amount": 10000 + i * 1000,
-            "priority": 5,
-        })
+        sender = "A" if i % 2 == 0 else "B"
+        receiver = "B" if i % 2 == 0 else "A"
+        amount = 10000 + i * 1000
+        orch.submit_transaction(sender, receiver, amount, orch.current_tick() + 100, 5, False)
         orch.tick()
 
     # Collect all settlement events
