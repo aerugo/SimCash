@@ -11,6 +11,96 @@ use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
 use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, TickResult};
 use crate::settlement::lsm::LsmConfig;
 
+// ========================================================================
+// PyDict Extraction Helpers (DRY Pattern)
+// ========================================================================
+
+/// Extract a required field from a Python dict with clear error messages.
+///
+/// # Arguments
+/// * `dict` - Python dictionary to extract from
+/// * `key` - Field name to extract
+///
+/// # Returns
+/// Extracted value of type T
+///
+/// # Errors
+/// Returns PyValueError if:
+/// - Field is missing
+/// - Type conversion fails
+///
+/// # Example
+/// ```ignore
+/// let value: i64 = extract_required(&py_dict, "balance")?;
+/// ```
+fn extract_required<T>(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<T>
+where
+    for<'py> T: pyo3::FromPyObject<'py, 'py, Error = PyErr>,
+{
+    dict.get_item(key)?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Missing required field '{}'", key))
+        })?
+        .extract()
+}
+
+/// Extract an optional field from a Python dict.
+///
+/// # Arguments
+/// * `dict` - Python dictionary to extract from
+/// * `key` - Field name to extract
+///
+/// # Returns
+/// `Some(value)` if field exists, `None` if missing
+///
+/// # Errors
+/// Returns error only if type conversion fails (not if field is missing)
+///
+/// # Example
+/// ```ignore
+/// let optional_value: Option<i64> = extract_optional(&py_dict, "collateral")?;
+/// ```
+fn extract_optional<T>(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<T>>
+where
+    for<'py> T: pyo3::FromPyObject<'py, 'py, Error = PyErr>,
+{
+    match dict.get_item(key)? {
+        Some(value) => Ok(Some(value.extract()?)),
+        None => Ok(None),
+    }
+}
+
+/// Extract a field with a default value if missing.
+///
+/// # Arguments
+/// * `dict` - Python dictionary to extract from
+/// * `key` - Field name to extract
+/// * `default` - Default value to use if field is missing
+///
+/// # Returns
+/// Field value if present, otherwise the default
+///
+/// # Errors
+/// Returns error only if type conversion fails (not if field is missing)
+///
+/// # Example
+/// ```ignore
+/// let threshold: f64 = extract_with_default(&py_dict, "threshold", 0.8)?;
+/// ```
+fn extract_with_default<T>(dict: &Bound<'_, PyDict>, key: &str, default: T) -> PyResult<T>
+where
+    for<'py> T: pyo3::FromPyObject<'py, 'py, Error = PyErr>,
+{
+    match dict.get_item(key)? {
+        Some(value) => value.extract(),
+        None => Ok(default),
+    }
+}
+
+// ========================================================================
+// Configuration Parsers
+// ========================================================================
+
 /// Convert Python dict to OrchestratorConfig
 ///
 /// # Errors
@@ -20,11 +110,8 @@ use crate::settlement::lsm::LsmConfig;
 /// - Type conversions fail
 /// - Values out of valid range
 pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<OrchestratorConfig> {
-    // Extract required fields with validation
-    let ticks_per_day: usize = py_config
-        .get_item("ticks_per_day")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'ticks_per_day'"))?
-        .extract()?;
+    // Extract required fields using helper
+    let ticks_per_day: usize = extract_required(py_config, "ticks_per_day")?;
 
     if ticks_per_day == 0 {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -32,20 +119,13 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         ));
     }
 
-    let num_days: usize = py_config
-        .get_item("num_days")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'num_days'"))?
-        .extract()?;
-
-    let rng_seed: u64 = py_config
-        .get_item("rng_seed")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'rng_seed'"))?
-        .extract()?;
+    let num_days: usize = extract_required(py_config, "num_days")?;
+    let rng_seed: u64 = extract_required(py_config, "rng_seed")?;
 
     // Parse agent configs
     let py_agents: Bound<'_, PyList> = py_config
         .get_item("agent_configs")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'agent_configs'"))?
+        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing required field 'agent_configs'"))?
         .downcast_into()?;
 
     let mut agent_configs = Vec::new();
@@ -54,7 +134,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         agent_configs.push(parse_agent_config(&agent_dict)?);
     }
 
-    // Parse optional cost rates (use defaults if not provided)
+    // Parse optional fields with defaults using helper
     let cost_rates = if let Some(py_costs) = py_config.get_item("cost_rates")? {
         let costs_dict: Bound<'_, PyDict> = py_costs.downcast_into()?;
         parse_cost_rates(&costs_dict)?
@@ -62,7 +142,6 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         CostRates::default()
     };
 
-    // Parse optional LSM config (use defaults if not provided)
     let lsm_config = if let Some(py_lsm) = py_config.get_item("lsm_config")? {
         let lsm_dict: Bound<'_, PyDict> = py_lsm.downcast_into()?;
         parse_lsm_config(&lsm_dict)?
@@ -70,14 +149,10 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         LsmConfig::default()
     };
 
-    // Parse optional EOD rush threshold (default to 0.8 if not provided)
-    let eod_rush_threshold = if let Some(py_threshold) = py_config.get_item("eod_rush_threshold")? {
-        py_threshold.extract()?
-    } else {
-        0.8
-    };
+    // Simple optional fields use extract_with_default
+    let eod_rush_threshold: f64 = extract_with_default(py_config, "eod_rush_threshold", 0.8)?;
 
-    // Parse optional scenario_events (default to None if not provided)
+    // Optional complex fields use extract_optional
     let scenario_events = if let Some(py_events) = py_config.get_item("scenario_events")? {
         let events_list: Bound<'_, PyList> = py_events.downcast_into()?;
         Some(parse_scenario_events(&events_list)?)
@@ -99,29 +174,16 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
 
 /// Convert Python dict to AgentConfig
 fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
-    let id: String = py_agent
-        .get_item("id")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'id'"))?
-        .extract()?;
-
-    let opening_balance: i64 = py_agent
-        .get_item("opening_balance")?
-        .ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'opening_balance'")
-        })?
-        .extract()?;
-
-    let credit_limit: i64 = py_agent
-        .get_item("credit_limit")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'credit_limit'"))?
-        .extract()?;
+    // Extract required fields using helper
+    let id: String = extract_required(py_agent, "id")?;
+    let opening_balance: i64 = extract_required(py_agent, "opening_balance")?;
+    let credit_limit: i64 = extract_required(py_agent, "credit_limit")?;
 
     // Parse policy config
     let py_policy: Bound<'_, PyDict> = py_agent
         .get_item("policy")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'policy'"))?
+        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing required field 'policy'"))?
         .downcast_into()?;
-
     let policy = parse_policy_config(&py_policy)?;
 
     // Parse optional arrival config
@@ -132,12 +194,8 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         None
     };
 
-    // Parse optional collateral_haircut (default: 0.95)
-    let collateral_haircut = if let Some(haircut) = py_agent.get_item("collateral_haircut")? {
-        Some(haircut.extract::<f64>()?)
-    } else {
-        None
-    };
+    // Parse optional collateral_haircut using helper
+    let collateral_haircut: Option<f64> = extract_optional(py_agent, "collateral_haircut")?;
 
     Ok(AgentConfig {
         id,
@@ -152,43 +210,18 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
 
 /// Convert Python dict to PolicyConfig
 fn parse_policy_config(py_policy: &Bound<'_, PyDict>) -> PyResult<PolicyConfig> {
-    let policy_type: String = py_policy
-        .get_item("type")?
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing policy 'type'"))?
-        .extract()?;
+    // Extract policy type using helper
+    let policy_type: String = extract_required(py_policy, "type")?;
 
     match policy_type.as_str() {
         "Fifo" => Ok(PolicyConfig::Fifo),
         "Deadline" => {
-            let urgency_threshold: usize = py_policy
-                .get_item("urgency_threshold")?
-                .ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        "Deadline policy requires 'urgency_threshold'",
-                    )
-                })?
-                .extract()?;
-
+            let urgency_threshold: usize = extract_required(py_policy, "urgency_threshold")?;
             Ok(PolicyConfig::Deadline { urgency_threshold })
         }
         "LiquidityAware" => {
-            let target_buffer: i64 = py_policy
-                .get_item("target_buffer")?
-                .ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        "LiquidityAware policy requires 'target_buffer'",
-                    )
-                })?
-                .extract()?;
-
-            let urgency_threshold: usize = py_policy
-                .get_item("urgency_threshold")?
-                .ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        "LiquidityAware policy requires 'urgency_threshold'",
-                    )
-                })?
-                .extract()?;
+            let target_buffer: i64 = extract_required(py_policy, "target_buffer")?;
+            let urgency_threshold: usize = extract_required(py_policy, "urgency_threshold")?;
 
             Ok(PolicyConfig::LiquidityAware {
                 target_buffer,
@@ -196,23 +229,8 @@ fn parse_policy_config(py_policy: &Bound<'_, PyDict>) -> PyResult<PolicyConfig> 
             })
         }
         "LiquiditySplitting" => {
-            let max_splits: usize = py_policy
-                .get_item("max_splits")?
-                .ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        "LiquiditySplitting policy requires 'max_splits'",
-                    )
-                })?
-                .extract()?;
-
-            let min_split_amount: i64 = py_policy
-                .get_item("min_split_amount")?
-                .ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        "LiquiditySplitting policy requires 'min_split_amount'",
-                    )
-                })?
-                .extract()?;
+            let max_splits: usize = extract_required(py_policy, "max_splits")?;
+            let min_split_amount: i64 = extract_required(py_policy, "min_split_amount")?;
 
             Ok(PolicyConfig::LiquiditySplitting {
                 max_splits,
@@ -220,15 +238,7 @@ fn parse_policy_config(py_policy: &Bound<'_, PyDict>) -> PyResult<PolicyConfig> 
             })
         }
         "MockSplitting" => {
-            let num_splits: usize = py_policy
-                .get_item("num_splits")?
-                .ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        "MockSplitting policy requires 'num_splits'",
-                    )
-                })?
-                .extract()?;
-
+            let num_splits: usize = extract_required(py_policy, "num_splits")?;
             Ok(PolicyConfig::MockSplitting { num_splits })
         }
         "FromJson" => {
