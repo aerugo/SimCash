@@ -810,7 +810,13 @@ impl Orchestrator {
                 .iter()
                 .map(|ac| ac.id.clone())
                 .collect();
-            Some(ArrivalGenerator::new(arrival_configs_map, all_agent_ids))
+            // Calculate episode end tick for deadline capping (Issue #6 fix)
+            let episode_end_tick = config.num_days * config.ticks_per_day;
+            Some(ArrivalGenerator::new(
+                arrival_configs_map,
+                all_agent_ids,
+                episode_end_tick,
+            ))
         } else {
             None
         };
@@ -2094,9 +2100,12 @@ impl Orchestrator {
                 .iter()
                 .map(|ac| ac.id.clone())
                 .collect();
+            // Calculate episode end tick for deadline capping (Issue #6 fix)
+            let episode_end_tick = config.num_days * config.ticks_per_day;
             Some(crate::arrivals::ArrivalGenerator::new(
                 arrival_configs_map,
                 all_agent_ids,
+                episode_end_tick,
             ))
         } else {
             None
