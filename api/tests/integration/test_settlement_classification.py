@@ -6,17 +6,18 @@ This is critical for replay identity and accurate metrics.
 """
 
 import pytest
-from payment_simulator.backends.orchestrator import Orchestrator
+from payment_simulator._core import Orchestrator
 
 
 def test_rtgs_immediate_creates_correct_event():
     """RTGS immediate settlement creates rtgs_immediate_settlement event."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
         "ticks_per_day": 100,
+        "num_days": 1,
         "agent_configs": [
-            {"id": "A", "opening_balance": 100000, "credit_limit": 0},
-            {"id": "B", "opening_balance": 50000, "credit_limit": 0},
+            {"id": "A", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -49,11 +50,12 @@ def test_rtgs_immediate_creates_correct_event():
 def test_queue_release_creates_correct_event():
     """Queue 2 release creates queue2_liquidity_release event (not rtgs_immediate)."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
-            {"id": "A", "opening_balance": 5000, "credit_limit": 10000},
-            {"id": "B", "opening_balance": 50000, "credit_limit": 0},
+            {"id": "A", "opening_balance": 5000, "credit_limit": 10000, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -107,11 +109,12 @@ def test_queue_release_creates_correct_event():
 def test_queue_release_not_labeled_as_rtgs_immediate():
     """Critical: Queue releases must NOT be labeled as RTGS immediate."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
-            {"id": "A", "opening_balance": 1000, "credit_limit": 5000},
-            {"id": "B", "opening_balance": 50000, "credit_limit": 0},
+            {"id": "A", "opening_balance": 1000, "credit_limit": 5000, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -153,12 +156,13 @@ def test_queue_release_not_labeled_as_rtgs_immediate():
 def test_lsm_bilateral_creates_correct_event():
     """LSM bilateral offset creates lsm_bilateral_offset event."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "lsm_enabled": True,
         "agent_configs": [
-            {"id": "A", "opening_balance": 5000, "credit_limit": 0},
-            {"id": "B", "opening_balance": 5000, "credit_limit": 0},
+            {"id": "A", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -204,13 +208,14 @@ def test_lsm_bilateral_creates_correct_event():
 def test_lsm_cycle_creates_correct_event():
     """LSM cycle (N≥3 agents) creates lsm_cycle_settlement event."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "lsm_enabled": True,
         "agent_configs": [
-            {"id": "A", "opening_balance": 5000, "credit_limit": 0},
-            {"id": "B", "opening_balance": 5000, "credit_limit": 0},
-            {"id": "C", "opening_balance": 5000, "credit_limit": 0},
+            {"id": "A", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "C", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -263,11 +268,12 @@ def test_lsm_cycle_creates_correct_event():
 def test_settlement_event_types_are_mutually_exclusive():
     """A settlement can only be one type: immediate, queue release, or LSM."""
     orch = Orchestrator.new({
-        "seed": 42,
+        "rng_seed": 42,
+        "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
-            {"id": "A", "opening_balance": 100000, "credit_limit": 50000},
-            {"id": "B", "opening_balance": 100000, "credit_limit": 50000},
+            {"id": "A", "opening_balance": 100000, "credit_limit": 50000, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "credit_limit": 50000, "policy": {"type": "Fifo"}},
         ],
     })
 
