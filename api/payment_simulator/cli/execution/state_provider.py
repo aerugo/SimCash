@@ -250,17 +250,38 @@ class DatabaseStateProvider:
         return len(self.get_agent_queue1_contents(agent_id))
 
     def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
-        """Get transactions approaching deadline from cache."""
+        """Get transactions approaching deadline from cache.
+
+        CRITICAL FIX (Issue #12):
+        Only return transactions that are ACTUALLY in Queue-1 or Queue-2 at
+        the current tick. Previously this scanned ALL transactions in cache,
+        showing phantom transactions that had already been submitted or settled.
+        """
         threshold = self.tick + within_ticks
         near_deadline = []
 
+        # Build set of ALL tx_ids currently in Queue-1 or Queue-2
+        queued_tx_ids = set()
+        for agent_id, queues in self._queue_snapshots.items():
+            queued_tx_ids.update(queues.get("queue1", []))
+            queued_tx_ids.update(queues.get("rtgs", []))
+
         for tx_id, tx in self._tx_cache.items():
+            # CRITICAL: Only consider transactions currently in queues
+            if tx_id not in queued_tx_ids:
+                continue
+
             # Skip settled transactions
             if tx.get("status") == "settled":
                 continue
 
-            # Skip if fully settled (check remaining amount)
-            amount_settled = tx.get("amount_settled", 0)
+            # Calculate remaining amount with tick-awareness (Issue #3 fix)
+            # Only count amount_settled if settlement happened BY current tick
+            amount_settled = 0
+            settlement_tick = tx.get("settlement_tick")
+            if settlement_tick is not None and settlement_tick <= self.tick:
+                amount_settled = tx.get("amount_settled", 0)
+
             remaining = tx["amount"] - amount_settled
             if remaining <= 0:
                 continue
