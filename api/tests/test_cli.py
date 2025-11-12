@@ -277,10 +277,11 @@ class TestAIIntegration:
 
         # Use subprocess.Popen to simulate streaming
         proc = subprocess.Popen(
-            ["payment-sim", "run", "--config", str(test_config), "--stream", "--quiet"],
+            ["uv", "run", "payment-sim", "run", "--config", str(test_config), "--stream", "--quiet"],
             stdout=subprocess.PIPE,
             text=True,
             env=env,
+            cwd=api_dir,
         )
 
         # Read first 3 ticks

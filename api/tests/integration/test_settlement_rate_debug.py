@@ -7,6 +7,7 @@ from get_system_metrics() with manual calculations from get_transaction_counts_d
 
 import json
 import yaml
+import pytest
 from pathlib import Path
 from payment_simulator._core import Orchestrator
 
