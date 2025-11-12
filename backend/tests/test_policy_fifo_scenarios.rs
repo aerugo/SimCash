@@ -38,6 +38,7 @@ fn test_fifo_preserves_arrival_order() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -46,6 +47,7 @@ fn test_fifo_preserves_arrival_order() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -107,6 +109,7 @@ fn test_fifo_partial_submission() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -115,6 +118,7 @@ fn test_fifo_partial_submission() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -189,6 +193,7 @@ fn test_fifo_vs_deadline_under_pressure() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             // Deadline agent (for comparison)
             AgentConfig {
@@ -200,6 +205,7 @@ fn test_fifo_vs_deadline_under_pressure() {
                 },
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             // Receiver
             AgentConfig {
@@ -209,6 +215,7 @@ fn test_fifo_vs_deadline_under_pressure() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),

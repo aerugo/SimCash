@@ -632,12 +632,16 @@ def log_settlement_details(provider, events, tick, quiet=False):
     if quiet:
         return
 
-    # Categorize settlements by mechanism
-    settlement_events = [e for e in events if e.get("event_type") == "Settlement"]
+    # Categorize settlements by mechanism (using new specific event types)
+    rtgs_immediate = [e for e in events if e.get("event_type") == "RtgsImmediateSettlement"]
+    queue_releases = [e for e in events if e.get("event_type") == "Queue2LiquidityRelease"]
     lsm_bilateral = [e for e in events if e.get("event_type") == "LsmBilateralOffset"]
     lsm_cycles = [e for e in events if e.get("event_type") == "LsmCycleSettlement"]
 
-    total_settlements = len(settlement_events)
+    # Legacy: Also include old generic Settlement events for backward compatibility
+    legacy_settlements = [e for e in events if e.get("event_type") == "Settlement"]
+
+    total_settlements = len(rtgs_immediate) + len(queue_releases) + len(legacy_settlements)
     if total_settlements == 0 and len(lsm_bilateral) == 0 and len(lsm_cycles) == 0:
         return
 
@@ -647,10 +651,44 @@ def log_settlement_details(provider, events, tick, quiet=False):
     console.print(f"✅ [green]{total} transaction(s) settled:[/green]")
     console.print()
 
-    # RTGS immediate settlements
-    if settlement_events:
-        console.print(f"   [green]RTGS Immediate ({len(settlement_events)}):[/green]")
-        for event in settlement_events:
+    # RTGS immediate settlements (new specific event type)
+    if rtgs_immediate:
+        console.print(f"   [green]RTGS Immediate ({len(rtgs_immediate)}):[/green]")
+        for event in rtgs_immediate:
+            tx_id = event.get("tx_id", "unknown")[:8]
+            sender = event.get("sender", "unknown")
+            receiver = event.get("receiver", "unknown")
+            amount = event.get("amount", 0)
+            balance_before = event.get("sender_balance_before")
+            balance_after = event.get("sender_balance_after")
+
+            # Show basic settlement info
+            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f}")
+
+            # Show balance audit trail if available
+            if balance_before is not None and balance_after is not None:
+                console.print(f"     [dim]Balance: ${balance_before/100:,.2f} → ${balance_after/100:,.2f}[/dim]")
+        console.print()
+
+    # Queue 2 liquidity releases (new specific event type)
+    if queue_releases:
+        console.print(f"   [yellow]Queue 2 Releases ({len(queue_releases)}):[/yellow]")
+        for event in queue_releases:
+            tx_id = event.get("tx_id", "unknown")[:8]
+            sender = event.get("sender", "unknown")
+            receiver = event.get("receiver", "unknown")
+            amount = event.get("amount", 0)
+            wait_ticks = event.get("queue_wait_ticks", 0)
+            reason = event.get("release_reason", "unknown")
+
+            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f}")
+            console.print(f"     [dim]Queued for {wait_ticks} tick(s) | Released: {reason}[/dim]")
+        console.print()
+
+    # Legacy generic Settlement events (deprecated but shown for compatibility)
+    if legacy_settlements:
+        console.print(f"   [dim]Legacy Settlements ({len(legacy_settlements)}):[/dim]")
+        for event in legacy_settlements:
             tx_id = event.get("tx_id", "unknown")[:8]
             sender = event.get("sender_id", "unknown")
             receiver = event.get("receiver_id", "unknown")

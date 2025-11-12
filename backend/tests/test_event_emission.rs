@@ -48,6 +48,7 @@ fn create_test_config() -> OrchestratorConfig {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -59,6 +60,7 @@ fn create_test_config() -> OrchestratorConfig {
                 },
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -687,6 +689,7 @@ fn test_lsm_cycle_settlement_event() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -695,6 +698,7 @@ fn test_lsm_cycle_settlement_event() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -703,6 +707,7 @@ fn test_lsm_cycle_settlement_event() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         cost_rates: CostRates::default(),

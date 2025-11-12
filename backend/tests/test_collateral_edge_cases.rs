@@ -24,6 +24,16 @@ fn create_test_config(
     opening_balance: i64,
     policy_json: &str,
 ) -> OrchestratorConfig {
+    create_test_config_with_haircut(agent_id, credit_limit, opening_balance, policy_json, None)
+}
+
+fn create_test_config_with_haircut(
+    agent_id: &str,
+    credit_limit: i64,
+    opening_balance: i64,
+    policy_json: &str,
+    collateral_haircut: Option<f64>,
+) -> OrchestratorConfig {
     OrchestratorConfig {
         agent_configs: vec![
             AgentConfig {
@@ -35,6 +45,7 @@ fn create_test_config(
                 },
                 arrival_config: None,
                 posted_collateral: None,
+                collateral_haircut,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -43,6 +54,7 @@ fn create_test_config(
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                collateral_haircut: None,
             },
         ],
         ticks_per_day: 100,
@@ -601,6 +613,7 @@ fn test_cross_agent_collateral_isolation() {
                 },
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -609,6 +622,7 @@ fn test_cross_agent_collateral_isolation() {
                 policy: PolicyConfig::Fifo, // No collateral operations
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         ticks_per_day: 100,
@@ -676,10 +690,13 @@ fn test_posting_collateral_enables_transaction_settlement() {
         "end_of_tick_collateral_tree": null
     }"#;
 
-    let config = create_test_config("BANK_A", 10_000, 30_000, policy_json);
+    // Use 100% haircut (1.0) so that posting exactly the gap is sufficient
+    let config = create_test_config_with_haircut("BANK_A", 10_000, 30_000, policy_json, Some(1.0));
     let mut orch = Orchestrator::new(config).unwrap();
 
-    // Submit transaction that exceeds balance but is within balance+credit
+    // Submit transaction that exceeds balance but is within balance+credit+collateral
+    // Balance=10k + Credit=30k = 40k available, transaction=45k, gap=5k
+    // Policy will post 5k collateral, which with 100% haircut provides 5k headroom
     orch.submit_transaction("BANK_A", "BANK_B", 45_000, 100, 5, false)
         .expect("Should submit transaction");
 
@@ -726,6 +743,7 @@ fn test_hold_collateral_action_is_noop() {
                 },
                 arrival_config: None,
                 posted_collateral: Some(20_000), // Start with some posted
+                collateral_haircut: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -734,6 +752,7 @@ fn test_hold_collateral_action_is_noop() {
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
+                    collateral_haircut: None,
             },
         ],
         ticks_per_day: 100,

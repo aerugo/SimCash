@@ -118,7 +118,26 @@ pub enum Event {
         new_total: i64,
     },
 
-    /// Transaction settled via RTGS
+    /// Transaction settled via RTGS (immediate on submission - payer had liquidity)
+    ///
+    /// Emitted when a transaction settles immediately upon submission because the
+    /// sender had sufficient balance + headroom. This is the "fast path" that bypasses
+    /// all queues.
+    RtgsImmediateSettlement {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        receiver: String,
+        amount: i64,
+        sender_balance_before: i64,  // For audit trail
+        sender_balance_after: i64,   // For audit trail
+    },
+
+    /// DEPRECATED: Generic settlement event (replaced by specific types)
+    ///
+    /// Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events instead.
+    /// Kept for backward compatibility with old databases.
+    #[deprecated(note = "Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events")]
     Settlement {
         tick: usize,
         tx_id: String,
@@ -217,17 +236,31 @@ pub enum Event {
         details: serde_json::Value,   // Full event data as JSON
     },
 
-    /// Transaction settled from Queue-2 (RTGS queue)
+    /// Transaction released from Queue-2 due to new liquidity
     ///
-    /// Emitted when a queued transaction settles after liquidity becomes available.
-    /// Provides explicit audit trail for Queue-2 activity (Issue #2 fix).
+    /// Emitted when a queued transaction settles after liquidity becomes available
+    /// (not via LSM). This distinguishes queued-then-settled from immediate settlement.
+    Queue2LiquidityRelease {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        receiver: String,
+        amount: i64,
+        queue_wait_ticks: i64,       // How long it waited in queue
+        release_reason: String,       // "NewLiquidity", "IncomingPayment", "CollateralPosted", etc.
+    },
+
+    /// DEPRECATED: Old name for Queue2LiquidityRelease
+    ///
+    /// Kept for backward compatibility. Use Queue2LiquidityRelease instead.
+    #[deprecated(note = "Use Queue2LiquidityRelease instead")]
     RtgsQueue2Settle {
         tick: usize,
         tx_id: String,
         sender: String,
         receiver: String,
         amount: i64,
-        reason: String,  // "liquidity_restored", "lsm_freed_funds", etc.
+        reason: String,
     },
 }
 
@@ -243,6 +276,8 @@ impl Event {
             Event::TransactionReprioritized { tick, .. } => *tick,
             Event::CollateralPost { tick, .. } => *tick,
             Event::CollateralWithdraw { tick, .. } => *tick,
+            Event::RtgsImmediateSettlement { tick, .. } => *tick,
+            #[allow(deprecated)]
             Event::Settlement { tick, .. } => *tick,
             Event::QueuedRtgs { tick, .. } => *tick,
             Event::LsmBilateralOffset { tick, .. } => *tick,
@@ -252,6 +287,8 @@ impl Event {
             Event::TransactionWentOverdue { tick, .. } => *tick,
             Event::OverdueTransactionSettled { tick, .. } => *tick,
             Event::ScenarioEventExecuted { tick, .. } => *tick,
+            Event::Queue2LiquidityRelease { tick, .. } => *tick,
+            #[allow(deprecated)]
             Event::RtgsQueue2Settle { tick, .. } => *tick,
         }
     }
@@ -267,6 +304,8 @@ impl Event {
             Event::TransactionReprioritized { .. } => "TransactionReprioritized",
             Event::CollateralPost { .. } => "CollateralPost",
             Event::CollateralWithdraw { .. } => "CollateralWithdraw",
+            Event::RtgsImmediateSettlement { .. } => "RtgsImmediateSettlement",
+            #[allow(deprecated)]
             Event::Settlement { .. } => "Settlement",
             Event::QueuedRtgs { .. } => "QueuedRtgs",
             Event::LsmBilateralOffset { .. } => "LsmBilateralOffset",
@@ -276,6 +315,8 @@ impl Event {
             Event::TransactionWentOverdue { .. } => "TransactionWentOverdue",
             Event::OverdueTransactionSettled { .. } => "OverdueTransactionSettled",
             Event::ScenarioEventExecuted { .. } => "ScenarioEventExecuted",
+            Event::Queue2LiquidityRelease { .. } => "Queue2LiquidityRelease",
+            #[allow(deprecated)]
             Event::RtgsQueue2Settle { .. } => "RtgsQueue2Settle",
         }
     }
@@ -289,10 +330,14 @@ impl Event {
             Event::PolicyDrop { tx_id, .. } => Some(tx_id),
             Event::PolicySplit { tx_id, .. } => Some(tx_id),
             Event::TransactionReprioritized { tx_id, .. } => Some(tx_id),
+            Event::RtgsImmediateSettlement { tx_id, .. } => Some(tx_id),
+            #[allow(deprecated)]
             Event::Settlement { tx_id, .. } => Some(tx_id),
             Event::QueuedRtgs { tx_id, .. } => Some(tx_id),
             Event::TransactionWentOverdue { tx_id, .. } => Some(tx_id),
             Event::OverdueTransactionSettled { tx_id, .. } => Some(tx_id),
+            Event::Queue2LiquidityRelease { tx_id, .. } => Some(tx_id),
+            #[allow(deprecated)]
             Event::RtgsQueue2Settle { tx_id, .. } => Some(tx_id),
             _ => None,
         }
@@ -309,11 +354,15 @@ impl Event {
             Event::TransactionReprioritized { agent_id, .. } => Some(agent_id),
             Event::CollateralPost { agent_id, .. } => Some(agent_id),
             Event::CollateralWithdraw { agent_id, .. } => Some(agent_id),
+            Event::RtgsImmediateSettlement { sender, .. } => Some(sender),
+            #[allow(deprecated)]
             Event::Settlement { sender_id, .. } => Some(sender_id),
             Event::QueuedRtgs { sender_id, .. } => Some(sender_id),
             Event::CostAccrual { agent_id, .. } => Some(agent_id),
             Event::TransactionWentOverdue { sender_id, .. } => Some(sender_id),
             Event::OverdueTransactionSettled { sender_id, .. } => Some(sender_id),
+            Event::Queue2LiquidityRelease { sender, .. } => Some(sender),
+            #[allow(deprecated)]
             Event::RtgsQueue2Settle { sender, .. } => Some(sender),
             _ => None,
         }
