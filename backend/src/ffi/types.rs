@@ -132,6 +132,13 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         None
     };
 
+    // Parse optional collateral_haircut (default: 0.95)
+    let collateral_haircut = if let Some(haircut) = py_agent.get_item("collateral_haircut")? {
+        Some(haircut.extract::<f64>()?)
+    } else {
+        None
+    };
+
     Ok(AgentConfig {
         id,
         opening_balance,
@@ -139,6 +146,7 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         policy,
         arrival_config,
         posted_collateral: None, // TODO: Parse from Python config if provided
+        collateral_haircut,
     })
 }
 

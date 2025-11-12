@@ -2187,7 +2187,7 @@ impl Orchestrator {
     // ========================================================================
 
     /// Log an event to the event log
-    fn log_event(&mut self, event: Event) {
+    pub fn log_event(&mut self, event: Event) {
         self.event_log.log(event);
     }
 

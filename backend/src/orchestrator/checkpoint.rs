@@ -60,6 +60,8 @@ pub struct AgentSnapshot {
     pub last_decision_tick: Option<usize>,
     pub liquidity_buffer: i64,
     pub posted_collateral: i64,
+    pub collateral_haircut: f64,
+    pub collateral_posted_at_tick: Option<usize>,
 }
 
 impl From<&Agent> for AgentSnapshot {
@@ -73,6 +75,8 @@ impl From<&Agent> for AgentSnapshot {
             last_decision_tick: agent.last_decision_tick(),
             liquidity_buffer: agent.liquidity_buffer(),
             posted_collateral: agent.posted_collateral(),
+            collateral_haircut: agent.collateral_haircut(),
+            collateral_posted_at_tick: agent.collateral_posted_at_tick(),
         }
     }
 }
@@ -88,6 +92,8 @@ impl From<AgentSnapshot> for Agent {
             snapshot.last_decision_tick,
             snapshot.liquidity_buffer,
             snapshot.posted_collateral,
+            snapshot.collateral_haircut,
+            snapshot.collateral_posted_at_tick,
         )
     }
 }
