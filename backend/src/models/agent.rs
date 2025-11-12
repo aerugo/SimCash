@@ -201,6 +201,8 @@ impl Agent {
     /// * `last_decision_tick` - Last tick policy was evaluated
     /// * `liquidity_buffer` - Target minimum balance
     /// * `posted_collateral` - Amount of collateral posted
+    /// * `collateral_haircut` - Collateral discount factor (0.0 to 1.0)
+    /// * `collateral_posted_at_tick` - Tick when collateral was last posted
     ///
     /// # Example
     /// ```
@@ -215,6 +217,8 @@ impl Agent {
     ///     Some(42),
     ///     100_000,
     ///     0,
+    ///     0.95,
+    ///     None,
     /// );
     /// ```
     pub fn from_snapshot(
@@ -822,8 +826,8 @@ mod tests {
         // Post collateral
         agent.set_posted_collateral(200_000);
 
-        // Now: balance + credit + collateral = 1M + 500k + 200k = 1.7M
-        assert_eq!(agent.available_liquidity(), 1_700_000);
+        // Now: balance + credit + collateral*haircut = 1M + 500k + (200k * 0.95) = 1.69M
+        assert_eq!(agent.available_liquidity(), 1_690_000);
     }
 
     #[test]
@@ -834,10 +838,10 @@ mod tests {
         // Use overdraft
         agent.debit(1_200_000).unwrap();
 
-        // Balance = -200k
-        // Available = -200k + 500k + 200k = 500k
+        // Balance = -200k (credit_used = 200k)
+        // Available = 0 (balance capped) + (500k credit + 190k collateral*haircut - 200k used) = 490k
         assert_eq!(agent.balance(), -200_000);
-        assert_eq!(agent.available_liquidity(), 500_000);
+        assert_eq!(agent.available_liquidity(), 490_000);
     }
 
     #[test]
@@ -953,10 +957,10 @@ mod tests {
         let mut agent = Agent::new("BANK_A".to_string(), 500_000, 300_000);
         agent.set_posted_collateral(400_000);
 
-        // Available: 500k + 300k + 400k = 1.2M
+        // Available: 500k + 300k + (400k * 0.95 haircut) = 500k + 300k + 380k = 1.18M
         assert!(agent.can_pay(1_000_000));
-        assert!(agent.can_pay(1_200_000));
-        assert!(!agent.can_pay(1_300_000)); // Exceeds available
+        assert!(agent.can_pay(1_180_000));
+        assert!(!agent.can_pay(1_200_000)); // Exceeds available (only 1.18M)
     }
 
     #[test]
@@ -970,17 +974,17 @@ mod tests {
         // Post collateral
         agent.set_posted_collateral(300_000);
         assert_eq!(agent.posted_collateral(), 300_000);
-        assert_eq!(agent.available_liquidity(), 1_800_000);
+        assert_eq!(agent.available_liquidity(), 1_785_000); // 1M + 500k + (300k * 0.95)
 
         // Post more
         agent.set_posted_collateral(800_000);
         assert_eq!(agent.posted_collateral(), 800_000);
-        assert_eq!(agent.available_liquidity(), 2_300_000);
+        assert_eq!(agent.available_liquidity(), 2_260_000); // 1M + 500k + (800k * 0.95)
 
         // Withdraw
         agent.set_posted_collateral(200_000);
         assert_eq!(agent.posted_collateral(), 200_000);
-        assert_eq!(agent.available_liquidity(), 1_700_000);
+        assert_eq!(agent.available_liquidity(), 1_690_000); // 1M + 500k + (200k * 0.95)
 
         // Withdraw all
         agent.set_posted_collateral(0);
