@@ -33,6 +33,9 @@ def load_three_day_realistic_crisis_config():
         / "examples/configs/three_day_realistic_crisis_scenario.yaml"
     )
 
+    if not config_file.exists():
+        pytest.skip(f"Config file not found: {config_file}. This test requires example config files.")
+
     with open(config_file, "r") as f:
         config = yaml.safe_load(f)
 

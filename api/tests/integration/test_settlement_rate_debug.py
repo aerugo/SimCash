@@ -16,6 +16,9 @@ def test_settlement_rate_debug():
 
     # Load the problematic scenario configuration
     config_path = Path(__file__).parent.parent.parent.parent / "examples" / "configs" / "5_agent_lsm_collateral_scenario.yaml"
+    if not config_path.exists():
+        pytest.skip(f"Config file not found: {config_path}. This test requires example config files.")
+
     root_dir = Path(__file__).parent.parent.parent.parent
 
     with open(config_path) as f:

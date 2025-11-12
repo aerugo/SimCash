@@ -48,6 +48,10 @@ class TestSimulationRunner:
             "total_cost": 0,
         }
         orch.get_tick_events.return_value = []
+        orch.get_system_metrics.return_value = {
+            "total_arrivals": 0,
+            "total_settlements": 0,
+        }
 
         config = SimulationConfig(
             total_ticks=5,
@@ -81,6 +85,10 @@ class TestSimulationRunner:
             "total_cost": 0,
         }
         orch.get_tick_events.return_value = []
+        orch.get_system_metrics.return_value = {
+            "total_arrivals": 0,
+            "total_settlements": 0,
+        }
 
         config = SimulationConfig(
             total_ticks=20,
@@ -114,6 +122,10 @@ class TestSimulationRunner:
         }
         orch.get_tick_events.return_value = []
         orch.get_agent_policies.return_value = []
+        orch.get_system_metrics.return_value = {
+            "total_arrivals": 0,
+            "total_settlements": 0,
+        }
 
         config = SimulationConfig(
             total_ticks=10,
@@ -144,6 +156,10 @@ class TestSimulationRunner:
             "total_cost": 1000,
         }
         orch.get_tick_events.return_value = []
+        orch.get_system_metrics.return_value = {
+            "total_arrivals": 50,
+            "total_settlements": 40,
+        }
 
         config = SimulationConfig(
             total_ticks=10,
@@ -178,6 +194,10 @@ class TestSimulationRunner:
             {"event_type": "Arrival", "tx_id": "tx1"},
             {"event_type": "Settlement", "tx_id": "tx2"},
         ]
+        orch.get_system_metrics.return_value = {
+            "total_arrivals": 2,
+            "total_settlements": 1,
+        }
 
         event_filter = Mock()
         event_filter.matches.side_effect = [True, False]  # Filter out second event

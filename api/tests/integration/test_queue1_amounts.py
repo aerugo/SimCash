@@ -103,7 +103,8 @@ def test_queue1_display_amounts_match_sum(crisis_db):
     sim_id = row[0]
 
     # Get agent states at tick 250
-    events = get_simulation_events(db_manager, sim_id, tick=250)
+    events_result = get_simulation_events(conn, sim_id, tick=250)
+    events = events_result.get('events', [])
     agent_state_events = [e for e in events if e.get('event_type') == 'agent_state']
 
     if not agent_state_events:
