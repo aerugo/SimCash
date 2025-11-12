@@ -91,14 +91,8 @@ def test_collateral_enables_settlement_of_queued_transactions():
     })
 
     # A has 10000 + 20000 = 30000 available
-    # Inject tx requiring more
-    orch.inject_transaction({
-        "id": "tx1",
-        "sender": "A",
-        "receiver": "B",
-        "amount": 35000,
-        "priority": 5,
-    })
+    # Submit tx requiring more
+    tx1 = orch.submit_transaction("A", "B", 35000, deadline=20, priority=5, divisible=False)
 
     orch.tick()  # Queues
 
@@ -200,13 +194,7 @@ def test_collateral_policy_hysteresis_posting_threshold():
     # Create small queue (gap below threshold)
     # A has 30000 available
     # Queue = 32000 → gap = 2000 → gap_pct = 2000/32000 = 6.25% < 10%
-    orch.inject_transaction({
-        "id": "tx1",
-        "sender": "A",
-        "receiver": "B",
-        "amount": 32000,
-        "priority": 5,
-    })
+    tx1 = orch.submit_transaction("A", "B", 32000, deadline=20, priority=5, divisible=False)
 
     orch.tick()  # Queues
 
@@ -217,13 +205,7 @@ def test_collateral_policy_hysteresis_posting_threshold():
 
     # Now create larger queue (gap above threshold)
     # Add another 40000 → total queue = 72000 → gap = 42000 → gap_pct = 58% > 10%
-    orch.inject_transaction({
-        "id": "tx2",
-        "sender": "A",
-        "receiver": "B",
-        "amount": 40000,
-        "priority": 5,
-    })
+    tx2 = orch.submit_transaction("A", "B", 40000, deadline=20, priority=5, divisible=False)
 
     orch.tick()
 
@@ -264,13 +246,7 @@ def test_collateral_policy_hysteresis_withdrawal_threshold():
     # Create small queue (excess liquidity is high, but queue is small)
     # available = 10000 + 20000 + 47500 = 77500
     # queue = 5000 → excess = 72500 → excess_pct = 1450% >> 20%
-    orch.inject_transaction({
-        "id": "tx1",
-        "sender": "A",
-        "receiver": "B",
-        "amount": 5000,
-        "priority": 5,
-    })
+    tx1 = orch.submit_transaction("A", "B", 5000, deadline=20, priority=5, divisible=False)
 
     orch.tick()  # Should auto-withdraw (excess is huge)
 
@@ -302,13 +278,7 @@ def test_no_collateral_oscillation_under_sustained_pressure():
 
     # Create sustained queue pressure over 20 ticks
     for i in range(20):
-        orch.inject_transaction({
-            "id": f"tx{i}",
-            "sender": "A",
-            "receiver": "B",
-            "amount": 15000,  # Each requires some credit
-            "priority": 5,
-        })
+        orch.submit_transaction("A", "B", 15000, deadline=20, priority=5, divisible=False)
         orch.tick()
 
     # Count collateral events
@@ -341,13 +311,7 @@ def test_collateral_events_have_specific_reasons_not_vague():
     })
 
     # Create scenario that triggers collateral posting
-    orch.inject_transaction({
-        "id": "tx1",
-        "sender": "A",
-        "receiver": "B",
-        "amount": 20000,
-        "priority": 5,
-    })
+    tx1 = orch.submit_transaction("A", "B", 20000, deadline=20, priority=5, divisible=False)
 
     orch.tick()  # Queues
 
@@ -443,13 +407,7 @@ def test_available_liquidity_calculation_includes_collateral():
     assert agent['available_liquidity'] == 160000
 
     # Use some credit (go into overdraft)
-    orch.inject_transaction({
-        "id": "tx1",
-        "sender": "A",
-        "receiver": "B",
-        "amount": 50000,
-        "priority": 5,
-    })
+    tx1 = orch.submit_transaction("A", "B", 50000, deadline=20, priority=5, divisible=False)
     orch.tick()
 
     # New balance = 20000 - 50000 = -30000 (overdraft)
