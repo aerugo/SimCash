@@ -486,6 +486,7 @@ liquidity_saving:
 
         try:
             # Run simulation with persistence
+            api_dir = str(Path(__file__).parent.parent.parent)
             run_result = subprocess.run(
                 [
                     'uv', 'run', 'payment-sim', 'run',
@@ -495,7 +496,7 @@ liquidity_saving:
                     '--verbose',
                     '--db-path', temp_db
                 ],
-                cwd='/home/user/SimCash/api',
+                cwd=api_dir,
                 capture_output=True,
                 text=True,
                 timeout=90
@@ -519,7 +520,7 @@ liquidity_saving:
                     '--verbose',
                     '--db-path', temp_db
                 ],
-                cwd='/home/user/SimCash/api',
+                cwd=api_dir,
                 capture_output=True,
                 text=True,
                 timeout=90

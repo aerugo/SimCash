@@ -31,6 +31,9 @@ def load_ten_day_crisis_config():
     """Load and prepare the ten_day_crisis_scenario.yaml config."""
     config_file = Path(__file__).parent.parent.parent.parent / "examples/configs/ten_day_crisis_scenario.yaml"
 
+    if not config_file.exists():
+        pytest.skip(f"Config file not found: {config_file}. This test requires example config files.")
+
     with open(config_file, "r") as f:
         config = yaml.safe_load(f)
 
