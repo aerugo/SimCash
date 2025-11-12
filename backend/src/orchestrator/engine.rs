@@ -154,6 +154,11 @@ pub struct AgentConfig {
     /// Posted collateral amount (cents) - Phase 8
     /// If None, defaults to 0 (no collateral)
     pub posted_collateral: Option<i64>,
+
+    /// Collateral haircut (discount factor) - defaults to 0.95
+    /// Determines how much of posted collateral counts toward available liquidity.
+    /// Example: 0.95 means 95% of collateral value is available.
+    pub collateral_haircut: Option<f64>,
 }
 
 /// Policy selection for an agent
@@ -769,6 +774,10 @@ impl Orchestrator {
                 // Set posted collateral if specified (Phase 8)
                 if let Some(collateral) = ac.posted_collateral {
                     agent.set_posted_collateral(collateral);
+                }
+                // Set collateral haircut if specified (defaults to 0.95)
+                if let Some(haircut) = ac.collateral_haircut {
+                    agent.set_collateral_haircut(haircut);
                 }
                 agent
             })
