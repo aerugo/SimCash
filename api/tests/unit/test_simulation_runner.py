@@ -51,6 +51,7 @@ class TestSimulationRunner:
         orch.get_system_metrics.return_value = {
             "total_arrivals": 0,
             "total_settlements": 0,
+            "settlement_rate": 0.0,
         }
 
         config = SimulationConfig(
@@ -88,6 +89,7 @@ class TestSimulationRunner:
         orch.get_system_metrics.return_value = {
             "total_arrivals": 0,
             "total_settlements": 0,
+            "settlement_rate": 0.0,
         }
 
         config = SimulationConfig(
@@ -125,6 +127,7 @@ class TestSimulationRunner:
         orch.get_system_metrics.return_value = {
             "total_arrivals": 0,
             "total_settlements": 0,
+            "settlement_rate": 0.0,
         }
 
         config = SimulationConfig(
@@ -159,6 +162,7 @@ class TestSimulationRunner:
         orch.get_system_metrics.return_value = {
             "total_arrivals": 50,
             "total_settlements": 40,
+            "settlement_rate": 0.8,
         }
 
         config = SimulationConfig(
@@ -175,11 +179,11 @@ class TestSimulationRunner:
         result = runner.run()
 
         # Verify accumulated statistics
-        assert result["total_arrivals"] == 50  # 5 per tick * 10 ticks
-        assert result["total_settlements"] == 40
-        assert result["total_lsm_releases"] == 10
-        assert result["total_costs"] == 10000
-        assert result["settlement_rate"] == 0.8  # 40/50
+        assert result["total_arrivals"] == 50  # From get_system_metrics (corrected)
+        assert result["total_settlements"] == 40  # From get_system_metrics (corrected)
+        assert result["total_lsm_releases"] == 0  # From event processing (no LSM events mocked)
+        assert result["total_costs"] == 10000  # From tick accumulation
+        assert result["settlement_rate"] == 0.8  # From get_system_metrics (corrected)
 
     def test_runner_applies_event_filter(self):
         """Runner should filter events when event_filter is configured."""
@@ -197,6 +201,7 @@ class TestSimulationRunner:
         orch.get_system_metrics.return_value = {
             "total_arrivals": 2,
             "total_settlements": 1,
+            "settlement_rate": 0.5,
         }
 
         event_filter = Mock()
