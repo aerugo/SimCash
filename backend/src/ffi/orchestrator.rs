@@ -1146,6 +1146,196 @@ impl PyOrchestrator {
     // Verbose CLI Query Methods (Enhanced Monitoring)
     // ========================================================================
 
+    /// Convert a single Event to Python dictionary.
+    ///
+    /// This is the single source of truth for event serialization to Python.
+    /// Used by both `get_tick_events()` and `get_all_events()`.
+    ///
+    /// # Arguments
+    /// * `py` - Python interpreter context
+    /// * `event` - Reference to the event to serialize
+    ///
+    /// # Returns
+    /// Python dictionary with event fields
+    ///
+    /// # Example
+    /// ```ignore
+    /// let event = Event::Arrival { tick: 1, tx_id: "tx_001".to_string(), ... };
+    /// let dict = event_to_py_dict(py, &event)?;
+    /// assert_eq!(dict.get_item("event_type")?, Some("arrival"));
+    /// ```
+    fn event_to_py_dict<'py>(
+        py: Python<'py>,
+        event: &crate::models::event::Event,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+
+        // Set common fields for all events
+        dict.set_item("event_type", event.event_type())?;
+        dict.set_item("tick", event.tick())?;
+
+        // Set event-specific fields based on event type
+        match event {
+            crate::models::event::Event::Arrival { tx_id, sender_id, receiver_id, amount, deadline, priority, is_divisible, .. } => {
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("sender_id", sender_id)?;
+                dict.set_item("receiver_id", receiver_id)?;
+                dict.set_item("amount", amount)?;
+                dict.set_item("deadline", deadline)?;
+                dict.set_item("priority", priority)?;
+                dict.set_item("is_divisible", is_divisible)?;
+            }
+            crate::models::event::Event::PolicySubmit { agent_id, tx_id, .. } => {
+                dict.set_item("agent_id", agent_id)?;
+                dict.set_item("tx_id", tx_id)?;
+            }
+            crate::models::event::Event::PolicyHold { agent_id, tx_id, reason, .. } => {
+                dict.set_item("agent_id", agent_id)?;
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("reason", reason)?;
+            }
+            crate::models::event::Event::PolicyDrop { agent_id, tx_id, reason, .. } => {
+                dict.set_item("agent_id", agent_id)?;
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("reason", reason)?;
+            }
+            crate::models::event::Event::PolicySplit { agent_id, tx_id, num_splits, child_ids, .. } => {
+                dict.set_item("agent_id", agent_id)?;
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("num_splits", num_splits)?;
+                dict.set_item("child_ids", child_ids)?;
+            }
+            crate::models::event::Event::TransactionReprioritized { agent_id, tx_id, old_priority, new_priority, .. } => {
+                dict.set_item("agent_id", agent_id)?;
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("old_priority", old_priority)?;
+                dict.set_item("new_priority", new_priority)?;
+            }
+            crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
+                dict.set_item("agent_id", agent_id)?;
+                dict.set_item("amount", amount)?;
+                dict.set_item("reason", reason)?;
+                dict.set_item("new_total", new_total)?;
+            }
+            crate::models::event::Event::CollateralWithdraw { agent_id, amount, reason, new_total, .. } => {
+                dict.set_item("agent_id", agent_id)?;
+                dict.set_item("amount", amount)?;
+                dict.set_item("reason", reason)?;
+                dict.set_item("new_total", new_total)?;
+            }
+            #[allow(deprecated)]
+            crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("sender_id", sender_id)?;
+                dict.set_item("receiver_id", receiver_id)?;
+                dict.set_item("amount", amount)?;
+            }
+            crate::models::event::Event::RtgsImmediateSettlement { tx_id, sender, receiver, amount, sender_balance_before, sender_balance_after, .. } => {
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("sender", sender)?;
+                dict.set_item("receiver", receiver)?;
+                dict.set_item("amount", amount)?;
+                dict.set_item("sender_balance_before", sender_balance_before)?;
+                dict.set_item("sender_balance_after", sender_balance_after)?;
+            }
+            crate::models::event::Event::Queue2LiquidityRelease { tx_id, sender, receiver, amount, queue_wait_ticks, release_reason, .. } => {
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("sender", sender)?;
+                dict.set_item("receiver", receiver)?;
+                dict.set_item("amount", amount)?;
+                dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
+                dict.set_item("release_reason", release_reason)?;
+            }
+            crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("sender_id", sender_id)?;
+            }
+            crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_ids, amount_a, amount_b, .. } => {
+                dict.set_item("agent_a", agent_a)?;
+                dict.set_item("agent_b", agent_b)?;
+                dict.set_item("tx_ids", tx_ids)?;
+                dict.set_item("amount_a", amount_a)?;
+                dict.set_item("amount_b", amount_b)?;
+                // Also set "amount" for backward compatibility (sum of the two)
+                dict.set_item("amount", amount_a + amount_b)?;
+            }
+            crate::models::event::Event::LsmCycleSettlement { agents, tx_amounts, total_value, net_positions, max_net_outflow, max_net_outflow_agent, tx_ids, .. } => {
+                dict.set_item("agents", agents)?;
+                dict.set_item("tx_amounts", tx_amounts)?;
+                dict.set_item("total_value", total_value)?;
+                dict.set_item("net_positions", net_positions)?;
+                dict.set_item("max_net_outflow", max_net_outflow)?;
+                dict.set_item("max_net_outflow_agent", max_net_outflow_agent)?;
+                dict.set_item("tx_ids", tx_ids)?;
+                // Backward compatibility: also set "cycle_value"
+                dict.set_item("cycle_value", total_value)?;
+            }
+            crate::models::event::Event::CostAccrual { agent_id, costs, .. } => {
+                dict.set_item("agent_id", agent_id)?;
+                // Convert CostBreakdown to dict
+                let cost_dict = PyDict::new(py);
+                cost_dict.set_item("liquidity_cost", costs.liquidity_cost)?;
+                cost_dict.set_item("delay_cost", costs.delay_cost)?;
+                cost_dict.set_item("collateral_cost", costs.collateral_cost)?;
+                cost_dict.set_item("penalty_cost", costs.penalty_cost)?;
+                cost_dict.set_item("split_friction_cost", costs.split_friction_cost)?;
+                cost_dict.set_item("total", costs.total())?;
+                dict.set_item("costs", cost_dict)?;
+            }
+            crate::models::event::Event::EndOfDay { day, unsettled_count, total_penalties, .. } => {
+                dict.set_item("day", day)?;
+                dict.set_item("unsettled_count", unsettled_count)?;
+                dict.set_item("total_penalties", total_penalties)?;
+            }
+            crate::models::event::Event::TransactionWentOverdue {
+                tx_id, sender_id, receiver_id, amount, remaining_amount,
+                deadline_tick, ticks_overdue, deadline_penalty_cost, ..
+            } => {
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("sender_id", sender_id)?;
+                dict.set_item("receiver_id", receiver_id)?;
+                dict.set_item("amount", amount)?;
+                dict.set_item("remaining_amount", remaining_amount)?;
+                dict.set_item("deadline_tick", deadline_tick)?;
+                dict.set_item("ticks_overdue", ticks_overdue)?;
+                dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
+            }
+            crate::models::event::Event::OverdueTransactionSettled {
+                tx_id, sender_id, receiver_id, amount, settled_amount,
+                deadline_tick, overdue_since_tick, total_ticks_overdue,
+                deadline_penalty_cost, estimated_delay_cost, ..
+            } => {
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("sender_id", sender_id)?;
+                dict.set_item("receiver_id", receiver_id)?;
+                dict.set_item("amount", amount)?;
+                dict.set_item("settled_amount", settled_amount)?;
+                dict.set_item("deadline_tick", deadline_tick)?;
+                dict.set_item("overdue_since_tick", overdue_since_tick)?;
+                dict.set_item("total_ticks_overdue", total_ticks_overdue)?;
+                dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
+                dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
+            }
+            crate::models::event::Event::RtgsQueue2Settle { tx_id, sender, receiver, amount, reason, .. } => {
+                dict.set_item("tx_id", tx_id)?;
+                dict.set_item("sender", sender)?;
+                dict.set_item("receiver", receiver)?;
+                dict.set_item("amount", amount)?;
+                dict.set_item("reason", reason)?;
+            }
+            crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
+                dict.set_item("tick", tick)?;
+                dict.set_item("event_type", "ScenarioEventExecuted")?;
+                dict.set_item("scenario_event_type", event_type)?;
+                // Convert JSON value to string, Python can parse it
+                let details_json = serde_json::to_string(details).unwrap_or_else(|_| "{}".to_string());
+                dict.set_item("details_json", details_json)?;
+            }
+        }
+
+        Ok(dict)
+    }
+
     /// Get all events that occurred during a specific tick
     ///
     /// Returns detailed event log entries for arrivals, settlements,
@@ -1175,171 +1365,8 @@ impl PyOrchestrator {
 
         let py_list = PyList::empty(py);
         for event in events {
-            let event_dict = PyDict::new(py);
-
-            // Set common fields
-            event_dict.set_item("event_type", event.event_type())?;
-            event_dict.set_item("tick", event.tick())?;
-
-            // Set event-specific fields based on event type
-            match event {
-                crate::models::event::Event::Arrival { tx_id, sender_id, receiver_id, amount, deadline, priority, is_divisible, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                    event_dict.set_item("receiver_id", receiver_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("deadline", deadline)?;
-                    event_dict.set_item("priority", priority)?;
-                    event_dict.set_item("is_divisible", is_divisible)?;
-                }
-                crate::models::event::Event::PolicySubmit { agent_id, tx_id, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                }
-                crate::models::event::Event::PolicyHold { agent_id, tx_id, reason, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("reason", reason)?;
-                }
-                crate::models::event::Event::PolicyDrop { agent_id, tx_id, reason, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("reason", reason)?;
-                }
-                crate::models::event::Event::PolicySplit { agent_id, tx_id, num_splits, child_ids, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("num_splits", num_splits)?;
-                    event_dict.set_item("child_ids", child_ids)?;
-                }
-                crate::models::event::Event::TransactionReprioritized { agent_id, tx_id, old_priority, new_priority, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("old_priority", old_priority)?;
-                    event_dict.set_item("new_priority", new_priority)?;
-                }
-                crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("reason", reason)?;
-                    event_dict.set_item("new_total", new_total)?;
-                }
-                crate::models::event::Event::CollateralWithdraw { agent_id, amount, reason, new_total, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("reason", reason)?;
-                    event_dict.set_item("new_total", new_total)?;
-                }
-                #[allow(deprecated)]
-                crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                    event_dict.set_item("receiver_id", receiver_id)?;
-                    event_dict.set_item("amount", amount)?;
-                }
-                crate::models::event::Event::RtgsImmediateSettlement { tx_id, sender, receiver, amount, sender_balance_before, sender_balance_after, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender", sender)?;
-                    event_dict.set_item("receiver", receiver)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("sender_balance_before", sender_balance_before)?;
-                    event_dict.set_item("sender_balance_after", sender_balance_after)?;
-                }
-                crate::models::event::Event::Queue2LiquidityRelease { tx_id, sender, receiver, amount, queue_wait_ticks, release_reason, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender", sender)?;
-                    event_dict.set_item("receiver", receiver)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
-                    event_dict.set_item("release_reason", release_reason)?;
-                }
-                crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                }
-                crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_ids, amount_a, amount_b, .. } => {
-                    event_dict.set_item("agent_a", agent_a)?;
-                    event_dict.set_item("agent_b", agent_b)?;
-                    event_dict.set_item("tx_ids", tx_ids)?;
-                    event_dict.set_item("amount_a", amount_a)?;
-                    event_dict.set_item("amount_b", amount_b)?;
-                    // Also set "amount" for backward compatibility (sum of the two)
-                    event_dict.set_item("amount", amount_a + amount_b)?;
-                }
-                crate::models::event::Event::LsmCycleSettlement { agents, tx_amounts, total_value, net_positions, max_net_outflow, max_net_outflow_agent, tx_ids, .. } => {
-                    event_dict.set_item("agents", agents)?;
-                    event_dict.set_item("tx_amounts", tx_amounts)?;
-                    event_dict.set_item("total_value", total_value)?;
-                    event_dict.set_item("net_positions", net_positions)?;
-                    event_dict.set_item("max_net_outflow", max_net_outflow)?;
-                    event_dict.set_item("max_net_outflow_agent", max_net_outflow_agent)?;
-                    event_dict.set_item("tx_ids", tx_ids)?;
-                    // Backward compatibility: also set "cycle_value"
-                    event_dict.set_item("cycle_value", total_value)?;
-                }
-                crate::models::event::Event::CostAccrual { agent_id, costs, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    // Convert CostBreakdown to dict
-                    let costs_dict = PyDict::new(py);
-                    costs_dict.set_item("liquidity_cost", costs.liquidity_cost)?;
-                    costs_dict.set_item("delay_cost", costs.delay_cost)?;
-                    costs_dict.set_item("collateral_cost", costs.collateral_cost)?;
-                    costs_dict.set_item("penalty_cost", costs.penalty_cost)?;
-                    costs_dict.set_item("split_friction_cost", costs.split_friction_cost)?;
-                    event_dict.set_item("costs", costs_dict)?;
-                }
-                crate::models::event::Event::EndOfDay { day, unsettled_count, total_penalties, .. } => {
-                    event_dict.set_item("day", day)?;
-                    event_dict.set_item("unsettled_count", unsettled_count)?;
-                    event_dict.set_item("total_penalties", total_penalties)?;
-                }
-                crate::models::event::Event::TransactionWentOverdue {
-                    tx_id, sender_id, receiver_id, amount, remaining_amount,
-                    deadline_tick, ticks_overdue, deadline_penalty_cost, ..
-                } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                    event_dict.set_item("receiver_id", receiver_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("remaining_amount", remaining_amount)?;
-                    event_dict.set_item("deadline_tick", deadline_tick)?;
-                    event_dict.set_item("ticks_overdue", ticks_overdue)?;
-                    event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
-                }
-                crate::models::event::Event::OverdueTransactionSettled {
-                    tx_id, sender_id, receiver_id, amount, settled_amount,
-                    deadline_tick, overdue_since_tick, total_ticks_overdue,
-                    deadline_penalty_cost, estimated_delay_cost, ..
-                } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                    event_dict.set_item("receiver_id", receiver_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("settled_amount", settled_amount)?;
-                    event_dict.set_item("deadline_tick", deadline_tick)?;
-                    event_dict.set_item("overdue_since_tick", overdue_since_tick)?;
-                    event_dict.set_item("total_ticks_overdue", total_ticks_overdue)?;
-                    event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
-                    event_dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
-                }
-                crate::models::event::Event::RtgsQueue2Settle { tx_id, sender, receiver, amount, reason, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender", sender)?;
-                    event_dict.set_item("receiver", receiver)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("reason", reason)?;
-                }
-                crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
-                    event_dict.set_item("tick", tick)?;
-                    event_dict.set_item("event_type", "ScenarioEventExecuted")?;
-                    event_dict.set_item("scenario_event_type", event_type)?;
-                    // Convert JSON value to string, Python can parse it
-                    let details_json = serde_json::to_string(details).unwrap_or_else(|_| "{}".to_string());
-                    event_dict.set_item("details_json", details_json)?;
-                }
-            }
-
-            py_list.append(event_dict)?;
+            let event_dict = Self::event_to_py_dict(py, &event)?;
+            py_list.append(&event_dict)?;
         }
 
         Ok(py_list.into())
@@ -1370,172 +1397,8 @@ impl PyOrchestrator {
 
         let py_list = PyList::empty(py);
         for event in events {
-            let event_dict = PyDict::new(py);
-
-            // Set common fields
-            event_dict.set_item("event_type", event.event_type())?;
-            event_dict.set_item("tick", event.tick())?;
-
-            // Set event-specific fields based on event type
-            match event {
-                crate::models::event::Event::Arrival { tx_id, sender_id, receiver_id, amount, deadline, priority, is_divisible, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                    event_dict.set_item("receiver_id", receiver_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("deadline", deadline)?;
-                    event_dict.set_item("priority", priority)?;
-                    event_dict.set_item("is_divisible", is_divisible)?;
-                }
-                crate::models::event::Event::PolicySubmit { agent_id, tx_id, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                }
-                crate::models::event::Event::PolicyHold { agent_id, tx_id, reason, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("reason", reason)?;
-                }
-                crate::models::event::Event::PolicyDrop { agent_id, tx_id, reason, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("reason", reason)?;
-                }
-                crate::models::event::Event::PolicySplit { agent_id, tx_id, num_splits, child_ids, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("num_splits", num_splits)?;
-                    event_dict.set_item("child_ids", child_ids)?;
-                }
-                crate::models::event::Event::TransactionReprioritized { agent_id, tx_id, old_priority, new_priority, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("old_priority", old_priority)?;
-                    event_dict.set_item("new_priority", new_priority)?;
-                }
-                crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("reason", reason)?;
-                    event_dict.set_item("new_total", new_total)?;
-                }
-                crate::models::event::Event::CollateralWithdraw { agent_id, amount, reason, new_total, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("reason", reason)?;
-                    event_dict.set_item("new_total", new_total)?;
-                }
-                #[allow(deprecated)]
-                crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                    event_dict.set_item("receiver_id", receiver_id)?;
-                    event_dict.set_item("amount", amount)?;
-                }
-                crate::models::event::Event::RtgsImmediateSettlement { tx_id, sender, receiver, amount, sender_balance_before, sender_balance_after, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender", sender)?;
-                    event_dict.set_item("receiver", receiver)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("sender_balance_before", sender_balance_before)?;
-                    event_dict.set_item("sender_balance_after", sender_balance_after)?;
-                }
-                crate::models::event::Event::Queue2LiquidityRelease { tx_id, sender, receiver, amount, queue_wait_ticks, release_reason, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender", sender)?;
-                    event_dict.set_item("receiver", receiver)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
-                    event_dict.set_item("release_reason", release_reason)?;
-                }
-                crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                }
-                crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_ids, amount_a, amount_b, .. } => {
-                    event_dict.set_item("agent_a", agent_a)?;
-                    event_dict.set_item("agent_b", agent_b)?;
-                    event_dict.set_item("tx_ids", tx_ids)?;
-                    event_dict.set_item("amount_a", amount_a)?;
-                    event_dict.set_item("amount_b", amount_b)?;
-                    // Also set "amount" for backward compatibility (sum of the two)
-                    event_dict.set_item("amount", amount_a + amount_b)?;
-                }
-                crate::models::event::Event::LsmCycleSettlement { agents, tx_amounts, total_value, net_positions, max_net_outflow, max_net_outflow_agent, tx_ids, .. } => {
-                    event_dict.set_item("agents", agents)?;
-                    event_dict.set_item("tx_amounts", tx_amounts)?;
-                    event_dict.set_item("total_value", total_value)?;
-                    event_dict.set_item("net_positions", net_positions)?;
-                    event_dict.set_item("max_net_outflow", max_net_outflow)?;
-                    event_dict.set_item("max_net_outflow_agent", max_net_outflow_agent)?;
-                    event_dict.set_item("tx_ids", tx_ids)?;
-                    // Backward compatibility: also set "cycle_value"
-                    event_dict.set_item("cycle_value", total_value)?;
-                }
-                crate::models::event::Event::CostAccrual { agent_id, costs, .. } => {
-                    event_dict.set_item("agent_id", agent_id)?;
-                    // Convert CostBreakdown to dict
-                    let cost_dict = PyDict::new(py);
-                    cost_dict.set_item("liquidity_cost", costs.liquidity_cost)?;
-                    cost_dict.set_item("delay_cost", costs.delay_cost)?;
-                    cost_dict.set_item("collateral_cost", costs.collateral_cost)?;
-                    cost_dict.set_item("penalty_cost", costs.penalty_cost)?;
-                    cost_dict.set_item("split_friction_cost", costs.split_friction_cost)?;
-                    cost_dict.set_item("total", costs.total())?;
-                    event_dict.set_item("costs", cost_dict)?;
-                }
-                crate::models::event::Event::EndOfDay { day, unsettled_count, total_penalties, .. } => {
-                    event_dict.set_item("day", day)?;
-                    event_dict.set_item("unsettled_count", unsettled_count)?;
-                    event_dict.set_item("total_penalties", total_penalties)?;
-                }
-                crate::models::event::Event::TransactionWentOverdue {
-                    tx_id, sender_id, receiver_id, amount, remaining_amount,
-                    deadline_tick, ticks_overdue, deadline_penalty_cost, ..
-                } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                    event_dict.set_item("receiver_id", receiver_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("remaining_amount", remaining_amount)?;
-                    event_dict.set_item("deadline_tick", deadline_tick)?;
-                    event_dict.set_item("ticks_overdue", ticks_overdue)?;
-                    event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
-                }
-                crate::models::event::Event::OverdueTransactionSettled {
-                    tx_id, sender_id, receiver_id, amount, settled_amount,
-                    deadline_tick, overdue_since_tick, total_ticks_overdue,
-                    deadline_penalty_cost, estimated_delay_cost, ..
-                } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender_id", sender_id)?;
-                    event_dict.set_item("receiver_id", receiver_id)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("settled_amount", settled_amount)?;
-                    event_dict.set_item("deadline_tick", deadline_tick)?;
-                    event_dict.set_item("overdue_since_tick", overdue_since_tick)?;
-                    event_dict.set_item("total_ticks_overdue", total_ticks_overdue)?;
-                    event_dict.set_item("deadline_penalty_cost", deadline_penalty_cost)?;
-                    event_dict.set_item("estimated_delay_cost", estimated_delay_cost)?;
-                }
-                crate::models::event::Event::RtgsQueue2Settle { tx_id, sender, receiver, amount, reason, .. } => {
-                    event_dict.set_item("tx_id", tx_id)?;
-                    event_dict.set_item("sender", sender)?;
-                    event_dict.set_item("receiver", receiver)?;
-                    event_dict.set_item("amount", amount)?;
-                    event_dict.set_item("reason", reason)?;
-                }
-                crate::models::event::Event::ScenarioEventExecuted { tick, event_type, details } => {
-                    event_dict.set_item("tick", tick)?;
-                    event_dict.set_item("event_type", "ScenarioEventExecuted")?;
-                    event_dict.set_item("scenario_event_type", event_type)?;
-                    // Convert JSON value to string, Python can parse it
-                    let details_json = serde_json::to_string(details).unwrap_or_else(|_| "{}".to_string());
-                    event_dict.set_item("details_json", details_json)?;
-                }
-            }
-
-            py_list.append(event_dict)?;
+            let event_dict = Self::event_to_py_dict(py, &event)?;
+            py_list.append(&event_dict)?;
         }
 
         Ok(py_list.into())
