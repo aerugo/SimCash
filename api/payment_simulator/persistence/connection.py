@@ -12,6 +12,7 @@ import duckdb
 
 from .migrations import MigrationManager
 from .models import (
+    AgentStateRegisterRecord,
     CollateralEventRecord,
     DailyAgentMetricsRecord,
     PolicySnapshotRecord,
@@ -195,6 +196,7 @@ class DatabaseManager:
             SimulationRunRecord,
             DailyAgentMetricsRecord,
             CollateralEventRecord,
+            AgentStateRegisterRecord,
             PolicySnapshotRecord,
             SimulationCheckpointRecord,
             SimulationEventRecord,
@@ -329,6 +331,7 @@ class DatabaseManager:
             "simulation_events",
             "simulation_checkpoints",
             "policy_snapshots",
+            "agent_state_registers",
             "agent_queue_snapshots",
             "collateral_events",
             "daily_agent_metrics",
