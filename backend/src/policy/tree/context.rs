@@ -86,6 +86,11 @@ pub enum ContextError {
 /// - my_q2_out_value_top_1..5: Top 5 counterparties by Q2 outflow value (f64)
 /// - my_q2_in_value_top_1..5: Top 5 counterparties by Q2 inflow value (f64)
 /// - my_bilateral_net_q2_top_1..5: Top 5 counterparties by net Q2 position (f64)
+///
+/// **Public Signal Fields** (Policy Enhancements V2, Phase 1.3):
+/// - system_queue2_pressure_index: System-wide Q2 pressure (0.0 = low, 1.0 = high) (f64)
+/// - lsm_run_rate_last_10_ticks: LSM events per tick over last 10 ticks (f64)
+/// - system_throughput_guidance_fraction_by_tick: Expected throughput by this tick (0.0-1.0) (f64)
 #[derive(Debug, Clone)]
 pub struct EvalContext {
     /// Field name → value mapping
@@ -279,6 +284,31 @@ impl EvalContext {
         for idx in (top_bilateral_nets.len() + 1)..=5 {
             fields.insert(format!("my_bilateral_net_q2_top_{}", idx), 0.0);
         }
+
+        // Phase 1.3: Public Signal Fields (Policy Enhancements V2)
+        // These fields expose system-wide coarse metrics visible to all agents.
+        // No privacy violation - everyone sees the same values.
+        //
+        // Use cases:
+        // - System pressure: Adjust aggression when system is gridlocked
+        // - LSM run rate: Coordinate releases when LSM is active
+        // - Throughput guidance: Compare own progress against expected curve
+
+        // Calculate system-wide Queue 2 pressure index (0.0 = low, 1.0 = high)
+        let system_pressure = calculate_queue2_pressure_index(state);
+        fields.insert("system_queue2_pressure_index".to_string(), system_pressure);
+
+        // LSM run rate: events per tick over last 10 ticks
+        // TODO: Requires LSM event tracking in SimulationState
+        // For now, returns 0.0 (will be implemented with state.lsm_event_rate(10))
+        let lsm_run_rate = 0.0; // Placeholder until LSM event tracking added
+        fields.insert("lsm_run_rate_last_10_ticks".to_string(), lsm_run_rate);
+
+        // Throughput guidance: Expected throughput fraction by this tick (0.0-1.0)
+        // This comes from optional configuration parameter (throughput_guidance_curve)
+        // For now, returns 0.0 (will be passed via build() parameter when available)
+        let throughput_guidance = 0.0; // Placeholder until config parameter added
+        fields.insert("system_throughput_guidance_fraction_by_tick".to_string(), throughput_guidance);
 
         // Derived fields
         let ticks_to_deadline = tx.deadline_tick() as i64 - tick as i64;
@@ -911,4 +941,38 @@ fn simple_string_hash(s: &str) -> u64 {
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     hash
+}
+
+// ============================================================================
+// Phase 1.3: Public Signal Helper Functions (Policy Enhancements V2)
+// ============================================================================
+
+/// Calculate Queue 2 pressure index (0.0 = no pressure, 1.0 = high pressure)
+///
+/// Formula: Normalized based on queue size and total system capacity
+/// Uses a sigmoid-like function to map queue size to [0, 1]
+///
+/// **Public Information**: This exposes coarse system-level metrics that
+/// all agents can see. No privacy violation - everyone sees the same value.
+///
+/// **Use Case**: Adjust aggression when system is gridlocked
+fn calculate_queue2_pressure_index(state: &SimulationState) -> f64 {
+    let queue_size = state.queue_size();
+    let num_agents = state.num_agents();
+
+    if num_agents == 0 || queue_size == 0 {
+        return 0.0;
+    }
+
+    // Normalize: pressure increases with queue size relative to agent count
+    // Use a sigmoid-like function to map to [0, 1]
+    // Threshold: ~10 transactions per agent is considered "moderate"
+    let threshold = (num_agents * 10) as f64;
+    let x = queue_size as f64 / threshold;
+
+    // Sigmoid: 1 / (1 + e^(-k*x))
+    // Using k=2 for moderate steepness
+    let pressure = 1.0 / (1.0 + (-2.0 * x).exp());
+
+    pressure.min(1.0)
 }
