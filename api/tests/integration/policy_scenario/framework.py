@@ -199,7 +199,12 @@ class PolicyScenarioTest:
             # Extract agent-specific events for arrivals/settlements
             events = orch.get_tick_events(tick)
             for event in events:
-                event_type = event.get("event_type")
+                # Defensive event parsing - handle both 'event_type' and 'type' fields
+                event_type = event.get("event_type") or event.get("type")
+
+                # Skip events with no type field
+                if not event_type:
+                    continue
 
                 # Track arrivals for this agent
                 if event_type == "Arrival":
