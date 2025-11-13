@@ -304,72 +304,57 @@
   "strategic_collateral_tree": {
     "type": "condition",
     "node_id": "SC_Root",
-    "description": "Mode-aware collateral management with timers",
+    "description": "Post temporary collateral when gap is large",
     "condition": {
-      "op": "==",
-      "left": {"field": "bank_state_mode"},
-      "right": {"value": 2.0}
+      "op": ">",
+      "left": {"field": "queue1_liquidity_gap"},
+      "right": {"param": "collateral_threshold"}
     },
     "on_true": {
-      "type": "condition",
-      "node_id": "SC_AggressiveCollateral",
-      "description": "Aggressive mode - post temporary collateral for push",
-      "condition": {
-        "op": ">",
-        "left": {"field": "queue1_liquidity_gap"},
-        "right": {"param": "collateral_threshold"}
-      },
-      "on_true": {
-        "type": "action",
-        "node_id": "SC_PostTemporary",
-        "action": "PostCollateral",
-        "parameters": {
-          "amount": {
-            "compute": {
-              "op": "*",
-              "left": {"field": "queue1_liquidity_gap"},
-              "right": {"value": 0.5}
-            }
-          },
-          "reason": {"value": "AggressiveModePush"},
-          "auto_withdraw_after_ticks": {"value": 12.0}
-        }
-      },
-      "on_false": {
-        "type": "action",
-        "node_id": "SC_HoldAggressive",
-        "action": "HoldCollateral"
+      "type": "action",
+      "node_id": "SC_PostTemporary",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "queue1_liquidity_gap"},
+            "right": {"value": 0.5}
+          }
+        },
+        "reason": {"value": "LargeGap"},
+        "auto_withdraw_after_ticks": {"value": 12.0}
       }
     },
     "on_false": {
       "type": "action",
-      "node_id": "SC_HoldNonAggressive",
+      "node_id": "SC_HoldNormal",
       "action": "HoldCollateral"
     }
   },
   "end_of_tick_collateral_tree": {
     "type": "condition",
     "node_id": "EC_Root",
-    "description": "Withdraw excess if in conservative mode",
+    "description": "Withdraw excess collateral if gap is negative",
     "condition": {
       "op": "and",
       "conditions": [
         {
-          "op": "==",
-          "left": {"field": "bank_state_mode"},
-          "right": {"value": 0.0}
-        },
-        {
           "op": ">",
           "left": {"field": "posted_collateral"},
           "right": {"value": 500000.0}
+        },
+        {
+          "op": "<",
+          "left": {"field": "queue1_liquidity_gap"},
+          "right": {"value": 0.0}
         }
       ]
     },
     "on_true": {
       "type": "action",
-      "node_id": "EC_WithdrawInConservative",
-      "description": "Conservative mode - reduce collateral costs",
+      "node_id": "EC_WithdrawExcess",
+      "description": "Have excess liquidity - withdraw some collateral",
       "action": "WithdrawCollateral",
       "parameters": {
         "amount": {
@@ -379,7 +364,7 @@
             "right": {"value": 0.4}
           }
         },
-        "reason": {"value": "ConservativeModeReduction"}
+        "reason": {"value": "ExcessLiquidity"}
       }
     },
     "on_false": {
