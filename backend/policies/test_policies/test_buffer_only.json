@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "policy_id": "test_buffer_only",
+  "description": "Single-feature test policy: Tests buffer check in isolation. Releases when effective_liquidity >= remaining_amount * 2.0 (2× buffer), holds otherwise.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-Buffer",
+    "description": "Does agent have 2× buffer?",
+    "condition": {
+      "op": ">=",
+      "left": {
+        "field": "effective_liquidity"
+      },
+      "right": {
+        "compute": {
+          "op": "*",
+          "left": {
+            "field": "remaining_amount"
+          },
+          "right": {
+            "value": 2.0
+          }
+        }
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-BufferRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "WeakBuffer"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}
