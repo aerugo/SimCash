@@ -467,6 +467,20 @@ pub fn traverse_end_of_tick_collateral_tree<'a>(
     traverse_node(root, context, &tree.parameters, 0)
 }
 
+/// Traverse the bank-level decision tree to reach an action node (Phase 3.3)
+///
+/// Returns the terminal action node reached.
+/// Returns error if bank_tree is not defined.
+pub fn traverse_bank_tree<'a>(
+    tree: &'a DecisionTreeDef,
+    context: &EvalContext,
+) -> Result<&'a TreeNode, EvalError> {
+    let root = tree.bank_tree.as_ref().ok_or_else(|| {
+        EvalError::InvalidTree("bank_tree is not defined".to_string())
+    })?;
+    traverse_node(root, context, &tree.parameters, 0)
+}
+
 /// Internal recursive tree traversal with depth tracking
 fn traverse_node<'a>(
     node: &'a TreeNode,
