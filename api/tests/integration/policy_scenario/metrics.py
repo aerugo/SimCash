@@ -93,7 +93,9 @@ class MetricsCollector:
         # Get agent state
         agent_state = orch.get_agent_state(self.agent_id)
         balance = agent_state["balance"]
-        queue_size = agent_state["queue_size"]
+
+        # Get queue size (Queue 1 - agent's outgoing queue)
+        queue_size = orch.get_queue1_size(self.agent_id)
 
         # Record queue depth
         self.queue_depths.append(queue_size)
