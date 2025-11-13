@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "policy_id": "test_eod_and_liquidity",
+  "description": "Two-feature test policy: Tests AND logic. Releases when BOTH EOD rush AND affordable, holds otherwise.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-EODAndLiquidity",
+    "description": "Is this EOD rush AND affordable?",
+    "condition": {
+      "op": "and",
+      "conditions": [
+        {
+          "op": "==",
+          "left": {
+            "field": "is_eod_rush"
+          },
+          "right": {
+            "value": 1.0
+          }
+        },
+        {
+          "op": ">=",
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "field": "remaining_amount"
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-ANDRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "ConditionNotMet"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}
