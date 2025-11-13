@@ -74,6 +74,10 @@ pub enum ContextError {
 /// - ticks_remaining_in_day: Ticks remaining in current day (f64)
 /// - day_progress_fraction: Progress through day (0.0 to 1.0) (f64)
 /// - is_eod_rush: Boolean (1.0) if in end-of-day rush period (f64)
+///
+/// **Overdraft Regime Fields** (Policy Enhancements V2, Phase 1.1):
+/// - credit_headroom: Remaining credit capacity (credit_limit - credit_used) (f64)
+/// - is_overdraft_capped: Boolean (1.0) indicating credit limit is enforced (f64)
 #[derive(Debug, Clone)]
 pub struct EvalContext {
     /// Field name → value mapping
@@ -198,6 +202,16 @@ impl EvalContext {
             agent.incoming_expected().len() as f64,
         );
         fields.insert("liquidity_pressure".to_string(), agent.liquidity_pressure());
+
+        // Phase 1.1: Overdraft Regime Fields (Policy Enhancements V2)
+        // credit_headroom = remaining capacity before hitting credit limit
+        // This is what policies should check to see if they can afford a payment
+        fields.insert("credit_headroom".to_string(), credit_headroom as f64);
+
+        // is_overdraft_capped = 1.0 (always true for Option B: enforced credit limits)
+        // Policies can use this to distinguish between capped (hard limit) and
+        // unbounded (priced) overdraft regimes. In Option B, this is always 1.0.
+        fields.insert("is_overdraft_capped".to_string(), 1.0);
 
         // Derived fields
         let ticks_to_deadline = tx.deadline_tick() as i64 - tick as i64;
