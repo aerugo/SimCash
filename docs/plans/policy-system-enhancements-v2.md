@@ -540,9 +540,19 @@ HOLD: TX 4cda913e  reason=DelayMoreEconomical
 - `docs/policy_dsl_guide.md` - Add "Throughput Management Patterns" section
 - `backend/policies/throughput_aware_example.json` - New example
 
-#### 4.5: Stateful Micro-Memory (Simple Registers)
+#### 4.5: Stateful Micro-Memory (Simple Registers) - WITH FULL PERSISTENCE
 
-**New bank-level state registers** (ephemeral, reset each day):
+**CRITICAL DESIGN PRINCIPLE**: State registers MUST be fully auditable and replayable. Determinism is non-negotiable.
+
+**Architecture Overview**:
+
+```
+Run Mode:     Agent.state_registers → emit StateRegisterSet event → DB
+              ↓
+Replay Mode:  DB simulation_events → StateProvider → Display
+```
+
+**New bank-level state registers** (persisted per tick, per agent):
 
 ```json
 {
@@ -572,20 +582,485 @@ HOLD: TX 4cda913e  reason=DelayMoreEconomical
 }
 ```
 
-**Constraints**:
-- Max 10 registers per agent
-- Keys prefixed with `bank_state_`
-- Reset at EOD
-- No complex logic (just reads/writes)
+---
+
+### Persistence Architecture (REQUIRED FOR REPLAY)
+
+#### Event-Based State Tracking
+
+**Event Type**: `StateRegisterSet`
+
+```rust
+// In backend/src/models/event.rs
+Event::StateRegisterSet {
+    tick: i64,
+    agent_id: String,
+    register_key: String,
+    old_value: f64,
+    new_value: f64,
+    reason: String,  // e.g., "cooldown_after_split"
+}
+```
+
+**When emitted**:
+- Every `SetState` or `AddState` action execution
+- Every EOD reset (emit batch of resets to 0.0)
+- During checkpoint restoration (emit initial state)
+
+#### Database Schema
+
+**Table**: `agent_state_registers` (for efficient querying)
+
+```sql
+CREATE TABLE agent_state_registers (
+    simulation_id TEXT NOT NULL,
+    tick INTEGER NOT NULL,
+    agent_id TEXT NOT NULL,
+    register_key TEXT NOT NULL,
+    register_value REAL NOT NULL,
+    PRIMARY KEY (simulation_id, tick, agent_id, register_key)
+);
+
+-- Index for fast lookup during replay
+CREATE INDEX idx_agent_state_tick ON agent_state_registers(simulation_id, agent_id, tick);
+```
+
+**Also stored in**: `simulation_events` table (via StateRegisterSet event)
+
+#### Run Mode Implementation
 
 **Files**:
-- `backend/src/models/agent.rs` - Add `state_registers: HashMap<String, f64>`
-- `backend/src/policy/tree/types.rs` - Add `SetState`, `AddState` actions
-- `backend/src/policy/tree/context.rs` - Expose registers as fields
-- `docs/policy_dsl_guide.md` - Document with cool-down example
+- `backend/src/models/agent.rs`:
+  ```rust
+  pub struct Agent {
+      // ... existing fields ...
 
-**Tests**:
-- `backend/tests/state_register_tests.rs`
+      /// State registers for policy micro-memory (max 10 per agent)
+      /// Keys MUST be prefixed with "bank_state_"
+      state_registers: HashMap<String, f64>,
+  }
+
+  impl Agent {
+      pub fn set_state_register(&mut self, key: String, value: f64) -> Result<(f64, f64), String> {
+          if !key.starts_with("bank_state_") {
+              return Err("Register key must start with 'bank_state_'".to_string());
+          }
+          if self.state_registers.len() >= 10 && !self.state_registers.contains_key(&key) {
+              return Err("Maximum 10 state registers per agent".to_string());
+          }
+
+          let old_value = self.state_registers.get(&key).copied().unwrap_or(0.0);
+          self.state_registers.insert(key, value);
+          Ok((old_value, value))
+      }
+
+      pub fn get_state_register(&self, key: &str) -> f64 {
+          self.state_registers.get(key).copied().unwrap_or(0.0)
+      }
+
+      pub fn reset_state_registers(&mut self) -> Vec<(String, f64)> {
+          let old_values: Vec<_> = self.state_registers.iter()
+              .map(|(k, v)| (k.clone(), *v))
+              .collect();
+          self.state_registers.clear();
+          old_values
+      }
+  }
+  ```
+
+- `backend/src/policy/tree/types.rs`:
+  ```rust
+  // Add new action types
+  pub enum Action {
+      // ... existing actions ...
+      SetState,   // Set register to value
+      AddState,   // Increment register by value
+  }
+
+  pub struct ActionNode {
+      // ... existing fields ...
+      pub parameters: Option<HashMap<String, Value>>,
+  }
+  ```
+
+- `backend/src/policy/mod.rs`:
+  ```rust
+  // In execute_action()
+  Action::SetState => {
+      let key = get_param_string(params, "key")?;
+      let value = get_param_float(params, "value")?;
+
+      let (old_value, new_value) = agent.set_state_register(key.clone(), value)?;
+
+      // CRITICAL: Emit event for persistence
+      state.add_event(Event::StateRegisterSet {
+          tick: current_tick as i64,
+          agent_id: agent.id().to_string(),
+          register_key: key.clone(),
+          old_value,
+          new_value,
+          reason: get_param_string(params, "reason").unwrap_or("policy_action".to_string()),
+      });
+
+      PolicyDecision::Informational(format!("Set {} = {}", key, value))
+  }
+  ```
+
+- `backend/src/orchestrator/engine.rs`:
+  ```rust
+  // In tick() method, AFTER all policy decisions:
+
+  // EOD state register reset
+  if is_end_of_day(tick, ticks_per_day) {
+      for agent in state.agents_mut().values_mut() {
+          let old_values = agent.reset_state_registers();
+
+          // Emit reset events for replay auditability
+          for (key, old_value) in old_values {
+              state.add_event(Event::StateRegisterSet {
+                  tick: tick as i64,
+                  agent_id: agent.id().to_string(),
+                  register_key: key,
+                  old_value,
+                  new_value: 0.0,
+                  reason: "eod_reset".to_string(),
+              });
+          }
+      }
+  }
+  ```
+
+- `backend/src/policy/tree/context.rs`:
+  ```rust
+  // In EvalContext::build()
+
+  // Expose all state registers as fields with "bank_state_" prefix
+  for (key, value) in agent.state_registers() {
+      fields.insert(key.clone(), *value);
+  }
+
+  // If register doesn't exist, field lookup returns 0.0 (default)
+  ```
+
+#### Replay Mode Implementation
+
+**Files**:
+- `api/payment_simulator/persistence/persistence.py`:
+  ```python
+  # In EventWriter.write_event()
+
+  if event['event_type'] == 'state_register_set':
+      # Write to both tables
+
+      # 1. simulation_events (for replay)
+      cursor.execute("""
+          INSERT INTO simulation_events (simulation_id, tick, event_type, details)
+          VALUES (?, ?, ?, ?)
+      """, (sim_id, event['tick'], 'state_register_set', json.dumps(event)))
+
+      # 2. agent_state_registers (for efficient querying)
+      cursor.execute("""
+          INSERT OR REPLACE INTO agent_state_registers
+          (simulation_id, tick, agent_id, register_key, register_value)
+          VALUES (?, ?, ?, ?, ?)
+      """, (sim_id, event['tick'], event['agent_id'],
+            event['register_key'], event['new_value']))
+  ```
+
+- `api/payment_simulator/cli/execution/state_provider.py`:
+  ```python
+  class DatabaseStateProvider(StateProvider):
+      """Provides state from database for replay mode."""
+
+      def get_agent_state_registers(self, agent_id: str, tick: int) -> Dict[str, float]:
+          """Get all state registers for an agent at a specific tick.
+
+          Returns most recent value for each register up to and including tick.
+          """
+          cursor = self.conn.cursor()
+
+          # Get latest value for each register up to this tick
+          cursor.execute("""
+              SELECT register_key, register_value
+              FROM agent_state_registers
+              WHERE simulation_id = ?
+                AND agent_id = ?
+                AND tick <= ?
+              ORDER BY tick DESC
+          """, (self.simulation_id, agent_id, tick))
+
+          # Build dict of register_key -> value
+          registers = {}
+          seen_keys = set()
+
+          for row in cursor.fetchall():
+              key = row['register_key']
+              if key not in seen_keys:
+                  registers[key] = row['register_value']
+                  seen_keys.add(key)
+
+          return registers
+  ```
+
+- `api/payment_simulator/cli/display/verbose_output.py`:
+  ```python
+  def log_state_register_set(event: Dict):
+      """Display state register changes."""
+      console.print(f"[cyan]State Register:[/cyan] {event['agent_id']}")
+      console.print(f"  Key: {event['register_key']}")
+      console.print(f"  Old: {event['old_value']:.2f} → New: {event['new_value']:.2f}")
+      if event.get('reason'):
+          console.print(f"  Reason: {event['reason']}")
+
+  # In display_tick_verbose_output()
+  for event in events:
+      if event['event_type'] == 'state_register_set':
+          log_state_register_set(event)
+  ```
+
+---
+
+### Design Constraints (ENFORCED)
+
+**Limits**:
+- Max 10 registers per agent (prevents unbounded memory growth)
+- Keys MUST be prefixed with `bank_state_` (namespace protection)
+- Values are f64 only (no complex types)
+- Reset at EOD (daily scope, not multi-day strategies)
+
+**Validation**:
+- Reject keys without `bank_state_` prefix
+- Reject if agent already has 10 registers and key is new
+- Emit clear error messages
+
+**Performance**:
+- State registers stored in agent struct (fast access during tick)
+- Events batched and written at end of tick
+- Database indexed for fast replay lookup
+
+---
+
+### Testing Requirements
+
+**Unit Tests** (`backend/tests/state_register_tests.rs`):
+```rust
+#[test]
+fn test_set_state_register_basic() {
+    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+
+    let (old, new) = agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
+    assert_eq!(old, 0.0);
+    assert_eq!(new, 42.0);
+    assert_eq!(agent.get_state_register("bank_state_cooldown"), 42.0);
+}
+
+#[test]
+fn test_state_register_max_limit() {
+    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+
+    // Add 10 registers (should succeed)
+    for i in 0..10 {
+        agent.set_state_register(format!("bank_state_reg{}", i), i as f64).unwrap();
+    }
+
+    // 11th should fail
+    let result = agent.set_state_register("bank_state_reg11".to_string(), 11.0);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("Maximum 10"));
+}
+
+#[test]
+fn test_state_register_requires_prefix() {
+    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+
+    let result = agent.set_state_register("bad_key".to_string(), 42.0);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("bank_state_"));
+}
+
+#[test]
+fn test_state_register_eod_reset() {
+    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+
+    agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
+    assert_eq!(agent.get_state_register("bank_state_cooldown"), 42.0);
+
+    let old_values = agent.reset_state_registers();
+    assert_eq!(old_values.len(), 1);
+    assert_eq!(old_values[0], ("bank_state_cooldown".to_string(), 42.0));
+
+    // After reset, should return 0.0
+    assert_eq!(agent.get_state_register("bank_state_cooldown"), 0.0);
+}
+```
+
+**Integration Tests** (`api/tests/integration/test_state_register_persistence.py`):
+```python
+def test_state_register_persists_to_database():
+    """Verify state register changes are written to database."""
+    # Run simulation with policy that uses SetState
+    config = {...}
+    orch = Orchestrator.new(config)
+    db_path = "test_state_reg.db"
+
+    # Run 10 ticks
+    for _ in range(10):
+        orch.tick()
+
+    # Persist to database
+    persist_simulation(orch, db_path)
+
+    # Verify events in simulation_events table
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT COUNT(*) FROM simulation_events
+        WHERE event_type = 'state_register_set'
+    """)
+    count = cursor.fetchone()[0]
+    assert count > 0, "Should have StateRegisterSet events"
+
+    # Verify agent_state_registers table
+    cursor.execute("""
+        SELECT agent_id, register_key, register_value
+        FROM agent_state_registers
+        WHERE simulation_id = ?
+        ORDER BY tick
+    """, (orch.simulation_id(),))
+
+    registers = cursor.fetchall()
+    assert len(registers) > 0, "Should have state register records"
+
+def test_state_register_replay_identity():
+    """Verify state registers replay identically."""
+    config = {...}
+
+    # Run mode
+    orch = Orchestrator.new(config)
+    run_output = capture_run_output(orch, ticks=20)
+    db_path = "test_replay_state.db"
+    persist_simulation(orch, db_path)
+
+    # Replay mode
+    replay_output = capture_replay_output(db_path, ticks=20)
+
+    # Compare (should be identical)
+    assert run_output == replay_output, "State register actions must replay identically"
+```
+
+**Replay Identity Test** (add to `test_replay_identity_gold_standard.py`):
+```python
+def test_state_register_events_have_all_fields():
+    """Verify StateRegisterSet events contain all required fields."""
+    config = create_state_register_test_scenario()
+    orch = Orchestrator.new(config)
+
+    # Trigger state register changes
+    for _ in range(10):
+        orch.tick()
+
+    events = orch.get_all_events()
+    state_events = [e for e in events if e['event_type'] == 'state_register_set']
+
+    assert len(state_events) > 0, "Should have StateRegisterSet events"
+
+    for event in state_events:
+        # Verify ALL fields exist
+        assert 'tick' in event
+        assert 'agent_id' in event
+        assert 'register_key' in event
+        assert 'old_value' in event
+        assert 'new_value' in event
+        assert 'reason' in event
+        assert event['register_key'].startswith('bank_state_')
+```
+
+---
+
+### Documentation
+
+**Files**:
+- `docs/policy_dsl_guide.md` - Add "Stateful Strategies" section with cool-down example
+- `docs/architecture.md` - Document state register lifecycle and persistence
+- `backend/policies/cooldown_example.json` - Example policy using state registers
+
+**Example Policy** (cooldown pattern):
+```json
+{
+  "version": "1.0",
+  "policy_id": "split_with_cooldown",
+  "description": "Split large payments but enforce 5-tick cooldown",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "N1_CheckCooldown",
+    "description": "Check if enough time has passed since last split",
+    "condition": {
+      "op": ">",
+      "left": {
+        "compute": {
+          "op": "-",
+          "left": {"field": "current_tick"},
+          "right": {"field": "bank_state_last_split_tick"}
+        }
+      },
+      "right": {"value": 5.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "N2_CheckSize",
+      "condition": {
+        "op": ">",
+        "left": {"field": "remaining_amount"},
+        "right": {"value": 200000.0}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "A1_SplitAndSetCooldown",
+        "action": "Split",
+        "parameters": {
+          "num_splits": {"value": 4.0}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "A2_Release",
+        "action": "Release"
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "A3_HoldCooldown",
+      "action": "Hold",
+      "parameters": {
+        "reason": {"value": "SplitCooldownActive"}
+      }
+    }
+  },
+  "end_of_tick_tree": {
+    "type": "action",
+    "node_id": "EOT_UpdateCooldown",
+    "action": "SetState",
+    "parameters": {
+      "key": {"value": "bank_state_last_split_tick"},
+      "value": {"field": "current_tick"},
+      "reason": {"value": "record_split_time"}
+    }
+  }
+}
+```
+
+---
+
+### Success Criteria
+
+- [ ] State register changes emit `StateRegisterSet` events
+- [ ] Events persist to both `simulation_events` and `agent_state_registers` tables
+- [ ] Replay mode loads state registers from database
+- [ ] `run` and `replay` outputs are byte-for-byte identical (modulo timing)
+- [ ] EOD resets emit events (auditable)
+- [ ] Max 10 registers per agent enforced
+- [ ] Key prefix validation enforced
+- [ ] All tests pass (unit + integration + replay identity)
 
 ---
 
