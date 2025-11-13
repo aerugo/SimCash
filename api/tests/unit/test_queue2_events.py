@@ -1,7 +1,7 @@
-"""Unit test for Issue #2 fix: Queue-2 explicit settlement events.
+"""Unit test for Queue-2 explicit settlement events.
 
 Tests that transactions settling from Queue-2 (RTGS queue) generate
-distinct events that are visible and auditable in replay.
+distinct Queue2LiquidityRelease events that are visible and auditable in replay.
 """
 
 import pytest
@@ -11,7 +11,7 @@ def test_queue2_settlement_generates_distinct_event():
     """
     GIVEN a transaction in Queue-2 that can now settle
     WHEN liquidity becomes available and queue processes
-    THEN a distinct RtgsQueue2Settle event should be emitted
+    THEN a distinct Queue2LiquidityRelease event should be emitted
     """
     from payment_simulator._core import Orchestrator
 
@@ -89,11 +89,11 @@ def test_queue2_settlement_generates_distinct_event():
 
     tick1_events = orch.get_tick_events(1)
 
-    # ASSERTION: Expect distinct RtgsQueue2Settle event (not generic Settlement)
-    queue2_settle_events = [e for e in tick1_events if e.get("event_type") == "RtgsQueue2Settle"]
+    # ASSERTION: Expect distinct Queue2LiquidityRelease event (not generic Settlement)
+    queue2_settle_events = [e for e in tick1_events if e.get("event_type") == "Queue2LiquidityRelease"]
 
     assert len(queue2_settle_events) == 1, (
-        f"Expected 1 rtgs_queue2_settle event for Queue-2 settlement, "
+        f"Expected 1 Queue2LiquidityRelease event for Queue-2 settlement, "
         f"but got {len(queue2_settle_events)}. "
         f"Available events: {[e.get('event_type') for e in tick1_events]}"
     )
@@ -105,7 +105,8 @@ def test_queue2_settlement_generates_distinct_event():
     assert settle_event["sender"] == "BANK_A"
     assert settle_event["receiver"] == "BANK_B"
     assert settle_event["amount"] == 50000
-    assert "reason" in settle_event, "Event should explain why it settled (liquidity_restored, etc.)"
+    assert "release_reason" in settle_event, "Event should explain why it settled (liquidity_restored, etc.)"
+    assert "queue_wait_ticks" in settle_event, "Event should track how long transaction waited in queue"
 
     # Verify tx is NO LONGER in Queue-2
     rtgs_queue_after = orch.get_rtgs_queue_contents()
@@ -129,7 +130,7 @@ def test_queue2_drop_at_deadline():
 def test_settlement_event_still_emitted():
     """
     GIVEN a transaction settling from Queue-2
-    WHEN RtgsQueue2Settle event is emitted
+    WHEN Queue2LiquidityRelease event is emitted
     THEN a generic Settlement event should ALSO be emitted for compatibility
 
     (Ensures backward compatibility with existing metrics/analysis that rely on Settlement events)
@@ -200,10 +201,10 @@ def test_settlement_event_still_emitted():
 
     # Should have BOTH events
     settlement_events = [e for e in tick1_events if e.get("event_type") == "Settlement"]
-    queue2_settle_events = [e for e in tick1_events if e.get("event_type") == "RtgsQueue2Settle"]
+    queue2_settle_events = [e for e in tick1_events if e.get("event_type") == "Queue2LiquidityRelease"]
 
     assert len(settlement_events) >= 1, "Generic Settlement event should still exist for compatibility"
-    assert len(queue2_settle_events) == 1, "RtgsQueue2Settle event should also exist for audit trail"
+    assert len(queue2_settle_events) == 1, "Queue2LiquidityRelease event should also exist for audit trail"
 
 
 if __name__ == "__main__":
