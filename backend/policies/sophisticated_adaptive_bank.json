@@ -1,0 +1,405 @@
+{
+  "version": "1.0",
+  "policy_id": "sophisticated_adaptive_bank",
+  "description": "Advanced policy demonstrating Phase 3.3-4.5 features: bank budgets, state registers, and collateral timers. Uses memory for cooldowns and adaptive budget management.",
+  "parameters": {
+    "urgency_threshold": 5.0,
+    "min_buffer": 100000.0,
+    "eod_threshold": 80.0,
+    "cooldown_duration": 8.0,
+    "budget_multiplier": 0.35,
+    "temporary_collateral_amount": 2000000.0,
+    "collateral_timer_ticks": 15.0
+  },
+  "bank_tree": {
+    "type": "condition",
+    "node_id": "B_Root",
+    "description": "Bank-level decision: manage budgets, memory, and collateral",
+    "condition": {
+      "op": ">",
+      "left": {"field": "bank_state_cooldown"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "B_DecrementCooldown",
+      "description": "In cooldown - decrement counter and skip budget",
+      "condition": {
+        "op": "==",
+        "left": {"field": "bank_state_cooldown"},
+        "right": {"field": "bank_state_cooldown"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "B_TickCooldown",
+        "action": "AddState",
+        "parameters": {
+          "register_key": {"value": "bank_state_cooldown"},
+          "value": {"value": -1.0},
+          "reason": {"value": "tick_cooldown_timer"}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "B_NoOp1",
+        "action": "NoAction"
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "B_CheckLiquidity",
+      "description": "No cooldown - check liquidity for budget setting",
+      "condition": {
+        "op": ">",
+        "left": {"field": "effective_liquidity"},
+        "right": {"param": "min_buffer"}
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "B_CheckEOD",
+        "description": "Good liquidity - check if end-of-day approaching",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "day_progress_fraction"},
+          "right": {
+            "compute": {
+              "op": "/",
+              "left": {"param": "eod_threshold"},
+              "right": {"value": 100.0}
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "B_EOD_AggressiveBudget",
+          "description": "EOD - aggressive budget to clear queues",
+          "action": "SetReleaseBudget",
+          "parameters": {
+            "max_value_to_release_this_tick": {
+              "compute": {
+                "op": "*",
+                "left": {"field": "queue1_value"},
+                "right": {"value": 0.8}
+              }
+            }
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "B_CheckQueue1Pressure",
+          "description": "Not EOD - adaptive budget based on queue pressure",
+          "condition": {
+            "op": ">",
+            "left": {"field": "queue1_size"},
+            "right": {"value": 15.0}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "B_HighPressureBudget",
+            "description": "High queue pressure - larger budget but set cooldown",
+            "action": "SetReleaseBudget",
+            "parameters": {
+              "max_value_to_release_this_tick": {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "effective_liquidity"},
+                  "right": {"value": 0.5}
+                }
+              }
+            }
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "B_NormalBudget",
+            "description": "Normal queue - moderate budget",
+            "action": "SetReleaseBudget",
+            "parameters": {
+              "max_value_to_release_this_tick": {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "effective_liquidity"},
+                  "right": {"param": "budget_multiplier"}
+                }
+              },
+              "focus_cpty_list": {"value": []},
+              "max_per_cpty": {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "effective_liquidity"},
+                  "right": {"value": 0.15}
+                }
+              }
+            }
+          }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "B_LowLiquidityCheck",
+        "description": "Low liquidity - conservative budget",
+        "condition": {
+          "op": ">",
+          "left": {"field": "effective_liquidity"},
+          "right": {"value": 0.0}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "B_ConservativeBudget",
+          "description": "Low liquidity - minimal budget",
+          "action": "SetReleaseBudget",
+          "parameters": {
+            "max_value_to_release_this_tick": {
+              "compute": {
+                "op": "*",
+                "left": {"field": "effective_liquidity"},
+                "right": {"value": 0.15}
+              }
+            }
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "B_NoBudget",
+          "description": "Negative liquidity - no releases",
+          "action": "SetReleaseBudget",
+          "parameters": {
+            "max_value_to_release_this_tick": {"value": 0.0}
+          }
+        }
+      }
+    }
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "N1_CheckUrgent",
+    "description": "First priority: handle urgent payments",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {"field": "ticks_to_deadline"},
+          "right": {"param": "urgency_threshold"}
+        },
+        {
+          "op": "==",
+          "left": {"field": "is_past_deadline"},
+          "right": {"value": 1.0}
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "A1_ReleaseUrgent",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "N2_CheckInCooldown",
+      "description": "Check if in cooldown from large release",
+      "condition": {
+        "op": ">",
+        "left": {"field": "bank_state_cooldown"},
+        "right": {"value": 0.0}
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "N3_CooldownHighPriority",
+        "description": "In cooldown - only release high priority",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "priority"},
+          "right": {"value": 7.0}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "A2_ReleaseHighPri",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "A3_HoldDuringCooldown",
+          "action": "Hold",
+          "parameters": {
+            "reason": {"value": "InCooldown"}
+          }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "N4_CheckLiquidity",
+        "description": "Not in cooldown - normal liquidity check",
+        "condition": {
+          "op": ">=",
+          "left": {"field": "effective_liquidity"},
+          "right": {
+            "compute": {
+              "op": "+",
+              "left": {"field": "remaining_amount"},
+              "right": {"param": "min_buffer"}
+            }
+          }
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "N5_CheckIfLarge",
+          "description": "Good liquidity - check if payment is large",
+          "condition": {
+            "op": ">",
+            "left": {"field": "remaining_amount"},
+            "right": {
+              "compute": {
+                "op": "*",
+                "left": {"field": "effective_liquidity"},
+                "right": {"value": 0.25}
+              }
+            }
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "N6_CanSplit",
+            "description": "Large payment - check if divisible",
+            "condition": {
+              "op": "==",
+              "left": {"field": "is_divisible"},
+              "right": {"value": 1.0}
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "A4_SplitLarge",
+              "action": "Split",
+              "parameters": {
+                "num_splits": {"value": 4.0}
+              }
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "A5_ReleaseLargeWhole",
+              "action": "Release"
+            }
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "A6_ReleaseNormal",
+            "action": "Release"
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "A7_HoldLowLiquidity",
+          "action": "Hold",
+          "parameters": {
+            "reason": {"value": "InsufficientLiquidity"}
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC_Root",
+    "description": "Forward-looking collateral management with auto-withdraw timers",
+    "condition": {
+      "op": ">",
+      "left": {"field": "queue1_liquidity_gap"},
+      "right": {"param": "min_buffer"}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "SC_CheckEOD",
+      "description": "Large gap - check if EOD approaching for temporary boost",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "day_progress_fraction"},
+        "right": {"value": 0.7}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "SC_EOD_TemporaryBoost",
+        "description": "EOD gap - post temporary collateral with auto-withdraw",
+        "action": "PostCollateral",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "*",
+              "left": {"field": "queue1_liquidity_gap"},
+              "right": {"value": 0.6}
+            }
+          },
+          "reason": {"value": "EOD_Temporary_Boost"},
+          "auto_withdraw_after_ticks": {"param": "collateral_timer_ticks"}
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "SC_PostStandard",
+        "description": "Mid-day gap - post collateral without timer",
+        "action": "PostCollateral",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "max",
+              "values": [
+                {"field": "queue1_liquidity_gap"},
+                {"value": 0.0}
+              ]
+            }
+          },
+          "reason": {"value": "CoverLiquidityGap"}
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SC_NoAction",
+      "action": "HoldCollateral"
+    }
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "EC_Root",
+    "description": "Reactive collateral management at end of tick",
+    "condition": {
+      "op": "and",
+      "conditions": [
+        {
+          "op": ">",
+          "left": {"field": "collateral_posted"},
+          "right": {"value": 1000000.0}
+        },
+        {
+          "op": ">",
+          "left": {"field": "effective_liquidity"},
+          "right": {
+            "compute": {
+              "op": "+",
+              "left": {"field": "queue1_value"},
+              "right": {"value": 5000000.0}
+            }
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "EC_WithdrawExcess",
+      "description": "Excess collateral and liquidity - withdraw to reduce costs",
+      "action": "WithdrawCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "collateral_posted"},
+            "right": {"value": 0.3}
+          }
+        },
+        "reason": {"value": "ReduceOpportunityCost"}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "EC_NoAction",
+      "action": "HoldCollateral"
+    }
+  }
+}
