@@ -1789,6 +1789,70 @@ def log_overdue_transaction_settled_event(event: dict, quiet: bool = False) -> N
     )
 
 
+def log_state_register_events(events, quiet=False):
+    """Log state register update events (Phase 4.5: Policy micro-memory).
+
+    Displays when agents update their memory registers, showing how policy
+    decisions are affected by state.
+
+    Args:
+        events: List of events from get_tick_events()
+        quiet: Suppress output if True
+
+    Example Output:
+        🧠 Agent Memory Updates (3):
+           BANK_A:
+           • bank_state_cooldown: 0.0 → 42.0 (policy_action)
+           • bank_state_counter: 5.0 → 6.0 (increment)
+
+           BANK_B:
+           • bank_state_cooldown: 0.0 → 20.0 (policy_action)
+    """
+    if quiet:
+        return
+
+    state_events = [
+        e for e in events
+        if e.get("event_type") == "StateRegisterSet"
+    ]
+
+    if not state_events:
+        return
+
+    console.print()
+    console.print(f"🧠 [cyan]Agent Memory Updates ({len(state_events)}):[/cyan]")
+
+    # Group by agent
+    by_agent = {}
+    for event in state_events:
+        agent_id = event.get("agent_id", "unknown")
+        if agent_id not in by_agent:
+            by_agent[agent_id] = []
+        by_agent[agent_id].append(event)
+
+    for agent_id, agent_events in by_agent.items():
+        console.print(f"   [bold]{agent_id}:[/bold]")
+        for event in agent_events:
+            register_key = event.get("register_key", "unknown")
+            old_value = event.get("old_value", 0.0)
+            new_value = event.get("new_value", 0.0)
+            reason = event.get("reason", "no reason")
+
+            # Format register key for display (remove bank_state_ prefix)
+            display_key = register_key.replace("bank_state_", "")
+
+            # Color based on reason
+            if reason == "eod_reset":
+                console.print(f"   • [dim]{display_key}: {old_value} → {new_value} ([yellow]EOD reset[/yellow])[/dim]")
+            elif new_value > old_value:
+                console.print(f"   • [green]{display_key}: {old_value} → {new_value}[/green] ({reason})")
+            elif new_value < old_value:
+                console.print(f"   • [yellow]{display_key}: {old_value} → {new_value}[/yellow] ({reason})")
+            else:
+                console.print(f"   • {display_key}: {old_value} → {new_value} ({reason})")
+        console.print()
+
+
 def log_performance_diagnostics(timing: dict, tick: int) -> None:
     """Display performance breakdown for a single tick.
 
