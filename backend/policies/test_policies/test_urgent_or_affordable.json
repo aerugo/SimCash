@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "policy_id": "test_urgent_or_affordable",
+  "description": "Two-feature test policy: Tests OR logic. Releases when EITHER urgent OR affordable, holds only when both false.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-UrgentOrAffordable",
+    "description": "Is this urgent OR affordable?",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "value": 3.0
+          }
+        },
+        {
+          "op": ">=",
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "field": "remaining_amount"
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-ORRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "BothConditionsFalse"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}

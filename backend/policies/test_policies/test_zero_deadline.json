@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "policy_id": "test_zero_deadline",
+  "description": "Edge case test policy: Tests zero deadline detection. Releases when ticks_to_deadline == 0 (immediate urgency), holds otherwise.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-ZeroDeadline",
+    "description": "Is deadline immediate (zero ticks)?",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-ZeroDeadlineRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "DeadlineNotImmediate"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}

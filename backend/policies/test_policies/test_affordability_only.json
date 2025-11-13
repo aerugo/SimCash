@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "policy_id": "test_affordability_only",
+  "description": "Single-feature test policy: Tests affordability check in isolation. Releases when effective_liquidity >= remaining_amount, holds otherwise.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-Affordability",
+    "description": "Can agent afford this transaction?",
+    "condition": {
+      "op": ">=",
+      "left": {
+        "field": "effective_liquidity"
+      },
+      "right": {
+        "field": "remaining_amount"
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-AffordableRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "Unaffordable"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}

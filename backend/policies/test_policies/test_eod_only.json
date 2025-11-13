@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "policy_id": "test_eod_only",
+  "description": "Single-feature test policy: Tests EOD rush detection in isolation. Releases during EOD rush, holds otherwise.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-EOD",
+    "description": "Is this end-of-day rush?",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "is_eod_rush"
+      },
+      "right": {
+        "value": 1.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-EODRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "NotEOD"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}

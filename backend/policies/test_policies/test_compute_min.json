@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "policy_id": "test_compute_min",
+  "description": "Field validation test policy: Tests min operator in compute expressions. Releases when effective_liquidity >= min(remaining_amount, 500000) - payment capped at $5k.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-Min",
+    "description": "Can agent afford minimum of payment or $5k cap?",
+    "condition": {
+      "op": ">=",
+      "left": {
+        "field": "effective_liquidity"
+      },
+      "right": {
+        "compute": {
+          "op": "min",
+          "values": [
+            {
+              "field": "remaining_amount"
+            },
+            {
+              "value": 500000.0
+            }
+          ]
+        }
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-MinRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "BelowMinThreshold"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}

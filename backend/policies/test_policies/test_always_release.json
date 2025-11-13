@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "policy_id": "test_always_release",
+  "description": "Minimal test policy: Always releases transactions immediately without any conditions. Used to verify Release action works correctly.",
+  "payment_tree": {
+    "type": "action",
+    "node_id": "TEST-A1-AlwaysRelease",
+    "action": "Release"
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}
