@@ -411,5 +411,298 @@ class TestUrgencyDetection:
         assert result.passed, "Urgency policy queues non-urgent transactions"
 
 
+class TestAffordabilityCheck:
+    """Verify affordability (effective_liquidity >= remaining_amount) works correctly."""
+
+    def test_affordability_only_releases_when_affordable(self):
+        """
+        Policy: test_affordability_only
+        Feature: effective_liquidity >= remaining_amount condition
+
+        Scenario: Transaction $10k, agent has $15k balance
+        Expected: Transaction released (100% settlement)
+        Verifies: Affordability check detects sufficient liquidity
+        """
+        scenario = (
+            ScenarioBuilder("AffordabilityOnly_Affordable")
+            .with_description("Affordable transaction ($15k balance, $10k payment)")
+            .with_duration(10)
+            .with_ticks_per_day(10)
+            .with_seed(20301)
+            .add_agent(
+                "BANK_A",
+                balance=1_500_000,  # $15k - can afford $10k
+                arrival_rate=0.0,
+            )
+            .add_agent("BANK_B", balance=10_000_000)
+            .add_large_payment(
+                tick=2,
+                sender="BANK_A",
+                receiver="BANK_B",
+                amount=1_000_000,  # $10k
+                deadline_offset=5,
+            )
+            .build()
+        )
+
+        policy = load_test_policy("test_affordability_only")
+
+        # Expected: Released due to sufficient liquidity
+        expectations = OutcomeExpectation(
+            settlement_rate=Range(min=0.9, max=1.0),  # Should release
+            overdraft_violations=Exact(0),  # No overdraft needed
+        )
+
+        test = PolicyScenarioTest(policy, scenario, expectations, agent_id="BANK_A")
+        result = test.run()
+
+        if not result.passed:
+            print(result.detailed_report())
+
+        assert result.passed, "Affordability policy should release affordable transactions"
+
+    def test_affordability_only_holds_when_unaffordable(self):
+        """
+        Policy: test_affordability_only
+        Feature: effective_liquidity >= remaining_amount condition (false case)
+
+        Scenario: Transaction $20k, agent has $10k balance
+        Expected: Transaction held (queued)
+        Verifies: Affordability check detects insufficient liquidity
+        """
+        scenario = (
+            ScenarioBuilder("AffordabilityOnly_Unaffordable")
+            .with_description("Unaffordable transaction ($10k balance, $20k payment)")
+            .with_duration(15)
+            .with_ticks_per_day(15)
+            .with_seed(20302)
+            .add_agent(
+                "BANK_A",
+                balance=1_000_000,  # $10k - cannot afford $20k
+                arrival_rate=0.0,
+            )
+            .add_agent("BANK_B", balance=10_000_000)
+            .add_large_payment(
+                tick=2,
+                sender="BANK_A",
+                receiver="BANK_B",
+                amount=2_000_000,  # $20k - unaffordable
+                deadline_offset=5,
+            )
+            .build()
+        )
+
+        policy = load_test_policy("test_affordability_only")
+
+        # Expected: Held due to insufficient liquidity (may settle later via system logic)
+        expectations = OutcomeExpectation(
+            settlement_rate=Range(min=0.0, max=1.0),  # Accept either outcome
+            max_queue_depth=Range(min=1, max=2),  # Verifies Hold action executed
+        )
+
+        test = PolicyScenarioTest(policy, scenario, expectations, agent_id="BANK_A")
+        result = test.run()
+
+        if not result.passed:
+            print(result.detailed_report())
+
+        assert result.passed, "Affordability policy queues unaffordable transactions"
+
+
+class TestBufferCheck:
+    """Verify buffer check (effective_liquidity >= remaining_amount * 2.0) works correctly."""
+
+    def test_buffer_only_releases_with_strong_buffer(self):
+        """
+        Policy: test_buffer_only
+        Feature: effective_liquidity >= remaining_amount * 2.0 condition
+
+        Scenario: Transaction $10k, agent has $20k balance (2× buffer)
+        Expected: Transaction released (100% settlement)
+        Verifies: Buffer check detects 2× buffer requirement met
+        """
+        scenario = (
+            ScenarioBuilder("BufferOnly_StrongBuffer")
+            .with_description("Strong buffer ($20k balance, $10k payment = 2×)")
+            .with_duration(10)
+            .with_ticks_per_day(10)
+            .with_seed(20401)
+            .add_agent(
+                "BANK_A",
+                balance=2_000_000,  # $20k - exactly 2× buffer for $10k
+                arrival_rate=0.0,
+            )
+            .add_agent("BANK_B", balance=10_000_000)
+            .add_large_payment(
+                tick=2,
+                sender="BANK_A",
+                receiver="BANK_B",
+                amount=1_000_000,  # $10k
+                deadline_offset=5,
+            )
+            .build()
+        )
+
+        policy = load_test_policy("test_buffer_only")
+
+        # Expected: Released due to sufficient buffer
+        expectations = OutcomeExpectation(
+            settlement_rate=Range(min=0.9, max=1.0),  # Should release
+            overdraft_violations=Exact(0),
+        )
+
+        test = PolicyScenarioTest(policy, scenario, expectations, agent_id="BANK_A")
+        result = test.run()
+
+        if not result.passed:
+            print(result.detailed_report())
+
+        assert result.passed, "Buffer policy should release with 2× buffer"
+
+    def test_buffer_only_holds_with_weak_buffer(self):
+        """
+        Policy: test_buffer_only
+        Feature: effective_liquidity >= remaining_amount * 2.0 condition (false case)
+
+        Scenario: Transaction $10k, agent has $15k balance (1.5× buffer)
+        Expected: Transaction held (queued)
+        Verifies: Buffer check detects insufficient buffer (<2×)
+        """
+        scenario = (
+            ScenarioBuilder("BufferOnly_WeakBuffer")
+            .with_description("Weak buffer ($15k balance, $10k payment = 1.5×)")
+            .with_duration(15)
+            .with_ticks_per_day(15)
+            .with_seed(20402)
+            .add_agent(
+                "BANK_A",
+                balance=1_500_000,  # $15k - only 1.5× buffer for $10k
+                arrival_rate=0.0,
+            )
+            .add_agent("BANK_B", balance=10_000_000)
+            .add_large_payment(
+                tick=2,
+                sender="BANK_A",
+                receiver="BANK_B",
+                amount=1_000_000,  # $10k
+                deadline_offset=5,
+            )
+            .build()
+        )
+
+        policy = load_test_policy("test_buffer_only")
+
+        # Expected: Held due to weak buffer (may settle later)
+        expectations = OutcomeExpectation(
+            settlement_rate=Range(min=0.0, max=1.0),  # Accept either outcome
+            max_queue_depth=Range(min=1, max=2),  # Verifies Hold action executed
+        )
+
+        test = PolicyScenarioTest(policy, scenario, expectations, agent_id="BANK_A")
+        result = test.run()
+
+        if not result.passed:
+            print(result.detailed_report())
+
+        assert result.passed, "Buffer policy queues transactions with weak buffer"
+
+
+class TestTimeOfDayCheck:
+    """Verify time-of-day (day_progress_fraction) works correctly."""
+
+    def test_time_of_day_only_releases_late_in_day(self):
+        """
+        Policy: test_time_of_day_only
+        Feature: day_progress_fraction > 0.5 condition
+
+        Scenario: Transaction arrives at 60% through day (tick 60 of 100)
+        Expected: Transaction released (100% settlement)
+        Verifies: day_progress_fraction calculation is accurate
+        """
+        scenario = (
+            ScenarioBuilder("TimeOfDayOnly_LateDay")
+            .with_description("Late day transaction (60% progress)")
+            .with_duration(100)
+            .with_ticks_per_day(100)
+            .with_seed(20501)
+            .add_agent(
+                "BANK_A",
+                balance=10_000_000,  # $100k
+                arrival_rate=0.0,
+            )
+            .add_agent("BANK_B", balance=10_000_000)
+            .add_large_payment(
+                tick=60,  # 60% through day
+                sender="BANK_A",
+                receiver="BANK_B",
+                amount=1_000_000,  # $10k
+                deadline_offset=20,
+            )
+            .build()
+        )
+
+        policy = load_test_policy("test_time_of_day_only")
+
+        # Expected: Released late in day
+        expectations = OutcomeExpectation(
+            settlement_rate=Range(min=0.9, max=1.0),  # Should release
+        )
+
+        test = PolicyScenarioTest(policy, scenario, expectations, agent_id="BANK_A")
+        result = test.run()
+
+        if not result.passed:
+            print(result.detailed_report())
+
+        assert result.passed, "Time-of-day policy should release late in day"
+
+    def test_time_of_day_only_holds_early_in_day(self):
+        """
+        Policy: test_time_of_day_only
+        Feature: day_progress_fraction > 0.5 condition (false case)
+
+        Scenario: Transaction arrives at 30% through day (tick 30 of 100)
+        Expected: Transaction held (queued)
+        Verifies: day_progress_fraction correctly identifies early day
+        """
+        scenario = (
+            ScenarioBuilder("TimeOfDayOnly_EarlyDay")
+            .with_description("Early day transaction (30% progress)")
+            .with_duration(100)
+            .with_ticks_per_day(100)
+            .with_seed(20502)
+            .add_agent(
+                "BANK_A",
+                balance=10_000_000,  # $100k
+                arrival_rate=0.0,
+            )
+            .add_agent("BANK_B", balance=10_000_000)
+            .add_large_payment(
+                tick=30,  # 30% through day
+                sender="BANK_A",
+                receiver="BANK_B",
+                amount=1_000_000,  # $10k
+                deadline_offset=40,
+            )
+            .build()
+        )
+
+        policy = load_test_policy("test_time_of_day_only")
+
+        # Expected: Held early in day (may settle later)
+        expectations = OutcomeExpectation(
+            settlement_rate=Range(min=0.0, max=1.0),  # Accept either outcome
+            max_queue_depth=Range(min=1, max=2),  # Verifies Hold action executed
+        )
+
+        test = PolicyScenarioTest(policy, scenario, expectations, agent_id="BANK_A")
+        result = test.run()
+
+        if not result.passed:
+            print(result.detailed_report())
+
+        assert result.passed, "Time-of-day policy queues transactions early in day"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
