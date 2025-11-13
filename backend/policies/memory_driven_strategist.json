@@ -237,29 +237,11 @@
             "action": "Release"
           },
           "on_false": {
-            "type": "condition",
-            "node_id": "N6_CanSplitAggressive",
-            "description": "Can't afford full - try splitting",
-            "condition": {
-              "op": "==",
-              "left": {"field": "is_divisible"},
-              "right": {"value": 1.0}
-            },
-            "on_true": {
-              "type": "action",
-              "node_id": "A5_SplitAggressive",
-              "action": "Split",
-              "parameters": {
-                "num_splits": {"value": 3.0}
-              }
-            },
-            "on_false": {
-              "type": "action",
-              "node_id": "A6_HoldCantAfford",
-              "action": "Hold",
-              "parameters": {
-                "reason": {"value": "InsufficientLiquidity"}
-              }
+            "type": "action",
+            "node_id": "A6_HoldCantAfford",
+            "action": "Hold",
+            "parameters": {
+              "reason": {"value": "InsufficientLiquidity"}
             }
           }
         },
