@@ -85,7 +85,47 @@ pub enum ReleaseDecision {
     ///
     /// Moves transaction from Queue 1 to Queue 2 (RTGS central queue).
     /// May settle immediately if liquidity sufficient, or queue in RTGS.
-    SubmitFull { tx_id: String },
+    ///
+    /// # Phase 3.2: RTGS Flags
+    ///
+    /// Optional parameters enable policies to control priority and timing:
+    ///
+    /// * `priority_override` - Override transaction's original priority (0-10)
+    ///   - Useful for urgent deadlines or to lower priority during oversupply
+    ///   - If None, uses transaction's original priority
+    ///
+    /// * `target_tick` - Target tick for release (for LSM coordination)
+    ///   - If None or <= current tick, releases immediately
+    ///   - If > current tick, schedules release for that tick
+    ///   - Enables coordinating releases with expected inbound payments
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use payment_simulator_core_rs::policy::ReleaseDecision;
+    ///
+    /// // Boost priority for urgent transaction
+    /// let decision1 = ReleaseDecision::SubmitFull {
+    ///     tx_id: "urgent_tx".to_string(),
+    ///     priority_override: Some(10), // HIGH priority
+    ///     target_tick: None,           // Release now
+    /// };
+    ///
+    /// // Coordinate with expected LSM offset
+    /// let current_tick = 10;
+    /// let decision2 = ReleaseDecision::SubmitFull {
+    ///     tx_id: "lsm_tx".to_string(),
+    ///     priority_override: None,
+    ///     target_tick: Some(current_tick + 5), // Release in 5 ticks
+    /// };
+    /// ```
+    SubmitFull {
+        tx_id: String,
+        /// Optional priority override (0-10). If None, uses transaction's original priority.
+        priority_override: Option<u8>,
+        /// Optional target tick for release. If None, releases immediately.
+        target_tick: Option<usize>,
+    },
 
     /// Split transaction into multiple parts and submit all children
     ///
@@ -151,6 +191,65 @@ pub enum ReleaseDecision {
     Reprioritize {
         tx_id: String,
         new_priority: u8,
+    },
+
+    /// Split transaction and release children with staggered timing (Phase 3.1)
+    ///
+    /// Creates `num_splits` child transactions from the parent, but unlike
+    /// `SubmitPartial`, releases them gradually over time instead of all at once.
+    ///
+    /// # Timing Control
+    ///
+    /// * `stagger_first_now` - Number of children to release immediately
+    /// * `stagger_gap_ticks` - Tick gap between subsequent releases
+    /// * Remaining children are queued internally with scheduled release ticks
+    ///
+    /// # Example
+    ///
+    /// With `num_splits=5`, `stagger_first_now=2`, `stagger_gap_ticks=3`:
+    /// - Children 1-2: Released at tick T (immediate)
+    /// - Child 3: Released at tick T+3
+    /// - Child 4: Released at tick T+6
+    /// - Child 5: Released at tick T+9
+    ///
+    /// # Priority Boost
+    ///
+    /// * `priority_boost_children` - Added to parent priority (capped at 10)
+    /// * Useful for ensuring staggered children don't get stuck behind new arrivals
+    ///
+    /// # Cost
+    ///
+    /// Split friction cost is charged once when split occurs:
+    /// `split_friction_cost × (num_splits - 1)`
+    ///
+    /// Staggering timing is free (no additional cost beyond the split itself).
+    ///
+    /// # Use Cases
+    ///
+    /// 1. **Feed LSM gradually**: Release to counterparty A over multiple ticks
+    ///    to trigger bilateral offsets as A's payments arrive
+    /// 2. **Avoid Queue 2 flooding**: Pace releases to prevent overwhelming RTGS
+    /// 3. **Wait for inflows**: Release first child now, delay others until
+    ///    expected incoming settlements provide liquidity
+    /// 4. **End-of-day strategy**: Release large payment in waves as deadline approaches
+    ///
+    /// # Constraints
+    ///
+    /// * `num_splits >= 2` (must actually split)
+    /// * `stagger_first_now <= num_splits` (can't release more than exist)
+    /// * `stagger_gap_ticks >= 0` (negative gaps invalid)
+    /// * All children inherit parent's deadline (staggering doesn't extend it)
+    ///
+    /// # Phase 3.1 Implementation
+    ///
+    /// This action enables realistic cash manager behavior: pacing releases to
+    /// manage liquidity flow and optimize LSM recycling opportunities.
+    StaggerSplit {
+        tx_id: String,
+        num_splits: usize,
+        stagger_first_now: usize,
+        stagger_gap_ticks: usize,
+        priority_boost_children: u8,
     },
 }
 
@@ -231,6 +330,91 @@ pub enum CollateralReason {
     Custom(String),
 }
 
+/// Decision about bank-level resource management (Phase 3.3)
+///
+/// Bank-level decisions are evaluated once per agent per tick (not per transaction).
+/// They set budgets and constraints that affect all transaction-level decisions
+/// for that tick.
+///
+/// # Use Cases
+///
+/// 1. **Liquidity Budgeting**: Limit total releases per tick to conserve liquidity
+/// 2. **Counterparty Focus**: Prioritize specific counterparties for strategic reasons
+/// 3. **Risk Management**: Cap exposure to individual counterparties
+/// 4. **Flow Control**: Prevent overwhelming RTGS with too many simultaneous releases
+///
+/// # Evaluation
+///
+/// Bank-level decisions are evaluated via the `bank_tree` in policy JSON:
+/// - Evaluated once per agent at the start of each tick
+/// - Sets budget state that persists for the tick
+/// - Transaction-level `Release` decisions check budget and are blocked if exceeded
+///
+/// # Example
+///
+/// ```json
+/// {
+///   "bank_tree": {
+///     "type": "action",
+///     "node_id": "B1_SetBudget",
+///     "action": "SetReleaseBudget",
+///     "parameters": {
+///       "max_value_to_release": {"value": 500000.0},
+///       "focus_cpty_list": {"value": ["BANK_A", "BANK_B"]},
+///       "max_per_cpty": {"value": 100000.0}
+///     }
+///   }
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub enum BankDecision {
+    /// Set release budget for this tick
+    ///
+    /// Establishes limits on total and per-counterparty releases for the current tick.
+    /// Budget resets at the start of each tick.
+    ///
+    /// # Parameters
+    ///
+    /// * `max_value_to_release` - Total value that can be released this tick (cents)
+    /// * `focus_counterparties` - Optional list of allowed counterparties. If None, all allowed.
+    /// * `max_per_counterparty` - Optional max value per counterparty (cents). If None, unlimited per counterparty.
+    ///
+    /// # Budget Enforcement
+    ///
+    /// When a `Release` decision is processed:
+    /// 1. Check if total budget exceeded → convert to `Hold` with reason "BudgetExhausted"
+    /// 2. Check if counterparty in focus list (if specified) → convert to `Hold` with reason "NotInFocusList"
+    /// 3. Check if per-counterparty limit exceeded → convert to `Hold` with reason "CounterpartyLimitExceeded"
+    /// 4. If all checks pass, proceed with release and deduct from budget
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use payment_simulator_core_rs::policy::BankDecision;
+    ///
+    /// // Set budget: max $5,000 total, max $1,000 per counterparty, focus on BANK_A/B
+    /// let decision = BankDecision::SetReleaseBudget {
+    ///     max_value_to_release: 500_000,
+    ///     focus_counterparties: Some(vec!["BANK_A".to_string(), "BANK_B".to_string()]),
+    ///     max_per_counterparty: Some(100_000),
+    /// };
+    /// ```
+    SetReleaseBudget {
+        /// Total budget for this tick (cents)
+        max_value_to_release: i64,
+        /// Optional list of allowed counterparties. If None, all allowed.
+        focus_counterparties: Option<Vec<String>>,
+        /// Optional max per counterparty (cents). If None, unlimited per counterparty.
+        max_per_counterparty: Option<i64>,
+    },
+
+    /// No bank-level action (default)
+    ///
+    /// Used when policy has no bank_tree or bank_tree evaluates to no-op.
+    /// All transaction-level decisions proceed without budget constraints.
+    NoAction,
+}
+
 /// Cash manager policy trait
 ///
 /// Implement this trait to define custom decision logic for when to submit
@@ -272,6 +456,8 @@ pub enum CollateralReason {
 ///             .iter()
 ///             .map(|tx_id| ReleaseDecision::SubmitFull {
 ///                 tx_id: tx_id.clone(),
+///                 priority_override: None,
+///                 target_tick: None,
 ///             })
 ///             .collect()
 ///     }

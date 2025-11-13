@@ -206,6 +206,24 @@ pub enum PolicyConfig {
         num_splits: usize,
     },
 
+    /// Mock stagger split policy for testing (Phase 3.1)
+    ///
+    /// Always splits transactions with staggered timing.
+    /// Used in tests to verify staggered release mechanics.
+    ///
+    /// NOTE: Available in all builds to support integration testing,
+    /// but should only be used in test code.
+    MockStaggerSplit {
+        /// Number of splits to create
+        num_splits: usize,
+        /// Number of children to release immediately
+        stagger_first_now: usize,
+        /// Tick gap between subsequent releases
+        stagger_gap_ticks: usize,
+        /// Priority boost for children
+        priority_boost_children: u8,
+    },
+
     /// Custom JSON policy for testing
     ///
     /// Allows tests to pass arbitrary JSON policy definitions without
@@ -2436,6 +2454,73 @@ impl Orchestrator {
             }
         }
 
+        // STEP 1.75: BANK-LEVEL BUDGET DECISIONS (Phase 3.3)
+        // Evaluate bank_tree once per agent to set release budgets for this tick
+        // This runs after collateral decisions but before payment decisions
+        for agent_id in all_agent_ids.clone() {
+            let agent = self
+                .state
+                .get_agent(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            let policy = self
+                .policies
+                .get_mut(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            // Only TreePolicy supports bank_tree evaluation
+            let tree_policy = policy
+                .as_any_mut()
+                .downcast_mut::<crate::policy::tree::TreePolicy>()
+                .ok_or_else(|| {
+                    SimulationError::InvalidConfig(format!(
+                        "Agent {} policy is not a TreePolicy",
+                        agent_id
+                    ))
+                })?;
+
+            let decision = tree_policy
+                .evaluate_bank_tree(agent, &self.state, current_tick, &self.cost_rates, self.config.ticks_per_day, self.config.eod_rush_threshold)
+                .map_err(|e| {
+                    SimulationError::InvalidConfig(format!(
+                        "Failed to evaluate bank_tree for {}: {}",
+                        agent_id, e
+                    ))
+                })?;
+
+            use crate::policy::BankDecision;
+
+            match decision {
+                BankDecision::SetReleaseBudget {
+                    max_value_to_release,
+                    focus_counterparties,
+                    max_per_counterparty,
+                } => {
+                    // Apply budget to agent state
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                    agent_mut.set_release_budget(
+                        max_value_to_release,
+                        focus_counterparties.clone(),
+                        max_per_counterparty,
+                    );
+
+                    // Log budget setting event
+                    self.log_event(Event::BankBudgetSet {
+                        tick: current_tick,
+                        agent_id: agent_id.clone(),
+                        max_value: max_value_to_release,
+                        focus_counterparties,
+                        max_per_counterparty,
+                    });
+                }
+                BankDecision::NoAction => {
+                    // Reset budget to unlimited (no budget set this tick)
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                    agent_mut.reset_release_budget();
+                }
+            }
+        }
+
         // STEP 2: POLICY EVALUATION
         // Get agents with queued transactions (Queue 1)
         let policy_eval_start = Instant::now();
@@ -2467,19 +2552,79 @@ impl Orchestrator {
                 use crate::policy::ReleaseDecision;
 
                 match decision {
-                    ReleaseDecision::SubmitFull { tx_id } => {
-                        // Move from Queue 1 to pending settlements
-                        if let Some(agent) = self.state.get_agent_mut(&agent_id) {
-                            agent.remove_from_queue(&tx_id);
-                        }
-                        self.pending_settlements.push(tx_id.clone());
+                    ReleaseDecision::SubmitFull {
+                        tx_id,
+                        priority_override,
+                        target_tick,
+                    } => {
+                        // Phase 3.2: Apply RTGS flags if present
 
-                        // Log policy submit event
-                        self.log_event(Event::PolicySubmit {
-                            tick: current_tick,
-                            agent_id: agent_id.clone(),
-                            tx_id,
-                        });
+                        // Apply priority override if specified
+                        if let Some(new_priority) = priority_override {
+                            if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                                tx.set_priority(new_priority);
+                            }
+                        }
+
+                        // Handle target tick (simplified for now - just check if immediate)
+                        // TODO: Add proper scheduled release tracking for future ticks
+                        let should_release_now = match target_tick {
+                            None => true,                            // No target = immediate
+                            Some(target) => target <= current_tick, // Past or current = immediate
+                        };
+
+                        if should_release_now {
+                            // Phase 3.3: Check budget constraints before releasing
+                            // Collect transaction info first (to avoid borrow issues)
+                            let (tx_amount, counterparty_id) = {
+                                let tx = self.state.get_transaction(&tx_id).ok_or_else(|| {
+                                    SimulationError::SettlementError(format!(
+                                        "Transaction {} not found",
+                                        tx_id
+                                    ))
+                                })?;
+                                (tx.remaining_amount(), tx.receiver_id().to_string())
+                            };
+
+                            // Check if release is allowed under budget
+                            let budget_allows = {
+                                let agent = self.state.get_agent(&agent_id).ok_or_else(|| {
+                                    SimulationError::AgentNotFound(agent_id.clone())
+                                })?;
+                                agent.can_release_to_counterparty(&counterparty_id, tx_amount)
+                            };
+
+                            if budget_allows {
+                                // Budget allows: proceed with release
+
+                                // Move from Queue 1 to pending settlements
+                                if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                                    agent.remove_from_queue(&tx_id);
+                                    // Track budget usage
+                                    agent.track_release(&counterparty_id, tx_amount);
+                                }
+                                self.pending_settlements.push(tx_id.clone());
+
+                                // Log policy submit event
+                                self.log_event(Event::PolicySubmit {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                });
+                            } else {
+                                // Budget exhausted: convert to Hold
+                                self.log_event(Event::PolicyHold {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                    reason: "BudgetExhausted".to_string(),
+                                });
+                            }
+                        } else {
+                            // Future target tick - leave in Queue 1 for now
+                            // Transaction will be reconsidered by policy next tick
+                            // TODO: Add scheduled release infrastructure
+                        }
                     }
                     ReleaseDecision::SubmitPartial { tx_id, num_splits } => {
                         // Phase 5: Transaction splitting implementation
@@ -2632,6 +2777,153 @@ impl Orchestrator {
                             agent_id: agent_id.clone(),
                             tx_id,
                             reason: "Expired deadline".to_string(),
+                        });
+                    }
+                    ReleaseDecision::StaggerSplit {
+                        tx_id,
+                        num_splits,
+                        stagger_first_now,
+                        stagger_gap_ticks,
+                        priority_boost_children,
+                    } => {
+                        // Phase 3.1: Staggered split implementation
+                        // Similar to SubmitPartial, but with timed releases
+
+                        // Validate parameters
+                        if num_splits < 2 {
+                            return Err(SimulationError::SettlementError(format!(
+                                "num_splits must be >= 2, got {}",
+                                num_splits
+                            )));
+                        }
+
+                        if stagger_first_now > num_splits {
+                            return Err(SimulationError::SettlementError(format!(
+                                "stagger_first_now ({}) cannot exceed num_splits ({})",
+                                stagger_first_now, num_splits
+                            )));
+                        }
+
+                        // Get parent transaction
+                        let parent_tx = self
+                            .state
+                            .get_transaction(&tx_id)
+                            .ok_or_else(|| {
+                                SimulationError::SettlementError(format!(
+                                    "Transaction {} not found for stagger splitting",
+                                    tx_id
+                                ))
+                            })?
+                            .clone();
+
+                        // Remove parent from Queue 1
+                        if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                            agent.remove_from_queue(&tx_id);
+                        }
+
+                        // Calculate child amounts
+                        let total_amount = parent_tx.amount();
+                        let base_amount = total_amount / num_splits as i64;
+                        let remainder = total_amount % num_splits as i64;
+
+                        // Apply priority boost (capped at 10)
+                        let boosted_priority = (parent_tx.priority() + priority_boost_children).min(10);
+
+                        // Create all child transactions
+                        let mut child_ids = Vec::new();
+                        let mut immediate_children = Vec::new();
+                        let mut scheduled_children = Vec::new();
+
+                        for i in 0..num_splits {
+                            let child_amount = if i == num_splits - 1 {
+                                base_amount + remainder
+                            } else {
+                                base_amount
+                            };
+
+                            // Create child transaction
+                            let mut child = crate::models::Transaction::new_split(
+                                parent_tx.sender_id().to_string(),
+                                parent_tx.receiver_id().to_string(),
+                                child_amount,
+                                parent_tx.arrival_tick(),
+                                parent_tx.deadline_tick(),
+                                tx_id.clone(),
+                            );
+
+                            // Apply boosted priority
+                            child = child.with_priority(boosted_priority);
+
+                            let child_id = child.id().to_string();
+                            child_ids.push(child_id.clone());
+
+                            // Emit Arrival event for child (for replay)
+                            self.log_event(Event::Arrival {
+                                tick: current_tick,
+                                tx_id: child_id.clone(),
+                                sender_id: child.sender_id().to_string(),
+                                receiver_id: child.receiver_id().to_string(),
+                                amount: child_amount,
+                                deadline: child.deadline_tick(),
+                                priority: child.priority(),
+                                is_divisible: false, // Children are not divisible
+                            });
+
+                            // Add child to state
+                            self.state.add_transaction(child);
+
+                            // Schedule based on position
+                            if i < stagger_first_now {
+                                // Release immediately
+                                immediate_children.push(child_id.clone());
+                                self.pending_settlements.push(child_id);
+                            } else {
+                                // Schedule for future release
+                                let delay_index = i - stagger_first_now;
+                                let release_tick = current_tick + (delay_index + 1) * stagger_gap_ticks;
+                                scheduled_children.push((child_id, release_tick));
+                            }
+                        }
+
+                        // Store scheduled children for future release
+                        // TODO: Add field to Orchestrator struct to track scheduled releases
+                        // For now, we'll add them to agent's Queue 1 (suboptimal but functional)
+                        for (child_id, _release_tick) in &scheduled_children {
+                            if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                                agent.queue_outgoing(child_id.clone());
+                            }
+                        }
+
+                        // Calculate and charge split friction cost (same as SubmitPartial)
+                        let friction_cost =
+                            self.cost_rates.split_friction_cost * (num_splits as i64 - 1);
+
+                        if friction_cost > 0 {
+                            if let Some(accumulator) = self.accumulated_costs.get_mut(&agent_id) {
+                                accumulator.total_split_friction_cost += friction_cost;
+                            }
+
+                            self.log_event(Event::CostAccrual {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                costs: CostBreakdown {
+                                    liquidity_cost: 0,
+                                    delay_cost: 0,
+                                    collateral_cost: 0,
+                                    penalty_cost: 0,
+                                    split_friction_cost: friction_cost,
+                                },
+                            });
+                        }
+
+                        // Log stagger split event
+                        // TODO: Create StaggerSplitScheduled event type
+                        self.log_event(Event::PolicySplit {
+                            tick: current_tick,
+                            agent_id: agent_id.clone(),
+                            tx_id,
+                            num_splits,
+                            child_ids,
                         });
                     }
                 }

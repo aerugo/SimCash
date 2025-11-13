@@ -118,6 +118,18 @@ pub enum Event {
         new_total: i64,
     },
 
+    /// Bank-level budget set for this tick (Phase 3.3: Policy Enhancements V2)
+    ///
+    /// Emitted when bank_tree evaluation results in SetReleaseBudget action.
+    /// Controls total value, focus counterparties, and per-counterparty limits.
+    BankBudgetSet {
+        tick: usize,
+        agent_id: String,
+        max_value: i64,                             // Total budget (cents)
+        focus_counterparties: Option<Vec<String>>,  // Allowed counterparties
+        max_per_counterparty: Option<i64>,          // Max per counterparty (cents)
+    },
+
     /// Transaction settled via RTGS (immediate on submission - payer had liquidity)
     ///
     /// Emitted when a transaction settles immediately upon submission because the
@@ -276,6 +288,7 @@ impl Event {
             Event::TransactionReprioritized { tick, .. } => *tick,
             Event::CollateralPost { tick, .. } => *tick,
             Event::CollateralWithdraw { tick, .. } => *tick,
+            Event::BankBudgetSet { tick, .. } => *tick,
             Event::RtgsImmediateSettlement { tick, .. } => *tick,
             #[allow(deprecated)]
             Event::Settlement { tick, .. } => *tick,
@@ -304,6 +317,7 @@ impl Event {
             Event::TransactionReprioritized { .. } => "TransactionReprioritized",
             Event::CollateralPost { .. } => "CollateralPost",
             Event::CollateralWithdraw { .. } => "CollateralWithdraw",
+            Event::BankBudgetSet { .. } => "BankBudgetSet",
             Event::RtgsImmediateSettlement { .. } => "RtgsImmediateSettlement",
             #[allow(deprecated)]
             Event::Settlement { .. } => "Settlement",

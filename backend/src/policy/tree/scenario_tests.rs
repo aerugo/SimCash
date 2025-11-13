@@ -65,6 +65,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "liquidity_conservation_policy".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if past deadline (emergency drop)".to_string(),
@@ -451,10 +452,11 @@ mod tests {
         let urgent_decision = decisions
             .iter()
             .find(|d| match d {
-                ReleaseDecision::SubmitFull { tx_id }
+                ReleaseDecision::SubmitFull { tx_id, .. }
                 | ReleaseDecision::Hold { tx_id, .. }
                 | ReleaseDecision::Drop { tx_id }
                 | ReleaseDecision::SubmitPartial { tx_id, .. }
+                | ReleaseDecision::StaggerSplit { tx_id, .. }
                 | ReleaseDecision::Reprioritize { tx_id, .. } => tx_id == &urgent_id,
             })
             .unwrap();
@@ -462,10 +464,11 @@ mod tests {
         let normal_decision = decisions
             .iter()
             .find(|d| match d {
-                ReleaseDecision::SubmitFull { tx_id }
+                ReleaseDecision::SubmitFull { tx_id, .. }
                 | ReleaseDecision::Hold { tx_id, .. }
                 | ReleaseDecision::Drop { tx_id }
                 | ReleaseDecision::SubmitPartial { tx_id, .. }
+                | ReleaseDecision::StaggerSplit { tx_id, .. }
                 | ReleaseDecision::Reprioritize { tx_id, .. } => tx_id == &normal_id,
             })
             .unwrap();
