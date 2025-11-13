@@ -29,7 +29,7 @@
 
 **Goal**: Comprehensive test coverage for all policies under standard scenarios
 
-**Status**: 31/50 tests implemented (62%)
+**Status**: 50/50 tests implemented (100%) ✅ RED PHASE COMPLETE
 
 ### Completed Test Files
 
@@ -110,39 +110,66 @@
 - ✅ Parameter variations (urgency threshold 2-10)
 - ✅ Comparative validation vs FIFO
 
-### Next Test Files (Planned)
+#### ✅ `test_policy_scenario_complex_policies.py` - 19 tests
 
-#### 🔲 `test_policy_scenario_complex_policies.py` - 19 tests (to reach 50 total)
+**Status**: TDD RED phase (written, not yet run)
 
-**Planned policies**:
-- GoliathNationalBank (5 tests)
-- CautiousLiquidityPreserver (4 tests)
-- BalancedCostOptimizer (5 tests)
-- SmartSplitter (4 tests)
+**Policies tested**:
+- **GoliathNationalBank** (5 tests) - Time-adaptive buffer policy
+  - AmpleLiquidity, ModerateActivity, HighPressure, EndOfDayRush, IntradayPatterns
+  - Expected: Conservative with time-based adaptation
+
+- **CautiousLiquidityPreserver** (4 tests) - Ultra-conservative buffer policy
+  - AmpleLiquidity, ModerateActivity, HighPressure, LiquidityCrisis
+  - Expected: Best min_balance, lowest settlement rate
+
+- **BalancedCostOptimizer** (5 tests) - Holistic cost minimization
+  - AmpleLiquidity, ModerateActivity, HighPressure, LiquidityCrisis, IntradayPatterns
+  - Expected: Lowest total cost across scenarios
+
+- **SmartSplitter** (4 tests) - Intelligent transaction splitting
+  - SplitOpportunities, SplitCostTradeoff, HighPressure
+  - Expected: 20-40% queue reduction vs FIFO
+  - Comparative test vs FIFO
+
+- **AggressiveMarketMaker** (2 tests) - High settlement policy with credit usage
+  - AmpleLiquidity, HighPressure (with credit)
+  - Expected: Highest settlement rate (0.75-0.92 under pressure)
+  - Comparative test vs CautiousLiquidityPreserver
+
+**Coverage**:
+- ✅ Time-adaptive policies (Goliath, Balanced)
+- ✅ Risk spectrum (Aggressive → Balanced → Cautious)
+- ✅ Advanced features (splitting, cost optimization)
+- ✅ Credit usage scenarios
+- ✅ Comparative validations
 
 ---
 
 ## TDD Progress Tracking
 
-### Current TDD Cycle: FIFO Tests
+### Current TDD Cycle: Phase 1 Tests (50 tests)
 
-**RED Phase** ✅:
-- 9 tests written with clear expected outcomes
+**RED Phase** ✅ COMPLETE:
+- All 50 Phase 1 tests written with clear expected outcomes
 - Tests use framework correctly
-- Scenarios well-defined
+- Scenarios well-defined across 4 test files
 - Expectations reasonable based on policy behavior
+- **Files**: `test_policy_scenario_fifo.py`, `test_policy_scenario_liquidity_aware.py`, `test_policy_scenario_deadline.py`, `test_policy_scenario_complex_policies.py`
 
-**GREEN Phase** 🔲 (Next):
+**GREEN Phase** 🔲 (Next - In Progress):
 - Build Rust module: `cd api && uv sync --extra dev`
-- Run tests: `pytest tests/integration/test_policy_scenario_fifo.py -v`
+- Run all Phase 1 tests: `.venv/bin/python -m pytest tests/integration/test_policy_scenario_*.py -v`
 - Verify tests pass
 - If failures: Debug and fix framework or test expectations
+- Calibrate expectation ranges based on actual results
 
 **REFACTOR Phase** 🔲 (After GREEN):
 - Extract common scenario builders if patterns emerge
 - Refine expectation ranges based on actual results
 - Document any surprising behaviors
 - Add helper functions if needed
+- Clean up any code duplication
 
 ### Issues Found & Fixed
 
@@ -160,26 +187,30 @@
 
 ## Next Steps
 
-### Immediate (Today)
+### Immediate (Now)
 
 1. ✅ Implement FIFO tests (9 tests)
-2. 🔲 Build Rust module and run FIFO tests
-3. 🔲 Fix any test failures (GREEN phase)
-4. 🔲 Begin LiquidityAware tests (12 tests)
+2. ✅ Implement LiquidityAware tests (12 tests)
+3. ✅ Implement Deadline tests (10 tests)
+4. ✅ Implement Complex Policies tests (19 tests)
+5. 🔄 Build Rust module and run all Phase 1 tests (GREEN phase - In Progress)
+6. 🔲 Fix any test failures
+7. 🔲 Calibrate expectations based on actual results
 
 ### This Week
 
-1. Complete FIFO, LiquidityAware, Deadline test files (31 tests total)
-2. Run full test suite after each file
-3. Document any framework issues or API discoveries
-4. Begin complex policies (GoliathNationalBank, etc.)
+1. ✅ Complete all Phase 1 test files (50 tests total) - RED phase complete
+2. 🔄 Run full test suite - GREEN phase in progress
+3. 🔲 Document test results and calibration
+4. 🔲 REFACTOR phase if needed
 
-### Phase 1 Completion (Week 1-2)
+### Phase 1 Completion
 
-- All 50 simple tests implemented
-- All tests passing (GREEN)
-- Code refactored where needed
-- Patterns documented
+- ✅ All 50 tests implemented (RED phase complete)
+- 🔄 Tests execution in progress (GREEN phase)
+- 🔲 All tests passing (GREEN phase target)
+- 🔲 Code refactored if needed (REFACTOR phase)
+- 🔲 Results documented
 
 ---
 
@@ -227,25 +258,33 @@ uv sync --extra dev  # Builds Rust module + installs dependencies
 
 ### Phase 1 Progress
 
-- **Tests Written**: 31/50 (62%)
-- **Tests Passing**: 0/31 (0% - not yet run)
-- **Policy Coverage**: 3/16 policies (19%)
+- **Tests Written**: 50/50 (100%) ✅ RED PHASE COMPLETE
+- **Tests Passing**: 0/50 (0% - GREEN phase in progress)
+- **Policy Coverage**: 8/16 policies (50%)
   - ✅ FIFO (9 tests)
   - ✅ LiquidityAware (12 tests)
   - ✅ Deadline (10 tests)
-- **Scenario Coverage**: 11 unique scenarios used
-  - AmpleLiquidity, ModerateActivity, HighPressure
-  - TightDeadlines, MixedDeadlines, DeadlineWindowChanges
-  - LiquidityDrain, FlashDrain, EndOfDayRush
-  - MultipleAgents, DeterminismTest
+  - ✅ GoliathNationalBank (5 tests)
+  - ✅ CautiousLiquidityPreserver (4 tests)
+  - ✅ BalancedCostOptimizer (5 tests)
+  - ✅ SmartSplitter (4 tests)
+  - ✅ AggressiveMarketMaker (2 tests)
+- **Scenario Coverage**: 14+ unique scenarios used
+  - **Baseline**: AmpleLiquidity, ModerateActivity
+  - **Pressure**: HighPressure, TightDeadlines, LiquidityDrain
+  - **Events**: FlashDrain, EndOfDayRush, DeadlineWindowChanges
+  - **Complex**: MixedDeadlines, IntradayPatterns, LiquidityCrisis
+  - **Special**: SplitOpportunities, SplitCostTradeoff
+  - **Multi-agent**: MultipleAgents, DeterminismTest
 
-### Expected Completion
+### Actual Completion
 
-- **FIFO tests**: Today
-- **LiquidityAware tests**: Day 2
-- **Deadline tests**: Day 3
-- **Complex policies**: Days 4-5
-- **Phase 1 complete**: Week 2
+- **FIFO tests**: ✅ Complete
+- **LiquidityAware tests**: ✅ Complete
+- **Deadline tests**: ✅ Complete
+- **Complex policies**: ✅ Complete
+- **Phase 1 RED phase**: ✅ Complete
+- **Phase 1 GREEN phase**: 🔄 In Progress
 
 ---
 
@@ -324,7 +363,7 @@ uv sync --extra dev  # Builds Rust module + installs dependencies
 
 ---
 
-**Last Updated**: November 2025 - After RED phase completion
-**Next Update**: After GREEN phase (test execution)
-**Current Status**: 31 tests written (RED), ready for execution (GREEN)
+**Last Updated**: November 2025 - Phase 1 RED phase complete (50/50 tests)
+**Next Update**: After GREEN phase (test execution results)
+**Current Status**: All 50 Phase 1 tests written (RED ✅), GREEN phase in progress
 **Owner**: Claude Code TDD Implementation
