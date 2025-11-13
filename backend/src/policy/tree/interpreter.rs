@@ -208,6 +208,55 @@ pub fn evaluate_computation(
             }
             Ok(min_val)
         }
+
+        // Phase 2.3: Math Helper Functions (Policy Enhancements V2)
+        Computation::Ceil { value } => {
+            let val = evaluate_value(value, context, params)?;
+            Ok(val.ceil())
+        }
+
+        Computation::Floor { value } => {
+            let val = evaluate_value(value, context, params)?;
+            Ok(val.floor())
+        }
+
+        Computation::Round { value } => {
+            let val = evaluate_value(value, context, params)?;
+            Ok(val.round())
+        }
+
+        Computation::Abs { value } => {
+            let val = evaluate_value(value, context, params)?;
+            Ok(val.abs())
+        }
+
+        Computation::Clamp { value, min, max } => {
+            let val = evaluate_value(value, context, params)?;
+            let min_val = evaluate_value(min, context, params)?;
+            let max_val = evaluate_value(max, context, params)?;
+
+            // Clamp: constrain value to [min, max]
+            Ok(val.max(min_val).min(max_val))
+        }
+
+        Computation::SafeDiv {
+            numerator,
+            denominator,
+            default,
+        } => {
+            let num = evaluate_value(numerator, context, params)?;
+            let denom = evaluate_value(denominator, context, params)?;
+
+            // Check for zero or near-zero denominator
+            // Use epsilon threshold to avoid numerical issues
+            const EPSILON: f64 = 1e-9;
+            if denom.abs() < EPSILON {
+                // Return default value instead of error
+                evaluate_value(default, context, params)
+            } else {
+                Ok(num / denom)
+            }
+        }
     }
 }
 
