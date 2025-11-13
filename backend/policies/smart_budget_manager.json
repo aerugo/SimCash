@@ -263,27 +263,17 @@
       "on_false": {
         "type": "condition",
         "node_id": "N5_CanSplit",
-        "description": "Low liquidity - try splitting if divisible",
+        "description": "Low liquidity - try splitting if have enough for partial",
         "condition": {
-          "op": "and",
-          "conditions": [
-            {
-              "op": "==",
-              "left": {"field": "is_divisible"},
-              "right": {"value": 1.0}
-            },
-            {
-              "op": ">",
-              "left": {"field": "effective_liquidity"},
-              "right": {
-                "compute": {
-                  "op": "/",
-                  "left": {"field": "remaining_amount"},
-                  "right": {"value": 4.0}
-                }
-              }
+          "op": ">",
+          "left": {"field": "effective_liquidity"},
+          "right": {
+            "compute": {
+              "op": "/",
+              "left": {"field": "remaining_amount"},
+              "right": {"value": 4.0}
             }
-          ]
+          }
         },
         "on_true": {
           "type": "action",
