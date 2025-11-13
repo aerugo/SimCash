@@ -85,7 +85,44 @@ pub enum ReleaseDecision {
     ///
     /// Moves transaction from Queue 1 to Queue 2 (RTGS central queue).
     /// May settle immediately if liquidity sufficient, or queue in RTGS.
-    SubmitFull { tx_id: String },
+    ///
+    /// # Phase 3.2: RTGS Flags
+    ///
+    /// Optional parameters enable policies to control priority and timing:
+    ///
+    /// * `priority_override` - Override transaction's original priority (0-10)
+    ///   - Useful for urgent deadlines or to lower priority during oversupply
+    ///   - If None, uses transaction's original priority
+    ///
+    /// * `target_tick` - Target tick for release (for LSM coordination)
+    ///   - If None or <= current tick, releases immediately
+    ///   - If > current tick, schedules release for that tick
+    ///   - Enables coordinating releases with expected inbound payments
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // Boost priority for urgent transaction
+    /// ReleaseDecision::SubmitFull {
+    ///     tx_id: "urgent_tx".to_string(),
+    ///     priority_override: Some(10), // HIGH priority
+    ///     target_tick: None,           // Release now
+    /// }
+    ///
+    /// // Coordinate with expected LSM offset
+    /// ReleaseDecision::SubmitFull {
+    ///     tx_id: "lsm_tx".to_string(),
+    ///     priority_override: None,
+    ///     target_tick: Some(current_tick + 5), // Release in 5 ticks
+    /// }
+    /// ```
+    SubmitFull {
+        tx_id: String,
+        /// Optional priority override (0-10). If None, uses transaction's original priority.
+        priority_override: Option<u8>,
+        /// Optional target tick for release. If None, releases immediately.
+        target_tick: Option<usize>,
+    },
 
     /// Split transaction into multiple parts and submit all children
     ///

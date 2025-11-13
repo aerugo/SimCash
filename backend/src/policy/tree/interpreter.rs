@@ -569,11 +569,87 @@ pub fn build_decision(
 
     // Convert ActionType to ReleaseDecision
     match action {
-        ActionType::Release => Ok(ReleaseDecision::SubmitFull { tx_id }),
+        ActionType::Release => {
+            // Phase 3.2: Parse optional RTGS flags
+
+            // Parse priority_flag parameter (optional)
+            let priority_override = if let Some(priority_flag_value) = action_params.get("priority_flag") {
+                // Extract string value from ValueOrCompute
+                use crate::policy::tree::types::ValueOrCompute;
+                match priority_flag_value {
+                    ValueOrCompute::Direct { value } => {
+                        if let Some(flag_str) = value.as_str() {
+                            // Map priority string to numeric value
+                            let priority = match flag_str {
+                                "HIGH" => 10,
+                                "MEDIUM" => 5,
+                                "LOW" => 1,
+                                _ => 5, // Default to MEDIUM for invalid values
+                            };
+                            Some(priority)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+
+            // Parse timed_for_tick parameter (optional)
+            let target_tick = if action_params.contains_key("timed_for_tick") {
+                let tick_f64 = evaluate_action_parameter(action_params, "timed_for_tick", context, params)?;
+                Some(tick_f64 as usize)
+            } else {
+                None
+            };
+
+            Ok(ReleaseDecision::SubmitFull {
+                tx_id,
+                priority_override,
+                target_tick,
+            })
+        }
 
         ActionType::ReleaseWithCredit => {
             // Same as Release - credit usage is handled by settlement engine
-            Ok(ReleaseDecision::SubmitFull { tx_id })
+            // Parse RTGS flags same as Release
+            use crate::policy::tree::types::ValueOrCompute;
+
+            let priority_override = if let Some(priority_flag_value) = action_params.get("priority_flag") {
+                match priority_flag_value {
+                    ValueOrCompute::Direct { value } => {
+                        if let Some(flag_str) = value.as_str() {
+                            let priority = match flag_str {
+                                "HIGH" => 10,
+                                "MEDIUM" => 5,
+                                "LOW" => 1,
+                                _ => 5,
+                            };
+                            Some(priority)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+
+            let target_tick = if action_params.contains_key("timed_for_tick") {
+                let tick_f64 = evaluate_action_parameter(action_params, "timed_for_tick", context, params)?;
+                Some(tick_f64 as usize)
+            } else {
+                None
+            };
+
+            Ok(ReleaseDecision::SubmitFull {
+                tx_id,
+                priority_override,
+                target_tick,
+            })
         }
 
         ActionType::PaceAndRelease => {
@@ -1821,7 +1897,7 @@ mod tests {
 
         assert!(matches!(
             decision,
-            ReleaseDecision::SubmitFull { tx_id } if tx_id == "tx_001"
+            ReleaseDecision::SubmitFull { tx_id, .. } if tx_id == "tx_001"
         ));
     }
 

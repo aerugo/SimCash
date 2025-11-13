@@ -451,7 +451,7 @@ mod tests {
         let urgent_decision = decisions
             .iter()
             .find(|d| match d {
-                ReleaseDecision::SubmitFull { tx_id }
+                ReleaseDecision::SubmitFull { tx_id, .. }
                 | ReleaseDecision::Hold { tx_id, .. }
                 | ReleaseDecision::Drop { tx_id }
                 | ReleaseDecision::SubmitPartial { tx_id, .. }
@@ -463,7 +463,7 @@ mod tests {
         let normal_decision = decisions
             .iter()
             .find(|d| match d {
-                ReleaseDecision::SubmitFull { tx_id }
+                ReleaseDecision::SubmitFull { tx_id, .. }
                 | ReleaseDecision::Hold { tx_id, .. }
                 | ReleaseDecision::Drop { tx_id }
                 | ReleaseDecision::SubmitPartial { tx_id, .. }
