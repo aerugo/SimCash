@@ -1,0 +1,596 @@
+# Advanced Policy Crisis Scenario
+#
+# NARRATIVE: "Next-Generation Cash Management Under Stress"
+#
+# This scenario demonstrates the latest policy system enhancements (Phases 3.3-4.5):
+# - Bank-Level Budgets: Agents control release pace and prioritize counterparties
+# - Collateral Auto-Withdraw Timers: Temporary liquidity boosts with automatic cleanup
+# - State Registers: Policy micro-memory for cooldowns, counters, and mode switching
+# - Adaptive Strategies: Banks adjust behavior based on memory and system state
+#
+# DESIGN PHILOSOPHY:
+# - Day 1: Normal operations - agents establish baseline behavior patterns
+# - Day 2: Crisis - strategic stress tests new policy features under pressure
+# - Day 3: Recovery - demonstrate adaptive memory-driven responses
+# - Result: ~90-95% settlement rate with sophisticated policy responses
+#
+# KEY FEATURES DEMONSTRATED:
+# - Budget management prevents queue flooding (Phase 3.3)
+# - State registers enable cooldowns after burst releases (Phase 4.5)
+# - Mode switching (aggressive/normal/conservative) based on liquidity (Phase 4.5)
+# - Collateral timers provide temporary EOD boosts (Phase 3.4)
+# - Counterparty prioritization for LSM coordination (Phase 3.3)
+# - Release count tracking for throughput management (Phase 4.5)
+#
+# POLICY SHOWCASE:
+# 1. METRO_CENTRAL: sophisticated_adaptive_bank.json
+#    - Adaptive budgets based on queue pressure
+#    - Cooldowns after large releases
+#    - Collateral timers for EOD push
+#
+# 2. REGIONAL_TRUST: memory_driven_strategist.json
+#    - Mode switching (aggressive/normal/conservative)
+#    - Release counting to prevent bursts
+#    - Memory-driven budget management
+#
+# 3. MOMENTUM_CAPITAL: smart_budget_manager.json
+#    - Daily release targets
+#    - Counterparty prioritization (CORRESPONDENT_HUB)
+#    - Throughput-aware budget adjustment
+#
+# 4. CORRESPONDENT_HUB: sophisticated_adaptive_bank.json
+#    - Same as METRO but with different parameters
+#    - Demonstrates policy reusability
+
+simulation:
+  ticks_per_day: 100       # 100 ticks/day for granularity
+  num_days: 3              # 300 total ticks
+  rng_seed: 42             # Deterministic
+
+# ============================================================================
+# AGENTS - Using Advanced Policies (4 banks)
+# ============================================================================
+
+agents:
+  # METRO_CENTRAL - Large Money Center Bank (Sophisticated Adaptive)
+  - id: "METRO_CENTRAL"
+    opening_balance: 12000000         # $120,000
+    credit_limit: 10000000            # $100,000 credit
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/sophisticated_adaptive_bank.json"
+      params:
+        urgency_threshold: 5.0
+        min_buffer: 150000.0
+        eod_threshold: 75.0
+        cooldown_duration: 10.0
+        budget_multiplier: 0.35
+        temporary_collateral_amount: 2500000.0
+        collateral_timer_ticks: 18.0
+    arrival_config:
+      rate_per_tick: 0.25             # ~25 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.5                    # ~$500 median
+        std_dev: 0.9
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35
+        REGIONAL_TRUST: 0.35
+        MOMENTUM_CAPITAL: 0.30
+      deadline_range: [30, 70]
+      priority: 6
+      divisible: false
+
+  # REGIONAL_TRUST - Regional Bank (Memory-Driven Strategist)
+  - id: "REGIONAL_TRUST"
+    opening_balance: 10000000         # $100,000
+    credit_limit: 9000000             # $90,000 credit
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/memory_driven_strategist.json"
+      params:
+        urgency_threshold: 4.0
+        min_buffer: 100000.0
+        aggressive_mode_threshold: 0.8
+        conservative_mode_threshold: 0.3
+        release_count_limit: 10.0
+        cooldown_after_burst: 12.0
+        collateral_threshold: 2000000.0
+    arrival_config:
+      rate_per_tick: 0.28             # ~28 tx/day
+      amount_distribution:
+        type: "Uniform"
+        min: 50000                    # $500
+        max: 400000                   # $4,000
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35
+        METRO_CENTRAL: 0.35
+        MOMENTUM_CAPITAL: 0.30
+      deadline_range: [25, 65]
+      priority: 5
+      divisible: true
+
+  # MOMENTUM_CAPITAL - Investment Bank (Smart Budget Manager)
+  - id: "MOMENTUM_CAPITAL"
+    opening_balance: 11000000         # $110,000
+    credit_limit: 10000000            # $100,000 credit
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/smart_budget_manager.json"
+      params:
+        urgency_threshold: 5.0
+        min_buffer: 120000.0
+        base_budget_fraction: 0.32
+        eod_budget_fraction: 0.75
+        max_per_cpty_fraction: 0.14
+        daily_release_target: 35.0
+    arrival_config:
+      rate_per_tick: 0.30             # ~30 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 9.8                     # ~$300 median
+        std_dev: 1.3
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35
+        METRO_CENTRAL: 0.35
+        REGIONAL_TRUST: 0.30
+      deadline_range: [20, 60]
+      priority: 7
+      divisible: false
+
+  # CORRESPONDENT_HUB - Central Correspondent Bank (Sophisticated Adaptive)
+  - id: "CORRESPONDENT_HUB"
+    opening_balance: 13000000         # $130,000
+    credit_limit: 12000000            # $120,000 credit
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/sophisticated_adaptive_bank.json"
+      params:
+        urgency_threshold: 4.0
+        min_buffer: 120000.0
+        eod_threshold: 80.0
+        cooldown_duration: 8.0
+        budget_multiplier: 0.38
+        temporary_collateral_amount: 3000000.0
+        collateral_timer_ticks: 20.0
+    arrival_config:
+      rate_per_tick: 0.32             # ~32 tx/day
+      amount_distribution:
+        type: "Uniform"
+        min: 80000                    # $800
+        max: 450000                   # $4,500
+      counterparty_weights:
+        METRO_CENTRAL: 0.35
+        REGIONAL_TRUST: 0.35
+        MOMENTUM_CAPITAL: 0.30
+      deadline_range: [28, 68]
+      priority: 6
+      divisible: true
+
+# ============================================================================
+# SCENARIO EVENTS - Three-Day Crisis Timeline
+# ============================================================================
+
+scenario_events:
+  # ========================================================================
+  # DAY 1 (Ticks 0-99): Normal Operations - Establish Baseline
+  # ========================================================================
+  # Watch for:
+  # - METRO & HUB: Adaptive budgets adjust to queue pressure
+  # - REGIONAL: Mode switching based on liquidity
+  # - MOMENTUM: Daily target tracking
+  # Expected: 96-98% settlement, minimal LSM, agents learn system dynamics
+
+  # ========================================================================
+  # DAY 2 (Ticks 100-199): Crisis - Test Advanced Features Under Stress
+  # ========================================================================
+
+  # Morning (tick 105): Market surge begins - test budget management
+  - type: GlobalArrivalRateChange
+    multiplier: 1.8  # 80% increase
+    schedule:
+      type: OneTime
+      tick: 105
+
+  # Tick 110-125: Large coordinated payments force LSM (4-agent cycle)
+  # Watch for: Budget enforcement limiting release pace
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: CORRESPONDENT_HUB
+    amount: 3500000   # $35,000
+    priority: 9
+    deadline: 35
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 110
+
+  - type: CustomTransactionArrival
+    from_agent: CORRESPONDENT_HUB
+    to_agent: REGIONAL_TRUST
+    amount: 3200000   # $32,000
+    priority: 9
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 115
+
+  - type: CustomTransactionArrival
+    from_agent: REGIONAL_TRUST
+    to_agent: MOMENTUM_CAPITAL
+    amount: 2900000   # $29,000
+    priority: 9
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 120
+
+  - type: CustomTransactionArrival
+    from_agent: MOMENTUM_CAPITAL
+    to_agent: METRO_CENTRAL
+    amount: 2600000   # $26,000
+    priority: 9
+    deadline: 35
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 125
+
+  # Tick 120: Collateral haircut - test memory-driven responses
+  # Watch for: REGIONAL switches to conservative mode, sets cooldown
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: -3000000  # Lose $30,000
+    schedule:
+      type: OneTime
+      tick: 120
+
+  # Tick 122: Collateral haircut - test budget adaptation
+  # Watch for: MOMENTUM adjusts daily target expectations
+  - type: CollateralAdjustment
+    agent: MOMENTUM_CAPITAL
+    delta: -3500000  # Lose $35,000
+    schedule:
+      type: OneTime
+      tick: 122
+
+  # Midday (tick 135): Activity surge peaks - test cooldown mechanisms
+  # Watch for: Agents that released heavily enter cooldown
+  - type: GlobalArrivalRateChange
+    multiplier: 2.2  # Peak stress
+    schedule:
+      type: OneTime
+      tick: 135
+
+  # Tick 145-147: Bilateral offset opportunity
+  # Watch for: MOMENTUM budget prioritizes METRO counterparty
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: MOMENTUM_CAPITAL
+    amount: 2500000   # $25,000
+    priority: 8
+    deadline: 28
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 145
+
+  - type: CustomTransactionArrival
+    from_agent: MOMENTUM_CAPITAL
+    to_agent: METRO_CENTRAL
+    amount: 2300000   # $23,000
+    priority: 8
+    deadline: 28
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 147
+
+  # Afternoon (tick 160): Activity moderates
+  # Watch for: Agents adjust budgets as pressure eases
+  - type: GlobalArrivalRateChange
+    multiplier: 1.4
+    schedule:
+      type: OneTime
+      tick: 160
+
+  # Late day (tick 185): Return to normal
+  # Watch for: Collateral timers still active from EOD posts
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 185
+
+  # ========================================================================
+  # DAY 3 (Ticks 200-299): Recovery - Test Adaptive Memory
+  # ========================================================================
+
+  # Morning (tick 205): Collateral restoration
+  # Watch for: Mode switches from conservative back to normal/aggressive
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: 2000000   # Restore $20,000
+    schedule:
+      type: OneTime
+      tick: 205
+
+  - type: CollateralAdjustment
+    agent: MOMENTUM_CAPITAL
+    delta: 2500000   # Restore $25,000
+    schedule:
+      type: OneTime
+      tick: 205
+
+  # Midday (tick 240-244): Final stress test - 3-agent cycle
+  # Watch for: Budget management prevents queue overflow
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: CORRESPONDENT_HUB
+    amount: 3000000   # $30,000
+    priority: 8
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 240
+
+  - type: CustomTransactionArrival
+    from_agent: CORRESPONDENT_HUB
+    to_agent: REGIONAL_TRUST
+    amount: 2800000   # $28,000
+    priority: 8
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 242
+
+  - type: CustomTransactionArrival
+    from_agent: REGIONAL_TRUST
+    to_agent: METRO_CENTRAL
+    amount: 2600000   # $26,000
+    priority: 8
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 244
+
+  # Tick 255: Market activity test
+  # Watch for: Cooldowns from Day 2 have expired, fresh responses
+  - type: GlobalArrivalRateChange
+    multiplier: 1.5
+    schedule:
+      type: OneTime
+      tick: 255
+
+  # Afternoon (tick 270): Markets normalize
+  # Watch for: Collateral auto-withdrawals from earlier timer posts
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 270
+
+  # Late day (tick 285): Full collateral restoration
+  # Watch for: REGIONAL returns to aggressive mode if liquidity permits
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: 1000000    # Restore remaining $10,000
+    schedule:
+      type: OneTime
+      tick: 285
+
+  - type: CollateralAdjustment
+    agent: MOMENTUM_CAPITAL
+    delta: 1000000    # Restore remaining $10,000
+    schedule:
+      type: OneTime
+      tick: 285
+
+# ============================================================================
+# LSM CONFIGURATION
+# ============================================================================
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+# ============================================================================
+# COST CONFIGURATION
+# ============================================================================
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.0002       # $0.002 per $100 per tick
+  overdraft_bps_per_tick: 0.8                # ~145% annualized
+  collateral_cost_per_tick_bps: 0.0005       # ~9% annualized
+  eod_penalty_per_transaction: 500000        # $5,000 per unsettled tx
+  deadline_penalty: 250000                   # $2,500 per overdue tx
+  overdue_delay_multiplier: 5.0              # 5x delay cost when overdue
+  split_friction_cost: 7500                  # $75 per split
+
+# ============================================================================
+# EXPECTED ADVANCED POLICY BEHAVIORS
+# ============================================================================
+#
+# DAY 1 BASELINE (Ticks 0-99):
+# METRO_CENTRAL (sophisticated_adaptive_bank):
+#   - Sets budgets at 35% of effective_liquidity when queue < 15
+#   - No cooldowns yet (bank_state_cooldown = 0.0)
+#   - Posts collateral only if queue1_liquidity_gap > min_buffer
+#   - Expected: Smooth operations, occasional budget adjustments
+#
+# REGIONAL_TRUST (memory_driven_strategist):
+#   - Starts in normal mode (bank_state_mode = 1.0)
+#   - Switches to aggressive mode if liquidity > 80% of queue value
+#   - No cooldowns yet (bank_state_cooldown = 0.0)
+#   - Expected: Mode switches based on liquidity fluctuations
+#
+# MOMENTUM_CAPITAL (smart_budget_manager):
+#   - Tracks releases against daily_release_target (30.0)
+#   - Adjusts budget if behind target
+#   - Prioritizes CORRESPONDENT_HUB in focus_cpty_list
+#   - Expected: Steady throughput management
+#
+# CORRESPONDENT_HUB (sophisticated_adaptive_bank):
+#   - Similar to METRO but 38% budget_multiplier
+#   - Longer collateral timers (20 ticks)
+#   - Expected: Slightly more aggressive than METRO
+#
+# DAY 2 CRISIS (Ticks 100-199):
+# METRO_CENTRAL:
+#   - Large queue (>15) triggers 50% budget increase
+#   - Large releases likely trigger cooldown (bank_state_cooldown = 8-10)
+#   - EOD (tick 180+) posts temporary collateral with 18-tick timer
+#   - Cooldown prevents excessive releases during surge
+#   - Expected: Controlled pace despite high pressure
+#
+# REGIONAL_TRUST:
+#   - Collateral haircut (tick 120) likely switches to conservative mode (0.0)
+#   - Conservative mode: only releases priority >= 7 with buffer
+#   - Release bursts → cooldown (bank_state_cooldown = 12)
+#   - Cooldown decrements each tick: 12 → 11 → 10 → ...
+#   - Expected: Defensive posture, gradual recovery
+#
+# MOMENTUM_CAPITAL:
+#   - Tracks falls behind daily_release_target
+#   - Boosts budget to catch up with HUB focus
+#   - EOD (tick 180+) aggressive budget (70% of liquidity + queue)
+#   - Sets counterparty limits (max_per_cpty)
+#   - Expected: Targeted throughput recovery
+#
+# CORRESPONDENT_HUB:
+#   - High queue triggers larger budgets
+#   - May enter cooldown after large bilateral settlement
+#   - Posts large temporary collateral (~$30k) at EOD
+#   - Timer ensures auto-withdrawal in early Day 3
+#   - Expected: Active LSM participant with smart pacing
+#
+# DAY 3 RECOVERY (Ticks 200-299):
+# METRO_CENTRAL:
+#   - Cooldowns from Day 2 expire early in Day 3
+#   - Collateral timers from late Day 2 auto-withdraw
+#   - Returns to normal adaptive budgeting
+#   - Expected: Full recovery with learned patterns
+#
+# REGIONAL_TRUST:
+#   - Collateral restoration (tick 205) triggers mode switch
+#   - Conservative (0.0) → Normal (1.0) → possibly Aggressive (2.0)
+#   - Fresh release_count tracking starts
+#   - May hit release_count_limit and re-enter cooldown
+#   - Expected: Dynamic mode transitions
+#
+# MOMENTUM_CAPITAL:
+#   - Assesses Day 3 daily_release_target (35.0)
+#   - Adjusts budget based on Day 2 backlog
+#   - May use aggressive EOD budget to clear queue
+#   - Collateral timer withdrawals reduce costs
+#   - Expected: Target-driven throughput
+#
+# CORRESPONDENT_HUB:
+#   - Day 2 collateral timers (20 ticks) complete early Day 3
+#   - Fresh budget cycles start
+#   - Final cycle (ticks 240-244) tests recovered capacity
+#   - Expected: Strong finish with full features
+#
+# THREE-DAY TOTALS:
+# - State Register Events: 200-350 (cooldowns, mode switches, counters)
+# - Budget Set Events: ~300 (1 per agent per tick when active)
+# - Collateral Timer Events: 10-20 (temporary posts with auto-withdraw)
+# - Memory-Driven Holds: 50-100 (due to cooldowns and mode constraints)
+# - Average Settlement Rate: 90-95% (sophisticated but conservative)
+# - Total LSM Operations: 40-80 (controlled by budget pacing)
+# - Overdue Transactions: 3-8 (well-managed with urgency priority)
+# - Total Costs: $6,000-$13,000 (higher than simple policies due to conservative pacing)
+#
+# KEY INSIGHTS:
+#
+# 1. BUDGET MANAGEMENT (Phase 3.3):
+#    - Controls release pace to prevent queue flooding
+#    - Counterparty focus enables LSM coordination
+#    - Per-counterparty limits prevent concentration risk
+#    - Observable in: BankBudgetSet events, BudgetExhausted holds
+#
+# 2. STATE REGISTERS (Phase 4.5):
+#    - Cooldowns prevent repeated bursts (bank_state_cooldown)
+#    - Mode switching adapts to liquidity (bank_state_mode)
+#    - Release counting tracks throughput (bank_state_release_count)
+#    - Observable in: StateRegisterSet events, mode-based decisions
+#
+# 3. COLLATERAL TIMERS (Phase 3.4):
+#    - Temporary EOD boosts with automatic cleanup
+#    - No manual tracking needed - fire-and-forget
+#    - Reduces collateral opportunity costs
+#    - Observable in: CollateralPost events with timer, auto-withdrawals
+#
+# 4. ADAPTIVE STRATEGIES:
+#    - Policies learn from past behavior via memory
+#    - Budget adjustments respond to queue pressure
+#    - Mode switches enable multi-strategy operation
+#    - Observable in: Changing decision patterns over time
+#
+# 5. COMPARATIVE PERFORMANCE:
+#    - METRO & HUB: Similar behavior, different parameters
+#    - REGIONAL: Most dynamic (3 modes + cooldowns)
+#    - MOMENTUM: Most goal-oriented (daily targets)
+#    - Observable in: Per-agent settlement rates and costs
+#
+# USAGE:
+# ======
+#
+# # Run the scenario with verbose output to see all new features
+# payment-sim run \
+#   --config examples/configs/advanced_policy_crisis.yaml \
+#   --persist advanced_crisis.db \
+#   --verbose
+#
+# # Check state register activity
+# duckdb advanced_crisis.db "
+#   SELECT
+#     agent_id,
+#     register_key,
+#     COUNT(*) as change_count,
+#     MIN(new_value) as min_val,
+#     MAX(new_value) as max_val,
+#     AVG(new_value) as avg_val
+#   FROM (
+#     SELECT
+#       agent_id,
+#       JSON_EXTRACT(details, '$.register_key') as register_key,
+#       CAST(JSON_EXTRACT(details, '$.new_value') AS DOUBLE) as new_value
+#     FROM simulation_events
+#     WHERE event_type = 'StateRegisterSet'
+#   )
+#   GROUP BY agent_id, register_key
+#   ORDER BY agent_id, register_key;
+# "
+#
+# # Check budget events by agent
+# duckdb advanced_crisis.db "
+#   SELECT
+#     agent_id,
+#     COUNT(*) as budget_sets,
+#     AVG(CAST(JSON_EXTRACT(details, '$.max_value') AS DOUBLE)) as avg_budget
+#   FROM simulation_events
+#   WHERE event_type = 'BankBudgetSet'
+#   GROUP BY agent_id
+#   ORDER BY avg_budget DESC;
+# "
+#
+# # Check collateral timer usage
+# duckdb advanced_crisis.db "
+#   SELECT
+#     agent_id,
+#     COUNT(*) as timer_posts,
+#     AVG(CAST(JSON_EXTRACT(details, '$.amount') AS DOUBLE)) as avg_amount,
+#     AVG(CAST(JSON_EXTRACT(details, '$.auto_withdraw_after_ticks') AS DOUBLE)) as avg_timer
+#   FROM simulation_events
+#   WHERE event_type = 'CollateralPost'
+#     AND JSON_EXTRACT(details, '$.auto_withdraw_after_ticks') IS NOT NULL
+#   GROUP BY agent_id;
+# "
