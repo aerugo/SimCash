@@ -91,6 +91,11 @@ pub enum ContextError {
 /// - system_queue2_pressure_index: System-wide Q2 pressure (0.0 = low, 1.0 = high) (f64)
 /// - lsm_run_rate_last_10_ticks: LSM events per tick over last 10 ticks (f64)
 /// - system_throughput_guidance_fraction_by_tick: Expected throughput by this tick (0.0-1.0) (f64)
+///
+/// **Throughput Progress Fields** (Policy Enhancements V2, Phase 2.1):
+/// - my_throughput_fraction_today: Agent's throughput today (settled / total_due) (f64)
+/// - expected_throughput_fraction_by_now: Expected progress from guidance curve (f64)
+/// - throughput_gap: my_throughput - expected (negative = behind, positive = ahead) (f64)
 #[derive(Debug, Clone)]
 pub struct EvalContext {
     /// Field name → value mapping
@@ -309,6 +314,36 @@ impl EvalContext {
         // For now, returns 0.0 (will be passed via build() parameter when available)
         let throughput_guidance = 0.0; // Placeholder until config parameter added
         fields.insert("system_throughput_guidance_fraction_by_tick".to_string(), throughput_guidance);
+
+        // Phase 2.1: Throughput Progress Fields (Policy Enhancements V2)
+        // These fields enable policies to track settlement progress against expected
+        // throughput curves (e.g., "am I 30% done when I should be 50% done?").
+        //
+        // Use cases:
+        // - Catch-up behavior: Release more aggressively when behind schedule
+        // - Throttling: Be conservative when ahead of schedule
+        // - EOD rush detection: Know when to switch to panic mode
+
+        // Calculate agent's throughput today (settled / total_due)
+        // TODO: Requires SimulationState to track daily settlement amounts per agent
+        // For now, we calculate from transaction data (may include all-time, not just today)
+        let my_throughput_fraction = calculate_throughput_fraction_simple(state, agent.id());
+        fields.insert("my_throughput_fraction_today".to_string(), my_throughput_fraction);
+
+        // Expected throughput fraction by now (from guidance curve)
+        // TODO: Pass throughput_guidance_curve as parameter to build()
+        // For now, use a simple linear model: expected = tick_in_day / ticks_per_day
+        let tick_in_day = tick % ticks_per_day;
+        let expected_throughput = if ticks_per_day > 0 {
+            tick_in_day as f64 / ticks_per_day as f64
+        } else {
+            0.0
+        };
+        fields.insert("expected_throughput_fraction_by_now".to_string(), expected_throughput);
+
+        // Throughput gap: negative = behind, positive = ahead
+        let throughput_gap = my_throughput_fraction - expected_throughput;
+        fields.insert("throughput_gap".to_string(), throughput_gap);
 
         // Derived fields
         let ticks_to_deadline = tx.deadline_tick() as i64 - tick as i64;
@@ -975,4 +1010,35 @@ fn calculate_queue2_pressure_index(state: &SimulationState) -> f64 {
     let pressure = 1.0 / (1.0 + (-2.0 * x).exp());
 
     pressure.min(1.0)
+}
+
+// ============================================================================
+// Phase 2.1: Throughput Progress Helper Functions (Policy Enhancements V2)
+// ============================================================================
+
+/// Calculate agent's throughput fraction (simple version)
+///
+/// Returns the ratio of settled amount to total amount for this agent's transactions.
+///
+/// **Note**: This is a simplified version that doesn't track daily boundaries.
+/// It calculates from all transactions in the system, not just today's.
+///
+/// TODO: Implement proper day-tracking in SimulationState for accurate daily throughput.
+fn calculate_throughput_fraction_simple(state: &SimulationState, agent_id: &str) -> f64 {
+    let mut total_amount = 0i64;
+    let mut settled_amount = 0i64;
+
+    // Iterate through all transactions where this agent is the sender
+    for tx in state.transactions().values() {
+        if tx.sender_id() == agent_id {
+            total_amount += tx.amount();
+            settled_amount += tx.settled_amount();
+        }
+    }
+
+    if total_amount > 0 {
+        settled_amount as f64 / total_amount as f64
+    } else {
+        0.0
+    }
 }
