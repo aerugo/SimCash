@@ -262,14 +262,28 @@ class ScenarioBuilder:
         Args:
             tick: When event occurs
             agent_id: Affected agent
-            haircut_change: Change to haircut percentage
+            haircut_change: Change to haircut percentage (NOT SUPPORTED - will be ignored)
             collateral_change: Change to posted collateral (cents)
+
+        Note: Rust backend only supports collateral_change (mapped to 'delta').
+              haircut_change is not yet implemented in Rust.
         """
         params = {"agent": agent_id}  # Rust expects "agent", not "agent_id"
-        if haircut_change is not None:
-            params["haircut_change"] = haircut_change
+
+        # Rust only supports changing collateral amount (delta), not haircut rate
         if collateral_change is not None:
-            params["collateral_change"] = collateral_change
+            params["delta"] = collateral_change  # Rust expects "delta"
+        elif haircut_change is not None:
+            # Haircut changes not supported by Rust backend
+            # Simulate by reducing collateral instead
+            # haircut_change of -0.2 means credit reduces, so withdraw collateral
+            # This is an approximation - actual implementation needs Rust changes
+            raise ValueError(
+                "haircut_change not supported by Rust backend. "
+                "Use collateral_change instead to simulate margin calls."
+            )
+        else:
+            raise ValueError("Must provide either haircut_change or collateral_change")
 
         return self.add_event(tick, "CollateralAdjustment", **params)
 

@@ -288,7 +288,7 @@ class TestScenarioBuilder:
             .add_collateral_adjustment(
                 tick=50,
                 agent_id="BANK_A",
-                haircut_change=-0.2
+                collateral_change=-500_000  # Withdraw $5k collateral
             )
             .add_arrival_rate_change(
                 tick=100,
