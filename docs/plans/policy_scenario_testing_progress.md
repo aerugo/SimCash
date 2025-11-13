@@ -29,7 +29,7 @@
 
 **Goal**: Comprehensive test coverage for all policies under standard scenarios
 
-**Status**: 9/50 tests implemented (18%)
+**Status**: 31/50 tests implemented (62%)
 
 ### Completed Test Files
 
@@ -58,37 +58,61 @@
 
 **Next**: Run tests (GREEN phase), adjust expectations if needed (REFACTOR)
 
+#### ✅ `test_policy_scenario_liquidity_aware.py` - 12 tests
+
+**Status**: TDD RED phase (written, not yet run)
+
+| # | Test Name | Scenario | Key Expectation | Status |
+|---|-----------|----------|----------------|--------|
+| 1 | `test_liquidity_aware_ample_liquidity_good_settlement` | AmpleLiquidity | 0.90-1.0 rate, buffer maintained | ✅ Written |
+| 2 | `test_liquidity_aware_moderate_activity_buffer_maintained` | ModerateActivity | 0.75-0.90 rate, buffer protected | ✅ Written |
+| 3 | `test_liquidity_aware_high_pressure_buffer_protection` | HighPressure | 0.60-1.0 rate, buffer priority | ✅ Written |
+| 4 | `test_liquidity_aware_liquidity_drain_resilience` | LiquidityDrain | Better min_balance than FIFO | ✅ Written |
+| 5 | `test_liquidity_aware_flash_drain_buffer_holds` | FlashDrain | Buffer protects during spike | ✅ Written |
+| 6 | `test_liquidity_aware_tight_deadlines_urgency_override` | TightDeadlines | Urgency overrides trigger | ✅ Written |
+| 7 | `test_liquidity_aware_buffer_1m_less_conservative` | ModerateActivity | Parameter: 1M buffer | ✅ Written |
+| 8 | `test_liquidity_aware_buffer_2m_balanced` | ModerateActivity | Parameter: 2M buffer (baseline) | ✅ Written |
+| 9 | `test_liquidity_aware_buffer_3m_very_conservative` | ModerateActivity | Parameter: 3M buffer | ✅ Written |
+| 10 | `test_liquidity_aware_urgency_3_strict` | TightDeadlines | Parameter: urgency=3 | ✅ Written |
+| 11 | `test_liquidity_aware_urgency_5_balanced` | TightDeadlines | Parameter: urgency=5 (baseline) | ✅ Written |
+| 12 | `test_liquidity_aware_urgency_7_relaxed` | TightDeadlines | Parameter: urgency=7 | ✅ Written |
+| 13 | `test_liquidity_aware_vs_fifo_buffer_preservation` | LiquidityDrain | Comparative: vs FIFO | ✅ Written |
+
+**Coverage**:
+- ✅ Baseline & pressure scenarios
+- ✅ Buffer preservation validation
+- ✅ Urgency override mechanism
+- ✅ Parameter variations (buffer size & urgency threshold)
+- ✅ Comparative validation vs FIFO
+
+#### ✅ `test_policy_scenario_deadline.py` - 10 tests
+
+**Status**: TDD RED phase (written, not yet run)
+
+| # | Test Name | Scenario | Key Expectation | Status |
+|---|-----------|----------|----------------|--------|
+| 1 | `test_deadline_ample_liquidity_excellent_settlement` | AmpleLiquidity | 0.95-1.0 rate, minimal violations | ✅ Written |
+| 2 | `test_deadline_tight_deadlines_minimal_violations` | TightDeadlines | 30-50% fewer violations than FIFO | ✅ Written |
+| 3 | `test_deadline_mixed_deadlines_strategic_prioritization` | MixedDeadlines | 0.80-0.95 rate, strategic handling | ✅ Written |
+| 4 | `test_deadline_deadline_window_changes_adaptation` | DeadlineWindowChanges | Adapts to regulatory change | ✅ Written |
+| 5 | `test_deadline_high_pressure_prioritization` | HighPressure | Prioritization despite pressure | ✅ Written |
+| 6 | `test_deadline_urgency_2_very_strict` | MixedDeadlines | Parameter: urgency=2 | ✅ Written |
+| 7 | `test_deadline_urgency_3_strict` | MixedDeadlines | Parameter: urgency=3 | ✅ Written |
+| 8 | `test_deadline_urgency_5_balanced` | MixedDeadlines | Parameter: urgency=5 (baseline) | ✅ Written |
+| 9 | `test_deadline_urgency_7_relaxed` | MixedDeadlines | Parameter: urgency=7 | ✅ Written |
+| 10 | `test_deadline_urgency_10_very_relaxed` | MixedDeadlines | Parameter: urgency=10 | ✅ Written |
+| 11 | `test_deadline_vs_fifo_violation_reduction` | TightDeadlines | Comparative: vs FIFO | ✅ Written |
+
+**Coverage**:
+- ✅ Deadline pressure scenarios
+- ✅ Strategic prioritization validation
+- ✅ Regulatory adaptation (deadline window changes)
+- ✅ Parameter variations (urgency threshold 2-10)
+- ✅ Comparative validation vs FIFO
+
 ### Next Test Files (Planned)
 
-#### 🔲 `test_policy_scenario_liquidity_aware.py` - 12 tests
-
-**Planned tests**:
-1. `test_liquidity_aware_ample_liquidity_good_settlement`
-2. `test_liquidity_aware_moderate_activity_buffer_maintained`
-3. `test_liquidity_aware_high_pressure_buffer_protection`
-4. `test_liquidity_aware_liquidity_drain_resilience`
-5. `test_liquidity_aware_flash_drain_buffer_holds`
-6. `test_liquidity_aware_tight_deadlines_urgency_override`
-7. `test_liquidity_aware_buffer_1m_conservative`
-8. `test_liquidity_aware_buffer_2m_balanced`
-9. `test_liquidity_aware_buffer_3m_very_conservative`
-10. `test_liquidity_aware_urgency_3_strict`
-11. `test_liquidity_aware_urgency_5_balanced`
-12. `test_liquidity_aware_urgency_7_relaxed`
-
-**Parameter testing**: 3 buffer sizes × 3 urgency thresholds = 6 parameter variation tests
-
-#### 🔲 `test_policy_scenario_deadline.py` - 10 tests
-
-**Planned tests**:
-1. `test_deadline_ample_liquidity_excellent_settlement`
-2. `test_deadline_tight_deadlines_minimal_violations`
-3. `test_deadline_mixed_deadlines_strategic_prioritization`
-4. `test_deadline_deadline_window_changes_adaptation`
-5. `test_deadline_high_pressure_prioritization`
-6. `test_deadline_urgency_threshold_sweep` (parameter variations)
-
-#### 🔲 `test_policy_scenario_complex_policies.py` - 18 tests
+#### 🔲 `test_policy_scenario_complex_policies.py` - 19 tests (to reach 50 total)
 
 **Planned policies**:
 - GoliathNationalBank (5 tests)
@@ -203,10 +227,17 @@ uv sync --extra dev  # Builds Rust module + installs dependencies
 
 ### Phase 1 Progress
 
-- **Tests Written**: 9/50 (18%)
-- **Tests Passing**: 0/9 (0% - not yet run)
-- **Policy Coverage**: 1/16 policies (6%)
-- **Scenario Coverage**: 8 scenarios used
+- **Tests Written**: 31/50 (62%)
+- **Tests Passing**: 0/31 (0% - not yet run)
+- **Policy Coverage**: 3/16 policies (19%)
+  - ✅ FIFO (9 tests)
+  - ✅ LiquidityAware (12 tests)
+  - ✅ Deadline (10 tests)
+- **Scenario Coverage**: 11 unique scenarios used
+  - AmpleLiquidity, ModerateActivity, HighPressure
+  - TightDeadlines, MixedDeadlines, DeadlineWindowChanges
+  - LiquidityDrain, FlashDrain, EndOfDayRush
+  - MultipleAgents, DeterminismTest
 
 ### Expected Completion
 
@@ -293,6 +324,7 @@ uv sync --extra dev  # Builds Rust module + installs dependencies
 
 ---
 
-**Last Updated**: November 2025
-**Next Update**: After GREEN phase (first test run)
+**Last Updated**: November 2025 - After RED phase completion
+**Next Update**: After GREEN phase (test execution)
+**Current Status**: 31 tests written (RED), ready for execution (GREEN)
 **Owner**: Claude Code TDD Implementation
