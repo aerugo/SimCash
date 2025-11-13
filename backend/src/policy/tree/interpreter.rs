@@ -811,8 +811,10 @@ pub fn build_decision(
             })
         }
 
-        // Phase 3.3: Bank-level actions are not valid in payment decision context
-        ActionType::SetReleaseBudget => Err(EvalError::InvalidActionType(format!(
+        // Phase 3.3/4.5: Bank-level actions are not valid in payment decision context
+        ActionType::SetReleaseBudget
+        | ActionType::SetState
+        | ActionType::AddState => Err(EvalError::InvalidActionType(format!(
             "Bank-level action {:?} cannot be used in payment release decision tree. \
              Bank-level actions require bank_tree evaluation.",
             action
@@ -929,7 +931,9 @@ pub fn build_collateral_decision(
         | ActionType::Hold
         | ActionType::Drop
         | ActionType::Reprioritize
-        | ActionType::SetReleaseBudget => Err(EvalError::InvalidActionType(format!(
+        | ActionType::SetReleaseBudget
+        | ActionType::SetState
+        | ActionType::AddState => Err(EvalError::InvalidActionType(format!(
             "Payment/bank action {:?} cannot be used in collateral decision tree. \
              These actions require separate tree evaluation.",
             action
