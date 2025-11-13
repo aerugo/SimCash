@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "policy_id": "test_compute_multiply",
+  "description": "Field validation test policy: Tests multiplication operator in compute expressions. Releases when effective_liquidity >= remaining_amount * 2.0 (2× buffer).",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-Multiply",
+    "description": "Does agent have 2× buffer via multiplication?",
+    "condition": {
+      "op": ">=",
+      "left": {
+        "field": "effective_liquidity"
+      },
+      "right": {
+        "compute": {
+          "op": "*",
+          "left": {
+            "field": "remaining_amount"
+          },
+          "right": {
+            "value": 2.0
+          }
+        }
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-MultiplyRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "BelowMultiplyThreshold"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}
