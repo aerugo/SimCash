@@ -877,9 +877,22 @@ pub fn build_collateral_decision(
             // Extract reason parameter (required)
             let reason = extract_collateral_reason(action_params, context)?;
 
+            // Extract optional auto_withdraw_after_ticks parameter (Phase 3.4)
+            let auto_withdraw_after_ticks = if action_params.contains_key("auto_withdraw_after_ticks") {
+                let ticks = evaluate_action_parameter(action_params, "auto_withdraw_after_ticks", context, params)?;
+                if ticks > 0.0 {
+                    Some(ticks as usize)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             Ok(CollateralDecision::Post {
                 amount: amount_i64,
                 reason,
+                auto_withdraw_after_ticks,
             })
         }
 
@@ -2298,7 +2311,7 @@ mod tests {
         );
 
         match result.unwrap() {
-            CollateralDecision::Post { amount, reason } => {
+            CollateralDecision::Post { amount, reason, .. } => {
                 assert_eq!(amount, 100000);
                 assert_eq!(format!("{:?}", reason), "UrgentLiquidityNeed");
             }

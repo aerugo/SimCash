@@ -285,9 +285,11 @@ pub enum CollateralDecision {
     ///
     /// * `amount` - Amount of collateral to post (cents)
     /// * `reason` - Why collateral is being posted
+    /// * `auto_withdraw_after_ticks` - Optional: automatically withdraw after N ticks (Phase 3.4)
     Post {
         amount: i64,
         reason: CollateralReason,
+        auto_withdraw_after_ticks: Option<usize>,
     },
 
     /// Withdraw collateral to reduce opportunity cost

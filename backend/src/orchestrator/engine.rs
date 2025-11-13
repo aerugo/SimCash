@@ -2370,7 +2370,7 @@ impl Orchestrator {
             use crate::policy::CollateralDecision;
 
             match decision {
-                CollateralDecision::Post { amount, reason } => {
+                CollateralDecision::Post { amount, reason, auto_withdraw_after_ticks } => {
                     if amount <= 0 {
                         return Err(SimulationError::InvalidConfig(format!(
                             "Collateral post amount must be positive, got {}",
@@ -2392,6 +2392,17 @@ impl Orchestrator {
                     let old_collateral = agent_mut.posted_collateral();
                     let new_collateral = old_collateral + amount;
                     agent_mut.set_posted_collateral(new_collateral);
+
+                    // Schedule auto-withdrawal timer if requested (Phase 3.4)
+                    if let Some(ticks) = auto_withdraw_after_ticks {
+                        let withdrawal_tick = current_tick + ticks;
+                        agent_mut.schedule_collateral_withdrawal_with_posted_tick(
+                            withdrawal_tick,
+                            amount,
+                            format!("{:?}", reason),
+                            current_tick,
+                        );
+                    }
 
                     // Record detailed collateral event (Phase 10)
                     self.record_collateral_event(
@@ -3249,7 +3260,7 @@ impl Orchestrator {
             use crate::policy::CollateralDecision;
 
             match decision {
-                CollateralDecision::Post { amount, reason } => {
+                CollateralDecision::Post { amount, reason, auto_withdraw_after_ticks } => {
                     // Validate amount is positive
                     if amount <= 0 {
                         return Err(SimulationError::InvalidConfig(format!(
@@ -3274,6 +3285,17 @@ impl Orchestrator {
                     let old_collateral = agent_mut.posted_collateral();
                     let new_collateral = old_collateral + amount;
                     agent_mut.set_posted_collateral(new_collateral);
+
+                    // Schedule auto-withdrawal timer if requested (Phase 3.4)
+                    if let Some(ticks) = auto_withdraw_after_ticks {
+                        let withdrawal_tick = current_tick + ticks;
+                        agent_mut.schedule_collateral_withdrawal_with_posted_tick(
+                            withdrawal_tick,
+                            amount,
+                            format!("{:?}", reason),
+                            current_tick,
+                        );
+                    }
 
                     // Record detailed collateral event (Phase 10)
                     self.record_collateral_event(
