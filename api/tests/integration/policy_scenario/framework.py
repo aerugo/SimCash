@@ -196,11 +196,27 @@ class PolicyScenarioTest:
             # Record basic tick metrics
             collector.record_tick(orch, tick)
 
-            # Record arrivals/settlements from tick result
-            # Note: tick_result contains simulation-wide counts
-            # We track them for the specific agent through events
-            if tick_result.num_arrivals > 0:
-                collector.record_arrival(tick_result.num_arrivals)
+            # Extract agent-specific events for arrivals/settlements
+            events = orch.get_tick_events(tick)
+            for event in events:
+                event_type = event.get("event_type")
+
+                # Track arrivals for this agent
+                if event_type == "Arrival":
+                    if event.get("sender_id") == self.agent_id:
+                        collector.record_arrival()
+
+                # Track settlements for this agent's transactions
+                elif event_type == "RtgsImmediateSettlement":
+                    if event.get("sender") == self.agent_id or event.get("sender_id") == self.agent_id:
+                        # Track settlement with delay if we have arrival_tick
+                        arrival_tick = event.get("arrival_tick", tick)
+                        collector.record_settlement(arrival_tick, tick)
+
+                # Track deadline violations
+                elif event_type == "DeadlineViolation":
+                    if event.get("sender_id") == self.agent_id or event.get("agent_id") == self.agent_id:
+                        collector.record_deadline_violation()
 
         # Finalize metrics
         actual = collector.finalize()
