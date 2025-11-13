@@ -292,7 +292,8 @@ fn validate_field_references(
                 errors.push(ValidationError::InvalidFieldReference(field));
             } else if is_transaction_only_field(&field) {
                 errors.push(ValidationError::InvalidFieldReference(field));
-            } else if !sample_context.has_field(&field) {
+            } else if !is_bank_level_field(&field) {
+                // Field is not bank-level, transaction-only, or state register - it's invalid
                 errors.push(ValidationError::InvalidFieldReference(field));
             }
         }
@@ -309,7 +310,8 @@ fn validate_field_references(
                 errors.push(ValidationError::InvalidFieldReference(field));
             } else if is_transaction_only_field(&field) {
                 errors.push(ValidationError::InvalidFieldReference(field));
-            } else if !sample_context.has_field(&field) {
+            } else if !is_bank_level_field(&field) {
+                // Field is not bank-level, transaction-only, or state register - it's invalid
                 errors.push(ValidationError::InvalidFieldReference(field));
             }
         }
@@ -344,6 +346,65 @@ fn is_transaction_only_field(field: &str) -> bool {
             | "cost_if_settled_now"
             | "cost_if_held_one_tick"
             | "cost_urgency"
+    )
+}
+
+/// Check if a field is available in bank-level contexts (bank_tree and collateral trees)
+/// These fields come from EvalContext::bank_level() - see context.rs:574
+fn is_bank_level_field(field: &str) -> bool {
+    matches!(
+        field,
+        // Agent fields
+        "balance"
+            | "credit_limit"
+            | "available_liquidity"
+            | "credit_used"
+            | "effective_liquidity"
+            | "credit_headroom"
+            | "is_using_credit"
+            | "liquidity_buffer"
+            | "outgoing_queue_size"
+            | "incoming_expected_count"
+            | "liquidity_pressure"
+            | "is_overdraft_capped"
+            // Queue 1 metrics
+            | "queue1_total_value"
+            | "queue1_liquidity_gap"
+            | "headroom"
+            // System fields
+            | "current_tick"
+            | "rtgs_queue_size"
+            | "rtgs_queue_value"
+            | "total_agents"
+            // Collateral fields
+            | "posted_collateral"
+            | "max_collateral_capacity"
+            | "remaining_collateral_capacity"
+            | "collateral_utilization"
+            // Queue 2 metrics
+            | "queue2_size"
+            | "queue2_count_for_agent"
+            | "queue2_nearest_deadline"
+            | "ticks_to_nearest_queue2_deadline"
+            // Cost fields
+            | "cost_overdraft_bps_per_tick"
+            | "cost_delay_per_tick_per_cent"
+            | "cost_collateral_bps_per_tick"
+            | "cost_split_friction"
+            | "cost_deadline_penalty"
+            | "cost_eod_penalty"
+            // Time/day fields
+            | "system_ticks_per_day"
+            | "system_current_day"
+            | "system_tick_in_day"
+            | "ticks_remaining_in_day"
+            | "day_progress_fraction"
+            | "is_eod_rush"
+            // Public signal fields
+            | "system_queue2_pressure_index"
+            | "my_throughput_fraction_today"
+            | "expected_throughput_fraction_by_now"
+            | "throughput_gap"
     )
 }
 
