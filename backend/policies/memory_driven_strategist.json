@@ -90,7 +90,7 @@
             "node_id": "B_SetAggressiveBudget",
             "action": "SetReleaseBudget",
             "parameters": {
-              "max_value_to_release_this_tick": {
+              "max_value_to_release": {
                 "compute": {
                   "op": "*",
                   "left": {"field": "effective_liquidity"},
