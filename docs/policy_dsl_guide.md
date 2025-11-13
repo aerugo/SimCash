@@ -89,21 +89,27 @@ The system automatically loads JSON files from `backend/policies/`.
 
 ## Core Concepts
 
-### The Three Decision Trees
+### The Four Decision Trees
 
-Every policy JSON can define up to three decision trees:
+Every policy JSON can define up to four decision trees:
 
-1. **`payment_tree`** (required)
+1. **`bank_tree`** (optional) **✨ NEW in Phase 3.3**
+   - **When**: Evaluated once per agent at Step 1.75 (after collateral, before payments)
+   - **Purpose**: Bank-level decisions like release budgets and memory management
+   - **Returns**: `SetReleaseBudget`, `SetState`, `AddState`, or `NoAction` actions
+   - **Context**: Has access to bank-level data (balance, queues, time) but NOT individual transaction data
+
+2. **`payment_tree`** (required)
    - **When**: Evaluated for each transaction in Queue 1 at Step 2 of the tick loop
    - **Purpose**: Decide whether to submit, hold, split, or drop transactions
    - **Returns**: `Release`, `Hold`, `Drop`, `Split`, or `PaceAndRelease` actions
 
-2. **`strategic_collateral_tree`** (optional)
+3. **`strategic_collateral_tree`** (optional)
    - **When**: Evaluated once per agent at Step 1.5 (before settlements)
    - **Purpose**: Forward-looking collateral management (e.g., "post collateral to prepare for upcoming payments")
    - **Returns**: `PostCollateral`, `WithdrawCollateral`, or `HoldCollateral` actions
 
-3. **`end_of_tick_collateral_tree`** (optional)
+4. **`end_of_tick_collateral_tree`** (optional)
    - **When**: Evaluated once per agent at Step 5.5 (after all settlements)
    - **Purpose**: Reactive collateral management (e.g., "withdraw excess collateral at end of day")
    - **Returns**: `PostCollateral`, `WithdrawCollateral`, or `HoldCollateral` actions
@@ -164,6 +170,7 @@ A terminal decision that returns an action:
     "urgency_threshold": 5.0,
     "target_buffer": 100000.0
   },
+  "bank_tree": { /* TreeNode */ },              // Optional (Phase 3.3+)
   "payment_tree": { /* TreeNode */ },           // Required
   "strategic_collateral_tree": { /* TreeNode */ }, // Optional
   "end_of_tick_collateral_tree": { /* TreeNode */ } // Optional
@@ -174,6 +181,7 @@ A terminal decision that returns an action:
 - `policy_id` must be unique across all policies
 - `parameters` can be overridden in simulation config
 - At least `payment_tree` must be defined
+- **NEW**: `bank_tree` for bank-level budgets and memory management (Phase 3.3+)
 
 ### Parameters
 
@@ -594,6 +602,264 @@ Do nothing (no collateral action this tick):
 }
 ```
 
+##### PostCollateral with Auto-Withdraw Timer **✨ NEW in Phase 3.4**
+
+Post collateral that automatically withdraws after a specified number of ticks:
+
+```json
+{
+  "type": "action",
+  "node_id": "SC4",
+  "action": "PostCollateral",
+  "parameters": {
+    "amount": {"value": 200000.0},
+    "reason": {"value": "TemporaryBoost"},
+    "auto_withdraw_after_ticks": {"value": 10.0}
+  }
+}
+```
+
+**When to use:**
+- Temporary liquidity boosts for anticipated high-activity periods
+- Automatic cleanup without requiring explicit withdrawal logic
+- Reduces collateral opportunity cost by ensuring timely withdrawal
+
+**Example - EOD temporary boost:**
+```json
+{
+  "type": "action",
+  "node_id": "SC_EOD_Boost",
+  "action": "PostCollateral",
+  "parameters": {
+    "amount": {
+      "compute": {
+        "op": "*",
+        "left": {"field": "queue1_value"},
+        "right": {"value": 0.5}
+      }
+    },
+    "reason": {"value": "EOD_Settlement_Push"},
+    "auto_withdraw_after_ticks": {"value": 20.0}
+  }
+}
+```
+
+**How it works:**
+- Collateral is posted immediately
+- Timer starts counting down each tick
+- When timer reaches 0, collateral automatically withdraws
+- No manual tracking or withdrawal logic needed
+- If you post more collateral before timer expires, new timer replaces old one
+
+#### Bank Actions **✨ NEW in Phase 3.3**
+
+Used in `bank_tree` (evaluated once per agent per tick):
+
+##### SetReleaseBudget
+
+Set release budget constraints for this tick's payment processing:
+
+```json
+{
+  "type": "action",
+  "node_id": "B1",
+  "action": "SetReleaseBudget",
+  "parameters": {
+    "max_value_to_release_this_tick": {"value": 500000.0},
+    "focus_cpty_list": {"value": ["METRO_CENTRAL", "REGIONAL_TRUST"]},
+    "max_per_cpty": {"value": 100000.0}
+  }
+}
+```
+
+**Parameters:**
+- `max_value_to_release_this_tick` - Total budget for this tick (required)
+- `focus_cpty_list` - List of counterparty IDs to prioritize (optional)
+- `max_per_cpty` - Maximum value to release per counterparty (optional)
+
+**When to use:**
+- Control release pace to avoid overwhelming Queue 2
+- Prioritize specific counterparties for LSM coordination
+- Implement daily throughput targets
+- Manage credit usage strategically
+
+**Example - Adaptive budget based on liquidity:**
+```json
+{
+  "type": "condition",
+  "node_id": "B_CheckLiquidity",
+  "condition": {
+    "op": ">",
+    "left": {"field": "effective_liquidity"},
+    "right": {"value": 200000.0}
+  },
+  "on_true": {
+    "type": "action",
+    "node_id": "B_GenerosBudget",
+    "action": "SetReleaseBudget",
+    "parameters": {
+      "max_value_to_release_this_tick": {
+        "compute": {
+          "op": "*",
+          "left": {"field": "effective_liquidity"},
+          "right": {"value": 0.3}
+        }
+      }
+    }
+  },
+  "on_false": {
+    "type": "action",
+    "node_id": "B_ConservativeBudget",
+    "action": "SetReleaseBudget",
+    "parameters": {
+      "max_value_to_release_this_tick": {"value": 100000.0},
+      "focus_cpty_list": {"value": ["CORRESPONDENT_HUB"]},
+      "max_per_cpty": {"value": 50000.0}
+    }
+  }
+}
+```
+
+**Budget enforcement:**
+- When `payment_tree` returns `Release`, the system checks budget
+- If budget exhausted → converts to `Hold` with reason "BudgetExhausted"
+- Budget tracks: total released, focus list usage, per-counterparty usage
+- Budget resets at start of each tick
+
+##### NoAction
+
+Do nothing (no bank-level action this tick):
+
+```json
+{
+  "type": "action",
+  "node_id": "B2",
+  "action": "NoAction"
+}
+```
+
+#### State Register Actions **✨ NEW in Phase 4.5**
+
+State registers provide policy micro-memory - agents can remember values across ticks for stateful strategies. Used in `bank_tree`:
+
+##### SetState
+
+Set a state register to a specific value:
+
+```json
+{
+  "type": "action",
+  "node_id": "B_SetCooldown",
+  "action": "SetState",
+  "parameters": {
+    "register_key": {"value": "bank_state_cooldown"},
+    "value": {"value": 10.0},
+    "reason": {"value": "just_released_batch"}
+  }
+}
+```
+
+**Parameters:**
+- `register_key` - Name of the register (must start with `bank_state_`)
+- `value` - New value to set
+- `reason` - Explanation for logging (optional)
+
+**When to use:**
+- Implement cool-down periods ("don't release again for N ticks")
+- Track strategy state ("currently in aggressive mode")
+- Store calculated thresholds or targets
+
+**Example - Cool-down after large release:**
+```json
+{
+  "type": "condition",
+  "node_id": "B_CheckLastRelease",
+  "description": "Set cooldown if we released a lot last tick",
+  "condition": {
+    "op": ">",
+    "left": {"field": "last_tick_released_value"},
+    "right": {"value": 500000.0}
+  },
+  "on_true": {
+    "type": "action",
+    "node_id": "B_SetCooldown",
+    "action": "SetState",
+    "parameters": {
+      "register_key": {"value": "bank_state_cooldown"},
+      "value": {"value": 5.0},
+      "reason": {"value": "pause_after_large_release"}
+    }
+  },
+  "on_false": {
+    "type": "action",
+    "node_id": "B_NoOp",
+    "action": "NoAction"
+  }
+}
+```
+
+##### AddState
+
+Increment a state register by a value (or initialize to value if not set):
+
+```json
+{
+  "type": "action",
+  "node_id": "B_IncrementCounter",
+  "action": "AddState",
+  "parameters": {
+    "register_key": {"value": "bank_state_counter"},
+    "value": {"value": 1.0},
+    "reason": {"value": "track_event_count"}
+  }
+}
+```
+
+**Parameters:**
+- `register_key` - Name of the register (must start with `bank_state_`)
+- `value` - Amount to add (can be negative to subtract)
+- `reason` - Explanation for logging (optional)
+
+**When to use:**
+- Count events ("how many times has X happened today?")
+- Accumulate values ("total value released this hour")
+- Decrement counters ("ticks remaining in cooldown")
+
+**Example - Decrementing cooldown timer:**
+```json
+{
+  "type": "condition",
+  "node_id": "B_CheckCooldown",
+  "condition": {
+    "op": ">",
+    "left": {"field": "bank_state_cooldown"},
+    "right": {"value": 0.0}
+  },
+  "on_true": {
+    "type": "action",
+    "node_id": "B_DecrementCooldown",
+    "action": "AddState",
+    "parameters": {
+      "register_key": {"value": "bank_state_cooldown"},
+      "value": {"value": -1.0},
+      "reason": {"value": "tick_cooldown"}
+    }
+  },
+  "on_false": {
+    "type": "action",
+    "node_id": "B_NoOp",
+    "action": "NoAction"
+  }
+}
+```
+
+**State Register Behavior:**
+- Registers persist across ticks within a day
+- Registers automatically reset to 0.0 at end of day (EOD)
+- Can read register values using `{"field": "bank_state_X"}` in conditions
+- Visible in verbose output: `🧠 Agent Memory Updates`
+- All changes logged as `StateRegisterSet` events for replay
+
 ---
 
 ## Available Data Reference
@@ -728,6 +994,65 @@ System-level time configuration:
 | `rtgs_queue_size` | `f64` | Total items in Queue 2 (all agents) |
 | `rtgs_queue_value` | `f64` (cents) | Total value in Queue 2 (all agents) |
 | `total_agents` | `f64` | Number of agents in simulation |
+
+### State Register Fields **✨ NEW in Phase 4.5**
+
+State registers provide policy micro-memory - persistent storage within a day that resets at EOD.
+
+**Dynamic field access:**
+```json
+{"field": "bank_state_REGISTER_NAME"}
+```
+
+**Example registers:**
+- `bank_state_cooldown` - Cool-down timer (ticks remaining)
+- `bank_state_counter` - Event counter
+- `bank_state_mode` - Strategy mode indicator
+- `bank_state_threshold` - Calculated threshold
+
+**Behavior:**
+- All registers start at `0.0`
+- Values persist across ticks within a day
+- Automatically reset to `0.0` at end of day (EOD)
+- Must be set via `SetState` or `AddState` actions in `bank_tree`
+- Can be read in any tree (bank, payment, collateral)
+
+**Example - Using cooldown register:**
+```json
+{
+  "type": "condition",
+  "node_id": "B_CheckCooldown",
+  "description": "Only set budget if not in cooldown",
+  "condition": {
+    "op": "==",
+    "left": {"field": "bank_state_cooldown"},
+    "right": {"value": 0.0}
+  },
+  "on_true": {
+    "type": "action",
+    "node_id": "B_SetBudget",
+    "action": "SetReleaseBudget",
+    "parameters": {
+      "max_value_to_release_this_tick": {"value": 500000.0}
+    }
+  },
+  "on_false": {
+    "type": "action",
+    "node_id": "B_Skip",
+    "description": "In cooldown, reduce budget to zero",
+    "action": "SetReleaseBudget",
+    "parameters": {
+      "max_value_to_release_this_tick": {"value": 0.0}
+    }
+  }
+}
+```
+
+**Naming Convention:**
+- All state registers MUST start with `bank_state_`
+- Use descriptive names: `bank_state_eod_rush_active`, `bank_state_lsm_count`
+- Invalid: `my_counter`, `state_x` (missing prefix)
+- Valid: `bank_state_my_counter`, `bank_state_x`
 
 ---
 
