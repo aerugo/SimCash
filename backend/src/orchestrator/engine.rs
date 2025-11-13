@@ -2485,19 +2485,45 @@ impl Orchestrator {
                 use crate::policy::ReleaseDecision;
 
                 match decision {
-                    ReleaseDecision::SubmitFull { tx_id } => {
-                        // Move from Queue 1 to pending settlements
-                        if let Some(agent) = self.state.get_agent_mut(&agent_id) {
-                            agent.remove_from_queue(&tx_id);
-                        }
-                        self.pending_settlements.push(tx_id.clone());
+                    ReleaseDecision::SubmitFull {
+                        tx_id,
+                        priority_override,
+                        target_tick,
+                    } => {
+                        // Phase 3.2: Apply RTGS flags if present
 
-                        // Log policy submit event
-                        self.log_event(Event::PolicySubmit {
-                            tick: current_tick,
-                            agent_id: agent_id.clone(),
-                            tx_id,
-                        });
+                        // Apply priority override if specified
+                        if let Some(new_priority) = priority_override {
+                            if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                                tx.set_priority(new_priority);
+                            }
+                        }
+
+                        // Handle target tick (simplified for now - just check if immediate)
+                        // TODO: Add proper scheduled release tracking for future ticks
+                        let should_release_now = match target_tick {
+                            None => true,                            // No target = immediate
+                            Some(target) => target <= current_tick, // Past or current = immediate
+                        };
+
+                        if should_release_now {
+                            // Move from Queue 1 to pending settlements
+                            if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                                agent.remove_from_queue(&tx_id);
+                            }
+                            self.pending_settlements.push(tx_id.clone());
+
+                            // Log policy submit event
+                            self.log_event(Event::PolicySubmit {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                tx_id,
+                            });
+                        } else {
+                            // Future target tick - leave in Queue 1 for now
+                            // Transaction will be reconsidered by policy next tick
+                            // TODO: Add scheduled release infrastructure
+                        }
                     }
                     ReleaseDecision::SubmitPartial { tx_id, num_splits } => {
                         // Phase 5: Transaction splitting implementation

@@ -574,7 +574,7 @@ mod tests {
         assert_eq!(decisions.len(), 1);
         assert!(matches!(
             &decisions[0],
-            ReleaseDecision::SubmitFull { tx_id: id } if id == &tx_id
+            ReleaseDecision::SubmitFull { tx_id: id, .. } if id == &tx_id
         ));
     }
 
@@ -680,7 +680,7 @@ mod tests {
         assert_eq!(decisions.len(), 1);
         assert!(matches!(
             &decisions[0],
-            ReleaseDecision::SubmitFull { tx_id: id } if id == &tx_id
+            ReleaseDecision::SubmitFull { tx_id: id, .. } if id == &tx_id
         ));
     }
 
