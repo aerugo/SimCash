@@ -118,6 +118,32 @@ pub enum Event {
         new_total: i64,
     },
 
+    /// Collateral automatically withdrawn via timer (Phase 3.4: Policy Enhancements V2)
+    ///
+    /// Emitted when auto_withdraw_after_ticks timer expires and collateral is withdrawn.
+    /// Provides full audit trail including when collateral was originally posted.
+    CollateralTimerWithdrawn {
+        tick: usize,
+        agent_id: String,
+        amount: i64,
+        original_reason: String, // Reason from when collateral was posted
+        posted_at_tick: usize,   // When collateral was originally posted
+    },
+
+    /// State register value changed (Phase 4.5: Policy Enhancements V2)
+    ///
+    /// Emitted when policy uses SetState or AddState actions.
+    /// Also emitted for EOD resets (all registers reset to 0.0).
+    /// CRITICAL: Required for replay identity - state changes must be auditable.
+    StateRegisterSet {
+        tick: usize,
+        agent_id: String,
+        register_key: String,
+        old_value: f64,
+        new_value: f64,
+        reason: String, // e.g., "policy_action", "eod_reset"
+    },
+
     /// Bank-level budget set for this tick (Phase 3.3: Policy Enhancements V2)
     ///
     /// Emitted when bank_tree evaluation results in SetReleaseBudget action.
@@ -288,6 +314,8 @@ impl Event {
             Event::TransactionReprioritized { tick, .. } => *tick,
             Event::CollateralPost { tick, .. } => *tick,
             Event::CollateralWithdraw { tick, .. } => *tick,
+            Event::CollateralTimerWithdrawn { tick, .. } => *tick,
+            Event::StateRegisterSet { tick, .. } => *tick,
             Event::BankBudgetSet { tick, .. } => *tick,
             Event::RtgsImmediateSettlement { tick, .. } => *tick,
             #[allow(deprecated)]
@@ -317,6 +345,8 @@ impl Event {
             Event::TransactionReprioritized { .. } => "TransactionReprioritized",
             Event::CollateralPost { .. } => "CollateralPost",
             Event::CollateralWithdraw { .. } => "CollateralWithdraw",
+            Event::CollateralTimerWithdrawn { .. } => "CollateralTimerWithdrawn",
+            Event::StateRegisterSet { .. } => "StateRegisterSet",
             Event::BankBudgetSet { .. } => "BankBudgetSet",
             Event::RtgsImmediateSettlement { .. } => "RtgsImmediateSettlement",
             #[allow(deprecated)]

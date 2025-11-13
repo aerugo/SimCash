@@ -185,6 +185,7 @@ def generate_full_schema_ddl() -> str:
     """
     from .models import (
         AgentQueueSnapshotRecord,
+        AgentStateRegisterRecord,
         CollateralEventRecord,
         DailyAgentMetricsRecord,
         LsmCycleRecord,
@@ -206,6 +207,7 @@ def generate_full_schema_ddl() -> str:
         DailyAgentMetricsRecord,
         CollateralEventRecord,
         AgentQueueSnapshotRecord,
+        AgentStateRegisterRecord,
         PolicySnapshotRecord,
         SimulationCheckpointRecord,
         SimulationEventRecord,

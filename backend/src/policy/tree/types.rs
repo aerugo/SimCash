@@ -306,6 +306,20 @@ pub enum ActionType {
     /// Controls total value, counterparty focus, and per-counterparty limits.
     SetReleaseBudget,
 
+    // Phase 4.5: State Register Actions (Policy Enhancements V2)
+    /// Set a state register value (policy micro-memory)
+    ///
+    /// Allows policies to remember values across ticks for stateful strategies.
+    /// Registers reset at end of day. Max 10 per agent.
+    /// Keys MUST start with "bank_state_" prefix.
+    SetState,
+
+    /// Add to a state register value (increment/decrement)
+    ///
+    /// Increments (or decrements if negative) a state register.
+    /// Useful for counters, accumulators, running totals.
+    AddState,
+
     // Phase 8: Collateral Management Actions
     /// Post collateral to increase available liquidity
     PostCollateral,

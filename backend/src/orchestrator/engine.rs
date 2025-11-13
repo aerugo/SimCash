@@ -2370,7 +2370,7 @@ impl Orchestrator {
             use crate::policy::CollateralDecision;
 
             match decision {
-                CollateralDecision::Post { amount, reason } => {
+                CollateralDecision::Post { amount, reason, auto_withdraw_after_ticks } => {
                     if amount <= 0 {
                         return Err(SimulationError::InvalidConfig(format!(
                             "Collateral post amount must be positive, got {}",
@@ -2392,6 +2392,17 @@ impl Orchestrator {
                     let old_collateral = agent_mut.posted_collateral();
                     let new_collateral = old_collateral + amount;
                     agent_mut.set_posted_collateral(new_collateral);
+
+                    // Schedule auto-withdrawal timer if requested (Phase 3.4)
+                    if let Some(ticks) = auto_withdraw_after_ticks {
+                        let withdrawal_tick = current_tick + ticks;
+                        agent_mut.schedule_collateral_withdrawal_with_posted_tick(
+                            withdrawal_tick,
+                            amount,
+                            format!("{:?}", reason),
+                            current_tick,
+                        );
+                    }
 
                     // Record detailed collateral event (Phase 10)
                     self.record_collateral_event(
@@ -2513,11 +2524,107 @@ impl Orchestrator {
                         max_per_counterparty,
                     });
                 }
+                BankDecision::SetState { key, value, reason } => {
+                    // Phase 4.5: Set state register value
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+
+                    match agent_mut.set_state_register(key.clone(), value) {
+                        Ok((old_value, new_value)) => {
+                            // Successfully set register - emit event
+                            self.log_event(Event::StateRegisterSet {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                register_key: key,
+                                old_value,
+                                new_value,
+                                reason,
+                            });
+                        }
+                        Err(err_msg) => {
+                            // Validation failed (bad key prefix or max limit exceeded)
+                            // Log warning but don't panic
+                            eprintln!(
+                                "WARN: SetState failed for agent {} at tick {}: {}",
+                                agent_id, current_tick, err_msg
+                            );
+                        }
+                    }
+                }
+                BankDecision::AddState { key, delta, reason } => {
+                    // Phase 4.5: Add to state register value (increment/decrement)
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+
+                    // Get current value, add delta, then set
+                    let current_value = agent_mut.get_state_register(&key);
+                    let new_value = current_value + delta;
+
+                    match agent_mut.set_state_register(key.clone(), new_value) {
+                        Ok((old_value, new_value)) => {
+                            // Successfully updated register - emit event
+                            self.log_event(Event::StateRegisterSet {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                register_key: key,
+                                old_value,
+                                new_value,
+                                reason,
+                            });
+                        }
+                        Err(err_msg) => {
+                            // Validation failed
+                            eprintln!(
+                                "WARN: AddState failed for agent {} at tick {}: {}",
+                                agent_id, current_tick, err_msg
+                            );
+                        }
+                    }
+                }
                 BankDecision::NoAction => {
                     // Reset budget to unlimited (no budget set this tick)
                     let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
                     agent_mut.reset_release_budget();
                 }
+            }
+        }
+
+        // STEP 1.8: COLLATERAL TIMER PROCESSING (Phase 3.4)
+        // Process automatic collateral withdrawals scheduled for this tick
+        // This runs after budget decisions but before payment decisions
+        for agent_id in all_agent_ids.clone() {
+            // Get pending timers for this tick
+            let timers = {
+                let agent = self
+                    .state
+                    .get_agent(&agent_id)
+                    .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+                agent.get_pending_collateral_withdrawals_with_posted_tick(current_tick)
+            };
+
+            let has_timers = !timers.is_empty();
+
+            // Process each timer
+            for (amount, original_reason, posted_at_tick) in timers {
+                // Withdraw collateral
+                let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                let current_collateral = agent_mut.posted_collateral();
+                let withdrawal_amount = amount.min(current_collateral); // Cap at actual posted amount
+                let new_collateral = current_collateral - withdrawal_amount;
+                agent_mut.set_posted_collateral(new_collateral);
+
+                // Emit event for audit trail
+                self.log_event(Event::CollateralTimerWithdrawn {
+                    tick: current_tick,
+                    agent_id: agent_id.clone(),
+                    amount: withdrawal_amount,
+                    original_reason: original_reason.clone(),
+                    posted_at_tick,
+                });
+            }
+
+            // Clean up processed timers
+            if has_timers {
+                let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                agent_mut.remove_collateral_withdrawal_timer(current_tick);
             }
         }
 
@@ -3208,7 +3315,7 @@ impl Orchestrator {
             use crate::policy::CollateralDecision;
 
             match decision {
-                CollateralDecision::Post { amount, reason } => {
+                CollateralDecision::Post { amount, reason, auto_withdraw_after_ticks } => {
                     // Validate amount is positive
                     if amount <= 0 {
                         return Err(SimulationError::InvalidConfig(format!(
@@ -3233,6 +3340,17 @@ impl Orchestrator {
                     let old_collateral = agent_mut.posted_collateral();
                     let new_collateral = old_collateral + amount;
                     agent_mut.set_posted_collateral(new_collateral);
+
+                    // Schedule auto-withdrawal timer if requested (Phase 3.4)
+                    if let Some(ticks) = auto_withdraw_after_ticks {
+                        let withdrawal_tick = current_tick + ticks;
+                        agent_mut.schedule_collateral_withdrawal_with_posted_tick(
+                            withdrawal_tick,
+                            amount,
+                            format!("{:?}", reason),
+                            current_tick,
+                        );
+                    }
 
                     // Record detailed collateral event (Phase 10)
                     self.record_collateral_event(
@@ -3595,6 +3713,27 @@ impl Orchestrator {
                         penalty_cost: penalty,
                         split_friction_cost: 0,
                     },
+                });
+            }
+        }
+
+        // Phase 4.5: Reset state registers at end of day
+        // All state registers reset to 0.0 for next day (daily scope only)
+        for agent_id in self.state.agents().keys().cloned().collect::<Vec<_>>() {
+            let old_values = {
+                let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                agent_mut.reset_state_registers()
+            };
+
+            // Emit reset events for audit trail
+            for (key, old_value) in old_values {
+                self.log_event(Event::StateRegisterSet {
+                    tick: current_tick,
+                    agent_id: agent_id.clone(),
+                    register_key: key,
+                    old_value,
+                    new_value: 0.0,
+                    reason: "eod_reset".to_string(),
                 });
             }
         }

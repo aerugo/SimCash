@@ -353,3 +353,54 @@ class DatabaseStateProvider:
             }
 
         return list(overdue_txs.values())
+
+    def get_agent_state_registers(self, agent_id: str, tick: int) -> dict[str, float]:
+        """Get all state registers for an agent at a specific tick.
+
+        Returns the most recent value for each register up to and including tick.
+
+        Phase 4.5: Policy micro-memory support for replay.
+
+        Args:
+            agent_id: Agent ID
+            tick: Tick number to query
+
+        Returns:
+            Dict mapping register_key -> register_value (float)
+            Empty dict if agent has no registers
+
+        Examples:
+            >>> provider.get_agent_state_registers("BANK_A", 10)
+            {"bank_state_cooldown": 42.0, "bank_state_counter": 5.0}
+        """
+        # Query agent_state_registers table for most recent value of each register
+        # up to and including the specified tick
+        query = """
+            SELECT register_key, register_value
+            FROM (
+                SELECT
+                    register_key,
+                    register_value,
+                    tick,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY register_key
+                        ORDER BY tick DESC
+                    ) as row_num
+                FROM agent_state_registers
+                WHERE simulation_id = ?
+                  AND agent_id = ?
+                  AND tick <= ?
+            ) subquery
+            WHERE row_num = 1
+        """
+
+        rows = self.conn.execute(query, [self.simulation_id, agent_id, tick]).fetchall()
+
+        # Convert to dict
+        registers = {}
+        for row in rows:
+            register_key = row[0]
+            register_value = row[1]
+            registers[register_key] = register_value
+
+        return registers
