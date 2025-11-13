@@ -138,6 +138,12 @@ pub struct Agent {
     /// Per-counterparty usage tracking for current tick
     /// Maps counterparty_id -> total_released_amount
     release_budget_per_counterparty_usage: std::collections::HashMap<String, i64>,
+
+    // Phase 3.4: Collateral Auto-Withdraw Timers (Policy Enhancements V2)
+    /// Scheduled automatic collateral withdrawals
+    /// Maps tick_number -> Vec<(amount, reason, posted_at_tick)>
+    /// When tick is reached, collateral is automatically withdrawn
+    collateral_withdrawal_timers: std::collections::HashMap<usize, Vec<(i64, String, usize)>>,
 }
 
 impl Agent {
@@ -174,6 +180,8 @@ impl Agent {
             release_budget_focus_counterparties: None,
             release_budget_per_counterparty_limit: None,
             release_budget_per_counterparty_usage: std::collections::HashMap::new(),
+            // Phase 3.4: Collateral timers (none by default)
+            collateral_withdrawal_timers: std::collections::HashMap::new(),
         }
     }
 
@@ -216,6 +224,8 @@ impl Agent {
             release_budget_focus_counterparties: None,
             release_budget_per_counterparty_limit: None,
             release_budget_per_counterparty_usage: std::collections::HashMap::new(),
+            // Phase 3.4: Collateral timers (none by default)
+            collateral_withdrawal_timers: std::collections::HashMap::new(),
         }
     }
 
@@ -283,6 +293,8 @@ impl Agent {
             release_budget_focus_counterparties: None,
             release_budget_per_counterparty_limit: None,
             release_budget_per_counterparty_usage: std::collections::HashMap::new(),
+            // Phase 3.4: Collateral timers (none by default)
+            collateral_withdrawal_timers: std::collections::HashMap::new(),
         }
     }
 
@@ -964,6 +976,108 @@ impl Agent {
     /// Check if budget has been set for current tick
     pub fn has_release_budget(&self) -> bool {
         self.release_budget_max.is_some()
+    }
+
+    // =========================================================================
+    // Phase 3.4: Collateral Auto-Withdraw Timer Management
+    // =========================================================================
+
+    /// Schedule automatic collateral withdrawal at specified tick
+    ///
+    /// # Arguments
+    /// * `withdrawal_tick` - Tick when withdrawal should occur
+    /// * `amount` - Amount to withdraw (i64 cents)
+    /// * `reason` - Reason for posting (e.g., "TemporaryBoost")
+    pub fn schedule_collateral_withdrawal(
+        &mut self,
+        withdrawal_tick: usize,
+        amount: i64,
+        reason: String,
+    ) {
+        // Use current tick as posted_at_tick (will be set correctly by orchestrator)
+        self.schedule_collateral_withdrawal_with_posted_tick(
+            withdrawal_tick,
+            amount,
+            reason,
+            0, // Placeholder, will be set correctly when called from orchestrator
+        );
+    }
+
+    /// Schedule automatic collateral withdrawal with explicit posted_at_tick
+    ///
+    /// # Arguments
+    /// * `withdrawal_tick` - Tick when withdrawal should occur
+    /// * `amount` - Amount to withdraw (i64 cents)
+    /// * `reason` - Reason for posting (e.g., "TemporaryBoost")
+    /// * `posted_at_tick` - Tick when collateral was originally posted
+    pub fn schedule_collateral_withdrawal_with_posted_tick(
+        &mut self,
+        withdrawal_tick: usize,
+        amount: i64,
+        reason: String,
+        posted_at_tick: usize,
+    ) {
+        self.collateral_withdrawal_timers
+            .entry(withdrawal_tick)
+            .or_insert_with(Vec::new)
+            .push((amount, reason, posted_at_tick));
+    }
+
+    /// Get pending collateral withdrawals due at specified tick
+    ///
+    /// Returns Vec<(amount, reason)> for all timers scheduled for this tick.
+    /// Does not remove the timers - use remove_collateral_withdrawal_timer() for that.
+    pub fn get_pending_collateral_withdrawals(&self, tick: usize) -> Vec<(i64, String)> {
+        self.collateral_withdrawal_timers
+            .get(&tick)
+            .map(|timers| {
+                timers
+                    .iter()
+                    .map(|(amount, reason, _posted_at)| (*amount, reason.clone()))
+                    .collect()
+            })
+            .unwrap_or_else(Vec::new)
+    }
+
+    /// Get pending collateral withdrawals with posted_at_tick information
+    ///
+    /// Returns Vec<(amount, reason, posted_at_tick)> for all timers scheduled for this tick.
+    pub fn get_pending_collateral_withdrawals_with_posted_tick(
+        &self,
+        tick: usize,
+    ) -> Vec<(i64, String, usize)> {
+        self.collateral_withdrawal_timers
+            .get(&tick)
+            .map(|timers| timers.clone())
+            .unwrap_or_else(Vec::new)
+    }
+
+    /// Remove all timers scheduled for specified tick
+    ///
+    /// Call this after processing withdrawals to clean up.
+    pub fn remove_collateral_withdrawal_timer(&mut self, tick: usize) {
+        self.collateral_withdrawal_timers.remove(&tick);
+    }
+
+    /// Check if there are any pending collateral withdrawal timers
+    pub fn has_pending_collateral_withdrawals(&self) -> bool {
+        !self.collateral_withdrawal_timers.is_empty()
+    }
+
+    /// Clear all pending collateral withdrawal timers
+    ///
+    /// Useful for resetting agent state or cancelling all scheduled withdrawals.
+    pub fn clear_collateral_withdrawal_timers(&mut self) {
+        self.collateral_withdrawal_timers.clear();
+    }
+
+    /// Get all pending timers for debugging/inspection
+    ///
+    /// Returns reference to the internal timer map.
+    pub fn get_all_collateral_withdrawal_timers(
+        &self,
+    ) -> &std::collections::HashMap<usize, Vec<(i64, String, usize)>> {
+        &self.collateral_withdrawal_timers
     }
 }
 
