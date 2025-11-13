@@ -120,7 +120,7 @@ class ScenarioDefinition:
             event_dict = {
                 "schedule": "OneTime",
                 "tick": event.tick,
-                "event_type": event.event_type,
+                "type": event.event_type,  # Rust expects "type", not "event_type"
                 **event.parameters,
             }
             scenario_events.append(event_dict)
@@ -290,7 +290,7 @@ class ScenarioBuilder:
             return self.add_event(
                 tick,
                 "AgentArrivalRateChange",
-                agent_id=agent_id,
+                agent=agent_id,  # Rust expects "agent", not "agent_id"
                 multiplier=multiplier
             )
         else:
@@ -320,8 +320,8 @@ class ScenarioBuilder:
         return self.add_event(
             tick,
             "CustomTransactionArrival",
-            sender=sender,
-            receiver=receiver,
+            from_agent=sender,  # Rust expects "from_agent"
+            to_agent=receiver,  # Rust expects "to_agent"
             amount=amount,
             deadline=tick + deadline_offset,
             priority=10,
