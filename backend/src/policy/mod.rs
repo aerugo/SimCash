@@ -152,6 +152,65 @@ pub enum ReleaseDecision {
         tx_id: String,
         new_priority: u8,
     },
+
+    /// Split transaction and release children with staggered timing (Phase 3.1)
+    ///
+    /// Creates `num_splits` child transactions from the parent, but unlike
+    /// `SubmitPartial`, releases them gradually over time instead of all at once.
+    ///
+    /// # Timing Control
+    ///
+    /// * `stagger_first_now` - Number of children to release immediately
+    /// * `stagger_gap_ticks` - Tick gap between subsequent releases
+    /// * Remaining children are queued internally with scheduled release ticks
+    ///
+    /// # Example
+    ///
+    /// With `num_splits=5`, `stagger_first_now=2`, `stagger_gap_ticks=3`:
+    /// - Children 1-2: Released at tick T (immediate)
+    /// - Child 3: Released at tick T+3
+    /// - Child 4: Released at tick T+6
+    /// - Child 5: Released at tick T+9
+    ///
+    /// # Priority Boost
+    ///
+    /// * `priority_boost_children` - Added to parent priority (capped at 10)
+    /// * Useful for ensuring staggered children don't get stuck behind new arrivals
+    ///
+    /// # Cost
+    ///
+    /// Split friction cost is charged once when split occurs:
+    /// `split_friction_cost × (num_splits - 1)`
+    ///
+    /// Staggering timing is free (no additional cost beyond the split itself).
+    ///
+    /// # Use Cases
+    ///
+    /// 1. **Feed LSM gradually**: Release to counterparty A over multiple ticks
+    ///    to trigger bilateral offsets as A's payments arrive
+    /// 2. **Avoid Queue 2 flooding**: Pace releases to prevent overwhelming RTGS
+    /// 3. **Wait for inflows**: Release first child now, delay others until
+    ///    expected incoming settlements provide liquidity
+    /// 4. **End-of-day strategy**: Release large payment in waves as deadline approaches
+    ///
+    /// # Constraints
+    ///
+    /// * `num_splits >= 2` (must actually split)
+    /// * `stagger_first_now <= num_splits` (can't release more than exist)
+    /// * `stagger_gap_ticks >= 0` (negative gaps invalid)
+    /// * All children inherit parent's deadline (staggering doesn't extend it)
+    ///
+    /// # Phase 3.1 Implementation
+    ///
+    /// This action enables realistic cash manager behavior: pacing releases to
+    /// manage liquidity flow and optimize LSM recycling opportunities.
+    StaggerSplit {
+        tx_id: String,
+        num_splits: usize,
+        stagger_first_now: usize,
+        stagger_gap_ticks: usize,
+        priority_boost_children: u8,
+    },
 }
 
 /// Reason for holding a transaction in Queue 1

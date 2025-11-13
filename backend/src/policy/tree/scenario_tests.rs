@@ -455,6 +455,7 @@ mod tests {
                 | ReleaseDecision::Hold { tx_id, .. }
                 | ReleaseDecision::Drop { tx_id }
                 | ReleaseDecision::SubmitPartial { tx_id, .. }
+                | ReleaseDecision::StaggerSplit { tx_id, .. }
                 | ReleaseDecision::Reprioritize { tx_id, .. } => tx_id == &urgent_id,
             })
             .unwrap();
@@ -466,6 +467,7 @@ mod tests {
                 | ReleaseDecision::Hold { tx_id, .. }
                 | ReleaseDecision::Drop { tx_id }
                 | ReleaseDecision::SubmitPartial { tx_id, .. }
+                | ReleaseDecision::StaggerSplit { tx_id, .. }
                 | ReleaseDecision::Reprioritize { tx_id, .. } => tx_id == &normal_id,
             })
             .unwrap();

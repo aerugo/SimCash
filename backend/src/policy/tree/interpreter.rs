@@ -612,6 +612,56 @@ pub fn build_decision(
             })
         }
 
+        ActionType::StaggerSplit => {
+            // Phase 3.1: Split with staggered timing
+            let num_splits =
+                evaluate_action_parameter(action_params, "num_splits", context, params)?;
+            let num_splits_usize = num_splits as usize;
+
+            let stagger_first_now =
+                evaluate_action_parameter(action_params, "stagger_first_now", context, params)?;
+            let stagger_first_now_usize = stagger_first_now as usize;
+
+            let stagger_gap_ticks =
+                evaluate_action_parameter(action_params, "stagger_gap_ticks", context, params)?;
+            let stagger_gap_ticks_usize = stagger_gap_ticks as usize;
+
+            let priority_boost_children = evaluate_action_parameter(
+                action_params,
+                "priority_boost_children",
+                context,
+                params,
+            )?;
+            let priority_boost_u8 = if priority_boost_children < 0.0 {
+                0
+            } else if priority_boost_children > 255.0 {
+                255
+            } else {
+                priority_boost_children as u8
+            };
+
+            // Validation
+            if num_splits_usize < 2 {
+                return Err(EvalError::InvalidActionParameter(
+                    "num_splits must be >= 2".to_string(),
+                ));
+            }
+
+            if stagger_first_now_usize > num_splits_usize {
+                return Err(EvalError::InvalidActionParameter(
+                    "stagger_first_now cannot exceed num_splits".to_string(),
+                ));
+            }
+
+            Ok(ReleaseDecision::StaggerSplit {
+                tx_id,
+                num_splits: num_splits_usize,
+                stagger_first_now: stagger_first_now_usize,
+                stagger_gap_ticks: stagger_gap_ticks_usize,
+                priority_boost_children: priority_boost_u8,
+            })
+        }
+
         ActionType::Hold => {
             use crate::policy::tree::types::ValueOrCompute;
 
@@ -765,6 +815,7 @@ pub fn build_collateral_decision(
         | ActionType::ReleaseWithCredit
         | ActionType::PaceAndRelease
         | ActionType::Split
+        | ActionType::StaggerSplit
         | ActionType::Hold
         | ActionType::Drop
         | ActionType::Reprioritize => Err(EvalError::InvalidActionType(format!(

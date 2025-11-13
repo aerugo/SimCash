@@ -279,6 +279,9 @@ pub enum ActionType {
     /// Split transaction into multiple parts (Phase 5)
     Split,
 
+    /// Split transaction with staggered release timing (Phase 3.1)
+    StaggerSplit,
+
     /// Hold transaction in Queue 1 for later
     Hold,
 
