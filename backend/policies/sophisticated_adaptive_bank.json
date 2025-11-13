@@ -75,7 +75,7 @@
           "description": "EOD - aggressive budget to clear queues",
           "action": "SetReleaseBudget",
           "parameters": {
-            "max_value_to_release_this_tick": {
+            "max_value_to_release": {
               "compute": {
                 "op": "*",
                 "left": {"field": "queue1_total_value"},
@@ -99,7 +99,7 @@
             "description": "High queue pressure - larger budget but set cooldown",
             "action": "SetReleaseBudget",
             "parameters": {
-              "max_value_to_release_this_tick": {
+              "max_value_to_release": {
                 "compute": {
                   "op": "*",
                   "left": {"field": "effective_liquidity"},
@@ -114,7 +114,7 @@
             "description": "Normal queue - moderate budget",
             "action": "SetReleaseBudget",
             "parameters": {
-              "max_value_to_release_this_tick": {
+              "max_value_to_release": {
                 "compute": {
                   "op": "*",
                   "left": {"field": "effective_liquidity"},
@@ -148,7 +148,7 @@
           "description": "Low liquidity - minimal budget",
           "action": "SetReleaseBudget",
           "parameters": {
-            "max_value_to_release_this_tick": {
+            "max_value_to_release": {
               "compute": {
                 "op": "*",
                 "left": {"field": "effective_liquidity"},
@@ -163,7 +163,7 @@
           "description": "Negative liquidity - no releases",
           "action": "SetReleaseBudget",
           "parameters": {
-            "max_value_to_release_this_tick": {"value": 0.0}
+            "max_value_to_release": {"value": 0.0}
           }
         }
       }

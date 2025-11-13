@@ -34,7 +34,7 @@
         "description": "EOD with queue - large budget",
         "action": "SetReleaseBudget",
         "parameters": {
-          "max_value_to_release_this_tick": {
+          "max_value_to_release": {
             "compute": {
               "op": "*",
               "left": {
@@ -55,7 +55,7 @@
         "description": "EOD with small queue - moderate budget",
         "action": "SetReleaseBudget",
         "parameters": {
-          "max_value_to_release_this_tick": {
+          "max_value_to_release": {
             "compute": {
               "op": "*",
               "left": {"field": "effective_liquidity"},
@@ -95,7 +95,7 @@
           "description": "Good liquidity - boost budget with HUB priority",
           "action": "SetReleaseBudget",
           "parameters": {
-            "max_value_to_release_this_tick": {
+            "max_value_to_release": {
               "compute": {
                 "op": "*",
                 "left": {"field": "effective_liquidity"},
@@ -118,7 +118,7 @@
           "description": "Low liquidity - smaller boost",
           "action": "SetReleaseBudget",
           "parameters": {
-            "max_value_to_release_this_tick": {
+            "max_value_to_release": {
               "compute": {
                 "op": "*",
                 "left": {"field": "effective_liquidity"},
@@ -149,7 +149,7 @@
           "description": "Good position - standard budget",
           "action": "SetReleaseBudget",
           "parameters": {
-            "max_value_to_release_this_tick": {
+            "max_value_to_release": {
               "compute": {
                 "op": "*",
                 "left": {"field": "effective_liquidity"},
@@ -171,7 +171,7 @@
           "description": "Ahead but low liquidity - conservative",
           "action": "SetReleaseBudget",
           "parameters": {
-            "max_value_to_release_this_tick": {
+            "max_value_to_release": {
               "compute": {
                 "op": "*",
                 "left": {"field": "effective_liquidity"},
