@@ -2454,6 +2454,73 @@ impl Orchestrator {
             }
         }
 
+        // STEP 1.75: BANK-LEVEL BUDGET DECISIONS (Phase 3.3)
+        // Evaluate bank_tree once per agent to set release budgets for this tick
+        // This runs after collateral decisions but before payment decisions
+        for agent_id in all_agent_ids.clone() {
+            let agent = self
+                .state
+                .get_agent(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            let policy = self
+                .policies
+                .get_mut(&agent_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+
+            // Only TreePolicy supports bank_tree evaluation
+            let tree_policy = policy
+                .as_any_mut()
+                .downcast_mut::<crate::policy::tree::TreePolicy>()
+                .ok_or_else(|| {
+                    SimulationError::InvalidConfig(format!(
+                        "Agent {} policy is not a TreePolicy",
+                        agent_id
+                    ))
+                })?;
+
+            let decision = tree_policy
+                .evaluate_bank_tree(agent, &self.state, current_tick, &self.cost_rates, self.config.ticks_per_day, self.config.eod_rush_threshold)
+                .map_err(|e| {
+                    SimulationError::InvalidConfig(format!(
+                        "Failed to evaluate bank_tree for {}: {}",
+                        agent_id, e
+                    ))
+                })?;
+
+            use crate::policy::BankDecision;
+
+            match decision {
+                BankDecision::SetReleaseBudget {
+                    max_value_to_release,
+                    focus_counterparties,
+                    max_per_counterparty,
+                } => {
+                    // Apply budget to agent state
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                    agent_mut.set_release_budget(
+                        max_value_to_release,
+                        focus_counterparties.clone(),
+                        max_per_counterparty,
+                    );
+
+                    // Log budget setting event
+                    self.log_event(Event::BankBudgetSet {
+                        tick: current_tick,
+                        agent_id: agent_id.clone(),
+                        max_value: max_value_to_release,
+                        focus_counterparties,
+                        max_per_counterparty,
+                    });
+                }
+                BankDecision::NoAction => {
+                    // Reset budget to unlimited (no budget set this tick)
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                    agent_mut.reset_release_budget();
+                }
+            }
+        }
+
         // STEP 2: POLICY EVALUATION
         // Get agents with queued transactions (Queue 1)
         let policy_eval_start = Instant::now();
@@ -2507,18 +2574,52 @@ impl Orchestrator {
                         };
 
                         if should_release_now {
-                            // Move from Queue 1 to pending settlements
-                            if let Some(agent) = self.state.get_agent_mut(&agent_id) {
-                                agent.remove_from_queue(&tx_id);
-                            }
-                            self.pending_settlements.push(tx_id.clone());
+                            // Phase 3.3: Check budget constraints before releasing
+                            // Collect transaction info first (to avoid borrow issues)
+                            let (tx_amount, counterparty_id) = {
+                                let tx = self.state.get_transaction(&tx_id).ok_or_else(|| {
+                                    SimulationError::SettlementError(format!(
+                                        "Transaction {} not found",
+                                        tx_id
+                                    ))
+                                })?;
+                                (tx.remaining_amount(), tx.receiver_id().to_string())
+                            };
 
-                            // Log policy submit event
-                            self.log_event(Event::PolicySubmit {
-                                tick: current_tick,
-                                agent_id: agent_id.clone(),
-                                tx_id,
-                            });
+                            // Check if release is allowed under budget
+                            let budget_allows = {
+                                let agent = self.state.get_agent(&agent_id).ok_or_else(|| {
+                                    SimulationError::AgentNotFound(agent_id.clone())
+                                })?;
+                                agent.can_release_to_counterparty(&counterparty_id, tx_amount)
+                            };
+
+                            if budget_allows {
+                                // Budget allows: proceed with release
+
+                                // Move from Queue 1 to pending settlements
+                                if let Some(agent) = self.state.get_agent_mut(&agent_id) {
+                                    agent.remove_from_queue(&tx_id);
+                                    // Track budget usage
+                                    agent.track_release(&counterparty_id, tx_amount);
+                                }
+                                self.pending_settlements.push(tx_id.clone());
+
+                                // Log policy submit event
+                                self.log_event(Event::PolicySubmit {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                });
+                            } else {
+                                // Budget exhausted: convert to Hold
+                                self.log_event(Event::PolicyHold {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                    reason: "BudgetExhausted".to_string(),
+                                });
+                            }
                         } else {
                             // Future target tick - leave in Queue 1 for now
                             // Transaction will be reconsidered by policy next tick
