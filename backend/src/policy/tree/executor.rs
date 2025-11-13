@@ -260,6 +260,62 @@ impl TreePolicy {
         Ok(decision)
     }
 
+    /// Evaluate bank-level decision tree (Phase 3.3: Bank Budgets)
+    ///
+    /// This method evaluates the bank_tree to make bank-level decisions
+    /// such as setting release budgets for the current tick.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent` - Agent being evaluated
+    /// * `state` - Full simulation state
+    /// * `tick` - Current simulation tick
+    /// * `cost_rates` - Cost configuration
+    /// * `ticks_per_day` - Number of ticks per day
+    /// * `eod_rush_threshold` - EOD rush threshold
+    ///
+    /// # Returns
+    ///
+    /// BankDecision indicating bank-level action (e.g., SetReleaseBudget)
+    ///
+    /// # Notes
+    ///
+    /// - Returns NoAction if bank_tree is not defined
+    /// - Uses bank_level EvalContext (no transaction reference)
+    /// - Evaluated once per agent per tick at STEP 1.75 (after collateral, before payments)
+    pub fn evaluate_bank_tree(
+        &mut self,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+        cost_rates: &CostRates,
+        ticks_per_day: usize,
+        eod_rush_threshold: f64,
+    ) -> Result<crate::policy::BankDecision, TreePolicyError> {
+        use crate::policy::tree::interpreter::{build_bank_decision, traverse_bank_tree};
+
+        // If no bank tree defined, return NoAction (default)
+        if self.tree.bank_tree.is_none() {
+            return Ok(crate::policy::BankDecision::NoAction);
+        }
+
+        // Build bank-level evaluation context (no transaction reference)
+        let context = EvalContext::bank_level(agent, state, tick, cost_rates, ticks_per_day, eod_rush_threshold);
+
+        // Validate tree on first use
+        if !self.validated {
+            self.validate_if_needed(&context)?;
+        }
+
+        // Traverse bank tree
+        let action_node = traverse_bank_tree(&self.tree, &context)?;
+
+        // Build bank decision from action node
+        let decision = build_bank_decision(action_node, &context, &self.tree.parameters)?;
+
+        Ok(decision)
+    }
+
     /// Evaluate end-of-tick collateral tree (STEP 8 - after LSM completion)
     ///
     /// This method evaluates the end_of_tick_collateral_tree to determine
@@ -486,6 +542,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_policy".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "A1".to_string(),
                 action: ActionType::Release,
@@ -525,6 +582,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "liquidity_check".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if sufficient liquidity".to_string(),
@@ -574,7 +632,7 @@ mod tests {
         assert_eq!(decisions.len(), 1);
         assert!(matches!(
             &decisions[0],
-            ReleaseDecision::SubmitFull { tx_id: id } if id == &tx_id
+            ReleaseDecision::SubmitFull { tx_id: id, .. } if id == &tx_id
         ));
     }
 
@@ -585,6 +643,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "always_release".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "A1".to_string(),
                 action: ActionType::Release,
@@ -632,6 +691,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "threshold_policy".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check balance threshold".to_string(),
@@ -680,7 +740,7 @@ mod tests {
         assert_eq!(decisions.len(), 1);
         assert!(matches!(
             &decisions[0],
-            ReleaseDecision::SubmitFull { tx_id: id } if id == &tx_id
+            ReleaseDecision::SubmitFull { tx_id: id, .. } if id == &tx_id
         ));
     }
 
@@ -697,6 +757,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_strategic_collateral".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,
@@ -754,6 +815,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_no_strategic".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,
@@ -789,6 +851,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_eot_collateral".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,
@@ -847,6 +910,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_no_eot".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,
@@ -884,6 +948,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_conditional_eot".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,

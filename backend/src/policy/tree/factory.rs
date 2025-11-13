@@ -98,6 +98,45 @@ pub fn create_policy(config: &PolicyConfig) -> Result<TreePolicy, TreePolicyErro
             Ok(policy)
         }
 
+        PolicyConfig::MockStaggerSplit {
+            num_splits,
+            stagger_first_now,
+            stagger_gap_ticks,
+            priority_boost_children,
+        } => {
+            // Create a simple policy that always returns StaggerSplit
+            // This is a test-only policy, so we generate it dynamically
+            let json = format!(
+                r#"{{
+                    "name": "MockStaggerSplit",
+                    "description": "Test policy that always stagger splits",
+                    "parameters": {{
+                        "num_splits": {{"default": {}}},
+                        "stagger_first_now": {{"default": {}}},
+                        "stagger_gap_ticks": {{"default": {}}},
+                        "priority_boost_children": {{"default": {}}}
+                    }},
+                    "payment_tree": {{
+                        "type": "action",
+                        "node_id": "A_StaggerSplit",
+                        "action": "StaggerSplit",
+                        "parameters": {{
+                            "num_splits": {{"param": "num_splits"}},
+                            "stagger_first_now": {{"param": "stagger_first_now"}},
+                            "stagger_gap_ticks": {{"param": "stagger_gap_ticks"}},
+                            "priority_boost_children": {{"param": "priority_boost_children"}}
+                        }}
+                    }}
+                }}"#,
+                *num_splits as f64,
+                *stagger_first_now as f64,
+                *stagger_gap_ticks as f64,
+                *priority_boost_children as f64
+            );
+
+            TreePolicy::from_json(&json)
+        }
+
         PolicyConfig::FromJson { json } => {
             // Parse custom JSON policy directly (for testing)
             TreePolicy::from_json(json)

@@ -208,6 +208,55 @@ pub fn evaluate_computation(
             }
             Ok(min_val)
         }
+
+        // Phase 2.3: Math Helper Functions (Policy Enhancements V2)
+        Computation::Ceil { value } => {
+            let val = evaluate_value(value, context, params)?;
+            Ok(val.ceil())
+        }
+
+        Computation::Floor { value } => {
+            let val = evaluate_value(value, context, params)?;
+            Ok(val.floor())
+        }
+
+        Computation::Round { value } => {
+            let val = evaluate_value(value, context, params)?;
+            Ok(val.round())
+        }
+
+        Computation::Abs { value } => {
+            let val = evaluate_value(value, context, params)?;
+            Ok(val.abs())
+        }
+
+        Computation::Clamp { value, min, max } => {
+            let val = evaluate_value(value, context, params)?;
+            let min_val = evaluate_value(min, context, params)?;
+            let max_val = evaluate_value(max, context, params)?;
+
+            // Clamp: constrain value to [min, max]
+            Ok(val.max(min_val).min(max_val))
+        }
+
+        Computation::SafeDiv {
+            numerator,
+            denominator,
+            default,
+        } => {
+            let num = evaluate_value(numerator, context, params)?;
+            let denom = evaluate_value(denominator, context, params)?;
+
+            // Check for zero or near-zero denominator
+            // Use epsilon threshold to avoid numerical issues
+            const EPSILON: f64 = 1e-9;
+            if denom.abs() < EPSILON {
+                // Return default value instead of error
+                evaluate_value(default, context, params)
+            } else {
+                Ok(num / denom)
+            }
+        }
     }
 }
 
@@ -418,6 +467,20 @@ pub fn traverse_end_of_tick_collateral_tree<'a>(
     traverse_node(root, context, &tree.parameters, 0)
 }
 
+/// Traverse the bank-level decision tree to reach an action node (Phase 3.3)
+///
+/// Returns the terminal action node reached.
+/// Returns error if bank_tree is not defined.
+pub fn traverse_bank_tree<'a>(
+    tree: &'a DecisionTreeDef,
+    context: &EvalContext,
+) -> Result<&'a TreeNode, EvalError> {
+    let root = tree.bank_tree.as_ref().ok_or_else(|| {
+        EvalError::InvalidTree("bank_tree is not defined".to_string())
+    })?;
+    traverse_node(root, context, &tree.parameters, 0)
+}
+
 /// Internal recursive tree traversal with depth tracking
 fn traverse_node<'a>(
     node: &'a TreeNode,
@@ -520,11 +583,87 @@ pub fn build_decision(
 
     // Convert ActionType to ReleaseDecision
     match action {
-        ActionType::Release => Ok(ReleaseDecision::SubmitFull { tx_id }),
+        ActionType::Release => {
+            // Phase 3.2: Parse optional RTGS flags
+
+            // Parse priority_flag parameter (optional)
+            let priority_override = if let Some(priority_flag_value) = action_params.get("priority_flag") {
+                // Extract string value from ValueOrCompute
+                use crate::policy::tree::types::ValueOrCompute;
+                match priority_flag_value {
+                    ValueOrCompute::Direct { value } => {
+                        if let Some(flag_str) = value.as_str() {
+                            // Map priority string to numeric value
+                            let priority = match flag_str {
+                                "HIGH" => 10,
+                                "MEDIUM" => 5,
+                                "LOW" => 1,
+                                _ => 5, // Default to MEDIUM for invalid values
+                            };
+                            Some(priority)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+
+            // Parse timed_for_tick parameter (optional)
+            let target_tick = if action_params.contains_key("timed_for_tick") {
+                let tick_f64 = evaluate_action_parameter(action_params, "timed_for_tick", context, params)?;
+                Some(tick_f64 as usize)
+            } else {
+                None
+            };
+
+            Ok(ReleaseDecision::SubmitFull {
+                tx_id,
+                priority_override,
+                target_tick,
+            })
+        }
 
         ActionType::ReleaseWithCredit => {
             // Same as Release - credit usage is handled by settlement engine
-            Ok(ReleaseDecision::SubmitFull { tx_id })
+            // Parse RTGS flags same as Release
+            use crate::policy::tree::types::ValueOrCompute;
+
+            let priority_override = if let Some(priority_flag_value) = action_params.get("priority_flag") {
+                match priority_flag_value {
+                    ValueOrCompute::Direct { value } => {
+                        if let Some(flag_str) = value.as_str() {
+                            let priority = match flag_str {
+                                "HIGH" => 10,
+                                "MEDIUM" => 5,
+                                "LOW" => 1,
+                                _ => 5,
+                            };
+                            Some(priority)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+
+            let target_tick = if action_params.contains_key("timed_for_tick") {
+                let tick_f64 = evaluate_action_parameter(action_params, "timed_for_tick", context, params)?;
+                Some(tick_f64 as usize)
+            } else {
+                None
+            };
+
+            Ok(ReleaseDecision::SubmitFull {
+                tx_id,
+                priority_override,
+                target_tick,
+            })
         }
 
         ActionType::PaceAndRelease => {
@@ -560,6 +699,56 @@ pub fn build_decision(
             Ok(ReleaseDecision::SubmitPartial {
                 tx_id,
                 num_splits: num_splits_usize,
+            })
+        }
+
+        ActionType::StaggerSplit => {
+            // Phase 3.1: Split with staggered timing
+            let num_splits =
+                evaluate_action_parameter(action_params, "num_splits", context, params)?;
+            let num_splits_usize = num_splits as usize;
+
+            let stagger_first_now =
+                evaluate_action_parameter(action_params, "stagger_first_now", context, params)?;
+            let stagger_first_now_usize = stagger_first_now as usize;
+
+            let stagger_gap_ticks =
+                evaluate_action_parameter(action_params, "stagger_gap_ticks", context, params)?;
+            let stagger_gap_ticks_usize = stagger_gap_ticks as usize;
+
+            let priority_boost_children = evaluate_action_parameter(
+                action_params,
+                "priority_boost_children",
+                context,
+                params,
+            )?;
+            let priority_boost_u8 = if priority_boost_children < 0.0 {
+                0
+            } else if priority_boost_children > 255.0 {
+                255
+            } else {
+                priority_boost_children as u8
+            };
+
+            // Validation
+            if num_splits_usize < 2 {
+                return Err(EvalError::InvalidActionParameter(
+                    "num_splits must be >= 2".to_string(),
+                ));
+            }
+
+            if stagger_first_now_usize > num_splits_usize {
+                return Err(EvalError::InvalidActionParameter(
+                    "stagger_first_now cannot exceed num_splits".to_string(),
+                ));
+            }
+
+            Ok(ReleaseDecision::StaggerSplit {
+                tx_id,
+                num_splits: num_splits_usize,
+                stagger_first_now: stagger_first_now_usize,
+                stagger_gap_ticks: stagger_gap_ticks_usize,
+                priority_boost_children: priority_boost_u8,
             })
         }
 
@@ -621,6 +810,13 @@ pub fn build_decision(
                 new_priority,
             })
         }
+
+        // Phase 3.3: Bank-level actions are not valid in payment decision context
+        ActionType::SetReleaseBudget => Err(EvalError::InvalidActionType(format!(
+            "Bank-level action {:?} cannot be used in payment release decision tree. \
+             Bank-level actions require bank_tree evaluation.",
+            action
+        ))),
 
         // Phase 8: Collateral actions are not valid in payment decision context
         // These should only appear in collateral-specific decision trees
@@ -711,18 +907,168 @@ pub fn build_collateral_decision(
             Ok(CollateralDecision::Hold)
         }
 
-        // Payment actions are not valid in collateral decision context
+        // Payment and bank actions are not valid in collateral decision context
         ActionType::Release
         | ActionType::ReleaseWithCredit
         | ActionType::PaceAndRelease
         | ActionType::Split
+        | ActionType::StaggerSplit
         | ActionType::Hold
         | ActionType::Drop
-        | ActionType::Reprioritize => Err(EvalError::InvalidActionType(format!(
-            "Payment action {:?} cannot be used in collateral decision tree. \
-             Payment actions require separate tree evaluation.",
+        | ActionType::Reprioritize
+        | ActionType::SetReleaseBudget => Err(EvalError::InvalidActionType(format!(
+            "Payment/bank action {:?} cannot be used in collateral decision tree. \
+             These actions require separate tree evaluation.",
             action
         ))),
+    }
+}
+
+/// Build a BankDecision from an action node (Phase 3.3: Policy Enhancements V2)
+///
+/// Converts bank-level ActionType and its parameters into a bank decision.
+/// Action parameters are evaluated using the context.
+///
+/// # Arguments
+///
+/// * `action_node` - Action node from tree traversal
+/// * `context` - Evaluation context
+/// * `params` - Tree parameters
+///
+/// # Returns
+///
+/// Ok(BankDecision) if conversion succeeds, Err otherwise
+///
+/// # Example
+///
+/// ```rust
+/// use payment_simulator_core_rs::policy::tree::{TreeNode, ActionType, EvalContext};
+/// use payment_simulator_core_rs::policy::BankDecision;
+/// use payment_simulator_core_rs::{Agent, SimulationState};
+/// use payment_simulator_core_rs::orchestrator::CostRates;
+/// use std::collections::HashMap;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let agent = Agent::new("BANK_A".to_string(), 500_000, 0);
+/// let state = SimulationState::new(vec![agent.clone()]);
+/// let costs = CostRates::default();
+/// let context = EvalContext::bank_level(&agent, &state, 0, &costs, 100, 0.95);
+///
+/// // Action node with SetReleaseBudget
+/// let action_node = TreeNode::Action {
+///     node_id: "A1".to_string(),
+///     action: ActionType::SetReleaseBudget,
+///     parameters: {
+///         let mut params = HashMap::new();
+///         params.insert(
+///             "max_value_to_release".to_string(),
+///             payment_simulator_core_rs::policy::tree::types::ValueOrCompute::Direct {
+///                 value: serde_json::json!(100_000.0),
+///             },
+///         );
+///         params
+///     },
+/// };
+///
+/// let bank_decision = payment_simulator_core_rs::policy::tree::interpreter::build_bank_decision(
+///     &action_node,
+///     &context,
+///     &HashMap::new(),
+/// )?;
+///
+/// match bank_decision {
+///     BankDecision::SetReleaseBudget { max_value_to_release, .. } => {
+///         assert_eq!(max_value_to_release, 100_000);
+///     }
+///     _ => panic!("Expected SetReleaseBudget"),
+/// }
+/// # Ok(())
+/// # }
+/// ```
+pub fn build_bank_decision(
+    action_node: &TreeNode,
+    context: &EvalContext,
+    params: &HashMap<String, f64>,
+) -> Result<crate::policy::BankDecision, EvalError> {
+    use crate::policy::tree::types::ActionType;
+    use crate::policy::BankDecision;
+
+    // Verify this is an action node
+    let (action, action_params) = match action_node {
+        TreeNode::Action {
+            action, parameters, ..
+        } => (action, parameters),
+        TreeNode::Condition { .. } => {
+            return Err(EvalError::ExpectedActionNode);
+        }
+    };
+
+    // Convert ActionType to BankDecision
+    match action {
+        ActionType::SetReleaseBudget => {
+            // Extract max_value_to_release parameter (required)
+            let max_value_f64 = evaluate_action_parameter(
+                action_params,
+                "max_value_to_release",
+                context,
+                params,
+            )?;
+            let max_value_to_release = max_value_f64 as i64;
+
+            // Extract focus_counterparties parameter (optional)
+            // This should be a list of counterparty IDs
+            let focus_counterparties = if let Some(focus_value) = action_params.get("focus_counterparties") {
+                use crate::policy::tree::types::ValueOrCompute;
+                match focus_value {
+                    ValueOrCompute::Direct { value } => {
+                        // Expect a JSON array of strings
+                        if let Some(array) = value.as_array() {
+                            let counterparties: Vec<String> = array
+                                .iter()
+                                .filter_map(|v| v.as_str())
+                                .map(|s| s.to_string())
+                                .collect();
+                            if counterparties.is_empty() {
+                                None
+                            } else {
+                                Some(counterparties)
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+
+            // Extract max_per_counterparty parameter (optional)
+            let max_per_counterparty = if action_params.contains_key("max_per_counterparty") {
+                let value_f64 = evaluate_action_parameter(
+                    action_params,
+                    "max_per_counterparty",
+                    context,
+                    params,
+                )?;
+                Some(value_f64 as i64)
+            } else {
+                None
+            };
+
+            Ok(BankDecision::SetReleaseBudget {
+                max_value_to_release,
+                focus_counterparties,
+                max_per_counterparty,
+            })
+        }
+
+        // All other actions are not valid in bank decision context
+        _ => {
+            // Bank tree can have NoAction nodes (do nothing this tick)
+            // Any action that's not SetReleaseBudget becomes NoAction
+            Ok(BankDecision::NoAction)
+        }
     }
 }
 
@@ -1419,6 +1765,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "simple_test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if balance > amount".to_string(),
@@ -1474,6 +1821,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "nested_test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check urgency".to_string(),
@@ -1543,6 +1891,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "branch_test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if insufficient liquidity".to_string(),
@@ -1592,6 +1941,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "complex_test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Complex liquidity check".to_string(),
@@ -1663,6 +2013,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "param_test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if urgent".to_string(),
@@ -1721,7 +2072,7 @@ mod tests {
 
         assert!(matches!(
             decision,
-            ReleaseDecision::SubmitFull { tx_id } if tx_id == "tx_001"
+            ReleaseDecision::SubmitFull { tx_id, .. } if tx_id == "tx_001"
         ));
     }
 

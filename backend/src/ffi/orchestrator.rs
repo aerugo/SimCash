@@ -121,6 +121,12 @@ fn event_to_py_dict<'py>(
             dict.set_item("reason", reason)?;
             dict.set_item("new_total", new_total)?;
         }
+        crate::models::event::Event::BankBudgetSet { agent_id, max_value, focus_counterparties, max_per_counterparty, .. } => {
+            dict.set_item("agent_id", agent_id)?;
+            dict.set_item("max_value", max_value)?;
+            dict.set_item("focus_counterparties", focus_counterparties)?;
+            dict.set_item("max_per_counterparty", max_per_counterparty)?;
+        }
         #[allow(deprecated)]
         crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
             dict.set_item("tx_id", tx_id)?;
