@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "policy_id": "test_exactly_at_threshold",
+  "description": "Edge case test policy: Tests exact threshold matching. Releases when effective_liquidity >= remaining_amount (tests >= boundary condition).",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-ExactThreshold",
+    "description": "Can agent afford payment (exact match or more)?",
+    "condition": {
+      "op": ">=",
+      "left": {
+        "field": "effective_liquidity"
+      },
+      "right": {
+        "field": "remaining_amount"
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-ExactThresholdRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "BelowThreshold"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}
