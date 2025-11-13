@@ -144,6 +144,13 @@ pub struct Agent {
     /// Maps tick_number -> Vec<(amount, reason, posted_at_tick)>
     /// When tick is reached, collateral is automatically withdrawn
     collateral_withdrawal_timers: std::collections::HashMap<usize, Vec<(i64, String, usize)>>,
+
+    // Phase 4.5: Stateful Micro-Memory (Policy Enhancements V2)
+    /// State registers for policy micro-memory (max 10 per agent)
+    /// Keys MUST be prefixed with "bank_state_"
+    /// Values are f64 for flexibility
+    /// Reset at EOD for daily scope (not multi-day strategies)
+    state_registers: std::collections::HashMap<String, f64>,
 }
 
 impl Agent {
@@ -182,6 +189,8 @@ impl Agent {
             release_budget_per_counterparty_usage: std::collections::HashMap::new(),
             // Phase 3.4: Collateral timers (none by default)
             collateral_withdrawal_timers: std::collections::HashMap::new(),
+            // Phase 4.5: State registers (none by default)
+            state_registers: std::collections::HashMap::new(),
         }
     }
 
@@ -226,6 +235,8 @@ impl Agent {
             release_budget_per_counterparty_usage: std::collections::HashMap::new(),
             // Phase 3.4: Collateral timers (none by default)
             collateral_withdrawal_timers: std::collections::HashMap::new(),
+            // Phase 4.5: State registers (none by default)
+            state_registers: std::collections::HashMap::new(),
         }
     }
 
@@ -295,6 +306,8 @@ impl Agent {
             release_budget_per_counterparty_usage: std::collections::HashMap::new(),
             // Phase 3.4: Collateral timers (none by default)
             collateral_withdrawal_timers: std::collections::HashMap::new(),
+            // Phase 4.5: State registers (none by default)
+            state_registers: std::collections::HashMap::new(),
         }
     }
 
@@ -1078,6 +1091,108 @@ impl Agent {
         &self,
     ) -> &std::collections::HashMap<usize, Vec<(i64, String, usize)>> {
         &self.collateral_withdrawal_timers
+    }
+
+    // ===== Phase 4.5: State Register Methods (Policy Enhancements V2) =====
+
+    /// Set a state register value (for policy micro-memory)
+    ///
+    /// # Arguments
+    /// * `key` - Register key (MUST start with "bank_state_")
+    /// * `value` - New value (f64)
+    ///
+    /// # Returns
+    /// - Ok((old_value, new_value)) if successful
+    /// - Err(message) if validation fails
+    ///
+    /// # Design Constraints
+    /// - Maximum 10 registers per agent
+    /// - Keys MUST be prefixed with "bank_state_"
+    /// - Updating existing register doesn't count against limit
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    /// let (old, new) = agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
+    /// assert_eq!(old, 0.0);
+    /// assert_eq!(new, 42.0);
+    /// ```
+    pub fn set_state_register(&mut self, key: String, value: f64) -> Result<(f64, f64), String> {
+        // Validation: Key must have correct prefix
+        if !key.starts_with("bank_state_") {
+            return Err(format!(
+                "Register key must start with 'bank_state_', got: '{}'",
+                key
+            ));
+        }
+
+        // Validation: Maximum 10 registers (unless updating existing)
+        if self.state_registers.len() >= 10 && !self.state_registers.contains_key(&key) {
+            return Err("Maximum 10 state registers per agent".to_string());
+        }
+
+        // Get old value (0.0 if doesn't exist)
+        let old_value = self.state_registers.get(&key).copied().unwrap_or(0.0);
+
+        // Set new value
+        self.state_registers.insert(key, value);
+
+        Ok((old_value, value))
+    }
+
+    /// Get a state register value
+    ///
+    /// Returns 0.0 if register doesn't exist (default value).
+    ///
+    /// # Arguments
+    /// * `key` - Register key
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    /// // Non-existent register returns 0.0
+    /// assert_eq!(agent.get_state_register("bank_state_foo"), 0.0);
+    /// ```
+    pub fn get_state_register(&self, key: &str) -> f64 {
+        self.state_registers.get(key).copied().unwrap_or(0.0)
+    }
+
+    /// Reset all state registers (used at end of day)
+    ///
+    /// Returns vector of (key, old_value) pairs for event emission.
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    /// agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
+    ///
+    /// let old_values = agent.reset_state_registers();
+    /// assert_eq!(old_values.len(), 1);
+    /// assert_eq!(agent.get_state_register("bank_state_cooldown"), 0.0);
+    /// ```
+    pub fn reset_state_registers(&mut self) -> Vec<(String, f64)> {
+        // Capture all old values
+        let old_values: Vec<_> = self
+            .state_registers
+            .iter()
+            .map(|(k, v)| (k.clone(), *v))
+            .collect();
+
+        // Clear all registers
+        self.state_registers.clear();
+
+        old_values
+    }
+
+    /// Get reference to all state registers (for context building)
+    pub fn state_registers(&self) -> &std::collections::HashMap<String, f64> {
+        &self.state_registers
     }
 }
 
