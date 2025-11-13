@@ -25,22 +25,32 @@ class TestPolicyComparison:
     """Comparative tests between different policies."""
 
     def test_liquidity_aware_preserves_balance_better_than_fifo(self):
-        """LiquidityAware should maintain higher min_balance than FIFO."""
+        """LiquidityAware should maintain higher min_balance than FIFO.
 
-        # Scenario: High pressure that would drain liquidity
+        Calibrated: Added bidirectional flow so agents can sustain operations.
+        Without incoming liquidity, both policies drain completely.
+        """
+
+        # Scenario: High pressure with bidirectional flow
         scenario = (
             ScenarioBuilder("HighDrainPressure")
-            .with_description("Scenario designed to drain liquidity")
+            .with_description("High pressure with bidirectional flow")
             .with_duration(100)
             .with_seed(99999)
             .add_agent(
                 "BANK_A",
-                balance=5_000_000,    # $50k starting
-                arrival_rate=5.0,      # Very high pressure
+                balance=20_000_000,    # $200k - sufficient for operations
+                arrival_rate=4.0,       # High pressure
                 arrival_amount_range=(200_000, 400_000),  # Large payments
                 deadline_range=(10, 40),
             )
-            .add_agent("BANK_B", balance=30_000_000)
+            .add_agent(
+                "BANK_B",
+                balance=30_000_000,     # $300k
+                arrival_rate=3.0,       # Send back to A
+                arrival_amount_range=(200_000, 400_000),
+                deadline_range=(10, 40),
+            )
             .build()
         )
 
@@ -129,23 +139,33 @@ class TestPolicyComparison:
         )
 
     def test_three_way_policy_comparison(self):
-        """Compare FIFO, LiquidityAware, and DeadlineAware on same scenario."""
+        """Compare FIFO, LiquidityAware, and DeadlineAware on same scenario.
 
-        # Scenario: Realistic daily operations
+        Calibrated: Added bidirectional flow for realistic operations.
+        Policies can now demonstrate their different characteristics.
+        """
+
+        # Scenario: Realistic daily operations with bidirectional flow
         scenario = (
             ScenarioBuilder("RealisticDaily")
-            .with_description("Typical daily operations scenario")
+            .with_description("Typical daily operations, bidirectional")
             .with_duration(100)  # 1 day
             .with_seed(12345)
             .add_agent(
                 "BANK_A",
-                balance=8_000_000,    # $80k
+                balance=20_000_000,    # $200k
                 credit_limit=2_000_000,  # $20k credit available
                 arrival_rate=2.5,
                 arrival_amount_range=(100_000, 300_000),
                 deadline_range=(5, 30),
             )
-            .add_agent("BANK_B", balance=15_000_000)
+            .add_agent(
+                "BANK_B",
+                balance=25_000_000,     # $250k
+                arrival_rate=2.0,       # Send back to A
+                arrival_amount_range=(100_000, 300_000),
+                deadline_range=(5, 30),
+            )
             .build()
         )
 
@@ -191,9 +211,10 @@ class TestPolicyComparison:
         print(f"\nSettlement rates: FIFO={fifo_sr:.3f}, LA={la_sr:.3f}, DA={da_sr:.3f}")
 
         # All should have reasonable settlement rates
-        assert fifo_sr and fifo_sr > 0.5
-        assert la_sr and la_sr > 0.4  # May be lower due to buffer protection
-        assert da_sr and da_sr > 0.5
+        # Calibrated: With bidirectional flow, all policies should perform well
+        assert fifo_sr and fifo_sr > 0.6
+        assert la_sr and la_sr > 0.5  # May be lower due to buffer protection
+        assert da_sr and da_sr > 0.6
 
     def test_parameter_tuning_comparison(self):
         """Compare same policy with different parameter values."""
