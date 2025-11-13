@@ -338,3 +338,90 @@ fn test_full_timer_lifecycle() {
     assert_eq!(agent.posted_collateral(), 0);
     assert!(!agent.has_pending_collateral_withdrawals());
 }
+
+// ============================================================================
+// Test Group 6: Edge Case - Overdrafted Balance (1 test)
+// ============================================================================
+
+#[test]
+fn test_timer_withdrawal_works_when_balance_overdrafted() {
+    // Test that timer can fire and withdraw collateral even when agent is overdrafted
+    // This is important: withdrawing collateral reduces available liquidity, making
+    // the situation worse, but it's allowed (agent maintains control over collateral)
+
+    let mut agent = Agent::new("BANK_A".to_string(), -50_000, 100_000); // Starting with negative balance (overdrafted)
+
+    // Agent has posted collateral
+    agent.set_posted_collateral(200_000);
+
+    // Schedule timer to withdraw 100k
+    agent.schedule_collateral_withdrawal_with_posted_tick(
+        15,
+        100_000,
+        "TemporaryBoost".to_string(),
+        10,
+    );
+
+    // Verify initial state
+    assert_eq!(agent.balance(), -50_000); // Overdrafted
+    assert_eq!(agent.posted_collateral(), 200_000);
+    // available_liquidity = balance + credit + collateral*haircut
+    //                     = -50k + 100k + (200k * 0.95) = 240k
+    assert_eq!(agent.available_liquidity(), 240_000);
+
+    // Timer fires at tick 15
+    let timers = agent.get_pending_collateral_withdrawals_with_posted_tick(15);
+    assert_eq!(timers.len(), 1);
+
+    // Process withdrawal (what orchestrator does)
+    let current_collateral = agent.posted_collateral();
+    let withdrawal_amount = timers[0].0.min(current_collateral); // Cap at posted amount
+    let new_collateral = current_collateral - withdrawal_amount;
+    agent.set_posted_collateral(new_collateral);
+    agent.remove_collateral_withdrawal_timer(15);
+
+    // Verify final state
+    assert_eq!(agent.balance(), -50_000); // Balance unchanged
+    assert_eq!(agent.posted_collateral(), 100_000); // Collateral reduced
+    // Available liquidity reduced: -50k + 100k + (100k * 0.95) = 145k (was 240k)
+    assert_eq!(agent.available_liquidity(), 145_000); // 0 + (100k + 95k - 50k)
+
+    // Key insight: Agent's liquidity situation worsened, but withdrawal is allowed
+    // This gives agents control over their collateral even in difficult situations
+}
+
+#[test]
+fn test_timer_caps_withdrawal_at_actual_posted_collateral() {
+    // Test that if timer tries to withdraw more than what's actually posted, it's capped
+    // Scenario: Agent posted 50k, timer scheduled to withdraw 100k → only withdraws 50k
+
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    agent.set_posted_collateral(50_000); // Only 50k posted
+
+    // Schedule timer to withdraw 100k (more than posted)
+    agent.schedule_collateral_withdrawal_with_posted_tick(
+        10,
+        100_000, // Requesting more than available
+        "Excessive".to_string(),
+        5,
+    );
+
+    // Timer fires
+    let timers = agent.get_pending_collateral_withdrawals_with_posted_tick(10);
+    assert_eq!(timers.len(), 1);
+    assert_eq!(timers[0].0, 100_000); // Timer says withdraw 100k
+
+    // Process with safety cap (what orchestrator does at STEP 1.8)
+    let current_collateral = agent.posted_collateral();
+    let withdrawal_amount = timers[0].0.min(current_collateral); // SAFETY: Cap at actual posted
+    assert_eq!(withdrawal_amount, 50_000); // Capped at 50k
+
+    let new_collateral = current_collateral - withdrawal_amount;
+    agent.set_posted_collateral(new_collateral);
+    agent.remove_collateral_withdrawal_timer(10);
+
+    // Verify: Only 50k withdrawn (not 100k)
+    assert_eq!(agent.posted_collateral(), 0);
+
+    // Key insight: Safety check prevents withdrawing more than what's actually posted
+}
