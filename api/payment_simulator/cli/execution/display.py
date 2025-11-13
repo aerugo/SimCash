@@ -74,6 +74,7 @@ def display_tick_verbose_output(
         log_scenario_events,
         log_section_separator,
         log_settlement_details,
+        log_state_register_events,
         log_tick_summary,
         log_transaction_arrivals,
         log_transaction_went_overdue_event,
@@ -103,6 +104,11 @@ def display_tick_verbose_output(
     # SECTION 2: POLICY DECISIONS
     # ═══════════════════════════════════════════════════════════
     log_policy_decisions(display_events)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 2.5: AGENT MEMORY UPDATES (Phase 4.5: State Registers)
+    # ═══════════════════════════════════════════════════════════
+    log_state_register_events(display_events)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 3: SETTLEMENTS (detailed with mechanisms)
