@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "policy_id": "test_time_of_day_only",
+  "description": "Single-feature test policy: Tests time-of-day detection in isolation. Releases when day_progress_fraction > 0.5 (late in day), holds otherwise.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-TimeOfDay",
+    "description": "Is it late in the day? (>50% progress)",
+    "condition": {
+      "op": ">",
+      "left": {
+        "field": "day_progress_fraction"
+      },
+      "right": {
+        "value": 0.5
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-LateDayRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "EarlyDay"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}

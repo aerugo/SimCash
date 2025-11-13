@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "policy_id": "test_always_hold",
+  "description": "Minimal test policy: Always holds transactions in queue, never releases. Used to verify Hold action works correctly.",
+  "payment_tree": {
+    "type": "action",
+    "node_id": "TEST-A1-AlwaysHold",
+    "action": "Hold",
+    "parameters": {
+      "reason": {
+        "value": "TestPolicy"
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}
