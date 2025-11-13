@@ -368,7 +368,53 @@ class TestStateRegisterRetrieval:
 
         RED: Method doesn't exist yet.
         """
-        pytest.skip("Not implemented yet - awaiting StateProvider extension")
+        from payment_simulator.persistence.event_writer import write_events_batch
+        from payment_simulator.cli.execution.state_provider import DatabaseStateProvider
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Write StateRegisterSet events
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 0.0,
+                "new_value": 42.0,
+                "reason": "policy_action",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_counter",
+                "old_value": 0.0,
+                "new_value": 5.0,
+                "reason": "policy_action",
+            },
+        ]
+        write_events_batch(manager.conn, "sim1", events, ticks_per_day=100)
+
+        # Create StateProvider
+        provider = DatabaseStateProvider(
+            conn=manager.conn,
+            simulation_id="sim1",
+            tick=10,
+            tx_cache={},
+            agent_states={},
+            queue_snapshots={},
+        )
+
+        # Get registers for BANK_A at tick 10
+        registers = provider.get_agent_state_registers("BANK_A", 10)
+
+        assert isinstance(registers, dict)
+        assert registers["bank_state_cooldown"] == 42.0
+        assert registers["bank_state_counter"] == 5.0
+
+        manager.close()
 
     def test_state_provider_returns_most_recent_values(self, db_path):
         """Verify StateProvider returns most recent value for each register up to tick.
@@ -377,14 +423,147 @@ class TestStateRegisterRetrieval:
 
         RED: Method doesn't exist yet.
         """
-        pytest.skip("Not implemented yet - awaiting StateProvider extension")
+        from payment_simulator.persistence.event_writer import write_events_batch
+        from payment_simulator.cli.execution.state_provider import DatabaseStateProvider
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Write StateRegisterSet events at different ticks
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 5,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 0.0,
+                "new_value": 10.0,
+                "reason": "policy_action",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 10.0,
+                "new_value": 20.0,
+                "reason": "policy_action",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 15,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 20.0,
+                "new_value": 30.0,
+                "reason": "policy_action",
+            },
+        ]
+        write_events_batch(manager.conn, "sim1", events, ticks_per_day=100)
+
+        provider = DatabaseStateProvider(
+            conn=manager.conn,
+            simulation_id="sim1",
+            tick=8,  # Query at tick 8
+            tx_cache={},
+            agent_states={},
+            queue_snapshots={},
+        )
+
+        # At tick 8, only tick 5 event has happened
+        registers = provider.get_agent_state_registers("BANK_A", 8)
+
+        assert registers["bank_state_cooldown"] == 10.0  # Value from tick 5, not tick 10
+
+        # Now query at tick 12
+        provider.tick = 12
+        registers = provider.get_agent_state_registers("BANK_A", 12)
+
+        assert registers["bank_state_cooldown"] == 20.0  # Value from tick 10, not tick 15
+
+        manager.close()
 
     def test_state_provider_returns_empty_dict_for_no_registers(self, db_path):
         """Verify StateProvider returns empty dict if agent has no registers.
 
         RED: Method doesn't exist yet.
         """
-        pytest.skip("Not implemented yet - awaiting StateProvider extension")
+        from payment_simulator.cli.execution.state_provider import DatabaseStateProvider
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # No events written
+
+        provider = DatabaseStateProvider(
+            conn=manager.conn,
+            simulation_id="sim1",
+            tick=10,
+            tx_cache={},
+            agent_states={},
+            queue_snapshots={},
+        )
+
+        # Agent with no registers should return empty dict
+        registers = provider.get_agent_state_registers("BANK_A", 10)
+
+        assert isinstance(registers, dict)
+        assert len(registers) == 0
+
+        manager.close()
+
+    def test_state_provider_handles_multiple_agents(self, db_path):
+        """Verify StateProvider returns correct registers for each agent independently.
+
+        RED: Method doesn't exist yet.
+        """
+        from payment_simulator.persistence.event_writer import write_events_batch
+        from payment_simulator.cli.execution.state_provider import DatabaseStateProvider
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Write events for multiple agents
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 0.0,
+                "new_value": 100.0,
+                "reason": "policy_action",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_B",
+                "register_key": "bank_state_cooldown",
+                "old_value": 0.0,
+                "new_value": 200.0,
+                "reason": "policy_action",
+            },
+        ]
+        write_events_batch(manager.conn, "sim1", events, ticks_per_day=100)
+
+        provider = DatabaseStateProvider(
+            conn=manager.conn,
+            simulation_id="sim1",
+            tick=10,
+            tx_cache={},
+            agent_states={},
+            queue_snapshots={},
+        )
+
+        # Get registers for BANK_A
+        registers_a = provider.get_agent_state_registers("BANK_A", 10)
+        assert registers_a["bank_state_cooldown"] == 100.0
+
+        # Get registers for BANK_B
+        registers_b = provider.get_agent_state_registers("BANK_B", 10)
+        assert registers_b["bank_state_cooldown"] == 200.0
+
+        manager.close()
 
 
 class TestStateRegisterReplayIdentity:
