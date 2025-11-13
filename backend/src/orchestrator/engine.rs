@@ -2524,6 +2524,61 @@ impl Orchestrator {
                         max_per_counterparty,
                     });
                 }
+                BankDecision::SetState { key, value, reason } => {
+                    // Phase 4.5: Set state register value
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+
+                    match agent_mut.set_state_register(key.clone(), value) {
+                        Ok((old_value, new_value)) => {
+                            // Successfully set register - emit event
+                            self.log_event(Event::StateRegisterSet {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                register_key: key,
+                                old_value,
+                                new_value,
+                                reason,
+                            });
+                        }
+                        Err(err_msg) => {
+                            // Validation failed (bad key prefix or max limit exceeded)
+                            // Log warning but don't panic
+                            eprintln!(
+                                "WARN: SetState failed for agent {} at tick {}: {}",
+                                agent_id, current_tick, err_msg
+                            );
+                        }
+                    }
+                }
+                BankDecision::AddState { key, delta, reason } => {
+                    // Phase 4.5: Add to state register value (increment/decrement)
+                    let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+
+                    // Get current value, add delta, then set
+                    let current_value = agent_mut.get_state_register(&key);
+                    let new_value = current_value + delta;
+
+                    match agent_mut.set_state_register(key.clone(), new_value) {
+                        Ok((old_value, new_value)) => {
+                            // Successfully updated register - emit event
+                            self.log_event(Event::StateRegisterSet {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                register_key: key,
+                                old_value,
+                                new_value,
+                                reason,
+                            });
+                        }
+                        Err(err_msg) => {
+                            // Validation failed
+                            eprintln!(
+                                "WARN: AddState failed for agent {} at tick {}: {}",
+                                agent_id, current_tick, err_msg
+                            );
+                        }
+                    }
+                }
                 BankDecision::NoAction => {
                     // Reset budget to unlimited (no budget set this tick)
                     let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
@@ -3658,6 +3713,27 @@ impl Orchestrator {
                         penalty_cost: penalty,
                         split_friction_cost: 0,
                     },
+                });
+            }
+        }
+
+        // Phase 4.5: Reset state registers at end of day
+        // All state registers reset to 0.0 for next day (daily scope only)
+        for agent_id in self.state.agents().keys().cloned().collect::<Vec<_>>() {
+            let old_values = {
+                let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                agent_mut.reset_state_registers()
+            };
+
+            // Emit reset events for audit trail
+            for (key, old_value) in old_values {
+                self.log_event(Event::StateRegisterSet {
+                    tick: current_tick,
+                    agent_id: agent_id.clone(),
+                    register_key: key,
+                    old_value,
+                    new_value: 0.0,
+                    reason: "eod_reset".to_string(),
                 });
             }
         }

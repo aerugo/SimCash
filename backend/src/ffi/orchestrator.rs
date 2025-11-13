@@ -133,6 +133,13 @@ fn event_to_py_dict<'py>(
             dict.set_item("focus_counterparties", focus_counterparties)?;
             dict.set_item("max_per_counterparty", max_per_counterparty)?;
         }
+        crate::models::event::Event::StateRegisterSet { agent_id, register_key, old_value, new_value, reason, .. } => {
+            dict.set_item("agent_id", agent_id)?;
+            dict.set_item("register_key", register_key)?;
+            dict.set_item("old_value", old_value)?;
+            dict.set_item("new_value", new_value)?;
+            dict.set_item("reason", reason)?;
+        }
         #[allow(deprecated)]
         crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
             dict.set_item("tx_id", tx_id)?;
