@@ -25,6 +25,9 @@ def write_events_batch(
 ) -> int:
     """Write batch of events to simulation_events table.
 
+    For StateRegisterSet events, also writes to agent_state_registers table
+    for efficient querying during replay (dual-write pattern).
+
     Args:
         conn: DuckDB connection
         simulation_id: Simulation ID to associate events with
@@ -67,8 +70,11 @@ def write_events_batch(
     if not events:
         return 0
 
-    # Prepare batch insert data
+    # Prepare batch insert data for simulation_events
     records = []
+    # Prepare batch insert data for agent_state_registers (dual-write)
+    state_register_records = []
+
     for event in events:
         tick = event["tick"]
         day = tick // ticks_per_day
@@ -86,7 +92,7 @@ def write_events_batch(
             if k not in ("event_type", "tick", "agent_id", "tx_id")
         }
 
-        # Create record tuple
+        # Create record tuple for simulation_events
         record = (
             str(uuid.uuid4()),  # event_id
             simulation_id,  # simulation_id
@@ -101,7 +107,18 @@ def write_events_batch(
         )
         records.append(record)
 
-    # Batch insert using executemany
+        # Phase 4.5: Dual-write StateRegisterSet events to agent_state_registers
+        if event_type == "StateRegisterSet":
+            state_register_record = (
+                simulation_id,  # simulation_id
+                tick,  # tick
+                agent_id,  # agent_id
+                event.get("register_key"),  # register_key
+                event.get("new_value"),  # register_value (store new_value)
+            )
+            state_register_records.append(state_register_record)
+
+    # Batch insert into simulation_events
     conn.executemany(
         """
         INSERT INTO simulation_events (
@@ -119,6 +136,21 @@ def write_events_batch(
         """,
         records,
     )
+
+    # Batch insert into agent_state_registers (if any StateRegisterSet events)
+    if state_register_records:
+        conn.executemany(
+            """
+            INSERT INTO agent_state_registers (
+                simulation_id,
+                tick,
+                agent_id,
+                register_key,
+                register_value
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            state_register_records,
+        )
 
     return len(records)
 

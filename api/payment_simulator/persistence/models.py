@@ -706,3 +706,37 @@ class SimulationEventRecord(BaseModel):
 
     # Metadata
     created_at: datetime = Field(..., description="When record was created")
+
+
+# ============================================================================
+# Agent State Registers (Phase 4.5: Policy Enhancements V2)
+# ============================================================================
+
+
+class AgentStateRegisterRecord(BaseModel):
+    """Agent state register record for persistence.
+
+    Stores state register values for policy micro-memory.
+
+    Per docs/plans/phase-4-5-persistence-replay-plan.md:
+    - Supports efficient querying by agent and tick
+    - Stores most recent value for each register
+    - Used for replay identity
+    """
+
+    model_config = ConfigDict(
+        table_name="agent_state_registers",
+        primary_key=["simulation_id", "tick", "agent_id", "register_key"],
+        indexes=[
+            ("idx_agent_state_tick", ["simulation_id", "agent_id", "tick"]),
+        ],
+    )
+
+    # Core identifiers
+    simulation_id: str = Field(..., description="Foreign key to simulations table")
+    tick: int = Field(..., description="Tick when register was set", ge=0)
+    agent_id: str = Field(..., description="Agent ID")
+    register_key: str = Field(..., description="Register key (e.g., bank_state_cooldown)")
+
+    # Value
+    register_value: float = Field(..., description="Register value (f64)")

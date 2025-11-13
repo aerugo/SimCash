@@ -811,8 +811,10 @@ pub fn build_decision(
             })
         }
 
-        // Phase 3.3: Bank-level actions are not valid in payment decision context
-        ActionType::SetReleaseBudget => Err(EvalError::InvalidActionType(format!(
+        // Phase 3.3/4.5: Bank-level actions are not valid in payment decision context
+        ActionType::SetReleaseBudget
+        | ActionType::SetState
+        | ActionType::AddState => Err(EvalError::InvalidActionType(format!(
             "Bank-level action {:?} cannot be used in payment release decision tree. \
              Bank-level actions require bank_tree evaluation.",
             action
@@ -877,9 +879,22 @@ pub fn build_collateral_decision(
             // Extract reason parameter (required)
             let reason = extract_collateral_reason(action_params, context)?;
 
+            // Extract optional auto_withdraw_after_ticks parameter (Phase 3.4)
+            let auto_withdraw_after_ticks = if action_params.contains_key("auto_withdraw_after_ticks") {
+                let ticks = evaluate_action_parameter(action_params, "auto_withdraw_after_ticks", context, params)?;
+                if ticks > 0.0 {
+                    Some(ticks as usize)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             Ok(CollateralDecision::Post {
                 amount: amount_i64,
                 reason,
+                auto_withdraw_after_ticks,
             })
         }
 
@@ -916,7 +931,9 @@ pub fn build_collateral_decision(
         | ActionType::Hold
         | ActionType::Drop
         | ActionType::Reprioritize
-        | ActionType::SetReleaseBudget => Err(EvalError::InvalidActionType(format!(
+        | ActionType::SetReleaseBudget
+        | ActionType::SetState
+        | ActionType::AddState => Err(EvalError::InvalidActionType(format!(
             "Payment/bank action {:?} cannot be used in collateral decision tree. \
              These actions require separate tree evaluation.",
             action
@@ -1063,10 +1080,82 @@ pub fn build_bank_decision(
             })
         }
 
+        ActionType::SetState => {
+            // Extract key parameter (required)
+            let key = evaluate_action_parameter_string(
+                action_params,
+                "key",
+                context,
+                params,
+            )?;
+
+            // Extract value parameter (required)
+            let value = evaluate_action_parameter(
+                action_params,
+                "value",
+                context,
+                params,
+            )?;
+
+            // Extract reason parameter (optional)
+            let reason = if action_params.contains_key("reason") {
+                evaluate_action_parameter_string(
+                    action_params,
+                    "reason",
+                    context,
+                    params,
+                )?
+            } else {
+                "policy_action".to_string()
+            };
+
+            Ok(BankDecision::SetState {
+                key,
+                value,
+                reason,
+            })
+        }
+
+        ActionType::AddState => {
+            // Extract key parameter (required)
+            let key = evaluate_action_parameter_string(
+                action_params,
+                "key",
+                context,
+                params,
+            )?;
+
+            // Extract value parameter (required) - this is the delta
+            let delta = evaluate_action_parameter(
+                action_params,
+                "value",
+                context,
+                params,
+            )?;
+
+            // Extract reason parameter (optional)
+            let reason = if action_params.contains_key("reason") {
+                evaluate_action_parameter_string(
+                    action_params,
+                    "reason",
+                    context,
+                    params,
+                )?
+            } else {
+                "policy_action".to_string()
+            };
+
+            Ok(BankDecision::AddState {
+                key,
+                delta,
+                reason,
+            })
+        }
+
         // All other actions are not valid in bank decision context
         _ => {
             // Bank tree can have NoAction nodes (do nothing this tick)
-            // Any action that's not SetReleaseBudget becomes NoAction
+            // Any action that's not SetReleaseBudget/SetState/AddState becomes NoAction
             Ok(BankDecision::NoAction)
         }
     }
@@ -1150,6 +1239,57 @@ fn evaluate_action_parameter(
         ValueOrCompute::Compute { compute } => {
             // Computation
             evaluate_computation(compute, context, params)
+        }
+    }
+}
+
+/// Evaluate action parameter as string (Phase 4.5)
+///
+/// Similar to evaluate_action_parameter but returns a String instead of f64.
+/// Used for state register keys and reasons.
+fn evaluate_action_parameter_string(
+    action_params: &HashMap<String, ValueOrCompute>,
+    param_name: &str,
+    context: &EvalContext,
+    params: &HashMap<String, f64>,
+) -> Result<String, EvalError> {
+    let value_or_compute = action_params
+        .get(param_name)
+        .ok_or_else(|| EvalError::MissingActionParameter(param_name.to_string()))?;
+
+    match value_or_compute {
+        ValueOrCompute::Direct { value } => {
+            // Direct literal string value
+            if let Some(s) = value.as_str() {
+                Ok(s.to_string())
+            } else {
+                Err(EvalError::InvalidActionParameter(param_name.to_string()))
+            }
+        }
+
+        ValueOrCompute::Field { field } => {
+            // Field reference - for state registers, this could be reading another register
+            // For now, we don't support string fields, so return error
+            Err(EvalError::InvalidActionParameter(format!(
+                "String parameter '{}' does not support field references",
+                param_name
+            )))
+        }
+
+        ValueOrCompute::Param { param } => {
+            // Parameter reference - not supported for strings
+            Err(EvalError::InvalidActionParameter(format!(
+                "String parameter '{}' does not support param references",
+                param_name
+            )))
+        }
+
+        ValueOrCompute::Compute { .. } => {
+            // Computation - not supported for strings
+            Err(EvalError::InvalidActionParameter(format!(
+                "String parameter '{}' does not support computed values",
+                param_name
+            )))
         }
     }
 }
@@ -2298,7 +2438,7 @@ mod tests {
         );
 
         match result.unwrap() {
-            CollateralDecision::Post { amount, reason } => {
+            CollateralDecision::Post { amount, reason, .. } => {
                 assert_eq!(amount, 100000);
                 assert_eq!(format!("{:?}", reason), "UrgentLiquidityNeed");
             }

@@ -285,9 +285,11 @@ pub enum CollateralDecision {
     ///
     /// * `amount` - Amount of collateral to post (cents)
     /// * `reason` - Why collateral is being posted
+    /// * `auto_withdraw_after_ticks` - Optional: automatically withdraw after N ticks (Phase 3.4)
     Post {
         amount: i64,
         reason: CollateralReason,
+        auto_withdraw_after_ticks: Option<usize>,
     },
 
     /// Withdraw collateral to reduce opportunity cost
@@ -406,6 +408,45 @@ pub enum BankDecision {
         focus_counterparties: Option<Vec<String>>,
         /// Optional max per counterparty (cents). If None, unlimited per counterparty.
         max_per_counterparty: Option<i64>,
+    },
+
+    /// Set a state register value (Phase 4.5: Policy Enhancements V2)
+    ///
+    /// Allows policies to remember values across ticks for stateful strategies.
+    /// Registers automatically reset at end of day.
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - Register key (MUST start with "bank_state_")
+    /// * `value` - New value (f64)
+    /// * `reason` - Explanation for audit trail
+    ///
+    /// # Design Constraints
+    ///
+    /// - Maximum 10 registers per agent
+    /// - Keys MUST be prefixed with "bank_state_"
+    /// - Values are f64 for flexibility
+    /// - Reset at EOD (daily scope only)
+    SetState {
+        key: String,
+        value: f64,
+        reason: String,
+    },
+
+    /// Add to a state register value (Phase 4.5: Policy Enhancements V2)
+    ///
+    /// Increments (or decrements if negative) an existing state register.
+    /// If register doesn't exist, starts from 0.0.
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - Register key (MUST start with "bank_state_")
+    /// * `delta` - Amount to add (positive or negative)
+    /// * `reason` - Explanation for audit trail
+    AddState {
+        key: String,
+        delta: f64,
+        reason: String,
     },
 
     /// No bank-level action (default)
