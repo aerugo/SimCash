@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "policy_id": "test_urgency_only",
+  "description": "Single-feature test policy: Tests urgency detection (ticks_to_deadline) in isolation. Releases urgent transactions (≤3 ticks), holds non-urgent ones.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-Urgency",
+    "description": "Is transaction urgent? (3 or fewer ticks to deadline)",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "value": 3.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-UrgentRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "TEST-A2-Hold",
+      "action": "Hold",
+      "parameters": {
+        "reason": {
+          "value": "NotUrgent"
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}
