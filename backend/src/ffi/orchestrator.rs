@@ -121,6 +121,12 @@ fn event_to_py_dict<'py>(
             dict.set_item("reason", reason)?;
             dict.set_item("new_total", new_total)?;
         }
+        crate::models::event::Event::CollateralTimerWithdrawn { agent_id, amount, original_reason, posted_at_tick, .. } => {
+            dict.set_item("agent_id", agent_id)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("original_reason", original_reason)?;
+            dict.set_item("posted_at_tick", posted_at_tick)?;
+        }
         crate::models::event::Event::BankBudgetSet { agent_id, max_value, focus_counterparties, max_per_counterparty, .. } => {
             dict.set_item("agent_id", agent_id)?;
             dict.set_item("max_value", max_value)?;
