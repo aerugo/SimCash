@@ -41,7 +41,7 @@
         "right": {
           "compute": {
             "op": "*",
-            "left": {"field": "queue1_value"},
+            "left": {"field": "queue1_total_value"},
             "right": {"param": "aggressive_mode_threshold"}
           }
         }
@@ -111,7 +111,7 @@
           "right": {
             "compute": {
               "op": "*",
-              "left": {"field": "queue1_value"},
+              "left": {"field": "queue1_total_value"},
               "right": {"param": "conservative_mode_threshold"}
             }
           }

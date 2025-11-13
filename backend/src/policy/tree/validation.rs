@@ -253,7 +253,11 @@ fn validate_field_references(
         collect_field_references(payment_tree, &mut fields);
         for field in fields {
             // Payment tree can access: transaction fields, bank fields, and state registers
-            if !sample_context.has_field(&field) && !field.starts_with("bank_state_") {
+            // Don't validate against sample_context because it might be a dummy context
+            // Just check that fields are either transaction-only, bank-level, or state registers
+            if !field.starts_with("bank_state_")
+                && !is_transaction_only_field(&field)
+                && !is_bank_level_field(&field) {
                 errors.push(ValidationError::InvalidFieldReference(field));
             }
         }
@@ -266,16 +270,9 @@ fn validate_field_references(
         for field in fields {
             // Bank tree can access: bank fields and state registers
             // But NOT transaction-specific fields
-            if !sample_context.has_field(&field) && !field.starts_with("bank_state_") {
-                // Check if it's a transaction-only field
-                if is_transaction_only_field(&field) {
-                    errors.push(ValidationError::InvalidFieldReference(field));
-                } else {
-                    // Not a transaction field and not in context - it's invalid
-                    errors.push(ValidationError::InvalidFieldReference(field));
-                }
-            } else if is_transaction_only_field(&field) {
-                // Transaction fields are not available in bank context
+            if is_transaction_only_field(&field) {
+                errors.push(ValidationError::InvalidFieldReference(field));
+            } else if !field.starts_with("bank_state_") && !is_bank_level_field(&field) {
                 errors.push(ValidationError::InvalidFieldReference(field));
             }
         }

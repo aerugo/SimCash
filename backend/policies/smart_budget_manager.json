@@ -25,7 +25,7 @@
       "description": "End-of-day: aggressive budget to clear queues",
       "condition": {
         "op": ">",
-        "left": {"field": "queue1_size"},
+        "left": {"field": "outgoing_queue_size"},
         "right": {"value": 5.0}
       },
       "on_true": {
@@ -41,7 +41,7 @@
                 "compute": {
                   "op": "+",
                   "left": {"field": "effective_liquidity"},
-                  "right": {"field": "queue1_value"}
+                  "right": {"field": "queue1_total_value"}
                 }
               },
               "right": {"param": "eod_budget_fraction"}
@@ -242,7 +242,7 @@
           "description": "Lower priority - check queue pressure",
           "condition": {
             "op": "<",
-            "left": {"field": "queue1_size"},
+            "left": {"field": "outgoing_queue_size"},
             "right": {"value": 10.0}
           },
           "on_true": {
@@ -388,7 +388,7 @@
         },
         {
           "op": "<",
-          "left": {"field": "queue1_size"},
+          "left": {"field": "outgoing_queue_size"},
           "right": {"value": 3.0}
         }
       ]
