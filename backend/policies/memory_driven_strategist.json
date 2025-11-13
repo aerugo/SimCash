@@ -361,7 +361,7 @@
         },
         {
           "op": ">",
-          "left": {"field": "collateral_posted"},
+          "left": {"field": "posted_collateral"},
           "right": {"value": 500000.0}
         }
       ]
@@ -375,7 +375,7 @@
         "amount": {
           "compute": {
             "op": "*",
-            "left": {"field": "collateral_posted"},
+            "left": {"field": "posted_collateral"},
             "right": {"value": 0.4}
           }
         },

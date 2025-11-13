@@ -7,7 +7,6 @@
     "min_buffer": 80000.0,
     "base_budget_fraction": 0.3,
     "eod_budget_fraction": 0.7,
-    "high_priority_cpty": "CORRESPONDENT_HUB",
     "max_per_cpty_fraction": 0.12,
     "daily_release_target": 30.0
   },
@@ -384,7 +383,7 @@
       "conditions": [
         {
           "op": ">",
-          "left": {"field": "collateral_posted"},
+          "left": {"field": "posted_collateral"},
           "right": {"value": 1000000.0}
         },
         {
@@ -403,7 +402,7 @@
         "amount": {
           "compute": {
             "op": "/",
-            "left": {"field": "collateral_posted"},
+            "left": {"field": "posted_collateral"},
             "right": {"value": 2.0}
           }
         },
