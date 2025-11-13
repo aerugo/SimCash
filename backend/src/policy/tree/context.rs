@@ -96,6 +96,10 @@ pub enum ContextError {
 /// - my_throughput_fraction_today: Agent's throughput today (settled / total_due) (f64)
 /// - expected_throughput_fraction_by_now: Expected progress from guidance curve (f64)
 /// - throughput_gap: my_throughput - expected (negative = behind, positive = ahead) (f64)
+///
+/// **Counterparty Fields** (Policy Enhancements V2, Phase 2.2):
+/// - tx_counterparty_id: Hash of counterparty ID for this transaction (f64)
+/// - tx_is_top_counterparty: Boolean (1.0) if counterparty is in top 5 by volume (f64)
 #[derive(Debug, Clone)]
 pub struct EvalContext {
     /// Field name → value mapping
@@ -344,6 +348,29 @@ impl EvalContext {
         // Throughput gap: negative = behind, positive = ahead
         let throughput_gap = my_throughput_fraction - expected_throughput;
         fields.insert("throughput_gap".to_string(), throughput_gap);
+
+        // Phase 2.2: Counterparty Fields (Policy Enhancements V2)
+        // These fields enable policies to identify and prioritize transactions based on
+        // counterparty relationships (e.g., "is this my top trading partner?").
+        //
+        // Use cases:
+        // - Prioritize payments to top counterparties
+        // - Different strategies for frequent vs infrequent trading partners
+        // - Relationship-based liquidity management
+
+        // Transaction counterparty ID (hash-encoded for categorical comparison)
+        let counterparty_id = tx.receiver_id();
+        let counterparty_hash = simple_string_hash(counterparty_id);
+        fields.insert("tx_counterparty_id".to_string(), counterparty_hash as f64);
+
+        // Is this counterparty in agent's top 5 by historical volume?
+        let top_counterparties = agent.top_counterparties(5);
+        let is_top = if top_counterparties.contains(&counterparty_id.to_string()) {
+            1.0
+        } else {
+            0.0
+        };
+        fields.insert("tx_is_top_counterparty".to_string(), is_top);
 
         // Derived fields
         let ticks_to_deadline = tx.deadline_tick() as i64 - tick as i64;
