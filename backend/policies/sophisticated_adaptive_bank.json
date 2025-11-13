@@ -256,27 +256,10 @@
             }
           },
           "on_true": {
-            "type": "condition",
-            "node_id": "N6_CanSplit",
-            "description": "Large payment - check if divisible",
-            "condition": {
-              "op": "==",
-              "left": {"field": "is_divisible"},
-              "right": {"value": 1.0}
-            },
-            "on_true": {
-              "type": "action",
-              "node_id": "A4_SplitLarge",
-              "action": "Split",
-              "parameters": {
-                "num_splits": {"value": 4.0}
-              }
-            },
-            "on_false": {
-              "type": "action",
-              "node_id": "A5_ReleaseLargeWhole",
-              "action": "Release"
-            }
+            "type": "action",
+            "node_id": "A5_ReleaseLargeWhole",
+            "description": "Release large payment whole",
+            "action": "Release"
           },
           "on_false": {
             "type": "action",
