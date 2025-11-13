@@ -486,6 +486,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_policy".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "A1".to_string(),
                 action: ActionType::Release,
@@ -525,6 +526,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "liquidity_check".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if sufficient liquidity".to_string(),
@@ -585,6 +587,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "always_release".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "A1".to_string(),
                 action: ActionType::Release,
@@ -632,6 +635,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "threshold_policy".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check balance threshold".to_string(),
@@ -697,6 +701,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_strategic_collateral".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,
@@ -754,6 +759,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_no_strategic".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,
@@ -789,6 +795,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_eot_collateral".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,
@@ -847,6 +854,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_no_eot".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,
@@ -884,6 +892,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test_conditional_eot".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Action {
                 node_id: "P1".to_string(),
                 action: ActionType::Release,

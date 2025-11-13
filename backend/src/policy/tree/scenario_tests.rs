@@ -65,6 +65,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "liquidity_conservation_policy".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: "Check if past deadline (emergency drop)".to_string(),

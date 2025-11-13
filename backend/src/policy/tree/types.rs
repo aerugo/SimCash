@@ -17,6 +17,8 @@ use std::collections::HashMap;
 /// - payment_tree: Payment release decisions (Queue 1 → Queue 2)
 /// - strategic_collateral_tree: Strategic collateral decisions (STEP 2.5)
 /// - end_of_tick_collateral_tree: Reactive collateral cleanup (STEP 8)
+/// Phase 3.3: Added bank_tree for bank-level budgeting decisions
+/// - bank_tree: Bank-level decisions evaluated once per tick (budget setting, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionTreeDef {
     /// Schema version (currently "1.0")
@@ -28,6 +30,12 @@ pub struct DecisionTreeDef {
     /// Optional human-readable description
     #[serde(default)]
     pub description: Option<String>,
+
+    /// Bank-level decision tree (Phase 3.3: Policy Enhancements V2)
+    /// Evaluated once per tick before processing transactions.
+    /// Used for setting budgets, global constraints, etc.
+    #[serde(default)]
+    pub bank_tree: Option<TreeNode>,
 
     /// Payment release decision tree (Queue 1 → Queue 2 decisions)
     /// Optional to allow collateral-only policies
@@ -291,6 +299,12 @@ pub enum ActionType {
     /// Reprioritize transaction (Phase 4: Overdue Handling)
     /// Change transaction priority without moving from Queue 1
     Reprioritize,
+
+    // Phase 3.3: Bank-Level Budget Actions (Policy Enhancements V2)
+    /// Set release budget for this tick (bank-level action)
+    /// Evaluated once per tick before processing transactions.
+    /// Controls total value, counterparty focus, and per-counterparty limits.
+    SetReleaseBudget,
 
     // Phase 8: Collateral Management Actions
     /// Post collateral to increase available liquidity
