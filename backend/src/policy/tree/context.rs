@@ -535,6 +535,12 @@ impl EvalContext {
         let is_eod_rush = if day_progress >= eod_rush_threshold { 1.0 } else { 0.0 };
         fields.insert("is_eod_rush".to_string(), is_eod_rush);
 
+        // Phase 4.5: Add state registers from agent
+        // State registers provide policy micro-memory (bank_state_* fields)
+        for (key, value) in agent.state_registers() {
+            fields.insert(key.clone(), *value);
+        }
+
         Self { fields }
     }
 
@@ -747,6 +753,12 @@ impl EvalContext {
 
         let throughput_gap = my_throughput_fraction - expected_throughput;
         fields.insert("throughput_gap".to_string(), throughput_gap);
+
+        // Phase 4.5: Add state registers from agent
+        // State registers provide policy micro-memory (bank_state_* fields)
+        for (key, value) in agent.state_registers() {
+            fields.insert(key.clone(), *value);
+        }
 
         Self { fields }
     }
