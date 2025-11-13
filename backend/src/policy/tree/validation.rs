@@ -235,33 +235,83 @@ fn compute_tree_depth(node: &TreeNode, current_depth: usize) -> usize {
 // Phase 6.11: Field References
 // ============================================================================
 
-/// Validate that all field references exist in context across all three trees
+/// Validate that all field references are appropriate for each tree context
+///
+/// Different tree types have access to different fields:
+/// - payment_tree: transaction fields + bank fields + state registers (bank_state_*)
+/// - bank_tree: bank fields + state registers (bank_state_*)
+/// - collateral trees: bank fields only (no transactions, no state registers)
 fn validate_field_references(
     tree: &DecisionTreeDef,
     sample_context: &EvalContext,
 ) -> ValidationResult {
     let mut errors = Vec::new();
-    let mut referenced_fields = HashSet::new();
 
-    // Collect all field references from payment tree
+    // Validate payment tree (has transaction context)
     if let Some(ref payment_tree) = tree.payment_tree {
-        collect_field_references(payment_tree, &mut referenced_fields);
+        let mut fields = HashSet::new();
+        collect_field_references(payment_tree, &mut fields);
+        for field in fields {
+            // Payment tree can access: transaction fields, bank fields, and state registers
+            if !sample_context.has_field(&field) && !field.starts_with("bank_state_") {
+                errors.push(ValidationError::InvalidFieldReference(field));
+            }
+        }
     }
 
-    // Collect all field references from strategic collateral tree
+    // Validate bank tree (has bank-level context)
+    if let Some(ref bank_tree) = tree.bank_tree {
+        let mut fields = HashSet::new();
+        collect_field_references(bank_tree, &mut fields);
+        for field in fields {
+            // Bank tree can access: bank fields and state registers
+            // But NOT transaction-specific fields
+            if !sample_context.has_field(&field) && !field.starts_with("bank_state_") {
+                // Check if it's a transaction-only field
+                if is_transaction_only_field(&field) {
+                    errors.push(ValidationError::InvalidFieldReference(field));
+                } else {
+                    // Not a transaction field and not in context - it's invalid
+                    errors.push(ValidationError::InvalidFieldReference(field));
+                }
+            } else if is_transaction_only_field(&field) {
+                // Transaction fields are not available in bank context
+                errors.push(ValidationError::InvalidFieldReference(field));
+            }
+        }
+    }
+
+    // Validate strategic collateral tree (has bank-level context, NO state registers)
     if let Some(ref strategic_tree) = tree.strategic_collateral_tree {
-        collect_field_references(strategic_tree, &mut referenced_fields);
+        let mut fields = HashSet::new();
+        collect_field_references(strategic_tree, &mut fields);
+        for field in fields {
+            // Collateral trees can only access bank-level fields
+            // NO transaction fields, NO state registers
+            if field.starts_with("bank_state_") {
+                errors.push(ValidationError::InvalidFieldReference(field));
+            } else if is_transaction_only_field(&field) {
+                errors.push(ValidationError::InvalidFieldReference(field));
+            } else if !sample_context.has_field(&field) {
+                errors.push(ValidationError::InvalidFieldReference(field));
+            }
+        }
     }
 
-    // Collect all field references from end-of-tick collateral tree
+    // Validate end-of-tick collateral tree (has bank-level context, NO state registers)
     if let Some(ref eot_tree) = tree.end_of_tick_collateral_tree {
-        collect_field_references(eot_tree, &mut referenced_fields);
-    }
-
-    // Check each field against sample context
-    for field in referenced_fields {
-        if !sample_context.has_field(&field) {
-            errors.push(ValidationError::InvalidFieldReference(field));
+        let mut fields = HashSet::new();
+        collect_field_references(eot_tree, &mut fields);
+        for field in fields {
+            // Collateral trees can only access bank-level fields
+            // NO transaction fields, NO state registers
+            if field.starts_with("bank_state_") {
+                errors.push(ValidationError::InvalidFieldReference(field));
+            } else if is_transaction_only_field(&field) {
+                errors.push(ValidationError::InvalidFieldReference(field));
+            } else if !sample_context.has_field(&field) {
+                errors.push(ValidationError::InvalidFieldReference(field));
+            }
         }
     }
 
@@ -270,6 +320,31 @@ fn validate_field_references(
     } else {
         Err(errors)
     }
+}
+
+/// Check if a field is transaction-specific (not available in bank/collateral contexts)
+fn is_transaction_only_field(field: &str) -> bool {
+    matches!(
+        field,
+        "amount"
+            | "remaining_amount"
+            | "settled_amount"
+            | "arrival_tick"
+            | "deadline_tick"
+            | "priority"
+            | "is_split"
+            | "is_past_deadline"
+            | "is_overdue"
+            | "overdue_duration"
+            | "is_divisible"
+            | "ticks_to_deadline"
+            | "queue_age"
+            | "time_in_queue"
+            | "cost_delay_so_far"
+            | "cost_if_settled_now"
+            | "cost_if_held_one_tick"
+            | "cost_urgency"
+    )
 }
 
 fn collect_field_references(node: &TreeNode, fields: &mut HashSet<String>) {
