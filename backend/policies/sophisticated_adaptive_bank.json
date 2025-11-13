@@ -78,7 +78,7 @@
             "max_value_to_release_this_tick": {
               "compute": {
                 "op": "*",
-                "left": {"field": "queue1_value"},
+                "left": {"field": "queue1_total_value"},
                 "right": {"value": 0.8}
               }
             }
@@ -90,7 +90,7 @@
           "description": "Not EOD - adaptive budget based on queue pressure",
           "condition": {
             "op": ">",
-            "left": {"field": "queue1_size"},
+            "left": {"field": "outgoing_queue_size"},
             "right": {"value": 15.0}
           },
           "on_true": {
