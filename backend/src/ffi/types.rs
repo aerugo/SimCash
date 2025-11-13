@@ -301,6 +301,18 @@ pub fn policy_config_to_py(py: Python, policy: &PolicyConfig) -> PyResult<Py<PyD
             dict.set_item("type", "MockSplitting")?;
             dict.set_item("num_splits", num_splits)?;
         }
+        PolicyConfig::MockStaggerSplit {
+            num_splits,
+            stagger_first_now,
+            stagger_gap_ticks,
+            priority_boost_children,
+        } => {
+            dict.set_item("type", "MockStaggerSplit")?;
+            dict.set_item("num_splits", num_splits)?;
+            dict.set_item("stagger_first_now", stagger_first_now)?;
+            dict.set_item("stagger_gap_ticks", stagger_gap_ticks)?;
+            dict.set_item("priority_boost_children", priority_boost_children)?;
+        }
         PolicyConfig::FromJson { json } => {
             dict.set_item("type", "FromJson")?;
             dict.set_item("json", json)?;

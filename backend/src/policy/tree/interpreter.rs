@@ -935,8 +935,8 @@ pub fn build_collateral_decision(
 /// use std::collections::HashMap;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let mut agent = Agent::new("BANK_A".to_string(), 500_000, 0, false);
-/// let state = SimulationState::new();
+/// let agent = Agent::new("BANK_A".to_string(), 500_000, 0);
+/// let state = SimulationState::new(vec![agent.clone()]);
 /// let costs = CostRates::default();
 /// let context = EvalContext::bank_level(&agent, &state, 0, &costs, 100, 0.95);
 ///

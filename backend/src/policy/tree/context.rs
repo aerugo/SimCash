@@ -563,8 +563,8 @@ impl EvalContext {
     /// use payment_simulator_core_rs::{Agent, SimulationState};
     /// use payment_simulator_core_rs::orchestrator::CostRates;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0, false);
-    /// let state = SimulationState::new();
+    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    /// let state = SimulationState::new(vec![agent.clone()]);
     /// let cost_rates = CostRates::default();
     ///
     /// let context = EvalContext::bank_level(&agent, &state, 100, &cost_rates, 100, 0.8);
