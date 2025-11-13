@@ -26,7 +26,7 @@
       "description": "In cooldown - tick down counter",
       "action": "AddState",
       "parameters": {
-        "register_key": {"value": "bank_state_cooldown"},
+        "key": {"value": "bank_state_cooldown"},
         "value": {"value": -1.0},
         "reason": {"value": "tick_cooldown"}
       }
@@ -60,7 +60,7 @@
           "node_id": "B_ActivateAggressive",
           "action": "SetState",
           "parameters": {
-            "register_key": {"value": "bank_state_mode"},
+            "key": {"value": "bank_state_mode"},
             "value": {"value": 2.0},
             "reason": {"value": "enter_aggressive_mode"}
           }
@@ -80,7 +80,7 @@
             "description": "Too many releases - enter cooldown",
             "action": "SetState",
             "parameters": {
-              "register_key": {"value": "bank_state_cooldown"},
+              "key": {"value": "bank_state_cooldown"},
               "value": {"param": "cooldown_after_burst"},
               "reason": {"value": "burst_release_cooldown"}
             }
@@ -122,7 +122,7 @@
           "description": "Low liquidity - enter conservative mode",
           "action": "SetState",
           "parameters": {
-            "register_key": {"value": "bank_state_mode"},
+            "key": {"value": "bank_state_mode"},
             "value": {"value": 0.0},
             "reason": {"value": "enter_conservative_mode"}
           }
@@ -133,7 +133,7 @@
           "description": "Mid liquidity - normal mode",
           "action": "SetState",
           "parameters": {
-            "register_key": {"value": "bank_state_mode"},
+            "key": {"value": "bank_state_mode"},
             "value": {"value": 1.0},
             "reason": {"value": "enter_normal_mode"}
           }

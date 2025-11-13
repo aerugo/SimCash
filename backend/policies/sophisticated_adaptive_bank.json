@@ -34,7 +34,7 @@
         "node_id": "B_TickCooldown",
         "action": "AddState",
         "parameters": {
-          "register_key": {"value": "bank_state_cooldown"},
+          "key": {"value": "bank_state_cooldown"},
           "value": {"value": -1.0},
           "reason": {"value": "tick_cooldown_timer"}
         }
