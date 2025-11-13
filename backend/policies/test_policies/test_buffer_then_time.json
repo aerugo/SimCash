@@ -1,0 +1,71 @@
+{
+  "version": "1.0",
+  "policy_id": "test_buffer_then_time",
+  "description": "Two-feature test policy: Tests nested conditions. If buffer >= 2×, release; else check if late in day (>50%). Tests condition precedence and fallthrough logic.",
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "TEST-N1-Buffer",
+    "description": "First check: Do we have 2× buffer?",
+    "condition": {
+      "op": ">=",
+      "left": {
+        "field": "effective_liquidity"
+      },
+      "right": {
+        "compute": {
+          "op": "*",
+          "left": {
+            "field": "remaining_amount"
+          },
+          "right": {
+            "value": 2.0
+          }
+        }
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "TEST-A1-BufferRelease",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "TEST-N2-TimeOfDay",
+      "description": "Second check: Are we late in the day?",
+      "condition": {
+        "op": ">",
+        "left": {
+          "field": "day_progress_fraction"
+        },
+        "right": {
+          "value": 0.5
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "TEST-A2-LateDayRelease",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "TEST-A3-Hold",
+        "action": "Hold",
+        "parameters": {
+          "reason": {
+            "value": "NoBufferEarlyDay"
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-SC1-NoAction",
+    "action": "HoldCollateral"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "node_id": "TEST-EC1-NoAction",
+    "action": "HoldCollateral"
+  }
+}
