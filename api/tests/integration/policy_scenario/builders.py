@@ -265,7 +265,7 @@ class ScenarioBuilder:
             haircut_change: Change to haircut percentage
             collateral_change: Change to posted collateral (cents)
         """
-        params = {"agent_id": agent_id}
+        params = {"agent": agent_id}  # Rust expects "agent", not "agent_id"
         if haircut_change is not None:
             params["haircut_change"] = haircut_change
         if collateral_change is not None:
