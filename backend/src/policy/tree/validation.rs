@@ -796,6 +796,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
@@ -833,6 +834,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
@@ -907,6 +909,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(build_nested_tree(10)),
             strategic_collateral_tree: None,
             end_of_tick_collateral_tree: None,
@@ -929,6 +932,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
@@ -968,6 +972,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
@@ -1017,6 +1022,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
@@ -1056,6 +1062,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
@@ -1104,6 +1111,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),
@@ -1151,6 +1159,7 @@ mod tests {
             version: "1.0".to_string(),
             policy_id: "test".to_string(),
             description: None,
+            bank_tree: None,
             payment_tree: Some(TreeNode::Condition {
                 node_id: "N1".to_string(),
                 description: String::new(),

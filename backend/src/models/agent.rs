@@ -117,6 +117,27 @@ pub struct Agent {
     /// oscillation (posting and immediately withdrawing collateral).
     /// None if no collateral is currently posted.
     collateral_posted_at_tick: Option<usize>,
+
+    // Phase 3.3: Bank-Level Budget State (Policy Enhancements V2)
+    /// Maximum release budget set for current tick (i64 cents)
+    /// None if no budget has been set (unlimited releases)
+    release_budget_max: Option<i64>,
+
+    /// Remaining release budget for current tick (i64 cents)
+    release_budget_remaining: i64,
+
+    /// Focus list: allowed counterparties for releases this tick
+    /// None means all counterparties allowed
+    /// Some(vec![]) means no counterparties allowed (blocks all)
+    release_budget_focus_counterparties: Option<Vec<String>>,
+
+    /// Maximum amount per counterparty this tick (i64 cents)
+    /// None means unlimited per counterparty
+    release_budget_per_counterparty_limit: Option<i64>,
+
+    /// Per-counterparty usage tracking for current tick
+    /// Maps counterparty_id -> total_released_amount
+    release_budget_per_counterparty_usage: std::collections::HashMap<String, i64>,
 }
 
 impl Agent {
@@ -147,6 +168,12 @@ impl Agent {
             posted_collateral: 0, // Default: no collateral posted
             collateral_haircut: 0.95, // Default: 95% of collateral value counts
             collateral_posted_at_tick: None, // No collateral posted initially
+            // Phase 3.3: Budget state (unlimited by default)
+            release_budget_max: None,
+            release_budget_remaining: i64::MAX, // Unlimited initially
+            release_budget_focus_counterparties: None,
+            release_budget_per_counterparty_limit: None,
+            release_budget_per_counterparty_usage: std::collections::HashMap::new(),
         }
     }
 
@@ -183,6 +210,12 @@ impl Agent {
             posted_collateral: 0, // Default: no collateral posted
             collateral_haircut: 0.95, // Default: 95% haircut
             collateral_posted_at_tick: None, // Not yet posted
+            // Phase 3.3: Budget state (unlimited by default)
+            release_budget_max: None,
+            release_budget_remaining: i64::MAX,
+            release_budget_focus_counterparties: None,
+            release_budget_per_counterparty_limit: None,
+            release_budget_per_counterparty_usage: std::collections::HashMap::new(),
         }
     }
 
@@ -244,6 +277,12 @@ impl Agent {
             posted_collateral,
             collateral_haircut,
             collateral_posted_at_tick,
+            // Phase 3.3: Budget state (unlimited by default)
+            release_budget_max: None,
+            release_budget_remaining: i64::MAX,
+            release_budget_focus_counterparties: None,
+            release_budget_per_counterparty_limit: None,
+            release_budget_per_counterparty_usage: std::collections::HashMap::new(),
         }
     }
 
@@ -814,6 +853,117 @@ impl Agent {
     pub fn top_counterparties(&self, _n: usize) -> Vec<String> {
         // Placeholder: Returns empty until transaction history tracking is added
         Vec::new()
+    }
+
+    // ========================================================================
+    // Phase 3.3: Bank-Level Budget Management (Policy Enhancements V2)
+    // ========================================================================
+
+    /// Set release budget for current tick (apply BankDecision::SetReleaseBudget)
+    ///
+    /// Configures total budget, focus list, and per-counterparty limits for this tick.
+    /// Resets per-counterparty usage tracking.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_value` - Total budget for releases this tick (cents)
+    /// * `focus_counterparties` - Optional list of allowed counterparties (None = all allowed)
+    /// * `max_per_counterparty` - Optional max per counterparty (None = unlimited)
+    pub fn set_release_budget(
+        &mut self,
+        max_value: i64,
+        focus_counterparties: Option<Vec<String>>,
+        max_per_counterparty: Option<i64>,
+    ) {
+        self.release_budget_max = Some(max_value);
+        self.release_budget_remaining = max_value;
+        self.release_budget_focus_counterparties = focus_counterparties;
+        self.release_budget_per_counterparty_limit = max_per_counterparty;
+        self.release_budget_per_counterparty_usage.clear(); // Reset usage
+    }
+
+    /// Check if release to counterparty is allowed under current budget constraints
+    ///
+    /// Checks:
+    /// 1. Total budget remaining
+    /// 2. Focus list (if set)
+    /// 3. Per-counterparty limit (if set)
+    ///
+    /// # Arguments
+    ///
+    /// * `counterparty_id` - Target counterparty for release
+    /// * `amount` - Amount to release (cents)
+    ///
+    /// # Returns
+    ///
+    /// true if release is allowed, false otherwise
+    pub fn can_release_to_counterparty(&self, counterparty_id: &str, amount: i64) -> bool {
+        // Check 1: Total budget
+        if amount > self.release_budget_remaining {
+            return false;
+        }
+
+        // Check 2: Focus list (if set)
+        if let Some(ref focus_list) = self.release_budget_focus_counterparties {
+            if !focus_list.contains(&counterparty_id.to_string()) {
+                return false;
+            }
+        }
+
+        // Check 3: Per-counterparty limit (if set)
+        if let Some(per_counterparty_limit) = self.release_budget_per_counterparty_limit {
+            let current_usage = self
+                .release_budget_per_counterparty_usage
+                .get(counterparty_id)
+                .copied()
+                .unwrap_or(0);
+
+            if current_usage + amount > per_counterparty_limit {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    /// Track a release (decrement budget and update per-counterparty usage)
+    ///
+    /// Should be called after a release is approved and submitted.
+    ///
+    /// # Arguments
+    ///
+    /// * `counterparty_id` - Target counterparty for release
+    /// * `amount` - Amount released (cents)
+    pub fn track_release(&mut self, counterparty_id: &str, amount: i64) {
+        // Decrement total budget
+        self.release_budget_remaining = self.release_budget_remaining.saturating_sub(amount);
+
+        // Update per-counterparty usage
+        *self
+            .release_budget_per_counterparty_usage
+            .entry(counterparty_id.to_string())
+            .or_insert(0) += amount;
+    }
+
+    /// Reset release budget (called at end of tick or start of new tick)
+    ///
+    /// Clears budget constraints and resets to unlimited state.
+    pub fn reset_release_budget(&mut self) {
+        self.release_budget_max = None;
+        self.release_budget_remaining = i64::MAX;
+        self.release_budget_focus_counterparties = None;
+        self.release_budget_per_counterparty_limit = None;
+        self.release_budget_per_counterparty_usage.clear();
+    }
+
+    /// Get remaining release budget for current tick
+    pub fn release_budget_remaining(&self) -> i64 {
+        self.release_budget_remaining
+    }
+
+    /// Check if budget has been set for current tick
+    pub fn has_release_budget(&self) -> bool {
+        self.release_budget_max.is_some()
     }
 }
 

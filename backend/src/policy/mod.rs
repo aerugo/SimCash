@@ -102,19 +102,22 @@ pub enum ReleaseDecision {
     /// # Examples
     ///
     /// ```
+    /// use payment_simulator_core_rs::policy::ReleaseDecision;
+    ///
     /// // Boost priority for urgent transaction
-    /// ReleaseDecision::SubmitFull {
+    /// let decision1 = ReleaseDecision::SubmitFull {
     ///     tx_id: "urgent_tx".to_string(),
     ///     priority_override: Some(10), // HIGH priority
     ///     target_tick: None,           // Release now
-    /// }
+    /// };
     ///
     /// // Coordinate with expected LSM offset
-    /// ReleaseDecision::SubmitFull {
+    /// let current_tick = 10;
+    /// let decision2 = ReleaseDecision::SubmitFull {
     ///     tx_id: "lsm_tx".to_string(),
     ///     priority_override: None,
     ///     target_tick: Some(current_tick + 5), // Release in 5 ticks
-    /// }
+    /// };
     /// ```
     SubmitFull {
         tx_id: String,
@@ -327,6 +330,91 @@ pub enum CollateralReason {
     Custom(String),
 }
 
+/// Decision about bank-level resource management (Phase 3.3)
+///
+/// Bank-level decisions are evaluated once per agent per tick (not per transaction).
+/// They set budgets and constraints that affect all transaction-level decisions
+/// for that tick.
+///
+/// # Use Cases
+///
+/// 1. **Liquidity Budgeting**: Limit total releases per tick to conserve liquidity
+/// 2. **Counterparty Focus**: Prioritize specific counterparties for strategic reasons
+/// 3. **Risk Management**: Cap exposure to individual counterparties
+/// 4. **Flow Control**: Prevent overwhelming RTGS with too many simultaneous releases
+///
+/// # Evaluation
+///
+/// Bank-level decisions are evaluated via the `bank_tree` in policy JSON:
+/// - Evaluated once per agent at the start of each tick
+/// - Sets budget state that persists for the tick
+/// - Transaction-level `Release` decisions check budget and are blocked if exceeded
+///
+/// # Example
+///
+/// ```json
+/// {
+///   "bank_tree": {
+///     "type": "action",
+///     "node_id": "B1_SetBudget",
+///     "action": "SetReleaseBudget",
+///     "parameters": {
+///       "max_value_to_release": {"value": 500000.0},
+///       "focus_cpty_list": {"value": ["BANK_A", "BANK_B"]},
+///       "max_per_cpty": {"value": 100000.0}
+///     }
+///   }
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub enum BankDecision {
+    /// Set release budget for this tick
+    ///
+    /// Establishes limits on total and per-counterparty releases for the current tick.
+    /// Budget resets at the start of each tick.
+    ///
+    /// # Parameters
+    ///
+    /// * `max_value_to_release` - Total value that can be released this tick (cents)
+    /// * `focus_counterparties` - Optional list of allowed counterparties. If None, all allowed.
+    /// * `max_per_counterparty` - Optional max value per counterparty (cents). If None, unlimited per counterparty.
+    ///
+    /// # Budget Enforcement
+    ///
+    /// When a `Release` decision is processed:
+    /// 1. Check if total budget exceeded → convert to `Hold` with reason "BudgetExhausted"
+    /// 2. Check if counterparty in focus list (if specified) → convert to `Hold` with reason "NotInFocusList"
+    /// 3. Check if per-counterparty limit exceeded → convert to `Hold` with reason "CounterpartyLimitExceeded"
+    /// 4. If all checks pass, proceed with release and deduct from budget
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use payment_simulator_core_rs::policy::BankDecision;
+    ///
+    /// // Set budget: max $5,000 total, max $1,000 per counterparty, focus on BANK_A/B
+    /// let decision = BankDecision::SetReleaseBudget {
+    ///     max_value_to_release: 500_000,
+    ///     focus_counterparties: Some(vec!["BANK_A".to_string(), "BANK_B".to_string()]),
+    ///     max_per_counterparty: Some(100_000),
+    /// };
+    /// ```
+    SetReleaseBudget {
+        /// Total budget for this tick (cents)
+        max_value_to_release: i64,
+        /// Optional list of allowed counterparties. If None, all allowed.
+        focus_counterparties: Option<Vec<String>>,
+        /// Optional max per counterparty (cents). If None, unlimited per counterparty.
+        max_per_counterparty: Option<i64>,
+    },
+
+    /// No bank-level action (default)
+    ///
+    /// Used when policy has no bank_tree or bank_tree evaluates to no-op.
+    /// All transaction-level decisions proceed without budget constraints.
+    NoAction,
+}
+
 /// Cash manager policy trait
 ///
 /// Implement this trait to define custom decision logic for when to submit
@@ -368,6 +456,8 @@ pub enum CollateralReason {
 ///             .iter()
 ///             .map(|tx_id| ReleaseDecision::SubmitFull {
 ///                 tx_id: tx_id.clone(),
+///                 priority_override: None,
+///                 target_tick: None,
 ///             })
 ///             .collect()
 ///     }
