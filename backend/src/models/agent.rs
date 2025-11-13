@@ -798,6 +798,23 @@ impl Agent {
         // If negative, there's no gap (surplus liquidity)
         (total_pending - self.available_liquidity()).max(0)
     }
+
+    /// Get top N counterparties by historical transaction volume (Phase 2.2)
+    ///
+    /// Returns vector of counterparty IDs sorted by total transaction volume (descending).
+    ///
+    /// **Purpose**: Enable policies to identify and prioritize key trading partners.
+    ///
+    /// **Note**: This is a placeholder implementation that returns empty vector.
+    /// Full implementation requires transaction history tracking (30-day rolling window).
+    ///
+    /// TODO: Implement transaction history tracking per agent
+    /// TODO: Track counterparty volumes over 30-day window
+    /// TODO: Sort by volume and return top N
+    pub fn top_counterparties(&self, _n: usize) -> Vec<String> {
+        // Placeholder: Returns empty until transaction history tracking is added
+        Vec::new()
+    }
 }
 
 #[cfg(test)]
