@@ -17,6 +17,46 @@ from typing import Any, Dict, List
 import duckdb
 
 
+def _merge_state_register_updates(records: List[tuple]) -> List[tuple]:
+    """Merge duplicate state register updates in same tick, keeping only final value.
+
+    Fix for Issue #1: When multiple SetState operations occur on same register in same tick
+    (e.g., policy update + EOD reset), we should store only the FINAL value to avoid
+    duplicate key constraint violation.
+
+    Args:
+        records: List of tuples (simulation_id, tick, agent_id, register_key, register_value)
+
+    Returns:
+        List of tuples with duplicates removed (only final value kept for each key)
+
+    Example:
+        >>> records = [
+        ...     ("sim1", 99, "BANK_A", "mode", 1.0),  # Policy sets mode=1.0
+        ...     ("sim1", 99, "BANK_A", "mode", 0.0),  # EOD resets mode=0.0
+        ... ]
+        >>> merged = _merge_state_register_updates(records)
+        >>> len(merged)
+        1
+        >>> merged[0][4]  # register_value
+        0.0
+    """
+    # Use dict with composite key to track final value for each register
+    # Key: (simulation_id, tick, agent_id, register_key)
+    # Value: full tuple (including register_value)
+    final_values = {}
+
+    for record in records:
+        simulation_id, tick, agent_id, register_key, register_value = record
+        key = (simulation_id, tick, agent_id, register_key)
+
+        # Overwrite previous value - this keeps the LAST value encountered
+        final_values[key] = record
+
+    # Convert back to list
+    return list(final_values.values())
+
+
 def write_events_batch(
     conn: duckdb.DuckDBPyConnection,
     simulation_id: str,
@@ -138,7 +178,12 @@ def write_events_batch(
     )
 
     # Batch insert into agent_state_registers (if any StateRegisterSet events)
+    # FIX for Issue #1: Merge duplicate register updates in same tick
+    # Multiple SetState operations on same register in same tick should store only final value
     if state_register_records:
+        # Merge duplicates: keep only the LAST value for each (sim_id, tick, agent_id, register_key)
+        merged_records = _merge_state_register_updates(state_register_records)
+
         conn.executemany(
             """
             INSERT INTO agent_state_registers (
@@ -149,7 +194,7 @@ def write_events_batch(
                 register_value
             ) VALUES (?, ?, ?, ?, ?)
             """,
-            state_register_records,
+            merged_records,
         )
 
     return len(records)
