@@ -2521,6 +2521,47 @@ impl Orchestrator {
             }
         }
 
+        // STEP 1.8: COLLATERAL TIMER PROCESSING (Phase 3.4)
+        // Process automatic collateral withdrawals scheduled for this tick
+        // This runs after budget decisions but before payment decisions
+        for agent_id in all_agent_ids.clone() {
+            // Get pending timers for this tick
+            let timers = {
+                let agent = self
+                    .state
+                    .get_agent(&agent_id)
+                    .ok_or_else(|| SimulationError::AgentNotFound(agent_id.clone()))?;
+                agent.get_pending_collateral_withdrawals_with_posted_tick(current_tick)
+            };
+
+            let has_timers = !timers.is_empty();
+
+            // Process each timer
+            for (amount, original_reason, posted_at_tick) in timers {
+                // Withdraw collateral
+                let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                let current_collateral = agent_mut.posted_collateral();
+                let withdrawal_amount = amount.min(current_collateral); // Cap at actual posted amount
+                let new_collateral = current_collateral - withdrawal_amount;
+                agent_mut.set_posted_collateral(new_collateral);
+
+                // Emit event for audit trail
+                self.log_event(Event::CollateralTimerWithdrawn {
+                    tick: current_tick,
+                    agent_id: agent_id.clone(),
+                    amount: withdrawal_amount,
+                    original_reason: original_reason.clone(),
+                    posted_at_tick,
+                });
+            }
+
+            // Clean up processed timers
+            if has_timers {
+                let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+                agent_mut.remove_collateral_withdrawal_timer(current_tick);
+            }
+        }
+
         // STEP 2: POLICY EVALUATION
         // Get agents with queued transactions (Queue 1)
         let policy_eval_start = Instant::now();
