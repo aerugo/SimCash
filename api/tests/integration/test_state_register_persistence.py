@@ -146,21 +146,214 @@ class TestStateRegisterEventPersistence:
 
         RED: EventWriter doesn't handle this event type yet.
         """
-        pytest.skip("Not implemented yet - awaiting EventWriter extension")
+        from payment_simulator.persistence.event_writer import write_events_batch
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Create StateRegisterSet event
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 0.0,
+                "new_value": 42.0,
+                "reason": "policy_action",
+            }
+        ]
+
+        # Write events
+        count = write_events_batch(manager.conn, "sim1", events, ticks_per_day=100)
+        assert count == 1
+
+        # Verify event in simulation_events table
+        result = manager.conn.execute("""
+            SELECT event_type, tick, agent_id, details
+            FROM simulation_events
+            WHERE simulation_id = 'sim1' AND event_type = 'StateRegisterSet'
+        """).fetchone()
+
+        assert result is not None, "StateRegisterSet event should be in simulation_events"
+        assert result[0] == "StateRegisterSet"
+        assert result[1] == 10
+        assert result[2] == "BANK_A"
+
+        # Verify details JSON contains all fields
+        import json
+        details = json.loads(result[3])
+        assert details["register_key"] == "bank_state_cooldown"
+        assert details["old_value"] == 0.0
+        assert details["new_value"] == 42.0
+        assert details["reason"] == "policy_action"
+
+        manager.close()
 
     def test_state_register_set_event_persists_to_agent_state_registers(self, db_path):
         """Verify StateRegisterSet events are ALSO written to agent_state_registers.
 
         RED: EventWriter doesn't handle dual-write yet.
         """
-        pytest.skip("Not implemented yet - awaiting EventWriter extension")
+        from payment_simulator.persistence.event_writer import write_events_batch
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Create StateRegisterSet event
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 0.0,
+                "new_value": 42.0,
+                "reason": "policy_action",
+            }
+        ]
+
+        # Write events
+        count = write_events_batch(manager.conn, "sim1", events, ticks_per_day=100)
+        assert count == 1
+
+        # Verify event ALSO in agent_state_registers table
+        result = manager.conn.execute("""
+            SELECT simulation_id, tick, agent_id, register_key, register_value
+            FROM agent_state_registers
+            WHERE simulation_id = 'sim1' AND agent_id = 'BANK_A'
+        """).fetchone()
+
+        assert result is not None, "StateRegisterSet should ALSO be in agent_state_registers"
+        assert result[0] == "sim1"
+        assert result[1] == 10
+        assert result[2] == "BANK_A"
+        assert result[3] == "bank_state_cooldown"
+        assert result[4] == 42.0
+
+        manager.close()
 
     def test_state_register_eod_reset_events_persist(self, db_path):
         """Verify EOD reset events (reason='eod_reset') persist correctly.
 
         RED: Not implemented yet.
         """
-        pytest.skip("Not implemented yet - awaiting EventWriter extension")
+        from payment_simulator.persistence.event_writer import write_events_batch
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Create EOD reset events (when registers reset to 0)
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 100,  # End of day
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 42.0,
+                "new_value": 0.0,
+                "reason": "eod_reset",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 100,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_counter",
+                "old_value": 10.0,
+                "new_value": 0.0,
+                "reason": "eod_reset",
+            },
+        ]
+
+        # Write events
+        count = write_events_batch(manager.conn, "sim1", events, ticks_per_day=100)
+        assert count == 2
+
+        # Verify both EOD reset events in simulation_events
+        result = manager.conn.execute("""
+            SELECT COUNT(*)
+            FROM simulation_events
+            WHERE simulation_id = 'sim1'
+              AND event_type = 'StateRegisterSet'
+              AND tick = 100
+        """).fetchone()
+
+        assert result[0] == 2, "Both EOD reset events should be in simulation_events"
+
+        # Verify both events in agent_state_registers
+        result = manager.conn.execute("""
+            SELECT COUNT(*)
+            FROM agent_state_registers
+            WHERE simulation_id = 'sim1'
+              AND agent_id = 'BANK_A'
+              AND tick = 100
+        """).fetchone()
+
+        assert result[0] == 2, "Both EOD reset events should be in agent_state_registers"
+
+        manager.close()
+
+    def test_multiple_agents_state_registers_independent(self, db_path):
+        """Verify different agents have independent state registers in database.
+
+        RED: Not implemented yet.
+        """
+        from payment_simulator.persistence.event_writer import write_events_batch
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Create events for multiple agents with same register key
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_A",
+                "register_key": "bank_state_cooldown",
+                "old_value": 0.0,
+                "new_value": 100.0,
+                "reason": "policy_action",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 10,
+                "agent_id": "BANK_B",
+                "register_key": "bank_state_cooldown",
+                "old_value": 0.0,
+                "new_value": 200.0,
+                "reason": "policy_action",
+            },
+        ]
+
+        # Write events
+        count = write_events_batch(manager.conn, "sim1", events, ticks_per_day=100)
+        assert count == 2
+
+        # Verify BANK_A has value 100.0
+        result = manager.conn.execute("""
+            SELECT register_value
+            FROM agent_state_registers
+            WHERE simulation_id = 'sim1'
+              AND agent_id = 'BANK_A'
+              AND register_key = 'bank_state_cooldown'
+        """).fetchone()
+
+        assert result is not None
+        assert result[0] == 100.0
+
+        # Verify BANK_B has value 200.0
+        result = manager.conn.execute("""
+            SELECT register_value
+            FROM agent_state_registers
+            WHERE simulation_id = 'sim1'
+              AND agent_id = 'BANK_B'
+              AND register_key = 'bank_state_cooldown'
+        """).fetchone()
+
+        assert result is not None
+        assert result[0] == 200.0
+
+        manager.close()
 
 
 class TestStateRegisterRetrieval:
