@@ -128,13 +128,18 @@ class ScenarioDefinition:
         # Number of days = ceil(duration_ticks / ticks_per_day)
         num_days = (self.duration_ticks + self.ticks_per_day - 1) // self.ticks_per_day
 
-        return {
+        config = {
             "ticks_per_day": self.ticks_per_day,
             "num_days": num_days,
             "rng_seed": self.seed,
             "agent_configs": agent_configs,
-            "scenario_events": scenario_events if scenario_events else None,
         }
+
+        # Only include scenario_events if there are any (Rust FFI can't handle None)
+        if scenario_events:
+            config["scenario_events"] = scenario_events
+
+        return config
 
 
 class ScenarioBuilder:
