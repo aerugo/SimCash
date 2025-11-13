@@ -14,7 +14,9 @@ Policies tested:
 Test coverage: 19 tests to complete Phase 1 (50 total tests)
 """
 
+import json
 import pytest
+from pathlib import Path
 from policy_scenario import (
     PolicyScenarioTest,
     PolicyComparator,
@@ -23,6 +25,30 @@ from policy_scenario import (
     Exact,
     ScenarioBuilder,
 )
+
+
+def load_json_policy(policy_name: str) -> dict:
+    """Load a JSON policy file and return config for FromJson policy type.
+
+    Args:
+        policy_name: Name of policy file (without .json extension)
+
+    Returns:
+        Policy config dict with inline JSON string
+    """
+    # Path relative to api directory
+    policy_path = Path(__file__).parent.parent.parent.parent / "backend" / "policies" / f"{policy_name}.json"
+
+    if not policy_path.exists():
+        raise FileNotFoundError(f"Policy file not found: {policy_path}")
+
+    with open(policy_path) as f:
+        policy_json = json.load(f)
+
+    return {
+        "type": "FromJson",
+        "json": json.dumps(policy_json),
+    }
 
 
 class TestGoliathNationalBankPolicy:
@@ -54,10 +80,7 @@ class TestGoliathNationalBankPolicy:
         )
 
         # GoliathNationalBank has its own parameters in the JSON
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/goliath_national_bank.json",
-        }
+        policy = load_json_policy("goliath_national_bank")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.92, max=1.0),
@@ -99,10 +122,7 @@ class TestGoliathNationalBankPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/goliath_national_bank.json",
-        }
+        policy = load_json_policy("goliath_national_bank")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.80, max=0.92),
@@ -144,10 +164,7 @@ class TestGoliathNationalBankPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/goliath_national_bank.json",
-        }
+        policy = load_json_policy("goliath_national_bank")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.60, max=0.80),
@@ -192,10 +209,7 @@ class TestGoliathNationalBankPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/goliath_national_bank.json",
-        }
+        policy = load_json_policy("goliath_national_bank")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.75, max=0.90),
@@ -248,10 +262,7 @@ class TestGoliathNationalBankPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/goliath_national_bank.json",
-        }
+        policy = load_json_policy("goliath_national_bank")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.75, max=0.92),
@@ -296,10 +307,7 @@ class TestCautiousLiquidityPreserverPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/cautious_liquidity_preserver.json",
-        }
+        policy = load_json_policy("cautious_liquidity_preserver")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.85, max=0.95),  # Lower than aggressive policies
@@ -341,10 +349,7 @@ class TestCautiousLiquidityPreserverPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/cautious_liquidity_preserver.json",
-        }
+        policy = load_json_policy("cautious_liquidity_preserver")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.60, max=0.80),  # Lower than balanced policies
@@ -386,10 +391,7 @@ class TestCautiousLiquidityPreserverPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/cautious_liquidity_preserver.json",
-        }
+        policy = load_json_policy("cautious_liquidity_preserver")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.40, max=0.65),  # Lowest settlement rate
@@ -437,10 +439,7 @@ class TestCautiousLiquidityPreserverPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/cautious_liquidity_preserver.json",
-        }
+        policy = load_json_policy("cautious_liquidity_preserver")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.35, max=0.65),  # Survives but low rate
@@ -485,10 +484,7 @@ class TestBalancedCostOptimizerPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/balanced_cost_optimizer.json",
-        }
+        policy = load_json_policy("balanced_cost_optimizer")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.90, max=1.0),
@@ -530,10 +526,7 @@ class TestBalancedCostOptimizerPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/balanced_cost_optimizer.json",
-        }
+        policy = load_json_policy("balanced_cost_optimizer")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.80, max=0.93),
@@ -574,10 +567,7 @@ class TestBalancedCostOptimizerPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/balanced_cost_optimizer.json",
-        }
+        policy = load_json_policy("balanced_cost_optimizer")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.70, max=0.88),
@@ -624,10 +614,7 @@ class TestBalancedCostOptimizerPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/balanced_cost_optimizer.json",
-        }
+        policy = load_json_policy("balanced_cost_optimizer")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.60, max=0.80),
@@ -673,10 +660,7 @@ class TestBalancedCostOptimizerPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/balanced_cost_optimizer.json",
-        }
+        policy = load_json_policy("balanced_cost_optimizer")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.75, max=0.92),
@@ -721,10 +705,7 @@ class TestSmartSplitterPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/smart_splitter.json",
-        }
+        policy = load_json_policy("smart_splitter")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.75, max=0.90),
@@ -765,10 +746,7 @@ class TestSmartSplitterPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/smart_splitter.json",
-        }
+        policy = load_json_policy("smart_splitter")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.70, max=0.88),
@@ -809,10 +787,7 @@ class TestSmartSplitterPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/smart_splitter.json",
-        }
+        policy = load_json_policy("smart_splitter")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.65, max=0.85),
@@ -858,8 +833,7 @@ class TestSmartSplitterPolicy:
             policies=[
                 ("FIFO", {"type": "Fifo"}),
                 ("SmartSplitter", {
-                    "type": "FromJson",
-                    "json_path": "backend/policies/smart_splitter.json",
+                    **load_json_policy("smart_splitter"),
                 }),
             ],
             metrics=["settlement_rate", "max_queue_depth"],
@@ -914,10 +888,7 @@ class TestAggressiveMarketMakerPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/aggressive_market_maker.json",
-        }
+        policy = load_json_policy("aggressive_market_maker")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.95, max=1.0),  # Maximum
@@ -958,10 +929,7 @@ class TestAggressiveMarketMakerPolicy:
             .build()
         )
 
-        policy = {
-            "type": "FromJson",
-            "json_path": "backend/policies/aggressive_market_maker.json",
-        }
+        policy = load_json_policy("aggressive_market_maker")
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.75, max=0.92),  # Highest under pressure
@@ -1007,12 +975,10 @@ class TestAggressiveMarketMakerPolicy:
         result = comparator.compare(
             policies=[
                 ("CautiousLiquidityPreserver", {
-                    "type": "FromJson",
-                    "json_path": "backend/policies/cautious_liquidity_preserver.json",
+                    **load_json_policy("cautious_liquidity_preserver"),
                 }),
                 ("AggressiveMarketMaker", {
-                    "type": "FromJson",
-                    "json_path": "backend/policies/aggressive_market_maker.json",
+                    **load_json_policy("aggressive_market_maker"),
                 }),
             ],
             metrics=["settlement_rate", "min_balance", "max_queue_depth"],
