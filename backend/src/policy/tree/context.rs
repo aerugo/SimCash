@@ -78,6 +78,14 @@ pub enum ContextError {
 /// **Overdraft Regime Fields** (Policy Enhancements V2, Phase 1.1):
 /// - credit_headroom: Remaining credit capacity (credit_limit - credit_used) (f64)
 /// - is_overdraft_capped: Boolean (1.0) indicating credit limit is enforced (f64)
+///
+/// **LSM-Aware Fields** (Policy Enhancements V2, Phase 1.2):
+/// - my_q2_out_value_to_counterparty: Value of my Q2 outflows to this tx's counterparty (f64)
+/// - my_q2_in_value_from_counterparty: Value of Q2 inflows from this tx's counterparty (f64)
+/// - my_bilateral_net_q2: Net Q2 position with this counterparty (out - in) (f64)
+/// - my_q2_out_value_top_1..5: Top 5 counterparties by Q2 outflow value (f64)
+/// - my_q2_in_value_top_1..5: Top 5 counterparties by Q2 inflow value (f64)
+/// - my_bilateral_net_q2_top_1..5: Top 5 counterparties by net Q2 position (f64)
 #[derive(Debug, Clone)]
 pub struct EvalContext {
     /// Field name → value mapping
@@ -212,6 +220,65 @@ impl EvalContext {
         // Policies can use this to distinguish between capped (hard limit) and
         // unbounded (priced) overdraft regimes. In Option B, this is always 1.0.
         fields.insert("is_overdraft_capped".to_string(), 1.0);
+
+        // Phase 1.2: LSM-Aware Fields (Policy Enhancements V2)
+        // These fields enable policies to intentionally feed LSM by releasing
+        // to counterparties where bilateral offset is likely.
+        //
+        // Privacy: Only exposes OWN-BANK queue composition relative to THIS transaction's
+        // counterparty. Does not expose other banks' queues or system-wide information.
+
+        let counterparty_id = tx.receiver_id();
+
+        // Calculate Queue 2 composition for this specific counterparty
+        let (my_q2_out, my_q2_in) = calculate_q2_bilateral_values(state, agent.id(), counterparty_id);
+        let bilateral_net = (my_q2_out as i64) - (my_q2_in as i64);
+
+        fields.insert("my_q2_out_value_to_counterparty".to_string(), my_q2_out as f64);
+        fields.insert("my_q2_in_value_from_counterparty".to_string(), my_q2_in as f64);
+        fields.insert("my_bilateral_net_q2".to_string(), bilateral_net as f64);
+
+        // Calculate top 5 counterparties by Queue 2 outflow
+        let top_outflows = calculate_top_counterparties_by_q2_outflow(state, agent.id(), 5);
+        for (idx, (cpty_id, value)) in top_outflows.iter().enumerate() {
+            let field_idx = idx + 1; // 1-indexed for readability
+            fields.insert(format!("my_q2_out_value_top_{}", field_idx), *value as f64);
+
+            // For categorical fields (counterparty IDs), we'll use a simple hash
+            // This allows policies to check "is top_cpty_1 == this_counterparty"
+            // by hashing both and comparing. Not perfect, but works for DSL constraints.
+            let cpty_hash = simple_string_hash(cpty_id);
+            fields.insert(format!("top_cpty_{}_id_hash", field_idx), cpty_hash as f64);
+        }
+
+        // Fill remaining top_N slots with zeros if < 5 counterparties
+        for idx in (top_outflows.len() + 1)..=5 {
+            fields.insert(format!("my_q2_out_value_top_{}", idx), 0.0);
+            fields.insert(format!("top_cpty_{}_id_hash", idx), 0.0);
+        }
+
+        // Calculate top 5 counterparties by Queue 2 inflow
+        let top_inflows = calculate_top_counterparties_by_q2_inflow(state, agent.id(), 5);
+        for (idx, (_cpty_id, value)) in top_inflows.iter().enumerate() {
+            let field_idx = idx + 1;
+            fields.insert(format!("my_q2_in_value_top_{}", field_idx), *value as f64);
+        }
+
+        for idx in (top_inflows.len() + 1)..=5 {
+            fields.insert(format!("my_q2_in_value_top_{}", idx), 0.0);
+        }
+
+        // Calculate bilateral net positions for top counterparties
+        // (by absolute value of net position)
+        let top_bilateral_nets = calculate_top_bilateral_nets(state, agent.id(), 5);
+        for (idx, (_cpty_id, net_value)) in top_bilateral_nets.iter().enumerate() {
+            let field_idx = idx + 1;
+            fields.insert(format!("my_bilateral_net_q2_top_{}", field_idx), *net_value as f64);
+        }
+
+        for idx in (top_bilateral_nets.len() + 1)..=5 {
+            fields.insert(format!("my_bilateral_net_q2_top_{}", idx), 0.0);
+        }
 
         // Derived fields
         let ticks_to_deadline = tx.deadline_tick() as i64 - tick as i64;
@@ -707,4 +774,141 @@ mod tests {
 
         assert_eq!(context.get_field("overdue_duration").unwrap(), 0.0);
     }
+}
+
+// ============================================================================
+// Phase 1.2: LSM-Aware Helper Functions (Policy Enhancements V2)
+// ============================================================================
+
+/// Calculate bilateral Queue 2 values for a specific counterparty
+///
+/// Returns (my_q2_out, my_q2_in):
+/// - my_q2_out: Total value of my outgoing Q2 transactions to counterparty
+/// - my_q2_in: Total value of counterparty's outgoing Q2 transactions to me
+fn calculate_q2_bilateral_values(
+    state: &SimulationState,
+    agent_id: &str,
+    counterparty_id: &str,
+) -> (i64, i64) {
+    let mut my_q2_out = 0i64;
+    let mut my_q2_in = 0i64;
+
+    for tx_id in state.rtgs_queue() {
+        if let Some(tx) = state.get_transaction(tx_id) {
+            // Outgoing to counterparty
+            if tx.sender_id() == agent_id && tx.receiver_id() == counterparty_id {
+                my_q2_out += tx.remaining_amount();
+            }
+            // Incoming from counterparty
+            if tx.sender_id() == counterparty_id && tx.receiver_id() == agent_id {
+                my_q2_in += tx.remaining_amount();
+            }
+        }
+    }
+
+    (my_q2_out, my_q2_in)
+}
+
+/// Calculate top N counterparties by Queue 2 outflow value
+fn calculate_top_counterparties_by_q2_outflow(
+    state: &SimulationState,
+    agent_id: &str,
+    n: usize,
+) -> Vec<(String, i64)> {
+    use std::collections::HashMap;
+
+    // Aggregate by counterparty
+    let mut by_counterparty: HashMap<String, i64> = HashMap::new();
+
+    for tx_id in state.rtgs_queue() {
+        if let Some(tx) = state.get_transaction(tx_id) {
+            if tx.sender_id() == agent_id {
+                *by_counterparty
+                    .entry(tx.receiver_id().to_string())
+                    .or_insert(0) += tx.remaining_amount();
+            }
+        }
+    }
+
+    // Sort by value descending
+    let mut sorted: Vec<_> = by_counterparty.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.cmp(&a.1)); // Descending by value
+
+    // Take top N
+    sorted.into_iter().take(n).collect()
+}
+
+/// Calculate top N counterparties by Queue 2 inflow value
+fn calculate_top_counterparties_by_q2_inflow(
+    state: &SimulationState,
+    agent_id: &str,
+    n: usize,
+) -> Vec<(String, i64)> {
+    use std::collections::HashMap;
+
+    // Aggregate by counterparty
+    let mut by_counterparty: HashMap<String, i64> = HashMap::new();
+
+    for tx_id in state.rtgs_queue() {
+        if let Some(tx) = state.get_transaction(tx_id) {
+            if tx.receiver_id() == agent_id {
+                *by_counterparty
+                    .entry(tx.sender_id().to_string())
+                    .or_insert(0) += tx.remaining_amount();
+            }
+        }
+    }
+
+    // Sort by value descending
+    let mut sorted: Vec<_> = by_counterparty.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.cmp(&a.1));
+
+    sorted.into_iter().take(n).collect()
+}
+
+/// Calculate top N counterparties by bilateral net position (absolute value)
+fn calculate_top_bilateral_nets(
+    state: &SimulationState,
+    agent_id: &str,
+    n: usize,
+) -> Vec<(String, i64)> {
+    use std::collections::HashMap;
+
+    // Calculate net for each counterparty
+    let mut nets: HashMap<String, i64> = HashMap::new();
+
+    for tx_id in state.rtgs_queue() {
+        if let Some(tx) = state.get_transaction(tx_id) {
+            // Outgoing (positive contribution to net)
+            if tx.sender_id() == agent_id {
+                *nets.entry(tx.receiver_id().to_string()).or_insert(0) += tx.remaining_amount();
+            }
+            // Incoming (negative contribution to net)
+            if tx.receiver_id() == agent_id {
+                *nets.entry(tx.sender_id().to_string()).or_insert(0) -= tx.remaining_amount();
+            }
+        }
+    }
+
+    // Sort by absolute value of net position descending
+    let mut sorted: Vec<_> = nets.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.abs().cmp(&a.1.abs()));
+
+    sorted.into_iter().take(n).collect()
+}
+
+/// Simple string hash for categorical field encoding
+///
+/// Uses FNV-1a hash algorithm (simple, fast, good distribution)
+/// Returns u64 cast to f64 for storage in policy context fields
+fn simple_string_hash(s: &str) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 14695981039346656037;
+    const FNV_PRIME: u64 = 1099511628211;
+
+    let mut hash = FNV_OFFSET_BASIS;
+    for byte in s.bytes() {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
 }
