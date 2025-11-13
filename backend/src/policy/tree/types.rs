@@ -222,6 +222,39 @@ pub enum Computation {
     /// Minimum of multiple values
     #[serde(rename = "min")]
     Min { values: Vec<Value> },
+
+    // Phase 2.3: Math Helper Functions (Policy Enhancements V2)
+    /// Ceiling - round up to nearest integer
+    #[serde(rename = "ceil")]
+    Ceil { value: Value },
+
+    /// Floor - round down to nearest integer
+    #[serde(rename = "floor")]
+    Floor { value: Value },
+
+    /// Round - round to nearest integer
+    #[serde(rename = "round")]
+    Round { value: Value },
+
+    /// Absolute value
+    #[serde(rename = "abs")]
+    Abs { value: Value },
+
+    /// Clamp value to range [min, max]
+    #[serde(rename = "clamp")]
+    Clamp {
+        value: Value,
+        min: Value,
+        max: Value,
+    },
+
+    /// Safe division - return default if denominator is zero or near-zero
+    #[serde(rename = "div0")]
+    SafeDiv {
+        numerator: Value,
+        denominator: Value,
+        default: Value,
+    },
 }
 
 // ============================================================================

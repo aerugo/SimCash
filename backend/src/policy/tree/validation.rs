@@ -340,6 +340,27 @@ fn collect_fields_from_computation(comp: &Computation, fields: &mut HashSet<Stri
                 collect_fields_from_value(value, fields);
             }
         }
+        // Phase 2.3: Math helper functions
+        Computation::Ceil { value }
+        | Computation::Floor { value }
+        | Computation::Round { value }
+        | Computation::Abs { value } => {
+            collect_fields_from_value(value, fields);
+        }
+        Computation::Clamp { value, min, max } => {
+            collect_fields_from_value(value, fields);
+            collect_fields_from_value(min, fields);
+            collect_fields_from_value(max, fields);
+        }
+        Computation::SafeDiv {
+            numerator,
+            denominator,
+            default,
+        } => {
+            collect_fields_from_value(numerator, fields);
+            collect_fields_from_value(denominator, fields);
+            collect_fields_from_value(default, fields);
+        }
     }
 }
 
@@ -460,6 +481,27 @@ fn collect_params_from_computation(comp: &Computation, params: &mut HashSet<Stri
             for value in values {
                 collect_params_from_value(value, params);
             }
+        }
+        // Phase 2.3: Math helper functions
+        Computation::Ceil { value }
+        | Computation::Floor { value }
+        | Computation::Round { value }
+        | Computation::Abs { value } => {
+            collect_params_from_value(value, params);
+        }
+        Computation::Clamp { value, min, max } => {
+            collect_params_from_value(value, params);
+            collect_params_from_value(min, params);
+            collect_params_from_value(max, params);
+        }
+        Computation::SafeDiv {
+            numerator,
+            denominator,
+            default,
+        } => {
+            collect_params_from_value(numerator, params);
+            collect_params_from_value(denominator, params);
+            collect_params_from_value(default, params);
         }
     }
 }
@@ -592,6 +634,43 @@ fn check_division_in_computation(
                 if let Value::Compute { compute } = value {
                     check_division_in_computation(compute, node_id, errors);
                 }
+            }
+        }
+        // Phase 2.3: Math helper functions
+        Computation::Ceil { value }
+        | Computation::Floor { value }
+        | Computation::Round { value }
+        | Computation::Abs { value } => {
+            if let Value::Compute { compute } = value {
+                check_division_in_computation(compute, node_id, errors);
+            }
+        }
+        Computation::Clamp { value, min, max } => {
+            if let Value::Compute { compute } = value {
+                check_division_in_computation(compute, node_id, errors);
+            }
+            if let Value::Compute { compute } = min {
+                check_division_in_computation(compute, node_id, errors);
+            }
+            if let Value::Compute { compute } = max {
+                check_division_in_computation(compute, node_id, errors);
+            }
+        }
+        Computation::SafeDiv {
+            numerator,
+            denominator,
+            default,
+        } => {
+            // SafeDiv doesn't error on divide-by-zero, so no need to check
+            // But recurse into nested computations
+            if let Value::Compute { compute } = numerator {
+                check_division_in_computation(compute, node_id, errors);
+            }
+            if let Value::Compute { compute } = denominator {
+                check_division_in_computation(compute, node_id, errors);
+            }
+            if let Value::Compute { compute } = default {
+                check_division_in_computation(compute, node_id, errors);
             }
         }
     }
