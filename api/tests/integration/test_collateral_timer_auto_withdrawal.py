@@ -176,7 +176,7 @@ class TestCollateralTimerAutoWithdrawal:
                 "node_id": "CheckTick0",
                 "condition": {
                     "op": "==",
-                    "left": {"field": "tick"},
+                    "left": {"field": "system_tick_in_day"},
                     "right": {"value": 0.0}
                 },
                 "on_true": {
@@ -194,7 +194,7 @@ class TestCollateralTimerAutoWithdrawal:
                     "node_id": "CheckTick2",
                     "condition": {
                         "op": "==",
-                        "left": {"field": "tick"},
+                        "left": {"field": "system_tick_in_day"},
                         "right": {"value": 2.0}
                     },
                     "on_true": {
@@ -313,7 +313,7 @@ class TestCollateralTimerAutoWithdrawal:
                 "node_id": "CheckTick0",
                 "condition": {
                     "op": "==",
-                    "left": {"field": "tick"},
+                    "left": {"field": "system_tick_in_day"},
                     "right": {"value": 0.0}
                 },
                 "on_true": {
@@ -337,7 +337,7 @@ class TestCollateralTimerAutoWithdrawal:
                 "node_id": "CheckTick2",
                 "condition": {
                     "op": "==",
-                    "left": {"field": "tick"},
+                    "left": {"field": "system_tick_in_day"},
                     "right": {"value": 2.0}
                 },
                 "on_true": {

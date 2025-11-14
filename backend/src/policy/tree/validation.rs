@@ -342,6 +342,10 @@ fn is_transaction_only_field(field: &str) -> bool {
             | "cost_if_settled_now"
             | "cost_if_held_one_tick"
             | "cost_urgency"
+            // Phase 9.5.1: Transaction-specific cost fields
+            // These use the transaction's remaining_amount, so only available in payment_tree
+            | "cost_delay_this_tx_one_tick"
+            | "cost_overdraft_this_amount_one_tick"
     )
 }
 
