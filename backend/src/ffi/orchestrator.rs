@@ -1547,6 +1547,34 @@ impl PyOrchestrator {
         self.inner.get_agent_collateral_posted(&agent_id)
     }
 
+    /// Get agent's total allowed overdraft limit
+    ///
+    /// Returns the maximum negative balance an agent can have, calculated as:
+    /// credit_limit + collateral-backed capacity + unsecured cap.
+    ///
+    /// This is the CORRECT denominator for credit utilization percentage calculations.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// Total allowed overdraft in cents, or None if agent not found
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// limit = orch.get_agent_allowed_overdraft_limit("BANK_A")
+    /// balance = orch.get_agent_balance("BANK_A")
+    /// used = max(0, -balance)
+    /// utilization_pct = (used / limit) * 100
+    /// print(f"Credit utilization: {utilization_pct:.1f}%")
+    /// ```
+    fn get_agent_allowed_overdraft_limit(&self, agent_id: String) -> Option<i64> {
+        self.inner.get_agent_allowed_overdraft_limit(&agent_id)
+    }
+
     /// Get transactions approaching their deadline
     ///
     /// Returns transactions that will go overdue within the specified number of ticks.
