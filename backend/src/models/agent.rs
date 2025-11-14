@@ -28,6 +28,26 @@ pub enum AgentError {
     InsufficientLiquidity { required: i64, available: i64 },
 }
 
+/// Errors that can occur during collateral withdrawal operations
+#[derive(Debug, Error, PartialEq)]
+pub enum WithdrawError {
+    #[error("Withdrawal amount must be positive")]
+    NonPositive,
+
+    #[error("Minimum holding period not met: {ticks_remaining} tick(s) remaining (posted at tick {posted_at_tick})")]
+    MinHoldingPeriodNotMet {
+        ticks_remaining: usize,
+        posted_at_tick: usize,
+    },
+
+    #[error("No headroom available for withdrawal: credit_used={credit_used}, allowed_limit={allowed_limit}, headroom={headroom}")]
+    NoHeadroom {
+        credit_used: i64,
+        allowed_limit: i64,
+        headroom: i64,
+    },
+}
+
 /// Represents a bank (agent) in the payment system
 ///
 /// # Interpretation (Phase 4)
@@ -871,6 +891,96 @@ impl Agent {
             None => true, // No collateral posted, withdrawal N/A but return true for flexibility
             Some(posted_tick) => current_tick >= posted_tick + min_holding_ticks,
         }
+    }
+
+    /// Attempt to withdraw collateral with full guard checks (Invariant I2 enforcement)
+    ///
+    /// This is the **single source of truth** for all collateral withdrawals.
+    /// Both timer-based and manual/policy withdrawals MUST use this method to
+    /// ensure Invariant I2 is never violated.
+    ///
+    /// # Enforces
+    /// 1. Minimum holding period (if posted_at_tick is set)
+    /// 2. Invariant I2: Withdrawal headroom protection
+    /// 3. Non-negative collateral
+    ///
+    /// # Arguments
+    /// * `requested` - Requested withdrawal amount (cents)
+    /// * `current_tick` - Current simulation tick
+    /// * `min_holding_ticks` - Minimum ticks to hold (default 5)
+    /// * `safety_buffer` - Additional headroom buffer (cents, default 100)
+    ///
+    /// # Returns
+    /// * `Ok(actual)` - Actual amount withdrawn (may be less than requested if clamped)
+    /// * `Err(WithdrawError)` - Withdrawal blocked with reason
+    ///
+    /// # Invariant Guarantee
+    /// After successful withdrawal:
+    /// ```text
+    /// floor((posted_collateral - actual) × (1 - haircut)) + unsecured_cap ≥ credit_used + buffer
+    /// ```
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00, 0);
+    /// agent.set_posted_collateral(100_000_00);
+    /// agent.set_collateral_haircut(0.10);
+    /// agent.set_collateral_posted_at_tick(5);
+    ///
+    /// // Try to withdraw at tick 10 (5 ticks after posting)
+    /// match agent.try_withdraw_collateral_guarded(80_000_00, 10, 5, 100) {
+    ///     Ok(actual) => println!("Withdrew: ${}", actual / 100),
+    ///     Err(e) => println!("Blocked: {}", e),
+    /// }
+    /// ```
+    pub fn try_withdraw_collateral_guarded(
+        &mut self,
+        requested: i64,
+        current_tick: usize,
+        min_holding_ticks: usize,
+        safety_buffer: i64,
+    ) -> Result<i64, WithdrawError> {
+        // Validation 1: Positive amount
+        if requested <= 0 {
+            return Err(WithdrawError::NonPositive);
+        }
+
+        // Validation 2: Minimum holding period
+        if !self.can_withdraw_collateral(current_tick, min_holding_ticks) {
+            let posted_at = self.collateral_posted_at_tick.unwrap_or(0);
+            let ticks_held = current_tick.saturating_sub(posted_at);
+            let ticks_remaining = min_holding_ticks.saturating_sub(ticks_held);
+            return Err(WithdrawError::MinHoldingPeriodNotMet {
+                ticks_remaining,
+                posted_at_tick: posted_at,
+            });
+        }
+
+        // Validation 3: Headroom protection (Invariant I2)
+        let max_safe = self.max_withdrawable_collateral(safety_buffer);
+        if max_safe <= 0 {
+            return Err(WithdrawError::NoHeadroom {
+                credit_used: self.credit_used(),
+                allowed_limit: self.allowed_overdraft_limit(),
+                headroom: self.headroom(),
+            });
+        }
+
+        // Clamp to safe amount (partial withdrawal allowed)
+        let actual = requested.min(max_safe).min(self.posted_collateral);
+
+        // Apply withdrawal
+        let new_total = self.posted_collateral - actual;
+        self.set_posted_collateral(new_total);
+
+        // Clear posted_at_tick if all collateral withdrawn
+        if new_total == 0 {
+            self.collateral_posted_at_tick = None;
+        }
+
+        Ok(actual)
     }
 
     /// Get last decision tick

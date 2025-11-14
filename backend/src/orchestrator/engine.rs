@@ -2622,23 +2622,55 @@ impl Orchestrator {
 
             let has_timers = !timers.is_empty();
 
-            // Process each timer
-            for (amount, original_reason, posted_at_tick) in timers {
-                // Withdraw collateral
-                let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
-                let current_collateral = agent_mut.posted_collateral();
-                let withdrawal_amount = amount.min(current_collateral); // Cap at actual posted amount
-                let new_collateral = current_collateral - withdrawal_amount;
-                agent_mut.set_posted_collateral(new_collateral);
+            // Process each timer with guard (Invariant I2 enforcement)
+            const MIN_HOLDING_TICKS: usize = 5; // Same as FFI withdrawal
+            const SAFETY_BUFFER: i64 = 100; // Small buffer to avoid edge cases
 
-                // Emit event for audit trail
-                self.log_event(Event::CollateralTimerWithdrawn {
-                    tick: current_tick,
-                    agent_id: agent_id.clone(),
-                    amount: withdrawal_amount,
-                    original_reason: original_reason.clone(),
-                    posted_at_tick,
-                });
+            for (requested_amount, original_reason, posted_at_tick) in timers {
+                let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+
+                // Use guarded withdrawal to enforce Invariant I2
+                let result = agent_mut.try_withdraw_collateral_guarded(
+                    requested_amount,
+                    current_tick,
+                    MIN_HOLDING_TICKS,
+                    SAFETY_BUFFER,
+                );
+
+                match result {
+                    Ok(actual_withdrawn) if actual_withdrawn > 0 => {
+                        // Withdrawal succeeded (full or partial)
+                        let new_total = agent_mut.posted_collateral();
+
+                        self.log_event(Event::CollateralTimerWithdrawn {
+                            tick: current_tick,
+                            agent_id: agent_id.clone(),
+                            amount: actual_withdrawn,
+                            original_reason: original_reason.clone(),
+                            posted_at_tick,
+                            new_total,
+                        });
+
+                        // If partial withdrawal, remainder is dropped (not rescheduled)
+                        // This is by design: timer is "best-effort" withdrawal
+                    }
+                    Ok(_) | Err(_) => {
+                        // Withdrawal blocked (max_safe = 0 or other constraint)
+                        let reason = match result {
+                            Err(e) => e.to_string(),
+                            Ok(_) => "NoHeadroom".to_string(),
+                        };
+
+                        self.log_event(Event::CollateralTimerBlocked {
+                            tick: current_tick,
+                            agent_id: agent_id.clone(),
+                            requested_amount,
+                            reason,
+                            original_reason: original_reason.clone(),
+                            posted_at_tick,
+                        });
+                    }
+                }
             }
 
             // Clean up processed timers
