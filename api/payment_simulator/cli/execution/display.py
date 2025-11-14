@@ -141,7 +141,7 @@ def display_tick_verbose_output(
     # ═══════════════════════════════════════════════════════════
     # SECTION 5: COLLATERAL ACTIVITY
     # ═══════════════════════════════════════════════════════════
-    log_collateral_activity(display_events)
+    log_collateral_activity(provider, display_events)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 5.25: SCENARIO EVENTS
