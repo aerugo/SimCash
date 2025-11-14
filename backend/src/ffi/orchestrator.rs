@@ -441,13 +441,22 @@ impl PyOrchestrator {
             ))?;
 
         let dict = PyDict::new(py);
+        // Basic fields
         dict.set_item("balance", agent.balance())?;
-        dict.set_item("credit_used", agent.credit_used())?;
         dict.set_item("credit_limit", agent.credit_limit())?;
         dict.set_item("available_liquidity", agent.available_liquidity())?;
+        dict.set_item("queue1_size", agent.outgoing_queue().len())?;
+
+        // Collateral fields
         dict.set_item("posted_collateral", agent.posted_collateral())?;
         dict.set_item("collateral_haircut", agent.collateral_haircut())?;
-        dict.set_item("queue1_size", agent.outgoing_queue().len())?;
+        dict.set_item("unsecured_cap", agent.unsecured_cap())?;
+
+        // New T2/CLM-style collateral/headroom metrics
+        dict.set_item("credit_used", agent.credit_used())?;
+        dict.set_item("allowed_overdraft_limit", agent.allowed_overdraft_limit())?;
+        dict.set_item("overdraft_headroom", agent.headroom())?;
+        dict.set_item("max_withdrawable_collateral", agent.max_withdrawable_collateral(0))?;
 
         Ok(dict.into())
     }
@@ -544,6 +553,7 @@ impl PyOrchestrator {
     /// ```
     fn withdraw_collateral(&mut self, py: Python, agent_id: &str, amount: i64) -> PyResult<Py<PyDict>> {
         const MIN_HOLDING_TICKS: usize = 5; // Configurable default
+        const SAFETY_BUFFER: i64 = 0; // Could be made configurable
 
         let dict = PyDict::new(py);
 
@@ -569,15 +579,23 @@ impl PyOrchestrator {
                             ticks_remaining
                         ))
                     } else {
-                        // Check sufficient collateral
-                        let current_collateral = agent.posted_collateral();
-                        if amount > current_collateral {
+                        // CRITICAL: Check that withdrawal doesn't breach headroom (Invariant I2)
+                        let max_withdrawable = agent.max_withdrawable_collateral(SAFETY_BUFFER);
+                        if amount > max_withdrawable {
+                            let credit_used = agent.credit_used();
+                            let allowed_limit = agent.allowed_overdraft_limit();
+                            let headroom = agent.headroom();
+
                             Err(format!(
-                                "Insufficient collateral: requested {}, available {}",
-                                amount, current_collateral
+                                "Withdrawal would breach collateralized headroom. \
+                                 Max withdrawable: {}, requested: {}. \
+                                 Current state: credit_used={}, allowed_limit={}, headroom={}. \
+                                 Ensure balance is restored or post more collateral before withdrawing.",
+                                max_withdrawable, amount, credit_used, allowed_limit, headroom
                             ))
                         } else {
-                            // Withdraw collateral
+                            // Safe to withdraw
+                            let current_collateral = agent.posted_collateral();
                             let new_total = current_collateral - amount;
                             agent.set_posted_collateral(new_total);
 
