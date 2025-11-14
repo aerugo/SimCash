@@ -232,17 +232,27 @@ class DatabaseStateProvider:
 
     def get_agent_collateral_posted(self, agent_id: str) -> int:
         """Get collateral from agent_states."""
-        return self._agent_states.get(agent_id, {}).get("collateral_posted", 0)
+        # Database schema uses "posted_collateral" not "collateral_posted"
+        return self._agent_states.get(agent_id, {}).get("posted_collateral", 0)
 
     def get_agent_accumulated_costs(self, agent_id: str) -> dict:
         """Get costs from agent_states."""
         state = self._agent_states.get(agent_id, {})
+        liquidity_cost = state.get("liquidity_cost", 0)
+        delay_cost = state.get("delay_cost", 0)
+        collateral_cost = state.get("collateral_cost", 0)
+        penalty_cost = state.get("penalty_cost", 0)
+        split_friction_cost = state.get("split_friction_cost", 0)
+
         return {
-            "liquidity_cost": state.get("liquidity_cost", 0),
-            "delay_cost": state.get("delay_cost", 0),
-            "collateral_cost": state.get("collateral_cost", 0),
-            "penalty_cost": state.get("penalty_cost", 0),
-            "split_friction_cost": state.get("split_friction_cost", 0),
+            "liquidity_cost": liquidity_cost,
+            "delay_cost": delay_cost,
+            "collateral_cost": collateral_cost,
+            "penalty_cost": penalty_cost,
+            "split_friction_cost": split_friction_cost,
+            # Display code expects total_cost
+            "deadline_penalty": penalty_cost,  # Alias for compatibility
+            "total_cost": liquidity_cost + delay_cost + collateral_cost + penalty_cost + split_friction_cost,
         }
 
     def get_queue1_size(self, agent_id: str) -> int:
