@@ -1850,6 +1850,7 @@ def log_state_register_events(events, quiet=False):
             old_value = event.get("old_value", 0.0)
             new_value = event.get("new_value", 0.0)
             reason = event.get("reason", "no reason")
+            decision_path = event.get("decision_path")
 
             # Format register key for display (remove bank_state_ prefix)
             display_key = register_key.replace("bank_state_", "")
@@ -1863,6 +1864,10 @@ def log_state_register_events(events, quiet=False):
                 console.print(f"   • [yellow]{display_key}: {old_value} → {new_value}[/yellow] ({reason})")
             else:
                 console.print(f"   • {display_key}: {old_value} → {new_value} ({reason})")
+
+            # Phase 4.6: Show decision path if available (policy transparency)
+            if decision_path:
+                console.print(f"     [dim]Path: {decision_path}[/dim]")
         console.print()
 
 
