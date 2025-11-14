@@ -891,6 +891,31 @@ pub fn settle_cycle(
         }
     }
 
+    // ========== PHASE 1.5: PROJECTED BALANCE VERIFICATION ==========
+    // CRITICAL: Check if settling this cycle would cause any agent to exceed credit limits
+    // This is necessary because multiple cycles can settle in the same tick, and each cycle's
+    // Phase 1 check uses the balance at the START of the tick, not accounting for previous cycles
+    for (agent_id, &net_position) in &net_positions {
+        if net_position < 0 {
+            if let Some(agent) = state.get_agent(agent_id) {
+                let current_balance = agent.balance();
+                let projected_balance = current_balance + net_position; // net_position is negative
+                let allowed_overdraft = agent.allowed_overdraft_limit();
+
+                if projected_balance < -(allowed_overdraft as i64) {
+                    // This cycle would push the agent beyond their credit limit
+                    // This can happen when previous cycles in this tick already reduced the balance
+                    return Err(SettlementError::AgentError(
+                        crate::models::agent::AgentError::InsufficientLiquidity {
+                            required: projected_balance.abs() as i64,
+                            available: allowed_overdraft,
+                        },
+                    ));
+                }
+            }
+        }
+    }
+
     // ========== PHASE 2: ATOMIC SETTLEMENT (All or Nothing) ==========
 
     let mut transactions_affected = 0;
