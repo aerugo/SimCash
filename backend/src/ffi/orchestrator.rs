@@ -121,9 +121,17 @@ fn event_to_py_dict<'py>(
             dict.set_item("reason", reason)?;
             dict.set_item("new_total", new_total)?;
         }
-        crate::models::event::Event::CollateralTimerWithdrawn { agent_id, amount, original_reason, posted_at_tick, .. } => {
+        crate::models::event::Event::CollateralTimerWithdrawn { agent_id, amount, original_reason, posted_at_tick, new_total, .. } => {
             dict.set_item("agent_id", agent_id)?;
             dict.set_item("amount", amount)?;
+            dict.set_item("original_reason", original_reason)?;
+            dict.set_item("posted_at_tick", posted_at_tick)?;
+            dict.set_item("new_total", new_total)?;
+        }
+        crate::models::event::Event::CollateralTimerBlocked { agent_id, requested_amount, reason, original_reason, posted_at_tick, .. } => {
+            dict.set_item("agent_id", agent_id)?;
+            dict.set_item("requested_amount", requested_amount)?;
+            dict.set_item("reason", reason)?;
             dict.set_item("original_reason", original_reason)?;
             dict.set_item("posted_at_tick", posted_at_tick)?;
         }
