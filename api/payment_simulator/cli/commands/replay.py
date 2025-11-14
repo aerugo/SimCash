@@ -311,6 +311,86 @@ def _reconstruct_scenario_events_from_simulation_events(events: list[dict]) -> l
     return result
 
 
+def _reconstruct_state_register_events(events: list[dict]) -> list[dict]:
+    """Reconstruct state register events from simulation_events table.
+
+    Phase 4.6: Decision Path Auditing - state register updates with decision paths.
+
+    Args:
+        events: List of simulation event records with event_type = 'StateRegisterSet'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "StateRegisterSet":
+            details = event.get("details", {})
+            result.append({
+                "event_type": "StateRegisterSet",
+                "tick": event["tick"],
+                "agent_id": event.get("agent_id"),
+                "register_key": details.get("register_key"),
+                "old_value": details.get("old_value"),
+                "new_value": details.get("new_value"),
+                "reason": details.get("reason"),
+                "decision_path": details.get("decision_path"),  # Phase 4.6
+            })
+    return result
+
+
+def _reconstruct_budget_events(events: list[dict]) -> list[dict]:
+    """Reconstruct bank budget events from simulation_events table.
+
+    Phase 3.3: Bank-Level Budgets - SetReleaseBudget actions.
+
+    Args:
+        events: List of simulation event records with event_type = 'BankBudgetSet'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "BankBudgetSet":
+            details = event.get("details", {})
+            result.append({
+                "event_type": "BankBudgetSet",
+                "tick": event["tick"],
+                "agent_id": event.get("agent_id"),
+                "max_value": details.get("max_value"),
+                "focus_counterparties": details.get("focus_counterparties"),
+                "max_per_counterparty": details.get("max_per_counterparty"),
+            })
+    return result
+
+
+def _reconstruct_collateral_timer_events(events: list[dict]) -> list[dict]:
+    """Reconstruct collateral timer withdrawal events from simulation_events table.
+
+    Phase 3.4: Collateral Timers - automatic withdrawal when timer expires.
+
+    Args:
+        events: List of simulation event records with event_type = 'CollateralTimerWithdrawn'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "CollateralTimerWithdrawn":
+            details = event.get("details", {})
+            result.append({
+                "event_type": "CollateralTimerWithdrawn",
+                "tick": event["tick"],
+                "agent_id": event.get("agent_id"),
+                "amount": details.get("amount"),
+                "original_reason": details.get("original_reason"),
+                "posted_at_tick": details.get("posted_at_tick"),
+            })
+    return result
+
+
 def _has_full_replay_data(conn, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
@@ -855,6 +935,9 @@ def replay_simulation(
                     collateral_events_raw = []
                     cost_accrual_events_raw = []
                     scenario_events_raw = []
+                    state_register_events_raw = []  # Phase 4.6: Decision path auditing
+                    budget_events_raw = []  # Phase 3.3: Bank-level budgets
+                    collateral_timer_events_raw = []  # Phase 3.4: Collateral timer auto-withdrawal
 
                     for event in tick_events_result["events"]:
                         event_type = event["event_type"]
@@ -866,10 +949,16 @@ def replay_simulation(
                             lsm_events_raw.append(event)
                         elif event_type in ["CollateralPost", "CollateralWithdraw"]:
                             collateral_events_raw.append(event)
+                        elif event_type == "CollateralTimerWithdrawn":  # Phase 3.4
+                            collateral_timer_events_raw.append(event)
                         elif event_type == "CostAccrual":
                             cost_accrual_events_raw.append(event)
                         elif event_type == "ScenarioEventExecuted":
                             scenario_events_raw.append(event)
+                        elif event_type == "StateRegisterSet":  # Phase 4.6
+                            state_register_events_raw.append(event)
+                        elif event_type == "BankBudgetSet":  # Phase 3.3
+                            budget_events_raw.append(event)
 
                     # Reconstruct events from database (using simulation_events table as SINGLE SOURCE)
                     # This is the unified replay architecture - NO manual reconstruction from legacy tables
@@ -877,11 +966,18 @@ def replay_simulation(
                     settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
                     lsm_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
                     collateral_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
+                    collateral_timer_events = _reconstruct_collateral_timer_events(collateral_timer_events_raw)  # Phase 3.4
                     cost_accrual_events = _reconstruct_cost_accrual_events(cost_accrual_events_raw)
                     scenario_events = _reconstruct_scenario_events_from_simulation_events(scenario_events_raw)
+                    state_register_events = _reconstruct_state_register_events(state_register_events_raw)  # Phase 4.6
+                    budget_events = _reconstruct_budget_events(budget_events_raw)  # Phase 3.3
 
                     # Combine all events
-                    events = arrival_events + settlement_events + lsm_events + collateral_events + cost_accrual_events + scenario_events
+                    events = (
+                        arrival_events + settlement_events + lsm_events + collateral_events +
+                        collateral_timer_events + cost_accrual_events + scenario_events +
+                        state_register_events + budget_events
+                    )
 
                     # Update statistics
                     num_arrivals = len(arrival_events)
