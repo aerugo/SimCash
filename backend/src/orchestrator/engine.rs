@@ -806,8 +806,15 @@ impl Orchestrator {
                     agent.set_collateral_haircut(haircut);
                 }
                 // Set unsecured cap if specified (defaults to 0)
+                // BACKWARD COMPATIBILITY: If unsecured_cap not specified but credit_limit is,
+                // set unsecured_cap = credit_limit to ensure withdrawal checks properly account
+                // for the credit capacity. This prevents the loophole where agents can borrow
+                // via credit_limit but withdraw collateral because allowed_overdraft_limit
+                // doesn't include credit_limit.
                 if let Some(cap) = ac.unsecured_cap {
                     agent.set_unsecured_cap(cap);
+                } else if ac.credit_limit > 0 {
+                    agent.set_unsecured_cap(ac.credit_limit);
                 }
                 agent
             })
