@@ -52,14 +52,17 @@ simulation:
 # ============================================================================
 
 agents:
-  # METRO_CENTRAL - Large Money Center Bank (FIFO for LSM testing)
+  # METRO_CENTRAL - Large Money Center Bank (Cautious with smart collateral)
   - id: "METRO_CENTRAL"
     opening_balance: 5000000          # $50,000 (calibrated for LSM + good settlement)
     credit_limit: 2000000             # $20,000 credit
     policy:
       type: "FromJson"
-      json_path: "backend/policies/fifo.json"
-      params: {}
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.5
+        urgency_threshold: 3.0
+        eod_threshold: 0.5  # Lower to trigger collateral posting earlier
     arrival_config:
       rate_per_tick: 0.18             # ~18 tx/day (reduced for better settlement)
       amount_distribution:
@@ -74,14 +77,17 @@ agents:
       priority: 6
       divisible: false
 
-  # REGIONAL_TRUST - Regional Bank (FIFO for LSM testing)
+  # REGIONAL_TRUST - Regional Bank (Cautious with smart collateral)
   - id: "REGIONAL_TRUST"
     opening_balance: 4500000          # $45,000 (calibrated for LSM + good settlement)
     credit_limit: 1800000             # $18,000 credit
     policy:
       type: "FromJson"
-      json_path: "backend/policies/fifo.json"
-      params: {}
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.5
+        urgency_threshold: 3.0
+        eod_threshold: 0.5  # Lower to trigger collateral posting earlier
     arrival_config:
       rate_per_tick: 0.20             # ~20 tx/day (reduced for better settlement)
       amount_distribution:
@@ -96,14 +102,17 @@ agents:
       priority: 5
       divisible: true
 
-  # MOMENTUM_CAPITAL - Investment Bank (FIFO for LSM testing)
+  # MOMENTUM_CAPITAL - Investment Bank (Cautious with smart collateral)
   - id: "MOMENTUM_CAPITAL"
     opening_balance: 4800000          # $48,000 (calibrated for LSM + good settlement)
     credit_limit: 1900000             # $19,000 credit
     policy:
       type: "FromJson"
-      json_path: "backend/policies/fifo.json"
-      params: {}
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.5
+        urgency_threshold: 3.0
+        eod_threshold: 0.5  # Lower to trigger collateral posting earlier
     arrival_config:
       rate_per_tick: 0.22             # ~22 tx/day (reduced for better settlement)
       amount_distribution:
@@ -118,14 +127,17 @@ agents:
       priority: 7
       divisible: false
 
-  # CORRESPONDENT_HUB - Central Correspondent Bank (FIFO for LSM testing)
+  # CORRESPONDENT_HUB - Central Correspondent Bank (Cautious with smart collateral)
   - id: "CORRESPONDENT_HUB"
     opening_balance: 5500000          # $55,000 (calibrated for LSM + good settlement)
     credit_limit: 2200000             # $22,000 credit
     policy:
       type: "FromJson"
-      json_path: "backend/policies/fifo.json"
-      params: {}
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.5
+        urgency_threshold: 3.0
+        eod_threshold: 0.5  # Lower to trigger collateral posting earlier
     arrival_config:
       rate_per_tick: 0.24             # ~24 tx/day (reduced for better settlement)
       amount_distribution:
