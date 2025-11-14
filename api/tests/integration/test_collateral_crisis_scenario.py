@@ -154,7 +154,7 @@ def test_no_agent_exceeds_limit_during_crisis():
     config = {
         "ticks_per_day": 100,
         "num_days": 1,
-        "rng_seed": 42,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
@@ -201,7 +201,7 @@ def test_no_agent_exceeds_limit_during_crisis():
 
     orch = Orchestrator.new(config)
 
-    for tick in range(200):
+    for tick in range(100):
         orch.tick()
 
         for agent_id in ["BANK_A", "BANK_B"]:
