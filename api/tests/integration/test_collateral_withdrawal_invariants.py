@@ -26,7 +26,6 @@ def test_cannot_withdraw_while_overdrawn():
             {
                 "id": "BANK_A",
                 "opening_balance": -100_000_00,  # $100k overdraft
-                "credit_limit": 120_000_00,  # Legacy field (deprecated)
                 "credit_limit": 0,
                 "collateral_haircut": 0.10,  # 10% haircut
                 "unsecured_cap": 0,
@@ -201,7 +200,6 @@ def test_tick_282_scenario_withdrawal_blocked():
             {
                 "id": "REGIONAL_TRUST",
                 "opening_balance": -164_897_33,  # Deep overdraft
-                "credit_limit": 80_000_00,  # Legacy limit (severely exceeded)
                 "credit_limit": 0,
                 "collateral_haircut": 0.02,
                 "posted_collateral": 50_000_00,  # Hypothetical amount
