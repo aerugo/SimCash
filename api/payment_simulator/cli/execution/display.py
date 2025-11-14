@@ -63,6 +63,7 @@ def display_tick_verbose_output(
     from payment_simulator.cli.output import (
         log_agent_financial_stats_table,
         log_agent_state,
+        log_budget_operations,
         log_collateral_activity,
         log_cost_accrual_events,
         log_cost_breakdown,
@@ -109,6 +110,11 @@ def display_tick_verbose_output(
     # SECTION 2.5: AGENT MEMORY UPDATES (Phase 4.5: State Registers)
     # ═══════════════════════════════════════════════════════════
     log_state_register_events(display_events)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 2.6: BUDGET OPERATIONS (Phase 3.3: Bank-Level Budgets)
+    # ═══════════════════════════════════════════════════════════
+    log_budget_operations(display_events)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 3: SETTLEMENTS (detailed with mechanisms)

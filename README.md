@@ -20,12 +20,16 @@ A hybrid Rust-Python simulator for modeling Real-Time Gross Settlement (RTGS) sy
 - **Gridlock Resolution**: Automatic detection and resolution via LSM
 - **Cost Modeling**: Overdraft, delay, split friction, deadline penalties, collateral costs
 
-### Policy Framework
+### Policy Framework ✨ **Enhanced**
 
-- **Built-in Policies**: FIFO, Deadline-aware, Liquidity-aware
-- **Policy Tree DSL**: JSON decision trees with 15+ condition types
+- **Built-in Policies**: FIFO, Deadline-aware, Liquidity-aware, Cost-optimizing
+- **Policy Tree DSL**: JSON decision trees with 60+ context fields, 20+ operators
+- **Four Decision Trees**: Payment, Bank-Level Budget, Strategic Collateral, EOD Collateral
+- **Bank-Level Budgets** (Phase 3.3): Control release pace, prioritize counterparties, manage throughput
+- **Collateral Timers** (Phase 3.4): Auto-withdraw collateral after N ticks
+- **State Registers** (Phase 4.5): Policy micro-memory for stateful strategies (cooldowns, counters, modes)
 - **Extensible**: Add custom policies via Rust or JSON
-- **LLM-Ready**: Structured format for AI-driven policy evolution (coming soon)
+- **LLM-Ready**: Structured format for AI-driven policy evolution
 
 ### Integration & Deployment
 

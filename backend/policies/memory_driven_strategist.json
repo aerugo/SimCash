@@ -1,0 +1,358 @@
+{
+  "version": "1.0",
+  "policy_id": "memory_driven_strategist",
+  "description": "Policy demonstrating Phase 4.5 state registers for stateful strategies. Uses cooldowns to pace releases, counters to track activity, and mode switches for adaptive behavior.",
+  "parameters": {
+    "urgency_threshold": 4.0,
+    "min_buffer": 150000.0,
+    "aggressive_mode_threshold": 0.8,
+    "conservative_mode_threshold": 0.3,
+    "release_count_limit": 8.0,
+    "cooldown_after_burst": 10.0,
+    "collateral_threshold": 2000000.0
+  },
+  "bank_tree": {
+    "type": "condition",
+    "node_id": "B_Root",
+    "description": "Memory-driven bank management: track state, manage modes, pace releases",
+    "condition": {
+      "op": ">",
+      "left": {"field": "bank_state_cooldown"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "B_DecrementCooldown",
+      "description": "In cooldown - tick down counter",
+      "action": "AddState",
+      "parameters": {
+        "key": {"value": "bank_state_cooldown"},
+        "value": {"value": -1.0},
+        "reason": {"value": "tick_cooldown"}
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "B_CheckMode",
+      "description": "Not in cooldown - determine operating mode based on liquidity",
+      "condition": {
+        "op": ">",
+        "left": {"field": "effective_liquidity"},
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "queue1_total_value"},
+            "right": {"param": "aggressive_mode_threshold"}
+          }
+        }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "B_SetAggressiveMode",
+        "description": "High liquidity - enter aggressive mode",
+        "condition": {
+          "op": "!=",
+          "left": {"field": "bank_state_mode"},
+          "right": {"value": 2.0}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "B_ActivateAggressive",
+          "action": "SetState",
+          "parameters": {
+            "key": {"value": "bank_state_mode"},
+            "value": {"value": 2.0},
+            "reason": {"value": "enter_aggressive_mode"}
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "B_CheckReleaseCount",
+          "description": "Already aggressive - check if we've released too much",
+          "condition": {
+            "op": ">=",
+            "left": {"field": "bank_state_release_count"},
+            "right": {"param": "release_count_limit"}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "B_SetCooldownAfterBurst",
+            "description": "Too many releases - enter cooldown",
+            "action": "SetState",
+            "parameters": {
+              "key": {"value": "bank_state_cooldown"},
+              "value": {"param": "cooldown_after_burst"},
+              "reason": {"value": "burst_release_cooldown"}
+            }
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "B_SetAggressiveBudget",
+            "action": "SetReleaseBudget",
+            "parameters": {
+              "max_value_to_release": {
+                "compute": {
+                  "op": "*",
+                  "left": {"field": "effective_liquidity"},
+                  "right": {"value": 0.4}
+                }
+              }
+            }
+          }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "B_CheckConservativeMode",
+        "description": "Lower liquidity - check if we should be conservative",
+        "condition": {
+          "op": "<",
+          "left": {"field": "effective_liquidity"},
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": {"field": "queue1_total_value"},
+              "right": {"param": "conservative_mode_threshold"}
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "B_SetConservativeMode",
+          "description": "Low liquidity - enter conservative mode",
+          "action": "SetState",
+          "parameters": {
+            "key": {"value": "bank_state_mode"},
+            "value": {"value": 0.0},
+            "reason": {"value": "enter_conservative_mode"}
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "B_SetNormalMode",
+          "description": "Mid liquidity - normal mode",
+          "action": "SetState",
+          "parameters": {
+            "key": {"value": "bank_state_mode"},
+            "value": {"value": 1.0},
+            "reason": {"value": "enter_normal_mode"}
+          }
+        }
+      }
+    }
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "N1_CheckUrgent",
+    "description": "Always release urgent payments regardless of mode",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {"field": "ticks_to_deadline"},
+          "right": {"param": "urgency_threshold"}
+        },
+        {
+          "op": "==",
+          "left": {"field": "is_past_deadline"},
+          "right": {"value": 1.0}
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "A1_ReleaseUrgent",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "N2_CheckMode",
+      "description": "Check operating mode from state register",
+      "condition": {
+        "op": "==",
+        "left": {"field": "bank_state_mode"},
+        "right": {"value": 0.0}
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "N3_ConservativeMode",
+        "description": "Conservative mode - only release high priority with buffer",
+        "condition": {
+          "op": "and",
+          "conditions": [
+            {
+              "op": ">=",
+              "left": {"field": "priority"},
+              "right": {"value": 7.0}
+            },
+            {
+              "op": ">=",
+              "left": {"field": "effective_liquidity"},
+              "right": {
+                "compute": {
+                  "op": "+",
+                  "left": {"field": "remaining_amount"},
+                  "right": {"param": "min_buffer"}
+                }
+              }
+            }
+          ]
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "A2_ReleaseConservative",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "A3_HoldConservative",
+          "action": "Hold",
+          "parameters": {
+            "reason": {"value": "ConservativeMode"}
+          }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "N4_CheckAggressiveMode",
+        "description": "Check if in aggressive mode",
+        "condition": {
+          "op": "==",
+          "left": {"field": "bank_state_mode"},
+          "right": {"value": 2.0}
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "N5_AggressiveCheck",
+          "description": "Aggressive mode - release more freely",
+          "condition": {
+            "op": ">",
+            "left": {"field": "effective_liquidity"},
+            "right": {"field": "remaining_amount"}
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "A4_ReleaseAggressive",
+            "action": "Release"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "A6_HoldCantAfford",
+            "action": "Hold",
+            "parameters": {
+              "reason": {"value": "InsufficientLiquidity"}
+            }
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "N7_NormalModeCheck",
+          "description": "Normal mode - balanced approach",
+          "condition": {
+            "op": ">=",
+            "left": {"field": "effective_liquidity"},
+            "right": {
+              "compute": {
+                "op": "+",
+                "left": {"field": "remaining_amount"},
+                "right": {
+                  "compute": {
+                    "op": "*",
+                    "left": {"param": "min_buffer"},
+                    "right": {"value": 0.5}
+                  }
+                }
+              }
+            }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "A7_ReleaseNormal",
+            "action": "Release"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "A8_HoldNormal",
+            "action": "Hold",
+            "parameters": {
+              "reason": {"value": "MaintainingBuffer"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC_Root",
+    "description": "Post temporary collateral when gap is large",
+    "condition": {
+      "op": ">",
+      "left": {"field": "queue1_liquidity_gap"},
+      "right": {"param": "collateral_threshold"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "SC_PostTemporary",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "queue1_liquidity_gap"},
+            "right": {"value": 0.5}
+          }
+        },
+        "reason": {"value": "LargeGap"},
+        "auto_withdraw_after_ticks": {"value": 12.0}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SC_HoldNormal",
+      "action": "HoldCollateral"
+    }
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "EC_Root",
+    "description": "Withdraw excess collateral if gap is negative",
+    "condition": {
+      "op": "and",
+      "conditions": [
+        {
+          "op": ">",
+          "left": {"field": "posted_collateral"},
+          "right": {"value": 500000.0}
+        },
+        {
+          "op": "<",
+          "left": {"field": "queue1_liquidity_gap"},
+          "right": {"value": 0.0}
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "EC_WithdrawExcess",
+      "description": "Have excess liquidity - withdraw some collateral",
+      "action": "WithdrawCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "posted_collateral"},
+            "right": {"value": 0.4}
+          }
+        },
+        "reason": {"value": "ExcessLiquidity"}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "EC_NoAction",
+      "action": "HoldCollateral"
+    }
+  }
+}
