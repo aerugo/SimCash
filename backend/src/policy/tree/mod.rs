@@ -29,11 +29,13 @@ pub use context::{ContextError, EvalContext};
 pub use executor::{TreePolicy, TreePolicyError};
 pub use factory::create_policy; // Phase 3: Policy factory function
 pub use interpreter::{
-    build_collateral_decision, build_decision, evaluate_computation, evaluate_expression,
-    evaluate_value, traverse_end_of_tick_collateral_tree, traverse_strategic_collateral_tree,
-    traverse_tree, EvalError,
+    build_bank_decision_with_path, build_collateral_decision, build_decision,
+    evaluate_computation, evaluate_expression, evaluate_value, traverse_bank_tree_with_path,
+    traverse_end_of_tick_collateral_tree, traverse_strategic_collateral_tree, traverse_tree,
+    EvalError,
 };
 pub use types::{
-    ActionType, Computation, DecisionTreeDef, Expression, TreeNode, Value, ValueOrCompute,
+    ActionType, Computation, DecisionPath, DecisionPathNode, DecisionTreeDef, Expression,
+    TreeNode, Value, ValueOrCompute,
 };
 pub use validation::{validate_tree, ValidationError, ValidationResult};

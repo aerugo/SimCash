@@ -2524,13 +2524,13 @@ impl Orchestrator {
                         max_per_counterparty,
                     });
                 }
-                BankDecision::SetState { key, value, reason } => {
+                BankDecision::SetState { key, value, reason, decision_path } => {
                     // Phase 4.5: Set state register value
                     let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
 
                     match agent_mut.set_state_register(key.clone(), value) {
                         Ok((old_value, new_value)) => {
-                            // Successfully set register - emit event
+                            // Successfully set register - emit event with decision path (Phase 4.6)
                             self.log_event(Event::StateRegisterSet {
                                 tick: current_tick,
                                 agent_id: agent_id.clone(),
@@ -2538,6 +2538,7 @@ impl Orchestrator {
                                 old_value,
                                 new_value,
                                 reason,
+                                decision_path,
                             });
                         }
                         Err(err_msg) => {
@@ -2550,7 +2551,7 @@ impl Orchestrator {
                         }
                     }
                 }
-                BankDecision::AddState { key, delta, reason } => {
+                BankDecision::AddState { key, delta, reason, decision_path } => {
                     // Phase 4.5: Add to state register value (increment/decrement)
                     let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
 
@@ -2560,7 +2561,7 @@ impl Orchestrator {
 
                     match agent_mut.set_state_register(key.clone(), new_value) {
                         Ok((old_value, new_value)) => {
-                            // Successfully updated register - emit event
+                            // Successfully updated register - emit event with decision path (Phase 4.6)
                             self.log_event(Event::StateRegisterSet {
                                 tick: current_tick,
                                 agent_id: agent_id.clone(),
@@ -2568,6 +2569,7 @@ impl Orchestrator {
                                 old_value,
                                 new_value,
                                 reason,
+                                decision_path,
                             });
                         }
                         Err(err_msg) => {
@@ -3725,7 +3727,7 @@ impl Orchestrator {
                 agent_mut.reset_state_registers()
             };
 
-            // Emit reset events for audit trail
+            // Emit reset events for audit trail (no decision path for EOD resets)
             for (key, old_value) in old_values {
                 self.log_event(Event::StateRegisterSet {
                     tick: current_tick,
@@ -3734,6 +3736,7 @@ impl Orchestrator {
                     old_value,
                     new_value: 0.0,
                     reason: "eod_reset".to_string(),
+                    decision_path: None, // EOD reset is automatic, not a policy decision
                 });
             }
         }

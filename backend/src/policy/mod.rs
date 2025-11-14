@@ -368,7 +368,7 @@ pub enum CollateralReason {
 ///   }
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BankDecision {
     /// Set release budget for this tick
     ///
@@ -420,6 +420,7 @@ pub enum BankDecision {
     /// * `key` - Register key (MUST start with "bank_state_")
     /// * `value` - New value (f64)
     /// * `reason` - Explanation for audit trail
+    /// * `decision_path` - Optional decision path (Phase 4.6)
     ///
     /// # Design Constraints
     ///
@@ -431,6 +432,9 @@ pub enum BankDecision {
         key: String,
         value: f64,
         reason: String,
+        /// Decision path that led to this action (Phase 4.6)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        decision_path: Option<String>,
     },
 
     /// Add to a state register value (Phase 4.5: Policy Enhancements V2)
@@ -443,10 +447,14 @@ pub enum BankDecision {
     /// * `key` - Register key (MUST start with "bank_state_")
     /// * `delta` - Amount to add (positive or negative)
     /// * `reason` - Explanation for audit trail
+    /// * `decision_path` - Optional decision path (Phase 4.6)
     AddState {
         key: String,
         delta: f64,
         reason: String,
+        /// Decision path that led to this action (Phase 4.6)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        decision_path: Option<String>,
     },
 
     /// No bank-level action (default)
