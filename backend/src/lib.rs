@@ -31,7 +31,7 @@ pub mod settlement;
 pub use arrivals::{AmountDistribution, ArrivalConfig};
 pub use core::time::TimeManager;
 pub use models::{
-    agent::{Agent, AgentError},
+    agent::{Agent, AgentError, WithdrawError},
     event::{Event, EventLog},
     state::SimulationState,
     transaction::{Transaction, TransactionError, TransactionStatus},

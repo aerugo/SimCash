@@ -122,10 +122,26 @@ pub enum Event {
     ///
     /// Emitted when auto_withdraw_after_ticks timer expires and collateral is withdrawn.
     /// Provides full audit trail including when collateral was originally posted.
+    /// Updated to include new_total for observability and replay identity.
     CollateralTimerWithdrawn {
         tick: usize,
         agent_id: String,
         amount: i64,
+        original_reason: String, // Reason from when collateral was posted
+        posted_at_tick: usize,   // When collateral was originally posted
+        new_total: i64,          // Posted collateral after withdrawal (for observability)
+    },
+
+    /// Collateral timer withdrawal blocked by guard (Invariant I2 enforcement)
+    ///
+    /// Emitted when automatic withdrawal timer triggers but guard prevents withdrawal.
+    /// Reasons: NoHeadroom, MinHoldingPeriodNotMet, etc.
+    /// This ensures Invariant I2 (withdrawal headroom protection) is never violated.
+    CollateralTimerBlocked {
+        tick: usize,
+        agent_id: String,
+        requested_amount: i64,
+        reason: String,          // "NoHeadroom", "MinHoldingPeriodNotMet", etc.
         original_reason: String, // Reason from when collateral was posted
         posted_at_tick: usize,   // When collateral was originally posted
     },
@@ -317,6 +333,7 @@ impl Event {
             Event::CollateralPost { tick, .. } => *tick,
             Event::CollateralWithdraw { tick, .. } => *tick,
             Event::CollateralTimerWithdrawn { tick, .. } => *tick,
+            Event::CollateralTimerBlocked { tick, .. } => *tick,
             Event::StateRegisterSet { tick, .. } => *tick,
             Event::BankBudgetSet { tick, .. } => *tick,
             Event::RtgsImmediateSettlement { tick, .. } => *tick,
@@ -348,6 +365,7 @@ impl Event {
             Event::CollateralPost { .. } => "CollateralPost",
             Event::CollateralWithdraw { .. } => "CollateralWithdraw",
             Event::CollateralTimerWithdrawn { .. } => "CollateralTimerWithdrawn",
+            Event::CollateralTimerBlocked { .. } => "CollateralTimerBlocked",
             Event::StateRegisterSet { .. } => "StateRegisterSet",
             Event::BankBudgetSet { .. } => "BankBudgetSet",
             Event::RtgsImmediateSettlement { .. } => "RtgsImmediateSettlement",
