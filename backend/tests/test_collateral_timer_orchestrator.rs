@@ -365,9 +365,9 @@ fn test_timer_withdrawal_works_when_balance_overdrafted() {
     // Verify initial state
     assert_eq!(agent.balance(), -50_000); // Overdrafted
     assert_eq!(agent.posted_collateral(), 200_000);
-    // available_liquidity = balance + credit + collateral*haircut
-    //                     = -50k + 100k + (200k * 0.95) = 240k
-    assert_eq!(agent.available_liquidity(), 240_000);
+    // available_liquidity = balance + credit + collateral*(1-haircut)
+    //                     = -50k + 100k + (200k * 0.98) = 246k (with default 2% haircut)
+    assert_eq!(agent.available_liquidity(), 246_000);
 
     // Timer fires at tick 15
     let timers = agent.get_pending_collateral_withdrawals_with_posted_tick(15);
@@ -383,8 +383,8 @@ fn test_timer_withdrawal_works_when_balance_overdrafted() {
     // Verify final state
     assert_eq!(agent.balance(), -50_000); // Balance unchanged
     assert_eq!(agent.posted_collateral(), 100_000); // Collateral reduced
-    // Available liquidity reduced: -50k + 100k + (100k * 0.95) = 145k (was 240k)
-    assert_eq!(agent.available_liquidity(), 145_000); // 0 + (100k + 95k - 50k)
+    // Available liquidity reduced: -50k + 100k + (100k * 0.98) = 148k (was 246k)
+    assert_eq!(agent.available_liquidity(), 148_000);
 
     // Key insight: Agent's liquidity situation worsened, but withdrawal is allowed
     // This gives agents control over their collateral even in difficult situations
