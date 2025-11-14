@@ -1382,11 +1382,11 @@ mod tests {
         // Initially: balance + credit = 1M + 500k = 1.5M
         assert_eq!(agent.available_liquidity(), 1_500_000);
 
-        // Post collateral
+        // Post collateral with default 2% haircut
         agent.set_posted_collateral(200_000);
 
-        // Now: balance + credit + collateral*haircut = 1M + 500k + (200k * 0.95) = 1.69M
-        assert_eq!(agent.available_liquidity(), 1_690_000);
+        // Now: balance + credit + collateral*(1-haircut) = 1M + 500k + (200k * 0.98) = 1.696M
+        assert_eq!(agent.available_liquidity(), 1_696_000);
     }
 
     #[test]
@@ -1398,9 +1398,12 @@ mod tests {
         agent.debit(1_200_000).unwrap();
 
         // Balance = -200k (credit_used = 200k)
-        // Available = 0 (balance capped) + (500k credit + 190k collateral*haircut - 200k used) = 490k
+        // collateral_value = 200k × (1 - 0.02) = 196k
+        // total_headroom = 500k credit + 196k collateral = 696k
+        // available_headroom = 696k - 200k used = 496k
+        // Available = 0 (balance capped) + 496k available_headroom = 496k
         assert_eq!(agent.balance(), -200_000);
-        assert_eq!(agent.available_liquidity(), 490_000);
+        assert_eq!(agent.available_liquidity(), 496_000);
     }
 
     #[test]
@@ -1516,10 +1519,10 @@ mod tests {
         let mut agent = Agent::new("BANK_A".to_string(), 500_000, 300_000);
         agent.set_posted_collateral(400_000);
 
-        // Available: 500k + 300k + (400k * 0.95 haircut) = 500k + 300k + 380k = 1.18M
+        // Available: 500k + 300k + (400k × 0.98) = 500k + 300k + 392k = 1.192M
         assert!(agent.can_pay(1_000_000));
-        assert!(agent.can_pay(1_180_000));
-        assert!(!agent.can_pay(1_200_000)); // Exceeds available (only 1.18M)
+        assert!(agent.can_pay(1_192_000));
+        assert!(!agent.can_pay(1_200_000)); // Exceeds available (only 1.192M)
     }
 
     #[test]
@@ -1530,20 +1533,20 @@ mod tests {
         assert_eq!(agent.posted_collateral(), 0);
         assert_eq!(agent.available_liquidity(), 1_500_000);
 
-        // Post collateral
+        // Post collateral (default 2% haircut)
         agent.set_posted_collateral(300_000);
         assert_eq!(agent.posted_collateral(), 300_000);
-        assert_eq!(agent.available_liquidity(), 1_785_000); // 1M + 500k + (300k * 0.95)
+        assert_eq!(agent.available_liquidity(), 1_794_000); // 1M + 500k + (300k × 0.98)
 
         // Post more
         agent.set_posted_collateral(800_000);
         assert_eq!(agent.posted_collateral(), 800_000);
-        assert_eq!(agent.available_liquidity(), 2_260_000); // 1M + 500k + (800k * 0.95)
+        assert_eq!(agent.available_liquidity(), 2_284_000); // 1M + 500k + (800k × 0.98)
 
         // Withdraw
         agent.set_posted_collateral(200_000);
         assert_eq!(agent.posted_collateral(), 200_000);
-        assert_eq!(agent.available_liquidity(), 1_690_000); // 1M + 500k + (200k * 0.95)
+        assert_eq!(agent.available_liquidity(), 1_696_000); // 1M + 500k + (200k × 0.98)
 
         // Withdraw all
         agent.set_posted_collateral(0);
