@@ -35,6 +35,7 @@ fn test_state_can_emit_state_register_set_event() {
         old_value: 0.0,
         new_value: 42.0,
         reason: "policy_action".to_string(),
+        decision_path: None,
     });
 
     let events = state.event_log().events();
@@ -85,6 +86,7 @@ fn test_set_state_workflow() {
         old_value,
         new_value,
         reason: "policy_action".to_string(),
+        decision_path: None,
     });
 
     // Verify: Register is set
@@ -213,6 +215,7 @@ fn test_state_register_event_has_correct_tick() {
         old_value: 1.0,
         new_value: 2.0,
         reason: "test".to_string(),
+        decision_path: None,
     };
 
     assert_eq!(event.tick(), 25);
@@ -229,6 +232,7 @@ fn test_state_register_event_has_correct_type() {
         old_value: 0.0,
         new_value: 5.0,
         reason: "test".to_string(),
+        decision_path: None,
     };
 
     assert_eq!(event.event_type(), "StateRegisterSet");
