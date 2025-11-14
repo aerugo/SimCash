@@ -306,7 +306,7 @@ class TestUnifiedLogAgentState:
                 "BANK_A": {
                     "balance": 1000000,
                     "credit_limit": 500000,
-                    "collateral_posted": 250000,  # $2,500 collateral
+                    "posted_collateral": 250000,  # $2,500 collateral
                     "liquidity_cost": 0,
                     "delay_cost": 0,
                     "collateral_cost": 0,
