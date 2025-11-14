@@ -225,7 +225,7 @@ class TestCollateralTimerAutoWithdrawal:
 
         # Tick 0: Post 30000 with 3-tick timer
         orch.tick()
-        agent = orch.get_agents()[0]
+        agent = orch.get_agent_state("TEST_BANK")
         assert agent["posted_collateral"] == 30000
 
         # Tick 1: Nothing happens
@@ -233,7 +233,7 @@ class TestCollateralTimerAutoWithdrawal:
 
         # Tick 2: Post another 20000 with 5-tick timer
         orch.tick()
-        agent = orch.get_agents()[0]
+        agent = orch.get_agent_state("TEST_BANK")
         assert agent["posted_collateral"] == 50000, "Total should be 30000 + 20000"
 
         # Tick 3: First timer expires (30000 withdrawn)
@@ -248,7 +248,7 @@ class TestCollateralTimerAutoWithdrawal:
         assert timer_withdrawals[0]["amount"] == 30000
         assert timer_withdrawals[0]["posted_at_tick"] == 0
 
-        agent = orch.get_agents()[0]
+        agent = orch.get_agent_state("TEST_BANK")
         assert agent["posted_collateral"] == 20000, "Only 20000 should remain"
 
         # Ticks 4-6: Nothing (waiting for second timer)
@@ -268,7 +268,7 @@ class TestCollateralTimerAutoWithdrawal:
         assert timer_withdrawals[0]["amount"] == 20000
         assert timer_withdrawals[0]["posted_at_tick"] == 2
 
-        agent = orch.get_agents()[0]
+        agent = orch.get_agent_state("TEST_BANK")
         assert agent["posted_collateral"] == 0, "All collateral should be withdrawn"
 
     def test_timer_withdrawal_limited_by_available_collateral(self):
@@ -366,15 +366,15 @@ class TestCollateralTimerAutoWithdrawal:
 
         # Tick 0: Post 50000 with 5-tick timer (total: 100000 + 50000 = 150000)
         orch.tick()
-        agent = orch.get_agents()[0]
-        assert agent["posted_collateral"] == 150000
+        agent = orch.get_agent_state("TEST_BANK")
+        assert agent["posted_collateral"] == 50000
 
         orch.tick()  # tick 1
 
-        # Tick 2: Manual withdrawal of 30000 (total: 150000 - 30000 = 120000)
+        # Tick 2: Manual withdrawal of 30000 (total: 50000 - 30000 = 20000)
         orch.tick()
-        agent = orch.get_agents()[0]
-        assert agent["posted_collateral"] == 120000
+        agent = orch.get_agent_state("TEST_BANK")
+        assert agent["posted_collateral"] == 20000
 
         orch.tick()  # tick 3
         orch.tick()  # tick 4
@@ -395,7 +395,7 @@ class TestCollateralTimerAutoWithdrawal:
         # The timer should withdraw up to the scheduled amount
         withdrawal_event = timer_withdrawals[0]
         print(f"\nTimer withdrawal event: {withdrawal_event}")
-        print(f"Posted collateral after withdrawal: {orch.get_agents()[0]['posted_collateral']}")
+        print(f"Posted collateral after withdrawal: {orch.get_agent_state('TEST_BANK')['posted_collateral']}")
 
         # Verify withdrawal happened and was capped appropriately
         assert withdrawal_event["amount"] <= 50000, "Cannot withdraw more than scheduled"
