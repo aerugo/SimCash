@@ -87,6 +87,7 @@ fn test_event_emitted_when_timer_fires() {
         amount: 50_000,
         original_reason: "TemporaryBoost".to_string(),
         posted_at_tick: 5,
+        new_total: 50_000,
     };
 
     // Verify event structure
@@ -100,12 +101,14 @@ fn test_event_emitted_when_timer_fires() {
             amount,
             original_reason,
             posted_at_tick,
+            new_total,
         } => {
             assert_eq!(tick, 10);
             assert_eq!(agent_id, "BANK_A");
             assert_eq!(amount, 50_000);
             assert_eq!(original_reason, "TemporaryBoost");
             assert_eq!(posted_at_tick, 5);
+            assert_eq!(new_total, 50_000);
         }
         _ => panic!("Wrong event type"),
     }
@@ -271,6 +274,7 @@ fn test_timer_processing_happens_in_tick_loop() {
             amount,
             original_reason: reason,
             posted_at_tick: posted_at,
+            new_total: agent.posted_collateral(),
         };
     }
 

@@ -89,6 +89,7 @@ fn test_collateral_timer_withdrawn_event_structure() {
         amount: 50_000,
         original_reason: "TemporaryBoost".to_string(),
         posted_at_tick: 5,
+        new_total: 50_000,
     };
 
     assert_eq!(event.tick(), 15);
@@ -246,6 +247,7 @@ fn test_collateral_timer_event_serialization_fields() {
         amount: 50_000,
         original_reason: "TemporaryBoost".to_string(),
         posted_at_tick: 5,
+        new_total: 50_000,
     };
 
     // Verify all fields are accessible
@@ -256,12 +258,14 @@ fn test_collateral_timer_event_serialization_fields() {
             amount,
             original_reason,
             posted_at_tick,
+            new_total,
         } => {
             assert_eq!(tick, 15);
             assert_eq!(agent_id, "BANK_A");
             assert_eq!(amount, 50_000);
             assert_eq!(original_reason, "TemporaryBoost");
             assert_eq!(posted_at_tick, 5);
+            assert_eq!(new_total, 50_000);
         }
         _ => panic!("Wrong event type"),
     }
