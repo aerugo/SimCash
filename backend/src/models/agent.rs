@@ -104,12 +104,26 @@ pub struct Agent {
     /// This is a fixed amount (not dynamic) in Phase 8.
     posted_collateral: i64,
 
-    /// Collateral haircut (discount factor) - defaults to 0.95
+    /// Collateral haircut (discount rate) - defaults to 0.02 (2%)
     ///
-    /// Determines how much of posted collateral counts toward available liquidity.
-    /// Example: haircut of 0.95 means $100K collateral provides $95K of headroom.
+    /// The discount applied to collateral value for credit capacity calculation.
+    /// Example: haircut of 0.02 (2%) means $100K collateral provides $98K of headroom.
     /// This accounts for valuation risk of the collateral assets.
+    ///
+    /// **IMPORTANT**: This is the HAIRCUT (discount), not the retention factor.
+    /// - 0.00 = 0% haircut → 100% of collateral value counts (high-quality bonds)
+    /// - 0.02 = 2% haircut → 98% of collateral value counts (typical T2/CLM)
+    /// - 0.10 = 10% haircut → 90% of collateral value counts (lower quality)
     collateral_haircut: f64,
+
+    /// Unsecured daylight overdraft cap (i64 cents) - defaults to 0
+    ///
+    /// Optional unsecured intraday credit limit separate from collateralized capacity.
+    /// Allows limited overdraft without posting collateral, typically priced higher.
+    /// Example: $20K unsecured cap allows small overdrafts for operational flexibility.
+    ///
+    /// Total allowed overdraft = floor(posted_collateral × (1 - haircut)) + unsecured_cap
+    unsecured_cap: i64,
 
     /// Tick when collateral was last posted (for minimum holding period)
     ///
@@ -179,7 +193,8 @@ impl Agent {
             last_decision_tick: None,
             liquidity_buffer: 0,  // Default: no buffer requirement
             posted_collateral: 0, // Default: no collateral posted
-            collateral_haircut: 0.95, // Default: 95% of collateral value counts
+            collateral_haircut: 0.02, // Default: 2% haircut (typical T2/CLM)
+            unsecured_cap: 0, // Default: no unsecured overdraft capacity
             collateral_posted_at_tick: None, // No collateral posted initially
             // Phase 3.3: Budget state (unlimited by default)
             release_budget_max: None,
@@ -225,7 +240,8 @@ impl Agent {
             last_decision_tick: None,
             liquidity_buffer,
             posted_collateral: 0, // Default: no collateral posted
-            collateral_haircut: 0.95, // Default: 95% haircut
+            collateral_haircut: 0.02, // Default: 2% haircut
+            unsecured_cap: 0, // Default: no unsecured capacity
             collateral_posted_at_tick: None, // Not yet posted
             // Phase 3.3: Budget state (unlimited by default)
             release_budget_max: None,
@@ -297,6 +313,7 @@ impl Agent {
             liquidity_buffer,
             posted_collateral,
             collateral_haircut,
+            unsecured_cap: 0, // Default for snapshots (backward compatibility)
             collateral_posted_at_tick,
             // Phase 3.3: Budget state (unlimited by default)
             release_budget_max: None,
@@ -353,6 +370,121 @@ impl Agent {
         (-self.balance).max(0)
     }
 
+    /// Calculate allowed overdraft limit based on collateral and unsecured cap
+    ///
+    /// This is the maximum negative balance the agent can have, derived from:
+    /// - Posted collateral (discounted by haircut)
+    /// - Unsecured daylight cap (if any)
+    ///
+    /// Formula:
+    /// ```text
+    /// allowed_overdraft_limit = floor(posted_collateral × (1 - haircut)) + unsecured_cap
+    /// ```
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), 0, 0);
+    /// agent.set_posted_collateral(100_000_00); // $100k
+    /// agent.set_collateral_haircut(0.10); // 10% haircut
+    /// agent.set_unsecured_cap(20_000_00); // $20k unsecured
+    ///
+    /// // Collateralized: 100k × 0.9 = 90k
+    /// // Total: 90k + 20k = 110k
+    /// assert_eq!(agent.allowed_overdraft_limit(), 110_000_00);
+    /// ```
+    pub fn allowed_overdraft_limit(&self) -> i64 {
+        let one_minus_haircut = (1.0 - self.collateral_haircut).max(0.0);
+        let collateral_capacity = (self.posted_collateral as f64 * one_minus_haircut).floor() as i64;
+        collateral_capacity + self.unsecured_cap
+    }
+
+    /// Calculate current overdraft headroom
+    ///
+    /// Headroom is the amount of additional credit the agent can use before
+    /// hitting their allowed overdraft limit.
+    ///
+    /// Formula:
+    /// ```text
+    /// headroom = allowed_overdraft_limit - credit_used
+    /// ```
+    ///
+    /// A negative headroom indicates a violation of Invariant I1 (should never occur).
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00, 0);
+    /// agent.set_posted_collateral(100_000_00);
+    /// agent.set_collateral_haircut(0.10);
+    ///
+    /// // credit_used = 60k
+    /// // allowed_limit = 90k (100k × 0.9)
+    /// // headroom = 30k
+    /// assert_eq!(agent.headroom(), 30_000_00);
+    /// ```
+    pub fn headroom(&self) -> i64 {
+        self.allowed_overdraft_limit() - self.credit_used()
+    }
+
+    /// Calculate maximum collateral that can be safely withdrawn
+    ///
+    /// Returns the maximum amount of collateral that can be withdrawn while:
+    /// 1. Maintaining allowed_overdraft_limit ≥ credit_used + buffer
+    /// 2. Not going negative on posted collateral
+    ///
+    /// Formula:
+    /// ```text
+    /// required_collateral = ceil((credit_used + buffer - unsecured_cap) / (1 - haircut))
+    /// max_withdrawable = max(0, posted_collateral - required_collateral)
+    /// ```
+    ///
+    /// # Arguments
+    /// * `buffer` - Safety buffer to maintain (cents)
+    ///
+    /// # Returns
+    /// Maximum withdrawable amount in cents (0 if none can be withdrawn)
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00, 0);
+    /// agent.set_posted_collateral(100_000_00);
+    /// agent.set_collateral_haircut(0.10);
+    ///
+    /// // credit_used = 60k
+    /// // Need: C × 0.9 ≥ 60k → C ≥ 66,667
+    /// // Can withdraw: 100k - 66,667 ≈ 33,333
+    /// let max_w = agent.max_withdrawable_collateral(0);
+    /// assert!(max_w >= 33_333_00 && max_w <= 33_334_00);
+    /// ```
+    pub fn max_withdrawable_collateral(&self, buffer: i64) -> i64 {
+        let one_minus_haircut = (1.0 - self.collateral_haircut).max(0.0);
+
+        // Edge case: 100% haircut means collateral provides no capacity
+        if one_minus_haircut <= 0.0 {
+            // Can withdraw all since it's not backing anything
+            return self.posted_collateral;
+        }
+
+        // Calculate required collateral to maintain: allowed_limit ≥ credit_used + buffer
+        // Need: C × (1 - h) + unsecured_cap ≥ credit_used + buffer
+        // Therefore: C ≥ (credit_used + buffer - unsecured_cap) / (1 - h)
+        let credit_used = self.credit_used();
+        let target_limit = credit_used + buffer;
+        let unsecured_contribution = self.unsecured_cap.min(target_limit); // Can't use more than needed
+
+        let required_from_collateral = target_limit.saturating_sub(unsecured_contribution);
+        let required_collateral_f = required_from_collateral as f64 / one_minus_haircut;
+        let required_collateral = required_collateral_f.ceil() as i64;
+
+        // Max withdrawable is the excess
+        (self.posted_collateral - required_collateral).max(0)
+    }
+
     /// Calculate available liquidity with collateral haircut
     ///
     /// Formula:
@@ -360,14 +492,15 @@ impl Agent {
     /// available_liquidity = max(0, balance) + max(0, headroom - credit_used)
     ///
     /// where:
-    ///   headroom = credit_limit + (posted_collateral * collateral_haircut)
+    ///   headroom = credit_limit + floor(posted_collateral × (1 - haircut)) + unsecured_cap
     ///   credit_used = max(0, -balance)  // Amount of credit currently in use
     /// ```
     ///
     /// This accounts for:
     /// - Positive balance contributes directly to liquidity
     /// - Negative balance means credit is in use, reducing available headroom
-    /// - Posted collateral adds to headroom, but discounted by haircut (e.g., 95%)
+    /// - Posted collateral adds to headroom, discounted by haircut (e.g., 2% haircut → 98% value)
+    /// - Unsecured cap provides additional overdraft capacity
     ///
     /// # Example
     /// ```
@@ -375,15 +508,17 @@ impl Agent {
     ///
     /// // Scenario 1: Positive balance
     /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
-    /// // available = 1000000 + (500000 + 0*0.95 - 0) = 1,500,000
+    /// // available = 1000000 + (500000 + 0 + 0 - 0) = 1,500,000
     /// assert_eq!(agent.available_liquidity(), 1500000);
     ///
-    /// // Scenario 2: Overdraft with collateral
+    /// // Scenario 2: Overdraft with collateral (2% haircut)
     /// let mut agent2 = Agent::new("BANK_B".to_string(), -50000, 60000);
     /// agent2.set_posted_collateral(100000); // Post $1000 collateral
-    /// // credit_used = 50000, headroom = 60000 + 95000 = 155000
-    /// // available = 0 + (155000 - 50000) = 105,000
-    /// assert_eq!(agent2.available_liquidity(), 105000);
+    /// agent2.set_collateral_haircut(0.02); // 2% haircut
+    /// // credit_used = 50000, collateral_value = 100000 × 0.98 = 98000
+    /// // headroom = 60000 + 98000 + 0 = 158000
+    /// // available = 0 + (158000 - 50000) = 108,000
+    /// assert_eq!(agent2.available_liquidity(), 108000);
     /// ```
     pub fn available_liquidity(&self) -> i64 {
         // Calculate usable funds from positive balance
@@ -393,8 +528,10 @@ impl Agent {
         let credit_used = (-self.balance).max(0);
 
         // Calculate total headroom with collateral (discounted by haircut)
-        let collateral_headroom = (self.posted_collateral as f64 * self.collateral_haircut) as i64;
-        let total_headroom = self.credit_limit + collateral_headroom;
+        // haircut is now the discount rate, so use (1 - haircut)
+        let one_minus_haircut = (1.0 - self.collateral_haircut).max(0.0);
+        let collateral_headroom = (self.posted_collateral as f64 * one_minus_haircut).floor() as i64;
+        let total_headroom = self.credit_limit + collateral_headroom + self.unsecured_cap;
 
         // Available headroom is what's left after subtracting credit in use
         let available_headroom = (total_headroom - credit_used).max(0);
@@ -663,10 +800,13 @@ impl Agent {
         self.posted_collateral = collateral;
     }
 
-    /// Set collateral haircut (discount factor)
+    /// Set collateral haircut (discount rate)
     ///
     /// # Arguments
-    /// * `haircut` - Discount factor (0.0 to 1.0), typically 0.95 for 95%
+    /// * `haircut` - Discount rate (0.0 to 1.0)
+    ///   - 0.00 = 0% haircut (100% of value counts)
+    ///   - 0.02 = 2% haircut (98% of value counts, typical T2/CLM)
+    ///   - 0.10 = 10% haircut (90% of value counts)
     ///
     /// # Panics
     /// Panics if haircut is not in range [0.0, 1.0]
@@ -675,9 +815,32 @@ impl Agent {
         self.collateral_haircut = haircut;
     }
 
-    /// Get collateral haircut
+    /// Get collateral haircut (discount rate)
     pub fn collateral_haircut(&self) -> f64 {
         self.collateral_haircut
+    }
+
+    /// Set unsecured daylight overdraft cap
+    ///
+    /// # Arguments
+    /// * `cap` - Unsecured overdraft capacity in cents (must be non-negative)
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+    /// agent.set_unsecured_cap(20_000_00); // $20k unsecured cap
+    /// assert_eq!(agent.unsecured_cap(), 20_000_00);
+    /// ```
+    pub fn set_unsecured_cap(&mut self, cap: i64) {
+        assert!(cap >= 0, "unsecured_cap must be non-negative");
+        self.unsecured_cap = cap;
+    }
+
+    /// Get unsecured daylight overdraft cap
+    pub fn unsecured_cap(&self) -> i64 {
+        self.unsecured_cap
     }
 
     /// Set the tick when collateral was posted (for minimum holding period)
@@ -1219,11 +1382,11 @@ mod tests {
         // Initially: balance + credit = 1M + 500k = 1.5M
         assert_eq!(agent.available_liquidity(), 1_500_000);
 
-        // Post collateral
+        // Post collateral with default 2% haircut
         agent.set_posted_collateral(200_000);
 
-        // Now: balance + credit + collateral*haircut = 1M + 500k + (200k * 0.95) = 1.69M
-        assert_eq!(agent.available_liquidity(), 1_690_000);
+        // Now: balance + credit + collateral*(1-haircut) = 1M + 500k + (200k * 0.98) = 1.696M
+        assert_eq!(agent.available_liquidity(), 1_696_000);
     }
 
     #[test]
@@ -1235,9 +1398,12 @@ mod tests {
         agent.debit(1_200_000).unwrap();
 
         // Balance = -200k (credit_used = 200k)
-        // Available = 0 (balance capped) + (500k credit + 190k collateral*haircut - 200k used) = 490k
+        // collateral_value = 200k × (1 - 0.02) = 196k
+        // total_headroom = 500k credit + 196k collateral = 696k
+        // available_headroom = 696k - 200k used = 496k
+        // Available = 0 (balance capped) + 496k available_headroom = 496k
         assert_eq!(agent.balance(), -200_000);
-        assert_eq!(agent.available_liquidity(), 490_000);
+        assert_eq!(agent.available_liquidity(), 496_000);
     }
 
     #[test]
@@ -1353,10 +1519,10 @@ mod tests {
         let mut agent = Agent::new("BANK_A".to_string(), 500_000, 300_000);
         agent.set_posted_collateral(400_000);
 
-        // Available: 500k + 300k + (400k * 0.95 haircut) = 500k + 300k + 380k = 1.18M
+        // Available: 500k + 300k + (400k × 0.98) = 500k + 300k + 392k = 1.192M
         assert!(agent.can_pay(1_000_000));
-        assert!(agent.can_pay(1_180_000));
-        assert!(!agent.can_pay(1_200_000)); // Exceeds available (only 1.18M)
+        assert!(agent.can_pay(1_192_000));
+        assert!(!agent.can_pay(1_200_000)); // Exceeds available (only 1.192M)
     }
 
     #[test]
@@ -1367,20 +1533,20 @@ mod tests {
         assert_eq!(agent.posted_collateral(), 0);
         assert_eq!(agent.available_liquidity(), 1_500_000);
 
-        // Post collateral
+        // Post collateral (default 2% haircut)
         agent.set_posted_collateral(300_000);
         assert_eq!(agent.posted_collateral(), 300_000);
-        assert_eq!(agent.available_liquidity(), 1_785_000); // 1M + 500k + (300k * 0.95)
+        assert_eq!(agent.available_liquidity(), 1_794_000); // 1M + 500k + (300k × 0.98)
 
         // Post more
         agent.set_posted_collateral(800_000);
         assert_eq!(agent.posted_collateral(), 800_000);
-        assert_eq!(agent.available_liquidity(), 2_260_000); // 1M + 500k + (800k * 0.95)
+        assert_eq!(agent.available_liquidity(), 2_284_000); // 1M + 500k + (800k × 0.98)
 
         // Withdraw
         agent.set_posted_collateral(200_000);
         assert_eq!(agent.posted_collateral(), 200_000);
-        assert_eq!(agent.available_liquidity(), 1_690_000); // 1M + 500k + (200k * 0.95)
+        assert_eq!(agent.available_liquidity(), 1_696_000); // 1M + 500k + (200k × 0.98)
 
         // Withdraw all
         agent.set_posted_collateral(0);

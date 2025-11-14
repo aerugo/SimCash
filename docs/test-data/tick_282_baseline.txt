@@ -1,0 +1,15 @@
+Using CPython 3.11.14 interpreter at: /usr/local/bin/python3
+Creating virtual environment at: .venv
+   Building payment-simulator @ file:///home/user/SimCash/api
+Downloading pygments (1.2MiB)
+Downloading duckdb (19.5MiB)
+Downloading pyarrow (45.5MiB)
+Downloading uvloop (3.6MiB)
+Downloading pydantic-core (2.0MiB)
+Downloading polars-runtime-32 (38.4MiB)
+ Downloading pydantic-core
+ Downloading pygments
+ Downloading uvloop
+ Downloading duckdb
+ Downloading polars-runtime-32
+ Downloading pyarrow
