@@ -29,6 +29,7 @@ fn create_test_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -38,6 +39,7 @@ fn create_test_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

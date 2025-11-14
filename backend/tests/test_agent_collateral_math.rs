@@ -3,12 +3,11 @@
 // These tests define the correct behavior for T2/CLM-style collateralized intraday credit.
 // They will FAIL initially until the methods are implemented.
 
-use payment_simulator::models::Agent;
+use payment_simulator_core_rs::models::Agent;
 
 /// Helper to create test agent with balance and posted collateral
 fn create_test_agent(id: &str, balance: i64, posted_collateral: i64) -> Agent {
-    let mut agent = Agent::new(id.to_string());
-    agent.set_balance(balance);
+    let mut agent = Agent::new(id.to_string(), balance, 0); // 0 credit_limit
     agent.set_posted_collateral(posted_collateral);
     agent
 }
@@ -22,8 +21,8 @@ fn create_test_agent_with_collateral(
     unsecured_cap: i64,
 ) -> Agent {
     let mut agent = create_test_agent(id, balance, posted_collateral);
-    agent.set_collateral_haircut(Some(haircut));
-    agent.set_unsecured_cap(Some(unsecured_cap));
+    agent.set_collateral_haircut(haircut);
+    agent.set_unsecured_cap(unsecured_cap);
     agent
 }
 
@@ -107,7 +106,7 @@ mod test_allowed_overdraft_limit {
         // Typical T2 haircut for high-quality government bonds
         let agent = create_test_agent_with_collateral("TEST", 0, 100_000_00, 0.02, 0);
 
-        let expected = (100_000_00.0 * 0.98).floor() as i64; // $98,000
+        let expected = (100_000_00.0_f64 * 0.98).floor() as i64; // $98,000
         assert_eq!(
             agent.allowed_overdraft_limit(),
             expected,
@@ -120,7 +119,7 @@ mod test_allowed_overdraft_limit {
         // Higher haircut for lower-quality collateral
         let agent = create_test_agent_with_collateral("TEST", 0, 100_000_00, 0.10, 0);
 
-        let expected = (100_000_00.0 * 0.90).floor() as i64; // $90,000
+        let expected = (100_000_00.0_f64 * 0.90).floor() as i64; // $90,000
         assert_eq!(
             agent.allowed_overdraft_limit(),
             expected,
@@ -132,7 +131,7 @@ mod test_allowed_overdraft_limit {
     fn test_allowed_overdraft_with_unsecured_cap() {
         let agent = create_test_agent_with_collateral("TEST", 0, 100_000_00, 0.05, 20_000_00);
 
-        let collat_portion = (100_000_00.0 * 0.95).floor() as i64; // $95,000
+        let collat_portion = (100_000_00.0_f64 * 0.95).floor() as i64; // $95,000
         let expected = collat_portion + 20_000_00; // $115,000
 
         assert_eq!(
