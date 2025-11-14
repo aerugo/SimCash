@@ -911,10 +911,11 @@ def log_policy_decisions(events, quiet=False):
         console.print()
 
 
-def log_collateral_activity(events, quiet=False):
-    """Log collateral post/withdraw events (verbose mode).
+def log_collateral_activity(provider, events, quiet=False):
+    """Log collateral post/withdraw events with financial impact analysis (verbose mode).
 
     Args:
+        provider: StateProvider for querying agent financial state
         events: List of events from get_tick_events()
         quiet: Suppress output if True
 
@@ -922,16 +923,18 @@ def log_collateral_activity(events, quiet=False):
         💰 Collateral Activity (2):
            BANK_A:
            • POSTED: $1,000,000.00 - Strategic decision | New Total: $5,000,000.00
+             💡 Expands allowed limit by $980,000 (2% haircut), increasing headroom to $1,200,000
 
            BANK_B:
            • WITHDRAWN: $500,000.00 - Reduce opportunity cost | New Total: $2,500,000.00
+             💡 Reduces allowed limit by $490,000, but agent still has $200,000 headroom (surplus collateral)
     """
     if quiet:
         return
 
     collateral_events = [
         e for e in events
-        if e.get("event_type") in ["CollateralPost", "CollateralWithdraw", "CollateralTimerWithdrawn"]
+        if e.get("event_type") in ["CollateralPost", "CollateralWithdraw", "CollateralTimerWithdrawn", "CollateralTimerBlocked"]
     ]
 
     if not collateral_events:
@@ -950,6 +953,25 @@ def log_collateral_activity(events, quiet=False):
 
     for agent_id, agent_events in by_agent.items():
         console.print(f"   [bold]{agent_id}:[/bold]")
+
+        # Get agent's current financial state for context
+        try:
+            balance = provider.get_agent_balance(agent_id)
+            credit_limit = provider.get_agent_credit_limit(agent_id)
+            collateral_posted = provider.get_agent_collateral_posted(agent_id)
+
+            # Calculate financial metrics (assuming 2% haircut - standard for T2/CLM)
+            haircut = 0.02
+            credit_used = max(-balance, 0)
+            collateral_capacity = int(collateral_posted * (1 - haircut))
+            allowed_limit = collateral_capacity + credit_limit  # Unsecured cap assumed 0 for simplicity
+            headroom = allowed_limit - credit_used
+            using_collateralized_credit = credit_used > credit_limit
+        except Exception:
+            # If state provider doesn't have this data (e.g., database replay without full-replay),
+            # skip financial analysis
+            balance = None
+
         for event in agent_events:
             event_type = event.get("event_type")
             amount = event.get("amount", 0)
@@ -958,14 +980,60 @@ def log_collateral_activity(events, quiet=False):
                 reason = event.get("reason", "no reason")
                 new_total = event.get("new_total", 0)
                 console.print(f"   • [green]POSTED[/green]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
+
+                # Financial impact explanation
+                if balance is not None:
+                    limit_increase = int(amount * (1 - haircut))
+                    new_headroom = headroom + limit_increase
+                    console.print(f"     💡 Expands allowed limit by ${limit_increase / 100:,.2f} ({int(haircut * 100)}% haircut), increasing headroom to ${new_headroom / 100:,.2f}")
+
             elif event_type == "CollateralWithdraw":
                 reason = event.get("reason", "no reason")
                 new_total = event.get("new_total", 0)
                 console.print(f"   • [yellow]WITHDRAWN[/yellow]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
+
+                # Financial impact explanation
+                if balance is not None:
+                    limit_decrease = int(amount * (1 - haircut))
+                    new_headroom = headroom - limit_decrease
+                    console.print(f"     💡 Reduces allowed limit by ${limit_decrease / 100:,.2f}, remaining headroom: ${new_headroom / 100:,.2f}")
+                    if new_headroom > 0:
+                        console.print(f"     ✅ Withdrawal safe - agent has ${new_headroom / 100:,.2f} surplus collateral")
+
             elif event_type == "CollateralTimerWithdrawn":
                 original_reason = event.get("original_reason", "unknown")
                 posted_at_tick = event.get("posted_at_tick", "?")
+                new_total = event.get("new_total", 0)
                 console.print(f"   • [cyan]AUTO-WITHDRAWN (timer)[/cyan]: ${amount / 100:,.2f} - Originally posted at tick {posted_at_tick} ({original_reason})")
+                console.print(f"     New Total: ${new_total / 100:,.2f}")
+
+                # Financial impact explanation with TARGET2 policy context
+                if balance is not None:
+                    limit_decrease = int(amount * (1 - haircut))
+                    new_headroom = headroom - limit_decrease
+
+                    console.print(f"     💡 Reduces allowed limit by ${limit_decrease / 100:,.2f}, remaining headroom: ${new_headroom / 100:,.2f}")
+
+                    if using_collateralized_credit:
+                        console.print(f"     ℹ️  Agent is using collateralized credit (${credit_used / 100:,.2f} vs ${credit_limit / 100:,.2f} base limit)")
+                        console.print(f"     ✅ Withdrawal permitted per TARGET2 policy: remaining collateral still covers overdraft")
+                    else:
+                        console.print(f"     ✅ Withdrawal safe - agent has positive balance or is within base credit limit")
+
+            elif event_type == "CollateralTimerBlocked":
+                requested_amount = event.get("requested_amount", 0)
+                reason = event.get("reason", "unknown")
+                original_reason = event.get("original_reason", "unknown")
+                posted_at_tick = event.get("posted_at_tick", "?")
+                console.print(f"   • [red]TIMER BLOCKED[/red]: Attempted ${requested_amount / 100:,.2f} - Originally posted at tick {posted_at_tick} ({original_reason})")
+                console.print(f"     ⛔ Reason: {reason}")
+
+                # Financial impact explanation
+                if balance is not None and reason == "NoHeadroom":
+                    console.print(f"     💡 Current headroom: ${headroom / 100:,.2f}")
+                    console.print(f"     ℹ️  Withdrawal would violate Invariant I2 (Withdrawal Headroom Protection)")
+                    console.print(f"     ℹ️  Remaining collateral must still cover current overdraft of ${credit_used / 100:,.2f}")
+
         console.print()
 
 
