@@ -931,7 +931,7 @@ def log_collateral_activity(events, quiet=False):
 
     collateral_events = [
         e for e in events
-        if e.get("event_type") in ["CollateralPost", "CollateralWithdraw"]
+        if e.get("event_type") in ["CollateralPost", "CollateralWithdraw", "CollateralTimerWithdrawn"]
     ]
 
     if not collateral_events:
@@ -953,13 +953,19 @@ def log_collateral_activity(events, quiet=False):
         for event in agent_events:
             event_type = event.get("event_type")
             amount = event.get("amount", 0)
-            reason = event.get("reason", "no reason")
-            new_total = event.get("new_total", 0)
 
             if event_type == "CollateralPost":
+                reason = event.get("reason", "no reason")
+                new_total = event.get("new_total", 0)
                 console.print(f"   • [green]POSTED[/green]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
-            else:
+            elif event_type == "CollateralWithdraw":
+                reason = event.get("reason", "no reason")
+                new_total = event.get("new_total", 0)
                 console.print(f"   • [yellow]WITHDRAWN[/yellow]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
+            elif event_type == "CollateralTimerWithdrawn":
+                original_reason = event.get("original_reason", "unknown")
+                posted_at_tick = event.get("posted_at_tick", "?")
+                console.print(f"   • [cyan]AUTO-WITHDRAWN (timer)[/cyan]: ${amount / 100:,.2f} - Originally posted at tick {posted_at_tick} ({original_reason})")
         console.print()
 
 
@@ -1850,6 +1856,66 @@ def log_state_register_events(events, quiet=False):
                 console.print(f"   • [yellow]{display_key}: {old_value} → {new_value}[/yellow] ({reason})")
             else:
                 console.print(f"   • {display_key}: {old_value} → {new_value} ({reason})")
+        console.print()
+
+
+def log_budget_operations(events, quiet=False):
+    """Log budget operations (Phase 3.3: Bank-Level Budgets).
+
+    Displays when agents set their release budgets, showing adaptive
+    budget management strategies.
+
+    Args:
+        events: List of events from get_tick_events()
+        quiet: Suppress output if True
+
+    Example Output:
+        💰 Release Budget Updates (2):
+           BANK_A:
+           • Max Release: $50,000.00
+
+           BANK_B:
+           • Max Release: $75,000.00
+           • Focus: COUNTERPARTY_X
+           • Max per Counterparty: $25,000.00
+    """
+    if quiet:
+        return
+
+    budget_events = [
+        e for e in events
+        if e.get("event_type") == "BankBudgetSet"
+    ]
+
+    if not budget_events:
+        return
+
+    console.print()
+    console.print(f"💰 [cyan]Release Budget Updates ({len(budget_events)}):[/cyan]")
+
+    for event in budget_events:
+        agent_id = event.get("agent_id", "unknown")
+        max_value = event.get("max_value", 0)
+        focus_counterparties = event.get("focus_counterparties")
+        max_per_counterparty = event.get("max_per_counterparty")
+
+        console.print(f"   [bold]{agent_id}:[/bold]")
+
+        # Always show max release value
+        console.print(f"   • [green]Max Release:[/green] ${max_value/100:,.2f}")
+
+        # Show focus counterparties if specified
+        if focus_counterparties:
+            if isinstance(focus_counterparties, list):
+                focus_str = ", ".join(focus_counterparties)
+            else:
+                focus_str = str(focus_counterparties)
+            console.print(f"   • [yellow]Focus:[/yellow] {focus_str}")
+
+        # Show max per counterparty if specified
+        if max_per_counterparty is not None:
+            console.print(f"   • [yellow]Max per Counterparty:[/yellow] ${max_per_counterparty/100:,.2f}")
+
         console.print()
 
 

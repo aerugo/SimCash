@@ -566,6 +566,172 @@ class TestStateRegisterRetrieval:
         manager.close()
 
 
+class TestStateRegisterDuplicateKey:
+    """Test for Issue #1: Multiple state updates same tick cause duplicate key constraint.
+
+    RED: This test reproduces the bug from advanced_policy_crisis.yaml where
+    policy sets state AND EOD reset sets same state, causing duplicate key error.
+
+    Expected fix: EventWriter should merge multiple updates to same register
+    in same tick, storing only the final value.
+    """
+
+    def test_multiple_updates_same_register_same_tick_no_duplicate_key_error(self, db_path):
+        """Test that multiple SetState operations on same register in same tick don't cause duplicate key error.
+
+        This is the TDD RED test for Issue #1.
+
+        Scenario:
+        1. Policy executes SetState(bank_state_mode, 1.0) during tick 99
+        2. EOD reset executes SetState(bank_state_mode, 0.0) during tick 99
+        3. Both events try to insert into agent_state_registers with same PK
+        4. Without fix: Duplicate key constraint error
+        5. With fix: Only final value (0.0) stored in database
+
+        Expected behavior: EventWriter merges updates, stores only final value.
+        """
+        from payment_simulator.persistence.event_writer import write_events_batch
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        # Simulate the exact scenario from advanced_policy_crisis.yaml
+        # Two StateRegisterSet events for same register in same tick
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 99,
+                "agent_id": "REGIONAL_TRUST",
+                "register_key": "bank_state_mode",
+                "old_value": 2.0,
+                "new_value": 1.0,
+                "reason": "enter_normal_mode",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 99,
+                "agent_id": "REGIONAL_TRUST",
+                "register_key": "bank_state_mode",
+                "old_value": 1.0,
+                "new_value": 0.0,
+                "reason": "eod_reset",
+            },
+        ]
+
+        # Write events - this should NOT raise duplicate key error
+        try:
+            count = write_events_batch(manager.conn, "sim-test", events, ticks_per_day=100)
+            print(f"✓ Successfully wrote {count} events without duplicate key error")
+        except Exception as e:
+            pytest.fail(f"Duplicate key error occurred (RED phase - expected): {e}")
+
+        # Verify only ONE row in agent_state_registers for this register
+        result = manager.conn.execute("""
+            SELECT register_value, COUNT(*)
+            FROM agent_state_registers
+            WHERE simulation_id = 'sim-test'
+              AND tick = 99
+              AND agent_id = 'REGIONAL_TRUST'
+              AND register_key = 'bank_state_mode'
+            GROUP BY register_value
+        """).fetchall()
+
+        assert len(result) == 1, f"Should have exactly 1 row, got {len(result)}"
+
+        # The final value should be 0.0 (EOD reset is last)
+        assert result[0][0] == 0.0, f"Final value should be 0.0, got {result[0][0]}"
+        assert result[0][1] == 1, "Should have count=1 (one row)"
+
+        # Verify BOTH events still in simulation_events (for replay)
+        events_count = manager.conn.execute("""
+            SELECT COUNT(*)
+            FROM simulation_events
+            WHERE simulation_id = 'sim-test'
+              AND tick = 99
+              AND agent_id = 'REGIONAL_TRUST'
+              AND event_type = 'StateRegisterSet'
+        """).fetchone()[0]
+
+        assert events_count == 2, f"Should have 2 events in simulation_events, got {events_count}"
+
+        manager.close()
+
+    def test_three_updates_same_register_same_tick_stores_final_value(self, db_path):
+        """Test with three updates to same register in same tick.
+
+        This tests the general case where multiple policy actions could set
+        the same register multiple times before EOD.
+        """
+        from payment_simulator.persistence.event_writer import write_events_batch
+
+        manager = DatabaseManager(db_path)
+        manager.setup()
+
+        events = [
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 50,
+                "agent_id": "TEST_BANK",
+                "register_key": "test_counter",
+                "old_value": 0.0,
+                "new_value": 5.0,
+                "reason": "first_update",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 50,
+                "agent_id": "TEST_BANK",
+                "register_key": "test_counter",
+                "old_value": 5.0,
+                "new_value": 10.0,
+                "reason": "second_update",
+            },
+            {
+                "event_type": "StateRegisterSet",
+                "tick": 50,
+                "agent_id": "TEST_BANK",
+                "register_key": "test_counter",
+                "old_value": 10.0,
+                "new_value": 15.0,
+                "reason": "third_update",
+            },
+        ]
+
+        # Write events - should NOT fail
+        try:
+            count = write_events_batch(manager.conn, "sim-test", events, ticks_per_day=100)
+            print(f"✓ Successfully wrote {count} events")
+        except Exception as e:
+            pytest.fail(f"Unexpected error: {e}")
+
+        # Verify only final value (15.0) in agent_state_registers
+        result = manager.conn.execute("""
+            SELECT register_value
+            FROM agent_state_registers
+            WHERE simulation_id = 'sim-test'
+              AND tick = 50
+              AND agent_id = 'TEST_BANK'
+              AND register_key = 'test_counter'
+        """).fetchone()
+
+        assert result is not None, "Should have row in agent_state_registers"
+        assert result[0] == 15.0, f"Final value should be 15.0, got {result[0]}"
+
+        # Verify all 3 events still in simulation_events
+        events_count = manager.conn.execute("""
+            SELECT COUNT(*)
+            FROM simulation_events
+            WHERE simulation_id = 'sim-test'
+              AND tick = 50
+              AND agent_id = 'TEST_BANK'
+              AND event_type = 'StateRegisterSet'
+        """).fetchone()[0]
+
+        assert events_count == 3, f"Should have 3 events in simulation_events, got {events_count}"
+
+        manager.close()
+
+
 class TestStateRegisterReplayIdentity:
     """Test replay identity: run vs replay outputs are identical.
 

@@ -535,6 +535,12 @@ impl EvalContext {
         let is_eod_rush = if day_progress >= eod_rush_threshold { 1.0 } else { 0.0 };
         fields.insert("is_eod_rush".to_string(), is_eod_rush);
 
+        // Phase 4.5: Add state registers from agent
+        // State registers provide policy micro-memory (bank_state_* fields)
+        for (key, value) in agent.state_registers() {
+            fields.insert(key.clone(), *value);
+        }
+
         Self { fields }
     }
 
@@ -748,6 +754,12 @@ impl EvalContext {
         let throughput_gap = my_throughput_fraction - expected_throughput;
         fields.insert("throughput_gap".to_string(), throughput_gap);
 
+        // Phase 4.5: Add state registers from agent
+        // State registers provide policy micro-memory (bank_state_* fields)
+        for (key, value) in agent.state_registers() {
+            fields.insert(key.clone(), *value);
+        }
+
         Self { fields }
     }
 
@@ -760,11 +772,21 @@ impl EvalContext {
     /// # Returns
     ///
     /// Ok(value) if field exists, Err otherwise
+    ///
+    /// # Phase 4.5: State Register Default Values
+    ///
+    /// State registers (fields starting with "bank_state_") default to 0.0
+    /// if not explicitly set. This allows policies to read registers before
+    /// they're initialized.
     pub fn get_field(&self, name: &str) -> Result<f64, ContextError> {
-        self.fields
-            .get(name)
-            .copied()
-            .ok_or_else(|| ContextError::FieldNotFound(name.to_string()))
+        if let Some(&value) = self.fields.get(name) {
+            Ok(value)
+        } else if name.starts_with("bank_state_") {
+            // State registers default to 0.0 if not set
+            Ok(0.0)
+        } else {
+            Err(ContextError::FieldNotFound(name.to_string()))
+        }
     }
 
     /// Check if field exists in context
