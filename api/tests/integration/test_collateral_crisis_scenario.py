@@ -8,7 +8,7 @@ import json
 import pytest
 import yaml
 from pathlib import Path
-from payment_simulator.backends.rust import Orchestrator
+from payment_simulator._core import Orchestrator
 
 
 @pytest.fixture
@@ -153,14 +153,16 @@ def test_no_agent_exceeds_limit_during_crisis():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 42,
+        "num_days": 1,
+        "rng_seed": 42,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000_00,
+                "credit_limit": 0,
                 "collateral_haircut": 0.05,
                 "unsecured_cap": 0,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "poisson_lambda": 2.0,
                     "amount_distribution": {
@@ -174,9 +176,10 @@ def test_no_agent_exceeds_limit_during_crisis():
             {
                 "id": "BANK_B",
                 "opening_balance": 100_000_00,
+                "credit_limit": 0,
                 "collateral_haircut": 0.05,
                 "unsecured_cap": 0,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "poisson_lambda": 2.0,
                     "amount_distribution": {
@@ -279,14 +282,16 @@ def test_collateral_posting_increases_headroom():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": 200_000_00,
+                "credit_limit": 0,
                 "collateral_haircut": 0.10,
                 "max_collateral_capacity": 500_000_00,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -363,14 +368,16 @@ def test_various_haircut_levels(haircut):
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000_00,
+                "credit_limit": 0,
                 "collateral_haircut": haircut,
                 "max_collateral_capacity": 500_000_00,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "poisson_lambda": 1.0,
                     "amount_distribution": {
@@ -384,9 +391,10 @@ def test_various_haircut_levels(haircut):
             {
                 "id": "BANK_B",
                 "opening_balance": 100_000_00,
+                "credit_limit": 0,
                 "collateral_haircut": haircut,
                 "max_collateral_capacity": 500_000_00,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "poisson_lambda": 1.0,
                     "amount_distribution": {

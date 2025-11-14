@@ -10,7 +10,7 @@ These tests will FAIL initially until the implementation is complete.
 """
 
 import pytest
-from payment_simulator.backends.rust import Orchestrator
+from payment_simulator._core import Orchestrator
 
 
 def test_cannot_withdraw_while_overdrawn():
@@ -20,16 +20,18 @@ def test_cannot_withdraw_while_overdrawn():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": -100_000_00,  # $100k overdraft
                 "credit_limit": 120_000_00,  # Legacy field (deprecated)
+                "credit_limit": 0,
                 "collateral_haircut": 0.10,  # 10% haircut
                 "unsecured_cap": 0,
                 "posted_collateral": 120_000_00,  # Posted to cover overdraft
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -48,12 +50,14 @@ def test_cannot_withdraw_while_overdrawn():
     # new_limit = (70k × 0.9) = 63k < 100k usage → VIOLATION
 
     # Try to withdraw $50k (should fail)
-    with pytest.raises(Exception) as exc_info:
-        orch.withdraw_collateral("BANK_A", 50_000_00)
+    result = orch.withdraw_collateral("BANK_A", 50_000_00)
 
-    error_msg = str(exc_info.value).lower()
+    assert result["success"] is False, \
+        f"Withdrawal should be rejected. Got: {result}"
+
+    error_msg = result.get("message", "").lower()
     assert "breach" in error_msg or "headroom" in error_msg or "insufficient" in error_msg, \
-        f"Should reject withdrawal with headroom violation. Got: {exc_info.value}"
+        f"Should reject withdrawal with headroom violation. Got: {result['message']}"
 
     # Verify collateral unchanged
     state_after = orch.get_agent_state("BANK_A")
@@ -67,14 +71,16 @@ def test_can_withdraw_excess_collateral():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": 0,  # No overdraft
+                "credit_limit": 0,
                 "collateral_haircut": 0.05,
                 "posted_collateral": 200_000_00,  # Excess posted
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -101,14 +107,16 @@ def test_withdrawal_respects_safety_buffer():
     # For now, testing the underlying max_withdrawable_collateral logic
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": -30_000_00,  # Using $30k credit
+                "credit_limit": 0,
                 "collateral_haircut": 0.10,
                 "posted_collateral": 100_000_00,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -149,14 +157,16 @@ def test_max_withdrawable_at_utilization_limit():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": -90_000_00,  # $90k overdraft
+                "credit_limit": 0,
                 "collateral_haircut": 0.10,
                 "posted_collateral": 100_000_00,  # Exactly covers usage
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -168,12 +178,12 @@ def test_max_withdrawable_at_utilization_limit():
     # headroom = 0
     # Cannot withdraw anything
 
-    with pytest.raises(Exception) as exc_info:
-        orch.withdraw_collateral("BANK_A", 1_00)  # Even $1 should fail
+    result = orch.withdraw_collateral("BANK_A", 1_00)  # Even $1 should fail
+    assert result["success"] is False, f"Should reject any withdrawal at full utilization. Got: {result}"
 
-    error_msg = str(exc_info.value).lower()
+    error_msg = result.get("message", "").lower()
     assert "breach" in error_msg or "headroom" in error_msg or "insufficient" in error_msg, \
-        f"Should reject any withdrawal at full utilization. Got: {exc_info.value}"
+        f'Should reject any withdrawal at full utilization. Got: {result["message"]}'
 
 
 def test_tick_282_scenario_withdrawal_blocked():
@@ -185,15 +195,17 @@ def test_tick_282_scenario_withdrawal_blocked():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "REGIONAL_TRUST",
                 "opening_balance": -164_897_33,  # Deep overdraft
                 "credit_limit": 80_000_00,  # Legacy limit (severely exceeded)
+                "credit_limit": 0,
                 "collateral_haircut": 0.02,
                 "posted_collateral": 50_000_00,  # Hypothetical amount
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -205,12 +217,11 @@ def test_tick_282_scenario_withdrawal_blocked():
     # Already massively over limit!
 
     # Attempt the withdrawal that occurred at tick 282
-    with pytest.raises(Exception) as exc_info:
-        orch.withdraw_collateral("REGIONAL_TRUST", 17_934_08)
-
-    error_msg = str(exc_info.value).lower()
+    result = orch.withdraw_collateral("REGIONAL_TRUST", 17_934_08)
+    assert result["success"] is False, f"Should block withdrawal when deeply overdrawn.. Got: {result}"
+    error_msg = result.get("message", "").lower()
     assert "breach" in error_msg or "headroom" in error_msg or "insufficient" in error_msg, \
-        f"Should block withdrawal when deeply overdrawn. Got: {exc_info.value}"
+        f'Should block withdrawal when deeply overdrawn.. Got: {result["message"]}'
 
     # Verify collateral unchanged
     state = orch.get_agent_state("REGIONAL_TRUST")
@@ -224,14 +235,16 @@ def test_can_withdraw_partial_amount_safely():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": -60_000_00,  # $60k overdraft
+                "credit_limit": 0,
                 "collateral_haircut": 0.10,
                 "posted_collateral": 100_000_00,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -266,15 +279,17 @@ def test_withdrawal_with_unsecured_cap():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": -50_000_00,  # $50k overdraft
+                "credit_limit": 0,
                 "collateral_haircut": 0.10,
                 "unsecured_cap": 20_000_00,  # $20k unsecured daylight cap
                 "posted_collateral": 80_000_00,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -296,8 +311,8 @@ def test_withdrawal_with_unsecured_cap():
         f"Should allow withdrawal with unsecured cap reducing requirement. Got: {result}"
 
     # Try to withdraw $50k (should fail - exceeds max_withdrawable)
-    with pytest.raises(Exception):
-        orch.withdraw_collateral("BANK_A", 50_000_00)
+    result = orch.withdraw_collateral("BANK_A", 50_000_00)
+    assert result["success"] is False, f"Withdrawal should be rejected. Got: {result}"
 
 
 def test_min_holding_ticks_still_enforced():
@@ -307,13 +322,15 @@ def test_min_holding_ticks_still_enforced():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000_00,  # Positive balance
+                "credit_limit": 0,
                 "posted_collateral": 0,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -321,16 +338,16 @@ def test_min_holding_ticks_still_enforced():
     orch = Orchestrator.new(config)
 
     # Post collateral
-    result = orch.post_collateral("BANK_A", 50_000_00, "test")
+    result = orch.post_collateral("BANK_A", 50_000_00)
     assert result.get("success") is True or result.get("new_total") == 50_000_00
 
     # Immediately try to withdraw (should fail due to MIN_HOLDING_TICKS)
-    with pytest.raises(Exception) as exc_info:
-        orch.withdraw_collateral("BANK_A", 10_000_00)
+    result = orch.withdraw_collateral("BANK_A", 10_000_00)
+    assert result["success"] is False, f"Should enforce MIN_HOLDING_TICKS. Got: {result}"
 
-    error_msg = str(exc_info.value).lower()
-    assert "holding" in error_msg or "ticks" in error_msg or "recently" in error_msg, \
-        f"Should enforce MIN_HOLDING_TICKS. Got: {exc_info.value}"
+    error_msg = result.get("message", "").lower()
+    assert "holding" in error_msg or "ticks" in error_msg or "recently" in error_msg or "minimum" in error_msg, \
+        f'Should enforce MIN_HOLDING_TICKS. Got: {result["message"]}'
 
 
 def test_state_exposes_new_collateral_fields():
@@ -339,15 +356,17 @@ def test_state_exposes_new_collateral_fields():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": -50_000_00,
+                "credit_limit": 0,
                 "collateral_haircut": 0.10,
                 "unsecured_cap": 10_000_00,
                 "posted_collateral": 100_000_00,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -384,14 +403,16 @@ def test_zero_haircut_edge_case():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": -80_000_00,
+                "credit_limit": 0,
                 "collateral_haircut": 0.0,  # 0% haircut
                 "posted_collateral": 100_000_00,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
@@ -408,8 +429,8 @@ def test_zero_haircut_edge_case():
         "Should allow withdrawal up to exact credit usage with 0% haircut"
 
     # Cannot withdraw more
-    with pytest.raises(Exception):
-        orch.withdraw_collateral("BANK_A", 1_00)  # Even $1 more should fail
+    result = orch.withdraw_collateral("BANK_A", 1_00)
+    assert result["success"] is False, f"Withdrawal should be rejected. Got: {result}"  # Even $1 more should fail
 
 
 def test_100_percent_haircut_edge_case():
@@ -418,15 +439,17 @@ def test_100_percent_haircut_edge_case():
     """
     config = {
         "ticks_per_day": 100,
-        "seed": 12345,
+        "num_days": 1,
+        "rng_seed": 12345,
         "agent_configs": [
             {
                 "id": "BANK_A",
                 "opening_balance": 50_000_00,  # Positive balance
+                "credit_limit": 0,
                 "collateral_haircut": 1.0,  # 100% haircut (worthless collateral)
                 "posted_collateral": 100_000_00,
                 "unsecured_cap": 0,
-                "policy": "simple_queue_flush",
+                "policy": {"type": "Fifo"},
             }
         ],
     }
