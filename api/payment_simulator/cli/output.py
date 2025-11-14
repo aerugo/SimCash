@@ -787,12 +787,13 @@ def log_agent_queues_detailed(orch, agent_id, balance, balance_change, quiet=Fal
         change_str = f" ({sign}${balance_change / 100:,.2f})"
 
     # Credit utilization (Issue #4 fix)
-    credit_limit = orch.get_agent_credit_limit(agent_id)
+    # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just credit_limit!
+    allowed_overdraft = orch.get_agent_allowed_overdraft_limit(agent_id)
     credit_str = ""
-    if credit_limit and credit_limit > 0:
+    if allowed_overdraft and allowed_overdraft > 0:
         # Credit is only "used" when balance is negative (overdraft)
         used = max(0, -balance)
-        utilization_pct = (used / credit_limit) * 100
+        utilization_pct = (used / allowed_overdraft) * 100
 
         if utilization_pct > 80:
             util_str = f"[red]{utilization_pct:.0f}% used[/red]"
