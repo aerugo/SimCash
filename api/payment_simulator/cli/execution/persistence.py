@@ -310,6 +310,9 @@ class PersistenceManager:
         Called once at the end of simulation to write metadata tables
         (simulations, simulation_runs, simulation_events).
 
+        CRITICAL: Also flushes any remaining replay buffers to ensure
+        all tick-level data is persisted (e.g., if simulation ends mid-day).
+
         Args:
             config_path: Path to configuration file
             config_dict: Configuration dictionary
@@ -334,6 +337,35 @@ class PersistenceManager:
             ...     orch=orch
             ... )
         """
+        # CRITICAL FIX: Flush remaining replay buffers before finalizing
+        # This ensures tick-level data after the last EOD is persisted
+        if self.full_replay and self.replay_buffers:
+            # Write policy decisions
+            if self.replay_buffers["policy_decisions"]:
+                write_policy_decisions_batch(
+                    self.db_manager.conn,
+                    self.replay_buffers["policy_decisions"]
+                )
+
+            # Write agent states
+            if self.replay_buffers["agent_states"]:
+                write_tick_agent_states_batch(
+                    self.db_manager.conn,
+                    self.replay_buffers["agent_states"]
+                )
+
+            # Write queue snapshots
+            if self.replay_buffers["queue_snapshots"]:
+                write_tick_queue_snapshots_batch(
+                    self.db_manager.conn,
+                    self.replay_buffers["queue_snapshots"]
+                )
+
+            # Clear buffers
+            self.replay_buffers["policy_decisions"] = []
+            self.replay_buffers["agent_states"] = []
+            self.replay_buffers["queue_snapshots"] = []
+
         _persist_simulation_metadata(
             self.db_manager,
             self.sim_id,
