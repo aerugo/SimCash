@@ -1108,16 +1108,26 @@ def replay_simulation(
                                 agent_total_cost = row_dict["total_cost"]
                                 day_total_costs += agent_total_cost
 
-                                # Calculate credit utilization (Issue #4 fix)
-                                # Credit is only "used" when balance is negative (overdraft)
+                                # Calculate credit utilization (Issue #4 fix - CORRECTED)
+                                # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just credit_limit!
                                 balance = row_dict["closing_balance"]
                                 credit_limit = agent_credit_limits.get(agent_id, 0)
+
+                                # Get collateral backing from database (Phase 8)
+                                posted_collateral = row_dict.get("closing_posted_collateral", 0)
+
+                                # Calculate allowed overdraft: credit_limit + collateral_backing
+                                # Use default 2% haircut (0.98 retention) - matches Agent::new() default
+                                collateral_haircut = 0.02
+                                collateral_backing = int(posted_collateral * (1.0 - collateral_haircut))
+                                allowed_overdraft = credit_limit + collateral_backing
+
                                 credit_util = 0
-                                if credit_limit and credit_limit > 0:
+                                if allowed_overdraft and allowed_overdraft > 0:
                                     # If balance is negative, we're using credit equal to the overdraft amount
                                     # If balance is positive, we're not using any credit
                                     used = max(0, -balance)
-                                    credit_util = (used / credit_limit) * 100
+                                    credit_util = (used / allowed_overdraft) * 100
 
                                 agent_stats.append({
                                     "id": agent_id,
