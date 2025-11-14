@@ -418,8 +418,11 @@ fn settle_bilateral_pair(
     // Check if net sender can handle the net negative balance (within credit limits)
     if let Some(sender) = state.get_agent(&net_sender) {
         let projected_balance = sender.balance() - net_amount;
-        if projected_balance < -(sender.credit_limit() as i64) {
-            // Would exceed credit limit even with offsetting
+        // CRITICAL: Use allowed_overdraft_limit() which includes collateral backing,
+        // not just the legacy credit_limit field
+        let max_negative = sender.allowed_overdraft_limit();
+        if projected_balance < -(max_negative as i64) {
+            // Would exceed total allowed overdraft (collateral + unsecured + credit_limit)
             return 0;
         }
     }
@@ -593,7 +596,9 @@ fn check_cycle_feasibility(
                 }
             })?;
 
-            let available_liquidity = agent.balance() + agent.credit_limit();
+            // CRITICAL: Use available_liquidity() method which includes collateral backing,
+            // not a manual calculation with just balance + credit_limit
+            let available_liquidity = agent.available_liquidity();
             let required_liquidity = net_position.abs();
 
             if available_liquidity < required_liquidity {

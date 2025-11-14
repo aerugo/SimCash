@@ -1685,6 +1685,38 @@ impl Orchestrator {
         self.state.get_agent(agent_id).map(|a| a.posted_collateral())
     }
 
+    /// Get agent's total allowed overdraft limit (credit + collateral backing)
+    ///
+    /// Returns the maximum negative balance an agent can have, calculated as:
+    /// - Legacy credit_limit (for backward compatibility)
+    /// - PLUS collateral-backed capacity (posted_collateral × (1 - haircut))
+    /// - PLUS unsecured cap (if any)
+    ///
+    /// This is the CORRECT denominator for credit utilization percentage calculations.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    ///
+    /// * `Some(limit)` - Total allowed overdraft in cents
+    /// * `None` - Agent not found
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// if let Some(limit) = orch.get_agent_allowed_overdraft_limit("BANK_A") {
+    ///     let balance = orch.get_agent_balance("BANK_A").unwrap_or(0);
+    ///     let used = (-balance).max(0);
+    ///     let utilization_pct = (used as f64 / limit as f64) * 100.0;
+    ///     println!("Credit utilization: {:.1}%", utilization_pct);
+    /// }
+    /// ```
+    pub fn get_agent_allowed_overdraft_limit(&self, agent_id: &str) -> Option<i64> {
+        self.state.get_agent(agent_id).map(|a| a.allowed_overdraft_limit())
+    }
+
     // ========================================================================
     // Transaction Submission (Phase 7: External Transaction Injection)
     // ========================================================================
