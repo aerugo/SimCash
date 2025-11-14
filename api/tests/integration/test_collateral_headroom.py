@@ -23,7 +23,7 @@ def test_posted_collateral_increases_available_liquidity():
                 "id": "A",
                 "opening_balance": -50000,  # Overdraft
                 "credit_limit": 60000,
-                "collateral_haircut": 0.95,  # 95% of collateral counts toward headroom
+                "collateral_haircut": 0.05,  # 5% haircut (95% of collateral counts toward headroom)
                 "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
@@ -83,7 +83,7 @@ def test_collateral_enables_settlement_of_queued_transactions():
                 "id": "A",
                 "opening_balance": 10000,
                 "credit_limit": 20000,
-                "collateral_haircut": 0.95,
+                "collateral_haircut": 0.05,  # 5% haircut (95% of collateral counts)
                 "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
@@ -396,7 +396,7 @@ def test_available_liquidity_calculation_includes_collateral():
                 "id": "A",
                 "opening_balance": 20000,
                 "credit_limit": 50000,
-                "collateral_haircut": 0.90,
+                "collateral_haircut": 0.10,  # 10% haircut (90% of collateral counts)
                 "policy": {"type": "Fifo"},
             },
             {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
@@ -411,7 +411,8 @@ def test_available_liquidity_calculation_includes_collateral():
     # Post 100K collateral
     orch.post_collateral("A", 100000)
 
-    # New: posted=100000, haircut=0.9
+    # New: posted=100000, haircut=0.10 (10% discount, 90% counts)
+    # collateral_contribution = 100000 * (1 - 0.10) = 90000
     # available = 20000 + max(50000 + 90000 - 0, 0) = 20000 + 140000 = 160000
     agent = orch.get_agent_state("A")
     assert agent['available_liquidity'] == 160000

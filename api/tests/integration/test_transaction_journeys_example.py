@@ -96,7 +96,7 @@ class TestCollateralUsageJourneys:
                 arrival_rate=0.1,  # Low rate
                 arrival_amount_range=(2_000_000, 2_500_000),  # $20k-$25k (needs collateral)
                 posted_collateral=5_000_000,  # $50k collateral available
-                collateral_haircut=0.8,  # 80% → $40k usable
+                collateral_haircut=0.2,  # 20% haircut → 80% of $50k = $40k usable
             )
             .add_agent("BANK_B", balance=50_000_000)
             .build()

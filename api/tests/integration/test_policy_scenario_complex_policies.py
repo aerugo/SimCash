@@ -444,7 +444,7 @@ class TestCautiousLiquidityPreserverPolicy:
 
         expectations = OutcomeExpectation(
             settlement_rate=Range(min=0.02, max=0.05),  # Calibrated: Actual 3.3% (severe crisis)
-            min_balance=Range(min=-2_000_000, max=100_000),  # Calibrated: Goes into overdraft ($-19k)
+            min_balance=Range(min=-8_000_000, max=100_000),  # Calibrated: Goes into overdraft ($-72k) with new haircut semantics
             overdraft_violations=Range(min=100, max=170),  # Calibrated: Heavy credit usage (150)
         )
 
