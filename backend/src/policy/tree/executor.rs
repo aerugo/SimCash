@@ -292,7 +292,9 @@ impl TreePolicy {
         ticks_per_day: usize,
         eod_rush_threshold: f64,
     ) -> Result<crate::policy::BankDecision, TreePolicyError> {
-        use crate::policy::tree::interpreter::{build_bank_decision, traverse_bank_tree};
+        use crate::policy::tree::interpreter::{
+            build_bank_decision_with_path, traverse_bank_tree_with_path,
+        };
 
         // If no bank tree defined, return NoAction (default)
         if self.tree.bank_tree.is_none() {
@@ -307,11 +309,13 @@ impl TreePolicy {
             self.validate_if_needed(&context)?;
         }
 
-        // Traverse bank tree
-        let action_node = traverse_bank_tree(&self.tree, &context)?;
+        // Traverse bank tree with path tracking (Phase 4.6)
+        let (action_node, path) = traverse_bank_tree_with_path(&self.tree, &context)?;
 
-        // Build bank decision from action node
-        let decision = build_bank_decision(action_node, &context, &self.tree.parameters)?;
+        // Build bank decision from action node with path
+        let decision_path = Some(path.format());
+        let decision =
+            build_bank_decision_with_path(action_node, &context, &self.tree.parameters, decision_path)?;
 
         Ok(decision)
     }
