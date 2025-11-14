@@ -164,13 +164,14 @@ def test_no_agent_exceeds_limit_during_crisis():
                 "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
-                    "poisson_lambda": 2.0,
+                    "rate_per_tick": 2.0,
                     "amount_distribution": {
                         "type": "Normal",
-                        "mean": 5000.0,
-                        "std_dev": 1000.0
+                        "mean": 5000,
+                        "std_dev": 1000
                     },
-                    "counterparty_weights": {"BANK_B": 1.0}
+                    "counterparty_weights": {"BANK_B": 1.0},
+                    "deadline_range": [10, 50]
                 }
             },
             {
@@ -181,13 +182,14 @@ def test_no_agent_exceeds_limit_during_crisis():
                 "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
-                    "poisson_lambda": 2.0,
+                    "rate_per_tick": 2.0,
                     "amount_distribution": {
                         "type": "Normal",
-                        "mean": 5000.0,
-                        "std_dev": 1000.0
+                        "mean": 5000,
+                        "std_dev": 1000
                     },
-                    "counterparty_weights": {"BANK_A": 1.0}
+                    "counterparty_weights": {"BANK_A": 1.0},
+                    "deadline_range": [10, 50]
                 }
             }
         ],
@@ -305,7 +307,7 @@ def test_collateral_posting_increases_headroom():
     print(f"Before: allowed_limit = ${limit_before / 100:.2f}")
 
     # Post $100k collateral
-    result = orch.post_collateral("BANK_A", 100_000_00, "test_posting")
+    result = orch.post_collateral("BANK_A", 100_000_00)
     assert result.get("success") is True or result.get("new_total") == 100_000_00
 
     # Check new state
@@ -379,13 +381,14 @@ def test_various_haircut_levels(haircut):
                 "max_collateral_capacity": 500_000_00,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
-                    "poisson_lambda": 1.0,
+                    "rate_per_tick": 1.0,
                     "amount_distribution": {
                         "type": "Normal",
-                        "mean": 10000.0,
-                        "std_dev": 2000.0
+                        "mean": 10000,
+                        "std_dev": 2000
                     },
-                    "counterparty_weights": {"BANK_B": 1.0}
+                    "counterparty_weights": {"BANK_B": 1.0},
+                    "deadline_range": [10, 50]
                 }
             },
             {
@@ -396,13 +399,14 @@ def test_various_haircut_levels(haircut):
                 "max_collateral_capacity": 500_000_00,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
-                    "poisson_lambda": 1.0,
+                    "rate_per_tick": 1.0,
                     "amount_distribution": {
                         "type": "Normal",
-                        "mean": 10000.0,
-                        "std_dev": 2000.0
+                        "mean": 10000,
+                        "std_dev": 2000
                     },
-                    "counterparty_weights": {"BANK_A": 1.0}
+                    "counterparty_weights": {"BANK_A": 1.0},
+                    "deadline_range": [10, 50]
                 }
             }
         ],
