@@ -1822,6 +1822,13 @@ def log_state_register_events(events, quiet=False):
         if e.get("event_type") == "StateRegisterSet"
     ]
 
+    # Filter out no-change updates (reduces noise)
+    # Only show events where the value actually changed
+    state_events = [
+        e for e in state_events
+        if e.get("old_value", 0.0) != e.get("new_value", 0.0)
+    ]
+
     if not state_events:
         return
 
