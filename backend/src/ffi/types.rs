@@ -197,14 +197,21 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
     // Parse optional collateral_haircut using helper
     let collateral_haircut: Option<f64> = extract_optional(py_agent, "collateral_haircut")?;
 
+    // Parse optional unsecured_cap using helper
+    let unsecured_cap: Option<i64> = extract_optional(py_agent, "unsecured_cap")?;
+
+    // Parse optional posted_collateral using helper
+    let posted_collateral: Option<i64> = extract_optional(py_agent, "posted_collateral")?;
+
     Ok(AgentConfig {
         id,
         opening_balance,
         credit_limit,
         policy,
         arrival_config,
-        posted_collateral: None, // TODO: Parse from Python config if provided
+        posted_collateral,
         collateral_haircut,
+        unsecured_cap,
     })
 }
 
