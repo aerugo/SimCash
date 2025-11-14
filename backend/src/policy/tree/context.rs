@@ -57,6 +57,16 @@ pub enum ContextError {
 /// - queue2_nearest_deadline: Nearest deadline in Queue 2 for this agent (usize → f64)
 /// - ticks_to_nearest_queue2_deadline: Ticks until nearest Queue 2 deadline (f64, can be INFINITY)
 ///
+/// **T2/CLM Collateral/Headroom Fields** (Invariant Enforcement):
+/// - credit_used: Amount of intraday credit currently used (i64 → f64)
+/// - allowed_overdraft_limit: Max overdraft from collateral + unsecured cap (i64 → f64)
+/// - overdraft_headroom: Remaining capacity (allowed_limit - credit_used) (i64 → f64)
+/// - collateral_haircut: Discount rate applied to collateral value (f64, 0.0-1.0)
+/// - unsecured_cap: Unsecured daylight overdraft capacity (i64 → f64)
+/// - required_collateral_for_usage: Min collateral needed for current credit usage (f64)
+/// - excess_collateral: Collateral available for withdrawal (f64)
+/// - overdraft_utilization: credit_used / allowed_limit ratio (0.0-1.0+)
+///
 /// **Cost Fields** (Phase 9.5.1):
 /// - cost_overdraft_bps_per_tick: Overdraft cost in basis points per tick (f64)
 /// - cost_delay_per_tick_per_cent: Delay cost per tick per cent (f64)
@@ -409,6 +419,50 @@ impl EvalContext {
         };
         fields.insert("collateral_utilization".to_string(), collateral_utilization);
 
+        // New T2/CLM-style collateral/headroom fields
+        fields.insert(
+            "credit_used".to_string(),
+            agent.credit_used() as f64,
+        );
+        fields.insert(
+            "allowed_overdraft_limit".to_string(),
+            agent.allowed_overdraft_limit() as f64,
+        );
+        fields.insert(
+            "overdraft_headroom".to_string(),
+            agent.headroom() as f64,
+        );
+        fields.insert(
+            "collateral_haircut".to_string(),
+            agent.collateral_haircut(),
+        );
+        fields.insert(
+            "unsecured_cap".to_string(),
+            agent.unsecured_cap() as f64,
+        );
+
+        // Derived collateral metrics for policy decisions
+        let required_collateral_for_usage = if agent.collateral_haircut() < 1.0 {
+            let one_minus_h = (1.0 - agent.collateral_haircut()).max(0.0);
+            let usage_after_unsecured = agent.credit_used().saturating_sub(agent.unsecured_cap());
+            ((usage_after_unsecured as f64) / one_minus_h).ceil()
+        } else {
+            0.0
+        };
+        fields.insert("required_collateral_for_usage".to_string(), required_collateral_for_usage);
+
+        let excess_collateral = ((agent.posted_collateral() as f64) - required_collateral_for_usage).max(0.0);
+        fields.insert("excess_collateral".to_string(), excess_collateral);
+
+        // Overdraft utilization ratio (for policy thresholds)
+        let allowed_limit = agent.allowed_overdraft_limit() as f64;
+        let overdraft_utilization = if allowed_limit > 0.0 {
+            (agent.credit_used() as f64) / allowed_limit
+        } else {
+            0.0
+        };
+        fields.insert("overdraft_utilization".to_string(), overdraft_utilization);
+
         // Liquidity gap fields
         fields.insert(
             "queue1_liquidity_gap".to_string(),
@@ -665,6 +719,41 @@ impl EvalContext {
             0.0
         };
         fields.insert("collateral_utilization".to_string(), collateral_utilization);
+
+        // New T2/CLM-style collateral/headroom fields (end-of-tick)
+        fields.insert(
+            "credit_used".to_string(),
+            agent.credit_used() as f64,
+        );
+        fields.insert(
+            "allowed_overdraft_limit".to_string(),
+            agent.allowed_overdraft_limit() as f64,
+        );
+        fields.insert(
+            "overdraft_headroom".to_string(),
+            agent.headroom() as f64,
+        );
+        fields.insert(
+            "collateral_haircut".to_string(),
+            agent.collateral_haircut(),
+        );
+        fields.insert(
+            "unsecured_cap".to_string(),
+            agent.unsecured_cap() as f64,
+        );
+
+        // Derived collateral metrics for end-of-tick decisions
+        let required_collateral_for_usage = if agent.collateral_haircut() < 1.0 {
+            let one_minus_h = (1.0 - agent.collateral_haircut()).max(0.0);
+            let usage_after_unsecured = agent.credit_used().saturating_sub(agent.unsecured_cap());
+            ((usage_after_unsecured as f64) / one_minus_h).ceil()
+        } else {
+            0.0
+        };
+        fields.insert("required_collateral_for_usage".to_string(), required_collateral_for_usage);
+
+        let excess_collateral = ((agent.posted_collateral() as f64) - required_collateral_for_usage).max(0.0);
+        fields.insert("excess_collateral".to_string(), excess_collateral);
 
         // Queue 2 metrics
         fields.insert("queue2_size".to_string(), state.rtgs_queue().len() as f64);
