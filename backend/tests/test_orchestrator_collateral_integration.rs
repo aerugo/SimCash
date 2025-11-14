@@ -37,14 +37,14 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
             AgentConfig {
                 id: agent_id.to_string(),
                 opening_balance: balance,
-                credit_limit: 10_000, // Credit limit provides 10x collateral capacity (100k)
+                credit_limit: 10_000, // Provides collateral capacity (10k × 10 = 100k)
                 policy: PolicyConfig::FromJson {
                     json: policy_json.to_string(),
                 },
                 arrival_config: None,
                 posted_collateral: None,
-                    collateral_haircut: None,
-            unsecured_cap: None,
+                collateral_haircut: None,
+                unsecured_cap: Some(0), // Explicitly set to 0 to prevent credit borrowing
             },
             // Add BANK_B as receiver with simple FIFO policy
             AgentConfig {

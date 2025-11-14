@@ -531,7 +531,12 @@ impl Agent {
         // haircut is now the discount rate, so use (1 - haircut)
         let one_minus_haircut = (1.0 - self.collateral_haircut).max(0.0);
         let collateral_headroom = (self.posted_collateral as f64 * one_minus_haircut).floor() as i64;
-        let total_headroom = self.credit_limit + collateral_headroom + self.unsecured_cap;
+
+        // BACKWARD COMPATIBILITY: Use MAX(credit_limit, unsecured_cap) to avoid double-counting
+        // during the transition from credit_limit (old system) to unsecured_cap (new T2/CLM system).
+        // This ensures agents with both set don't get double credit capacity.
+        let unsecured_headroom = self.credit_limit.max(self.unsecured_cap);
+        let total_headroom = unsecured_headroom + collateral_headroom;
 
         // Available headroom is what's left after subtracting credit in use
         let available_headroom = (total_headroom - credit_used).max(0);
