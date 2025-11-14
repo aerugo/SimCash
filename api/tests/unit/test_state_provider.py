@@ -133,7 +133,7 @@ class TestDatabaseStateProvider:
                     "agent_id": "BANK_A",
                     "balance": 900000,  # After sending tx_001
                     "credit_limit": 500000,
-                    "collateral_posted": 100000,
+                    "posted_collateral": 100000,
                     "liquidity_cost": 1000,
                     "delay_cost": 500,
                     "collateral_cost": 200,
@@ -144,7 +144,7 @@ class TestDatabaseStateProvider:
                     "agent_id": "BANK_B",
                     "balance": 2000000,
                     "credit_limit": 1000000,
-                    "collateral_posted": 0,
+                    "posted_collateral": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 0,
                     "collateral_cost": 0,
