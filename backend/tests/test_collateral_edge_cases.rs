@@ -46,6 +46,7 @@ fn create_test_config_with_haircut(
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut,
+                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -55,6 +56,7 @@ fn create_test_config_with_haircut(
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+            unsecured_cap: None,
             },
         ],
         ticks_per_day: 100,
@@ -614,6 +616,7 @@ fn test_cross_agent_collateral_isolation() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -623,6 +626,7 @@ fn test_cross_agent_collateral_isolation() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+            unsecured_cap: None,
             },
         ],
         ticks_per_day: 100,
@@ -744,6 +748,7 @@ fn test_hold_collateral_action_is_noop() {
                 arrival_config: None,
                 posted_collateral: Some(20_000), // Start with some posted
                 collateral_haircut: None,
+            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -753,6 +758,7 @@ fn test_hold_collateral_action_is_noop() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+            unsecured_cap: None,
             },
         ],
         ticks_per_day: 100,
