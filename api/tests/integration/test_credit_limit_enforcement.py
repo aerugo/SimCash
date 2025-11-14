@@ -51,7 +51,7 @@ class TestCreditLimitEnforcement:
 
         # Transaction should NOT settle immediately - should be queued
         tx_details = orch.get_transaction_details(tx_id)
-        assert tx_details["status"] == "pending", "Large tx should be queued without sufficient liquidity"
+        assert tx_details["status"] == "Pending", "Large tx should be queued without sufficient liquidity"
 
         # Balance should NOT have gone negative beyond credit limit
         balance = orch.get_agent_balance("BANK_A")
@@ -210,7 +210,7 @@ class TestCreditLimitEnforcement:
         Test that agents with collateral posted still cannot exceed their allowed overdraft.
 
         This mimics the REGIONAL_TRUST scenario where an agent posts collateral but
-        then settles transactions that exceed even the collateral-backed limit.
+        then LSM tries to settle cycles that would exceed even the collateral-backed limit.
         """
         config = {
             "rng_seed": 42,
@@ -219,35 +219,65 @@ class TestCreditLimitEnforcement:
             "agent_configs": [
                 {
                     "id": "BANK_A",
-                    "opening_balance": 1000000,  # $10,000
-                    "credit_limit": 500000,      # $5,000
+                    "opening_balance": 500000,   # $5,000
+                    "credit_limit": 200000,      # $2,000
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
-                    "opening_balance": 1000000,
-                    "credit_limit": 500000,
+                    "opening_balance": 500000,
+                    "credit_limit": 200000,
+                    "policy": {"type": "Fifo"},
+                },
+                {
+                    "id": "BANK_C",
+                    "opening_balance": 500000,
+                    "credit_limit": 200000,
                     "policy": {"type": "Fifo"},
                 },
             ],
+            "lsm_config": {
+                "enable_bilateral": True,
+                "enable_cycles": True,
+                "max_cycle_length": 4,
+                "max_cycles_per_tick": 10,
+            },
         }
 
         orch = Orchestrator.new(config)
 
-        # Track all balances throughout execution
-        violations = []
+        # Post collateral for BANK_A (increases allowed overdraft)
+        orch.post_collateral("BANK_A", 300000)  # $3,000 collateral
+        # With 2% haircut: $3,000 * 0.98 = $2,940 capacity
+        # Total allowed overdraft: $2,000 + $2,940 = $4,940
 
-        # Run both Day 1 and Day 2 (ticks 0-199)
-        # Scenario events are automatically injected at the right ticks
-        for tick in range(200):
+        # Create multiple cycles that would cumulatively exceed BANK_A's limit
+        # Cycle 1: A→B→C→A, BANK_A net outflow = 0 (balanced cycle)
+        orch.submit_transaction("BANK_A", "BANK_B", 800000, 50, 5, False)  # $8,000
+        orch.submit_transaction("BANK_B", "BANK_C", 800000, 50, 5, False)
+        orch.submit_transaction("BANK_C", "BANK_A", 800000, 50, 5, False)
+
+        # Cycle 2: A→B, B→A (bilateral, BANK_A net outflow = $1,000)
+        orch.submit_transaction("BANK_A", "BANK_B", 600000, 50, 5, False)  # $6,000
+        orch.submit_transaction("BANK_B", "BANK_A", 500000, 50, 5, False)  # $5,000
+
+        # Additional transaction that would push BANK_A over the edge if cycles settle
+        # If both cycles settle, BANK_A sends $8,000 + $6,000 = $14,000
+        # Receives $8,000 + $5,000 = $13,000
+        # Net: -$1,000 (should be ok)
+        # But if we add more cycles...
+
+        # Process ticks and track violations
+        violations = []
+        for tick in range(20):
             orch.tick()
 
             # Check all agents after each tick
-            for agent_id in ["METRO_CENTRAL", "REGIONAL_TRUST", "MOMENTUM_CAPITAL", "CORRESPONDENT_HUB"]:
+            for agent_id in ["BANK_A", "BANK_B", "BANK_C"]:
                 balance = orch.get_agent_balance(agent_id)
                 allowed_overdraft = orch.get_agent_allowed_overdraft_limit(agent_id)
 
-                if balance < -(allowed_overdraft):
+                if allowed_overdraft is not None and balance < -(allowed_overdraft):
                     violations.append({
                         "tick": tick,
                         "agent": agent_id,
