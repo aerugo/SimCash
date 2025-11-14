@@ -215,14 +215,14 @@ fn test_credit_limit_with_collateral_enforced() {
 
     // Agent with collateral posted
     let mut sender = create_agent("A", 100_000, 50_000);
-    sender.set_posted_collateral(100_000); // Post 100k collateral (95k after haircut)
+    sender.set_posted_collateral(100_000); // Post 100k collateral (98k after 2% haircut)
 
-    // Available liquidity = 100k (balance) + 50k (credit) + 95k (collateral) = 245k
-    assert_eq!(sender.available_liquidity(), 245_000);
+    // Available liquidity = 100k (balance) + 50k (credit) + 98k (collateral) = 248k
+    assert_eq!(sender.available_liquidity(), 248_000);
 
     let mut receiver = create_agent("B", 0, 0);
 
-    // Try to settle 250k (exceeds 245k)
+    // Try to settle 250k (exceeds 248k)
     let mut tx = create_tx("A", "B", 250_000, 0, 100);
 
     let result = try_settle(&mut sender, &mut receiver, &mut tx, 5);
@@ -238,11 +238,11 @@ fn test_collateral_increases_available_liquidity() {
     // Without collateral: 100k + 50k = 150k
     assert_eq!(agent.available_liquidity(), 150_000);
 
-    // Post 100k collateral (95k after 0.95 haircut)
+    // Post 100k collateral (98k after 2% haircut)
     agent.set_posted_collateral(100_000);
 
-    // With collateral: 100k + 50k + 95k = 245k
-    assert_eq!(agent.available_liquidity(), 245_000);
+    // With collateral: 100k + 50k + 98k = 248k
+    assert_eq!(agent.available_liquidity(), 248_000);
 }
 
 // ============================================================================
