@@ -481,6 +481,22 @@ pub fn traverse_bank_tree<'a>(
     traverse_node(root, context, &tree.parameters, 0)
 }
 
+/// Traverse the bank-level decision tree with path tracking (Phase 4.6)
+///
+/// Returns both the terminal action node and the decision path taken.
+/// Returns error if bank_tree is not defined.
+pub fn traverse_bank_tree_with_path<'a>(
+    tree: &'a DecisionTreeDef,
+    context: &EvalContext,
+) -> Result<(&'a TreeNode, crate::policy::tree::DecisionPath), EvalError> {
+    let root = tree.bank_tree.as_ref().ok_or_else(|| {
+        EvalError::InvalidTree("bank_tree is not defined".to_string())
+    })?;
+    let mut path = crate::policy::tree::DecisionPath::new();
+    let node = traverse_node_with_path(root, context, &tree.parameters, 0, &mut path)?;
+    Ok((node, path))
+}
+
 /// Internal recursive tree traversal with depth tracking
 fn traverse_node<'a>(
     node: &'a TreeNode,
@@ -511,6 +527,46 @@ fn traverse_node<'a>(
             // Traverse appropriate branch
             let next_node = if result { on_true } else { on_false };
             traverse_node(next_node, context, params, depth + 1)
+        }
+    }
+}
+
+/// Internal recursive tree traversal with path tracking (Phase 4.6)
+fn traverse_node_with_path<'a>(
+    node: &'a TreeNode,
+    context: &EvalContext,
+    params: &HashMap<String, f64>,
+    depth: usize,
+    path: &mut crate::policy::tree::DecisionPath,
+) -> Result<&'a TreeNode, EvalError> {
+    // Check depth limit
+    if depth > MAX_TREE_DEPTH {
+        return Err(EvalError::MaxDepthExceeded);
+    }
+
+    match node {
+        TreeNode::Action { node_id, .. } => {
+            // Reached action node, record it and return
+            path.push_action(node_id.clone());
+            Ok(node)
+        }
+
+        TreeNode::Condition {
+            node_id,
+            condition,
+            on_true,
+            on_false,
+            ..
+        } => {
+            // Evaluate condition
+            let result = evaluate_expression(condition, context, params)?;
+
+            // Record this condition node with its result
+            path.push_condition(node_id.clone(), result);
+
+            // Traverse appropriate branch
+            let next_node = if result { on_true } else { on_false };
+            traverse_node_with_path(next_node, context, params, depth + 1, path)
         }
     }
 }
@@ -1007,6 +1063,16 @@ pub fn build_bank_decision(
     context: &EvalContext,
     params: &HashMap<String, f64>,
 ) -> Result<crate::policy::BankDecision, EvalError> {
+    build_bank_decision_with_path(action_node, context, params, None)
+}
+
+/// Build a bank-level decision from an action node, with optional decision path (Phase 4.6)
+pub fn build_bank_decision_with_path(
+    action_node: &TreeNode,
+    context: &EvalContext,
+    params: &HashMap<String, f64>,
+    decision_path: Option<String>,
+) -> Result<crate::policy::BankDecision, EvalError> {
     use crate::policy::tree::types::ActionType;
     use crate::policy::BankDecision;
 
@@ -1113,6 +1179,7 @@ pub fn build_bank_decision(
                 key,
                 value,
                 reason,
+                decision_path,
             })
         }
 
@@ -1149,6 +1216,7 @@ pub fn build_bank_decision(
                 key,
                 delta,
                 reason,
+                decision_path,
             })
         }
 

@@ -135,13 +135,15 @@ pub enum Event {
     /// Emitted when policy uses SetState or AddState actions.
     /// Also emitted for EOD resets (all registers reset to 0.0).
     /// CRITICAL: Required for replay identity - state changes must be auditable.
+    /// Phase 4.6: Added decision_path for transparency into policy decisions.
     StateRegisterSet {
         tick: usize,
         agent_id: String,
         register_key: String,
         old_value: f64,
         new_value: f64,
-        reason: String, // e.g., "policy_action", "eod_reset"
+        reason: String,                   // e.g., "policy_action", "eod_reset"
+        decision_path: Option<String>,    // Phase 4.6: Decision tree path taken
     },
 
     /// Bank-level budget set for this tick (Phase 3.3: Policy Enhancements V2)

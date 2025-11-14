@@ -356,6 +356,91 @@ impl TreeNode {
 }
 
 // ============================================================================
+// DECISION PATH TRACKING (Phase 4.6)
+// ============================================================================
+
+/// A single node in the decision path
+///
+/// Records which nodes were visited during tree traversal, including
+/// the result of condition evaluations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecisionPathNode {
+    /// Node ID from the tree definition
+    pub node_id: String,
+
+    /// Type of node: "condition" or "action"
+    pub node_type: String,
+
+    /// For condition nodes: the boolean result (true/false)
+    /// For action nodes: None
+    pub result: Option<bool>,
+}
+
+/// Complete decision path taken through a tree
+///
+/// Tracks the sequence of nodes visited from root to action,
+/// providing full transparency into policy decision-making.
+///
+/// # Example
+///
+/// A path might look like:
+/// ```text
+/// N1:CheckLiquidity(true) → N2:QueueSize(false) → A3:Release
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DecisionPath {
+    /// Sequence of nodes visited, in order
+    pub nodes: Vec<DecisionPathNode>,
+}
+
+impl DecisionPath {
+    /// Create a new empty decision path
+    pub fn new() -> Self {
+        Self { nodes: Vec::new() }
+    }
+
+    /// Add a condition node to the path
+    pub fn push_condition(&mut self, node_id: String, result: bool) {
+        self.nodes.push(DecisionPathNode {
+            node_id,
+            node_type: "condition".to_string(),
+            result: Some(result),
+        });
+    }
+
+    /// Add an action node to the path
+    pub fn push_action(&mut self, node_id: String) {
+        self.nodes.push(DecisionPathNode {
+            node_id,
+            node_type: "action".to_string(),
+            result: None,
+        });
+    }
+
+    /// Format path as human-readable string
+    ///
+    /// Example: "N1:Check(true) → N2:Verify(false) → A3:Release"
+    pub fn format(&self) -> String {
+        self.nodes
+            .iter()
+            .map(|node| {
+                if let Some(result) = node.result {
+                    format!("{}({})", node.node_id, result)
+                } else {
+                    node.node_id.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" → ")
+    }
+
+    /// Extend this path with another path (for nested traversal)
+    pub fn extend(&mut self, other: DecisionPath) {
+        self.nodes.extend(other.nodes);
+    }
+}
+
+// ============================================================================
 // TESTS
 // ============================================================================
 
