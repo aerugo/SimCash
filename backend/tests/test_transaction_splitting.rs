@@ -102,7 +102,6 @@ fn test_orchestrator_handles_submit_partial() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -175,7 +174,6 @@ fn test_split_friction_cost_formula() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -218,7 +216,6 @@ fn test_no_split_friction_for_whole_transaction() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -263,7 +260,6 @@ fn test_liquidity_splitting_policy_splits_when_insufficient_balance() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -312,7 +308,6 @@ fn test_liquidity_splitting_policy_does_not_split_when_affordable() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -372,7 +367,6 @@ fn test_liquidity_splitting_respects_min_split_amount() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -429,7 +423,6 @@ fn test_liquidity_splitting_respects_max_splits() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -481,7 +474,6 @@ fn test_liquidity_splitting_urgency_factor() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -544,7 +536,6 @@ fn test_full_splitting_workflow() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -619,7 +610,6 @@ fn test_multiple_transactions_with_selective_splitting() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -687,7 +677,6 @@ fn create_basic_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates {
@@ -742,7 +731,6 @@ fn test_tree_policy_split_decision_with_positive_liquidity() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -850,7 +838,6 @@ fn test_tree_policy_split_with_negative_liquidity_reveals_bug() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

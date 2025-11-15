@@ -26,7 +26,6 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -39,7 +38,6 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -326,7 +324,6 @@ fn test_orchestrator_lsm_bilateral_offset() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -336,7 +333,6 @@ fn test_orchestrator_lsm_bilateral_offset() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -552,7 +548,6 @@ fn test_orchestrator_automatic_arrivals() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -562,7 +557,6 @@ fn test_orchestrator_automatic_arrivals() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -613,7 +607,6 @@ fn test_orchestrator_arrival_determinism() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -623,7 +616,6 @@ fn test_orchestrator_arrival_determinism() {
                 arrival_config: None, // No arrivals for BANK_B
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -685,7 +677,6 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -695,7 +686,6 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -705,7 +695,6 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -784,7 +773,6 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -794,7 +782,6 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

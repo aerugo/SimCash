@@ -40,7 +40,6 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "ARB".to_string(),
@@ -52,7 +51,6 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "MIB".to_string(),
@@ -64,7 +62,6 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates {

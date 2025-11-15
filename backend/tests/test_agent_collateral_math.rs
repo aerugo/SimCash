@@ -7,7 +7,7 @@ use payment_simulator_core_rs::models::Agent;
 
 /// Helper to create test agent with balance and posted collateral
 fn create_test_agent(id: &str, balance: i64, posted_collateral: i64) -> Agent {
-    let mut agent = Agent::new(id.to_string(), balance, 0); // 0 credit_limit
+    let mut agent = Agent::new(id.to_string(), balance); // 0 credit_limit
     agent.set_posted_collateral(posted_collateral);
     agent
 }

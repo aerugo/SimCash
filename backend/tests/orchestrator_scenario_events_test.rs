@@ -31,7 +31,6 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
                 arrival_config: None,  // Disable arrivals for scenario event tests
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -41,7 +40,6 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
                 arrival_config: None,  // Disable arrivals for scenario event tests
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -75,7 +73,6 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                 }),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -95,7 +92,6 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                 }),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

@@ -49,7 +49,6 @@ fn create_test_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -62,7 +61,6 @@ fn create_test_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -267,7 +265,7 @@ fn test_policy_hold_event() {
     // ARRANGE: Create orchestrator with LiquidityAware policy that will hold
     let mut config = create_test_config();
     config.agent_configs[0].opening_balance = 100_000; // $1,000 balance
-    config.agent_configs[0].credit_limit = 0; // No credit available
+    config.agent_configs[0].unsecured_cap = 0; // No credit available
     config.agent_configs[0].policy = PolicyConfig::LiquidityAware {
         target_buffer: 90_000, // Want to keep $900 buffer
         urgency_threshold: 50, // Won't consider urgent until 50 ticks before deadline
@@ -411,7 +409,7 @@ fn test_queued_rtgs_event() {
     // ARRANGE: Create orchestrator with insufficient liquidity
     let mut config = create_test_config();
     config.agent_configs[0].opening_balance = 50_000; // Low balance
-    config.agent_configs[0].credit_limit = 0; // No credit
+    config.agent_configs[0].unsecured_cap = 0; // No credit
     config.agent_configs[0].policy = PolicyConfig::Fifo; // Submit immediately
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -467,7 +465,7 @@ fn test_collateral_post_event() {
     // ARRANGE: Create orchestrator with collateral management enabled
     let mut config = create_test_config();
     config.agent_configs[0].opening_balance = 50_000;
-    config.agent_configs[0].credit_limit = 500_000; // Has credit capacity
+    config.agent_configs[0].unsecured_cap = 500_000; // Has credit capacity
     config.agent_configs[0].posted_collateral = Some(0); // Start with no collateral
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -567,11 +565,11 @@ fn test_lsm_bilateral_offset_event() {
     let mut config = create_test_config();
     // Set low balances so transactions will queue (insufficient for RTGS)
     config.agent_configs[0].opening_balance = 50_000; // BANK_A has $500
-    config.agent_configs[0].credit_limit = 0; // No credit
+    config.agent_configs[0].unsecured_cap = 0; // No credit
     config.agent_configs[0].policy = PolicyConfig::Fifo; // Submit immediately to RTGS
 
     config.agent_configs[1].opening_balance = 20_000; // BANK_B has $200
-    config.agent_configs[1].credit_limit = 0; // No credit
+    config.agent_configs[1].unsecured_cap = 0; // No credit
     config.agent_configs[1].policy = PolicyConfig::Fifo; // Submit immediately to RTGS
 
     config.lsm_config.enable_bilateral = true;
@@ -692,7 +690,6 @@ fn test_lsm_cycle_settlement_event() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -702,7 +699,6 @@ fn test_lsm_cycle_settlement_event() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -712,7 +708,6 @@ fn test_lsm_cycle_settlement_event() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

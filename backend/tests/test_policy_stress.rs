@@ -48,7 +48,6 @@ fn test_high_frequency_arrivals_single_agent() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -58,7 +57,6 @@ fn test_high_frequency_arrivals_single_agent() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -152,7 +150,6 @@ fn test_sustained_high_load_100_ticks() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -162,7 +159,6 @@ fn test_sustained_high_load_100_ticks() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -259,7 +255,6 @@ fn test_extreme_high_frequency_arrivals() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -269,7 +264,6 @@ fn test_extreme_high_frequency_arrivals() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

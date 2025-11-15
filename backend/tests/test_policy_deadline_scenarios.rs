@@ -95,7 +95,6 @@ fn test_deadline_policy_submits_urgent_arrivals() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -105,7 +104,6 @@ fn test_deadline_policy_submits_urgent_arrivals() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -177,7 +175,6 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -187,7 +184,6 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -260,7 +256,6 @@ fn test_deadline_policy_vs_fifo_comparison() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             // Agent B: FIFO Policy
             AgentConfig {
@@ -271,7 +266,6 @@ fn test_deadline_policy_vs_fifo_comparison() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             // Receiver bank
             AgentConfig {
@@ -282,7 +276,6 @@ fn test_deadline_policy_vs_fifo_comparison() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -359,7 +352,6 @@ fn test_deadline_policy_all_urgent_scenario() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -369,7 +361,6 @@ fn test_deadline_policy_all_urgent_scenario() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -434,7 +425,6 @@ fn test_deadline_policy_deadline_cascade() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -444,7 +434,6 @@ fn test_deadline_policy_deadline_cascade() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

@@ -19,10 +19,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 fn create_test_state() -> SimulationState {
     let agents = vec![
-        Agent::new("BANK_A".to_string(), 1_000_000, 0),
-        Agent::new("BANK_B".to_string(), 1_000_000, 0),
-        Agent::new("BANK_C".to_string(), 1_000_000, 0),
-        Agent::new("BANK_D".to_string(), 1_000_000, 0),
+        Agent::new("BANK_A".to_string(), 1_000_000),
+        Agent::new("BANK_B".to_string(), 1_000_000),
+        Agent::new("BANK_C".to_string(), 1_000_000),
+        Agent::new("BANK_D".to_string(), 1_000_000),
     ];
     SimulationState::new(agents)
 }
@@ -349,10 +349,10 @@ fn test_triangle_finder_multiple_triangles() {
     // Triangle 2: A→B→D→A (shares edge A→B)
 
     let agents = vec![
-        Agent::new("BANK_A".to_string(), 1_000_000, 0),
-        Agent::new("BANK_B".to_string(), 1_000_000, 0),
-        Agent::new("BANK_C".to_string(), 1_000_000, 0),
-        Agent::new("BANK_D".to_string(), 1_000_000, 0),
+        Agent::new("BANK_A".to_string(), 1_000_000),
+        Agent::new("BANK_B".to_string(), 1_000_000),
+        Agent::new("BANK_C".to_string(), 1_000_000),
+        Agent::new("BANK_D".to_string(), 1_000_000),
     ];
     let mut state = SimulationState::new(agents);
 

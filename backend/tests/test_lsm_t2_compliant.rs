@@ -24,7 +24,7 @@ fn create_test_state_with_agents(agents: Vec<(&str, i64, i64)>) -> SimulationSta
     let agent_list: Vec<Agent> = agents
         .into_iter()
         .map(|(id, balance, credit)| {
-            Agent::new(id.to_string(), balance, credit)
+            Agent::new(id.to_string(), balance)
         })
         .collect();
 

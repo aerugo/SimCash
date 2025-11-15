@@ -21,7 +21,7 @@ use payment_simulator_core_rs::models::event::Event;
 #[test]
 fn test_agent_can_schedule_collateral_withdrawal() {
     // Test that Agent can store a timer for auto-withdrawal
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     // Schedule withdrawal for tick 15
     agent.schedule_collateral_withdrawal_with_posted_tick(
@@ -41,7 +41,7 @@ fn test_agent_can_schedule_collateral_withdrawal() {
 
 #[test]
 fn test_agent_returns_due_withdrawals_only_for_current_tick() {
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     // Schedule multiple withdrawals at different ticks
     agent.schedule_collateral_withdrawal(10, 10_000, "Early".to_string());
@@ -60,7 +60,7 @@ fn test_agent_returns_due_withdrawals_only_for_current_tick() {
 
 #[test]
 fn test_agent_removes_processed_timers() {
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     agent.schedule_collateral_withdrawal(10, 10_000, "Test".to_string());
 
@@ -109,7 +109,7 @@ fn test_timer_calculates_correct_withdrawal_tick() {
 
     assert_eq!(withdrawal_tick, 15);
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
     agent.schedule_collateral_withdrawal(withdrawal_tick, 100_000, "Test".to_string());
 
     // Should not be due at tick 14
@@ -126,7 +126,7 @@ fn test_timer_calculates_correct_withdrawal_tick() {
 #[test]
 fn test_multiple_timers_at_same_tick() {
     // Test that multiple withdrawals can be scheduled for the same tick
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     agent.schedule_collateral_withdrawal(10, 10_000, "First".to_string());
     agent.schedule_collateral_withdrawal(10, 20_000, "Second".to_string());
@@ -149,7 +149,7 @@ fn test_zero_tick_timer_withdraws_immediately() {
 
     assert_eq!(withdrawal_tick, 5);
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
     agent.schedule_collateral_withdrawal(withdrawal_tick, 50_000, "Immediate".to_string());
 
     let due_at_5 = agent.get_pending_collateral_withdrawals(5);
@@ -162,7 +162,7 @@ fn test_agent_tracks_when_collateral_was_posted() {
     let posted_at_tick = 5;
     let withdraw_at_tick = 15;
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     // Schedule withdrawal with posted_at_tick information
     agent.schedule_collateral_withdrawal_with_posted_tick(
@@ -183,7 +183,7 @@ fn test_agent_tracks_when_collateral_was_posted() {
 #[test]
 fn test_timer_persists_across_ticks_until_due() {
     // Test that a timer scheduled for future tick persists correctly
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     agent.schedule_collateral_withdrawal(20, 100_000, "Future".to_string());
 
@@ -204,7 +204,7 @@ fn test_timer_persists_across_ticks_until_due() {
 #[test]
 fn test_timer_at_tick_zero() {
     // Test timer scheduled for tick 0
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     agent.schedule_collateral_withdrawal(0, 50_000, "StartOfSim".to_string());
 
@@ -215,7 +215,7 @@ fn test_timer_at_tick_zero() {
 #[test]
 fn test_clear_all_timers() {
     // Test that agent can clear all pending timers
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     agent.schedule_collateral_withdrawal(10, 10_000, "First".to_string());
     agent.schedule_collateral_withdrawal(15, 20_000, "Second".to_string());
@@ -278,7 +278,7 @@ fn test_collateral_timer_event_serialization_fields() {
 #[test]
 fn test_max_reasonable_timer_duration() {
     // Test that very long timer durations work correctly
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     // Schedule withdrawal 1000 ticks in future (10 days @ 100 ticks/day)
     agent.schedule_collateral_withdrawal(1000, 100_000, "LongTerm".to_string());

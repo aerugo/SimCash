@@ -16,8 +16,8 @@ use std::collections::HashSet;
 #[test]
 fn test_bilateral_offset_no_duplicate_transactions() {
     // Setup: Create 2 agents
-    let agent_a = Agent::new("AGENT_A".to_string(), 1_000_000, 500_000);
-    let agent_b = Agent::new("AGENT_B".to_string(), 1_000_000, 500_000);
+    let agent_a = Agent::new("AGENT_A".to_string(), 1_000_000);
+    let agent_b = Agent::new("AGENT_B".to_string(), 1_000_000);
 
     let mut state = SimulationState::new(vec![agent_a, agent_b]);
 
@@ -152,8 +152,8 @@ fn test_bilateral_offset_no_duplicate_transactions() {
 #[test]
 fn test_lsm_multiple_iterations_no_duplicate_processing() {
     // Similar setup but designed to trigger multiple LSM iterations
-    let agent_a = Agent::new("AGENT_A".to_string(), 100_000, 50_000);
-    let agent_b = Agent::new("AGENT_B".to_string(), 100_000, 50_000);
+    let agent_a = Agent::new("AGENT_A".to_string(), 100_000);
+    let agent_b = Agent::new("AGENT_B".to_string(), 100_000);
 
     let mut state = SimulationState::new(vec![agent_a, agent_b]);
 
@@ -213,9 +213,9 @@ fn test_lsm_multiple_iterations_no_duplicate_processing() {
 fn test_lsm_no_duplicate_cycle_events_across_iterations() {
     // Setup: Create scenario that triggers multiple LSM iterations
     // Use agents with limited liquidity to prevent immediate settlement
-    let agent_a = Agent::new("AGENT_A".to_string(), 50_000, 10_000);
-    let agent_b = Agent::new("AGENT_B".to_string(), 50_000, 10_000);
-    let agent_c = Agent::new("AGENT_C".to_string(), 50_000, 10_000);
+    let agent_a = Agent::new("AGENT_A".to_string(), 50_000);
+    let agent_b = Agent::new("AGENT_B".to_string(), 50_000);
+    let agent_c = Agent::new("AGENT_C".to_string(), 50_000);
 
     let mut state = SimulationState::new(vec![agent_a, agent_b, agent_c]);
 
@@ -328,8 +328,8 @@ fn test_lsm_no_duplicate_cycle_events_across_iterations() {
 #[test]
 fn test_no_duplicate_between_bilateral_and_multilateral() {
     // Setup: 2 agents with bilateral transactions
-    let agent_a = Agent::new("AGENT_A".to_string(), 100_000, 50_000);
-    let agent_b = Agent::new("AGENT_B".to_string(), 100_000, 50_000);
+    let agent_a = Agent::new("AGENT_A".to_string(), 100_000);
+    let agent_b = Agent::new("AGENT_B".to_string(), 100_000);
 
     let mut state = SimulationState::new(vec![agent_a, agent_b]);
 
@@ -424,9 +424,9 @@ fn test_no_duplicate_between_bilateral_and_multilateral() {
 #[test]
 fn test_complex_scenario_no_duplicates() {
     // Setup: 3 agents with limited liquidity
-    let agent_a = Agent::new("AGENT_A".to_string(), 10_000, 5_000);
-    let agent_b = Agent::new("AGENT_B".to_string(), 10_000, 5_000);
-    let agent_c = Agent::new("AGENT_C".to_string(), 10_000, 5_000);
+    let agent_a = Agent::new("AGENT_A".to_string(), 10_000);
+    let agent_b = Agent::new("AGENT_B".to_string(), 10_000);
+    let agent_c = Agent::new("AGENT_C".to_string(), 10_000);
 
     let mut state = SimulationState::new(vec![agent_a, agent_b, agent_c]);
 
