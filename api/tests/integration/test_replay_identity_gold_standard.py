@@ -38,66 +38,73 @@ class TestEventEnrichment:
             "agent_configs": [
                 {
                     "id": "BANK_A",
-                    "opening_balance": 50000,  # Low balance to trigger LSM
+                    "opening_balance": 10000,  # Very low balance to force gridlock and trigger LSM
                     "credit_limit": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
-                    "opening_balance": 50000,
+                    "opening_balance": 10000,
                     "credit_limit": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
+            "lsm_config": {
+                "enabled": True,
+                "activation_tick": 0,  # Enable from start
+            },
         }
 
         orch = Orchestrator.new(config)
 
-        # Create bilateral offset scenario: A owes B, B owes A
-        orch.submit_transaction(
+        # Create perfect bilateral offset scenario: A→B and B→A same amounts
+        tx1 = orch.submit_transaction(
             sender="BANK_A",
             receiver="BANK_B",
-            amount=60000,  # More than balance
+            amount=50000,  # Much more than balance - forces gridlock
             deadline_tick=50,
             priority=5,
             divisible=False,
         )
 
-        orch.submit_transaction(
+        tx2 = orch.submit_transaction(
             sender="BANK_B",
             receiver="BANK_A",
-            amount=60000,
+            amount=50000,  # Exactly matching - perfect bilateral
             deadline_tick=50,
             priority=5,
             divisible=False,
         )
 
         # Tick forward - LSM should detect bilateral offset
-        orch.tick()
+        for _ in range(3):  # Try a few ticks to ensure LSM runs
+            orch.tick()
 
-        # Get events from orchestrator (tick 1)
-        current_tick = orch.current_tick()
-        events = orch.get_tick_events(current_tick)
+        # Get ALL events to find bilateral offset
+        all_events = orch.get_all_events()
 
         # Find LSM bilateral offset event
-        lsm_bilateral = [e for e in events if e.get('event_type') == 'lsm_bilateral_offset']
+        lsm_bilateral = [e for e in all_events if e.get('event_type') == 'lsm_bilateral_offset']
 
-        if lsm_bilateral:
-            event = lsm_bilateral[0]
+        assert len(lsm_bilateral) > 0, (
+            f"Expected LSM bilateral offset event. Events: {[e.get('event_type') for e in all_events]}"
+        )
 
-            # CRITICAL: These fields must exist for rich display
-            assert 'agent_a' in event, "Missing agent_a field"
-            assert 'agent_b' in event, "Missing agent_b field"
-            assert 'amount_a' in event, "Missing amount_a field (amount flowing A→B)"
-            assert 'amount_b' in event, "Missing amount_b field (amount flowing B→A)"
-            assert 'tx_ids' in event, "Missing tx_ids field"
-            assert 'tick' in event, "Missing tick field"
+        event = lsm_bilateral[0]
 
-            # Verify amounts are different (not just total offset amount)
-            assert isinstance(event['amount_a'], int), "amount_a must be integer"
-            assert isinstance(event['amount_b'], int), "amount_b must be integer"
-        else:
-            pytest.skip("No bilateral offset occurred in this scenario")
+        # CRITICAL: These fields must exist for rich display
+        assert 'agent_a' in event, "Missing agent_a field"
+        assert 'agent_b' in event, "Missing agent_b field"
+        assert 'amount_a' in event, "Missing amount_a field (amount flowing A→B)"
+        assert 'amount_b' in event, "Missing amount_b field (amount flowing B→A)"
+        assert 'tx_ids' in event, "Missing tx_ids field"
+        assert 'tick' in event, "Missing tick field"
+
+        # Verify amounts are different (not just total offset amount)
+        assert isinstance(event['amount_a'], int), "amount_a must be integer"
+        assert isinstance(event['amount_b'], int), "amount_b must be integer"
+        assert event['amount_a'] > 0, "amount_a must be positive"
+        assert event['amount_b'] > 0, "amount_b must be positive"
 
     def test_lsm_cycle_settlement_has_all_fields(self):
         """LSM cycle settlement events must contain agents, tx_amounts, net_positions, etc."""
@@ -106,19 +113,23 @@ class TestEventEnrichment:
             "ticks_per_day": 100,
             "num_days": 1,
             "agent_configs": [
-                {"id": "A", "opening_balance": 10000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-                {"id": "B", "opening_balance": 10000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-                {"id": "C", "opening_balance": 10000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                {"id": "A", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                {"id": "B", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                {"id": "C", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
             ],
+            "lsm_config": {
+                "enabled": True,
+                "activation_tick": 0,
+            },
         }
 
         orch = Orchestrator.new(config)
 
-        # Create cycle: A→B→C→A
+        # Create perfect cycle: A→B→C→A with matching amounts
         orch.submit_transaction(
             sender="A",
             receiver="B",
-            amount=15000,
+            amount=20000,  # Much more than balance - forces gridlock
             deadline_tick=50,
             priority=5,
             divisible=False,
@@ -127,7 +138,7 @@ class TestEventEnrichment:
         orch.submit_transaction(
             sender="B",
             receiver="C",
-            amount=15000,
+            amount=20000,
             deadline_tick=50,
             priority=5,
             divisible=False,
@@ -136,39 +147,42 @@ class TestEventEnrichment:
         orch.submit_transaction(
             sender="C",
             receiver="A",
-            amount=15000,
+            amount=20000,
             deadline_tick=50,
             priority=5,
             divisible=False,
         )
 
-        orch.tick()
+        # Tick forward - LSM should detect cycle
+        for _ in range(3):
+            orch.tick()
 
-        current_tick = orch.current_tick()
-        events = orch.get_tick_events(current_tick)
-        lsm_cycles = [e for e in events if e.get('event_type') == 'lsm_cycle_settlement']
+        # Get ALL events
+        all_events = orch.get_all_events()
+        lsm_cycles = [e for e in all_events if e.get('event_type') == 'lsm_cycle_settlement']
 
-        if lsm_cycles:
-            event = lsm_cycles[0]
+        assert len(lsm_cycles) > 0, (
+            f"Expected LSM cycle settlement event. Events: {[e.get('event_type') for e in all_events]}"
+        )
 
-            # CRITICAL: These fields must exist for rich visualization
-            assert 'agents' in event, "Missing agents field"
-            assert 'tx_amounts' in event, "Missing tx_amounts field"
-            assert 'total_value' in event, "Missing total_value field"
-            assert 'net_positions' in event, "Missing net_positions field"
-            assert 'max_net_outflow' in event, "Missing max_net_outflow field"
-            assert 'max_net_outflow_agent' in event, "Missing max_net_outflow_agent field"
-            assert 'tx_ids' in event, "Missing tx_ids field"
-            assert 'tick' in event, "Missing tick field"
+        event = lsm_cycles[0]
 
-            # Verify data types
-            assert isinstance(event['agents'], list), "agents must be list"
-            assert isinstance(event['tx_amounts'], list), "tx_amounts must be list"
-            assert isinstance(event['net_positions'], list), "net_positions must be list"
-            assert len(event['agents']) >= 2, "Must have at least 2 agents in cycle"
-            assert len(event['agents']) == len(event['tx_amounts']), "agents and tx_amounts must match"
-        else:
-            pytest.skip("No LSM cycle occurred in this scenario")
+        # CRITICAL: These fields must exist for rich visualization
+        assert 'agents' in event, "Missing agents field"
+        assert 'tx_amounts' in event, "Missing tx_amounts field"
+        assert 'total_value' in event, "Missing total_value field"
+        assert 'net_positions' in event, "Missing net_positions field"
+        assert 'max_net_outflow' in event, "Missing max_net_outflow field"
+        assert 'max_net_outflow_agent' in event, "Missing max_net_outflow_agent field"
+        assert 'tx_ids' in event, "Missing tx_ids field"
+        assert 'tick' in event, "Missing tick field"
+
+        # Verify data types
+        assert isinstance(event['agents'], list), "agents must be list"
+        assert isinstance(event['tx_amounts'], list), "tx_amounts must be list"
+        assert isinstance(event['net_positions'], list), "net_positions must be list"
+        assert len(event['agents']) >= 2, "Must have at least 2 agents in cycle"
+        assert len(event['agents']) == len(event['tx_amounts']), "agents and tx_amounts must match"
 
     def test_collateral_posted_has_all_fields(self):
         """Collateral posted events must contain amount, new_total, trigger."""
@@ -178,14 +192,14 @@ class TestEventEnrichment:
             "num_days": 1,
             "collateral_config": {
                 "enabled": True,
-                "threshold": -100000,
+                "threshold": -50000,  # Lower threshold to trigger more easily
                 "cost_per_unit_per_tick": 1,
             },
             "agent_configs": [
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,
-                    "credit_limit": 200000,
+                    "credit_limit": 100000,  # Enable overdraft
                     "policy": {"type": "Fifo"},
                 },
                 {
@@ -199,37 +213,40 @@ class TestEventEnrichment:
 
         orch = Orchestrator.new(config)
 
-        # Submit large transaction to trigger collateral
+        # Submit large transaction to trigger negative balance and collateral requirement
         orch.submit_transaction(
             sender="BANK_A",
             receiver="BANK_B",
-            amount=150000,
+            amount=180000,  # Forces BANK_A into overdraft past threshold
             deadline_tick=50,
             priority=5,
             divisible=False,
         )
 
-        orch.tick()
+        # Tick multiple times to ensure settlement and collateral posting
+        for _ in range(3):
+            orch.tick()
 
-        current_tick = orch.current_tick()
-        events = orch.get_tick_events(current_tick)
-        collateral_events = [e for e in events if e.get('event_type') == 'collateral_posted']
+        # Get ALL events
+        all_events = orch.get_all_events()
+        collateral_events = [e for e in all_events if e.get('event_type') == 'collateral_posted']
 
-        if collateral_events:
-            event = collateral_events[0]
+        assert len(collateral_events) > 0, (
+            f"Expected collateral posting event. Events: {[e.get('event_type') for e in all_events]}"
+        )
 
-            # CRITICAL: These fields must exist
-            assert 'agent_id' in event, "Missing agent_id field"
-            assert 'amount' in event, "Missing amount field"
-            assert 'new_total' in event, "Missing new_total field"
-            assert 'trigger' in event, "Missing trigger field"
-            assert 'tick' in event, "Missing tick field"
+        event = collateral_events[0]
 
-            assert isinstance(event['amount'], int), "amount must be integer"
-            assert isinstance(event['new_total'], int), "new_total must be integer"
-            assert isinstance(event['trigger'], str), "trigger must be string"
-        else:
-            pytest.skip("No collateral posting occurred in this scenario")
+        # CRITICAL: These fields must exist
+        assert 'agent_id' in event, "Missing agent_id field"
+        assert 'amount' in event, "Missing amount field"
+        assert 'new_total' in event, "Missing new_total field"
+        assert 'trigger' in event, "Missing trigger field"
+        assert 'tick' in event, "Missing tick field"
+
+        assert isinstance(event['amount'], int), "amount must be integer"
+        assert isinstance(event['new_total'], int), "new_total must be integer"
+        assert isinstance(event['trigger'], str), "trigger must be string"
 
     def test_transaction_became_overdue_has_all_fields(self):
         """Overdue transaction events must contain all necessary display fields."""
@@ -240,7 +257,7 @@ class TestEventEnrichment:
             "agent_configs": [
                 {
                     "id": "BANK_A",
-                    "opening_balance": 10000,
+                    "opening_balance": 1000,  # Very low balance - ensures insufficient liquidity
                     "credit_limit": 0,
                     "policy": {"type": "Fifo"},
                 },
@@ -251,40 +268,47 @@ class TestEventEnrichment:
                     "policy": {"type": "Fifo"},
                 },
             ],
+            "cost_rates": {
+                "deadline_penalty": 10000,  # Enable deadline penalties
+            },
         }
 
         orch = Orchestrator.new(config)
 
-        # Submit transaction with tight deadline
-        orch.submit_transaction(
+        # Submit transaction with tight deadline that will miss
+        tx_id = orch.submit_transaction(
             sender="BANK_A",
             receiver="BANK_B",
-            amount=50000,  # Insufficient liquidity
-            deadline_tick=2,  # Very tight deadline
+            amount=50000,  # Much more than balance
+            deadline_tick=1,  # Very tight deadline - will miss
             priority=5,
             divisible=False,
         )
 
-        # Tick past deadline
-        orch.tick()
-        orch.tick()
-        orch.tick()
+        # Tick past deadline to trigger overdue
+        orch.tick()  # tick 0 - transaction queued
+        orch.tick()  # tick 1 - deadline passes
+        orch.tick()  # tick 2 - should be marked overdue
 
         events = orch.get_all_events()
-        overdue_events = [e for e in events if e.get('event_type') == 'transaction_became_overdue']
 
-        if overdue_events:
-            event = overdue_events[0]
+        # Look for TransactionWentOverdue (actual event type from code)
+        overdue_events = [e for e in events if e.get('event_type') == 'TransactionWentOverdue']
 
-            # CRITICAL: These fields must exist
-            assert 'transaction_id' in event, "Missing transaction_id field"
-            assert 'sender' in event, "Missing sender field"
-            assert 'receiver' in event, "Missing receiver field"
-            assert 'amount' in event, "Missing amount field"
-            assert 'deadline' in event or 'deadline_tick' in event, "Missing deadline field"
-            assert 'tick' in event, "Missing tick field"
-        else:
-            pytest.skip("No overdue transactions in this scenario")
+        assert len(overdue_events) > 0, (
+            f"Expected TransactionWentOverdue event for tx {tx_id}. "
+            f"Events: {[e.get('event_type') for e in events]}"
+        )
+
+        event = overdue_events[0]
+
+        # CRITICAL: These fields must exist
+        assert 'tx_id' in event, "Missing tx_id field"
+        assert 'sender_id' in event, "Missing sender_id field"
+        assert 'receiver_id' in event, "Missing receiver_id field"
+        assert 'amount' in event, "Missing amount field"
+        assert 'deadline_tick' in event, "Missing deadline_tick field"
+        assert 'tick' in event, "Missing tick field"
 
 
 class TestFFIEventSerialization:
@@ -297,9 +321,13 @@ class TestFFIEventSerialization:
             "ticks_per_day": 100,
             "num_days": 1,
             "agent_configs": [
-                {"id": "A", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-                {"id": "B", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                {"id": "A", "opening_balance": 10000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                {"id": "B", "opening_balance": 10000, "credit_limit": 0, "policy": {"type": "Fifo"}},
             ],
+            "lsm_config": {
+                "enabled": True,
+                "activation_tick": 0,
+            },
         }
 
         orch = Orchestrator.new(config)
@@ -308,7 +336,7 @@ class TestFFIEventSerialization:
         orch.submit_transaction(
             sender="A",
             receiver="B",
-            amount=60000,
+            amount=50000,  # Forces gridlock
             deadline_tick=50,
             priority=5,
             divisible=False,
@@ -317,38 +345,40 @@ class TestFFIEventSerialization:
         orch.submit_transaction(
             sender="B",
             receiver="A",
-            amount=60000,
+            amount=50000,
             deadline_tick=50,
             priority=5,
             divisible=False,
         )
 
-        orch.tick()
+        # Tick forward to trigger LSM
+        for _ in range(3):
+            orch.tick()
 
-        # Get events via FFI
-        current_tick = orch.current_tick()
-        events = orch.get_tick_events(current_tick)
+        # Get ALL events via FFI
+        all_events = orch.get_all_events()
 
-        lsm_events = [e for e in events if e.get('event_type') == 'lsm_bilateral_offset']
+        lsm_events = [e for e in all_events if e.get('event_type') == 'lsm_bilateral_offset']
 
-        if lsm_events:
-            event = lsm_events[0]
+        assert len(lsm_events) > 0, (
+            f"Expected LSM bilateral offset. Events: {[e.get('event_type') for e in all_events]}"
+        )
 
-            # Verify FFI returned all fields (not just some)
-            required_fields = {'event_type', 'tick', 'agent_a', 'agent_b', 'amount_a', 'amount_b', 'tx_ids'}
-            actual_fields = set(event.keys())
+        event = lsm_events[0]
 
-            missing = required_fields - actual_fields
-            assert not missing, f"FFI failed to serialize fields: {missing}"
+        # Verify FFI returned all fields (not just some)
+        required_fields = {'event_type', 'tick', 'agent_a', 'agent_b', 'amount_a', 'amount_b', 'tx_ids'}
+        actual_fields = set(event.keys())
 
-            # Verify field types after crossing FFI boundary
-            assert isinstance(event['agent_a'], str)
-            assert isinstance(event['agent_b'], str)
-            assert isinstance(event['amount_a'], int)
-            assert isinstance(event['amount_b'], int)
-            assert isinstance(event['tx_ids'], list)
-        else:
-            pytest.skip("No bilateral offset to test FFI serialization")
+        missing = required_fields - actual_fields
+        assert not missing, f"FFI failed to serialize fields: {missing}"
+
+        # Verify field types after crossing FFI boundary
+        assert isinstance(event['agent_a'], str)
+        assert isinstance(event['agent_b'], str)
+        assert isinstance(event['amount_a'], int)
+        assert isinstance(event['amount_b'], int)
+        assert isinstance(event['tx_ids'], list)
 
 
 class TestPersistenceCompleteness:
