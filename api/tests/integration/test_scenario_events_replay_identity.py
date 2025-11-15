@@ -389,12 +389,91 @@ scenario_events:
         assert run_normalized == replay_normalized, "Run and replay outputs should be identical"
 
 
-@pytest.mark.skip(reason="Requires payment-sim CLI to be available")
 def test_scenario_events_appear_in_verbose_output():
     """
     Test that scenario events appear in verbose output during both run and replay.
 
-    This is a placeholder to remind us to verify display output once
-    StateProvider methods are implemented.
+    Verifies that ScenarioEventExecuted events are displayed in verbose mode.
     """
-    pass
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "config.yaml"
+        db_path = Path(tmpdir) / "sim.db"
+
+        config_yaml = """
+simulation:
+  ticks_per_day: 100
+  num_days: 1
+  rng_seed: 12345
+
+agents:
+  - id: BANK_A
+    opening_balance: 1000000
+    credit_limit: 0
+    policy:
+      type: Fifo
+
+  - id: BANK_B
+    opening_balance: 1000000
+    credit_limit: 0
+    policy:
+      type: Fifo
+
+scenario_events:
+  - type: DirectTransfer
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 100000
+    schedule:
+      type: OneTime
+      tick: 10
+"""
+        config_path.write_text(config_yaml)
+
+        # Run with verbose output
+        run_result = subprocess.run(
+            [
+                "uv", "run", "payment-sim", "run",
+                "--config", str(config_path),
+                "--persist",
+                "--db-path", str(db_path),
+                "--verbose"
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(Path(__file__).parent.parent.parent)
+        )
+
+        assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
+
+        # Get simulation ID
+        import duckdb
+        conn = duckdb.connect(str(db_path))
+        sim_id = conn.execute("SELECT simulation_id FROM simulations ORDER BY started_at DESC LIMIT 1").fetchone()[0]
+        conn.close()
+
+        # Replay with verbose output
+        replay_result = subprocess.run(
+            [
+                "uv", "run", "payment-sim", "replay",
+                "--simulation-id", sim_id,
+                "--db-path", str(db_path),
+                "--from-tick", "0",
+                "--to-tick", "20",
+                "--verbose"
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(Path(__file__).parent.parent.parent)
+        )
+
+        assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
+
+        # Verify both outputs contain scenario event indicators
+        # Note: This is a basic check - full replay identity is tested elsewhere
+        run_has_scenario = "DirectTransfer" in run_result.stdout or "Scenario" in run_result.stdout
+        replay_has_scenario = "DirectTransfer" in replay_result.stdout or "Scenario" in replay_result.stdout
+
+        assert run_has_scenario, "Run output should contain scenario event information"
+        assert replay_has_scenario, "Replay output should contain scenario event information"

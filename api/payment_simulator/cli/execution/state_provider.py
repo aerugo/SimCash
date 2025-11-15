@@ -62,6 +62,14 @@ class StateProvider(Protocol):
         """Get size of agent's internal queue."""
         ...
 
+    def get_queue2_size(self, agent_id: str) -> int:
+        """Get size of agent's RTGS queue (Queue 2).
+
+        Queue 2 consists of transactions in the RTGS central queue that
+        belong to this agent (where agent is the sender).
+        """
+        ...
+
     def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
         """Get transactions approaching their deadline.
 
@@ -130,6 +138,16 @@ class OrchestratorStateProvider:
     def get_queue1_size(self, agent_id: str) -> int:
         """Delegate to orchestrator."""
         return self.orch.get_queue1_size(agent_id)
+
+    def get_queue2_size(self, agent_id: str) -> int:
+        """Calculate Queue 2 size from RTGS queue contents."""
+        rtgs_queue = self.orch.get_rtgs_queue_contents()
+        return sum(
+            1
+            for tx_id in rtgs_queue
+            if self.orch.get_transaction_details(tx_id)
+            and self.orch.get_transaction_details(tx_id).get("sender_id") == agent_id
+        )
 
     def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
         """Delegate to orchestrator."""
@@ -258,6 +276,19 @@ class DatabaseStateProvider:
     def get_queue1_size(self, agent_id: str) -> int:
         """Get queue1 size."""
         return len(self.get_agent_queue1_contents(agent_id))
+
+    def get_queue2_size(self, agent_id: str) -> int:
+        """Get Queue 2 size from queue snapshots.
+
+        Queue 2 consists of transactions in the RTGS queue that belong to this agent.
+        """
+        rtgs_queue = self.get_rtgs_queue_contents()
+        return sum(
+            1
+            for tx_id in rtgs_queue
+            if self.get_transaction_details(tx_id)
+            and self.get_transaction_details(tx_id).get("sender_id") == agent_id
+        )
 
     def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
         """Get transactions approaching deadline from cache.
