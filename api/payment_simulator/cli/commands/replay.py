@@ -1433,17 +1433,17 @@ def replay_simulation(
 
                         # Build mapping of agent_id -> unsecured_cap from config
                         # CRITICAL FIX (Discrepancy #8): Apply same backward compatibility as Rust
-                        # Rust logic: unsecured_cap = config.unsecured_cap ?? config.credit_limit
+                        # Rust logic: unsecured_cap = config.unsecured_cap ?? config.unsecured_cap
                         # This ensures allowed_overdraft calculation matches between run and replay
                         agent_credit_limits = {}
                         for agent in config_dict.get("agents", []):
                             agent_id = agent["id"]
-                            # Use unsecured_cap if specified, otherwise fall back to credit_limit
+                            # Use unsecured_cap if specified, otherwise fall back to unsecured_cap
                             unsecured_cap = agent.get("unsecured_cap")
                             if unsecured_cap is not None:
                                 agent_credit_limits[agent_id] = unsecured_cap
                             else:
-                                agent_credit_limits[agent_id] = agent.get("credit_limit", 0)
+                                agent_credit_limits[agent_id] = agent.get("unsecured_cap", 0)
 
                         agent_stats = []
                         day_total_costs = 0
@@ -1463,7 +1463,7 @@ def replay_simulation(
                                 # Must match Rust's Agent::allowed_overdraft_limit() formula exactly!
                                 # Rust: collateral_capacity + unsecured_cap
                                 balance = row_dict["closing_balance"]
-                                unsecured_cap = agent_credit_limits.get(agent_id, 0)  # Contains unsecured_cap (or credit_limit fallback)
+                                unsecured_cap = agent_credit_limits.get(agent_id, 0)  # Contains unsecured_cap (or unsecured_cap fallback)
 
                                 # Get collateral backing from database
                                 posted_collateral = row_dict.get("closing_posted_collateral", 0)

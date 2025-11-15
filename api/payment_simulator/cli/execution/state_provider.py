@@ -33,7 +33,7 @@ class StateProvider(Protocol):
         """Get agent's current balance in cents."""
         ...
 
-    def get_agent_credit_limit(self, agent_id: str) -> int:
+    def get_agent_unsecured_cap(self, agent_id: str) -> int:
         """Get agent's credit limit in cents."""
         ...
 
@@ -115,9 +115,9 @@ class OrchestratorStateProvider:
         """Delegate to orchestrator."""
         return self.orch.get_agent_balance(agent_id)
 
-    def get_agent_credit_limit(self, agent_id: str) -> int:
+    def get_agent_unsecured_cap(self, agent_id: str) -> int:
         """Delegate to orchestrator."""
-        return self.orch.get_agent_credit_limit(agent_id)
+        return self.orch.get_agent_unsecured_cap(agent_id)
 
     def get_agent_queue1_contents(self, agent_id: str) -> list[str]:
         """Delegate to orchestrator."""
@@ -230,12 +230,12 @@ class DatabaseStateProvider:
             return 0
         return self._agent_states[agent_id].get("balance", 0)
 
-    def get_agent_credit_limit(self, agent_id: str) -> int:
+    def get_agent_unsecured_cap(self, agent_id: str) -> int:
         """Get credit limit from agent_states."""
-        # Handle missing credit_limit gracefully (older databases may not have it)
+        # Handle missing unsecured_cap gracefully (older databases may not have it)
         if agent_id not in self._agent_states:
             return 0
-        return self._agent_states[agent_id].get("credit_limit", 0)
+        return self._agent_states[agent_id].get("unsecured_cap", 0)
 
     def get_agent_queue1_contents(self, agent_id: str) -> list[str]:
         """Get queue1 from queue_snapshots."""

@@ -188,7 +188,7 @@ def log_agent_state(provider, agent_id: str, balance_change: int = 0, quiet: boo
 
     # Get agent state from provider
     balance = provider.get_agent_balance(agent_id)
-    credit_limit = provider.get_agent_credit_limit(agent_id)
+    unsecured_cap = provider.get_agent_unsecured_cap(agent_id)
     collateral = provider.get_agent_collateral_posted(agent_id)
     queue1_contents = provider.get_agent_queue1_contents(agent_id)
     rtgs_queue = provider.get_rtgs_queue_contents()
@@ -210,10 +210,10 @@ def log_agent_state(provider, agent_id: str, balance_change: int = 0, quiet: boo
 
     # Credit utilization (Issue #4 fix)
     credit_str = ""
-    if credit_limit and credit_limit > 0:
+    if unsecured_cap and unsecured_cap > 0:
         # Credit is only "used" when balance is negative (overdraft)
         used = max(0, -balance)
-        utilization_pct = (used / credit_limit) * 100
+        utilization_pct = (used / unsecured_cap) * 100
 
         if utilization_pct > 80:
             util_str = f"[red]{utilization_pct:.0f}% used[/red]"
@@ -304,17 +304,17 @@ def log_agent_financial_stats_table(provider, agent_ids: list[str], quiet: bool 
 
     for agent_id in agent_ids:
         balance = provider.get_agent_balance(agent_id)
-        credit_limit = provider.get_agent_credit_limit(agent_id) or 0
+        unsecured_cap = provider.get_agent_unsecured_cap(agent_id) or 0
         collateral = provider.get_agent_collateral_posted(agent_id) or 0
         queue1_contents = provider.get_agent_queue1_contents(agent_id)
         costs = provider.get_agent_accumulated_costs(agent_id)
 
         # Calculate derived metrics
         credit_used = max(0, -balance) if balance < 0 else 0
-        available_liquidity = balance + credit_limit + collateral
+        available_liquidity = balance + unsecured_cap + collateral
 
         # Calculate headroom percentage
-        max_liquidity = credit_limit + collateral
+        max_liquidity = unsecured_cap + collateral
         if max_liquidity > 0:
             headroom_pct = (available_liquidity / max_liquidity) * 100
         else:
@@ -350,7 +350,7 @@ def log_agent_financial_stats_table(provider, agent_ids: list[str], quiet: bool 
         # Display agent stats
         console.print(f"[bold]{agent_id}[/bold]")
         console.print(f"  Balance:            {balance_str}")
-        console.print(f"  Credit Limit:       ${credit_limit / 100:,.2f}" if credit_limit > 0 else "  Credit Limit:       None")
+        console.print(f"  Credit Limit:       ${unsecured_cap / 100:,.2f}" if unsecured_cap > 0 else "  Credit Limit:       None")
         if credit_used > 0:
             console.print(f"  Credit Used:        [yellow]${credit_used / 100:,.2f}[/yellow]")
         console.print(f"  Available Liquidity: ${available_liquidity / 100:,.2f}")
@@ -797,7 +797,7 @@ def log_agent_queues_detailed(orch, agent_id, balance, balance_change, quiet=Fal
         change_str = f" ({sign}${balance_change / 100:,.2f})"
 
     # Credit utilization (Issue #4 fix)
-    # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just credit_limit!
+    # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just unsecured_cap!
     allowed_overdraft = orch.get_agent_allowed_overdraft_limit(agent_id)
     credit_str = ""
     if allowed_overdraft and allowed_overdraft > 0:
@@ -968,16 +968,16 @@ def log_collateral_activity(provider, events, quiet=False):
         # Get agent's current financial state for context
         try:
             balance = provider.get_agent_balance(agent_id)
-            credit_limit = provider.get_agent_credit_limit(agent_id)
+            unsecured_cap = provider.get_agent_unsecured_cap(agent_id)
             collateral_posted = provider.get_agent_collateral_posted(agent_id)
 
             # Calculate financial metrics (assuming 2% haircut - standard for T2/CLM)
             haircut = 0.02
             credit_used = max(-balance, 0)
             collateral_capacity = int(collateral_posted * (1 - haircut))
-            allowed_limit = collateral_capacity + credit_limit  # Unsecured cap assumed 0 for simplicity
+            allowed_limit = collateral_capacity + unsecured_cap  # Unsecured cap assumed 0 for simplicity
             headroom = allowed_limit - credit_used
-            using_collateralized_credit = credit_used > credit_limit
+            using_collateralized_credit = credit_used > unsecured_cap
         except Exception:
             # If state provider doesn't have this data (e.g., database replay without full-replay),
             # skip financial analysis
@@ -1026,7 +1026,7 @@ def log_collateral_activity(provider, events, quiet=False):
                     console.print(f"     💡 Reduces allowed limit by ${limit_decrease / 100:,.2f}, remaining headroom: ${new_headroom / 100:,.2f}")
 
                     if using_collateralized_credit:
-                        console.print(f"     ℹ️  Agent is using collateralized credit (${credit_used / 100:,.2f} vs ${credit_limit / 100:,.2f} base limit)")
+                        console.print(f"     ℹ️  Agent is using collateralized credit (${credit_used / 100:,.2f} vs ${unsecured_cap / 100:,.2f} base limit)")
                         console.print(f"     ✅ Withdrawal permitted per TARGET2 policy: remaining collateral still covers overdraft")
                     else:
                         console.print(f"     ✅ Withdrawal safe - agent has positive balance or is within base credit limit")
