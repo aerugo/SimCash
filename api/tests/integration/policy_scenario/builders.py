@@ -194,7 +194,7 @@ class ScenarioBuilder:
         self,
         agent_id: str,
         balance: int,
-        credit_limit: int = 0,
+        unsecured_cap: int = 0,
         arrival_rate: float = 0.0,
         arrival_amount_range: Tuple[int, int] = (100_000, 250_000),
         deadline_range: Tuple[int, int] = (10, 40),
@@ -207,7 +207,7 @@ class ScenarioBuilder:
         Args:
             agent_id: Agent identifier
             balance: Opening balance in cents
-            credit_limit: Credit limit in cents (default 0)
+            unsecured_cap: Unsecured overdraft capacity in cents (default 0)
             arrival_rate: Expected arrivals per tick (default 0 = receiver only)
             arrival_amount_range: (min, max) transaction amounts in cents
             deadline_range: (min, max) deadline ticks
@@ -218,7 +218,7 @@ class ScenarioBuilder:
         agent_cfg = AgentScenarioConfig(
             agent_id=agent_id,
             opening_balance=balance,
-            credit_limit=credit_limit,
+            unsecured_cap=unsecured_cap,
             arrival_rate=arrival_rate,
             arrival_amount_range=arrival_amount_range,
             deadline_range=deadline_range,
