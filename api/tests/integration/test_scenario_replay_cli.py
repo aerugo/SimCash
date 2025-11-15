@@ -135,10 +135,12 @@ scenario_events:
                     if "/" in config_file:
                         data["simulation"]["config_file"] = config_file.split("/")[-1]
 
-                # Remove timing fields
+                # Remove timing fields and replay-specific fields
                 if "simulation" in data:
                     data["simulation"].pop("duration_seconds", None)
                     data["simulation"].pop("ticks_per_second", None)
+                    data["simulation"].pop("replay_range", None)
+                    data["simulation"].pop("ticks_replayed", None)
                 if "performance" in data:
                     data.pop("performance", None)
 
