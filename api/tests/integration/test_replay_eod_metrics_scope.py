@@ -134,8 +134,9 @@ def test_replay_eod_banner_matches_run_when_replaying_eod_tick():
 
         assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
 
-        # Extract EOD banner from run (day 1, tick 99) - verbose output is in stderr
-        run_eod = [line for line in run_result.stderr.split('\n') if 'End of Day 1' in line and 'unsettled' in line]
+        # Extract EOD banner from run (day 0, tick 99) - verbose output is in stderr
+        # Note: tick 99 is last tick of day 0 (ticks 0-99 = day 0 with ticks_per_day=100)
+        run_eod = [line for line in run_result.stderr.split('\n') if 'End of Day 0' in line and 'unsettled' in line]
         assert len(run_eod) > 0, "No EOD banner in run output"
 
         # Extract simulation ID from JSON in stdout
@@ -144,7 +145,7 @@ def test_replay_eod_banner_matches_run_when_replaying_eod_tick():
         assert match, "Could not find simulation ID"
         sim_id = match.group(0)
 
-        # Replay tick 99 with verbose (last tick of day 1)
+        # Replay tick 99 with verbose (last tick of day 0)
         replay_result = subprocess.run(
             [
                 "uv", "run", "payment-sim", "replay",
@@ -163,7 +164,7 @@ def test_replay_eod_banner_matches_run_when_replaying_eod_tick():
         assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
 
         # Extract EOD banner from replay - verbose output is in stderr
-        replay_eod = [line for line in replay_result.stderr.split('\n') if 'End of Day 1' in line and 'unsettled' in line]
+        replay_eod = [line for line in replay_result.stderr.split('\n') if 'End of Day 0' in line and 'unsettled' in line]
         assert len(replay_eod) > 0, "No EOD banner in replay output"
 
         # Parse unsettled counts

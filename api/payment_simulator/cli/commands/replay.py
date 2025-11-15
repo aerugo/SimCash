@@ -448,6 +448,32 @@ def _reconstruct_queued_rtgs_events(events: list[dict]) -> list[dict]:
     return result
 
 
+def _reconstruct_end_of_day_events(events: list[dict]) -> list[dict]:
+    """Reconstruct EndOfDay events from simulation_events table.
+
+    EOD events mark the end of each simulated day and contain summary statistics.
+
+    Args:
+        events: List of simulation event records with event_type = 'EndOfDay'
+
+    Returns:
+        List of event dicts compatible with log_end_of_day_event function
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "EndOfDay":
+            details = event.get("details", {})
+            # Merge top-level fields with details for display functions
+            result.append({
+                "event_type": "EndOfDay",
+                "tick": event["tick"],
+                "day": details.get("day", 0),
+                "unsettled_count": details.get("unsettled_count", 0),
+                "total_penalties": details.get("total_penalties", 0),
+            })
+    return result
+
+
 def _reconstruct_rtgs_immediate_settlement_events(events: list[dict]) -> list[dict]:
     """Reconstruct RtgsImmediateSettlement events from simulation_events table.
 
@@ -1185,6 +1211,7 @@ def replay_simulation(
                     # PHASE 4 FIX: Add missing event types for replay identity
                     transaction_went_overdue_events_raw = []
                     queued_rtgs_events_raw = []
+                    end_of_day_events_raw = []  # End of day events
 
                     for event in tick_events_result["events"]:
                         event_type = event["event_type"]
@@ -1216,6 +1243,8 @@ def replay_simulation(
                             transaction_went_overdue_events_raw.append(event)
                         elif event_type == "QueuedRtgs":
                             queued_rtgs_events_raw.append(event)
+                        elif event_type == "EndOfDay":
+                            end_of_day_events_raw.append(event)
 
                     # Reconstruct events from database (using simulation_events table as SINGLE SOURCE)
                     # This is the unified replay architecture - NO manual reconstruction from legacy tables
@@ -1234,6 +1263,7 @@ def replay_simulation(
                     # PHASE 4 FIX: Reconstruct missing event types
                     transaction_went_overdue_events = _reconstruct_transaction_went_overdue_events(transaction_went_overdue_events_raw)
                     queued_rtgs_events = _reconstruct_queued_rtgs_events(queued_rtgs_events_raw)
+                    end_of_day_events = _reconstruct_end_of_day_events(end_of_day_events_raw)
 
                     # Combine all events
                     events = (
@@ -1244,7 +1274,7 @@ def replay_simulation(
                         collateral_timer_events + cost_accrual_events + scenario_events +
                         state_register_events + budget_events +
                         # PHASE 4 FIX: Include missing event types for replay identity
-                        transaction_went_overdue_events + queued_rtgs_events
+                        transaction_went_overdue_events + queued_rtgs_events + end_of_day_events
                     )
 
                     # Update statistics
