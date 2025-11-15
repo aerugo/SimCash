@@ -1432,18 +1432,12 @@ def replay_simulation(
                         agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
 
                         # Build mapping of agent_id -> unsecured_cap from config
-                        # CRITICAL FIX (Discrepancy #8): Apply same backward compatibility as Rust
-                        # Rust logic: unsecured_cap = config.unsecured_cap ?? config.unsecured_cap
-                        # This ensures allowed_overdraft calculation matches between run and replay
-                        agent_credit_limits = {}
-                        for agent in config_dict.get("agents", []):
-                            agent_id = agent["id"]
-                            # Use unsecured_cap if specified, otherwise fall back to unsecured_cap
-                            unsecured_cap = agent.get("unsecured_cap")
-                            if unsecured_cap is not None:
-                                agent_credit_limits[agent_id] = unsecured_cap
-                            else:
-                                agent_credit_limits[agent_id] = agent.get("unsecured_cap", 0)
+                        # Note: credit_limit backwards compatibility has been removed (Phase 8 complete)
+                        # All configs must now use unsecured_cap directly
+                        agent_credit_limits = {
+                            agent["id"]: agent.get("unsecured_cap", 0)
+                            for agent in config_dict.get("agents", [])
+                        }
 
                         agent_stats = []
                         day_total_costs = 0
@@ -1511,6 +1505,8 @@ def replay_simulation(
 
                         # CRITICAL: Use full day statistics, NOT accumulated daily_stats which only
                         # covers the replayed tick range. This fixes Discrepancy #5.
+                        # FIX Discrepancy #11: Sort agents alphabetically to match run output
+                        agent_stats.sort(key=lambda x: x["id"])
                         log_end_of_day_statistics(
                             day=current_day,
                             total_arrivals=full_day_arrivals,
@@ -1696,6 +1692,8 @@ def replay_simulation(
             #
             # We must NOT use tick_count_* variables which only count the replayed tick range!
             total_ticks = summary['ticks_per_day'] * summary['num_days']
+            # FIX Discrepancy #11: Sort agents alphabetically to match run output
+            final_agents_output.sort(key=lambda x: x["id"])
 
             output_data = {
                 "simulation": {
@@ -1716,7 +1714,8 @@ def replay_simulation(
                     "total_arrivals": summary["total_arrivals"],
                     "total_settlements": summary["total_settlements"],
                     "total_lsm_releases": summary.get("total_lsm_releases", tick_count_lsm),
-                    "settlement_rate": round(summary["total_settlements"] / summary["total_arrivals"], 4) if summary["total_arrivals"] > 0 else 0,
+                    # FIX Discrepancy #10: Use full precision to match run output
+                    "settlement_rate": summary["total_settlements"] / summary["total_arrivals"] if summary["total_arrivals"] > 0 else 0,
                 },
                 "agents": final_agents_output,
                 "costs": {
