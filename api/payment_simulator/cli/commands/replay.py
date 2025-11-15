@@ -448,6 +448,62 @@ def _reconstruct_queued_rtgs_events(events: list[dict]) -> list[dict]:
     return result
 
 
+def _reconstruct_rtgs_immediate_settlement_events(events: list[dict]) -> list[dict]:
+    """Reconstruct RtgsImmediateSettlement events from simulation_events table.
+
+    CRITICAL FIX (Discrepancy #3): These events are needed for "RTGS Immediate" display block.
+
+    Args:
+        events: List of simulation event records with event_type = 'RtgsImmediateSettlement'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "RtgsImmediateSettlement":
+            details = event.get("details", {})
+            result.append({
+                "event_type": "RtgsImmediateSettlement",
+                "tick": event["tick"],
+                "tx_id": event.get("tx_id"),
+                "sender": details.get("sender"),
+                "receiver": details.get("receiver"),
+                "amount": details.get("amount", 0),
+                "sender_balance_before": details.get("sender_balance_before"),
+                "sender_balance_after": details.get("sender_balance_after"),
+            })
+    return result
+
+
+def _reconstruct_queue2_liquidity_release_events(events: list[dict]) -> list[dict]:
+    """Reconstruct Queue2LiquidityRelease events from simulation_events table.
+
+    CRITICAL FIX (Discrepancy #3): These events are needed for "Queue 2 Releases" display block.
+
+    Args:
+        events: List of simulation event records with event_type = 'Queue2LiquidityRelease'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "Queue2LiquidityRelease":
+            details = event.get("details", {})
+            result.append({
+                "event_type": "Queue2LiquidityRelease",
+                "tick": event["tick"],
+                "tx_id": event.get("tx_id"),
+                "sender": details.get("sender"),
+                "receiver": details.get("receiver"),
+                "amount": details.get("amount", 0),
+                "queue_wait_ticks": details.get("queue_wait_ticks", 0),
+                "release_reason": details.get("release_reason", ""),
+            })
+    return result
+
+
 def _has_full_replay_data(conn, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
@@ -988,6 +1044,8 @@ def replay_simulation(
                     # Organize events by type
                     arrival_events_raw = []
                     settlement_events_raw = []
+                    rtgs_immediate_events_raw = []  # DISCREPANCY #3 FIX
+                    queue2_release_events_raw = []  # DISCREPANCY #3 FIX
                     lsm_events_raw = []
                     collateral_events_raw = []
                     cost_accrual_events_raw = []
@@ -1005,6 +1063,11 @@ def replay_simulation(
                             arrival_events_raw.append(event)
                         elif event_type == "Settlement":
                             settlement_events_raw.append(event)
+                        # DISCREPANCY #3 FIX: Capture specific settlement event types
+                        elif event_type == "RtgsImmediateSettlement":
+                            rtgs_immediate_events_raw.append(event)
+                        elif event_type == "Queue2LiquidityRelease":
+                            queue2_release_events_raw.append(event)
                         elif event_type in ["LsmBilateralOffset", "LsmCycleSettlement"]:
                             lsm_events_raw.append(event)
                         elif event_type in ["CollateralPost", "CollateralWithdraw"]:
@@ -1029,6 +1092,9 @@ def replay_simulation(
                     # This is the unified replay architecture - NO manual reconstruction from legacy tables
                     arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
                     settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
+                    # DISCREPANCY #3 FIX: Reconstruct specific settlement event types
+                    rtgs_immediate_events = _reconstruct_rtgs_immediate_settlement_events(rtgs_immediate_events_raw)
+                    queue2_release_events = _reconstruct_queue2_liquidity_release_events(queue2_release_events_raw)
                     lsm_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
                     collateral_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
                     collateral_timer_events = _reconstruct_collateral_timer_events(collateral_timer_events_raw)  # Phase 3.4
@@ -1042,7 +1108,10 @@ def replay_simulation(
 
                     # Combine all events
                     events = (
-                        arrival_events + settlement_events + lsm_events + collateral_events +
+                        arrival_events + settlement_events +
+                        # DISCREPANCY #3 FIX: Include specific settlement events for display
+                        rtgs_immediate_events + queue2_release_events +
+                        lsm_events + collateral_events +
                         collateral_timer_events + cost_accrual_events + scenario_events +
                         state_register_events + budget_events +
                         # PHASE 4 FIX: Include missing event types for replay identity
