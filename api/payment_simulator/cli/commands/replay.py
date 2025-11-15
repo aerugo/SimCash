@@ -601,6 +601,38 @@ def _reconstruct_queue_snapshots(
     return queue_snapshots
 
 
+def _calculate_final_queue_sizes(
+    conn,
+    simulation_id: str,
+    final_tick: int,
+    tx_cache: dict[str, dict],
+    agent_ids: list[str]
+) -> dict[str, int]:
+    """Calculate queue sizes at final tick from events.
+
+    CRITICAL FIX (Discrepancy #6): JSON queue sizes were 0 without --full-replay.
+    This reconstructs queue sizes from transaction state at final tick.
+
+    Args:
+        conn: Database connection
+        simulation_id: Simulation identifier
+        final_tick: Last tick of simulation
+        tx_cache: Transaction cache
+        agent_ids: List of agent IDs
+
+    Returns:
+        Dict mapping agent_id -> queue1_size
+    """
+    queue_snapshots = _reconstruct_queue_snapshots(conn, simulation_id, final_tick, tx_cache)
+
+    # Count queued transactions per agent
+    queue_sizes = {agent_id: 0 for agent_id in agent_ids}
+    for agent_id, queues in queue_snapshots.items():
+        queue_sizes[agent_id] = len(queues.get("queue1", [])) + len(queues.get("rtgs", []))
+
+    return queue_sizes
+
+
 def _has_full_replay_data(conn, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
@@ -1583,11 +1615,65 @@ def replay_simulation(
                         for row in agent_results
                     ]
                 except Exception:
-                    # Last resort: agent IDs only
-                    final_agents_output = [{"id": agent["id"]} for agent in config_dict.get("agents", [])]
+                    # CRITICAL FIX (Discrepancy #6): Calculate queue sizes from events
+                    # when daily_agent_metrics unavailable
+                    agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
+
+                    # Calculate final tick
+                    final_tick = summary["ticks_per_day"] * summary["num_days"] - 1
+
+                    # Reconstruct queue sizes from events
+                    queue_sizes = _calculate_final_queue_sizes(
+                        conn=db_manager.conn,
+                        simulation_id=simulation_id,
+                        final_tick=final_tick,
+                        tx_cache=mock_orch._tx_cache,
+                        agent_ids=agent_ids
+                    )
+
+                    # Get final balances from simulation summary or query
+                    # Try to get from daily_agent_metrics even if queue1_eod_size failed
+                    balance_query = """
+                        SELECT agent_id, closing_balance
+                        FROM daily_agent_metrics
+                        WHERE simulation_id = ? AND day = ?
+                    """
+                    try:
+                        balance_results = db_manager.conn.execute(balance_query, [simulation_id, final_day]).fetchall()
+                        balances = {row[0]: row[1] for row in balance_results}
+                    except:
+                        # Last resort: balances from config (opening balances)
+                        balances = {agent["id"]: agent.get("opening_balance", 0) for agent in config_dict.get("agents", [])}
+
+                    final_agents_output = [
+                        {
+                            "id": agent_id,
+                            "final_balance": balances.get(agent_id, 0),
+                            "queue1_size": queue_sizes.get(agent_id, 0),
+                        }
+                        for agent_id in agent_ids
+                    ]
             else:
                 # Last resort: agent IDs only
-                final_agents_output = [{"id": agent["id"]} for agent in config_dict.get("agents", [])]
+                # CRITICAL FIX (Discrepancy #6): Even in last resort, calculate queue sizes
+                agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
+
+                final_tick = summary["ticks_per_day"] * summary["num_days"] - 1
+                queue_sizes = _calculate_final_queue_sizes(
+                    conn=db_manager.conn,
+                    simulation_id=simulation_id,
+                    final_tick=final_tick,
+                    tx_cache=mock_orch._tx_cache,
+                    agent_ids=agent_ids
+                )
+
+                final_agents_output = [
+                    {
+                        "id": agent_id,
+                        "queue1_size": queue_sizes.get(agent_id, 0),
+                    }
+                    for agent_id in agent_ids
+                ]
 
             # PHASE 1 FIX: Use authoritative statistics from simulations table
             # This ensures replay output matches run output exactly (Replay Identity principle)
