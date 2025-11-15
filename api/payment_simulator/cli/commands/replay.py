@@ -1505,6 +1505,8 @@ def replay_simulation(
 
                         # CRITICAL: Use full day statistics, NOT accumulated daily_stats which only
                         # covers the replayed tick range. This fixes Discrepancy #5.
+                        # FIX Discrepancy #11: Sort agents alphabetically to match run output
+                        agent_stats.sort(key=lambda x: x["id"])
                         log_end_of_day_statistics(
                             day=current_day,
                             total_arrivals=full_day_arrivals,
@@ -1690,6 +1692,8 @@ def replay_simulation(
             #
             # We must NOT use tick_count_* variables which only count the replayed tick range!
             total_ticks = summary['ticks_per_day'] * summary['num_days']
+            # FIX Discrepancy #11: Sort agents alphabetically to match run output
+            final_agents_output.sort(key=lambda x: x["id"])
 
             output_data = {
                 "simulation": {
@@ -1710,7 +1714,8 @@ def replay_simulation(
                     "total_arrivals": summary["total_arrivals"],
                     "total_settlements": summary["total_settlements"],
                     "total_lsm_releases": summary.get("total_lsm_releases", tick_count_lsm),
-                    "settlement_rate": round(summary["total_settlements"] / summary["total_arrivals"], 4) if summary["total_arrivals"] > 0 else 0,
+                    # FIX Discrepancy #10: Use full precision to match run output
+                    "settlement_rate": summary["total_settlements"] / summary["total_arrivals"] if summary["total_arrivals"] > 0 else 0,
                 },
                 "agents": final_agents_output,
                 "costs": {
