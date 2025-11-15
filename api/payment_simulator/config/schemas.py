@@ -264,7 +264,7 @@ class AgentConfig(BaseModel):
 
     id: str = Field(..., description="Unique agent identifier")
     opening_balance: int = Field(..., description="Opening balance in cents")
-    credit_limit: int = Field(0, description="Intraday credit limit in cents", ge=0)
+    unsecured_cap: int = Field(0, description="Unsecured overdraft capacity in cents", ge=0)
     policy: PolicyConfig = Field(..., description="Cash manager policy configuration")
     arrival_config: Optional[ArrivalConfig] = Field(None, description="Arrival generation config (if any)")
 
@@ -431,7 +431,7 @@ class SimulationConfig(BaseModel):
         result = {
             "id": agent.id,
             "opening_balance": agent.opening_balance,
-            "credit_limit": agent.credit_limit,
+            "unsecured_cap": agent.unsecured_cap,
             "policy": self._policy_to_ffi_dict(agent.policy),
         }
 

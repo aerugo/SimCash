@@ -45,19 +45,19 @@ def simple_config():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 1_500_000,
-                "credit_limit": 250_000,
+                "unsecured_cap": 250_000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -124,7 +124,7 @@ def test_list_simulations_includes_active(client):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -379,7 +379,7 @@ def test_get_agent_list(client, sample_simulation):
     assert "total_cost_cents" in agent
     assert "avg_balance_cents" in agent
     assert "peak_overdraft_cents" in agent
-    assert "credit_limit_cents" in agent
+    assert "unsecured_cap_cents" in agent
 
     # Values should be integers
     assert isinstance(agent["total_sent"], int)

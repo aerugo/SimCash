@@ -211,8 +211,8 @@ mod tests {
     #[test]
     fn test_rebuild_with_empty_queue() {
         let agents = vec![
-            Agent::new("BANK_A".to_string(), 1_000_000, 0),
-            Agent::new("BANK_B".to_string(), 2_000_000, 0),
+            Agent::new("BANK_A".to_string(), 1_000_000),
+            Agent::new("BANK_B".to_string(), 2_000_000),
         ];
         let state = SimulationState::new(agents);
 
@@ -419,8 +419,8 @@ mod tests {
 
     fn create_state_with_agents() -> SimulationState {
         let agents = vec![
-            Agent::new("BANK_A".to_string(), 1_000_000, 0),
-            Agent::new("BANK_B".to_string(), 2_000_000, 0),
+            Agent::new("BANK_A".to_string(), 1_000_000),
+            Agent::new("BANK_B".to_string(), 2_000_000),
         ];
         SimulationState::new(agents)
     }

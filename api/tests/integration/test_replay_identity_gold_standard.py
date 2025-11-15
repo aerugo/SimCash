@@ -39,13 +39,13 @@ class TestEventEnrichment:
                 {
                     "id": "BANK_A",
                     "opening_balance": 10000,  # Very low balance to force gridlock and trigger LSM
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 10000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -113,9 +113,9 @@ class TestEventEnrichment:
             "ticks_per_day": 100,
             "num_days": 1,
             "agent_configs": [
-                {"id": "A", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-                {"id": "B", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-                {"id": "C", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                {"id": "A", "opening_balance": 5000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+                {"id": "B", "opening_balance": 5000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+                {"id": "C", "opening_balance": 5000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
             ],
             "lsm_config": {
                 "enabled": True,
@@ -200,13 +200,13 @@ class TestEventEnrichment:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,
-                    "credit_limit": 100000,  # Enable overdraft
+                    "unsecured_cap": 100000,  # Enable overdraft
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 500000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -265,13 +265,13 @@ class TestEventEnrichment:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000,  # Very low balance - ensures insufficient liquidity
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 100000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -328,8 +328,8 @@ class TestFFIEventSerialization:
             "ticks_per_day": 100,
             "num_days": 1,
             "agent_configs": [
-                {"id": "A", "opening_balance": 10000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-                {"id": "B", "opening_balance": 10000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                {"id": "A", "opening_balance": 10000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+                {"id": "B", "opening_balance": 10000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
             ],
             "lsm_config": {
                 "enabled": True,
@@ -401,8 +401,8 @@ class TestPersistenceCompleteness:
                 "ticks_per_day": 100,
                 "num_days": 1,
                 "agent_configs": [
-                    {"id": "A", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-                    {"id": "B", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                    {"id": "A", "opening_balance": 50000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+                    {"id": "B", "opening_balance": 50000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
                 ],
             }
 
@@ -530,8 +530,8 @@ class TestRegressionBugs:
             "ticks_per_day": 10,
             "num_days": 1,
             "agent_configs": [
-                {"id": "A", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-                {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+                {"id": "A", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+                {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
             ],
         }
 

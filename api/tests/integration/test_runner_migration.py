@@ -33,13 +33,13 @@ def simple_config_path(tmp_path):
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],

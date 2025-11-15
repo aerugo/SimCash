@@ -39,7 +39,7 @@ def test_lsm_releases_should_not_exceed_total_arrivals():
             {
                 "id": "AGENT_A",
                 "opening_balance": 100_000,  # Very low to force queuing
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {
                     "type": "FromJson",
                     "json": policy_json
@@ -58,7 +58,7 @@ def test_lsm_releases_should_not_exceed_total_arrivals():
             {
                 "id": "AGENT_B",
                 "opening_balance": 100_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {
                     "type": "FromJson",
                     "json": policy_json
@@ -77,7 +77,7 @@ def test_lsm_releases_should_not_exceed_total_arrivals():
             {
                 "id": "AGENT_C",
                 "opening_balance": 100_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {
                     "type": "FromJson",
                     "json": policy_json

@@ -13,8 +13,10 @@
 use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
 
 /// Helper to create agent
-fn create_agent(id: &str, balance: i64, credit_limit: i64) -> Agent {
-    Agent::new(id.to_string(), balance, credit_limit)
+fn create_agent(id: &str, balance: i64, unsecured_cap: i64) -> Agent {
+    let mut agent = Agent::new(id.to_string(), balance);
+    agent.set_unsecured_cap(unsecured_cap);
+    agent
 }
 
 /// Helper to create transaction

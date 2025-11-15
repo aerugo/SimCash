@@ -243,14 +243,14 @@ class DailyAgentMetricsRecord(BaseModel):
     max_balance: int
 
     # Credit usage
-    credit_limit: int
+    unsecured_cap: int
     peak_overdraft: int
 
     # Collateral management (Phase 8)
     opening_posted_collateral: int = 0
     closing_posted_collateral: int = 0
     peak_posted_collateral: int = 0
-    collateral_capacity: int = 0  # 10x credit_limit
+    collateral_capacity: int = 0  # 10x unsecured_cap
     num_collateral_posts: int = 0
     num_collateral_withdrawals: int = 0
 
@@ -584,7 +584,7 @@ class TickAgentStateRecord(BaseModel):
     # Balance tracking
     balance: int = Field(..., description="Balance at end of tick (cents)")
     balance_change: int = Field(..., description="Change in balance this tick (cents)")
-    credit_limit: int = Field(..., description="Agent credit limit (cents)", ge=0)
+    unsecured_cap: int = Field(..., description="Unsecured overdraft capacity (cents)", ge=0)
     posted_collateral: int = Field(
         ..., description="Posted collateral at end of tick (cents)"
     )

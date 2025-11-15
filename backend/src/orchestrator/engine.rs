@@ -142,8 +142,11 @@ pub struct AgentConfig {
     /// Opening balance in settlement account (cents/minor units)
     pub opening_balance: i64,
 
-    /// Daylight overdraft or collateralized credit limit (cents)
-    pub credit_limit: i64,
+    /// Unsecured daylight overdraft capacity (cents)
+    /// Unsecured intraday credit limit separate from collateralized capacity.
+    /// Example: 2_000_000 ($20k) allows small overdrafts without collateral.
+    /// Set to 0 for no unsecured overdraft capacity.
+    pub unsecured_cap: i64,
 
     /// Cash manager policy for Queue 1 decisions
     pub policy: PolicyConfig,
@@ -160,11 +163,6 @@ pub struct AgentConfig {
     /// Example: 0.02 means 2% haircut → 98% of collateral value is available.
     /// T2/CLM typical range: 0.00-0.10 (0%-10% haircut)
     pub collateral_haircut: Option<f64>,
-
-    /// Unsecured daylight overdraft cap (cents) - defaults to 0
-    /// Optional unsecured intraday credit limit separate from collateralized capacity.
-    /// Example: 20_000_00 ($20k) allows small overdrafts without collateral.
-    pub unsecured_cap: Option<i64>,
 }
 
 /// Policy selection for an agent
@@ -456,7 +454,7 @@ pub struct DailyMetrics {
     pub max_balance: i64,
 
     // Credit usage
-    pub credit_limit: i64,
+    pub unsecured_cap: i64,
     pub peak_overdraft: i64,
 
     // Collateral management (Phase 8)
@@ -490,7 +488,7 @@ pub struct DailyMetrics {
 impl DailyMetrics {
     /// Create new daily metrics for an agent at start of day
     fn new(agent_id: String, day: usize, agent: &Agent) -> Self {
-        let credit_limit = agent.credit_limit();
+        let unsecured_cap = agent.unsecured_cap();
         let opening_balance = agent.balance();
         let opening_posted_collateral = agent.posted_collateral();
 
@@ -501,12 +499,12 @@ impl DailyMetrics {
             closing_balance: opening_balance, // Will be updated at EOD
             min_balance: opening_balance,
             max_balance: opening_balance,
-            credit_limit,
+            unsecured_cap,
             peak_overdraft: 0,
             opening_posted_collateral,
             closing_posted_collateral: opening_posted_collateral,
             peak_posted_collateral: opening_posted_collateral,
-            collateral_capacity: credit_limit * 10, // 10x leverage
+            collateral_capacity: unsecured_cap * 10, // 10x leverage
             num_collateral_posts: 0,
             num_collateral_withdrawals: 0,
             num_arrivals: 0,
@@ -796,7 +794,9 @@ impl Orchestrator {
             .agent_configs
             .iter()
             .map(|ac| {
-                let mut agent = Agent::new(ac.id.clone(), ac.opening_balance, ac.credit_limit);
+                let mut agent = Agent::new(ac.id.clone(), ac.opening_balance);
+                // Set unsecured overdraft capacity
+                agent.set_unsecured_cap(ac.unsecured_cap);
                 // Set posted collateral if specified (Phase 8)
                 if let Some(collateral) = ac.posted_collateral {
                     agent.set_posted_collateral(collateral);
@@ -804,17 +804,6 @@ impl Orchestrator {
                 // Set collateral haircut if specified (defaults to 0.02)
                 if let Some(haircut) = ac.collateral_haircut {
                     agent.set_collateral_haircut(haircut);
-                }
-                // Set unsecured cap if specified (defaults to 0)
-                // BACKWARD COMPATIBILITY: If unsecured_cap not specified but credit_limit is,
-                // set unsecured_cap = credit_limit to ensure withdrawal checks properly account
-                // for the credit capacity. This prevents the loophole where agents can borrow
-                // via credit_limit but withdraw collateral because allowed_overdraft_limit
-                // doesn't include credit_limit.
-                if let Some(cap) = ac.unsecured_cap {
-                    agent.set_unsecured_cap(cap);
-                } else if ac.credit_limit > 0 {
-                    agent.set_unsecured_cap(ac.credit_limit);
                 }
                 agent
             })
@@ -1656,8 +1645,8 @@ impl Orchestrator {
     ///     println!("Credit utilization: {:.1}%", utilization);
     /// }
     /// ```
-    pub fn get_agent_credit_limit(&self, agent_id: &str) -> Option<i64> {
-        self.state.get_agent(agent_id).map(|a| a.credit_limit())
+    pub fn get_agent_unsecured_cap(&self, agent_id: &str) -> Option<i64> {
+        self.state.get_agent(agent_id).map(|a| a.unsecured_cap())
     }
 
     /// Get agent's currently posted collateral
@@ -4168,11 +4157,11 @@ mod tests {
 
         let bank_a = orchestrator.state().get_agent("BANK_A").unwrap();
         assert_eq!(bank_a.balance(), 1_000_000);
-        assert_eq!(bank_a.credit_limit(), 500_000);
+        assert_eq!(bank_a.unsecured_cap(), 500_000);
 
         let bank_b = orchestrator.state().get_agent("BANK_B").unwrap();
         assert_eq!(bank_b.balance(), 2_000_000);
-        assert_eq!(bank_b.credit_limit(), 0);
+        assert_eq!(bank_b.unsecured_cap(), 0);
     }
 
     #[test]

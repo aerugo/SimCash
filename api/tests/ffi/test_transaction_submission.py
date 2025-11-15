@@ -10,8 +10,8 @@ def test_submit_simple_transaction():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -42,8 +42,8 @@ def test_submit_transaction_settles():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 500_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 500_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -82,7 +82,7 @@ def test_submit_transaction_invalid_sender():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -108,7 +108,7 @@ def test_submit_transaction_invalid_receiver():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -134,8 +134,8 @@ def test_submit_transaction_invalid_amount():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -172,9 +172,9 @@ def test_submit_multiple_transactions():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 5_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_C", "opening_balance": 3_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 5_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_C", "opening_balance": 3_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -229,8 +229,8 @@ def test_submit_transaction_with_insufficient_funds():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 100_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 100_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -265,8 +265,8 @@ def test_submit_transaction_priority_levels():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -295,14 +295,14 @@ def test_submit_divisible_transaction():
             {
                 "id": "BANK_A",
                 "opening_balance": 500_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {
                     "type": "LiquiditySplitting",
                     "max_splits": 3,
                     "min_split_amount": 10_000,
                 },
             },
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -334,8 +334,8 @@ def test_submit_transaction_deadline_in_past():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -368,8 +368,8 @@ def test_transaction_ids_are_unique():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 

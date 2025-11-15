@@ -21,17 +21,16 @@ fn create_two_agent_config() -> OrchestratorConfig {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000, // $10,000
-                credit_limit: 500_000,      // $5,000
+                unsecured_cap: 500_000,      // $5,000
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 2_000_000, // $20,000
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 500_000, // $5,000 buffer
                     urgency_threshold: 5,   // 5 ticks before deadline
@@ -39,7 +38,6 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -321,22 +319,20 @@ fn test_orchestrator_lsm_bilateral_offset() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 100_000, // Only $1,000
-                credit_limit: 0,          // No credit
+                unsecured_cap: 0,          // No credit
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000,   // Only $1,000
-                credit_limit: 0,            // No credit
+                unsecured_cap: 0,            // No credit
                 policy: PolicyConfig::Fifo, // Use FIFO to ensure submission
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -547,22 +543,20 @@ fn test_orchestrator_automatic_arrivals() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 10_000_000, // $100k
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 10_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -608,22 +602,20 @@ fn test_orchestrator_arrival_determinism() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 5_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 5_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None, // No arrivals for BANK_B
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -680,32 +672,29 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000_000, // Large balance to avoid queuing issues
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
                 opening_balance: 50_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -779,22 +768,20 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 100_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

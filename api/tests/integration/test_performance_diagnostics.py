@@ -19,13 +19,13 @@ def test_tick_result_includes_timing_data():
             {
                 "id": "BANK_A",
                 "opening_balance": 100000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 100000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -76,7 +76,7 @@ def test_timing_values_are_reasonable():
             {
                 "id": f"BANK_{i}",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -119,7 +119,7 @@ def test_timing_consistency_across_ticks():
             {
                 "id": "BANK_X",
                 "opening_balance": 50000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.5,
@@ -128,8 +128,8 @@ def test_timing_consistency_across_ticks():
                     "deadline_range": [10, 40],
                 },
             },
-            {"id": "BANK_Y", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_Z", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_Y", "opening_balance": 50000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_Z", "opening_balance": 50000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 

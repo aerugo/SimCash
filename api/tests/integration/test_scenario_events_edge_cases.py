@@ -20,13 +20,13 @@ def test_scenario_event_execution_order_same_tick():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -77,13 +77,13 @@ def test_collateral_adjustment_affects_credit_limit():
             {
                 "id": "BANK_A",
                 "opening_balance": 500_000,
-                "credit_limit": 200_000,
+                "unsecured_cap": 200_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 500_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -135,13 +135,13 @@ def test_repeating_event_stops_at_end_of_simulation():
             {
                 "id": "BANK_A",
                 "opening_balance": 10_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -184,7 +184,7 @@ def test_arrival_rate_changes_affect_future_arrivals():
             {
                 "id": "BANK_A",
                 "opening_balance": 10_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -196,7 +196,7 @@ def test_arrival_rate_changes_affect_future_arrivals():
             {
                 "id": "BANK_B",
                 "opening_balance": 10_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -237,7 +237,7 @@ def test_global_arrival_rate_change_affects_all_agents():
             {
                 "id": "BANK_A",
                 "opening_balance": 10_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -249,7 +249,7 @@ def test_global_arrival_rate_change_affects_all_agents():
             {
                 "id": "BANK_B",
                 "opening_balance": 10_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -295,8 +295,8 @@ def test_zero_amount_transfer_accepted():
         "ticks_per_day": 100,
         "num_days": 1,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "scenario_events": [
             {
@@ -329,8 +329,8 @@ def test_negative_interval_rejected():
         "ticks_per_day": 100,
         "num_days": 1,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "scenario_events": [
             {
@@ -363,7 +363,7 @@ def test_determinism_with_scenario_events():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -375,7 +375,7 @@ def test_determinism_with_scenario_events():
             {
                 "id": "BANK_B",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -428,7 +428,7 @@ def test_complex_scenario_with_multiple_event_types():
             {
                 "id": "BANK_A",
                 "opening_balance": 5_000_000,
-                "credit_limit": 1_000_000,
+                "unsecured_cap": 1_000_000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -440,7 +440,7 @@ def test_complex_scenario_with_multiple_event_types():
             {
                 "id": "BANK_B",
                 "opening_balance": 3_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.3,
@@ -452,7 +452,7 @@ def test_complex_scenario_with_multiple_event_types():
             {
                 "id": "BANK_C",
                 "opening_balance": 2_000_000,
-                "credit_limit": 300_000,
+                "unsecured_cap": 300_000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.2,
@@ -540,8 +540,8 @@ def test_event_at_tick_zero():
         "ticks_per_day": 100,
         "num_days": 1,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 500_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 500_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "scenario_events": [
             {

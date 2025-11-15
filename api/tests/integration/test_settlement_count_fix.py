@@ -36,13 +36,13 @@ def test_replay_counts_lsm_settled_transactions():
                 {
                     "id": "BANK_A",
                     "opening_balance": 60000,  # Low balance to trigger queuing
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 60000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],

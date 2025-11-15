@@ -425,7 +425,7 @@ class TestCautiousLiquidityPreserverPolicy:
             .add_agent(
                 "BANK_A",
                 balance=5_000_000,
-                credit_limit=2_000_000,
+                unsecured_cap=2_000_000,
                 arrival_rate=3.0,
                 arrival_amount_range=(150_000, 350_000),
                 deadline_range=(8, 25),
@@ -601,7 +601,7 @@ class TestBalancedCostOptimizerPolicy:
             .add_agent(
                 "BANK_A",
                 balance=5_000_000,
-                credit_limit=2_000_000,
+                unsecured_cap=2_000_000,
                 arrival_rate=3.0,
                 arrival_amount_range=(150_000, 350_000),
                 deadline_range=(8, 25),
@@ -923,7 +923,7 @@ class TestAggressiveMarketMakerPolicy:
             .add_agent(
                 "BANK_A",
                 balance=5_000_000,   # $50k
-                credit_limit=3_000_000,  # $30k credit available
+                unsecured_cap=3_000_000,  # $30k credit available
                 arrival_rate=5.0,
                 arrival_amount_range=(150_000, 300_000),
                 deadline_range=(10, 40),

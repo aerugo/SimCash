@@ -24,14 +24,14 @@ def test_queue2_settlement_generates_distinct_event():
             {
                 "id": "BANK_A",
                 "opening_balance": 10000,  # $100 - insufficient for $500 payment
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 100000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
@@ -146,14 +146,14 @@ def test_settlement_event_still_emitted():
             {
                 "id": "BANK_A",
                 "opening_balance": 10000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 100000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },

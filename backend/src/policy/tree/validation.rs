@@ -64,7 +64,7 @@ const MAX_TREE_DEPTH: usize = 100;
 /// use payment_simulator_core_rs::orchestrator::CostRates;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
 /// let cost_rates = CostRates::default();
@@ -914,7 +914,7 @@ mod tests {
 
     fn create_sample_context() -> EvalContext {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
-        let agent = Agent::new("BANK_A".to_string(), 500_000, 200_000);
+        let agent = Agent::new("BANK_A".to_string(), 500_000);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = crate::orchestrator::CostRates::default();
         EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8)

@@ -41,7 +41,7 @@ def test_smart_splitter_splits_under_stress():
             {
                 "id": "SMART_SPLITTER",
                 "opening_balance": 200_000,  # $2k
-                "credit_limit": 500_000,     # $5k credit
+                "unsecured_cap": 500_000,     # $5k credit
                 "policy": {
                     "type": "FromJson",
                     "json": policy_json,
@@ -50,7 +50,7 @@ def test_smart_splitter_splits_under_stress():
             {
                 "id": "RECEIVER",
                 "opening_balance": 10_000_000,  # $100k - sufficient liquidity
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -166,7 +166,7 @@ def test_smart_splitter_with_negative_balance_bug_reproduction():
             {
                 "id": "SMART_SPLITTER",
                 "opening_balance": 100_000,  # $1k - will go negative quickly
-                "credit_limit": 500_000,     # $5k credit
+                "unsecured_cap": 500_000,     # $5k credit
                 "policy": {
                     "type": "FromJson",
                     "json": policy_json,
@@ -175,7 +175,7 @@ def test_smart_splitter_with_negative_balance_bug_reproduction():
             {
                 "id": "RECEIVER",
                 "opening_balance": 10_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],

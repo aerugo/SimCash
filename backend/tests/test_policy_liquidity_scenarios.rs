@@ -38,7 +38,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 10_000_000, // $100k
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 3_000_000, // Keep $30k buffer
                     urgency_threshold: 5,
@@ -46,17 +46,15 @@ fn test_liquidity_aware_with_high_arrival_rate() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 20_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -125,7 +123,7 @@ fn test_liquidity_aware_buffer_recovery() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 3_000_000, // Low initial balance
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 2_000_000, // $20k buffer
                     urgency_threshold: 5,
@@ -133,17 +131,15 @@ fn test_liquidity_aware_buffer_recovery() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000, // Large balance
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -235,7 +231,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 5_000_000, // $50k
-                credit_limit: 3_000_000,    // $30k credit
+                unsecured_cap: 3_000_000,    // $30k credit
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 2_000_000, // $20k buffer
                     urgency_threshold: 5,
@@ -243,17 +239,15 @@ fn test_liquidity_aware_credit_limit_interaction() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 20_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -339,7 +333,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 6_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 3_000_000,
                     urgency_threshold: 2, // Conservative: only very urgent
@@ -347,17 +341,15 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 20_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -374,7 +366,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 6_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 3_000_000,
                     urgency_threshold: 8, // Aggressive: many considered urgent
@@ -382,17 +374,15 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 20_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

@@ -172,7 +172,7 @@ def test_no_agent_exceeds_limit_during_crisis():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000_00,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.05,
                 "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
@@ -190,7 +190,7 @@ def test_no_agent_exceeds_limit_during_crisis():
             {
                 "id": "BANK_B",
                 "opening_balance": 100_000_00,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.05,
                 "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
@@ -304,7 +304,7 @@ def test_collateral_posting_increases_headroom():
             {
                 "id": "BANK_A",
                 "opening_balance": 200_000_00,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.10,
                 "max_collateral_capacity": 500_000_00,
                 "policy": {"type": "Fifo"},
@@ -391,7 +391,7 @@ def test_various_haircut_levels(haircut):
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000_00,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": haircut,
                 "max_collateral_capacity": 500_000_00,
                 "policy": {"type": "Fifo"},
@@ -409,7 +409,7 @@ def test_various_haircut_levels(haircut):
             {
                 "id": "BANK_B",
                 "opening_balance": 100_000_00,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": haircut,
                 "max_collateral_capacity": 500_000_00,
                 "policy": {"type": "Fifo"},

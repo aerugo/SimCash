@@ -146,7 +146,7 @@ def seeded_database(db_path):
         INSERT INTO daily_agent_metrics (
             simulation_id, agent_id, day,
             opening_balance, closing_balance, min_balance, max_balance,
-            credit_limit, peak_overdraft,
+            unsecured_cap, peak_overdraft,
             opening_posted_collateral, closing_posted_collateral, peak_posted_collateral,
             collateral_capacity, num_collateral_posts, num_collateral_withdrawals,
             num_arrivals, num_sent, num_received, num_settled, num_dropped,
@@ -397,7 +397,7 @@ class TestQueryPerformance:
                 INSERT INTO daily_agent_metrics (
                     simulation_id, agent_id, day,
                     opening_balance, closing_balance, min_balance, max_balance,
-                    credit_limit, peak_overdraft,
+                    unsecured_cap, peak_overdraft,
                     opening_posted_collateral, closing_posted_collateral, peak_posted_collateral,
                     collateral_capacity, num_collateral_posts, num_collateral_withdrawals,
                     num_arrivals, num_sent, num_received, num_settled, num_dropped,

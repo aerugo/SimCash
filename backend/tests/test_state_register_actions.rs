@@ -14,7 +14,7 @@ use payment_simulator_core_rs::models::state::SimulationState;
 #[test]
 fn test_agent_can_store_state_registers() {
     // Verify Agent can hold state registers (already implemented)
-    let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 100_000);
 
     agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
     assert_eq!(agent.get_state_register("bank_state_cooldown"), 42.0);
@@ -24,7 +24,7 @@ fn test_agent_can_store_state_registers() {
 fn test_state_can_emit_state_register_set_event() {
     // Test that we can create StateRegisterSet events
     let mut state = SimulationState::new(vec![
-        Agent::new("BANK_A".to_string(), 100_000, 50_000),
+        Agent::new("BANK_A".to_string(), 100_000),
     ]);
 
     // Manually create event (as orchestrator will do)
@@ -64,7 +64,7 @@ fn test_set_state_workflow() {
     // This simulates what the policy interpreter will do
 
     let mut state = SimulationState::new(vec![
-        Agent::new("BANK_A".to_string(), 100_000, 50_000),
+        Agent::new("BANK_A".to_string(), 100_000),
     ]);
 
     let tick = 10;
@@ -106,7 +106,7 @@ fn test_add_state_workflow() {
     // Test incrementing a state register (AddState action)
 
     let mut state = SimulationState::new(vec![
-        Agent::new("BANK_A".to_string(), 100_000, 50_000),
+        Agent::new("BANK_A".to_string(), 100_000),
     ]);
 
     let key = "bank_state_counter".to_string();
@@ -142,7 +142,7 @@ fn test_add_state_workflow() {
 fn test_state_registers_persist_across_multiple_sets() {
     // Test that state registers maintain value across multiple updates
 
-    let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 100_000);
 
     // Set initial value
     agent.set_state_register("bank_state_tick_count".to_string(), 1.0).unwrap();
@@ -165,7 +165,7 @@ fn test_state_registers_persist_across_multiple_sets() {
 fn test_multiple_registers_can_coexist() {
     // Test that multiple registers work independently
 
-    let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 100_000);
 
     agent.set_state_register("bank_state_cooldown".to_string(), 5.0).unwrap();
     agent.set_state_register("bank_state_counter".to_string(), 10.0).unwrap();
@@ -181,8 +181,8 @@ fn test_registers_independent_across_agents() {
     // Test that different agents have independent registers
 
     let mut state = SimulationState::new(vec![
-        Agent::new("BANK_A".to_string(), 100_000, 50_000),
-        Agent::new("BANK_B".to_string(), 200_000, 75_000),
+        Agent::new("BANK_A".to_string(), 100_000),
+        Agent::new("BANK_B".to_string(), 200_000),
     ]);
 
     // Set different values for each agent
@@ -246,7 +246,7 @@ fn test_state_register_event_has_correct_type() {
 fn test_state_register_with_zero_value() {
     // Test that zero is a valid value (not confused with default)
 
-    let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 100_000);
 
     // Set to 5, then explicitly set to 0
     agent.set_state_register("bank_state_flag".to_string(), 5.0).unwrap();
@@ -259,7 +259,7 @@ fn test_state_register_with_zero_value() {
 fn test_state_register_with_negative_value() {
     // Test that negative values work (useful for deltas)
 
-    let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 100_000);
 
     agent.set_state_register("bank_state_delta".to_string(), -10.5).unwrap();
 
@@ -270,7 +270,7 @@ fn test_state_register_with_negative_value() {
 fn test_state_register_with_large_value() {
     // Test that large values work
 
-    let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 100_000);
 
     let large_value = 1_000_000_000.123456;
     agent.set_state_register("bank_state_large".to_string(), large_value).unwrap();

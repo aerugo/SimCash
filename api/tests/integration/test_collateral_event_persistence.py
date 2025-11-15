@@ -36,14 +36,14 @@ class TestFFICollateralEventRetrieval:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50_000,  # Low balance
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_capacity": 1_000_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2_000_000,  # High balance
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -93,14 +93,14 @@ class TestFFICollateralEventRetrieval:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_capacity": 1_000_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -180,14 +180,14 @@ class TestFFICollateralEventRetrieval:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_capacity": 1_000_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -250,14 +250,14 @@ class TestCollateralEventPersistence:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_capacity": 1_000_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -318,14 +318,14 @@ class TestCollateralEventPersistence:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_capacity": 1_000_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -384,14 +384,14 @@ class TestCollateralEventPersistence:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_capacity": 1_000_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -510,7 +510,7 @@ class TestCollateralEventDataIntegrity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_capacity": 1_000_000,
                     "policy": {"type": "Fifo"},
                 },
@@ -553,7 +553,7 @@ class TestCollateralEventDataIntegrity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50_000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_capacity": 1_000_000,
                     "policy": {"type": "Fifo"},
                 },

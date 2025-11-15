@@ -65,7 +65,8 @@ pub enum WithdrawError {
 /// ```
 /// use payment_simulator_core_rs::Agent;
 ///
-/// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+/// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+/// agent.set_unsecured_cap(500000);
 /// assert_eq!(agent.balance(), 1000000); // $10,000.00 in cents
 ///
 /// agent.debit(300000).unwrap(); // Pay $3,000
@@ -83,13 +84,6 @@ pub struct Agent {
     /// This represents the bank's reserves at the central bank, where RTGS
     /// settlement debits and credits occur.
     balance: i64,
-
-    /// Maximum intraday credit/overdraft allowed (i64 cents)
-    /// This is the absolute limit the agent can go negative
-    ///
-    /// Represents collateralized intraday credit or priced overdraft facility
-    /// provided by the central bank.
-    credit_limit: i64,
 
     // Phase 4 additions: Queue 1 (Internal Bank Queue)
     /// Transaction IDs awaiting cash manager release decision (Queue 1)
@@ -199,15 +193,13 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let agent = Agent::new("BANK_A".to_string(), 1000000);
     /// assert_eq!(agent.balance(), 1000000);
     /// ```
-    pub fn new(id: String, balance: i64, credit_limit: i64) -> Self {
-        assert!(credit_limit >= 0, "credit_limit must be non-negative");
+    pub fn new(id: String, balance: i64) -> Self {
         Self {
             id,
             balance,
-            credit_limit,
             outgoing_queue: Vec::new(),
             incoming_expected: Vec::new(),
             last_decision_tick: None,
@@ -234,7 +226,6 @@ impl Agent {
     /// # Arguments
     /// * `id` - Unique identifier
     /// * `balance` - Opening balance in cents
-    /// * `credit_limit` - Maximum overdraft in cents
     /// * `liquidity_buffer` - Minimum balance to maintain in cents
     ///
     /// # Example
@@ -242,11 +233,10 @@ impl Agent {
     /// use payment_simulator_core_rs::Agent;
     ///
     /// // Bank wants to keep at least $1000 as buffer
-    /// let agent = Agent::with_buffer("BANK_A".to_string(), 1000000, 500000, 100000);
+    /// let agent = Agent::with_buffer("BANK_A".to_string(), 1000000, 100000);
     /// assert_eq!(agent.liquidity_buffer(), 100000);
     /// ```
-    pub fn with_buffer(id: String, balance: i64, credit_limit: i64, liquidity_buffer: i64) -> Self {
-        assert!(credit_limit >= 0, "credit_limit must be non-negative");
+    pub fn with_buffer(id: String, balance: i64, liquidity_buffer: i64) -> Self {
         assert!(
             liquidity_buffer >= 0,
             "liquidity_buffer must be non-negative"
@@ -254,7 +244,6 @@ impl Agent {
         Self {
             id,
             balance,
-            credit_limit,
             outgoing_queue: Vec::new(),
             incoming_expected: Vec::new(),
             last_decision_tick: None,
@@ -285,7 +274,7 @@ impl Agent {
     /// # Arguments
     /// * `id` - Agent ID
     /// * `balance` - Current balance
-    /// * `credit_limit` - Credit limit
+    /// * `unsecured_cap` - Unsecured overdraft capacity
     /// * `outgoing_queue` - Queue 1 (internal queue) transaction IDs
     /// * `incoming_expected` - Expected incoming transaction IDs
     /// * `last_decision_tick` - Last tick policy was evaluated
@@ -307,14 +296,14 @@ impl Agent {
     ///     Some(42),
     ///     100_000,
     ///     0,
-    ///     0.95,
+    ///     0.02,
     ///     None,
     /// );
     /// ```
     pub fn from_snapshot(
         id: String,
         balance: i64,
-        credit_limit: i64,
+        unsecured_cap: i64,
         outgoing_queue: Vec<String>,
         incoming_expected: Vec<String>,
         last_decision_tick: Option<usize>,
@@ -326,14 +315,13 @@ impl Agent {
         Self {
             id,
             balance,
-            credit_limit,
             outgoing_queue,
             incoming_expected,
             last_decision_tick,
             liquidity_buffer,
             posted_collateral,
             collateral_haircut,
-            unsecured_cap: 0, // Default for snapshots (backward compatibility)
+            unsecured_cap,
             collateral_posted_at_tick,
             // Phase 3.3: Budget state (unlimited by default)
             release_budget_max: None,
@@ -359,16 +347,11 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let agent = Agent::new("BANK_A".to_string(), 1000000);
     /// assert_eq!(agent.balance(), 1000000);
     /// ```
     pub fn balance(&self) -> i64 {
         self.balance
-    }
-
-    /// Get credit limit (i64 cents)
-    pub fn credit_limit(&self) -> i64 {
-        self.credit_limit
     }
 
     /// Get amount of credit currently in use
@@ -380,10 +363,12 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), -50000, 100000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), -50000);
+    /// agent.set_unsecured_cap(100000);
     /// assert_eq!(agent.credit_used(), 50000); // Using $500 of credit
     ///
-    /// let mut agent2 = Agent::new("BANK_B".to_string(), 100000, 50000);
+    /// let mut agent2 = Agent::new("BANK_B".to_string(), 100000);
+    /// agent2.set_unsecured_cap(50000);
     /// assert_eq!(agent2.credit_used(), 0); // Positive balance, no credit used
     /// ```
     pub fn credit_used(&self) -> i64 {
@@ -405,7 +390,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 0, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 0);
     /// agent.set_posted_collateral(100_000_00); // $100k
     /// agent.set_collateral_haircut(0.10); // 10% haircut
     /// agent.set_unsecured_cap(20_000_00); // $20k unsecured
@@ -436,7 +421,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00);
     /// agent.set_posted_collateral(100_000_00);
     /// agent.set_collateral_haircut(0.10);
     ///
@@ -471,7 +456,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00);
     /// agent.set_posted_collateral(100_000_00);
     /// agent.set_collateral_haircut(0.10);
     ///
@@ -527,12 +512,14 @@ impl Agent {
     /// use payment_simulator_core_rs::Agent;
     ///
     /// // Scenario 1: Positive balance
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// // available = 1000000 + (500000 + 0 + 0 - 0) = 1,500,000
     /// assert_eq!(agent.available_liquidity(), 1500000);
     ///
     /// // Scenario 2: Overdraft with collateral (2% haircut)
-    /// let mut agent2 = Agent::new("BANK_B".to_string(), -50000, 60000);
+    /// let mut agent2 = Agent::new("BANK_B".to_string(), -50000);
+    /// agent2.set_unsecured_cap(60000);
     /// agent2.set_posted_collateral(100000); // Post $1000 collateral
     /// agent2.set_collateral_haircut(0.02); // 2% haircut
     /// // credit_used = 50000, collateral_value = 100000 × 0.98 = 98000
@@ -552,10 +539,8 @@ impl Agent {
         let one_minus_haircut = (1.0 - self.collateral_haircut).max(0.0);
         let collateral_headroom = (self.posted_collateral as f64 * one_minus_haircut).floor() as i64;
 
-        // BACKWARD COMPATIBILITY: Use MAX(credit_limit, unsecured_cap) to avoid double-counting
-        // during the transition from credit_limit (old system) to unsecured_cap (new T2/CLM system).
-        // This ensures agents with both set don't get double credit capacity.
-        let unsecured_headroom = self.credit_limit.max(self.unsecured_cap);
+        // Total overdraft headroom = unsecured + collateralized
+        let unsecured_headroom = self.unsecured_cap;
         let total_headroom = unsecured_headroom + collateral_headroom;
 
         // Available headroom is what's left after subtracting credit in use
@@ -573,7 +558,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// assert!(agent.can_pay(500000)); // Can pay $5,000
     /// assert!(!agent.can_pay(2000000)); // Can't pay $20,000
     /// ```
@@ -594,7 +580,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// agent.debit(300000).unwrap();
     /// assert_eq!(agent.balance(), 700000);
     /// ```
@@ -621,7 +608,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// agent.credit(500000);
     /// assert_eq!(agent.balance(), 1500000);
     /// ```
@@ -643,7 +631,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// agent.adjust_balance(-300000); // Debit 300k
     /// assert_eq!(agent.balance(), 700000);
     /// agent.adjust_balance(300000); // Credit 300k
@@ -659,7 +648,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// assert!(!agent.is_using_credit());
     ///
     /// agent.debit(1200000).unwrap();
@@ -682,7 +672,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
     /// agent.queue_outgoing("tx_001".to_string());
     /// assert_eq!(agent.outgoing_queue_size(), 1);
     /// ```
@@ -704,7 +694,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
     /// assert_eq!(agent.outgoing_queue_size(), 0);
     ///
     /// agent.queue_outgoing("tx_001".to_string());
@@ -728,7 +718,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
     /// agent.queue_outgoing("tx_001".to_string());
     ///
     /// assert!(agent.remove_from_queue("tx_001"));
@@ -790,7 +780,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
     /// agent.set_liquidity_buffer(100000); // Keep at least $1000
     /// assert_eq!(agent.liquidity_buffer(), 100000);
     /// ```
@@ -816,7 +806,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// agent.set_posted_collateral(200000); // Post $2000 collateral
     /// assert_eq!(agent.posted_collateral(), 200000);
     /// ```
@@ -854,7 +845,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000);
     /// agent.set_unsecured_cap(20_000_00); // $20k unsecured cap
     /// assert_eq!(agent.unsecured_cap(), 20_000_00);
     /// ```
@@ -924,7 +915,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00, 0);
+    /// let mut agent = Agent::new("BANK_A".to_string(), -60_000_00);
     /// agent.set_posted_collateral(100_000_00);
     /// agent.set_collateral_haircut(0.10);
     /// agent.set_collateral_posted_at_tick(5);
@@ -1037,17 +1028,18 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// assert!((agent.liquidity_pressure() - 0.33).abs() < 0.01); // ~33% into available liquidity
     /// ```
     pub fn liquidity_pressure(&self) -> f64 {
-        let total_liquidity = (self.balance + self.credit_limit + self.posted_collateral) as f64;
+        let total_liquidity = (self.balance + self.unsecured_cap + self.posted_collateral) as f64;
         if total_liquidity == 0.0 {
             return 1.0; // Maximum stress if no liquidity
         }
 
         // Pressure = how far from max liquidity
-        // If balance = 1M, credit = 500k, collateral = 200k, total = 1.7M
+        // If balance = 1M, unsecured_cap = 500k, collateral = 200k, total = 1.7M
         // Pressure = 1 - (1M / 1.7M) = 0.41 (41% into available liquidity)
         // If balance = 0, pressure = 1 - (0 / 1.7M) = 1.0 (100% stress)
         1.0 - (self.balance.max(0) as f64 / total_liquidity)
@@ -1071,15 +1063,16 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
-    /// // Max capacity = 10 × credit limit = 10 × 500k = 5M
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
+    /// // Max capacity = 10 × unsecured cap = 10 × 500k = 5M
     /// assert_eq!(agent.max_collateral_capacity(), 5_000_000);
     /// ```
     pub fn max_collateral_capacity(&self) -> i64 {
-        // Heuristic: 10x credit limit
-        // Rationale: If bank can borrow 500k intraday, they likely have
+        // Heuristic: 10x unsecured overdraft capacity
+        // Rationale: If bank can borrow 500k unsecured intraday, they likely have
         // ~5M in collateralizable assets (bonds, reserves, etc.)
-        self.credit_limit * 10
+        self.unsecured_cap * 10
     }
 
     /// Calculate remaining collateral capacity
@@ -1093,7 +1086,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
     /// assert_eq!(agent.remaining_collateral_capacity(), 5_000_000); // Full capacity
     ///
     /// agent.set_posted_collateral(1_000_000); // Post $10,000
@@ -1392,7 +1386,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000);
+    /// agent.set_unsecured_cap(50_000);
     /// let (old, new) = agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
     /// assert_eq!(old, 0.0);
     /// assert_eq!(new, 42.0);
@@ -1431,7 +1426,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    /// let agent = Agent::new("BANK_A".to_string(), 100_000);
+    /// agent.set_unsecured_cap(50_000);
     /// // Non-existent register returns 0.0
     /// assert_eq!(agent.get_state_register("bank_state_foo"), 0.0);
     /// ```
@@ -1447,7 +1443,8 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000, 50_000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000);
+    /// agent.set_unsecured_cap(50_000);
     /// agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
     ///
     /// let old_values = agent.reset_state_registers();
@@ -1480,19 +1477,14 @@ mod tests {
     use crate::models::state::SimulationState;
     use crate::models::Transaction;
 
-    #[test]
-    #[should_panic(expected = "credit_limit must be non-negative")]
-    fn test_negative_credit_limit_panics() {
-        Agent::new("BANK_A".to_string(), 1000000, -500000);
-    }
-
     // =========================================================================
     // Collateral Management Tests - Phase 8+
     // =========================================================================
 
     #[test]
     fn test_available_liquidity_includes_collateral() {
-        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
 
         // Initially: balance + credit = 1M + 500k = 1.5M
         assert_eq!(agent.available_liquidity(), 1_500_000);
@@ -1506,7 +1498,8 @@ mod tests {
 
     #[test]
     fn test_available_liquidity_with_negative_balance_and_collateral() {
-        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
         agent.set_posted_collateral(200_000);
 
         // Use overdraft
@@ -1523,7 +1516,8 @@ mod tests {
 
     #[test]
     fn test_max_collateral_capacity() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
 
         // Max capacity = 10x credit limit
         assert_eq!(agent.max_collateral_capacity(), 5_000_000);
@@ -1531,7 +1525,8 @@ mod tests {
 
     #[test]
     fn test_remaining_collateral_capacity() {
-        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
 
         // Initially: full capacity available
         assert_eq!(agent.remaining_collateral_capacity(), 5_000_000);
@@ -1551,7 +1546,8 @@ mod tests {
 
     #[test]
     fn test_queue1_liquidity_gap_no_gap() {
-        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
         let mut state = SimulationState::new(vec![agent.clone()]);
 
         // Agent has 1.5M available liquidity
@@ -1562,10 +1558,11 @@ mod tests {
 
     #[test]
     fn test_queue1_liquidity_gap_with_transactions() {
-        let mut agent = Agent::new("BANK_A".to_string(), 500_000, 300_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000);
+        agent.set_unsecured_cap(300_000);
         let mut state = SimulationState::new(vec![
             agent.clone(),
-            Agent::new("BANK_B".to_string(), 1_000_000, 0),
+            Agent::new("BANK_B".to_string(), 1_000_000),
         ]);
 
         // Create transactions and add to Queue 1
@@ -1596,12 +1593,13 @@ mod tests {
 
     #[test]
     fn test_queue1_liquidity_gap_with_collateral() {
-        let mut agent = Agent::new("BANK_A".to_string(), 500_000, 300_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000);
+        agent.set_unsecured_cap(300_000);
         agent.set_posted_collateral(200_000); // Add collateral
 
         let mut state = SimulationState::new(vec![
             agent.clone(),
-            Agent::new("BANK_B".to_string(), 1_000_000, 0),
+            Agent::new("BANK_B".to_string(), 1_000_000),
         ]);
 
         // Create transaction
@@ -1620,7 +1618,8 @@ mod tests {
 
     #[test]
     fn test_liquidity_pressure_with_collateral() {
-        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
         agent.set_posted_collateral(200_000);
 
         // Total liquidity: 1M + 500k + 200k = 1.7M
@@ -1631,7 +1630,8 @@ mod tests {
 
     #[test]
     fn test_can_pay_with_collateral() {
-        let mut agent = Agent::new("BANK_A".to_string(), 500_000, 300_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000);
+        agent.set_unsecured_cap(300_000);
         agent.set_posted_collateral(400_000);
 
         // Available: 500k + 300k + (400k × 0.98) = 500k + 300k + 392k = 1.192M
@@ -1642,7 +1642,8 @@ mod tests {
 
     #[test]
     fn test_collateral_post_and_withdraw_cycle() {
-        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
 
         // Initial state
         assert_eq!(agent.posted_collateral(), 0);

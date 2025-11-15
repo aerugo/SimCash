@@ -28,14 +28,14 @@ def simple_config():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,
-                "credit_limit": 50_000,
+                "unsecured_cap": 50_000,
                 "collateral_pledged": 20_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 200_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pledged": 0,
                 "policy": {"type": "Fifo"},
             },
@@ -64,7 +64,7 @@ def config_with_activity():
             {
                 "id": "BANK_A",
                 "opening_balance": 50_000,  # Small balance
-                "credit_limit": 100_000,
+                "unsecured_cap": 100_000,
                 "collateral_pledged": 30_000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
@@ -83,7 +83,7 @@ def config_with_activity():
             {
                 "id": "BANK_B",
                 "opening_balance": 500_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pledged": 0,
                 "policy": {"type": "Fifo"},
             },

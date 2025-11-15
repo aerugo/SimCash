@@ -1,0 +1,51 @@
+simulation:
+  ticks_per_day: 100
+  num_days: 1
+  rng_seed: 42
+  lsm_enabled: false  # Disable LSM to force queue buildup
+  lsm_frequency_ticks: 10
+
+# Create liquidity pressure to force queuing
+agents:
+  - id: BANK_A
+    opening_balance: 50000  # Low balance
+    unsecured_cap: 0  # No unsecured overdraft
+    policy:
+      type: Fifo
+    arrival_config:
+      rate_per_tick: 2.0  # High rate
+      amount_distribution:
+        type: Uniform
+        min: 20000  # Large amounts relative to balance
+        max: 30000
+      counterparty_weights:
+        BANK_B: 1.0
+      # Make transactions have short deadlines to create deadline pressure
+      deadline_range: [10, 20]  # Short deadlines (10-20 ticks)
+      priority: 5
+      divisible: false
+
+  - id: BANK_B
+    opening_balance: 50000  # Low balance
+    unsecured_cap: 0  # No unsecured overdraft
+    policy:
+      type: Fifo
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: Uniform
+        min: 20000
+        max: 30000
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_range: [10, 20]
+      priority: 5
+      divisible: false
+
+# Cost model with penalties for missing deadlines
+cost_model:
+  delay_cost_per_tick_bps: 50
+  overdraft_cost_per_day_bps: 100
+  deadline_penalty_cost: 1000  # Penalty for missing deadline
+  split_fee: 10
+  eod_unsettled_penalty: 10000

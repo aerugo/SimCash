@@ -25,13 +25,13 @@ class TestFFIAgentMetricsRetrieval:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 300_000,
+                    "unsecured_cap": 300_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -61,7 +61,7 @@ class TestFFIAgentMetricsRetrieval:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_500_000,
-                    "credit_limit": 400_000,
+                    "unsecured_cap": 400_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -87,7 +87,7 @@ class TestFFIAgentMetricsRetrieval:
             "closing_balance",
             "min_balance",
             "max_balance",
-            "credit_limit",
+            "unsecured_cap",
             "peak_overdraft",
             # Phase 8: Collateral fields
             "opening_posted_collateral",
@@ -120,13 +120,13 @@ class TestFFIAgentMetricsRetrieval:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -178,7 +178,7 @@ class TestPolarsAgentMetricsConversion:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -215,7 +215,7 @@ class TestPolarsAgentMetricsConversion:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 600_000,
+                    "unsecured_cap": 600_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -266,13 +266,13 @@ class TestDuckDBAgentMetricsBatchWrite:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1_500_000,
-                    "credit_limit": 400_000,
+                    "unsecured_cap": 400_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -338,7 +338,7 @@ class TestDuckDBAgentMetricsBatchWrite:
                 {
                     "id": f"BANK_{i:02d}",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 }
                 for i in range(10)
@@ -405,13 +405,13 @@ class TestEndToEndAgentMetricsPersistence:
                 {
                     "id": "BANK_A",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 800_000,
+                    "unsecured_cap": 800_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1_500_000,
-                    "credit_limit": 600_000,
+                    "unsecured_cap": 600_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -487,7 +487,7 @@ class TestEndToEndAgentMetricsPersistence:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
             ],

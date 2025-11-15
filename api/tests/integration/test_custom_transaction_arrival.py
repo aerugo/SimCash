@@ -20,8 +20,8 @@ def test_custom_transaction_arrival_creates_pending_transaction():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 1000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 1000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "scenario_events": [
             {
@@ -95,8 +95,8 @@ def test_custom_transaction_arrival_with_defaults():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 2000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 1000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 2000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 1000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "scenario_events": [
             {
@@ -138,8 +138,8 @@ def test_custom_transaction_arrival_repeating():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 5000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 1000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 5000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 1000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "scenario_events": [
             {
@@ -183,8 +183,8 @@ def test_custom_transaction_arrival_vs_direct_transfer():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 1000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 1000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "scenario_events": [
             # DirectTransfer: instant balance change
@@ -260,8 +260,8 @@ def test_custom_transaction_arrival_logged_to_events():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 2000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 1000000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 2000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 1000000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "scenario_events": [
             {

@@ -34,13 +34,13 @@ def test_lsm_bilateral_offset_via_orchestrator():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,  # $1k
-                "credit_limit": 500_000,      # $5k credit
+                "unsecured_cap": 500_000,      # $5k credit
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 100_000,  # $1k
-                "credit_limit": 500_000,      # $5k credit
+                "unsecured_cap": 500_000,      # $5k credit
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -129,19 +129,19 @@ def test_lsm_cycle_settlement_via_orchestrator():
             {
                 "id": "BANK_A",
                 "opening_balance": 50_000,   # $500
-                "credit_limit": 500_000,      # $5k credit
+                "unsecured_cap": 500_000,      # $5k credit
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 50_000,   # $500
-                "credit_limit": 500_000,      # $5k credit
+                "unsecured_cap": 500_000,      # $5k credit
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 50_000,   # $500
-                "credit_limit": 500_000,      # $5k credit
+                "unsecured_cap": 500_000,      # $5k credit
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -237,25 +237,25 @@ def test_lsm_combined_bilateral_and_cycles():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 100_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 50_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_D",
                 "opening_balance": 50_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -319,13 +319,13 @@ def test_lsm_does_not_activate_with_sufficient_liquidity():
             {
                 "id": "BANK_A",
                 "opening_balance": 10_000_000,  # $100k - plenty of liquidity
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 10_000_000,  # $100k
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],

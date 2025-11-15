@@ -25,8 +25,8 @@ def test_transaction_went_overdue_event_persists_all_fields():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "cost_rates": {
             "deadline_penalty": 50_000_00,
@@ -164,8 +164,8 @@ def test_overdue_transaction_settled_event_persists_all_fields():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 5_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 5_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "cost_rates": {
             "deadline_penalty": 50_000_00,
@@ -302,9 +302,9 @@ def test_overdue_events_count_matches_live_and_replay():
         "num_days": 1,
         "rng_seed": 99999,
         "agent_configs": [
-            {"id": "A", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "C", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "C", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "cost_rates": {
             "deadline_penalty": 50_000_00,

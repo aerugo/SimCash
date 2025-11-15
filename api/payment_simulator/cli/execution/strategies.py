@@ -126,7 +126,7 @@ class VerboseModeOutput:
             balance = orch.get_agent_balance(agent_id)
 
             # Calculate credit utilization (Issue #4 fix - CORRECTED)
-            # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just credit_limit!
+            # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just unsecured_cap!
             allowed_overdraft = orch.get_agent_allowed_overdraft_limit(agent_id)
             credit_util = 0
             if allowed_overdraft and allowed_overdraft > 0:

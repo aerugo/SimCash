@@ -26,22 +26,20 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,  // Disable arrivals for scenario event tests
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,  // Disable arrivals for scenario event tests
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -60,7 +58,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(ArrivalConfig {
                     rate_per_tick: 0.5,
@@ -75,12 +73,11 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                 }),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(ArrivalConfig {
                     rate_per_tick: 0.5,
@@ -95,7 +92,6 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                 }),
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -189,14 +185,14 @@ fn test_orchestrator_collateral_adjustment() {
     let config = create_basic_config_with_events(events);
     let mut orch = Orchestrator::new(config).expect("Failed to create orchestrator");
 
-    let initial_limit = orch.get_agent_credit_limit("BANK_A").unwrap();
+    let initial_limit = orch.get_agent_unsecured_cap("BANK_A").unwrap();
 
     // Run through tick 10
     for _ in 0..11 {
         orch.tick().expect("Tick failed");
     }
 
-    let final_limit = orch.get_agent_credit_limit("BANK_A").unwrap();
+    let final_limit = orch.get_agent_unsecured_cap("BANK_A").unwrap();
 
     assert_eq!(final_limit, initial_limit + 200_000);
 }
@@ -353,7 +349,7 @@ fn test_orchestrator_multiple_events_same_tick() {
 
     let initial_balance_a = orch.get_agent_balance("BANK_A").unwrap();
     let initial_balance_b = orch.get_agent_balance("BANK_B").unwrap();
-    let initial_credit_a = orch.get_agent_credit_limit("BANK_A").unwrap();
+    let initial_credit_a = orch.get_agent_unsecured_cap("BANK_A").unwrap();
 
     // Run to tick 10
     for _ in 0..11 {
@@ -370,7 +366,7 @@ fn test_orchestrator_multiple_events_same_tick() {
         initial_balance_b + 100_000
     );
     assert_eq!(
-        orch.get_agent_credit_limit("BANK_A").unwrap(),
+        orch.get_agent_unsecured_cap("BANK_A").unwrap(),
         initial_credit_a + 300_000
     );
 }

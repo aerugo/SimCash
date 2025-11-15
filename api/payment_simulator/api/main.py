@@ -208,7 +208,7 @@ class AgentSummary(BaseModel):
     total_cost_cents: int
     avg_balance_cents: int
     peak_overdraft_cents: int
-    credit_limit_cents: int
+    unsecured_cap_cents: int
 
 
 class AgentListResponse(BaseModel):
@@ -413,7 +413,7 @@ class AgentStateSnapshot(BaseModel):
     """Agent state at a specific tick."""
 
     balance: int
-    credit_limit: int
+    unsecured_cap: int
     liquidity: int
     headroom: int
     queue1_size: int
@@ -525,12 +525,12 @@ class SimulationManager:
         for agent_id in orch.get_agent_ids():
             # Find agent config
             agent_config = next((a for a in agent_list if a["id"] == agent_id), None)
-            credit_limit = agent_config["credit_limit"] if agent_config else 0
+            unsecured_cap = agent_config["unsecured_cap"] if agent_config else 0
 
             agents[agent_id] = {
                 "balance": orch.get_agent_balance(agent_id),
                 "queue1_size": orch.get_queue1_size(agent_id),
-                "credit_limit": credit_limit,
+                "unsecured_cap": unsecured_cap,
             }
 
         return {
@@ -1803,8 +1803,8 @@ def get_agent_list(sim_id: str):
                 agent_config = next(
                     (a for a in agent_list if a["id"] == agent_id), None
                 )
-                credit_limit = (
-                    agent_config.get("credit_limit", 0) if agent_config else 0
+                unsecured_cap = (
+                    agent_config.get("unsecured_cap", 0) if agent_config else 0
                 )
 
                 # For in-memory simulations, we can only provide current state
@@ -1819,7 +1819,7 @@ def get_agent_list(sim_id: str):
                         total_cost_cents=0,  # Would need to track this
                         avg_balance_cents=orch.get_agent_balance(agent_id),
                         peak_overdraft_cents=0,  # Would need to track this
-                        credit_limit_cents=credit_limit,
+                        unsecured_cap_cents=unsecured_cap,
                     )
                 )
 
@@ -1844,7 +1844,7 @@ def get_agent_list(sim_id: str):
                 COALESCE(SUM(dam.total_cost), 0) as total_cost_cents,
                 COALESCE(AVG(dam.closing_balance), 0) as avg_balance_cents,
                 COALESCE(MIN(dam.min_balance), 0) as peak_overdraft_cents,
-                0 as credit_limit_cents
+                0 as unsecured_cap_cents
             FROM daily_agent_metrics dam
             WHERE dam.simulation_id = ?
             GROUP BY dam.agent_id
@@ -1868,7 +1868,7 @@ def get_agent_list(sim_id: str):
                 total_cost_cents=int(row[5]),
                 avg_balance_cents=int(row[6]),
                 peak_overdraft_cents=int(row[7]),
-                credit_limit_cents=int(row[8]),
+                unsecured_cap_cents=int(row[8]),
             )
             for row in results
         ]
@@ -2444,14 +2444,14 @@ def get_tick_state(sim_id: str, tick: int):
             agent_id = agent_config["id"]
 
             balance = orch.get_agent_balance(agent_id)
-            credit_limit = agent_config.get("credit_limit", 0)
+            unsecured_cap = agent_config.get("unsecured_cap", 0)
             queue1_size = orch.get_queue1_size(agent_id)
 
             # Calculate liquidity (balance + available credit)
-            liquidity = balance + credit_limit
+            liquidity = balance + unsecured_cap
 
             # Calculate headroom (unused credit)
-            headroom = credit_limit - max(0, -balance)
+            headroom = unsecured_cap - max(0, -balance)
 
             # Get costs
             costs_dict = orch.get_agent_accumulated_costs(agent_id)
@@ -2468,7 +2468,7 @@ def get_tick_state(sim_id: str, tick: int):
 
             agents[agent_id] = AgentStateSnapshot(
                 balance=balance,
-                credit_limit=credit_limit,
+                unsecured_cap =unsecured_cap,
                 liquidity=liquidity,
                 headroom=headroom,
                 queue1_size=queue1_size,

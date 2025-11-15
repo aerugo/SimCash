@@ -54,13 +54,13 @@ class TestReplayIdentity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 500000,   # $5,000
-                    "credit_limit": 200000,      # $2,000
+                    "unsecured_cap": 200000,      # $2,000
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 500000,
-                    "credit_limit": 200000,
+                    "unsecured_cap": 200000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -89,7 +89,7 @@ class TestReplayIdentity:
         # Capture state from live simulation at current tick
         current_tick = orch.current_tick()
         live_balance_a = orch.get_agent_balance("BANK_A")
-        live_credit_limit_a = orch.get_agent_credit_limit("BANK_A")
+        live_unsecured_cap_a = orch.get_agent_unsecured_cap("BANK_A")
         live_collateral_a = orch.get_agent_collateral_posted("BANK_A")
         live_allowed_overdraft_a = orch.get_agent_allowed_overdraft_limit("BANK_A")
 
@@ -101,7 +101,7 @@ class TestReplayIdentity:
         agent_state_records = []
         for agent_id in ["BANK_A", "BANK_B"]:
             balance = orch.get_agent_balance(agent_id)
-            credit_limit = orch.get_agent_credit_limit(agent_id)
+            unsecured_cap = orch.get_agent_unsecured_cap(agent_id)
             collateral = orch.get_agent_collateral_posted(agent_id)
             costs = orch.get_agent_accumulated_costs(agent_id)
 
@@ -112,7 +112,7 @@ class TestReplayIdentity:
                 "agent_id": agent_id,
                 "balance": balance,
                 "balance_change": 0,  # Required field (could calculate but not needed for test)
-                "credit_limit": credit_limit,
+                "unsecured_cap": unsecured_cap,
                 "posted_collateral": collateral,
                 "liquidity_cost": costs.get("liquidity_cost", 0),
                 "delay_cost": costs.get("delay_cost", 0),
@@ -149,14 +149,14 @@ class TestReplayIdentity:
         row_dict = dict(zip(columns, result))
 
         replay_balance_a = row_dict.get("balance", None)
-        replay_credit_limit_a = row_dict.get("credit_limit", None)
+        replay_unsecured_cap_a = row_dict.get("unsecured_cap", None)
         replay_collateral_a = row_dict.get("posted_collateral", None)
 
         # Calculate replay allowed overdraft (same formula as live)
-        if replay_collateral_a is not None and replay_credit_limit_a is not None:
+        if replay_collateral_a is not None and replay_unsecured_cap_a is not None:
             collateral_haircut = 0.02
             collateral_backing = int(replay_collateral_a * (1.0 - collateral_haircut))
-            replay_allowed_overdraft_a = replay_credit_limit_a + collateral_backing
+            replay_allowed_overdraft_a = replay_unsecured_cap_a + collateral_backing
         else:
             replay_allowed_overdraft_a = None
 
@@ -164,15 +164,15 @@ class TestReplayIdentity:
 
         # ASSERTIONS: Database must contain correct data
         print(f"\nDEBUG: Live balance: {live_balance_a}, Replay balance: {replay_balance_a}")
-        print(f"DEBUG: Live credit limit: {live_credit_limit_a}, Replay credit limit: {replay_credit_limit_a}")
+        print(f"DEBUG: Live credit limit: {live_unsecured_cap_a}, Replay credit limit: {replay_unsecured_cap_a}")
         print(f"DEBUG: Live collateral: {live_collateral_a}, Replay collateral: {replay_collateral_a}")
         print(f"DEBUG: Live allowed overdraft: {live_allowed_overdraft_a}, Replay allowed overdraft: {replay_allowed_overdraft_a}")
 
         assert replay_balance_a == live_balance_a, \
             f"Balance mismatch: live={live_balance_a}, replay={replay_balance_a}"
 
-        assert replay_credit_limit_a == live_credit_limit_a, \
-            f"Credit limit mismatch: live={live_credit_limit_a}, replay={replay_credit_limit_a}"
+        assert replay_unsecured_cap_a == live_unsecured_cap_a, \
+            f"Credit limit mismatch: live={live_unsecured_cap_a}, replay={replay_unsecured_cap_a}"
 
         assert replay_collateral_a == live_collateral_a, \
             f"Collateral mismatch: live={live_collateral_a}, replay={replay_collateral_a}"
@@ -194,7 +194,7 @@ class TestReplayIdentity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,  # $10,000
-                    "credit_limit": 500000,      # $5,000
+                    "unsecured_cap": 500000,      # $5,000
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -212,7 +212,7 @@ class TestReplayIdentity:
 
         current_tick = orch.current_tick()
         live_balance = orch.get_agent_balance("BANK_A")
-        live_credit_limit = orch.get_agent_credit_limit("BANK_A")
+        live_unsecured_cap = orch.get_agent_unsecured_cap("BANK_A")
         live_collateral = orch.get_agent_collateral_posted("BANK_A")
 
         # Persist agent states to database
@@ -226,7 +226,7 @@ class TestReplayIdentity:
             "agent_id": "BANK_A",
             "balance": live_balance,
             "balance_change": 0,
-            "credit_limit": live_credit_limit,
+            "unsecured_cap": live_unsecured_cap,
             "posted_collateral": live_collateral,
             "liquidity_cost": 0,
             "delay_cost": 0,
@@ -274,7 +274,7 @@ class TestReplayIdentity:
 
         # Test that provider returns correct data
         provider_balance = provider.get_agent_balance("BANK_A")
-        provider_credit_limit = provider.get_agent_credit_limit("BANK_A")
+        provider_unsecured_cap = provider.get_agent_unsecured_cap("BANK_A")
         provider_collateral = provider.get_agent_collateral_posted("BANK_A")
 
         replay_conn.close()
@@ -283,8 +283,8 @@ class TestReplayIdentity:
         assert provider_balance == live_balance, \
             f"Provider balance mismatch: live={live_balance}, provider={provider_balance}"
 
-        assert provider_credit_limit == live_credit_limit, \
-            f"Provider credit limit mismatch: live={live_credit_limit}, provider={provider_credit_limit}"
+        assert provider_unsecured_cap == live_unsecured_cap, \
+            f"Provider credit limit mismatch: live={live_unsecured_cap}, provider={provider_unsecured_cap}"
 
         assert provider_collateral == live_collateral, \
             f"Provider collateral mismatch: live={live_collateral}, provider={provider_collateral}"

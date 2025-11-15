@@ -221,7 +221,7 @@ mod tests {
         // let mut fifo_policy = FifoPolicy::new();
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
-        let mut agent = Agent::new("BANK_A".to_string(), 500_000, 0); // Start with 500k balance
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000); // Start with 500k balance
 
         // Create transactions with varying urgency
         let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50); // Not urgent
@@ -290,7 +290,7 @@ mod tests {
         // let mut fifo_policy = FifoPolicy::new();
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
-        let mut agent = Agent::new("BANK_A".to_string(), 200_000, 0); // Low balance!
+        let mut agent = Agent::new("BANK_A".to_string(), 200_000); // Low balance!
 
         // Large transactions that exceed available liquidity if all sent
         let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 150_000, 0, 80);
@@ -359,7 +359,7 @@ mod tests {
         // let mut deadline_policy = DeadlinePolicy::new(10);
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
-        let mut agent = Agent::new("BANK_A".to_string(), 300_000, 0);
+        let mut agent = Agent::new("BANK_A".to_string(), 300_000);
 
         // Transactions with near deadlines (both urgent at tick 96)
         let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 80_000, 0, 105); // 9 ticks remaining
@@ -423,7 +423,7 @@ mod tests {
 
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
-        let mut agent = Agent::new("BANK_A".to_string(), 100_000, 0); // Low balance
+        let mut agent = Agent::new("BANK_A".to_string(), 100_000); // Low balance
 
         // Urgent transaction (deadline in 5 ticks)
         let tx_urgent =
@@ -501,7 +501,7 @@ mod tests {
         // let mut fifo_policy = FifoPolicy::new();
         let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
-        let mut agent = Agent::new("BANK_A".to_string(), 2_000_000, 500_000); // Very high liquidity
+        let mut agent = Agent::new("BANK_A".to_string(), 2_000_000); // Very high liquidity
 
         // Small transactions relative to available liquidity
         let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 50_000, 0, 70);
@@ -601,7 +601,7 @@ mod tests {
             // let mut deadline_policy = DeadlinePolicy::new(10);
             let mut conservation_policy = TreePolicy::new(create_liquidity_conservation_policy());
 
-            let mut agent = Agent::new("BANK_A".to_string(), initial_balance, 0);
+            let mut agent = Agent::new("BANK_A".to_string(), initial_balance);
             let mut state = SimulationState::new(vec![agent.clone()]);
 
             for (i, (amount, deadline)) in transactions.iter().enumerate() {

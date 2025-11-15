@@ -76,7 +76,7 @@ mod test_phase_9_5_integration {
         let eod_rush_threshold = 0.8;
 
         // Agent with sufficient liquidity
-        let mut agent = Agent::new("BANK_A".to_string(), 2_000_000, 0);
+        let mut agent = Agent::new("BANK_A".to_string(), 2_000_000);
 
         // Transaction with normal deadline (not urgent)
         let tx = Transaction::new(
@@ -122,7 +122,7 @@ mod test_phase_9_5_integration {
         let eod_rush_threshold = 0.8;
 
         // Agent with INSUFFICIENT liquidity (not 1.5x buffer: 130k < 1.5 * 100k = 150k)
-        let mut agent = Agent::new("BANK_A".to_string(), 130_000, 0);
+        let mut agent = Agent::new("BANK_A".to_string(), 130_000);
 
         // Transaction
         let tx = Transaction::new(
@@ -168,8 +168,7 @@ mod test_phase_9_5_integration {
         // Agent with insufficient balance but credit available
         let mut agent = Agent::new(
             "BANK_A".to_string(),
-            50_000,   // Low balance
-            200_000,  // Credit available
+            50_000   // Low balance
         );
 
         // Urgent transaction (deadline in 3 ticks)
@@ -223,12 +222,12 @@ mod test_phase_9_5_integration {
         // Agent with:
         // - Low balance
         // - Queued transactions (creating liquidity gap)
-        // - Collateral capacity available (10x credit_limit = 10x50k = 500k)
+        // - Collateral capacity available (10x unsecured_cap = 10x50k = 500k)
         let mut agent = Agent::new(
             "BANK_A".to_string(),
-            100_000,  // Balance
-            50_000,   // Credit (gives 500k collateral capacity)
+            100_000  // Balance
         );
+        agent.set_unsecured_cap(50_000); // $500 unsecured overdraft
 
         // Queue transactions totaling 300k (gap = 300k - 100k = 200k)
         let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 150_000, tick, tick + 20);
@@ -288,8 +287,7 @@ mod test_phase_9_5_integration {
         // - Collateral capacity (10x credit = 10x50k = 500k)
         let mut agent = Agent::new(
             "BANK_A".to_string(),
-            500_000,  // Strong balance
-            50_000,   // Credit (gives 500k collateral capacity)
+            500_000  // Strong balance
         );
 
         // Post collateral (simulating strategic collateral from earlier)
@@ -339,8 +337,7 @@ mod test_phase_9_5_integration {
 
         let agent = Agent::new(
             "BANK_A".to_string(),
-            500_000,  // Balance
-            200_000,  // Credit (gives 2M collateral capacity)
+            500_000  // Balance
         );
 
         let tx = Transaction::new(
