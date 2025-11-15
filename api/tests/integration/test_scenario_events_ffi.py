@@ -145,14 +145,14 @@ def test_collateral_adjustment():
     orch = Orchestrator.new(config)
 
     # Initial credit limit
-    assert orch.get_agent_credit_limit("BANK_A") == 500_000
+    assert orch.get_agent_unsecured_cap("BANK_A") == 500_000
 
     # Run through tick 10
     for _ in range(11):
         orch.tick()
 
     # After adjustment
-    assert orch.get_agent_credit_limit("BANK_A") == 700_000
+    assert orch.get_agent_unsecured_cap("BANK_A") == 700_000
 
 
 def test_global_arrival_rate_change():
@@ -354,7 +354,7 @@ def test_multiple_events_same_tick():
     # Both events should have executed
     assert orch.get_agent_balance("BANK_A") == 900_000
     assert orch.get_agent_balance("BANK_B") == 1_100_000
-    assert orch.get_agent_credit_limit("BANK_A") == 600_000
+    assert orch.get_agent_unsecured_cap("BANK_A") == 600_000
 
 
 def test_scenario_events_logged():

@@ -558,7 +558,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
     /// agent.set_unsecured_cap(500000);
     /// assert!(agent.can_pay(500000)); // Can pay $5,000
     /// assert!(!agent.can_pay(2000000)); // Can't pay $20,000
@@ -1005,7 +1005,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let mut agent = Agent::with_buffer("BANK_A".to_string(), 1000000, 0, 100000);
+    /// let mut agent = Agent::with_buffer("BANK_A".to_string(), 1000000, 100000);
     ///
     /// assert!(agent.can_afford_to_send(800000));  // Would leave 200k (> buffer)
     /// assert!(!agent.can_afford_to_send(950000)); // Would leave 50k (< buffer)
@@ -1426,7 +1426,7 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 100_000);
+    /// let mut agent = Agent::new("BANK_A".to_string(), 100_000);
     /// agent.set_unsecured_cap(50_000);
     /// // Non-existent register returns 0.0
     /// assert_eq!(agent.get_state_register("bank_state_foo"), 0.0);

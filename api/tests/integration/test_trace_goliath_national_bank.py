@@ -394,7 +394,7 @@ class TestGoliathCollateral:
             .add_agent(
                 "BANK_A",
                 balance=5_000_000,  # $50k - moderate balance
-                credit_limit=0,  # No credit
+                unsecured_cap=0,  # No credit
                 arrival_rate=0.0,
             )
             .add_agent("BANK_B", balance=20_000_000)
@@ -447,7 +447,7 @@ class TestGoliathCollateral:
             .add_agent(
                 "BANK_A",
                 balance=20_000_000,  # $200k - still small vs $50M buffer
-                credit_limit=0,
+                unsecured_cap=0,
                 arrival_rate=0.0,
             )
             .add_agent("BANK_B", balance=30_000_000)

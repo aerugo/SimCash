@@ -110,17 +110,17 @@ def test_collateral_adjustment_affects_credit_limit():
     orch = Orchestrator.new(config)
 
     # Initial credit limit
-    assert orch.get_agent_credit_limit("BANK_A") == 200_000
+    assert orch.get_agent_unsecured_cap("BANK_A") == 200_000
 
     # After first adjustment (tick 5)
     for _ in range(6):
         orch.tick()
-    assert orch.get_agent_credit_limit("BANK_A") == 500_000
+    assert orch.get_agent_unsecured_cap("BANK_A") == 500_000
 
     # After second adjustment (tick 15)
     for _ in range(10):
         orch.tick()
-    assert orch.get_agent_credit_limit("BANK_A") == 400_000
+    assert orch.get_agent_unsecured_cap("BANK_A") == 400_000
 
 
 def test_repeating_event_stops_at_end_of_simulation():
@@ -520,7 +520,7 @@ def test_complex_scenario_with_multiple_event_types():
     assert orch.get_agent_balance("BANK_C") > 0
 
     # Verify credit limits changed as expected
-    assert orch.get_agent_credit_limit("BANK_C") == 500_000  # 300k + 200k
+    assert orch.get_agent_unsecured_cap("BANK_C") == 500_000  # 300k + 200k
 
     # Verify arrival rates reflect all changes
     # BANK_A: 0.5 * 0.5 (AgentChange) * 0.7 (GlobalChange) = 0.175
