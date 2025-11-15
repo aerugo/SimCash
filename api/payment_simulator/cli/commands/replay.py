@@ -1129,12 +1129,16 @@ def replay_simulation(
                                     used = max(0, -balance)
                                     credit_util = (used / allowed_overdraft) * 100
 
+                                # PHASE 2 FIX: Calculate Queue2 size using StateProvider
+                                # Queue2 = transactions in RTGS queue that belong to this agent
+                                queue2_size = provider.get_queue2_size(agent_id)
+
                                 agent_stats.append({
                                     "id": agent_id,
                                     "final_balance": balance,
                                     "credit_utilization": credit_util,
                                     "queue1_size": row_dict["queue1_eod_size"],
-                                    "queue2_size": 0,  # Not tracked
+                                    "queue2_size": queue2_size,
                                     "total_costs": agent_total_cost,
                                 })
 
@@ -1273,25 +1277,42 @@ def replay_simulation(
                 # Last resort: agent IDs only
                 final_agents_output = [{"id": agent["id"]} for agent in config_dict.get("agents", [])]
 
+            # PHASE 1 FIX: Use authoritative statistics from simulations table
+            # This ensures replay output matches run output exactly (Replay Identity principle)
+            #
+            # The summary dict contains authoritative stats persisted by run command:
+            # - total_arrivals: Full simulation arrivals
+            # - total_settlements: Full simulation settlements
+            # - total_cost_cents: Full simulation costs
+            #
+            # We must NOT use tick_count_* variables which only count the replayed tick range!
+            total_ticks = summary['ticks_per_day'] * summary['num_days']
+
             output_data = {
                 "simulation": {
                     "config_file": summary.get("config_file", "loaded from database"),
                     "seed": summary["rng_seed"],
-                    "ticks_executed": ticks_replayed,
+                    # CRITICAL: Show full simulation ticks, not just replayed range
+                    "ticks_executed": total_ticks,
+                    # Add metadata to distinguish replay from run
+                    "replay_range": f"{from_tick}-{end_tick}" if from_tick != 0 or end_tick != total_ticks - 1 else "full",
+                    "ticks_replayed": ticks_replayed,
                     "duration_seconds": round(replay_duration, 3),
                     "ticks_per_second": round(ticks_per_second, 2),
                     "simulation_id": simulation_id,
                     "database": db_path,
                 },
                 "metrics": {
-                    "total_arrivals": tick_count_arrivals,
-                    "total_settlements": tick_count_settlements,
-                    "total_lsm_releases": tick_count_lsm,
-                    "settlement_rate": round(tick_count_settlements / tick_count_arrivals, 4) if tick_count_arrivals > 0 else 0,
+                    # CRITICAL: Use authoritative stats from summary table
+                    "total_arrivals": summary["total_arrivals"],
+                    "total_settlements": summary["total_settlements"],
+                    "total_lsm_releases": summary.get("total_lsm_releases", tick_count_lsm),
+                    "settlement_rate": round(summary["total_settlements"] / summary["total_arrivals"], 4) if summary["total_arrivals"] > 0 else 0,
                 },
                 "agents": final_agents_output,
                 "costs": {
-                    "total_cost": total_cost,
+                    # CRITICAL: Use authoritative cost from summary table
+                    "total_cost": summary.get("total_cost_cents", total_cost),
                 },
                 "performance": {
                     "ticks_per_second": round(ticks_per_second, 2),

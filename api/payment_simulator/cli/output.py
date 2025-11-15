@@ -605,7 +605,7 @@ def log_transaction_arrivals(provider, events, quiet=False):
         console.print(f"     {amount_str} | {priority_str} | ⏰ Tick {deadline}")
 
 
-def log_settlement_details(provider, events, tick, quiet=False):
+def log_settlement_details(provider, events, tick, num_settlements=None, quiet=False):
     """Log detailed settlements showing how each transaction settled.
 
     Categorizes settlements by mechanism:
@@ -617,6 +617,7 @@ def log_settlement_details(provider, events, tick, quiet=False):
         provider: StateProvider instance (not currently used, for consistency)
         events: List of events from get_tick_events()
         tick: Current tick number
+        num_settlements: Total number of transactions settled (if provided, used in header)
         quiet: Suppress output if True
 
     Example Output:
@@ -641,13 +642,22 @@ def log_settlement_details(provider, events, tick, quiet=False):
     # Legacy: Also include old generic Settlement events for backward compatibility
     legacy_settlements = [e for e in events if e.get("event_type") == "Settlement"]
 
-    total_settlements = len(rtgs_immediate) + len(queue_releases) + len(legacy_settlements)
-    if total_settlements == 0 and len(lsm_bilateral) == 0 and len(lsm_cycles) == 0:
+    # PHASE 5 FIX: Use provided num_settlements instead of recounting
+    # This prevents discrepancies between header and summary
+    if num_settlements is not None:
+        # Use authoritative count (includes LSM-settled transactions correctly)
+        total = num_settlements
+    else:
+        # Fallback: recount from events (INCORRECT for LSM events!)
+        # LSM events are counted as 1 each, but they settle multiple transactions
+        total_settlements = len(rtgs_immediate) + len(queue_releases) + len(legacy_settlements)
+        total = total_settlements + len(lsm_bilateral) + len(lsm_cycles)
+
+    if total == 0:
         return
 
     # Display header with total settlements
     console.print()
-    total = total_settlements + len(lsm_bilateral) + len(lsm_cycles)
     console.print(f"✅ [green]{total} transaction(s) settled:[/green]")
     console.print()
 

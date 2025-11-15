@@ -123,7 +123,8 @@ def display_tick_verbose_output(
         e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"]
         for e in display_events
     ):
-        log_settlement_details(provider, display_events, tick_num)
+        # PHASE 5 FIX: Pass num_settlements to ensure header matches summary
+        log_settlement_details(provider, display_events, tick_num, num_settlements)
 
     # Visual separator: Transaction flow → Settlement mechanisms
     log_section_separator()
