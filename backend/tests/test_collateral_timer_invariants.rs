@@ -56,7 +56,7 @@ fn process_collateral_timers_guarded(
 #[test]
 fn test_timer_withdrawal_respects_headroom_when_overdrawn() {
     // Setup: Agent is overdrawn, posted collateral backs the overdraft
-    let mut agent = Agent::new("BANK_A".to_string(), -60_000_00, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), -60_000_00);
     agent.set_posted_collateral(100_000_00); // $100k posted
     agent.set_collateral_haircut(0.10); // 10% haircut
     agent.set_unsecured_cap(0);
@@ -133,7 +133,7 @@ fn test_timer_withdrawal_respects_headroom_when_overdrawn() {
 #[test]
 fn test_timer_clamps_withdrawal_to_safe_amount() {
     // Setup: Agent is moderately overdrawn
-    let mut agent = Agent::new("BANK_A".to_string(), -30_000_00, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), -30_000_00);
     agent.set_posted_collateral(100_000_00);
     agent.set_collateral_haircut(0.10);
     agent.set_unsecured_cap(0);
@@ -183,7 +183,7 @@ fn test_timer_clamps_withdrawal_to_safe_amount() {
 #[test]
 fn test_timer_blocked_when_no_headroom_available() {
     // Setup: Agent is deeply overdrawn, all collateral needed
-    let mut agent = Agent::new("BANK_A".to_string(), -90_000_00, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), -90_000_00);
     agent.set_posted_collateral(100_000_00);
     agent.set_collateral_haircut(0.10);
     agent.set_unsecured_cap(0);
@@ -234,7 +234,7 @@ fn test_timer_respects_minimum_holding_period() {
     const MIN_HOLDING_TICKS: usize = 5;
 
     // Setup: Agent has positive balance (withdrawal is safe liquidity-wise)
-    let mut agent = Agent::new("BANK_A".to_string(), 100_000_00, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 100_000_00);
     agent.set_posted_collateral(50_000_00);
     agent.set_collateral_posted_at_tick(5); // Posted at tick 5
 
@@ -278,7 +278,7 @@ fn test_timer_respects_minimum_holding_period() {
 #[test]
 fn test_timer_at_exact_credit_limit() {
     // Setup: Agent's collateral exactly covers their overdraft (no headroom)
-    let mut agent = Agent::new("BANK_A".to_string(), -90_000_00, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), -90_000_00);
     agent.set_posted_collateral(100_000_00); // Provides exactly 90k capacity
     agent.set_collateral_haircut(0.10);
     agent.set_unsecured_cap(0);
@@ -323,7 +323,7 @@ fn test_timer_at_exact_credit_limit() {
 #[test]
 fn test_timer_respects_safety_buffer() {
     // Setup: Agent close to limit
-    let mut agent = Agent::new("BANK_A".to_string(), -89_000_00, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), -89_000_00);
     agent.set_posted_collateral(100_000_00);
     agent.set_collateral_haircut(0.10);
     agent.set_unsecured_cap(0);
@@ -351,7 +351,7 @@ fn test_timer_respects_safety_buffer() {
 #[test]
 fn test_multiple_timers_same_tick_respect_headroom() {
     // Setup: Agent with moderate overdraft
-    let mut agent = Agent::new("BANK_A".to_string(), -50_000_00, 0);
+    let mut agent = Agent::new("BANK_A".to_string(), -50_000_00);
     agent.set_posted_collateral(100_000_00);
     agent.set_collateral_haircut(0.10);
     agent.set_unsecured_cap(0);

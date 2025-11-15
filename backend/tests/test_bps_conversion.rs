@@ -31,7 +31,6 @@ fn create_test_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -41,7 +40,6 @@ fn create_test_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -64,7 +62,7 @@ fn test_overdraft_cost_1_bps() {
     let mut config = create_test_config();
     config.cost_rates.overdraft_bps_per_tick = 1.0; // 1 bp
     // Increase credit limit to allow this level of overdraft
-    config.agent_configs[0].credit_limit = 15_000_000; // $150k credit limit
+    config.agent_configs[0].unsecured_cap = 15_000_000; // $150k credit limit
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
@@ -107,7 +105,7 @@ fn test_overdraft_cost_0_8_bps() {
     let mut config = create_test_config();
     config.cost_rates.overdraft_bps_per_tick = 0.8; // 0.8 bp (from real config)
     // Increase credit limit to allow this level of overdraft
-    config.agent_configs[0].credit_limit = 15_000_000; // $150k credit limit
+    config.agent_configs[0].unsecured_cap = 15_000_000; // $150k credit limit
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
 

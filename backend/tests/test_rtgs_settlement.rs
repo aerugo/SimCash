@@ -11,7 +11,7 @@ use payment_simulator_core_rs::{Agent, Transaction, TransactionStatus};
 
 /// Create a test agent with given balance and credit limit
 fn create_test_agent(id: &str, balance: i64, unsecured_cap: i64) -> Agent {
-    Agent::new(id.to_string(), balance, credit_limit)
+    Agent::new(id.to_string(), balance)
 }
 
 /// Create a test transaction

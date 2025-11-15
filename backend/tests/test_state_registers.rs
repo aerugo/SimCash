@@ -11,7 +11,7 @@ use payment_simulator_core_rs::Agent;
 
 #[test]
 fn test_set_state_register_basic() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     let (old, new) = agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
     assert_eq!(old, 0.0);
@@ -21,7 +21,7 @@ fn test_set_state_register_basic() {
 
 #[test]
 fn test_state_register_default_value_is_zero() {
-    let agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let agent = Agent::new("A".to_string(), 100_000);
 
     // Reading non-existent register should return 0.0
     assert_eq!(agent.get_state_register("bank_state_nonexistent"), 0.0);
@@ -29,7 +29,7 @@ fn test_state_register_default_value_is_zero() {
 
 #[test]
 fn test_state_register_can_update_existing() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     // Set initial value
     agent.set_state_register("bank_state_counter".to_string(), 10.0).unwrap();
@@ -44,7 +44,7 @@ fn test_state_register_can_update_existing() {
 
 #[test]
 fn test_state_register_max_limit() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     // Add 10 registers (should succeed)
     for i in 0..10 {
@@ -65,7 +65,7 @@ fn test_state_register_max_limit() {
 
 #[test]
 fn test_state_register_max_limit_allows_updates() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     // Add 10 registers
     for i in 0..10 {
@@ -80,7 +80,7 @@ fn test_state_register_max_limit_allows_updates() {
 
 #[test]
 fn test_state_register_requires_prefix() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     // Without prefix should fail
     let result = agent.set_state_register("bad_key".to_string(), 42.0);
@@ -95,7 +95,7 @@ fn test_state_register_requires_prefix() {
 
 #[test]
 fn test_state_register_various_invalid_prefixes() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     let invalid_keys = vec![
         "state_register",
@@ -115,7 +115,7 @@ fn test_state_register_various_invalid_prefixes() {
 
 #[test]
 fn test_state_register_eod_reset() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     // Set multiple registers
     agent.set_state_register("bank_state_cooldown".to_string(), 42.0).unwrap();
@@ -146,7 +146,7 @@ fn test_state_register_eod_reset() {
 
 #[test]
 fn test_state_register_reset_empty() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     // Reset with no registers should return empty vec
     let old_values = agent.reset_state_registers();
@@ -155,7 +155,7 @@ fn test_state_register_reset_empty() {
 
 #[test]
 fn test_state_register_negative_values_allowed() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     // Negative values should be allowed (useful for deltas)
     let result = agent.set_state_register("bank_state_delta".to_string(), -123.45);
@@ -165,7 +165,7 @@ fn test_state_register_negative_values_allowed() {
 
 #[test]
 fn test_state_register_zero_value_allowed() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     // Set to non-zero first
     agent.set_state_register("bank_state_flag".to_string(), 1.0).unwrap();
@@ -180,7 +180,7 @@ fn test_state_register_zero_value_allowed() {
 
 #[test]
 fn test_state_register_floating_point_precision() {
-    let mut agent = Agent::new("A".to_string(), 100_000, 50_000);
+    let mut agent = Agent::new("A".to_string(), 100_000);
 
     let value = 123.456789;
     agent.set_state_register("bank_state_precise".to_string(), value).unwrap();

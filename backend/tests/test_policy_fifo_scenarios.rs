@@ -39,7 +39,6 @@ fn test_fifo_preserves_arrival_order() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -49,7 +48,6 @@ fn test_fifo_preserves_arrival_order() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -112,7 +110,6 @@ fn test_fifo_partial_submission() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -122,7 +119,6 @@ fn test_fifo_partial_submission() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -198,7 +194,6 @@ fn test_fifo_vs_deadline_under_pressure() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             // Deadline agent (for comparison)
             AgentConfig {
@@ -211,7 +206,6 @@ fn test_fifo_vs_deadline_under_pressure() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             // Receiver
             AgentConfig {
@@ -222,7 +216,6 @@ fn test_fifo_vs_deadline_under_pressure() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

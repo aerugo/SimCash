@@ -132,8 +132,8 @@ fn test_event_scheduler_mixed_one_time_and_repeating() {
 
 #[test]
 fn test_direct_transfer_execution() {
-    let agent_a = Agent::new("A".to_string(), 100_000, 0);
-    let agent_b = Agent::new("B".to_string(), 50_000, 0);
+    let agent_a = Agent::new("A".to_string(), 100_000);
+    let agent_b = Agent::new("B".to_string(), 50_000);
     let mut state = SimulationState::new(vec![agent_a, agent_b]);
 
     let event = ScenarioEvent::DirectTransfer {
@@ -160,7 +160,7 @@ fn test_direct_transfer_execution() {
 
 #[test]
 fn test_direct_transfer_invalid_sender() {
-    let agent_a = Agent::new("A".to_string(), 100_000, 0);
+    let agent_a = Agent::new("A".to_string(), 100_000);
     let mut state = SimulationState::new(vec![agent_a]);
 
     let event = ScenarioEvent::DirectTransfer {
@@ -176,7 +176,7 @@ fn test_direct_transfer_invalid_sender() {
 
 #[test]
 fn test_direct_transfer_invalid_receiver() {
-    let agent_a = Agent::new("A".to_string(), 100_000, 0);
+    let agent_a = Agent::new("A".to_string(), 100_000);
     let mut state = SimulationState::new(vec![agent_a]);
 
     let event = ScenarioEvent::DirectTransfer {
@@ -194,8 +194,8 @@ fn test_direct_transfer_invalid_receiver() {
 fn test_direct_transfer_can_go_negative() {
     // Scenario events should bypass liquidity checks
     // (simulating external liquidity injection/withdrawal)
-    let agent_a = Agent::new("A".to_string(), 10_000, 0);
-    let agent_b = Agent::new("B".to_string(), 50_000, 0);
+    let agent_a = Agent::new("A".to_string(), 10_000);
+    let agent_b = Agent::new("B".to_string(), 50_000);
     let mut state = SimulationState::new(vec![agent_a, agent_b]);
 
     let event = ScenarioEvent::DirectTransfer {
@@ -218,7 +218,7 @@ fn test_direct_transfer_can_go_negative() {
 
 #[test]
 fn test_collateral_adjustment_positive() {
-    let agent_a = Agent::new("A".to_string(), 100_000, 0);
+    let agent_a = Agent::new("A".to_string(), 100_000);
     let mut state = SimulationState::new(vec![agent_a]);
 
     let event = ScenarioEvent::CollateralAdjustment {
@@ -229,12 +229,12 @@ fn test_collateral_adjustment_positive() {
     let result = event.execute(&mut state, 10);
     assert!(result.is_ok());
 
-    assert_eq!(state.get_agent("A").unwrap().credit_limit(), 50_000);
+    assert_eq!(state.get_agent("A").unwrap().unsecured_cap(), 50_000);
 }
 
 #[test]
 fn test_collateral_adjustment_negative() {
-    let agent_a = Agent::new("A".to_string(), 100_000, 100_000);
+    let agent_a = Agent::new("A".to_string(), 100_000);
     let mut state = SimulationState::new(vec![agent_a]);
 
     let event = ScenarioEvent::CollateralAdjustment {
@@ -245,12 +245,12 @@ fn test_collateral_adjustment_negative() {
     let result = event.execute(&mut state, 10);
     assert!(result.is_ok());
 
-    assert_eq!(state.get_agent("A").unwrap().credit_limit(), 70_000);
+    assert_eq!(state.get_agent("A").unwrap().unsecured_cap(), 70_000);
 }
 
 #[test]
 fn test_collateral_adjustment_cannot_go_negative() {
-    let agent_a = Agent::new("A".to_string(), 100_000, 50_000);
+    let agent_a = Agent::new("A".to_string(), 100_000);
     let mut state = SimulationState::new(vec![agent_a]);
 
     let event = ScenarioEvent::CollateralAdjustment {
@@ -265,7 +265,7 @@ fn test_collateral_adjustment_cannot_go_negative() {
 
 #[test]
 fn test_collateral_adjustment_invalid_agent() {
-    let agent_a = Agent::new("A".to_string(), 100_000, 0);
+    let agent_a = Agent::new("A".to_string(), 100_000);
     let mut state = SimulationState::new(vec![agent_a]);
 
     let event = ScenarioEvent::CollateralAdjustment {
@@ -333,8 +333,8 @@ fn test_scenario_events_are_deterministic() {
     ];
 
     // Run 1
-    let agent_a = Agent::new("A".to_string(), 1_000_000, 100_000);
-    let agent_b = Agent::new("B".to_string(), 500_000, 0);
+    let agent_a = Agent::new("A".to_string(), 1_000_000);
+    let agent_b = Agent::new("B".to_string(), 500_000);
     let mut state1 = SimulationState::new(vec![agent_a.clone(), agent_b.clone()]);
 
     for event in &events {
@@ -362,7 +362,7 @@ fn test_scenario_events_are_deterministic() {
         state2.get_agent("B").unwrap().balance()
     );
     assert_eq!(
-        state1.get_agent("A").unwrap().credit_limit(),
-        state2.get_agent("A").unwrap().credit_limit()
+        state1.get_agent("A").unwrap().unsecured_cap(),
+        state2.get_agent("A").unwrap().unsecured_cap()
     );
 }
