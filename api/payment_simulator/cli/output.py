@@ -486,8 +486,10 @@ def log_event_chronological(event: dict, tick: int, quiet: bool = False):
         )
 
     elif event_type == "LsmBilateralOffset":
-        tx_a = event.get("tx_id_a", "")[:8]
-        tx_b = event.get("tx_id_b", "")[:8]
+        # FIX Discrepancy #12: Use tx_ids list (Rust FFI format), not tx_id_a/tx_id_b
+        tx_ids = event.get("tx_ids", [])
+        tx_a = tx_ids[0][:8] if len(tx_ids) > 0 and tx_ids[0] else "unknown"
+        tx_b = tx_ids[1][:8] if len(tx_ids) > 1 and tx_ids[1] else "unknown"
         amount = event.get("amount", 0)
         console.print(
             f"[cyan][Tick {tick}][/cyan] [magenta]LSM-Bilateral[/magenta]: TX {tx_a} ⟷ TX {tx_b} | ${amount / 100:,.2f}"
@@ -710,8 +712,10 @@ def log_settlement_details(provider, events, tick, num_settlements=None, quiet=F
     if lsm_bilateral:
         console.print(f"   [magenta]LSM Bilateral Offset ({len(lsm_bilateral)}):[/magenta]")
         for event in lsm_bilateral:
-            tx_a = event.get("tx_id_a", "unknown")[:8]
-            tx_b = event.get("tx_id_b", "unknown")[:8]
+            # FIX Discrepancy #12: Use tx_ids list (Rust FFI format), not tx_id_a/tx_id_b
+            tx_ids = event.get("tx_ids", [])
+            tx_a = tx_ids[0][:8] if len(tx_ids) > 0 and tx_ids[0] else "unknown"
+            tx_b = tx_ids[1][:8] if len(tx_ids) > 1 and tx_ids[1] else "unknown"
             amount = event.get("amount", 0)
             console.print(
                 f"   • TX {tx_a} ⟷ TX {tx_b}: ${amount / 100:,.2f}"
