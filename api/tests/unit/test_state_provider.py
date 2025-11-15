@@ -16,7 +16,7 @@ class TestStateProviderProtocol:
         required_methods = [
             "get_transaction_details",
             "get_agent_balance",
-            "get_agent_credit_limit",
+            "get_agent_unsecured_cap",
             "get_agent_queue1_contents",
             "get_rtgs_queue_contents",
             "get_agent_collateral_posted",
@@ -72,9 +72,9 @@ class TestOrchestratorStateProvider:
         balance = provider.get_agent_balance("BANK_A")
         assert balance == 1000000
 
-    def test_get_agent_credit_limit(self, provider):
-        """Should return agent credit limit from orchestrator."""
-        limit = provider.get_agent_credit_limit("BANK_A")
+    def test_get_agent_unsecured_cap(self, provider):
+        """Should return agent unsecured cap from orchestrator."""
+        limit = provider.get_agent_unsecured_cap("BANK_A")
         assert limit == 500000
 
     def test_get_agent_queue1_contents(self, provider):
@@ -194,9 +194,9 @@ class TestDatabaseStateProvider:
         balance = provider.get_agent_balance("BANK_A")
         assert balance == 900000
 
-    def test_get_agent_credit_limit(self, provider):
-        """Should return credit limit from agent_states."""
-        limit = provider.get_agent_credit_limit("BANK_A")
+    def test_get_agent_unsecured_cap(self, provider):
+        """Should return unsecured cap from agent_states."""
+        limit = provider.get_agent_unsecured_cap("BANK_A")
         assert limit == 500000
 
     def test_get_agent_queue1_contents(self, provider):

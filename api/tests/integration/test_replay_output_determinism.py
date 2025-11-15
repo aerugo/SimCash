@@ -108,7 +108,7 @@ class TestReplayOutputDeterminism:
 
             agent_states[agent_id] = {
                 "balance": orch.get_agent_balance(agent_id),
-                "unsecured_cap": orch.get_agent_credit_limit(agent_id),
+                "unsecured_cap": orch.get_agent_unsecured_cap(agent_id),
                 "collateral_posted": orch.get_agent_collateral_posted(agent_id),
                 "liquidity_cost": costs["liquidity_cost"],
                 "delay_cost": costs["delay_cost"],
@@ -300,8 +300,8 @@ class TestStateProviderDataEquivalence:
 
         assert balance_live == balance_replay
 
-    def test_both_providers_return_same_credit_limit(self):
-        """Both providers must return identical credit_limit values."""
+    def test_both_providers_return_same_unsecured_cap(self):
+        """Both providers must return identical unsecured_cap values."""
         config = {
             "rng_seed": 12345,
             "ticks_per_day": 100,
@@ -331,5 +331,5 @@ class TestStateProviderDataEquivalence:
             queue_snapshots={"BANK_A": {"queue1": [], "rtgs": []}},
         )
 
-        assert orch_provider.get_agent_credit_limit("BANK_A") == db_provider.get_agent_credit_limit("BANK_A")
-        assert orch_provider.get_agent_credit_limit("BANK_A") == 500000
+        assert orch_provider.get_agent_unsecured_cap("BANK_A") == db_provider.get_agent_unsecured_cap("BANK_A")
+        assert orch_provider.get_agent_unsecured_cap("BANK_A") == 500000

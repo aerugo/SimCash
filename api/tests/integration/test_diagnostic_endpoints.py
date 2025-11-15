@@ -379,7 +379,7 @@ def test_get_agent_list(client, sample_simulation):
     assert "total_cost_cents" in agent
     assert "avg_balance_cents" in agent
     assert "peak_overdraft_cents" in agent
-    assert "credit_limit_cents" in agent
+    assert "unsecured_cap_cents" in agent
 
     # Values should be integers
     assert isinstance(agent["total_sent"], int)

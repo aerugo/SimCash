@@ -91,7 +91,7 @@ def test_get_simulation_metadata_with_config_json():
         agents = data["config"]["agents"]
         assert agents[0]["id"] == "BANK_A"
         assert agents[0]["opening_balance"] == 10000000
-        assert agents[0]["credit_limit"] == 5000000
+        assert agents[0]["unsecured_cap"] == 5000000
 
         assert agents[1]["id"] == "BANK_B"
         assert agents[1]["opening_balance"] == 20000000
@@ -266,7 +266,7 @@ def test_get_agent_list_from_database():
             INSERT INTO daily_agent_metrics (
                 simulation_id, agent_id, day,
                 opening_balance, closing_balance, min_balance, max_balance,
-                credit_limit, peak_overdraft,
+                unsecured_cap, peak_overdraft,
                 opening_posted_collateral, closing_posted_collateral, peak_posted_collateral,
                 collateral_capacity, num_collateral_posts, num_collateral_withdrawals,
                 num_arrivals, num_sent, num_received, num_settled, num_dropped,
@@ -288,7 +288,7 @@ def test_get_agent_list_from_database():
                 0,  # opening_posted_collateral
                 0,  # closing_posted_collateral
                 0,  # peak_posted_collateral
-                50000000,  # collateral_capacity (10x credit_limit)
+                50000000,  # collateral_capacity (10x unsecured_cap)
                 0,  # num_collateral_posts
                 0,  # num_collateral_withdrawals
                 50,
@@ -312,7 +312,7 @@ def test_get_agent_list_from_database():
             INSERT INTO daily_agent_metrics (
                 simulation_id, agent_id, day,
                 opening_balance, closing_balance, min_balance, max_balance,
-                credit_limit, peak_overdraft,
+                unsecured_cap, peak_overdraft,
                 opening_posted_collateral, closing_posted_collateral, peak_posted_collateral,
                 collateral_capacity, num_collateral_posts, num_collateral_withdrawals,
                 num_arrivals, num_sent, num_received, num_settled, num_dropped,
@@ -334,7 +334,7 @@ def test_get_agent_list_from_database():
                 0,  # opening_posted_collateral
                 0,  # closing_posted_collateral
                 0,  # peak_posted_collateral
-                0,  # collateral_capacity (0 because credit_limit is 0)
+                0,  # collateral_capacity (0 because unsecured_cap is 0)
                 0,  # num_collateral_posts
                 0,  # num_collateral_withdrawals
                 45,

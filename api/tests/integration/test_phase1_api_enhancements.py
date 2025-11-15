@@ -500,7 +500,7 @@ def test_tick_state_includes_agent_details(client, simulation_with_queues):
     agent = agents[agent_id]
 
     assert "balance" in agent
-    assert "credit_limit" in agent
+    assert "unsecured_cap" in agent
     assert "liquidity" in agent
     assert "headroom" in agent
     assert "queue1_size" in agent
