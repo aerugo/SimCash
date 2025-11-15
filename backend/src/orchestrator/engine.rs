@@ -454,7 +454,7 @@ pub struct DailyMetrics {
     pub max_balance: i64,
 
     // Credit usage
-    pub credit_limit: i64,
+    pub unsecured_cap: i64,
     pub peak_overdraft: i64,
 
     // Collateral management (Phase 8)
@@ -488,7 +488,7 @@ pub struct DailyMetrics {
 impl DailyMetrics {
     /// Create new daily metrics for an agent at start of day
     fn new(agent_id: String, day: usize, agent: &Agent) -> Self {
-        let credit_limit = agent.credit_limit();
+        let unsecured_cap = agent.unsecured_cap();
         let opening_balance = agent.balance();
         let opening_posted_collateral = agent.posted_collateral();
 
@@ -499,12 +499,12 @@ impl DailyMetrics {
             closing_balance: opening_balance, // Will be updated at EOD
             min_balance: opening_balance,
             max_balance: opening_balance,
-            credit_limit,
+            unsecured_cap,
             peak_overdraft: 0,
             opening_posted_collateral,
             closing_posted_collateral: opening_posted_collateral,
             peak_posted_collateral: opening_posted_collateral,
-            collateral_capacity: credit_limit * 10, // 10x leverage
+            collateral_capacity: unsecured_cap * 10, // 10x leverage
             num_collateral_posts: 0,
             num_collateral_withdrawals: 0,
             num_arrivals: 0,
@@ -1645,8 +1645,8 @@ impl Orchestrator {
     ///     println!("Credit utilization: {:.1}%", utilization);
     /// }
     /// ```
-    pub fn get_agent_credit_limit(&self, agent_id: &str) -> Option<i64> {
-        self.state.get_agent(agent_id).map(|a| a.credit_limit())
+    pub fn get_agent_unsecured_cap(&self, agent_id: &str) -> Option<i64> {
+        self.state.get_agent(agent_id).map(|a| a.unsecured_cap())
     }
 
     /// Get agent's currently posted collateral
@@ -4157,11 +4157,11 @@ mod tests {
 
         let bank_a = orchestrator.state().get_agent("BANK_A").unwrap();
         assert_eq!(bank_a.balance(), 1_000_000);
-        assert_eq!(bank_a.credit_limit(), 500_000);
+        assert_eq!(bank_a.unsecured_cap(), 500_000);
 
         let bank_b = orchestrator.state().get_agent("BANK_B").unwrap();
         assert_eq!(bank_b.balance(), 2_000_000);
-        assert_eq!(bank_b.credit_limit(), 0);
+        assert_eq!(bank_b.unsecured_cap(), 0);
     }
 
     #[test]

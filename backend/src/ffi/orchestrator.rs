@@ -386,12 +386,12 @@ impl PyOrchestrator {
     /// # Example (from Python)
     ///
     /// ```python
-    /// credit_limit = orch.get_agent_credit_limit("BANK_A")
-    /// if credit_limit is not None:
-    ///     print(f"BANK_A credit limit: ${credit_limit / 100:.2f}")
+    /// unsecured_cap = orch.get_agent_unsecured_cap("BANK_A")
+    /// if unsecured_cap is not None:
+    ///     print(f"BANK_A unsecured cap: ${unsecured_cap / 100:.2f}")
     /// ```
-    fn get_agent_credit_limit(&self, agent_id: &str) -> Option<i64> {
-        self.inner.get_agent_credit_limit(agent_id)
+    fn get_agent_unsecured_cap(&self, agent_id: &str) -> Option<i64> {
+        self.inner.get_agent_unsecured_cap(agent_id)
     }
 
     /// Get agent's arrival rate (transactions per tick)
@@ -451,7 +451,6 @@ impl PyOrchestrator {
         let dict = PyDict::new(py);
         // Basic fields
         dict.set_item("balance", agent.balance())?;
-        dict.set_item("credit_limit", agent.credit_limit())?;
         dict.set_item("available_liquidity", agent.available_liquidity())?;
         dict.set_item("queue1_size", agent.outgoing_queue().len())?;
 

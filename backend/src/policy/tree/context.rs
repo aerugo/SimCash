@@ -193,7 +193,7 @@ impl EvalContext {
 
         // Agent fields
         fields.insert("balance".to_string(), agent.balance() as f64);
-        fields.insert("credit_limit".to_string(), agent.credit_limit() as f64);
+        fields.insert("credit_limit".to_string(), agent.unsecured_cap() as f64);
         fields.insert(
             "available_liquidity".to_string(),
             agent.available_liquidity() as f64,
@@ -204,13 +204,13 @@ impl EvalContext {
         // effective_liquidity = balance + unused_credit_capacity
         // This is what policies should use for "can I do X?" checks when in overdraft,
         // as it represents the TRUE available capacity (both positive balance and credit headroom)
-        let credit_headroom = (agent.credit_limit() as i64) - agent.credit_used();
+        let credit_headroom = (agent.unsecured_cap() as i64) - agent.credit_used();
         let effective_liquidity = agent.balance() + credit_headroom;
 
         if std::env::var("POLICY_DEBUG").is_ok() {
             eprintln!("[POLICY CONTEXT] Agent: {}", agent.id());
             eprintln!("  balance: {}", agent.balance());
-            eprintln!("  credit_limit: {}", agent.credit_limit());
+            eprintln!("  credit_limit: {}", agent.unsecured_cap());
             eprintln!("  credit_used: {}", agent.credit_used());
             eprintln!("  credit_headroom: {}", credit_headroom);
             eprintln!("  effective_liquidity: {}", effective_liquidity);
@@ -643,7 +643,7 @@ impl EvalContext {
 
         // Agent fields (same as transaction context)
         fields.insert("balance".to_string(), agent.balance() as f64);
-        fields.insert("credit_limit".to_string(), agent.credit_limit() as f64);
+        fields.insert("credit_limit".to_string(), agent.unsecured_cap() as f64);
         fields.insert(
             "available_liquidity".to_string(),
             agent.available_liquidity() as f64,
@@ -651,7 +651,7 @@ impl EvalContext {
         fields.insert("credit_used".to_string(), agent.credit_used() as f64);
 
         // Effective liquidity and credit headroom
-        let credit_headroom = (agent.credit_limit() as i64) - agent.credit_used();
+        let credit_headroom = (agent.unsecured_cap() as i64) - agent.credit_used();
         let effective_liquidity = agent.balance() + credit_headroom;
         fields.insert("effective_liquidity".to_string(), effective_liquidity as f64);
         fields.insert("credit_headroom".to_string(), credit_headroom as f64);

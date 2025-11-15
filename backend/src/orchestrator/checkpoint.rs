@@ -54,7 +54,7 @@ pub struct StateSnapshot {
 pub struct AgentSnapshot {
     pub id: String,
     pub balance: i64,
-    pub credit_limit: i64,
+    pub unsecured_cap: i64,
     pub outgoing_queue: Vec<String>, // Queue 1 (internal)
     pub incoming_expected: Vec<String>,
     pub last_decision_tick: Option<usize>,
@@ -69,7 +69,7 @@ impl From<&Agent> for AgentSnapshot {
         AgentSnapshot {
             id: agent.id().to_string(),
             balance: agent.balance(),
-            credit_limit: agent.credit_limit(),
+            unsecured_cap: agent.unsecured_cap(),
             outgoing_queue: agent.outgoing_queue().to_vec(),
             incoming_expected: agent.incoming_expected().to_vec(),
             last_decision_tick: agent.last_decision_tick(),
@@ -86,7 +86,7 @@ impl From<AgentSnapshot> for Agent {
         Agent::from_snapshot(
             snapshot.id,
             snapshot.balance,
-            snapshot.credit_limit,
+            snapshot.unsecured_cap,
             snapshot.outgoing_queue,
             snapshot.incoming_expected,
             snapshot.last_decision_tick,
