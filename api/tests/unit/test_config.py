@@ -40,7 +40,7 @@ def test_load_simple_config():
         assert len(config.agents) == 1
         assert config.agents[0].id == "BANK_A"
         assert config.agents[0].opening_balance == 1_000_000
-        assert config.agents[0].credit_limit == 0
+        assert config.agents[0].unsecured_cap == 0
     finally:
         Path(config_path).unlink()
 
