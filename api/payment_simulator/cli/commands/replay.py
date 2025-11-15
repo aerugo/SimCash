@@ -1309,15 +1309,14 @@ def replay_simulation(
                 tick_count_settlements = summary["total_settlements"]
                 total_cost = summary["total_cost_cents"]
 
-                # LSM release count not in summary table - calculate from events if needed
-                # (This is a minor metric, not critical for accuracy)
+                # CRITICAL FIX (Discrepancy #9): Query FULL SIMULATION LSM count, not just replayed range
+                # LSM release count not in summary table - calculate from ALL events for this simulation
                 lsm_query = """
                     SELECT COUNT(*) FROM simulation_events
                     WHERE simulation_id = ?
                     AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
-                    AND tick BETWEEN ? AND ?
                 """
-                result = db_manager.conn.execute(lsm_query, [simulation_id, from_tick, end_tick]).fetchone()
+                result = db_manager.conn.execute(lsm_query, [simulation_id]).fetchone()
                 tick_count_lsm = result[0] if result else 0
 
                 # Get final agent balances from daily_agent_metrics (always available, not dependent on --full-replay)
