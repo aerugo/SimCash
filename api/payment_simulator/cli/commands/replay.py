@@ -1432,18 +1432,12 @@ def replay_simulation(
                         agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
 
                         # Build mapping of agent_id -> unsecured_cap from config
-                        # CRITICAL FIX (Discrepancy #8): Apply same backward compatibility as Rust
-                        # Rust logic: unsecured_cap = config.unsecured_cap ?? config.unsecured_cap
-                        # This ensures allowed_overdraft calculation matches between run and replay
-                        agent_credit_limits = {}
-                        for agent in config_dict.get("agents", []):
-                            agent_id = agent["id"]
-                            # Use unsecured_cap if specified, otherwise fall back to unsecured_cap
-                            unsecured_cap = agent.get("unsecured_cap")
-                            if unsecured_cap is not None:
-                                agent_credit_limits[agent_id] = unsecured_cap
-                            else:
-                                agent_credit_limits[agent_id] = agent.get("unsecured_cap", 0)
+                        # Note: credit_limit backwards compatibility has been removed (Phase 8 complete)
+                        # All configs must now use unsecured_cap directly
+                        agent_credit_limits = {
+                            agent["id"]: agent.get("unsecured_cap", 0)
+                            for agent in config_dict.get("agents", [])
+                        }
 
                         agent_stats = []
                         day_total_costs = 0
