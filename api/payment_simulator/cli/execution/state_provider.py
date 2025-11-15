@@ -377,6 +377,27 @@ class DatabaseStateProvider:
             overdue_since = event["tick"]
             ticks_overdue = self.tick - overdue_since
 
+            # CRITICAL FIX (Discrepancy #7): Get ACTUAL delay costs from CostAccrual events
+            # Do NOT recalculate with a formula - use persisted events as single source of truth
+            actual_delay_cost = 0
+            cost_query = """
+                SELECT details FROM simulation_events
+                WHERE simulation_id = ?
+                    AND tx_id = ?
+                    AND event_type = 'CostAccrual'
+                    AND tick > ?
+                    AND tick <= ?
+            """
+            cost_rows = self.conn.execute(
+                cost_query,
+                [self.simulation_id, tx_id, event["deadline_tick"], self.tick]
+            ).fetchall()
+
+            for cost_row in cost_rows:
+                cost_event = json.loads(cost_row[0]) if isinstance(cost_row[0], str) else cost_row[0]
+                # Sum all delay-related costs (overdue transactions accrue delay costs)
+                actual_delay_cost += cost_event.get("delay_cost", 0)
+
             overdue_txs[tx_id] = {
                 "tx_id": tx_id,
                 "sender_id": event["sender_id"],
@@ -387,10 +408,9 @@ class DatabaseStateProvider:
                 "overdue_since_tick": overdue_since,
                 "ticks_overdue": ticks_overdue,
                 "deadline_penalty_cost": event.get("deadline_penalty_cost", 0),
-                # Estimate current delay cost
-                # Note: This is a simplified calculation
-                "estimated_delay_cost": event.get("deadline_penalty_cost", 0) // 10 * ticks_overdue,
-                "total_overdue_cost": event.get("deadline_penalty_cost", 0) + (event.get("deadline_penalty_cost", 0) // 10 * ticks_overdue),
+                # Use ACTUAL accumulated delay costs from events, not formula
+                "estimated_delay_cost": actual_delay_cost,
+                "total_overdue_cost": event.get("deadline_penalty_cost", 0) + actual_delay_cost,
             }
 
         return list(overdue_txs.values())
