@@ -134,11 +134,11 @@ def test_replay_eod_banner_matches_run_when_replaying_eod_tick():
 
         assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
 
-        # Extract EOD banner from run (day 1, tick 99)
-        run_eod = [line for line in run_result.stdout.split('\n') if 'End of Day 1' in line and 'unsettled' in line]
+        # Extract EOD banner from run (day 1, tick 99) - verbose output is in stderr
+        run_eod = [line for line in run_result.stderr.split('\n') if 'End of Day 1' in line and 'unsettled' in line]
         assert len(run_eod) > 0, "No EOD banner in run output"
 
-        # Extract simulation ID
+        # Extract simulation ID from JSON in stdout
         import re
         match = re.search(r'sim-[a-z0-9]+', run_result.stdout)
         assert match, "Could not find simulation ID"
@@ -162,8 +162,8 @@ def test_replay_eod_banner_matches_run_when_replaying_eod_tick():
 
         assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
 
-        # Extract EOD banner from replay
-        replay_eod = [line for line in replay_result.stdout.split('\n') if 'End of Day 1' in line and 'unsettled' in line]
+        # Extract EOD banner from replay - verbose output is in stderr
+        replay_eod = [line for line in replay_result.stderr.split('\n') if 'End of Day 1' in line and 'unsettled' in line]
         assert len(replay_eod) > 0, "No EOD banner in replay output"
 
         # Parse unsettled counts
@@ -214,13 +214,13 @@ def test_replay_day_summary_metrics_match_run():
 
         assert run_result.returncode == 0
 
-        # Extract simulation ID
+        # Extract simulation ID from JSON in stdout
         import re
         match = re.search(r'sim-[a-z0-9]+', run_result.stdout)
         sim_id = match.group(0)
 
-        # Extract day 1 summary from run
-        run_lines = run_result.stdout.split('\n')
+        # Extract day 1 summary from run - verbose output is in stderr
+        run_lines = run_result.stderr.split('\n')
         run_summary_start = None
         for i, line in enumerate(run_lines):
             if 'END OF DAY 1 SUMMARY' in line:
@@ -257,8 +257,8 @@ def test_replay_day_summary_metrics_match_run():
 
         assert replay_result.returncode == 0
 
-        # Extract day 1 summary from replay
-        replay_lines = replay_result.stdout.split('\n')
+        # Extract day 1 summary from replay - verbose output is in stderr
+        replay_lines = replay_result.stderr.split('\n')
         replay_summary_start = None
         for i, line in enumerate(replay_lines):
             if 'END OF DAY 1 SUMMARY' in line:

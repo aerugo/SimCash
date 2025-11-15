@@ -15,8 +15,12 @@ import tempfile
 import pytest
 
 
-def run_simulation_verbose(config_path: str, db_path: str, tick: int = None) -> str:
-    """Run simulation with verbose output."""
+def run_simulation_verbose(config_path: str, db_path: str, tick: int = None) -> tuple[str, str]:
+    """Run simulation with verbose output.
+
+    Returns:
+        tuple: (stdout, stderr) where stdout contains JSON and stderr contains verbose output
+    """
     cmd = [
         "uv", "run", "payment-sim", "run",
         "--config", config_path,
@@ -36,11 +40,15 @@ def run_simulation_verbose(config_path: str, db_path: str, tick: int = None) -> 
     if result.returncode != 0:
         raise RuntimeError(f"Run failed: {result.stderr}")
 
-    return result.stdout
+    return (result.stdout, result.stderr)
 
 
-def replay_simulation_verbose(simulation_id: str, db_path: str, from_tick: int, to_tick: int) -> str:
-    """Replay simulation with verbose output."""
+def replay_simulation_verbose(simulation_id: str, db_path: str, from_tick: int, to_tick: int) -> tuple[str, str]:
+    """Replay simulation with verbose output.
+
+    Returns:
+        tuple: (stdout, stderr) where stdout contains JSON and stderr contains verbose output
+    """
     cmd = [
         "uv", "run", "payment-sim", "replay",
         "--simulation-id", simulation_id,
@@ -60,7 +68,7 @@ def replay_simulation_verbose(simulation_id: str, db_path: str, from_tick: int, 
     if result.returncode != 0:
         raise RuntimeError(f"Replay failed: {result.stderr}")
 
-    return result.stdout
+    return (result.stdout, result.stderr)
 
 
 def extract_simulation_id(run_output: str) -> str:
@@ -110,9 +118,9 @@ def test_replay_shows_transaction_went_overdue_events(test_config, temp_db):
     Expected in replay output:
         SAME (but currently missing)
     """
-    # Run simulation
-    run_output = run_simulation_verbose(test_config, temp_db)
-    simulation_id = extract_simulation_id(run_output)
+    # Run simulation - returns (stdout, stderr)
+    run_stdout, run_stderr = run_simulation_verbose(test_config, temp_db)
+    simulation_id = extract_simulation_id(run_stdout)
 
     # Find a tick with overdue events
     # From check_events.py we know tick 239 has TransactionWentOverdue
@@ -140,24 +148,24 @@ def test_replay_shows_transaction_went_overdue_events(test_config, temp_db):
     # Close connection before replay to avoid lock conflicts
     conn.close()
 
-    # Replay that specific tick
-    replay_output = replay_simulation_verbose(
+    # Replay that specific tick - returns (stdout, stderr)
+    replay_stdout, replay_stderr = replay_simulation_verbose(
         simulation_id, temp_db, overdue_tick, overdue_tick
     )
 
-    # ASSERT: Replay must show overdue event
-    assert "Transaction Went Overdue" in replay_output, (
+    # ASSERT: Replay must show overdue event - verbose output is in stderr
+    assert "Transaction Went Overdue" in replay_stderr, (
         f"Replay output for tick {overdue_tick} does not contain 'Transaction Went Overdue' message. "
         f"Expected to see overdue notification for TX {tx_id_short}"
     )
 
     # ASSERT: Show the transaction ID
-    assert tx_id_short in replay_output, (
+    assert tx_id_short in replay_stderr, (
         f"Replay output does not mention TX {tx_id_short} that went overdue"
     )
 
     # ASSERT: Show deadline penalty
-    assert "Deadline Penalty" in replay_output or "💸" in replay_output, (
+    assert "Deadline Penalty" in replay_stderr or "💸" in replay_stderr, (
         "Replay output does not show deadline penalty cost"
     )
 
@@ -179,9 +187,9 @@ def test_replay_shows_queued_rtgs_events(test_config, temp_db):
     Expected in replay output:
         SAME (but currently missing)
     """
-    # Run simulation
-    run_output = run_simulation_verbose(test_config, temp_db)
-    simulation_id = extract_simulation_id(run_output)
+    # Run simulation - returns (stdout, stderr)
+    run_stdout, run_stderr = run_simulation_verbose(test_config, temp_db)
+    simulation_id = extract_simulation_id(run_stdout)
 
     # Find a tick with QueuedRtgs event
     import duckdb
@@ -207,19 +215,19 @@ def test_replay_shows_queued_rtgs_events(test_config, temp_db):
     # Close connection before replay to avoid lock conflicts
     conn.close()
 
-    # Replay that tick
-    replay_output = replay_simulation_verbose(
+    # Replay that tick - returns (stdout, stderr)
+    replay_stdout, replay_stderr = replay_simulation_verbose(
         simulation_id, temp_db, queued_tick, queued_tick
     )
 
-    # ASSERT: Replay must show queued in RTGS block
-    assert "queued in RTGS" in replay_output, (
+    # ASSERT: Replay must show queued in RTGS block - verbose output is in stderr
+    assert "queued in RTGS" in replay_stderr, (
         f"Replay output for tick {queued_tick} does not contain 'queued in RTGS' block. "
         "Expected to see queued transactions notification."
     )
 
     # ASSERT: Show the transaction ID
-    assert tx_id_short in replay_output, (
+    assert tx_id_short in replay_stderr, (
         f"Replay output does not mention TX {tx_id_short} that was queued in RTGS"
     )
 
@@ -248,9 +256,9 @@ def test_replay_shows_cost_accrual_summary(test_config, temp_db):
     Expected in replay output:
         SAME (but currently missing)
     """
-    # Run simulation
-    run_output = run_simulation_verbose(test_config, temp_db)
-    simulation_id = extract_simulation_id(run_output)
+    # Run simulation - returns (stdout, stderr)
+    run_stdout, run_stderr = run_simulation_verbose(test_config, temp_db)
+    simulation_id = extract_simulation_id(run_stdout)
 
     # Find a tick with non-zero cost accruals
     import duckdb
@@ -274,13 +282,13 @@ def test_replay_shows_cost_accrual_summary(test_config, temp_db):
     # Close connection before replay to avoid lock conflicts
     conn.close()
 
-    # Replay that tick
-    replay_output = replay_simulation_verbose(
+    # Replay that tick - returns (stdout, stderr)
+    replay_stdout, replay_stderr = replay_simulation_verbose(
         simulation_id, temp_db, cost_tick, cost_tick
     )
 
-    # ASSERT: Replay must show cost summary
-    assert "Costs Accrued This Tick" in replay_output, (
+    # ASSERT: Replay must show cost summary - verbose output is in stderr
+    assert "Costs Accrued This Tick" in replay_stderr, (
         f"Replay output for tick {cost_tick} does not contain 'Costs Accrued This Tick' summary. "
         "Expected to see per-tick cost breakdown."
     )
@@ -288,7 +296,7 @@ def test_replay_shows_cost_accrual_summary(test_config, temp_db):
     # ASSERT: Show breakdown by cost type
     # At least one of these cost types should appear
     has_cost_detail = any(
-        keyword in replay_output
+        keyword in replay_stderr
         for keyword in ["Liquidity:", "Delay:", "Penalty:", "Collateral:"]
     )
 
