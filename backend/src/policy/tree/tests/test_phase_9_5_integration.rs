@@ -45,7 +45,7 @@ mod test_phase_9_5_integration {
             policy.is_ok(),
             "Failed to load adaptive liquidity manager policy: {:?}",
             policy.err()
-;
+        );
 
         let policy = policy.unwrap();
         assert_eq!(policy.policy_id(), "adaptive_liquidity_gridlock_manager");
@@ -54,15 +54,15 @@ mod test_phase_9_5_integration {
         assert!(
             policy.tree().payment_tree.is_some(),
             "Payment tree should be present"
-;
+        );
         assert!(
             policy.tree().strategic_collateral_tree.is_some(),
             "Strategic collateral tree should be present"
-;
+        );
         assert!(
             policy.tree().end_of_tick_collateral_tree.is_some(),
             "End-of-tick collateral tree should be present"
-;
+        );
     }
 
     #[test]
@@ -76,7 +76,7 @@ mod test_phase_9_5_integration {
         let eod_rush_threshold = 0.8;
 
         // Agent with sufficient liquidity
-        let mut agent = Agent::new("BANK_A".to_string(, 2_000_000;
+        let mut agent = Agent::new("BANK_A".to_string(), 2_000_000);
 
         // Transaction with normal deadline (not urgent)
         let tx = Transaction::new(
@@ -85,7 +85,7 @@ mod test_phase_9_5_integration {
             100_000,
             80,
             120, // Deadline at tick 120 (not urgent: 30 ticks away)
-;
+        );
         let tx_id = tx.id().to_string();
 
         agent.queue_outgoing(tx_id.clone());
@@ -108,7 +108,7 @@ mod test_phase_9_5_integration {
             ),
             "Should release during EOD rush, got: {:?}",
             decisions[0]
-;
+        );
     }
 
     #[test]
@@ -122,7 +122,7 @@ mod test_phase_9_5_integration {
         let eod_rush_threshold = 0.8;
 
         // Agent with INSUFFICIENT liquidity (not 1.5x buffer: 130k < 1.5 * 100k = 150k)
-        let mut agent = Agent::new("BANK_A".to_string(, 130_000;
+        let mut agent = Agent::new("BANK_A".to_string(), 130_000);
 
         // Transaction
         let tx = Transaction::new(
@@ -152,7 +152,7 @@ mod test_phase_9_5_integration {
             matches!(&decisions[0], crate::policy::ReleaseDecision::Hold { .. }),
             "Should hold in early day with insufficient buffer, got: {:?}",
             decisions[0]
-;
+        );
     }
 
     #[test]
@@ -167,7 +167,9 @@ mod test_phase_9_5_integration {
 
         // Agent with insufficient balance but credit available
         let mut agent = Agent::new(
-            "BANK_A".to_string(), 50_000);
+            "BANK_A".to_string(),
+            50_000   // Low balance
+        );
 
         // Urgent transaction (deadline in 3 ticks)
         let tx = Transaction::new(
@@ -176,7 +178,7 @@ mod test_phase_9_5_integration {
             100_000, // More than balance
             70,
             78, // Deadline in 3 ticks (urgent)
-;
+        );
         let tx_id = tx.id().to_string();
 
         agent.queue_outgoing(tx_id.clone());
@@ -204,7 +206,7 @@ mod test_phase_9_5_integration {
             ),
             "Should release when overdraft cheaper than penalty, got: {:?}",
             decisions[0]
-;
+        );
     }
 
     #[test]
@@ -222,8 +224,9 @@ mod test_phase_9_5_integration {
         // - Queued transactions (creating liquidity gap)
         // - Collateral capacity available (10x credit_limit = 10x50k = 500k)
         let mut agent = Agent::new(
-            "BANK_A".to_string(), 100_000
-;
+            "BANK_A".to_string(),
+            100_000  // Balance
+        );
 
         // Queue transactions totaling 300k (gap = 300k - 100k = 200k)
         let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 150_000, tick, tick + 20);
@@ -251,7 +254,7 @@ mod test_phase_9_5_integration {
             ),
             "Should post collateral for EOD liquidity gap, got: {:?}",
             decision
-;
+        );
 
         if let crate::policy::CollateralDecision::Post { amount, .. } = decision {
             // Amount should cover the liquidity gap
@@ -262,7 +265,7 @@ mod test_phase_9_5_integration {
                 amount >= 100_000 && amount <= 210_000,
                 "Posted amount should cover liquidity gap, got: {}",
                 amount
-;
+            );
         }
     }
 
@@ -282,8 +285,9 @@ mod test_phase_9_5_integration {
         // - Small remaining queue
         // - Collateral capacity (10x credit = 10x50k = 500k)
         let mut agent = Agent::new(
-            "BANK_A".to_string(), 500_000)
-;
+            "BANK_A".to_string(),
+            500_000  // Strong balance
+        );
 
         // Post collateral (simulating strategic collateral from earlier)
         agent.set_posted_collateral(200_000);
@@ -314,7 +318,7 @@ mod test_phase_9_5_integration {
             ),
             "Should withdraw excess collateral when headroom is large, got: {:?}",
             decision
-;
+        );
 
         if let crate::policy::CollateralDecision::Withdraw { amount, .. } = decision {
             // Should withdraw approximately half (100k)
@@ -322,7 +326,7 @@ mod test_phase_9_5_integration {
                 amount >= 90_000 && amount <= 110_000,
                 "Should withdraw ~half of posted collateral, got: {}",
                 amount
-;
+            );
         }
     }
 
@@ -331,8 +335,9 @@ mod test_phase_9_5_integration {
         // This test verifies that a single EvalContext contains all Phase 9.5 fields
 
         let agent = Agent::new(
-            "BANK_A".to_string(), 500_000
-;
+            "BANK_A".to_string(),
+            500_000  // Balance
+        );
 
         let tx = Transaction::new(
             "BANK_A".to_string(),
@@ -340,7 +345,7 @@ mod test_phase_9_5_integration {
             100_000,
             10,
             80,
-;
+        );
 
         let state = SimulationState::new(vec![agent.clone()]);
 
@@ -357,7 +362,7 @@ mod test_phase_9_5_integration {
             &cost_rates,
             ticks_per_day,
             eod_rush_threshold,
-;
+        );
 
         // Phase 9.5.1: Cost fields
         assert!(context.has_field("cost_overdraft_bps_per_tick"));
