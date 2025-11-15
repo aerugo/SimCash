@@ -142,8 +142,11 @@ pub struct AgentConfig {
     /// Opening balance in settlement account (cents/minor units)
     pub opening_balance: i64,
 
-    /// Daylight overdraft or collateralized credit limit (cents)
-    pub credit_limit: i64,
+    /// Unsecured daylight overdraft capacity (cents)
+    /// Unsecured intraday credit limit separate from collateralized capacity.
+    /// Example: 2_000_000 ($20k) allows small overdrafts without collateral.
+    /// Set to 0 for no unsecured overdraft capacity.
+    pub unsecured_cap: i64,
 
     /// Cash manager policy for Queue 1 decisions
     pub policy: PolicyConfig,
@@ -160,11 +163,6 @@ pub struct AgentConfig {
     /// Example: 0.02 means 2% haircut → 98% of collateral value is available.
     /// T2/CLM typical range: 0.00-0.10 (0%-10% haircut)
     pub collateral_haircut: Option<f64>,
-
-    /// Unsecured daylight overdraft cap (cents) - defaults to 0
-    /// Optional unsecured intraday credit limit separate from collateralized capacity.
-    /// Example: 20_000_00 ($20k) allows small overdrafts without collateral.
-    pub unsecured_cap: Option<i64>,
 }
 
 /// Policy selection for an agent
@@ -796,7 +794,9 @@ impl Orchestrator {
             .agent_configs
             .iter()
             .map(|ac| {
-                let mut agent = Agent::new(ac.id.clone(), ac.opening_balance, ac.credit_limit);
+                let mut agent = Agent::new(ac.id.clone(), ac.opening_balance);
+                // Set unsecured overdraft capacity
+                agent.set_unsecured_cap(ac.unsecured_cap);
                 // Set posted collateral if specified (Phase 8)
                 if let Some(collateral) = ac.posted_collateral {
                     agent.set_posted_collateral(collateral);
@@ -804,17 +804,6 @@ impl Orchestrator {
                 // Set collateral haircut if specified (defaults to 0.02)
                 if let Some(haircut) = ac.collateral_haircut {
                     agent.set_collateral_haircut(haircut);
-                }
-                // Set unsecured cap if specified (defaults to 0)
-                // BACKWARD COMPATIBILITY: If unsecured_cap not specified but credit_limit is,
-                // set unsecured_cap = credit_limit to ensure withdrawal checks properly account
-                // for the credit capacity. This prevents the loophole where agents can borrow
-                // via credit_limit but withdraw collateral because allowed_overdraft_limit
-                // doesn't include credit_limit.
-                if let Some(cap) = ac.unsecured_cap {
-                    agent.set_unsecured_cap(cap);
-                } else if ac.credit_limit > 0 {
-                    agent.set_unsecured_cap(ac.credit_limit);
                 }
                 agent
             })
