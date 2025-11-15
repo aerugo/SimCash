@@ -19,7 +19,7 @@ import pytest
 def normalize_json_output(text: str) -> str:
     """Normalize JSON output for comparison.
 
-    Removes timing fields and normalizes paths to allow comparison.
+    Removes timing fields, replay-specific fields, and normalizes paths to allow comparison.
     """
     try:
         data = json.loads(text)
@@ -30,10 +30,12 @@ def normalize_json_output(text: str) -> str:
             if "/" in config_file or "\\" in config_file:
                 data["simulation"]["config_file"] = Path(config_file).name
 
-        # Remove timing fields
+        # Remove timing fields and replay-specific fields
         if "simulation" in data:
             data["simulation"].pop("duration_seconds", None)
             data["simulation"].pop("ticks_per_second", None)
+            data["simulation"].pop("replay_range", None)  # Remove replay-specific field
+            data["simulation"].pop("ticks_replayed", None)  # Remove replay-specific field
 
         if "performance" in data:
             data.pop("performance", None)
