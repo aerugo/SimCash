@@ -138,12 +138,13 @@ class SimulationRunner:
 
 @pytest.fixture
 def temp_db():
-    """Create temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        db_path = f.name
-    yield db_path
-    # Cleanup
-    Path(db_path).unlink(missing_ok=True)
+    """Create temporary database path for testing."""
+    # Use TemporaryDirectory to get a clean path without creating the file
+    # DuckDB will create the file when the simulation runs
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = str(Path(tmpdir) / "test.db")
+        yield db_path
+        # Cleanup happens automatically when tmpdir context exits
 
 
 @pytest.fixture

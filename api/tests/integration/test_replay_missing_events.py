@@ -82,13 +82,13 @@ def test_config():
 
 @pytest.fixture
 def temp_db():
-    """Create temporary database."""
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as f:
-        db_path = f.name
-    # File deleted immediately, so we have clean path
-    yield db_path
-    # Cleanup
-    Path(db_path).unlink(missing_ok=True)
+    """Create temporary database path for testing."""
+    # Use TemporaryDirectory to get a clean path without creating the file
+    # DuckDB will create the file when the simulation runs
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = str(Path(tmpdir) / "test.db")
+        yield db_path
+        # Cleanup happens automatically when tmpdir context exits
 
 
 # ============================================================================
@@ -136,6 +136,9 @@ def test_replay_shows_transaction_went_overdue_events(test_config, temp_db):
     ).fetchone()
 
     tx_id_short = overdue_event[0][:8]
+
+    # Close connection before replay to avoid lock conflicts
+    conn.close()
 
     # Replay that specific tick
     replay_output = replay_simulation_verbose(
@@ -201,6 +204,9 @@ def test_replay_shows_queued_rtgs_events(test_config, temp_db):
 
     tx_id_short = queued_event[0][:8]
 
+    # Close connection before replay to avoid lock conflicts
+    conn.close()
+
     # Replay that tick
     replay_output = replay_simulation_verbose(
         simulation_id, temp_db, queued_tick, queued_tick
@@ -264,6 +270,9 @@ def test_replay_shows_cost_accrual_summary(test_config, temp_db):
         pytest.skip("No CostAccrual events with multiple agents found")
 
     cost_tick = result[0]
+
+    # Close connection before replay to avoid lock conflicts
+    conn.close()
 
     # Replay that tick
     replay_output = replay_simulation_verbose(
