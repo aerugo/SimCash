@@ -504,6 +504,103 @@ def _reconstruct_queue2_liquidity_release_events(events: list[dict]) -> list[dic
     return result
 
 
+def _reconstruct_queue_snapshots(
+    conn,
+    simulation_id: str,
+    tick: int,
+    tx_cache: dict[str, dict]
+) -> dict[str, dict]:
+    """Reconstruct queue snapshots from transaction cache and events.
+
+    CRITICAL FIX (Discrepancy #1): Near-deadline warnings require knowing which
+    transactions are queued. Without --full-replay, queue_snapshots weren't available.
+    This reconstructs them from transaction state.
+
+    Args:
+        conn: Database connection
+        simulation_id: Simulation identifier
+        tick: Current tick
+        tx_cache: Transaction cache with full transaction info
+
+    Returns:
+        Dict mapping agent_id to queue state:
+        {
+            "AGENT_ID": {
+                "queue1": [tx_id1, tx_id2, ...],  # Generic queue
+                "rtgs": [tx_id3, tx_id4, ...]     # RTGS queue
+            }
+        }
+    """
+    # Get all settlement events up to and including current tick
+    # to determine which transactions have been settled
+    settled_query = """
+        SELECT tx_id, SUM(CAST(json_extract_string(details, '$.amount') AS BIGINT)) as settled_amount
+        FROM simulation_events
+        WHERE simulation_id = ?
+        AND tick <= ?
+        AND event_type IN (
+            'Settlement', 'RtgsImmediateSettlement', 'Queue2LiquidityRelease',
+            'LsmBilateralOffset', 'LsmCycleSettlement'
+        )
+        AND tx_id IS NOT NULL
+        GROUP BY tx_id
+    """
+    settled_result = conn.execute(settled_query, [simulation_id, tick]).fetchall()
+    settled_amounts = {row[0]: row[1] if row[1] is not None else 0 for row in settled_result}
+
+    # Also check LSM events which settle multiple transactions at once
+    lsm_query = """
+        SELECT json_extract_string(details, '$.tx_ids') as tx_ids_json
+        FROM simulation_events
+        WHERE simulation_id = ?
+        AND tick <= ?
+        AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
+    """
+    lsm_result = conn.execute(lsm_query, [simulation_id, tick]).fetchall()
+    for row in lsm_result:
+        if row[0]:
+            try:
+                import json
+                tx_ids = json.loads(row[0])
+                for tx_id in tx_ids:
+                    # Mark as fully settled (LSM settles full amounts)
+                    if tx_id in tx_cache:
+                        settled_amounts[tx_id] = tx_cache[tx_id]["amount"]
+            except:
+                pass
+
+    # Build queue snapshots by agent
+    queue_snapshots = {}
+    for tx_id, tx in tx_cache.items():
+        # Skip if not arrived yet
+        if tx["arrival_tick"] > tick:
+            continue
+
+        # CRITICAL: Check if settled BY current tick (not final status)
+        # tx_cache contains final state, but we need state AT this tick
+        # A transaction is settled at tick T if settlement_tick <= T
+        settlement_tick = tx.get("settlement_tick")
+        if settlement_tick is not None and settlement_tick <= tick:
+            # Transaction was settled by this tick - not queued
+            continue
+
+        # Also check with settled_amounts from events query
+        settled = settled_amounts.get(tx_id, 0)
+        remaining = tx["amount"] - settled
+        if remaining <= 0:
+            continue
+
+        # Transaction is queued at this tick - add to sender's queue
+        sender = tx["sender_id"]
+        if sender not in queue_snapshots:
+            queue_snapshots[sender] = {"queue1": [], "rtgs": []}
+
+        # Add to generic queue (exact queue doesn't matter for near-deadline detection)
+        queue_snapshots[sender]["rtgs"].append(tx_id)
+
+    return queue_snapshots
+
+
 def _has_full_replay_data(conn, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
@@ -1192,12 +1289,20 @@ def replay_simulation(
 
                     # Query agent states and queue snapshots (needed for DatabaseStateProvider)
                     agent_states_list = []
-                    queue_snapshots = {}
                     if has_full_replay:
                         agent_states_list = get_tick_agent_states(db_manager.conn, simulation_id, tick_num)
-                        queue_snapshots = get_tick_queue_snapshots(db_manager.conn, simulation_id, tick_num)
                         # NOTE: total_cost already calculated from CostAccrual events above
                         # No need to recalculate from agent_states (would duplicate)
+
+                    # CRITICAL FIX (Discrepancy #1): Reconstruct queue_snapshots from events
+                    # Without --full-replay, queue_snapshots wasn't available, so near-deadline
+                    # transactions couldn't be detected. Now we reconstruct from events.
+                    queue_snapshots = _reconstruct_queue_snapshots(
+                        db_manager.conn,
+                        simulation_id,
+                        tick_num,
+                        mock_orch._tx_cache
+                    )
 
                     # Convert agent_states list to dict for DatabaseStateProvider
                     agent_states_dict = {state["agent_id"]: state for state in agent_states_list}
