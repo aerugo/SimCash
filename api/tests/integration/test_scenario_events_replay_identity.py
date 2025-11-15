@@ -109,10 +109,12 @@ scenario_events:
                     if "/" in config_file:
                         data["simulation"]["config_file"] = config_file.split("/")[-1]
 
-                # Remove timing fields
+                # Remove timing fields and replay-specific fields
                 if "simulation" in data:
                     data["simulation"].pop("duration_seconds", None)
                     data["simulation"].pop("ticks_per_second", None)
+                    data["simulation"].pop("replay_range", None)
+                    data["simulation"].pop("ticks_replayed", None)
                 if "performance" in data:
                     data.pop("performance", None)
 
@@ -249,6 +251,8 @@ scenario_events:
                 if "simulation" in data:
                     data["simulation"].pop("duration_seconds", None)
                     data["simulation"].pop("ticks_per_second", None)
+                    data["simulation"].pop("replay_range", None)
+                    data["simulation"].pop("ticks_replayed", None)
                 if "performance" in data:
                     data.pop("performance", None)
                 # Normalize numeric types (int 0 -> float 0.0 for settlement_rate)
@@ -368,6 +372,8 @@ scenario_events:
                 if "simulation" in data:
                     data["simulation"].pop("duration_seconds", None)
                     data["simulation"].pop("ticks_per_second", None)
+                    data["simulation"].pop("replay_range", None)
+                    data["simulation"].pop("ticks_replayed", None)
                 if "performance" in data:
                     data.pop("performance", None)
                 # Normalize numeric types (int 0 -> float 0.0 for settlement_rate)
@@ -470,10 +476,13 @@ scenario_events:
 
         assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
 
-        # Verify both outputs contain scenario event indicators
-        # Note: This is a basic check - full replay identity is tested elsewhere
-        run_has_scenario = "DirectTransfer" in run_result.stdout or "Scenario" in run_result.stdout
-        replay_has_scenario = "DirectTransfer" in replay_result.stdout or "Scenario" in replay_result.stdout
+        # Verify scenario event was persisted to database
+        import duckdb
+        conn = duckdb.connect(str(db_path))
+        scenario_events = conn.execute(
+            "SELECT COUNT(*) FROM simulation_events WHERE simulation_id = ? AND event_type = 'ScenarioEventExecuted'",
+            [sim_id]
+        ).fetchone()[0]
+        conn.close()
 
-        assert run_has_scenario, "Run output should contain scenario event information"
-        assert replay_has_scenario, "Replay output should contain scenario event information"
+        assert scenario_events > 0, f"Expected ScenarioEventExecuted events in database, got {scenario_events}"
