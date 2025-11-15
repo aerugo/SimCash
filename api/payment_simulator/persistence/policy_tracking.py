@@ -122,9 +122,9 @@ def capture_initial_policies(
     Examples:
         >>> agent_configs = [
         ...     {"id": "BANK_A", "opening_balance": 1000000,
-        ...      "credit_limit": 500000, "policy": {"type": "Fifo"}},
+        ...      "unsecured_cap": 500000, "policy": {"type": "Fifo"}},
         ...     {"id": "BANK_B", "opening_balance": 2000000,
-        ...      "credit_limit": 300000, "policy": {"type": "Fifo"}},
+        ...      "unsecured_cap": 300000, "policy": {"type": "Fifo"}},
         ... ]
         >>> snapshots = capture_initial_policies(agent_configs, "sim-001")
         >>> len(snapshots)

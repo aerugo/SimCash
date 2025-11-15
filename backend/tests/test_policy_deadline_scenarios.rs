@@ -88,24 +88,22 @@ fn test_deadline_policy_submits_urgent_arrivals() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000_000, // High liquidity to focus on policy behavior
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Deadline {
                     urgency_threshold: 5, // Urgent if deadline within 5 ticks
                 },
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -170,24 +168,22 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 5_000_000, // Limited liquidity (constraint)
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Deadline {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 10_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -253,36 +249,33 @@ fn test_deadline_policy_vs_fifo_comparison() {
             AgentConfig {
                 id: "BANK_A_DEADLINE".to_string(),
                 opening_balance: 10_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Deadline {
                     urgency_threshold: 3,
                 },
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             // Agent B: FIFO Policy
             AgentConfig {
                 id: "BANK_B_FIFO".to_string(),
                 opening_balance: 10_000_000, // Same liquidity as A
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             // Receiver bank
             AgentConfig {
                 id: "BANK_C".to_string(),
                 opening_balance: 20_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -352,24 +345,22 @@ fn test_deadline_policy_all_urgent_scenario() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000_000, // High liquidity
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Deadline {
                     urgency_threshold: 5, // All arrivals will be urgent
                 },
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -427,24 +418,22 @@ fn test_deadline_policy_deadline_cascade() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 30_000_000, // Ample liquidity
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Deadline {
                     urgency_threshold: 5, // Becomes urgent at 5 ticks remaining
                 },
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 30_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates::default(),

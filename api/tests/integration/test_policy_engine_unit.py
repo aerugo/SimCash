@@ -167,7 +167,7 @@ class TestBaselinePolicies:
             .add_agent(
                 "BANK_A",
                 balance=500_000,  # $5k - insufficient for $10k
-                credit_limit=10_000_000,  # $100k credit available
+                unsecured_cap=10_000_000,  # $100k credit available
                 arrival_rate=0.0,
             )
             .add_agent("BANK_B", balance=10_000_000)
@@ -1627,7 +1627,7 @@ class TestNegativeBalance:
             .add_agent(
                 "BANK_A",
                 balance=-500_000,  # -$5k (in overdraft)
-                credit_limit=1_000_000,  # $10k credit
+                unsecured_cap=1_000_000,  # $10k credit
                 arrival_rate=0.0,
             )
             .add_agent("BANK_B", balance=10_000_000)
@@ -1674,7 +1674,7 @@ class TestNegativeBalance:
             .add_agent(
                 "BANK_A",
                 balance=-500_000,  # -$5k (in overdraft)
-                credit_limit=1_000_000,  # $10k credit
+                unsecured_cap=1_000_000,  # $10k credit
                 arrival_rate=0.0,
             )
             .add_agent("BANK_B", balance=10_000_000)

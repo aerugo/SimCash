@@ -18,13 +18,13 @@ class TestPersistenceManagerCapturesCreditLimit:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 500000,  # Important: credit limit set
+                    "unsecured_cap": 500000,  # Important: credit limit set
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -98,7 +98,7 @@ class TestDatabaseStateProviderWithPersistedCreditLimit:
             "agent_states": {
                 "BANK_A": {
                     "balance": 1000000,
-                    "credit_limit": 500000,  # This comes from database
+                    "unsecured_cap": 500000,  # This comes from database
                     "collateral_posted": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 0,

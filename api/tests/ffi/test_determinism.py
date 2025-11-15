@@ -13,7 +13,7 @@ def test_same_seed_same_results():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -24,7 +24,7 @@ def test_same_seed_same_results():
                     "divisible": False,
                 },
             },
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 
@@ -55,7 +55,7 @@ def test_different_seed_different_results():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -66,7 +66,7 @@ def test_different_seed_different_results():
                     "divisible": False,
                 },
             },
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 

@@ -65,13 +65,13 @@ class TestLsmEventLogging:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,  # $1,000 - insufficient for $3,000 payment
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 100000,  # $1,000 - insufficient for $3,000 payment
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -157,13 +157,13 @@ class TestLsmEventLogging:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,  # $1,000 - insufficient for $3,000 payment
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 100000,  # $1,000 - insufficient for $3,000 payment
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -247,19 +247,19 @@ class TestLsmEventLogging:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,  # $1,000 - insufficient for $2,000 payment
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 100000,  # $1,000 - insufficient for $2,000 payment
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_C",
                     "opening_balance": 100000,  # $1,000 - insufficient for $2,000 payment
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],

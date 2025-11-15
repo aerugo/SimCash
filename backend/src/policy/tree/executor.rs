@@ -617,7 +617,7 @@ mod tests {
         let mut policy = TreePolicy::new(tree);
 
         // Create simulation state
-        let mut agent = Agent::new("BANK_A".to_string(), 500_000, 0);
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000);
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
         let tx_id = tx.id().to_string();
 
@@ -661,7 +661,7 @@ mod tests {
         let mut policy = TreePolicy::new(tree);
 
         // Create simulation state with multiple transactions
-        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
         let tx2 = Transaction::new("BANK_A".to_string(), "BANK_C".to_string(), 200_000, 0, 100);
         let tx1_id = tx1.id().to_string();
@@ -726,7 +726,7 @@ mod tests {
         let mut policy = TreePolicy::new(tree);
 
         // Create simulation state
-        let mut agent = Agent::new("BANK_A".to_string(), 500_000, 0); // balance > 300k threshold
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000); // balance > 300k threshold
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
         let tx_id = tx.id().to_string();
 
@@ -795,7 +795,7 @@ mod tests {
         let mut policy = TreePolicy::new(tree);
 
         // Create test state
-        let agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 100_000);
         let state = SimulationState::new(vec![agent.clone()]);
 
         // Evaluate strategic collateral
@@ -834,7 +834,7 @@ mod tests {
         let mut policy = TreePolicy::new(tree);
 
         // Create test state
-        let agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 100_000);
         let state = SimulationState::new(vec![agent.clone()]);
 
         // Evaluate strategic collateral
@@ -889,7 +889,7 @@ mod tests {
         let mut policy = TreePolicy::new(tree);
 
         // Create test state with agent that has posted collateral
-        let mut agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        let mut agent = Agent::new("BANK_A".to_string(), 100_000);
         agent.set_posted_collateral(50000);
         let state = SimulationState::new(vec![agent.clone()]);
 
@@ -929,7 +929,7 @@ mod tests {
         let mut policy = TreePolicy::new(tree);
 
         // Create test state
-        let agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 100_000);
         let state = SimulationState::new(vec![agent.clone()]);
 
         // Evaluate end-of-tick collateral
@@ -1001,7 +1001,7 @@ mod tests {
         let mut policy = TreePolicy::new(tree);
 
         // Create test state with empty RTGS queue and posted collateral
-        let mut agent = Agent::new("BANK_A".to_string(), 100_000, 0);
+        let mut agent = Agent::new("BANK_A".to_string(), 100_000);
         agent.set_posted_collateral(75000);
         let state = SimulationState::new(vec![agent.clone()]);
 

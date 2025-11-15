@@ -95,14 +95,13 @@ fn test_orchestrator_handles_submit_partial() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 50_000, // Insufficient for 100k transaction
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::MockSplitting {
             num_splits: 2, // Split into 2 parts
         },
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -170,12 +169,11 @@ fn test_split_friction_cost_formula() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 500_000,
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::MockSplitting { num_splits: 3 }, // 3-way split
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -213,12 +211,11 @@ fn test_no_split_friction_for_whole_transaction() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 500_000,
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::Fifo, // FIFO submits whole transaction
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -255,7 +252,7 @@ fn test_liquidity_splitting_policy_splits_when_insufficient_balance() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 50_000, // Only $500, but needs to pay $1000
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::LiquiditySplitting {
             max_splits: 4,
             min_split_amount: 10_000, // Don't create splits < $100
@@ -263,7 +260,6 @@ fn test_liquidity_splitting_policy_splits_when_insufficient_balance() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -304,7 +300,7 @@ fn test_liquidity_splitting_policy_does_not_split_when_affordable() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 200_000, // Plenty of balance for $1000 payment
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::LiquiditySplitting {
             max_splits: 4,
             min_split_amount: 10_000,
@@ -312,7 +308,6 @@ fn test_liquidity_splitting_policy_does_not_split_when_affordable() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -364,7 +359,7 @@ fn test_liquidity_splitting_respects_min_split_amount() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 30_000,
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::LiquiditySplitting {
             max_splits: 10,
             min_split_amount: 20_000, // Don't create splits < $200
@@ -372,7 +367,6 @@ fn test_liquidity_splitting_respects_min_split_amount() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -421,7 +415,7 @@ fn test_liquidity_splitting_respects_max_splits() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 10_000,
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::LiquiditySplitting {
             max_splits: 3, // Maximum 3 splits
             min_split_amount: 5_000,
@@ -429,7 +423,6 @@ fn test_liquidity_splitting_respects_max_splits() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -473,7 +466,7 @@ fn test_liquidity_splitting_urgency_factor() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 80_000, // $800
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::LiquiditySplitting {
             max_splits: 4,
             min_split_amount: 10_000,
@@ -481,7 +474,6 @@ fn test_liquidity_splitting_urgency_factor() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -536,7 +528,7 @@ fn test_full_splitting_workflow() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 100_000, // Exactly enough for first child
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::LiquiditySplitting {
             max_splits: 3,
             min_split_amount: 30_000,
@@ -544,7 +536,6 @@ fn test_full_splitting_workflow() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -611,7 +602,7 @@ fn test_multiple_transactions_with_selective_splitting() {
     config.agent_configs.push(AgentConfig {
         id: "BANK_A".to_string(),
         opening_balance: 150_000, // $1500
-        credit_limit: 0,
+        unsecured_cap: 0,
         policy: PolicyConfig::LiquiditySplitting {
             max_splits: 4,
             min_split_amount: 20_000,
@@ -619,7 +610,6 @@ fn test_multiple_transactions_with_selective_splitting() {
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -682,12 +672,11 @@ fn create_basic_config() -> OrchestratorConfig {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 1_000_000, // $10,000
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates {
@@ -735,14 +724,13 @@ fn test_tree_policy_split_decision_with_positive_liquidity() {
     config.agent_configs.push(AgentConfig {
         id: "SMART_SPLITTER".to_string(),
         opening_balance: 200_000,  // $2k balance
-        credit_limit: 500_000,     // $5k credit limit
+        unsecured_cap: 500_000,     // $5k credit limit
         policy: PolicyConfig::FromJson {
             json: policy_json,
         },
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -843,14 +831,13 @@ fn test_tree_policy_split_with_negative_liquidity_reveals_bug() {
     config.agent_configs.push(AgentConfig {
         id: "SMART_SPLITTER".to_string(),
         opening_balance: 100_000,  // Start with $1k (will go negative after first payment)
-        credit_limit: 500_000,     // $5k credit limit
+        unsecured_cap: 500_000,     // $5k credit limit
         policy: PolicyConfig::FromJson {
             json: policy_json,
         },
         arrival_config: None,
         posted_collateral: None,
                     collateral_haircut: None,
-    unsecured_cap: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

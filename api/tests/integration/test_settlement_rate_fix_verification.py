@@ -34,7 +34,7 @@ def test_settlement_rate_fix_with_policy_that_splits():
             {
                 "id": "SPLITTER",
                 "opening_balance": 300_000,  # Low balance to trigger splitting
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {
                     "type": "FromJson",
                     "json": policy_json
@@ -53,7 +53,7 @@ def test_settlement_rate_fix_with_policy_that_splits():
             {
                 "id": "RECEIVER",
                 "opening_balance": 5_000_000,  # High balance
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"}
             }
         ]

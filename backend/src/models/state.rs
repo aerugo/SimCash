@@ -38,8 +38,8 @@ use std::collections::BTreeMap;
 /// ```rust
 /// use payment_simulator_core_rs::{Agent, SimulationState};
 ///
-/// let bank_a = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
-/// let bank_b = Agent::new("BANK_B".to_string(), 2_000_000, 0);
+/// let bank_a = Agent::new("BANK_A".to_string(), 1_000_000);
+/// let bank_b = Agent::new("BANK_B".to_string(), 2_000_000);
 ///
 /// let state = SimulationState::new(vec![bank_a, bank_b]);
 /// assert_eq!(state.num_agents(), 2);
@@ -111,8 +111,8 @@ impl SimulationState {
     /// use payment_simulator_core_rs::{Agent, SimulationState};
     ///
     /// let agents = vec![
-    ///     Agent::new("BANK_A".to_string(), 1_000_000, 0),
-    ///     Agent::new("BANK_B".to_string(), 2_000_000, 0),
+    ///     Agent::new("BANK_A".to_string(), 1_000_000),
+    ///     Agent::new("BANK_B".to_string(), 2_000_000),
     /// ];
     ///
     /// let state = SimulationState::new(agents);
@@ -347,8 +347,8 @@ impl SimulationState {
     /// use payment_simulator_core_rs::{Agent, SimulationState};
     ///
     /// let mut agents = vec![
-    ///     Agent::new("BANK_A".to_string(), 1_000_000, 0),
-    ///     Agent::new("BANK_B".to_string(), 1_000_000, 0),
+    ///     Agent::new("BANK_A".to_string(), 1_000_000),
+    ///     Agent::new("BANK_B".to_string(), 1_000_000),
     /// ];
     /// agents[0].queue_outgoing("tx_001".to_string());
     /// agents[1].queue_outgoing("tx_002".to_string());
@@ -376,7 +376,7 @@ impl SimulationState {
     /// ```
     /// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
     ///
-    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000, 0)];
+    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000)];
     /// let mut state = SimulationState::new(agents);
     ///
     /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 500_000, 0, 100);
@@ -414,7 +414,7 @@ impl SimulationState {
     /// ```
     /// use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
     ///
-    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000, 0)];
+    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000)];
     /// let mut state = SimulationState::new(agents);
     ///
     /// // Transaction with deadline at tick 10
@@ -563,7 +563,7 @@ impl SimulationState {
     ///
     /// ```rust
     /// # use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
-    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000, 0)];
+    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000)];
     /// let mut state = SimulationState::new(agents);
     ///
     /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
@@ -594,7 +594,7 @@ impl SimulationState {
     ///
     /// ```rust
     /// # use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
-    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000, 0)];
+    /// let agents = vec![Agent::new("BANK_A".to_string(), 1_000_000)];
     /// let mut state = SimulationState::new(agents);
     ///
     /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
@@ -623,8 +623,8 @@ mod tests {
     #[test]
     fn test_new_state() {
         let agents = vec![
-            Agent::new("A".to_string(), 1_000_000, 0),
-            Agent::new("B".to_string(), 2_000_000, 0),
+            Agent::new("A".to_string(), 1_000_000),
+            Agent::new("B".to_string(), 2_000_000),
         ];
 
         let state = SimulationState::new(agents);
@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn test_add_transaction() {
-        let agents = vec![Agent::new("A".to_string(), 1_000_000, 0)];
+        let agents = vec![Agent::new("A".to_string(), 1_000_000)];
         let mut state = SimulationState::new(agents);
 
         let tx = Transaction::new("A".to_string(), "B".to_string(), 500_000, 0, 100);
@@ -651,7 +651,7 @@ mod tests {
 
     #[test]
     fn test_queue_transaction() {
-        let agents = vec![Agent::new("A".to_string(), 1_000_000, 0)];
+        let agents = vec![Agent::new("A".to_string(), 1_000_000)];
         let mut state = SimulationState::new(agents);
 
         let tx = Transaction::new("A".to_string(), "B".to_string(), 500_000, 0, 100);
@@ -667,9 +667,9 @@ mod tests {
     #[test]
     fn test_total_balance() {
         let agents = vec![
-            Agent::new("A".to_string(), 1_000_000, 0),
-            Agent::new("B".to_string(), 2_000_000, 0),
-            Agent::new("C".to_string(), 500_000, 0),
+            Agent::new("A".to_string(), 1_000_000),
+            Agent::new("B".to_string(), 2_000_000),
+            Agent::new("C".to_string(), 500_000),
         ];
 
         let state = SimulationState::new(agents);
@@ -679,7 +679,7 @@ mod tests {
 
     #[test]
     fn test_queue_value() {
-        let agents = vec![Agent::new("A".to_string(), 5_000_000, 0)];
+        let agents = vec![Agent::new("A".to_string(), 5_000_000)];
         let mut state = SimulationState::new(agents);
 
         let tx1 = Transaction::new("A".to_string(), "B".to_string(), 1_000_000, 0, 100);

@@ -33,7 +33,7 @@ class TestSimulationMetadataPersistence:
             "ticks_per_day": 10,
             "num_days": 1,
             "agent_configs": [
-                {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 500_000, "policy": {"type": "Fifo"}},
+                {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 500_000, "policy": {"type": "Fifo"}},
             ],
         }
 
@@ -120,13 +120,13 @@ class TestSimulationMetadataPersistence:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -230,7 +230,7 @@ class TestSimulationMetadataPersistence:
             "ticks_per_day": 5,
             "num_days": 1,
             "agent_configs": [
-                {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 500_000, "policy": {"type": "Fifo"}},
+                {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 500_000, "policy": {"type": "Fifo"}},
             ],
         }
 
@@ -322,7 +322,7 @@ class TestSimulationMetadataPersistence:
             "ticks_per_day": 10,
             "num_days": 1,
             "agent_configs": [
-                {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 500_000, "policy": {"type": "Fifo"}},
+                {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 500_000, "policy": {"type": "Fifo"}},
             ],
         }
 
@@ -387,7 +387,7 @@ class TestSimulationMetadataPersistence:
                 "ticks_per_day": 10,
                 "num_days": 1,
                 "agent_configs": [
-                    {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 500_000, "policy": {"type": "Fifo"}},
+                    {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 500_000, "policy": {"type": "Fifo"}},
                 ],
             },
             {
@@ -395,7 +395,7 @@ class TestSimulationMetadataPersistence:
                 "ticks_per_day": 20,
                 "num_days": 1,
                 "agent_configs": [
-                    {"id": "BANK_A", "opening_balance": 2_000_000, "credit_limit": 500_000, "policy": {"type": "Fifo"}},
+                    {"id": "BANK_A", "opening_balance": 2_000_000, "unsecured_cap": 500_000, "policy": {"type": "Fifo"}},
                 ],
             },
         ]

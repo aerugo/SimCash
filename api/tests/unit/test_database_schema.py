@@ -6,15 +6,15 @@ from payment_simulator.persistence.models import TickAgentStateRecord, TickQueue
 class TestTickAgentStateSchema:
     """Test tick_agent_states table has all required columns for StateProvider."""
 
-    def test_model_has_credit_limit_field(self):
-        """TickAgentStateRecord must have credit_limit field for StateProvider."""
+    def test_model_has_unsecured_cap_field(self):
+        """TickAgentStateRecord must have unsecured_cap field for StateProvider."""
         # Check if field exists in model
         assert hasattr(TickAgentStateRecord, 'model_fields'), \
             "TickAgentStateRecord should be a Pydantic model"
 
         fields = TickAgentStateRecord.model_fields
-        assert 'credit_limit' in fields, \
-            "TickAgentStateRecord missing credit_limit field required for StateProvider.get_agent_credit_limit()"
+        assert 'unsecured_cap' in fields, \
+            "TickAgentStateRecord missing unsecured_cap field required for StateProvider.get_agent_unsecured_cap()"
 
     def test_model_has_collateral_field(self):
         """TickAgentStateRecord must have collateral field (already exists as posted_collateral)."""
@@ -23,8 +23,8 @@ class TestTickAgentStateSchema:
         assert 'posted_collateral' in fields or 'collateral_posted' in fields, \
             "TickAgentStateRecord missing collateral field"
 
-    def test_can_create_record_with_credit_limit(self):
-        """Should be able to create TickAgentStateRecord with credit_limit."""
+    def test_can_create_record_with_unsecured_cap(self):
+        """Should be able to create TickAgentStateRecord with unsecured_cap."""
         record = TickAgentStateRecord(
             simulation_id="test_sim",
             agent_id="BANK_A",
@@ -33,7 +33,7 @@ class TestTickAgentStateSchema:
             balance=1000000,
             balance_change=0,
             posted_collateral=0,
-            credit_limit=500000,  # NEW FIELD
+            unsecured_cap=500000,  # Unsecured overdraft capacity
             liquidity_cost=0,
             delay_cost=0,
             collateral_cost=0,
@@ -46,17 +46,17 @@ class TestTickAgentStateSchema:
             split_friction_cost_delta=0,
         )
 
-        assert record.credit_limit == 500000
+        assert record.unsecured_cap == 500000
 
-    def test_credit_limit_field_is_integer(self):
-        """credit_limit should be integer type (cents)."""
+    def test_unsecured_cap_field_is_integer(self):
+        """unsecured_cap should be integer type (cents)."""
         fields = TickAgentStateRecord.model_fields
-        assert 'credit_limit' in fields
+        assert 'unsecured_cap' in fields
 
-        field_info = fields['credit_limit']
+        field_info = fields['unsecured_cap']
         # Check that it's an int annotation
         assert field_info.annotation == int, \
-            f"credit_limit should be int, got {field_info.annotation}"
+            f"unsecured_cap should be int, got {field_info.annotation}"
 
 
 class TestTickQueueSnapshotSchema:
@@ -101,7 +101,7 @@ class TestSchemaIntegration:
         """TickAgentStateRecord should have all fields needed by DatabaseStateProvider."""
         required_fields = [
             'balance',
-            'credit_limit',
+            'unsecured_cap',
             'posted_collateral',
             'liquidity_cost',
             'delay_cost',

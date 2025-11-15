@@ -33,38 +33,35 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
             AgentConfig {
                 id: "GNB".to_string(),
                 opening_balance: 100_000_000, // $1M
-                credit_limit: 50_000_000,      // $500k
+                unsecured_cap: 50_000_000,      // $500k
                 policy: PolicyConfig::FromJson {
                     json: load_policy_json("goliath_national_bank.json"),
                 },
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "ARB".to_string(),
                 opening_balance: 60_000_000,  // $600k
-                credit_limit: 50_000_000,      // $500k
+                unsecured_cap: 50_000_000,      // $500k
                 policy: PolicyConfig::FromJson {
                     json: load_policy_json("agile_regional_bank.json"),
                 },
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
             AgentConfig {
                 id: "MIB".to_string(),
                 opening_balance: 50_000_000,  // $500k
-                credit_limit: 50_000_000,      // $500k
+                unsecured_cap: 50_000_000,      // $500k
                 policy: PolicyConfig::FromJson {
                     json: load_policy_json("momentum_investment_bank.json"),
                 },
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         cost_rates: CostRates {

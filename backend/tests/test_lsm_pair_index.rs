@@ -18,9 +18,9 @@ use std::collections::BTreeMap;
 
 fn create_test_state() -> SimulationState {
     let agents = vec![
-        Agent::new("BANK_A".to_string(), 1_000_000, 0),
-        Agent::new("BANK_B".to_string(), 1_000_000, 0),
-        Agent::new("BANK_C".to_string(), 1_000_000, 0),
+        Agent::new("BANK_A".to_string(), 1_000_000),
+        Agent::new("BANK_B".to_string(), 1_000_000),
+        Agent::new("BANK_C".to_string(), 1_000_000),
     ];
     SimulationState::new(agents)
 }

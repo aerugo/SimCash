@@ -87,13 +87,13 @@ class TestRunReplayIdentity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1000000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -262,8 +262,8 @@ class TestRunReplayIdentity:
         """FAILING TEST: Credit utilization should be calculated from balance and credit limit.
 
         The formula from strategies.py is:
-            used = max(0, credit_limit - balance)
-            credit_util = (used / credit_limit) * 100
+            used = max(0, unsecured_cap - balance)
+            credit_util = (used / unsecured_cap) * 100
 
         Example from bug report:
             Balance: -$21,123.46 (-2,112,346 cents)
@@ -274,53 +274,53 @@ class TestRunReplayIdentity:
         Currently, replay.py hardcodes this to 0.
         """
         # Test the calculation formula
-        def calculate_credit_utilization(balance: int, credit_limit: int) -> float:
+        def calculate_credit_utilization(balance: int, unsecured_cap: int) -> float:
             """Calculate credit utilization percentage.
 
             Args:
                 balance: Agent balance in cents (can be negative)
-                credit_limit: Credit limit in cents
+                unsecured_cap: Credit limit in cents
 
             Returns:
                 Credit utilization as percentage (0-100+)
             """
-            if not credit_limit or credit_limit <= 0:
+            if not unsecured_cap or unsecured_cap <= 0:
                 return 0
-            used = max(0, credit_limit - balance)
-            return (used / credit_limit) * 100
+            used = max(0, unsecured_cap - balance)
+            return (used / unsecured_cap) * 100
 
         # Test case 1: From bug report - 311% utilization
         balance1 = -2112346  # -$21,123.46
-        credit_limit1 = 1000000  # $10,000.00
-        credit_util1 = calculate_credit_utilization(balance1, credit_limit1)
+        unsecured_cap1 = 1000000  # $10,000.00
+        credit_util1 = calculate_credit_utilization(balance1, unsecured_cap1)
         assert abs(credit_util1 - 311.2346) < 0.01, \
             f"Expected ~311.23%, got {credit_util1}%"
 
         # Test case 2: From bug report - 182% utilization
         balance2 = -820249  # -$8,202.49
-        credit_limit2 = 1000000  # $10,000.00
-        credit_util2 = calculate_credit_utilization(balance2, credit_limit2)
+        unsecured_cap2 = 1000000  # $10,000.00
+        credit_util2 = calculate_credit_utilization(balance2, unsecured_cap2)
         assert abs(credit_util2 - 182.0249) < 0.01, \
             f"Expected ~182.02%, got {credit_util2}%"
 
         # Test case 3: Positive balance (no credit usage)
         balance3 = 500000  # $5,000.00
-        credit_limit3 = 1000000  # $10,000.00
-        credit_util3 = calculate_credit_utilization(balance3, credit_limit3)
+        unsecured_cap3 = 1000000  # $10,000.00
+        credit_util3 = calculate_credit_utilization(balance3, unsecured_cap3)
         assert abs(credit_util3 - 50.0) < 0.01, \
             f"Expected ~50.0%, got {credit_util3}%"
 
         # Test case 4: Zero balance
         balance4 = 0
-        credit_limit4 = 1000000
-        credit_util4 = calculate_credit_utilization(balance4, credit_limit4)
+        unsecured_cap4 = 1000000
+        credit_util4 = calculate_credit_utilization(balance4, unsecured_cap4)
         assert abs(credit_util4 - 100.0) < 0.01, \
             f"Expected ~100.0%, got {credit_util4}%"
 
         # Test case 5: Exactly at credit limit
         balance5 = -1000000  # -$10,000.00
-        credit_limit5 = 1000000  # $10,000.00
-        credit_util5 = calculate_credit_utilization(balance5, credit_limit5)
+        unsecured_cap5 = 1000000  # $10,000.00
+        credit_util5 = calculate_credit_utilization(balance5, unsecured_cap5)
         assert abs(credit_util5 - 200.0) < 0.01, \
             f"Expected ~200.0%, got {credit_util5}%"
 
@@ -370,7 +370,7 @@ class TestRunReplayIdentity:
         """TEST: Credit utilization should be calculated correctly in replay EOD statistics.
 
         This test verifies that when replay.py displays end-of-day statistics,
-        it correctly calculates credit utilization from balance and credit_limit
+        it correctly calculates credit utilization from balance and unsecured_cap
         instead of hardcoding it to 0.
         """
         # Simulate the calculation that happens in replay.py
@@ -379,13 +379,13 @@ class TestRunReplayIdentity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 1000000,  # $10,000.00
+                    "unsecured_cap": 1000000,  # $10,000.00
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2000000,
-                    "credit_limit": 500000,  # $5,000.00
+                    "unsecured_cap": 500000,  # $5,000.00
                     "policy": {"type": "Fifo"},
                 },
             ]
@@ -399,19 +399,19 @@ class TestRunReplayIdentity:
         }
 
         # Build credit limit mapping (from replay.py)
-        agent_credit_limits = {
-            agent["id"]: agent.get("credit_limit", 0)
+        agent_unsecured_caps = {
+            agent["id"]: agent.get("unsecured_cap", 0)
             for agent in config_dict.get("agents", [])
         }
 
         # Calculate credit utilization for each agent (from replay.py)
         for agent_id, agent_metrics in metrics.items():
             balance = agent_metrics["closing_balance"]
-            credit_limit = agent_credit_limits.get(agent_id, 0)
+            unsecured_cap = agent_unsecured_caps.get(agent_id, 0)
             credit_util = 0
-            if credit_limit and credit_limit > 0:
-                used = max(0, credit_limit - balance)
-                credit_util = (used / credit_limit) * 100
+            if unsecured_cap and unsecured_cap > 0:
+                used = max(0, unsecured_cap - balance)
+                credit_util = (used / unsecured_cap) * 100
 
             # Verify calculations
             if agent_id == "BANK_A":
@@ -452,13 +452,13 @@ simulation:
 agents:
   - id: ALICE
     opening_balance: 100000
-    credit_limit: 50000
+    unsecured_cap: 50000
     policy:
       type: Fifo
 
   - id: BOB
     opening_balance: 100000
-    credit_limit: 50000
+    unsecured_cap: 50000
     policy:
       type: Fifo
 

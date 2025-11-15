@@ -23,7 +23,7 @@ fn test_state_can_have_agents_with_timers() {
     // Test that SimulationState can hold agents with scheduled timers
 
     let mut state = SimulationState::new(vec![
-        Agent::new("BANK_A".to_string(), 1_000_000, 100_000),
+        Agent::new("BANK_A".to_string(), 1_000_000),
     ]);
 
     // Manually schedule a timer for tick 5
@@ -47,7 +47,7 @@ fn test_state_can_have_agents_with_timers() {
 fn test_timer_withdrawal_reduces_posted_collateral() {
     // Test that when timer fires, posted_collateral is reduced
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     // Post collateral
     agent.set_posted_collateral(100_000);
@@ -122,7 +122,7 @@ fn test_event_emitted_when_timer_fires() {
 fn test_multiple_timers_for_same_agent() {
     // Test that agent can have multiple timers at different ticks
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
     agent.set_posted_collateral(200_000);
 
     // Schedule three withdrawals
@@ -145,8 +145,8 @@ fn test_multiple_timers_for_same_agent() {
 fn test_multiple_agents_with_timers() {
     // Test that multiple agents can each have timers
 
-    let mut agent_a = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
-    let mut agent_b = Agent::new("BANK_B".to_string(), 2_000_000, 200_000);
+    let mut agent_a = Agent::new("BANK_A".to_string(), 1_000_000);
+    let mut agent_b = Agent::new("BANK_B".to_string(), 2_000_000);
 
     agent_a.set_posted_collateral(100_000);
     agent_b.set_posted_collateral(150_000);
@@ -172,7 +172,7 @@ fn test_multiple_agents_with_timers() {
 fn test_timer_does_not_fire_before_due_tick() {
     // Test that timer scheduled for tick 10 doesn't fire at tick 9
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
     agent.schedule_collateral_withdrawal(10, 50_000, "Test".to_string());
 
     // Check ticks 1-9
@@ -193,7 +193,7 @@ fn test_timer_does_not_fire_before_due_tick() {
 fn test_timer_only_fires_once() {
     // Test that timer doesn't fire again after being processed
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
     agent.schedule_collateral_withdrawal(10, 50_000, "Test".to_string());
 
     // Fire at tick 10
@@ -213,7 +213,7 @@ fn test_withdrawal_cannot_exceed_posted_collateral() {
     // Test that withdrawal amount is bounded by actual posted collateral
     // This is a safety check - orchestrator should handle this
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
     agent.set_posted_collateral(30_000); // Only 30k posted
 
     // Try to schedule withdrawal of 50k
@@ -245,7 +245,7 @@ fn test_timer_processing_happens_in_tick_loop() {
     // 4. Continue with rest of tick processing
 
     // This is a documentation test - actual behavior tested via integration
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
     agent.set_posted_collateral(100_000);
 
     // Schedule timer for tick 10
@@ -294,7 +294,7 @@ fn test_timer_processing_happens_in_tick_loop() {
 fn test_full_timer_lifecycle() {
     // Test complete lifecycle: post collateral → schedule timer → timer fires → collateral withdrawn
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
 
     // Step 1: Post collateral at tick 5
     let post_tick = 5;
@@ -353,7 +353,8 @@ fn test_timer_withdrawal_works_when_balance_overdrafted() {
     // This is important: withdrawing collateral reduces available liquidity, making
     // the situation worse, but it's allowed (agent maintains control over collateral)
 
-    let mut agent = Agent::new("BANK_A".to_string(), -50_000, 100_000); // Starting with negative balance (overdrafted)
+    let mut agent = Agent::new("BANK_A".to_string(), -50_000); // Starting with negative balance (overdrafted)
+    agent.set_unsecured_cap(100_000); // $1,000 unsecured overdraft capacity
 
     // Agent has posted collateral
     agent.set_posted_collateral(200_000);
@@ -399,7 +400,7 @@ fn test_timer_caps_withdrawal_at_actual_posted_collateral() {
     // Test that if timer tries to withdraw more than what's actually posted, it's capped
     // Scenario: Agent posted 50k, timer scheduled to withdraw 100k → only withdraws 50k
 
-    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000, 100_000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
     agent.set_posted_collateral(50_000); // Only 50k posted
 
     // Schedule timer to withdraw 100k (more than posted)

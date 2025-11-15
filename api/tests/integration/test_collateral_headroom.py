@@ -22,11 +22,11 @@ def test_posted_collateral_increases_available_liquidity():
             {
                 "id": "A",
                 "opening_balance": -50000,  # Overdraft
-                "credit_limit": 60000,
+                "unsecured_cap": 60000,
                 "collateral_haircut": 0.05,  # 5% haircut (95% of collateral counts toward headroom)
                 "policy": {"type": "Fifo"},
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -82,11 +82,11 @@ def test_collateral_enables_settlement_of_queued_transactions():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "unsecured_cap": 20000,
                 "collateral_haircut": 0.05,  # 5% haircut (95% of collateral counts)
                 "policy": {"type": "Fifo"},
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -129,11 +129,11 @@ def test_collateral_minimum_holding_period_prevents_immediate_withdrawal():
             {
                 "id": "A",
                 "opening_balance": 100000,
-                "credit_limit": 50000,
+                "unsecured_cap": 50000,
                 "collateral_min_holding_ticks": 5,
                 "policy": {"type": "Fifo"},
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -183,14 +183,14 @@ def test_collateral_policy_hysteresis_posting_threshold():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "unsecured_cap": 20000,
                 "policy": {"type": "Fifo"},
                 "collateral_policy": {
                     "posting_threshold_pct": 0.10,  # Only post if gap > 10% of queue value
                     "min_holding_ticks": 5,
                 },
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -229,14 +229,14 @@ def test_collateral_policy_hysteresis_withdrawal_threshold():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "unsecured_cap": 20000,
                 "policy": {"type": "Fifo"},
                 "collateral_policy": {
                     "withdrawal_threshold_pct": 0.20,  # Only withdraw if excess > 20% of queue
                     "min_holding_ticks": 1,  # Short for testing
                 },
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -267,7 +267,7 @@ def test_no_collateral_oscillation_under_sustained_pressure():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "unsecured_cap": 20000,
                 "policy": {"type": "Fifo"},
                 "collateral_policy": {
                     "min_holding_ticks": 5,
@@ -275,7 +275,7 @@ def test_no_collateral_oscillation_under_sustained_pressure():
                     "withdrawal_threshold_pct": 0.20,
                 },
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -306,10 +306,10 @@ def test_collateral_events_have_specific_reasons_not_vague():
             {
                 "id": "A",
                 "opening_balance": 5000,
-                "credit_limit": 10000,
+                "unsecured_cap": 10000,
                 "policy": {"type": "Fifo"},
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -349,11 +349,11 @@ def test_collateral_withdrawal_reason_is_specific():
             {
                 "id": "A",
                 "opening_balance": 10000,
-                "credit_limit": 20000,
+                "unsecured_cap": 20000,
                 "collateral_min_holding_ticks": 1,
                 "policy": {"type": "Fifo"},
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -395,11 +395,11 @@ def test_available_liquidity_calculation_includes_collateral():
             {
                 "id": "A",
                 "opening_balance": 20000,
-                "credit_limit": 50000,
+                "unsecured_cap": 50000,
                 "collateral_haircut": 0.10,  # 10% haircut (90% of collateral counts)
                 "policy": {"type": "Fifo"},
             },
-            {"id": "B", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 

@@ -12,8 +12,10 @@
 use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
 
 /// Helper to create agent
-fn create_agent(id: &str, balance: i64, credit_limit: i64) -> Agent {
-    Agent::new(id.to_string(), balance, credit_limit)
+fn create_agent(id: &str, balance: i64, unsecured_cap: i64) -> Agent {
+    let mut agent = Agent::new(id.to_string(), balance);
+    agent.set_unsecured_cap(unsecured_cap);
+    agent
 }
 
 /// Helper to create transaction
@@ -116,7 +118,7 @@ fn test_credit_headroom_field_positive_balance() {
 
     // credit_headroom = credit_limit - credit_used = 50k - 0 = 50k
     assert_eq!(agent.credit_used(), 0);
-    let credit_headroom = agent.credit_limit() - agent.credit_used();
+    let credit_headroom = agent.unsecured_cap() - agent.credit_used();
     assert_eq!(credit_headroom, 50_000);
 }
 
@@ -127,7 +129,7 @@ fn test_credit_headroom_field_negative_balance() {
 
     // credit_headroom = credit_limit - credit_used = 50k - 30k = 20k
     assert_eq!(agent.credit_used(), 30_000);
-    let credit_headroom = agent.credit_limit() - agent.credit_used();
+    let credit_headroom = agent.unsecured_cap() - agent.credit_used();
     assert_eq!(credit_headroom, 20_000);
 }
 
@@ -138,7 +140,7 @@ fn test_credit_headroom_field_at_limit() {
 
     // credit_headroom = credit_limit - credit_used = 50k - 50k = 0
     assert_eq!(agent.credit_used(), 50_000);
-    let credit_headroom = agent.credit_limit() - agent.credit_used();
+    let credit_headroom = agent.unsecured_cap() - agent.credit_used();
     assert_eq!(credit_headroom, 0);
 }
 
@@ -154,7 +156,7 @@ fn test_credit_headroom_field_beyond_limit() {
     // credit_used = 70k, credit_limit = 50k
     // credit_headroom = 50k - 70k = -20k (should not be negative!)
     assert_eq!(agent.credit_used(), 70_000);
-    let credit_headroom = agent.credit_limit() - agent.credit_used();
+    let credit_headroom = agent.unsecured_cap() - agent.credit_used();
     assert_eq!(credit_headroom, -20_000); // BUG: negative headroom!
 }
 
@@ -259,7 +261,7 @@ fn test_effective_liquidity_equals_available_when_positive_balance() {
     assert_eq!(agent.available_liquidity(), 150_000);
 
     // Both should be equal
-    let credit_headroom = agent.credit_limit() - agent.credit_used();
+    let credit_headroom = agent.unsecured_cap() - agent.credit_used();
     let effective_liquidity = agent.balance() + credit_headroom;
     assert_eq!(effective_liquidity, 150_000);
 }
@@ -299,7 +301,7 @@ fn test_effective_liquidity_when_using_credit() {
     // Let me verify this...
 
     let credit_used = agent.credit_used();
-    let credit_headroom = agent.credit_limit() - credit_used;
+    let credit_headroom = agent.unsecured_cap() - credit_used;
     let effective_liquidity = agent.balance() + credit_headroom;
 
     assert_eq!(credit_used, 30_000);

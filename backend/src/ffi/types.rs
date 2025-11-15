@@ -177,7 +177,6 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
     // Extract required fields using helper
     let id: String = extract_required(py_agent, "id")?;
     let opening_balance: i64 = extract_required(py_agent, "opening_balance")?;
-    let credit_limit: i64 = extract_required(py_agent, "credit_limit")?;
 
     // Parse policy config
     let py_policy: Bound<'_, PyDict> = py_agent
@@ -194,11 +193,11 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         None
     };
 
+    // Parse required unsecured_cap using helper
+    let unsecured_cap: i64 = extract_required(py_agent, "unsecured_cap")?;
+
     // Parse optional collateral_haircut using helper
     let collateral_haircut: Option<f64> = extract_optional(py_agent, "collateral_haircut")?;
-
-    // Parse optional unsecured_cap using helper
-    let unsecured_cap: Option<i64> = extract_optional(py_agent, "unsecured_cap")?;
 
     // Parse optional posted_collateral using helper
     let posted_collateral: Option<i64> = extract_optional(py_agent, "posted_collateral")?;
@@ -206,12 +205,11 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
     Ok(AgentConfig {
         id,
         opening_balance,
-        credit_limit,
+        unsecured_cap,
         policy,
         arrival_config,
         posted_collateral,
         collateral_haircut,
-        unsecured_cap,
     })
 }
 
@@ -708,7 +706,7 @@ pub fn agent_metrics_to_py(
     dict.set_item("max_balance", metrics.max_balance)?;
 
     // Credit usage
-    dict.set_item("credit_limit", metrics.credit_limit)?;
+    dict.set_item("unsecured_cap", metrics.unsecured_cap)?;
     dict.set_item("peak_overdraft", metrics.peak_overdraft)?;
 
     // Collateral management (Phase 8)

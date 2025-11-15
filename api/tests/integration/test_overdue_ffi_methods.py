@@ -21,8 +21,8 @@ def test_get_transactions_near_deadline_empty():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 
@@ -41,8 +41,8 @@ def test_get_transactions_near_deadline_with_transactions():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},  # No liquidity
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},  # No liquidity
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 
@@ -86,8 +86,8 @@ def test_get_transactions_near_deadline_excludes_settled():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 
@@ -118,8 +118,8 @@ def test_get_transactions_near_deadline_excludes_overdue():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},  # No liquidity
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},  # No liquidity
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 
@@ -152,8 +152,8 @@ def test_get_overdue_transactions_empty():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
 
@@ -171,8 +171,8 @@ def test_get_overdue_transactions_with_overdue_tx():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},  # No liquidity
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},  # No liquidity
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "cost_rates": {
             "deadline_penalty": 50_000_00,  # $500 penalty
@@ -230,8 +230,8 @@ def test_get_overdue_transactions_accumulates_delay_cost():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},  # No liquidity
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},  # No liquidity
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "cost_rates": {
             "deadline_penalty": 50_000_00,
@@ -284,8 +284,8 @@ def test_transaction_went_overdue_event_emitted():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},  # No liquidity
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},  # No liquidity
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "cost_rates": {
             "deadline_penalty": 50_000_00,
@@ -337,8 +337,8 @@ def test_overdue_transaction_settled_event_emitted():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "A", "opening_balance": 5_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},  # Small balance
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 5_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},  # Small balance
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "cost_rates": {
             "deadline_penalty": 50_000_00,

@@ -19,7 +19,7 @@ def test_load_simple_config():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -40,7 +40,7 @@ def test_load_simple_config():
         assert len(config.agents) == 1
         assert config.agents[0].id == "BANK_A"
         assert config.agents[0].opening_balance == 1_000_000
-        assert config.agents[0].credit_limit == 0
+        assert config.agents[0].unsecured_cap == 0
     finally:
         Path(config_path).unlink()
 
@@ -84,7 +84,7 @@ def test_config_validation_invalid_values():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -115,7 +115,7 @@ def test_config_with_arrival_generation():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -133,7 +133,7 @@ def test_config_with_arrival_generation():
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -169,13 +169,13 @@ def test_config_with_different_policies():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {
                     "type": "Deadline",
                     "urgency_threshold": 10,
@@ -184,7 +184,7 @@ def test_config_with_different_policies():
             {
                 "id": "BANK_C",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {
                     "type": "LiquidityAware",
                     "target_buffer": 500_000,
@@ -223,7 +223,7 @@ def test_config_to_ffi_dict():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -273,7 +273,7 @@ def test_config_with_cost_rates():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -314,7 +314,7 @@ def test_config_with_lsm_settings():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -362,7 +362,7 @@ def test_lsm_config_ffi_dict_conversion():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -409,7 +409,7 @@ def test_lsm_config_defaults():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -440,7 +440,7 @@ def test_config_from_dict_directly():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],

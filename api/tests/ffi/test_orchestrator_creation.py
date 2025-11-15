@@ -13,13 +13,13 @@ def test_create_minimal_orchestrator():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -45,7 +45,7 @@ def test_type_conversion():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,  # Python int → Rust i64
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "LiquidityAware", "target_buffer": 200_000, "urgency_threshold": 5},
             },
         ],

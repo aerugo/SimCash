@@ -30,6 +30,6 @@ def _minimal_config():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }

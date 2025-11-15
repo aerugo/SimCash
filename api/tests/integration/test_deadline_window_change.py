@@ -22,7 +22,7 @@ def test_deadline_window_change_doubles_all_ranges():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -38,7 +38,7 @@ def test_deadline_window_change_doubles_all_ranges():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -113,7 +113,7 @@ def test_deadline_window_change_halves_max_only():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.5,
@@ -129,7 +129,7 @@ def test_deadline_window_change_halves_max_only():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -179,7 +179,7 @@ def test_deadline_window_change_tighten_urgency():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -195,7 +195,7 @@ def test_deadline_window_change_tighten_urgency():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -246,7 +246,7 @@ def test_deadline_window_change_logged_to_events():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.8,
@@ -262,7 +262,7 @@ def test_deadline_window_change_logged_to_events():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -318,7 +318,7 @@ def test_multiple_deadline_window_changes():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -334,7 +334,7 @@ def test_multiple_deadline_window_changes():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -403,7 +403,7 @@ def test_deadline_window_change_min_multiplier_only():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.5,
@@ -419,7 +419,7 @@ def test_deadline_window_change_min_multiplier_only():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],

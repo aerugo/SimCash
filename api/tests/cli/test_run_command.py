@@ -39,13 +39,13 @@ def minimal_config_file(tmp_path) -> Path:
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -73,7 +73,7 @@ def config_with_arrivals(tmp_path) -> Path:
             {
                 "id": "BANK_A",
                 "opening_balance": 5000000,
-                "credit_limit": 1000000,
+                "unsecured_cap": 1000000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -89,7 +89,7 @@ def config_with_arrivals(tmp_path) -> Path:
             {
                 "id": "BANK_B",
                 "opening_balance": 5000000,
-                "credit_limit": 1000000,
+                "unsecured_cap": 1000000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,

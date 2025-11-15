@@ -16,7 +16,7 @@ class TestStateProviderProtocol:
         required_methods = [
             "get_transaction_details",
             "get_agent_balance",
-            "get_agent_credit_limit",
+            "get_agent_unsecured_cap",
             "get_agent_queue1_contents",
             "get_rtgs_queue_contents",
             "get_agent_collateral_posted",
@@ -43,13 +43,13 @@ class TestOrchestratorStateProvider:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -72,9 +72,9 @@ class TestOrchestratorStateProvider:
         balance = provider.get_agent_balance("BANK_A")
         assert balance == 1000000
 
-    def test_get_agent_credit_limit(self, provider):
-        """Should return agent credit limit from orchestrator."""
-        limit = provider.get_agent_credit_limit("BANK_A")
+    def test_get_agent_unsecured_cap(self, provider):
+        """Should return agent unsecured cap from orchestrator."""
+        limit = provider.get_agent_unsecured_cap("BANK_A")
         assert limit == 500000
 
     def test_get_agent_queue1_contents(self, provider):
@@ -132,7 +132,7 @@ class TestDatabaseStateProvider:
                 "BANK_A": {
                     "agent_id": "BANK_A",
                     "balance": 900000,  # After sending tx_001
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "posted_collateral": 100000,
                     "liquidity_cost": 1000,
                     "delay_cost": 500,
@@ -143,7 +143,7 @@ class TestDatabaseStateProvider:
                 "BANK_B": {
                     "agent_id": "BANK_B",
                     "balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "posted_collateral": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 0,
@@ -194,9 +194,9 @@ class TestDatabaseStateProvider:
         balance = provider.get_agent_balance("BANK_A")
         assert balance == 900000
 
-    def test_get_agent_credit_limit(self, provider):
-        """Should return credit limit from agent_states."""
-        limit = provider.get_agent_credit_limit("BANK_A")
+    def test_get_agent_unsecured_cap(self, provider):
+        """Should return unsecured cap from agent_states."""
+        limit = provider.get_agent_unsecured_cap("BANK_A")
         assert limit == 500000
 
     def test_get_agent_queue1_contents(self, provider):

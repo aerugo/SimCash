@@ -120,13 +120,13 @@ simulation:
 agents:
   - id: BANK_A
     opening_balance: 1000000
-    credit_limit: 0
+    unsecured_cap: 0
     policy:
       type: Fifo
 
   - id: BANK_B
     opening_balance: 1000000
-    credit_limit: 0
+    unsecured_cap: 0
     policy:
       type: Fifo
 
@@ -169,19 +169,19 @@ lsm_config:
 agents:
   - id: A
     opening_balance: 10000
-    credit_limit: 0
+    unsecured_cap: 0
     policy:
       type: Fifo
 
   - id: B
     opening_balance: 10000
-    credit_limit: 0
+    unsecured_cap: 0
     policy:
       type: Fifo
 
   - id: C
     opening_balance: 10000
-    credit_limit: 0
+    unsecured_cap: 0
     policy:
       type: Fifo
 
@@ -247,13 +247,13 @@ cost_rates:
 agents:
   - id: BANK_A
     opening_balance: 5000
-    credit_limit: 0
+    unsecured_cap: 0
     policy:
       type: Fifo
 
   - id: BANK_B
     opening_balance: 1000000
-    credit_limit: 0
+    unsecured_cap: 0
     policy:
       type: Fifo
 
@@ -301,25 +301,25 @@ cost_rates:
 agents:
   - id: HUB
     opening_balance: 500000
-    credit_limit: 100000
+    unsecured_cap: 100000
     policy:
       type: Fifo
 
   - id: BANK_A
     opening_balance: 200000
-    credit_limit: 50000
+    unsecured_cap: 50000
     policy:
       type: Fifo
 
   - id: BANK_B
     opening_balance: 150000
-    credit_limit: 50000
+    unsecured_cap: 50000
     policy:
       type: Fifo
 
   - id: BANK_C
     opening_balance: 100000
-    credit_limit: 25000
+    unsecured_cap: 25000
     policy:
       type: Fifo
 
@@ -405,25 +405,25 @@ lsm_config:
 agents:
   - id: A
     opening_balance: 1000000
-    credit_limit: 200000
+    unsecured_cap: 200000
     policy:
       type: Fifo
 
   - id: B
     opening_balance: 1000000
-    credit_limit: 200000
+    unsecured_cap: 200000
     policy:
       type: Fifo
 
   - id: C
     opening_balance: 1000000
-    credit_limit: 200000
+    unsecured_cap: 200000
     policy:
       type: Fifo
 
   - id: D
     opening_balance: 1000000
-    credit_limit: 200000
+    unsecured_cap: 200000
     policy:
       type: Fifo
 

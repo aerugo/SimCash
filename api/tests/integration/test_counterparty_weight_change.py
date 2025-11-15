@@ -22,7 +22,7 @@ def test_counterparty_weight_change_basic():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,  # High rate for good statistics
@@ -41,13 +41,13 @@ def test_counterparty_weight_change_basic():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -110,7 +110,7 @@ def test_counterparty_weight_change_zero_weight():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -129,13 +129,13 @@ def test_counterparty_weight_change_zero_weight():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -193,7 +193,7 @@ def test_counterparty_weight_change_logged_to_events():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.8,
@@ -211,7 +211,7 @@ def test_counterparty_weight_change_logged_to_events():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -269,7 +269,7 @@ def test_multiple_counterparty_weight_changes():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -289,19 +289,19 @@ def test_multiple_counterparty_weight_changes():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_D",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -375,7 +375,7 @@ def test_counterparty_weight_change_new_counterparty():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -393,13 +393,13 @@ def test_counterparty_weight_change_new_counterparty():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -456,7 +456,7 @@ def test_counterparty_weight_change_isolated():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -475,7 +475,7 @@ def test_counterparty_weight_change_isolated():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -494,13 +494,13 @@ def test_counterparty_weight_change_isolated():
             {
                 "id": "BANK_C",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_D",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],

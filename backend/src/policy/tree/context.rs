@@ -140,7 +140,7 @@ impl EvalContext {
     /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
     /// use payment_simulator_core_rs::orchestrator::CostRates;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
     /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
     /// let state = SimulationState::new(vec![agent.clone()]);
     /// let cost_rates = CostRates::default();
@@ -193,7 +193,7 @@ impl EvalContext {
 
         // Agent fields
         fields.insert("balance".to_string(), agent.balance() as f64);
-        fields.insert("credit_limit".to_string(), agent.credit_limit() as f64);
+        fields.insert("credit_limit".to_string(), agent.unsecured_cap() as f64);
         fields.insert(
             "available_liquidity".to_string(),
             agent.available_liquidity() as f64,
@@ -204,13 +204,13 @@ impl EvalContext {
         // effective_liquidity = balance + unused_credit_capacity
         // This is what policies should use for "can I do X?" checks when in overdraft,
         // as it represents the TRUE available capacity (both positive balance and credit headroom)
-        let credit_headroom = (agent.credit_limit() as i64) - agent.credit_used();
+        let credit_headroom = (agent.unsecured_cap() as i64) - agent.credit_used();
         let effective_liquidity = agent.balance() + credit_headroom;
 
         if std::env::var("POLICY_DEBUG").is_ok() {
             eprintln!("[POLICY CONTEXT] Agent: {}", agent.id());
             eprintln!("  balance: {}", agent.balance());
-            eprintln!("  credit_limit: {}", agent.credit_limit());
+            eprintln!("  credit_limit: {}", agent.unsecured_cap());
             eprintln!("  credit_used: {}", agent.credit_used());
             eprintln!("  credit_headroom: {}", credit_headroom);
             eprintln!("  effective_liquidity: {}", effective_liquidity);
@@ -623,7 +623,7 @@ impl EvalContext {
     /// use payment_simulator_core_rs::{Agent, SimulationState};
     /// use payment_simulator_core_rs::orchestrator::CostRates;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
     /// let state = SimulationState::new(vec![agent.clone()]);
     /// let cost_rates = CostRates::default();
     ///
@@ -643,7 +643,7 @@ impl EvalContext {
 
         // Agent fields (same as transaction context)
         fields.insert("balance".to_string(), agent.balance() as f64);
-        fields.insert("credit_limit".to_string(), agent.credit_limit() as f64);
+        fields.insert("credit_limit".to_string(), agent.unsecured_cap() as f64);
         fields.insert(
             "available_liquidity".to_string(),
             agent.available_liquidity() as f64,
@@ -651,7 +651,7 @@ impl EvalContext {
         fields.insert("credit_used".to_string(), agent.credit_used() as f64);
 
         // Effective liquidity and credit headroom
-        let credit_headroom = (agent.credit_limit() as i64) - agent.credit_used();
+        let credit_headroom = (agent.unsecured_cap() as i64) - agent.credit_used();
         let effective_liquidity = agent.balance() + credit_headroom;
         fields.insert("effective_liquidity".to_string(), effective_liquidity as f64);
         fields.insert("credit_headroom".to_string(), credit_headroom as f64);
@@ -914,9 +914,9 @@ mod tests {
         let mut agent = Agent::with_buffer(
             "BANK_A".to_string(),
             500_000, // balance
-            200_000, // credit_limit
             100_000, // liquidity_buffer
         );
+        agent.set_unsecured_cap(200_000); // $2,000 unsecured overdraft capacity
         agent.queue_outgoing("tx_001".to_string());
         agent.queue_outgoing("tx_002".to_string());
         agent.add_expected_inflow("tx_003".to_string());
@@ -924,8 +924,8 @@ mod tests {
         // Create simulation state
         let state = SimulationState::new(vec![
             agent.clone(),
-            Agent::new("BANK_B".to_string(), 1_000_000, 0),
-            Agent::new("BANK_C".to_string(), 2_000_000, 0),
+            Agent::new("BANK_B".to_string(), 1_000_000),
+            Agent::new("BANK_C".to_string(), 2_000_000),
         ]);
 
         let tick = 30; // Current tick
@@ -944,7 +944,7 @@ mod tests {
 
         // Check agent fields
         assert_eq!(context.get_field("balance").unwrap(), 500_000.0);
-        assert_eq!(context.get_field("credit_limit").unwrap(), 200_000.0);
+        assert_eq!(context.get_field("unsecured_cap").unwrap(), 200_000.0);
         assert_eq!(context.get_field("available_liquidity").unwrap(), 700_000.0);
         assert_eq!(context.get_field("credit_used").unwrap(), 0.0);
         assert_eq!(context.get_field("is_using_credit").unwrap(), 0.0);
@@ -1045,7 +1045,7 @@ mod tests {
     #[test]
     fn test_boolean_fields_as_floats() {
         // Create a transaction that uses credit
-        let agent = Agent::new("BANK_A".to_string(), -50_000, 200_000);
+        let agent = Agent::new("BANK_A".to_string(), -50_000);
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 10_000, 0, 10);
         let state = SimulationState::new(vec![agent.clone()]);
 
@@ -1069,7 +1069,7 @@ mod tests {
             parent_id,
         );
 
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let state = SimulationState::new(vec![agent.clone()]);
 
         let context = EvalContext::build(&child, &agent, &state, 5, &create_cost_rates(), 100, 0.8);
@@ -1128,7 +1128,7 @@ mod tests {
     #[test]
     fn test_collateral_utilization_with_posted_collateral() {
         // Create agent with posted collateral
-        let mut agent = Agent::with_buffer("BANK_A".to_string(), 500_000, 200_000, 100_000);
+        let mut agent = Agent::with_buffer("BANK_A".to_string(), 500_000, 100_000);
         // TODO: Need to add posted_collateral to agent for this test
         // For now, test will fail until Agent supports collateral
 
@@ -1147,7 +1147,7 @@ mod tests {
 
     #[test]
     fn test_context_includes_is_overdue_field() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = create_cost_rates();
@@ -1164,7 +1164,7 @@ mod tests {
 
     #[test]
     fn test_context_includes_overdue_duration() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = create_cost_rates();
@@ -1180,7 +1180,7 @@ mod tests {
 
     #[test]
     fn test_overdue_duration_zero_when_not_overdue() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = create_cost_rates();

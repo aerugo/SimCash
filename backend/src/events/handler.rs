@@ -141,7 +141,7 @@ fn execute_collateral_adjustment(
         .get_agent(agent)
         .ok_or_else(|| format!("Agent not found: {}", agent))?;
 
-    let old_limit = agent_obj.credit_limit();
+    let old_limit = agent_obj.unsecured_cap();
     let new_limit = (old_limit as i64) + delta;
 
     // Cannot go negative

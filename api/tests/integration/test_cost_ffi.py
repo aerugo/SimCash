@@ -27,7 +27,7 @@ def create_orchestrator_with_costs():
             {
                 "id": "BANK_A",
                 "opening_balance": 50000,  # Small balance → likely overdraft
-                "credit_limit": 100000,
+                "unsecured_cap": 100000,
                 "collateral_pledged": 20000,  # Will accrue collateral cost
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
@@ -46,7 +46,7 @@ def create_orchestrator_with_costs():
             {
                 "id": "BANK_B",
                 "opening_balance": 50000,
-                "credit_limit": 100000,
+                "unsecured_cap": 100000,
                 "collateral_pledged": 15000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
@@ -65,7 +65,7 @@ def create_orchestrator_with_costs():
             {
                 "id": "BANK_C",
                 "opening_balance": 500000,  # Large balance → likely receiver
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pledged": 0,
                 "policy": {"type": "Fifo"},
                 # No arrival_config - just receives
@@ -100,7 +100,7 @@ def create_orchestrator_with_activity():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pledged": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
@@ -119,7 +119,7 @@ def create_orchestrator_with_activity():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pledged": 0,
                 "policy": {"type": "Fifo"},
                 # No arrivals
@@ -239,7 +239,7 @@ class TestAgentCostFFI:
                 {
                     "id": "BANK_A",
                     "opening_balance": 10000,  # Very small
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "collateral_pledged": 100000,  # Large collateral
                     "policy": {"type": "Fifo"},
                     "arrival_config": {
@@ -258,7 +258,7 @@ class TestAgentCostFFI:
                 {
                     "id": "BANK_B",
                     "opening_balance": 1000000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_pledged": 0,
                     "policy": {"type": "Fifo"},
                 },
@@ -405,7 +405,7 @@ class TestSystemMetricsFFI:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_pledged": 0,
                     "policy": {"type": "Fifo"},
                 },
@@ -453,7 +453,7 @@ class TestFFIDeterminism:
                 {
                     "id": "BANK_A",
                     "opening_balance": 50000,
-                    "credit_limit": 100000,
+                    "unsecured_cap": 100000,
                     "collateral_pledged": 20000,
                     "policy": {"type": "Fifo"},
                     "arrival_config": {
@@ -472,7 +472,7 @@ class TestFFIDeterminism:
                 {
                     "id": "BANK_B",
                     "opening_balance": 100000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_pledged": 0,
                     "policy": {"type": "Fifo"},
                 },
@@ -514,7 +514,7 @@ class TestFFIDeterminism:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_pledged": 0,
                     "policy": {"type": "Fifo"},
                     "arrival_config": {
@@ -533,7 +533,7 @@ class TestFFIDeterminism:
                 {
                     "id": "BANK_B",
                     "opening_balance": 100000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "collateral_pledged": 0,
                     "policy": {"type": "Fifo"},
                 },

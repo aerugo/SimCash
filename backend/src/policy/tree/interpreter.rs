@@ -78,7 +78,7 @@ pub enum EvalError {
 /// use std::collections::HashMap;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
 /// let cost_rates = CostRates::default();
@@ -288,7 +288,7 @@ const FLOAT_EPSILON: f64 = 1e-9;
 /// use std::collections::HashMap;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
 /// let cost_rates = CostRates::default();
@@ -406,7 +406,7 @@ const MAX_TREE_DEPTH: usize = 100;
 /// use payment_simulator_core_rs::orchestrator::CostRates;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let state = SimulationState::new(vec![agent.clone()]);
 /// let cost_rates = CostRates::default();
@@ -600,7 +600,7 @@ fn traverse_node_with_path<'a>(
 /// use std::collections::HashMap;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+/// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
 /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
 /// let tx_id = tx.id().to_string();
 /// let state = SimulationState::new(vec![agent.clone()]);
@@ -1022,7 +1022,7 @@ pub fn build_collateral_decision(
 /// use std::collections::HashMap;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let agent = Agent::new("BANK_A".to_string(), 500_000, 0);
+/// let agent = Agent::new("BANK_A".to_string(), 500_000);
 /// let state = SimulationState::new(vec![agent.clone()]);
 /// let costs = CostRates::default();
 /// let context = EvalContext::bank_level(&agent, &state, 0, &costs, 100, 0.95);
@@ -1376,7 +1376,8 @@ mod tests {
 
     fn create_test_context() -> (EvalContext, HashMap<String, f64>) {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
-        let agent = Agent::new("BANK_A".to_string(), 500_000, 200_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000);
+        agent.set_unsecured_cap(200_000); // $2,000 unsecured overdraft capacity
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = CostRates::default();
 
@@ -1619,7 +1620,7 @@ mod tests {
     fn test_eval_nested_computation() {
         let (context, params) = create_test_context();
 
-        // (balance + credit_limit) / 2
+        // (balance + unsecured_cap) / 2
         let computation = Computation::Divide {
             left: Value::Compute {
                 compute: Box::new(Computation::Add {
@@ -1627,7 +1628,7 @@ mod tests {
                         field: "balance".to_string(),
                     },
                     right: Value::Field {
-                        field: "credit_limit".to_string(),
+                        field: "unsecured_cap".to_string(),
                     },
                 }),
             },
@@ -2520,7 +2521,7 @@ mod tests {
 
         // Create a test context with posted collateral
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
-        let mut agent = Agent::new("BANK_A".to_string(), 500_000, 200_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000);
         agent.set_posted_collateral(150_000); // Set some posted collateral
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = CostRates::default();
@@ -2592,12 +2593,12 @@ mod tests {
 
         // Create a test context with a liquidity gap
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
-        let mut agent = Agent::new("BANK_A".to_string(), 50_000, 0); // Low balance, no credit
+        let mut agent = Agent::new("BANK_A".to_string(), 50_000); // Low balance, no credit
 
         // Create a state with the agent
         let mut state = SimulationState::new(vec![
             agent.clone(),
-            Agent::new("BANK_C".to_string(), 1_000_000, 0),
+            Agent::new("BANK_C".to_string(), 1_000_000),
         ]);
 
         // Add a transaction to the queue to create a liquidity gap
