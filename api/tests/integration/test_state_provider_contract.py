@@ -139,7 +139,7 @@ class TestStateProviderContract:
         assert live_balance_b == 210000, \
             f"BANK_B should have 210000 after receiving 10000, got {live_balance_b}"
 
-    def test_get_agent_credit_limit_contract(self, temp_db):
+    def test_get_agent_unsecured_cap_contract(self, temp_db):
         """TEST: Both providers must return identical credit limits."""
         config = {
             "rng_seed": 12345,
@@ -159,7 +159,7 @@ class TestStateProviderContract:
 
         # Get from live provider
         live_provider = OrchestratorStateProvider(orch)
-        live_credit_limit = live_provider.get_agent_credit_limit("BANK_A")
+        live_unsecured_cap = live_provider.get_agent_unsecured_cap("BANK_A")
 
         # Manually construct DatabaseStateProvider with same state
         agent_states = {
@@ -185,15 +185,15 @@ class TestStateProviderContract:
             queue_snapshots={},
         )
 
-        db_credit_limit = db_provider.get_agent_credit_limit("BANK_A")
+        db_unsecured_cap = db_provider.get_agent_unsecured_cap("BANK_A")
 
         # CRITICAL ASSERTION: Credit limits must match
-        assert live_credit_limit == db_credit_limit, \
-            f"Credit limit mismatch: live={live_credit_limit}, db={db_credit_limit}"
+        assert live_unsecured_cap == db_unsecured_cap, \
+            f"Credit limit mismatch: live={live_unsecured_cap}, db={db_unsecured_cap}"
 
         # Also verify it's the expected value from config
-        assert live_credit_limit == 50000, \
-            f"Expected credit limit 50000, got {live_credit_limit}"
+        assert live_unsecured_cap == 50000, \
+            f"Expected credit limit 50000, got {live_unsecured_cap}"
 
 
 if __name__ == "__main__":

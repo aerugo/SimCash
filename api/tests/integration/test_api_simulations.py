@@ -107,7 +107,7 @@ def test_get_simulation_state(client, simple_config):
     # Verify agent details
     bank_a = data["agents"]["BANK_A"]
     assert bank_a["balance"] == 1_000_000
-    assert bank_a["credit_limit"] == 500_000
+    assert bank_a["unsecured_cap"] == 500_000
 
 
 def test_get_nonexistent_simulation(client):
