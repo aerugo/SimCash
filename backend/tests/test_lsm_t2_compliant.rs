@@ -23,8 +23,10 @@ use payment_simulator_core_rs::settlement::lsm::{bilateral_offset, detect_cycles
 fn create_test_state_with_agents(agents: Vec<(&str, i64, i64)>) -> SimulationState {
     let agent_list: Vec<Agent> = agents
         .into_iter()
-        .map(|(id, balance, credit)| {
-            Agent::new(id.to_string(), balance)
+        .map(|(id, balance, unsecured_cap)| {
+            let mut agent = Agent::new(id.to_string(), balance);
+            agent.set_unsecured_cap(unsecured_cap);
+            agent
         })
         .collect();
 

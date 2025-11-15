@@ -1,0 +1,1087 @@
+warning: unused import: `EventSchedule`
+ --> backend/src/events/handler.rs:8:28
+  |
+8 | use crate::events::types::{EventSchedule, ScenarioEvent, ScheduledEvent};
+  |                            ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `CollateralReason`
+   --> backend/src/policy/tree/interpreter.rs:911:45
+    |
+911 |     use crate::policy::{CollateralDecision, CollateralReason};
+    |                                             ^^^^^^^^^^^^^^^^
+
+warning: unused import: `HashMap`
+  --> backend/src/policy/tree/validation.rs:15:24
+   |
+15 | use std::collections::{HashMap, HashSet};
+   |                        ^^^^^^^
+
+warning: unused import: `TransactionStatus`
+  --> backend/src/settlement/rtgs.rs:38:65
+   |
+38 | use crate::models::transaction::{Transaction, TransactionError, TransactionStatus};
+   |                                                                 ^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated field `settlement::rtgs::QueueProcessingResult::dropped_count`: Transactions are now marked overdue, not dropped
+   --> backend/src/settlement/rtgs.rs:447:9
+    |
+447 |         dropped_count: 0, // Deprecated - always 0
+    |         ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: unused variable: `tx_id`
+   --> backend/src/arrivals/mod.rs:152:17
+    |
+152 |             let tx_id = format!("tx_{:08}", self.next_tx_id);
+    |                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `field`
+    --> backend/src/policy/tree/interpreter.rs:1338:33
+     |
+1338 |         ValueOrCompute::Field { field } => {
+     |                                 ^^^^^ help: try ignoring the field: `field: _`
+
+warning: unused variable: `param`
+    --> backend/src/policy/tree/interpreter.rs:1347:33
+     |
+1347 |         ValueOrCompute::Param { param } => {
+     |                                 ^^^^^ help: try ignoring the field: `param: _`
+
+warning: unused variable: `context`
+    --> backend/src/policy/tree/interpreter.rs:1321:5
+     |
+1321 |     context: &EvalContext,
+     |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_context`
+
+warning: unused variable: `params`
+    --> backend/src/policy/tree/interpreter.rs:1322:5
+     |
+1322 |     params: &HashMap<String, f64>,
+     |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_params`
+
+warning: unused variable: `sample_context`
+   --> backend/src/policy/tree/validation.rs:246:5
+    |
+246 |     sample_context: &EvalContext,
+    |     ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_sample_context`
+
+warning: field `next_tx_id` is never read
+   --> backend/src/orchestrator/engine.rs:615:5
+    |
+580 | pub struct Orchestrator {
+    |            ------------ field in this struct
+...
+615 |     next_tx_id: usize,
+    |     ^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `agent_id` is never read
+   --> backend/src/settlement/lsm.rs:551:21
+    |
+551 |     AgentNotFound { agent_id: String },
+    |     -------------   ^^^^^^^^
+    |     |
+    |     field in this variant
+    |
+    = note: `CycleFeasibilityError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: field `agent_id` is never read
+   --> backend/src/settlement/lsm.rs:554:9
+    |
+553 |     InsufficientLiquidity {
+    |     --------------------- field in this variant
+554 |         agent_id: String,
+    |         ^^^^^^^^
+    |
+    = note: `CycleFeasibilityError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `clear` is never used
+   --> backend/src/settlement/lsm/pair_index.rs:128:8
+    |
+110 | impl PairBucket {
+    | --------------- method in this implementation
+...
+128 |     fn clear(&mut self) {
+    |        ^^^^^
+
+warning: unused import: `crate::Agent`
+   --> backend/src/events/handler.rs:184:9
+    |
+184 |     use crate::Agent;
+    |         ^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated variant `models::event::Event::Settlement`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/src/models/event.rs:527:28
+    |
+527 |         let event = Event::Settlement {
+    |                            ^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated variant `models::event::Event::Settlement`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/src/models/event.rs:598:24
+    |
+598 |         log.log(Event::Settlement {
+    |                        ^^^^^^^^^^
+
+warning: use of deprecated variant `models::event::Event::Settlement`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/src/models/event.rs:639:24
+    |
+639 |         log.log(Event::Settlement {
+    |                        ^^^^^^^^^^
+
+warning: use of deprecated variant `models::event::Event::Settlement`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/src/models/event.rs:675:24
+    |
+675 |         log.log(Event::Settlement {
+    |                        ^^^^^^^^^^
+
+warning: use of deprecated field `settlement::rtgs::QueueProcessingResult::dropped_count`: Transactions are now marked overdue, not dropped
+   --> backend/src/settlement/rtgs.rs:447:9
+    |
+447 |         dropped_count: 0, // Deprecated - always 0
+    |         ^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+    --> backend/src/models/agent.rs:1551:13
+     |
+1551 |         let mut state = SimulationState::new(vec![agent.clone()]);
+     |             ----^^^^^
+     |             |
+     |             help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> backend/src/policy/tree/context.rs:1131:13
+     |
+1131 |         let mut agent = Agent::with_buffer("BANK_A".to_string(), 500_000, 100_000);
+     |             ----^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: `payment-simulator-core-rs` (lib) generated 15 warnings (run `cargo fix --lib -p payment-simulator-core-rs` to apply 4 suggestions)
+warning: `payment-simulator-core-rs` (lib test) generated 20 warnings (12 duplicates) (run `cargo fix --lib -p payment-simulator-core-rs --tests` to apply 3 suggestions)
+warning: field `total_deadline_violations` is never read
+  --> backend/tests/test_policy_deadline_scenarios.rs:21:5
+   |
+18 | struct PolicyMetrics {
+   |        ------------- field in this struct
+...
+21 |     total_deadline_violations: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `PolicyMetrics` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `result`
+   --> backend/tests/test_collateral_edge_cases.rs:187:9
+    |
+187 |     let result = orch.tick();
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `result`
+   --> backend/tests/test_collateral_edge_cases.rs:234:9
+    |
+234 |     let result = orch.tick();
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+
+warning: unused variable: `result`
+   --> backend/tests/test_collateral_edge_cases.rs:314:9
+    |
+314 |     let result = orch.tick();
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+
+   Compiling payment-simulator-core-rs v0.1.0 (/home/user/SimCash/backend)
+warning: unused variable: `collateral_before`
+   --> backend/tests/test_collateral_timer_invariants.rs:249:9
+    |
+249 |     let collateral_before = agent.posted_collateral();
+    |         ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_collateral_before`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `current_tick`
+   --> backend/tests/test_release_flags.rs:521:9
+    |
+521 |     let current_tick = 10;
+    |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_tick`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `payment-simulator-core-rs` (test "test_policy_deadline_scenarios") generated 1 warning
+warning: `payment-simulator-core-rs` (test "test_collateral_edge_cases") generated 3 warnings
+warning: `payment-simulator-core-rs` (test "test_collateral_timer_invariants") generated 1 warning
+warning: `payment-simulator-core-rs` (test "test_release_flags") generated 1 warning
+warning: unused variable: `tx_id`
+  --> backend/tests/test_policy_json_integration.rs:36:9
+   |
+36 |     let tx_id = orchestrator
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_counterparty_fields.rs:144:9
+    |
+144 |     let mut agent = create_agent("BANK_A", 1_000_000, 0);
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_counterparty_fields.rs:161:9
+    |
+161 |     let mut agent = create_agent("BANK_A", 1_000_000, 0);
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_counterparty_fields.rs:180:9
+    |
+180 |     let mut agent = create_agent("BANK_A", 1_000_000, 0);
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_counterparty_fields.rs:227:9
+    |
+227 |     let mut agent_a = create_agent("BANK_A", 1_000_000, 0);
+    |         ----^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_counterparty_fields.rs:253:9
+    |
+253 |     let mut agent_a = create_agent("BANK_A", 1_000_000, 0);
+    |         ----^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_counterparty_fields.rs:304:9
+    |
+304 |     let mut agent_a = create_agent("BANK_A", 1_000_000, 0);
+    |         ----^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: unused import: `TransactionStatus`
+ --> backend/tests/test_rtgs_settlement.rs:6:53
+  |
+6 | use payment_simulator_core_rs::{Agent, Transaction, TransactionStatus};
+  |                                                     ^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `unsecured_cap`
+  --> backend/tests/test_rtgs_settlement.rs:13:46
+   |
+13 | fn create_test_agent(id: &str, balance: i64, unsecured_cap: i64) -> Agent {
+   |                                              ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_unsecured_cap`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated variant `payment_simulator_core_rs::Event::Settlement`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/tests/test_event_emission.rs:376:62
+    |
+376 |             if let payment_simulator_core_rs::models::Event::Settlement {
+    |                                                              ^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated variant `payment_simulator_core_rs::Event::Settlement`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/tests/test_event_emission.rs:388:54
+    |
+388 |     if let payment_simulator_core_rs::models::Event::Settlement {
+    |                                                      ^^^^^^^^^^
+
+warning: use of deprecated field `payment_simulator_core_rs::Event::Settlement::tx_id`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/tests/test_event_emission.rs:377:17
+    |
+377 |                 tx_id: event_tx_id,
+    |                 ^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated field `payment_simulator_core_rs::Event::Settlement::tick`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/tests/test_event_emission.rs:389:9
+    |
+389 |         tick,
+    |         ^^^^
+
+warning: use of deprecated field `payment_simulator_core_rs::Event::Settlement::sender_id`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/tests/test_event_emission.rs:390:9
+    |
+390 |         sender_id,
+    |         ^^^^^^^^^
+
+warning: use of deprecated field `payment_simulator_core_rs::Event::Settlement::receiver_id`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/tests/test_event_emission.rs:391:9
+    |
+391 |         receiver_id,
+    |         ^^^^^^^^^^^
+
+warning: use of deprecated field `payment_simulator_core_rs::Event::Settlement::amount`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/tests/test_event_emission.rs:392:9
+    |
+392 |         amount,
+    |         ^^^^^^
+
+warning: comparison is useless due to type limits
+   --> backend/tests/test_event_emission.rs:553:17
+    |
+553 |         assert!(*unsettled_count >= 0, "Unsettled count should be non-negative");
+    |                 ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_comparisons)]` on by default
+
+warning: unused variable: `credit`
+  --> backend/tests/test_lsm_t2_compliant.rs:26:29
+   |
+26 |         .map(|(id, balance, credit)| {
+   |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_credit`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tx_ab`
+   --> backend/tests/test_lsm_t2_compliant.rs:294:9
+    |
+294 |     let tx_ab = create_queued_transaction(&mut state, "A", "B", 500_000);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_ab`
+
+warning: unused variable: `tx_bc`
+   --> backend/tests/test_lsm_t2_compliant.rs:295:9
+    |
+295 |     let tx_bc = create_queued_transaction(&mut state, "B", "C", 800_000);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_bc`
+
+warning: unused variable: `tx_ca`
+   --> backend/tests/test_lsm_t2_compliant.rs:296:9
+    |
+296 |     let tx_ca = create_queued_transaction(&mut state, "C", "A", 700_000);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_ca`
+
+warning: unused variable: `tx_ab`
+   --> backend/tests/test_lsm_t2_compliant.rs:332:9
+    |
+332 |     let tx_ab = create_queued_transaction(&mut state, "A", "B", 1_000_000);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_ab`
+
+warning: unused variable: `tx_bc`
+   --> backend/tests/test_lsm_t2_compliant.rs:333:9
+    |
+333 |     let tx_bc = create_queued_transaction(&mut state, "B", "C", 1_200_000);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_bc`
+
+warning: unused variable: `tx_cd`
+   --> backend/tests/test_lsm_t2_compliant.rs:334:9
+    |
+334 |     let tx_cd = create_queued_transaction(&mut state, "C", "D", 800_000);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_cd`
+
+warning: unused variable: `tx_da`
+   --> backend/tests/test_lsm_t2_compliant.rs:335:9
+    |
+335 |     let tx_da = create_queued_transaction(&mut state, "D", "A", 900_000);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_tx_da`
+
+warning: unused variable: `result`
+   --> backend/tests/test_lsm_t2_compliant.rs:384:9
+    |
+384 |     let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Should settle");
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+
+warning: variable does not need to be mutable
+  --> backend/tests/test_throughput_progress_fields.rs:77:9
+   |
+77 |     let mut state = SimulationState::new(vec![
+   |         ----^^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `state`
+   --> backend/tests/test_throughput_progress_fields.rs:194:13
+    |
+194 |     let mut state = SimulationState::new(vec![
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_throughput_progress_fields.rs:194:9
+    |
+194 |     let mut state = SimulationState::new(vec![
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_throughput_progress_fields.rs:261:9
+    |
+261 |     let mut state = SimulationState::new(vec![
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_throughput_progress_fields.rs:366:9
+    |
+366 |     let mut state = SimulationState::new(vec![
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: unused imports: `BTreeMap` and `BTreeSet`
+  --> backend/tests/test_lsm_graph.rs:14:24
+   |
+14 | use std::collections::{BTreeMap, BTreeSet};
+   |                        ^^^^^^^^  ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `state`
+   --> backend/tests/test_lsm_graph.rs:346:13
+    |
+346 |     let mut state = create_test_state();
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_lsm_graph.rs:346:9
+    |
+346 |     let mut state = create_test_state();
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `payment-simulator-core-rs` (test "test_policy_json_integration") generated 1 warning
+warning: `payment-simulator-core-rs` (test "test_counterparty_fields") generated 6 warnings (run `cargo fix --test "test_counterparty_fields"` to apply 6 suggestions)
+warning: `payment-simulator-core-rs` (test "test_rtgs_settlement") generated 2 warnings (run `cargo fix --test "test_rtgs_settlement"` to apply 1 suggestion)
+warning: `payment-simulator-core-rs` (test "test_event_emission") generated 8 warnings
+warning: `payment-simulator-core-rs` (test "test_lsm_t2_compliant") generated 9 warnings
+warning: `payment-simulator-core-rs` (test "test_throughput_progress_fields") generated 5 warnings (run `cargo fix --test "test_throughput_progress_fields"` to apply 4 suggestions)
+warning: `payment-simulator-core-rs` (test "test_lsm_graph") generated 3 warnings (run `cargo fix --test "test_lsm_graph"` to apply 2 suggestions)
+warning: unused variable: `orch`
+   --> backend/tests/test_verbose_cli_ffi.rs:114:13
+    |
+114 |     let mut orch = Orchestrator::new(create_test_config()).unwrap();
+    |             ^^^^ help: if this is intentional, prefix it with an underscore: `_orch`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> backend/tests/test_verbose_cli_ffi.rs:114:9
+    |
+114 |     let mut orch = Orchestrator::new(create_test_config()).unwrap();
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::collections::BTreeMap`
+  --> backend/tests/test_lsm_pair_index.rs:13:5
+   |
+13 | use std::collections::BTreeMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `i`
+  --> backend/tests/test_public_signal_fields.rs:60:9
+   |
+60 |     for i in 0..5 {
+   |         ^ help: if this is intentional, prefix it with an underscore: `_i`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `i`
+  --> backend/tests/test_public_signal_fields.rs:85:9
+   |
+85 |     for i in 0..50 {
+   |         ^ help: if this is intentional, prefix it with an underscore: `_i`
+
+warning: unused variable: `i`
+   --> backend/tests/test_public_signal_fields.rs:109:9
+    |
+109 |     for i in 0..500 {
+    |         ^ help: if this is intentional, prefix it with an underscore: `_i`
+
+warning: unused variable: `i`
+   --> backend/tests/test_public_signal_fields.rs:226:9
+    |
+226 |     for i in 0..10 {
+    |         ^ help: if this is intentional, prefix it with an underscore: `_i`
+
+warning: unused variable: `top_1_id`
+   --> backend/tests/test_lsm_awareness_fields.rs:332:9
+    |
+332 |     let top_1_id = context.get_field("top_cpty_1_id");
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_top_1_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `top_2_id`
+   --> backend/tests/test_lsm_awareness_fields.rs:333:9
+    |
+333 |     let top_2_id = context.get_field("top_cpty_2_id");
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_top_2_id`
+
+warning: unused variable: `top_3_id`
+   --> backend/tests/test_lsm_awareness_fields.rs:334:9
+    |
+334 |     let top_3_id = context.get_field("top_cpty_3_id");
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_top_3_id`
+
+warning: unused import: `TransactionStatus`
+ --> backend/tests/test_lsm_duplicate_transactions.rs:7:67
+  |
+7 | use payment_simulator_core_rs::models::transaction::{Transaction, TransactionStatus};
+  |                                                                   ^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated variant `payment_simulator_core_rs::Event::Settlement`: Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events
+   --> backend/tests/test_transaction_splitting.rs:585:40
+    |
+585 |         .filter(|e| matches!(e, Event::Settlement { .. }))
+    |                                        ^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: unused variable: `parent_id`
+   --> backend/tests/test_transaction_splitting.rs:545:9
+    |
+545 |     let parent_id = tx.id().to_string();
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_parent_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `result1`
+   --> backend/tests/test_transaction_splitting.rs:864:9
+    |
+864 |     let result1 = orchestrator.tick().unwrap();
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result1`
+
+warning: unused variable: `result2`
+   --> backend/tests/test_transaction_splitting.rs:917:9
+    |
+917 |     let result2 = orchestrator.tick().unwrap();
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result2`
+
+warning: `payment-simulator-core-rs` (test "test_verbose_cli_ffi") generated 2 warnings (run `cargo fix --test "test_verbose_cli_ffi"` to apply 1 suggestion)
+warning: `payment-simulator-core-rs` (test "test_lsm_pair_index") generated 1 warning (run `cargo fix --test "test_lsm_pair_index"` to apply 1 suggestion)
+warning: `payment-simulator-core-rs` (test "test_public_signal_fields") generated 4 warnings
+warning: `payment-simulator-core-rs` (test "test_lsm_awareness_fields") generated 3 warnings
+warning: `payment-simulator-core-rs` (test "test_lsm_duplicate_transactions") generated 1 warning (run `cargo fix --test "test_lsm_duplicate_transactions"` to apply 1 suggestion)
+warning: `payment-simulator-core-rs` (test "test_transaction_splitting") generated 4 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.03s
+     Running unittests src/lib.rs (/home/user/SimCash/target/debug/deps/payment_simulator_core_rs-42ba3429b4adfc91)
+
+running 228 tests
+test arrivals::tests::test_arrival_config_creation ... ok
+test arrivals::tests::test_arrival_generator_creation ... ok
+test arrivals::tests::test_generate_arrivals_deterministic ... ok
+test arrivals::tests::test_deadline_range ... ok
+test arrivals::tests::test_no_self_transactions ... ok
+test arrivals::tests::test_uniform_distribution_range ... ok
+test events::handler::tests::test_event_handler_get_events_for_tick ... ok
+test events::types::tests::test_one_time_schedule ... ok
+test events::types::tests::test_repeating_schedule ... ok
+test arrivals::tests::test_weighted_counterparty_selection ... ok
+test events::types::tests::test_repeating_schedule_start_at_zero ... ok
+test models::agent::tests::test_available_liquidity_includes_collateral ... ok
+test models::agent::tests::test_available_liquidity_with_negative_balance_and_collateral ... ok
+test models::agent::tests::test_can_pay_with_collateral ... ok
+test models::agent::tests::test_collateral_post_and_withdraw_cycle ... ok
+test models::agent::tests::test_liquidity_pressure_with_collateral ... ok
+test models::agent::tests::test_max_collateral_capacity ... ok
+test models::agent::tests::test_queue1_liquidity_gap_no_gap ... ok
+test models::agent::tests::test_queue1_liquidity_gap_with_collateral ... ok
+test models::agent::tests::test_queue1_liquidity_gap_with_transactions ... ok
+test models::agent::tests::test_remaining_collateral_capacity ... ok
+test models::collateral_event::tests::test_collateral_action_variants ... ok
+test models::collateral_event::tests::test_collateral_event_creation ... ok
+test models::collateral_event::tests::test_collateral_layer_variants ... ok
+test models::event::tests::test_event_agent_id ... ok
+test models::event::tests::test_event_log_basic ... ok
+test models::event::tests::test_event_log_clear ... ok
+test models::event::tests::test_event_log_query_by_agent ... ok
+test models::event::tests::test_event_log_query_by_tick ... ok
+test models::event::tests::test_event_log_query_by_tx_id ... ok
+test models::event::tests::test_event_log_query_by_type ... ok
+test models::event::tests::test_event_tick ... ok
+test models::event::tests::test_event_tx_id ... ok
+test models::event::tests::test_event_type ... ok
+test models::event::tests::test_overdue_events_in_event_log ... ok
+test models::event::tests::test_overdue_transaction_settled_event ... ok
+test models::event::tests::test_transaction_went_overdue_event ... ok
+test models::queue_index::tests::test_empty_index_returns_default_metrics ... ok
+test models::queue_index::tests::test_new_index_is_empty ... ok
+test models::queue_index::tests::test_index_matches_linear_scan ... ok
+test models::queue_index::tests::test_rebuild_clears_previous_index ... ok
+test models::queue_index::tests::test_rebuild_indexes_multiple_agents ... ok
+test models::queue_index::tests::test_rebuild_indexes_multiple_transactions_same_agent ... ok
+test models::queue_index::tests::test_rebuild_indexes_single_transaction ... ok
+test models::queue_index::tests::test_rebuild_with_empty_queue ... ok
+test models::state::tests::test_add_transaction ... ok
+test models::state::tests::test_new_state ... ok
+test models::state::tests::test_queue_transaction ... ok
+test models::state::tests::test_queue_value ... ok
+test models::state::tests::test_total_balance ... ok
+test models::transaction::tests::test_cannot_mark_settled_transaction_overdue ... ok
+test models::transaction::tests::test_mark_overdue_is_idempotent ... ok
+test models::transaction::tests::test_mark_transaction_overdue ... ok
+test models::transaction::tests::test_overdue_transaction_can_still_settle ... ok
+test models::transaction::tests::test_partially_settled_can_become_overdue ... ok
+test models::transaction::tests::test_priority_capped_at_10 ... ok
+test models::transaction::tests::test_set_priority ... ok
+test models::transaction::tests::test_set_priority_caps_at_10 ... ok
+test models::transaction::tests::test_settle_no_longer_rejects_overdue ... ok
+test orchestrator::checkpoint::tests::test_compute_config_hash_deterministic ... ok
+test orchestrator::checkpoint::tests::test_compute_config_hash_different_for_different_configs ... ok
+test policy::tests::test_reprioritize_caps_at_10 ... ok
+test policy::tests::test_reprioritize_changes_transaction_priority ... ok
+test policy::tests::test_reprioritize_decision ... ok
+test policy::tree::context::tests::test_boolean_fields_as_floats ... ok
+test policy::tree::context::tests::test_collateral_utilization_with_posted_collateral ... ok
+test policy::tree::context::tests::test_context_contains_agent_fields ... ok
+test policy::tree::context::tests::test_context_contains_collateral_fields ... ok
+test policy::tree::context::tests::test_context_contains_derived_fields ... ok
+test policy::tree::context::tests::test_context_contains_liquidity_gap_fields ... ok
+test policy::tree::context::tests::test_context_contains_queue2_fields ... ok
+test policy::tree::context::tests::test_context_contains_system_fields ... ok
+test policy::tree::context::tests::test_context_contains_transaction_fields ... ok
+test policy::tree::context::tests::test_context_includes_is_overdue_field ... ok
+test policy::tree::context::tests::test_context_includes_overdue_duration ... ok
+test policy::tree::context::tests::test_field_lookup_returns_correct_value ... ok
+test policy::tree::context::tests::test_missing_field_returns_error ... ok
+test policy::tree::context::tests::test_overdue_duration_zero_when_not_overdue ... ok
+test policy::tree::context::tests::test_split_transaction_fields ... ok
+test policy::tree::context::tests::test_ticks_to_deadline_negative_when_past_deadline ... ok
+test policy::tree::executor::tests::test_evaluate_end_of_tick_collateral_with_condition ... ok
+test policy::tree::executor::tests::test_evaluate_end_of_tick_collateral_without_tree ... ok
+test policy::tree::executor::tests::test_evaluate_end_of_tick_collateral_with_tree ... ok
+test policy::tree::executor::tests::test_evaluate_strategic_collateral_without_tree ... ok
+test policy::tree::executor::tests::test_evaluate_strategic_collateral_with_tree ... ok
+test policy::tree::executor::tests::test_tree_policy_creation ... ok
+test policy::tree::executor::tests::test_tree_policy_evaluates_queue ... ok
+test policy::tree::executor::tests::test_tree_policy_evaluates_multiple_transactions ... ok
+test policy::tree::executor::tests::test_tree_policy_from_json ... ok
+test policy::tree::executor::tests::test_tree_policy_with_parameters ... ok
+test policy::tree::factory::tests::test_create_deadline_policy_with_custom_threshold ... ok
+test policy::tree::factory::tests::test_create_deadline_policy_with_default_threshold ... ok
+test policy::tree::factory::tests::test_create_fifo_policy ... ok
+test policy::tree::factory::tests::test_create_liquidity_aware_policy ... ok
+test policy::tree::interpreter::tests::test_action_parameters_evaluated_from_computation ... ok
+test policy::tree::factory::tests::test_create_liquidity_aware_with_custom_params ... ok
+test policy::tree::interpreter::tests::test_action_parameters_from_field_reference ... ok
+test policy::tree::factory::tests::test_create_mock_splitting_policy ... ok
+test policy::tree::interpreter::tests::test_build_collateral_decision_computed_amount ... ok
+test policy::tree::factory::tests::test_create_liquidity_splitting_policy ... ok
+test policy::tree::interpreter::tests::test_build_collateral_decision_hold ... ok
+test policy::tree::interpreter::tests::test_build_collateral_decision_missing_amount ... ok
+test policy::tree::interpreter::tests::test_build_collateral_decision_post ... ok
+test policy::tree::interpreter::tests::test_build_collateral_decision_withdraw ... ok
+test policy::tree::interpreter::tests::test_build_decision_invalid_num_splits ... ok
+test policy::tree::interpreter::tests::test_build_decision_missing_parameter ... ok
+test policy::tree::interpreter::tests::test_build_drop_decision ... ok
+test policy::tree::interpreter::tests::test_build_hold_decision_with_reason ... ok
+test policy::tree::interpreter::tests::test_build_release_decision ... ok
+test policy::tree::interpreter::tests::test_build_reprioritize_decision_caps_priority_at_255 ... ok
+test policy::tree::interpreter::tests::test_build_reprioritize_decision_from_field ... ok
+test policy::tree::interpreter::tests::test_build_reprioritize_decision_missing_parameter ... ok
+test policy::tree::interpreter::tests::test_build_reprioritize_decision_with_computed_priority ... ok
+test policy::tree::interpreter::tests::test_build_reprioritize_decision_with_literal_priority ... ok
+test policy::tree::interpreter::tests::test_build_submit_partial_with_num_splits ... ok
+test policy::tree::interpreter::tests::test_eval_add_computation ... ok
+test policy::tree::interpreter::tests::test_eval_and_expression ... ok
+test policy::tree::interpreter::tests::test_eval_comparison_with_epsilon ... ok
+test policy::tree::interpreter::tests::test_eval_computation_with_field_reference ... ok
+test policy::tree::interpreter::tests::test_eval_divide_by_zero_error ... ok
+test policy::tree::interpreter::tests::test_eval_divide_computation ... ok
+test policy::tree::interpreter::tests::test_eval_empty_max_error ... ok
+test policy::tree::interpreter::tests::test_eval_equal_expression ... ok
+test policy::tree::interpreter::tests::test_eval_field_reference ... ok
+test policy::tree::interpreter::tests::test_eval_greater_or_equal_expression ... ok
+test policy::tree::interpreter::tests::test_eval_greater_than_expression ... ok
+test policy::tree::interpreter::tests::test_eval_less_or_equal_expression ... ok
+test policy::tree::interpreter::tests::test_eval_less_than_expression ... ok
+test policy::tree::interpreter::tests::test_eval_literal_boolean ... ok
+test policy::tree::interpreter::tests::test_eval_literal_integer ... ok
+test policy::tree::interpreter::tests::test_eval_literal_number ... ok
+test policy::tree::interpreter::tests::test_eval_max_computation ... ok
+test policy::tree::interpreter::tests::test_eval_min_computation ... ok
+test policy::tree::interpreter::tests::test_eval_missing_field_error ... ok
+test policy::tree::interpreter::tests::test_eval_missing_param_error ... ok
+test policy::tree::interpreter::tests::test_eval_multiply_computation ... ok
+test policy::tree::interpreter::tests::test_eval_nested_computation ... ok
+test policy::tree::interpreter::tests::test_eval_nested_logical ... ok
+test policy::tree::interpreter::tests::test_eval_not_equal_expression ... ok
+test policy::tree::interpreter::tests::test_eval_not_expression ... ok
+test policy::tree::interpreter::tests::test_eval_or_expression ... ok
+test policy::tree::interpreter::tests::test_eval_param_reference ... ok
+test policy::tree::interpreter::tests::test_eval_short_circuit_and ... ok
+test policy::tree::interpreter::tests::test_eval_short_circuit_or ... ok
+test policy::tree::interpreter::tests::test_eval_subtract_computation ... ok
+test policy::tree::interpreter::tests::test_traverse_nested_tree ... ok
+test policy::tree::interpreter::tests::test_traverse_reaches_correct_action ... ok
+test policy::tree::interpreter::tests::test_traverse_simple_tree ... ok
+test policy::tree::scenario_tests::tests::test_policy_comparison_summary ... ignored, Disabled after trait removal - comparison tests no longer applicable
+test policy::tree::interpreter::tests::test_traverse_with_complex_conditions ... ok
+test policy::tree::scenario_tests::tests::test_scenario_eod_rush ... ignored, Disabled after trait removal - comparison tests no longer applicable
+test policy::tree::scenario_tests::tests::test_scenario_high_liquidity ... ignored, Disabled after trait removal - comparison tests no longer applicable
+test policy::tree::interpreter::tests::test_traverse_with_parameters ... ok
+test policy::tree::scenario_tests::tests::test_scenario_liquidity_squeeze ... ignored, Disabled after trait removal - comparison tests no longer applicable
+test policy::tree::scenario_tests::tests::test_scenario_normal_operations ... ignored, Disabled after trait removal - comparison tests no longer applicable
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_based_hold_decision ... ok
+test policy::tree::scenario_tests::tests::test_scenario_urgent_deadline_override ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_based_release_decision ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_comparison_logic ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_context_determinism ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_context_integration_with_tree ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_context_with_zero_rates ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_fields_available_in_context ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_integration_with_validation ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_precision_no_float_contamination ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_cost_values_match_input ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_deadline_penalty_available ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_derived_cost_delay_one_tick ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_derived_cost_overdraft_one_tick ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_eod_penalty_available ... ok
+test policy::tree::tests::test_cost_context::test_cost_context::test_split_friction_available ... ok
+test policy::tree::tests::test_new_policies::test_load_agile_regional_bank_policy ... ok
+test policy::tree::tests::test_new_policies::test_load_goliath_national_bank_policy ... ok
+test policy::tree::tests::test_new_policies::test_load_momentum_investment_bank_policy ... ok
+test policy::tree::tests::test_phase_9_5_integration::test_phase_9_5_integration::test_all_phase_9_5_features_in_single_context ... ok
+test policy::tree::tests::test_phase_9_5_integration::test_phase_9_5_integration::test_adaptive_liquidity_manager_policy_loads ... ok
+test policy::tree::tests::test_new_policies::test_all_three_policies_have_distinct_strategies ... ok
+test policy::tree::tests::test_phase_9_5_integration::test_phase_9_5_integration::test_cost_based_credit_decision ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_derived_ticks_remaining_in_day ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_derived_day_progress_fraction ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_eod_rush_threshold_configurable ... ok
+test policy::tree::tests::test_phase_9_5_integration::test_phase_9_5_integration::test_eod_rush_triggers_aggressive_release ... ok
+test policy::tree::tests::test_phase_9_5_integration::test_phase_9_5_integration::test_end_of_tick_collateral_withdrawal ... ok
+test policy::tree::tests::test_phase_9_5_integration::test_phase_9_5_integration::test_strategic_collateral_eod_gap ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_is_eod_rush_boolean_field ... ok
+test policy::tree::tests::test_phase_9_5_integration::test_phase_9_5_integration::test_early_day_conservative_strategy ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_system_config_determinism ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_multi_day_simulation_context ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_system_context_integration_with_tree ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_system_current_day_available ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_system_fields_validation ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_system_tick_in_day_available ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_system_ticks_per_day_available ... ok
+test policy::tree::tests::test_system_context::test_system_context::test_time_based_policy_behavior ... ok
+test policy::tree::types::tests::test_node_id_accessor ... ok
+test policy::tree::types::tests::test_parse_all_action_types ... ok
+test policy::tree::types::tests::test_parse_all_value_types ... ok
+test policy::tree::types::tests::test_parse_all_expression_types ... ok
+test policy::tree::types::tests::test_parse_minimal_tree ... ok
+test policy::tree::types::tests::test_parse_nested_conditions ... ok
+test policy::tree::types::tests::test_parse_with_computations ... ok
+test policy::tree::types::tests::test_reject_invalid_json ... ok
+test policy::tree::types::tests::test_tree_def_deserialization_simple ... ok
+test policy::tree::validation::tests::test_allow_division_by_field_reference ... ok
+test policy::tree::validation::tests::test_reject_division_by_literal_zero ... ok
+test policy::tree::validation::tests::test_reject_duplicate_node_ids ... ok
+test policy::tree::validation::tests::test_reject_invalid_field_references ... ok
+test policy::tree::validation::tests::test_reject_invalid_parameter_references ... ok
+test policy::tree::validation::tests::test_validate_tree_depth_ok ... ok
+test policy::tree::validation::tests::test_validate_unique_node_ids ... ok
+test policy::tree::validation::tests::test_validate_valid_field_references ... ok
+test policy::tree::validation::tests::test_validate_valid_parameter_references ... ok
+test rng::xorshift::tests::test_next_f64_deterministic ... ok
+test rng::xorshift::tests::test_next_f64_in_range ... ok
+test rng::xorshift::tests::test_zero_seed_converted_to_nonzero ... ok
+test settlement::lsm::graph::tests::test_aggregated_graph_empty ... ok
+test settlement::lsm::graph::tests::test_cycle_priority_throughput_first ... ok
+test settlement::lsm::pair_index::tests::test_pair_bucket_add_remove ... ok
+test settlement::lsm::pair_index::tests::test_ready_key_new_canonicalizes ... ok
+test settlement::rtgs::tests::test_insufficient_liquidity ... ok
+test settlement::rtgs::tests::test_overdue_transaction_settles_when_liquidity_arrives ... ok
+test settlement::rtgs::tests::test_overdue_transactions_remain_in_queue ... ok
+test settlement::rtgs::tests::test_system_enforces_overdue_without_policy ... ok
+test settlement::rtgs::tests::test_try_settle_accepts_overdue_transactions ... ok
+test settlement::rtgs::tests::test_try_settle_basic ... ok
+test settlement::rtgs::tests::test_try_settle_with_credit ... ok
+test core::time::tests::test_zero_ticks_per_day_panics - should panic ... ok
+test rng::xorshift::tests::test_range_invalid_bounds - should panic ... ok
+
+test result: ok. 223 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running tests/orchestrator_scenario_events_test.rs (/home/user/SimCash/target/debug/deps/orchestrator_scenario_events_test-79581dd5e8069dbf)
+
+running 10 tests
+test test_orchestrator_collateral_adjustment ... ok
+test test_orchestrator_direct_transfer_event ... ok
+test test_orchestrator_multiple_events_same_tick ... ok
+test test_orchestrator_repeating_direct_transfer ... ok
+test test_scenario_events_are_logged ... ok
+test test_orchestrator_agent_arrival_rate_change ... ok
+test test_orchestrator_counterparty_weight_change ... ok
+test test_orchestrator_global_arrival_rate_change ... ok
+test test_orchestrator_deadline_window_change ... ok
+test test_scenario_events_are_deterministic ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/scenario_events_test.rs (/home/user/SimCash/target/debug/deps/scenario_events_test-559dc67b2168771a)
+
+running 14 tests
+test test_collateral_adjustment_cannot_go_negative ... ok
+test test_collateral_adjustment_invalid_agent ... ok
+test test_collateral_adjustment_negative ... ok
+test test_collateral_adjustment_positive ... ok
+test test_direct_transfer_can_go_negative ... ok
+test test_direct_transfer_execution ... ok
+test test_direct_transfer_invalid_receiver ... ok
+test test_direct_transfer_invalid_sender ... ok
+test test_event_scheduler_mixed_one_time_and_repeating ... ok
+test test_event_scheduler_multiple_events_same_tick ... ok
+test test_event_scheduler_one_time_event ... ok
+test test_event_scheduler_repeating_event ... ok
+test test_scenario_event_handler_full_integration ... ok
+test test_scenario_events_are_deterministic ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/test_agent.rs (/home/user/SimCash/target/debug/deps/test_agent-03d6c0a51d637600)
+
+running 17 tests
+test test_agent_new ... ok
+test test_available_liquidity_negative_balance ... ok
+test test_available_liquidity_positive_balance ... ok
+test test_available_liquidity_zero_balance ... ok
+test test_can_pay_insufficient_liquidity ... ok
+test test_can_pay_sufficient_balance ... ok
+test test_credit_from_negative_balance ... ok
+test test_credit_success ... ok
+test test_credit_used ... ok
+test test_debit_exceeds_liquidity ... ok
+test test_debit_into_credit ... ok
+test test_debit_success ... ok
+test test_is_using_credit ... ok
+test test_multiple_transactions ... ok
+test test_zero_amount_operations ... ok
+test test_credit_negative_amount_panics - should panic ... ok
+test test_debit_negative_amount_panics - should panic ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/test_agent_collateral_math.rs (/home/user/SimCash/target/debug/deps/test_agent_collateral_math-e18fb85f23cd45fb)
+
+running 31 tests
+test test_allowed_overdraft_limit::test_allowed_overdraft_100_percent_haircut ... ok
+test test_allowed_overdraft_limit::test_allowed_overdraft_only_unsecured_cap ... ok
+test test_allowed_overdraft_limit::test_allowed_overdraft_no_collateral ... ok
+test test_allowed_overdraft_limit::test_allowed_overdraft_with_2_percent_haircut ... ok
+test test_allowed_overdraft_limit::test_allowed_overdraft_with_10_percent_haircut ... ok
+test test_allowed_overdraft_limit::test_allowed_overdraft_with_collateral_no_haircut ... ok
+test test_allowed_overdraft_limit::test_allowed_overdraft_with_unsecured_cap ... ok
+test test_credit_used::test_credit_used_deep_overdraft ... ok
+test test_credit_used::test_credit_used_negative_balance ... ok
+test test_credit_used::test_credit_used_positive_balance ... ok
+test test_credit_used::test_credit_used_zero_balance ... ok
+test test_headroom::test_headroom_fully_utilized ... ok
+test test_headroom::test_headroom_no_usage ... ok
+test test_headroom::test_headroom_over_limit_violation ... ok
+test test_headroom::test_headroom_with_unsecured_cap ... ok
+test test_headroom::test_headroom_partial_usage ... ok
+test test_invariants::test_invariant_i1_credit_used_never_exceeds_limit_at_initialization ... ok
+test test_invariants::test_invariant_i2_withdrawal_preserves_headroom ... ok
+test test_invariants::test_invariant_i3_buffer_preserved ... ok
+test test_invariants::test_tick_282_violation_state_detected ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_100_percent_haircut ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_100_percent_haircut_with_unsecured ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_at_limit ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_no_usage_no_buffer ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_no_usage_with_buffer ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_over_limit_violation ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_rounding_precision ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_with_active_overdraft ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_with_overdraft_and_buffer ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_with_unsecured_cap ... ok
+test test_max_withdrawable_collateral::test_max_withdrawable_zero_haircut_edge ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/test_bank_budgets.rs (/home/user/SimCash/target/debug/deps/test_bank_budgets-57cc78fe78ac9400)
+
+running 29 tests
+test test_bank_tree_deserializes_from_json ... ok
+test test_budget_enforcement_exact_match ... ok
+test test_budget_enforcement_with_zero_budget ... ok
+test test_budget_resets_each_tick ... ok
+test test_budget_state_checks_if_amount_fits ... ok
+test test_budget_state_checks_per_counterparty_limit ... ok
+test test_budget_state_tracks_per_counterparty_usage ... ok
+test test_budget_state_tracks_remaining_budget ... ok
+test test_focus_list_allows_focus_counterparties ... ok
+test test_focus_list_blocks_non_focus_counterparties ... ok
+test test_focus_list_empty_means_all_allowed ... ok
+test test_multiple_releases_deplete_budget ... ok
+test test_negative_budget_invalid ... ok
+test test_negative_per_counterparty_limit_invalid ... ok
+test test_no_budget_set_means_unlimited ... ok
+test test_per_counterparty_limit_allows_within ... ok
+test test_per_counterparty_limit_blocks_excess ... ok
+test test_per_counterparty_limit_none_means_no_limit ... ok
+test test_per_counterparty_tracking_multiple_counterparties ... ok
+test test_per_counterparty_usage_resets_each_tick ... ok
+test test_policy_without_bank_tree_is_valid ... ok
+test test_release_exceeding_budget_becomes_hold ... ok
+test test_release_within_budget_succeeds ... ok
+test test_set_release_budget_creates_budget_state ... ok
+test test_set_release_budget_with_all_parameters ... ok
+test test_set_release_budget_with_focus_list ... ok
+test test_set_release_budget_with_focus_list_deserializes ... ok
+test test_set_release_budget_with_per_counterparty_limit ... ok
+test test_zero_budget_valid ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/test_bps_conversion.rs (/home/user/SimCash/target/debug/deps/test_bps_conversion-0200eb5361f0a3ba)
+
+running 7 tests
+test test_collateral_cost_2_bps ... ok
+test test_collateral_cost_0_0005_bps ... ok
+test test_overdraft_cost_0_8_bps ... ok
+test test_delay_cost_0_0001_already_correct ... ok
+test test_overdraft_cost_1_bps ... ok
+test test_very_small_bps_rounds_to_zero ... ok
+test test_zero_bps_gives_zero_cost ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/test_checkpoint.rs (/home/user/SimCash/target/debug/deps/test_checkpoint-23e2886f8713a30b)
+
+running 9 tests
+test test_corrupted_state_json_rejected ... ok
+test test_config_mismatch_rejected ... ok
+test test_save_state_captures_agent_data ... ok
+test test_load_state_restores_exact_state ... ok
+test test_save_state_includes_all_required_fields ... ok
+test test_save_state_returns_valid_json ... ok
+test test_save_load_roundtrip_preserves_state_multiple_seeds ... ok
+test test_balance_conservation_preserved ... ok
+test test_determinism_after_restore ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/test_collateral_edge_cases.rs (/home/user/SimCash/target/debug/deps/test_collateral_edge_cases-48a72a7760339add)
+
+running 15 tests
+test test_cross_agent_collateral_isolation ... ok
+test test_capacity_invariant_maintained ... ok
+test test_collateral_costs_accrue_per_tick ... ok
+test test_hold_collateral_action_is_noop ... ok
+test test_multiple_posts_respect_capacity ... ok
+test test_posting_beyond_capacity_fails ... ok
+test test_posting_collateral_enables_transaction_settlement ... ok
+test test_posting_collateral_increases_credit_limit ... ok
+test test_posting_exactly_at_capacity_succeeds ... ok
+test test_posting_zero_collateral_is_rejected ... ok
+test test_withdrawing_all_collateral_succeeds ... ok
+test test_withdrawing_collateral_decreases_credit_limit ... ok
+test test_withdrawing_with_no_posted_collateral_is_noop ... ok
+test test_withdrawing_more_than_posted_fails ... ok
+test test_withdrawing_zero_collateral_is_rejected ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/test_collateral_event_tracking.rs (/home/user/SimCash/target/debug/deps/test_collateral_event_tracking-de6bc47cd795e6f2)
+
+running 7 tests
+test test_collateral_event_action_variants ... ok
+test test_collateral_event_layer_variants ... ok
+test test_collateral_event_types_exist ... ok
+test test_collateral_event_has_all_required_fields ... ok
+test test_collateral_events_filter_by_day ... ok
+test test_get_collateral_events_for_day_method_exists ... ok
+test test_events_persist_across_ticks ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/test_collateral_timer_invariants.rs (/home/user/SimCash/target/debug/deps/test_collateral_timer_invariants-01f8e8007dbc94a7)
+
+running 7 tests
+test test_timer_at_exact_credit_limit ... ok
+test test_multiple_timers_same_tick_respect_headroom ... ok
+test test_timer_blocked_when_no_headroom_available ... ok
+test test_timer_clamps_withdrawal_to_safe_amount ... ok
+test test_timer_respects_minimum_holding_period ... ok
+test test_timer_respects_safety_buffer ... ok
+test test_timer_withdrawal_respects_headroom_when_overdrawn ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/test_collateral_timer_orchestrator.rs (/home/user/SimCash/target/debug/deps/test_collateral_timer_orchestrator-000bf5d0dc49b058)
+
+running 12 tests
+test test_event_emitted_when_timer_fires ... ok
+test test_full_timer_lifecycle ... ok
+test test_multiple_agents_with_timers ... ok
+test test_multiple_timers_for_same_agent ... ok
+test test_state_can_have_agents_with_timers ... ok
+test test_timer_caps_withdrawal_at_actual_posted_collateral ... ok
+test test_timer_does_not_fire_before_due_tick ... ok
+test test_timer_only_fires_once ... ok
+test test_timer_processing_happens_in_tick_loop ... ok
+test test_timer_withdrawal_reduces_posted_collateral ... ok
+test test_withdrawal_cannot_exceed_posted_collateral ... ok
+test test_timer_withdrawal_works_when_balance_overdrafted ... FAILED
+
+failures:
+
+---- test_timer_withdrawal_works_when_balance_overdrafted stdout ----
+
+thread 'test_timer_withdrawal_works_when_balance_overdrafted' (12754) panicked at backend/tests/test_collateral_timer_orchestrator.rs:374:5:
+assertion `left == right` failed
+  left: 146000
+ right: 246000
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/std/src/panicking.rs:698:5
+   1: core::panicking::panic_fmt
+             at /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/core/src/panicking.rs:75:14
+   2: core::panicking::assert_failed_inner
+             at /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/core/src/panicking.rs:439:17
+   3: core::panicking::assert_failed
+             at /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/core/src/panicking.rs:394:5
+   4: test_collateral_timer_orchestrator::test_timer_withdrawal_works_when_balance_overdrafted
+             at ./tests/test_collateral_timer_orchestrator.rs:374:5
+   5: test_collateral_timer_orchestrator::test_timer_withdrawal_works_when_balance_overdrafted::{{closure}}
+             at ./tests/test_collateral_timer_orchestrator.rs:351:58
+   6: core::ops::function::FnOnce::call_once
+             at /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/core/src/ops/function.rs:250:5
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    test_timer_withdrawal_works_when_balance_overdrafted
+
+test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+error: test failed, to rerun pass `--test test_collateral_timer_orchestrator`

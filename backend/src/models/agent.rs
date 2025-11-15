@@ -1484,7 +1484,7 @@ mod tests {
     #[test]
     fn test_available_liquidity_includes_collateral() {
         let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
-    /// agent.set_unsecured_cap(500_000);
+        agent.set_unsecured_cap(500_000);
 
         // Initially: balance + credit = 1M + 500k = 1.5M
         assert_eq!(agent.available_liquidity(), 1_500_000);
@@ -1499,7 +1499,7 @@ mod tests {
     #[test]
     fn test_available_liquidity_with_negative_balance_and_collateral() {
         let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
-    /// agent.set_unsecured_cap(500_000);
+        agent.set_unsecured_cap(500_000);
         agent.set_posted_collateral(200_000);
 
         // Use overdraft
@@ -1516,8 +1516,8 @@ mod tests {
 
     #[test]
     fn test_max_collateral_capacity() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
-    /// agent.set_unsecured_cap(500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
 
         // Max capacity = 10x credit limit
         assert_eq!(agent.max_collateral_capacity(), 5_000_000);
@@ -1526,7 +1526,7 @@ mod tests {
     #[test]
     fn test_remaining_collateral_capacity() {
         let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
-    /// agent.set_unsecured_cap(500_000);
+        agent.set_unsecured_cap(500_000);
 
         // Initially: full capacity available
         assert_eq!(agent.remaining_collateral_capacity(), 5_000_000);
@@ -1547,7 +1547,7 @@ mod tests {
     #[test]
     fn test_queue1_liquidity_gap_no_gap() {
         let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
-    /// agent.set_unsecured_cap(500_000);
+        agent.set_unsecured_cap(500_000);
         let mut state = SimulationState::new(vec![agent.clone()]);
 
         // Agent has 1.5M available liquidity
@@ -1559,7 +1559,7 @@ mod tests {
     #[test]
     fn test_queue1_liquidity_gap_with_transactions() {
         let mut agent = Agent::new("BANK_A".to_string(), 500_000);
-    /// agent.set_unsecured_cap(300_000);
+        agent.set_unsecured_cap(300_000);
         let mut state = SimulationState::new(vec![
             agent.clone(),
             Agent::new("BANK_B".to_string(), 1_000_000),
@@ -1594,7 +1594,7 @@ mod tests {
     #[test]
     fn test_queue1_liquidity_gap_with_collateral() {
         let mut agent = Agent::new("BANK_A".to_string(), 500_000);
-    /// agent.set_unsecured_cap(300_000);
+        agent.set_unsecured_cap(300_000);
         agent.set_posted_collateral(200_000); // Add collateral
 
         let mut state = SimulationState::new(vec![
@@ -1619,7 +1619,7 @@ mod tests {
     #[test]
     fn test_liquidity_pressure_with_collateral() {
         let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
-    /// agent.set_unsecured_cap(500_000);
+        agent.set_unsecured_cap(500_000);
         agent.set_posted_collateral(200_000);
 
         // Total liquidity: 1M + 500k + 200k = 1.7M
@@ -1631,7 +1631,7 @@ mod tests {
     #[test]
     fn test_can_pay_with_collateral() {
         let mut agent = Agent::new("BANK_A".to_string(), 500_000);
-    /// agent.set_unsecured_cap(300_000);
+        agent.set_unsecured_cap(300_000);
         agent.set_posted_collateral(400_000);
 
         // Available: 500k + 300k + (400k × 0.98) = 500k + 300k + 392k = 1.192M
@@ -1643,7 +1643,7 @@ mod tests {
     #[test]
     fn test_collateral_post_and_withdraw_cycle() {
         let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
-    /// agent.set_unsecured_cap(500_000);
+        agent.set_unsecured_cap(500_000);
 
         // Initial state
         assert_eq!(agent.posted_collateral(), 0);

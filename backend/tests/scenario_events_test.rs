@@ -234,7 +234,8 @@ fn test_collateral_adjustment_positive() {
 
 #[test]
 fn test_collateral_adjustment_negative() {
-    let agent_a = Agent::new("A".to_string(), 100_000);
+    let mut agent_a = Agent::new("A".to_string(), 100_000);
+    agent_a.set_unsecured_cap(100_000); // Start with 100k unsecured cap
     let mut state = SimulationState::new(vec![agent_a]);
 
     let event = ScenarioEvent::CollateralAdjustment {

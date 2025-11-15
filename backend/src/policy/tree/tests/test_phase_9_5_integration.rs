@@ -222,11 +222,12 @@ mod test_phase_9_5_integration {
         // Agent with:
         // - Low balance
         // - Queued transactions (creating liquidity gap)
-        // - Collateral capacity available (10x credit_limit = 10x50k = 500k)
+        // - Collateral capacity available (10x unsecured_cap = 10x50k = 500k)
         let mut agent = Agent::new(
             "BANK_A".to_string(),
             100_000  // Balance
         );
+        agent.set_unsecured_cap(50_000); // $500 unsecured overdraft
 
         // Queue transactions totaling 300k (gap = 300k - 100k = 200k)
         let tx1 = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 150_000, tick, tick + 20);

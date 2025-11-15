@@ -354,6 +354,7 @@ fn test_timer_withdrawal_works_when_balance_overdrafted() {
     // the situation worse, but it's allowed (agent maintains control over collateral)
 
     let mut agent = Agent::new("BANK_A".to_string(), -50_000); // Starting with negative balance (overdrafted)
+    agent.set_unsecured_cap(100_000); // $1,000 unsecured overdraft capacity
 
     // Agent has posted collateral
     agent.set_posted_collateral(200_000);

@@ -1376,7 +1376,8 @@ mod tests {
 
     fn create_test_context() -> (EvalContext, HashMap<String, f64>) {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
-        let agent = Agent::new("BANK_A".to_string(), 500_000);
+        let mut agent = Agent::new("BANK_A".to_string(), 500_000);
+        agent.set_unsecured_cap(200_000); // $2,000 unsecured overdraft capacity
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = CostRates::default();
 
@@ -1619,7 +1620,7 @@ mod tests {
     fn test_eval_nested_computation() {
         let (context, params) = create_test_context();
 
-        // (balance + credit_limit) / 2
+        // (balance + unsecured_cap) / 2
         let computation = Computation::Divide {
             left: Value::Compute {
                 compute: Box::new(Computation::Add {
@@ -1627,7 +1628,7 @@ mod tests {
                         field: "balance".to_string(),
                     },
                     right: Value::Field {
-                        field: "credit_limit".to_string(),
+                        field: "unsecured_cap".to_string(),
                     },
                 }),
             },

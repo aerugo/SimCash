@@ -7,7 +7,8 @@ use payment_simulator_core_rs::Agent;
 
 #[test]
 fn test_agent_new() {
-    let agent = Agent::new("BANK_A".to_string(), 1000000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
 
     assert_eq!(agent.id(), "BANK_A");
     assert_eq!(agent.balance(), 1000000); // $10,000.00 in cents
@@ -16,15 +17,17 @@ fn test_agent_new() {
 
 #[test]
 fn test_available_liquidity_positive_balance() {
-    let agent = Agent::new("BANK_A".to_string(), 1000000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
 
-    // Available = balance + credit_limit
+    // Available = balance + unsecured_cap
     assert_eq!(agent.available_liquidity(), 1500000);
 }
 
 #[test]
 fn test_available_liquidity_zero_balance() {
-    let agent = Agent::new("BANK_A".to_string(), 0);
+    let mut agent = Agent::new("BANK_A".to_string(), 0);
+    agent.set_unsecured_cap(500000);
 
     // Can use credit
     assert_eq!(agent.available_liquidity(), 500000);
@@ -34,9 +37,10 @@ fn test_available_liquidity_zero_balance() {
 fn test_available_liquidity_negative_balance() {
     // Agent is using some credit
     let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
     agent.debit(1200000).unwrap(); // Use $2,000 more than balance
 
-    // Balance = -200000, credit_limit = 500000
+    // Balance = -200000, unsecured_cap = 500000
     // Available = 500000 - 200000 = 300000
     assert_eq!(agent.balance(), -200000);
     assert_eq!(agent.available_liquidity(), 300000);
@@ -44,7 +48,8 @@ fn test_available_liquidity_negative_balance() {
 
 #[test]
 fn test_can_pay_sufficient_balance() {
-    let agent = Agent::new("BANK_A".to_string(), 1000000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
 
     assert!(agent.can_pay(500000)); // Can pay $5,000
     assert!(agent.can_pay(1000000)); // Can pay exactly balance
@@ -53,7 +58,8 @@ fn test_can_pay_sufficient_balance() {
 
 #[test]
 fn test_can_pay_insufficient_liquidity() {
-    let agent = Agent::new("BANK_A".to_string(), 1000000);
+    let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
 
     // Total available = 1,500,000
     assert!(!agent.can_pay(1500001)); // Can't pay more than available
@@ -72,6 +78,7 @@ fn test_debit_success() {
 #[test]
 fn test_debit_into_credit() {
     let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
 
     // Debit more than balance but within credit limit
     let result = agent.debit(1200000);
@@ -82,6 +89,7 @@ fn test_debit_into_credit() {
 #[test]
 fn test_debit_exceeds_liquidity() {
     let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
 
     // Try to debit more than available liquidity
     let result = agent.debit(2000000);
@@ -132,6 +140,7 @@ fn test_zero_amount_operations() {
 #[test]
 fn test_is_using_credit() {
     let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
 
     assert!(!agent.is_using_credit());
 
@@ -143,6 +152,7 @@ fn test_is_using_credit() {
 #[test]
 fn test_credit_used() {
     let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    agent.set_unsecured_cap(500000);
 
     assert_eq!(agent.credit_used(), 0);
 
