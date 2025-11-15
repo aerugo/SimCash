@@ -1171,17 +1171,26 @@ def replay_simulation(
                     # Add policy events to events list for display
                     all_events = events + policy_events
 
+                    # DISCREPANCY #4 FIX: Calculate total_cost from CostAccrual events
+                    # NOT from agent_states (which only exist with --full-replay)
+                    # This ensures cost breakdown displays even without --full-replay
+                    total_cost = 0
+                    for event in cost_accrual_events:
+                        # CostAccrual events have individual cost amounts
+                        total_cost += event.get("liquidity_cost", 0)
+                        total_cost += event.get("delay_cost", 0)
+                        total_cost += event.get("collateral_cost", 0)
+                        total_cost += event.get("penalty_cost", 0)
+                        total_cost += event.get("split_friction_cost", 0)
+
                     # Query agent states and queue snapshots (needed for DatabaseStateProvider)
                     agent_states_list = []
                     queue_snapshots = {}
-                    total_cost = 0
                     if has_full_replay:
                         agent_states_list = get_tick_agent_states(db_manager.conn, simulation_id, tick_num)
                         queue_snapshots = get_tick_queue_snapshots(db_manager.conn, simulation_id, tick_num)
-                        # Calculate total cost from agent states
-                        for state in agent_states_list:
-                            costs = state.get("costs", {})
-                            total_cost += costs.get("total", 0)
+                        # NOTE: total_cost already calculated from CostAccrual events above
+                        # No need to recalculate from agent_states (would duplicate)
 
                     # Convert agent_states list to dict for DatabaseStateProvider
                     agent_states_dict = {state["agent_id"]: state for state in agent_states_list}
