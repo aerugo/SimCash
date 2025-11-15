@@ -1,11 +1,11 @@
-"""Test that persistence layer captures credit_limit for replay."""
+"""Test that persistence layer captures unsecured_cap for replay."""
 import pytest
 from payment_simulator._core import Orchestrator
 from payment_simulator.cli.execution.persistence import PersistenceManager
 
 
 class TestPersistenceManagerCapturesCreditLimit:
-    """Test that PersistenceManager captures credit_limit during full replay."""
+    """Test that PersistenceManager captures unsecured_cap during full replay."""
 
     @pytest.fixture
     def orchestrator(self):
@@ -31,8 +31,8 @@ class TestPersistenceManagerCapturesCreditLimit:
         }
         return Orchestrator.new(config)
 
-    def test_persistence_manager_buffers_credit_limit(self, orchestrator):
-        """PersistenceManager should buffer credit_limit in agent_states."""
+    def test_persistence_manager_buffers_unsecured_cap(self, orchestrator):
+        """PersistenceManager should buffer unsecured_cap in agent_states."""
         # Mock db_manager
         class MockDBManager:
             pass
@@ -54,12 +54,12 @@ class TestPersistenceManagerCapturesCreditLimit:
         # Find BANK_A state
         bank_a_state = [s for s in agent_states if s["agent_id"] == "BANK_A"][0]
 
-        # CRITICAL: credit_limit must be in the buffered data
-        assert "credit_limit" in bank_a_state, \
-            "PersistenceManager must buffer credit_limit for replay"
-        assert bank_a_state["credit_limit"] == 500000
+        # CRITICAL: unsecured_cap must be in the buffered data
+        assert "unsecured_cap" in bank_a_state, \
+            "PersistenceManager must buffer unsecured_cap for replay"
+        assert bank_a_state["unsecured_cap"] == 500000
 
-    def test_all_agents_credit_limits_buffered(self, orchestrator):
+    def test_all_agents_unsecured_caps_buffered(self, orchestrator):
         """All agents' credit limits should be buffered correctly."""
         class MockDBManager:
             pass
@@ -79,20 +79,20 @@ class TestPersistenceManagerCapturesCreditLimit:
         bank_a = [s for s in agent_states if s["agent_id"] == "BANK_A"][0]
         bank_b = [s for s in agent_states if s["agent_id"] == "BANK_B"][0]
 
-        assert "credit_limit" in bank_a
-        assert bank_a["credit_limit"] == 500000
-        assert "credit_limit" in bank_b
-        assert bank_b["credit_limit"] == 1000000
+        assert "unsecured_cap" in bank_a
+        assert bank_a["unsecured_cap"] == 500000
+        assert "unsecured_cap" in bank_b
+        assert bank_b["unsecured_cap"] == 1000000
 
 
 class TestDatabaseStateProviderWithPersistedCreditLimit:
-    """Test that DatabaseStateProvider can read persisted credit_limit."""
+    """Test that DatabaseStateProvider can read persisted unsecured_cap."""
 
-    def test_database_state_provider_reads_credit_limit(self):
-        """DatabaseStateProvider should correctly read credit_limit from persisted data."""
+    def test_database_state_provider_reads_unsecured_cap(self):
+        """DatabaseStateProvider should correctly read unsecured_cap from persisted data."""
         from payment_simulator.cli.execution.state_provider import DatabaseStateProvider
 
-        # Mock database data with credit_limit
+        # Mock database data with unsecured_cap
         mock_data = {
             "tx_cache": {},
             "agent_states": {
@@ -122,5 +122,5 @@ class TestDatabaseStateProviderWithPersistedCreditLimit:
         )
 
         # Should be able to get credit limit
-        credit_limit = provider.get_agent_credit_limit("BANK_A")
-        assert credit_limit == 500000
+        unsecured_cap = provider.get_agent_unsecured_cap("BANK_A")
+        assert unsecured_cap == 500000

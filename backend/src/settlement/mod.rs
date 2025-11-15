@@ -29,8 +29,9 @@
 //! use payment_simulator_core_rs::{Agent, Transaction};
 //! use payment_simulator_core_rs::settlement;
 //!
-//! let mut sender = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
-//! let mut receiver = Agent::new("BANK_B".to_string(), 0, 0);
+//! let mut sender = Agent::new("BANK_A".to_string(), 1_000_000);
+//! sender.set_unsecured_cap(500_000);
+//! let mut receiver = Agent::new("BANK_B".to_string(), 0);
 //! let mut transaction = Transaction::new(
 //!     "BANK_A".to_string(),
 //!     "BANK_B".to_string(),

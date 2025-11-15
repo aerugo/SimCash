@@ -770,12 +770,11 @@ impl Orchestrator {
     ///         AgentConfig {
     ///             id: "BANK_A".to_string(),
     ///             opening_balance: 1_000_000,
-    ///             credit_limit: 0,
+    ///             unsecured_cap: 0,
     ///             policy: PolicyConfig::Fifo,
     ///             arrival_config: None,
     ///             posted_collateral: None,
     ///             collateral_haircut: None,
-    ///             unsecured_cap: None,
     ///         },
     ///     ],
     ///     cost_rates: Default::default(),

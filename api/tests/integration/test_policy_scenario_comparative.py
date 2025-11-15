@@ -154,7 +154,7 @@ class TestPolicyComparison:
             .add_agent(
                 "BANK_A",
                 balance=20_000_000,    # $200k
-                credit_limit=2_000_000,  # $20k credit available
+                unsecured_cap=2_000_000,  # $20k credit available
                 arrival_rate=2.5,
                 arrival_amount_range=(100_000, 300_000),
                 deadline_range=(5, 30),

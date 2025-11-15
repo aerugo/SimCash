@@ -85,8 +85,8 @@ pub enum SettlementError {
 /// use payment_simulator_core_rs::{Agent, Transaction};
 /// use payment_simulator_core_rs::settlement::try_settle;
 ///
-/// let mut sender = Agent::new("BANK_A".to_string(), 1_000_000, 0);
-/// let mut receiver = Agent::new("BANK_B".to_string(), 0, 0);
+/// let mut sender = Agent::new("BANK_A".to_string(), 1_000_000);
+/// let mut receiver = Agent::new("BANK_B".to_string(), 0);
 /// let mut transaction = Transaction::new(
 ///     "BANK_A".to_string(),
 ///     "BANK_B".to_string(),
@@ -205,8 +205,8 @@ pub struct QueueProcessingResult {
 /// use payment_simulator_core_rs::settlement::{submit_transaction, SubmissionResult};
 ///
 /// let agents = vec![
-///     Agent::new("BANK_A".to_string(), 1_000_000, 0),
-///     Agent::new("BANK_B".to_string(), 0, 0),
+///     Agent::new("BANK_A".to_string(), 1_000_000),
+///     Agent::new("BANK_B".to_string(), 0),
 /// ];
 /// let mut state = SimulationState::new(agents);
 ///
@@ -326,8 +326,8 @@ pub fn submit_transaction(
 /// use payment_simulator_core_rs::settlement::{submit_transaction, process_queue};
 ///
 /// let agents = vec![
-///     Agent::new("BANK_A".to_string(), 100_000, 0),  // Insufficient for 500k
-///     Agent::new("BANK_B".to_string(), 0, 0),
+///     Agent::new("BANK_A".to_string(), 100_000),  // Insufficient for 500k
+///     Agent::new("BANK_B".to_string(), 0),
 /// ];
 /// let mut state = SimulationState::new(agents);
 ///
