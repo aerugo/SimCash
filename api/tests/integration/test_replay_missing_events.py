@@ -71,10 +71,24 @@ def replay_simulation_verbose(simulation_id: str, db_path: str, from_tick: int, 
     return (result.stdout, result.stderr)
 
 
-def extract_simulation_id(run_output: str) -> str:
-    """Extract simulation ID from run output."""
+def extract_simulation_id(run_output: str | tuple[str, str]) -> str:
+    """Extract simulation ID from run output.
+
+    Args:
+        run_output: Either a string (stdout) or tuple of (stdout, stderr)
+
+    Returns:
+        Simulation ID
+    """
     import re
-    match = re.search(r'"simulation_id":\s*"([^"]+)"', run_output)
+
+    # Handle tuple return from run_simulation_verbose()
+    if isinstance(run_output, tuple):
+        stdout, stderr = run_output
+    else:
+        stdout = run_output
+
+    match = re.search(r'"simulation_id":\s*"([^"]+)"', stdout)
     if not match:
         raise ValueError("Could not find simulation_id in output")
     return match.group(1)
@@ -314,31 +328,31 @@ def test_replay_shows_all_event_types_that_run_shows(test_config, temp_db):
 
     TDD: This test ensures no event types are silently dropped in replay.
     """
-    # Run full simulation
-    run_output = run_simulation_verbose(test_config, temp_db)
-    simulation_id = extract_simulation_id(run_output)
+    # Run full simulation - returns (stdout, stderr)
+    run_stdout, run_stderr = run_simulation_verbose(test_config, temp_db)
+    simulation_id = extract_simulation_id((run_stdout, run_stderr))
 
-    # Replay full simulation
-    replay_output = replay_simulation_verbose(
+    # Replay full simulation - returns (stdout, stderr)
+    replay_stdout, replay_stderr = replay_simulation_verbose(
         simulation_id, temp_db, from_tick=0, to_tick=299
     )
 
-    # Check for each missing event type indicator
+    # Check for each missing event type indicator in stderr (where verbose output goes)
     missing_in_replay = []
 
     # Check 1: TransactionWentOverdue
-    if "Transaction Went Overdue" in run_output:
-        if "Transaction Went Overdue" not in replay_output:
+    if "Transaction Went Overdue" in run_stderr:
+        if "Transaction Went Overdue" not in replay_stderr:
             missing_in_replay.append("TransactionWentOverdue events")
 
     # Check 2: QueuedRtgs
-    if "queued in RTGS" in run_output:
-        if "queued in RTGS" not in replay_output:
+    if "queued in RTGS" in run_stderr:
+        if "queued in RTGS" not in replay_stderr:
             missing_in_replay.append("QueuedRtgs events")
 
     # Check 3: CostAccrual summary
-    if "Costs Accrued This Tick" in run_output:
-        if "Costs Accrued This Tick" not in replay_output:
+    if "Costs Accrued This Tick" in run_stderr:
+        if "Costs Accrued This Tick" not in replay_stderr:
             missing_in_replay.append("CostAccrual summary")
 
     # ASSERT: All event types must be present

@@ -79,6 +79,7 @@ def test_replay_settlement_count_matches_run_verbose_output():
 
                 # Look ahead for tick summary within next 200 lines
                 for j in range(i, min(i + 200, len(lines))):
+                    # Try matching with LSM first
                     summary_match = re.search(r'(\d+) in.*?(\d+) settled.*?(\d+) LSM', lines[j])
                     if summary_match:
                         arrivals = int(summary_match.group(1))
@@ -96,9 +97,22 @@ def test_replay_settlement_count_matches_run_verbose_output():
                             test_tick = tick_num
                             run_settlement_count = settlements
                             run_lsm_count = lsm
+                    else:
+                        # Try matching without LSM (fallback)
+                        summary_match_no_lsm = re.search(r'(\d+) in.*?(\d+) settled', lines[j])
+                        if summary_match_no_lsm:
+                            arrivals = int(summary_match_no_lsm.group(1))
+                            settlements = int(summary_match_no_lsm.group(2))
+                            lsm = 0
+
+                            # Accept any tick with settlements as fallback
+                            if settlements > 0 and test_tick is None:
+                                test_tick = tick_num
+                                run_settlement_count = settlements
+                                run_lsm_count = lsm
 
                 # If we found our ideal tick, stop searching
-                if test_tick is not None and run_lsm_count > 0:
+                if test_tick is not None and run_lsm_count is not None and run_lsm_count > 0:
                     break
 
         assert test_tick is not None, (
@@ -131,15 +145,23 @@ def test_replay_settlement_count_matches_run_verbose_output():
         replay_lsm_count = None
 
         for line in replay_lines:
+            # Try matching with LSM first
             summary_match = re.search(r'(\d+) in.*?(\d+) settled.*?(\d+) LSM', line)
             if summary_match:
                 replay_settlement_count = int(summary_match.group(2))
                 replay_lsm_count = int(summary_match.group(3))
                 break
+            else:
+                # Try matching without LSM (fallback)
+                summary_match_no_lsm = re.search(r'(\d+) in.*?(\d+) settled', line)
+                if summary_match_no_lsm:
+                    replay_settlement_count = int(summary_match_no_lsm.group(2))
+                    replay_lsm_count = 0
+                    break
 
         assert replay_settlement_count is not None, (
             f"No tick summary found in replay output.\n"
-            f"Sample output:\n{replay_result.stdout[:2000]}"
+            f"Sample output:\n{replay_result.stderr[:2000]}"
         )
 
         # CRITICAL: Settlement counts must match

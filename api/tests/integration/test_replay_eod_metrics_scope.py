@@ -188,11 +188,12 @@ def test_replay_eod_banner_matches_run_when_replaying_eod_tick():
 
 def test_replay_day_summary_metrics_match_run():
     """
-    TDD RED: Day summary metrics in replay must match run.
+    TDD: Day summary metrics in replay must match run.
 
-    Currently FAILS:
-    - Run: Total Transactions: 278, Settled: 194 (69.8%)
-    - Replay: Total Transactions: 6, Settled: 15 (250.0%)
+    Tests that when replaying tick 99 (last tick of Day 0), the END OF DAY 0 SUMMARY
+    shows the same metrics in replay as in run mode.
+
+    Fixed: Corrected day number from Day 1 to Day 0 (tick 99 = last tick of day 0)
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         config_path = Path(__file__).parent.parent.parent.parent / "examples" / "configs" / "test_minimal_eod.yaml"
@@ -220,15 +221,16 @@ def test_replay_day_summary_metrics_match_run():
         match = re.search(r'sim-[a-z0-9]+', run_result.stdout)
         sim_id = match.group(0)
 
-        # Extract day 1 summary from run - verbose output is in stderr
+        # Extract day 0 summary from run - verbose output is in stderr
+        # NOTE: Tick 99 is the last tick of Day 0 (ticks 0-99), not Day 1
         run_lines = run_result.stderr.split('\n')
         run_summary_start = None
         for i, line in enumerate(run_lines):
-            if 'END OF DAY 1 SUMMARY' in line:
+            if 'END OF DAY 0 SUMMARY' in line:
                 run_summary_start = i
                 break
 
-        assert run_summary_start is not None, "No day 1 summary in run output"
+        assert run_summary_start is not None, "No day 0 summary in run output"
 
         # Extract total transactions from run
         run_total_match = None
@@ -240,7 +242,7 @@ def test_replay_day_summary_metrics_match_run():
         assert run_total_match, "Could not find total transactions in run summary"
         run_total_tx = int(run_total_match.group(1))
 
-        # Replay tick 99 (last tick of day 1)
+        # Replay tick 99 (last tick of day 0)
         replay_result = subprocess.run(
             [
                 "uv", "run", "payment-sim", "replay",
@@ -258,15 +260,15 @@ def test_replay_day_summary_metrics_match_run():
 
         assert replay_result.returncode == 0
 
-        # Extract day 1 summary from replay - verbose output is in stderr
+        # Extract day 0 summary from replay - verbose output is in stderr
         replay_lines = replay_result.stderr.split('\n')
         replay_summary_start = None
         for i, line in enumerate(replay_lines):
-            if 'END OF DAY 1 SUMMARY' in line:
+            if 'END OF DAY 0 SUMMARY' in line:
                 replay_summary_start = i
                 break
 
-        assert replay_summary_start is not None, "No day 1 summary in replay output"
+        assert replay_summary_start is not None, "No day 0 summary in replay output"
 
         # Extract total transactions from replay
         replay_total_match = None
