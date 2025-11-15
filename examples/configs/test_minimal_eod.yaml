@@ -8,7 +8,7 @@ simulation:
 agents:
   - id: BANK_A
     opening_balance: 1000000  # $10,000.00
-    credit_limit: 500000      # $5,000.00
+    unsecured_cap: 500000     # $5,000.00 unsecured overdraft
     overdraft_rate: 500       # 5.00% per day
     delay_cost_per_tick: 100  # $1.00 per tick
     policy:
@@ -27,7 +27,7 @@ agents:
 
   - id: BANK_B
     opening_balance: 1000000
-    credit_limit: 500000
+    unsecured_cap: 500000
     overdraft_rate: 500
     delay_cost_per_tick: 100
     policy:

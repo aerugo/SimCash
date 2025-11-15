@@ -40,7 +40,7 @@ fn test_high_frequency_arrivals_single_agent() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 100_000_000, // Large balance to handle volume
-                credit_limit: 50_000_000,
+                unsecured_cap: 50_000_000,
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 20_000_000,
                     urgency_threshold: 5,
@@ -53,7 +53,7 @@ fn test_high_frequency_arrivals_single_agent() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -145,7 +145,7 @@ fn test_sustained_high_load_100_ticks() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 150_000_000,
-                credit_limit: 50_000_000,
+                unsecured_cap: 50_000_000,
                 policy: PolicyConfig::Deadline {
                     urgency_threshold: 8,
                 },
@@ -157,7 +157,7 @@ fn test_sustained_high_load_100_ticks() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 150_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -254,7 +254,7 @@ fn test_extreme_high_frequency_arrivals() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 200_000_000, // Very large balance
-                credit_limit: 100_000_000,
+                unsecured_cap: 100_000_000,
                 policy: PolicyConfig::Fifo, // Simple policy for speed
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
@@ -264,7 +264,7 @@ fn test_extreme_high_frequency_arrivals() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 200_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -348,7 +348,7 @@ fn test_50_agent_high_frequency_simulation() {
         agent_configs.push(AgentConfig {
             id: format!("BANK_{:02}", i),
             opening_balance: 50_000_000, // $500k each
-            credit_limit: if i % 3 == 0 { 10_000_000 } else { 0 }, // Some have credit
+            unsecured_cap: if i % 3 == 0 { 10_000_000 } else { 0 }, // Some have unsecured overdraft
             policy: match i % 3 {
                 0 => PolicyConfig::Fifo,
                 1 => PolicyConfig::Deadline {
@@ -363,7 +363,6 @@ fn test_50_agent_high_frequency_simulation() {
             arrival_config: Some(arrival_config.clone()),
             posted_collateral: None,
             collateral_haircut: None,
-            unsecured_cap: None,
         });
     }
 

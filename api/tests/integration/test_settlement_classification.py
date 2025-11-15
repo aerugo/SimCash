@@ -16,8 +16,8 @@ def test_rtgs_immediate_creates_correct_event():
         "ticks_per_day": 100,
         "num_days": 1,
         "agent_configs": [
-            {"id": "A", "opening_balance": 100000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 100000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 50000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -50,8 +50,8 @@ def test_queue_release_creates_correct_event():
         "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
-            {"id": "A", "opening_balance": 5000, "credit_limit": 10000, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 5000, "unsecured_cap": 10000, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 50000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -97,8 +97,8 @@ def test_queue_release_not_labeled_as_rtgs_immediate():
         "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
-            {"id": "A", "opening_balance": 1000, "credit_limit": 5000, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 50000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 1000, "unsecured_cap": 5000, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 50000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -133,8 +133,8 @@ def test_lsm_bilateral_creates_correct_event():
         "ticks_per_day": 100,
         "lsm_enabled": True,
         "agent_configs": [
-            {"id": "A", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 5000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 5000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -174,9 +174,9 @@ def test_lsm_cycle_creates_correct_event():
         "ticks_per_day": 100,
         "lsm_enabled": True,
         "agent_configs": [
-            {"id": "A", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "C", "opening_balance": 5000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 5000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 5000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "C", "opening_balance": 5000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     })
 
@@ -215,8 +215,8 @@ def test_settlement_event_types_are_mutually_exclusive():
         "num_days": 1,
         "ticks_per_day": 100,
         "agent_configs": [
-            {"id": "A", "opening_balance": 100000, "credit_limit": 50000, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 100000, "credit_limit": 50000, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 100000, "unsecured_cap": 50000, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100000, "unsecured_cap": 50000, "policy": {"type": "Fifo"}},
         ],
     })
 

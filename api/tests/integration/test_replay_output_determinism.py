@@ -69,19 +69,19 @@ class TestReplayOutputDeterminism:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_C",
                     "opening_balance": 1500000,
-                    "credit_limit": 750000,
+                    "unsecured_cap": 750000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -108,7 +108,7 @@ class TestReplayOutputDeterminism:
 
             agent_states[agent_id] = {
                 "balance": orch.get_agent_balance(agent_id),
-                "credit_limit": orch.get_agent_credit_limit(agent_id),
+                "unsecured_cap": orch.get_agent_credit_limit(agent_id),
                 "collateral_posted": orch.get_agent_collateral_posted(agent_id),
                 "liquidity_cost": costs["liquidity_cost"],
                 "delay_cost": costs["delay_cost"],
@@ -268,7 +268,7 @@ class TestStateProviderDataEquivalence:
             "ticks_per_day": 100,
             "num_days": 1,
             "agent_configs": [
-                {"id": "BANK_A", "opening_balance": 1000000, "credit_limit": 500000, "policy": {"type": "Fifo"}},
+                {"id": "BANK_A", "opening_balance": 1000000, "unsecured_cap": 500000, "policy": {"type": "Fifo"}},
             ],
         }
         orch = Orchestrator.new(config)
@@ -285,7 +285,7 @@ class TestStateProviderDataEquivalence:
             tx_cache={},
             agent_states={"BANK_A": {
                 "balance": balance_live,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "collateral_posted": 0,
                 "liquidity_cost": 0,
                 "delay_cost": 0,
@@ -307,7 +307,7 @@ class TestStateProviderDataEquivalence:
             "ticks_per_day": 100,
             "num_days": 1,
             "agent_configs": [
-                {"id": "BANK_A", "opening_balance": 1000000, "credit_limit": 500000, "policy": {"type": "Fifo"}},
+                {"id": "BANK_A", "opening_balance": 1000000, "unsecured_cap": 500000, "policy": {"type": "Fifo"}},
             ],
         }
         orch = Orchestrator.new(config)
@@ -320,7 +320,7 @@ class TestStateProviderDataEquivalence:
             tx_cache={},
             agent_states={"BANK_A": {
                 "balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "collateral_posted": 0,
                 "liquidity_cost": 0,
                 "delay_cost": 0,

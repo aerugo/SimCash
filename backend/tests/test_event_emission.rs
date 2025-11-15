@@ -44,7 +44,7 @@ fn create_test_config() -> OrchestratorConfig {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000, // $10,000
-                credit_limit: 500_000,      // $5,000
+                unsecured_cap: 500_000,      // $5,000
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -54,7 +54,7 @@ fn create_test_config() -> OrchestratorConfig {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 2_000_000, // $20,000
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 500_000, // $5,000 buffer
                     urgency_threshold: 5,
@@ -687,7 +687,7 @@ fn test_lsm_cycle_settlement_event() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000,  // $500 - less than tx amount
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -697,7 +697,7 @@ fn test_lsm_cycle_settlement_event() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000,  // $500 - less than tx amount
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -707,7 +707,7 @@ fn test_lsm_cycle_settlement_event() {
             AgentConfig {
                 id: "BANK_C".to_string(),
                 opening_balance: 50_000,  // $500 - less than tx amount
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,

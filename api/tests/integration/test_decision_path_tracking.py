@@ -72,7 +72,7 @@ def test_decision_path_appears_in_state_register_events():
             {
                 "id": "BANK_A",
                 "opening_balance": 100000,  # Has balance, will take on_true path
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {
                     "type": "FromJson",
@@ -82,7 +82,7 @@ def test_decision_path_appears_in_state_register_events():
             {
                 "id": "BANK_B",
                 "opening_balance": 0,  # No balance, will take on_false path
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {
                     "type": "FromJson",
@@ -208,7 +208,7 @@ def test_decision_path_with_add_state():
             {
                 "id": "BANK_A",
                 "opening_balance": 10000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {
                     "type": "FromJson",
@@ -307,7 +307,7 @@ def test_eod_reset_has_no_decision_path():
             {
                 "id": "BANK_A",
                 "opening_balance": 10000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {
                     "type": "FromJson",

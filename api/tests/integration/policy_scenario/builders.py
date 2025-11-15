@@ -99,7 +99,7 @@ class ScenarioDefinition:
             agent_dict = {
                 "id": agent_cfg.agent_id,
                 "opening_balance": agent_cfg.opening_balance,
-                "credit_limit": agent_cfg.credit_limit,
+                "unsecured_cap": agent_cfg.credit_limit,
                 "policy": policy_config,
             }
 

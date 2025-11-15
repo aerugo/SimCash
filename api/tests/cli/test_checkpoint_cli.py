@@ -35,7 +35,7 @@ def create_test_checkpoint(tmp_path, sim_id="test_sim", num_ticks=10):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -52,7 +52,7 @@ def create_test_checkpoint(tmp_path, sim_id="test_sim", num_ticks=10):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -97,13 +97,13 @@ def simple_config_file(tmp_path):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -129,7 +129,7 @@ def simulation_state_json():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -185,7 +185,7 @@ def test_checkpoint_save_creates_checkpoint(runner, db_path, tmp_path):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -203,7 +203,7 @@ def test_checkpoint_save_creates_checkpoint(runner, db_path, tmp_path):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -293,13 +293,13 @@ def test_checkpoint_load_restores_simulation(runner, db_path, simple_config_file
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -316,13 +316,13 @@ def test_checkpoint_load_restores_simulation(runner, db_path, simple_config_file
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -508,8 +508,8 @@ def test_checkpoint_workflow_save_list_load(runner, db_path, tmp_path):
             "rng_seed": 42,
         },
         "agents": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 500_000, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 500_000, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     with open(config_file, 'w') as f:
@@ -525,13 +525,13 @@ def test_checkpoint_workflow_save_list_load(runner, db_path, tmp_path):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],

@@ -51,7 +51,7 @@ class TestCollateralPolicyEventGeneration:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 100000,
-                    "credit_limit": 50000,
+                    "unsecured_cap": 50000,
                     "policy_id": "test_collateral_post",
                 }
             ],
@@ -156,7 +156,7 @@ class TestCollateralPolicyEventGeneration:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 100000,
-                    "credit_limit": 50000,
+                    "unsecured_cap": 50000,
                     "policy_id": "test_collateral_post",
                 }
             ],
@@ -261,7 +261,7 @@ class TestCollateralPolicyEventGeneration:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 100000,
-                    "credit_limit": 50000,
+                    "unsecured_cap": 50000,
                     "policy_id": "test_collateral_withdraw",
                 }
             ],

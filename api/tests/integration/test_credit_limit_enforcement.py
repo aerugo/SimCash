@@ -21,13 +21,13 @@ class TestCreditLimitEnforcement:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,  # $10,000
-                    "credit_limit": 500000,      # $5,000
+                    "unsecured_cap": 500000,      # $5,000
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -70,13 +70,13 @@ class TestCreditLimitEnforcement:
                 {
                     "id": "BANK_A",
                     "opening_balance": 500000,   # $5,000
-                    "credit_limit": 200000,      # $2,000
+                    "unsecured_cap": 200000,      # $2,000
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 500000,
-                    "credit_limit": 200000,
+                    "unsecured_cap": 200000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -137,19 +137,19 @@ class TestCreditLimitEnforcement:
                 {
                     "id": "BANK_A",
                     "opening_balance": 500000,   # $5,000
-                    "credit_limit": 200000,      # $2,000
+                    "unsecured_cap": 200000,      # $2,000
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 500000,
-                    "credit_limit": 200000,
+                    "unsecured_cap": 200000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_C",
                     "opening_balance": 500000,
-                    "credit_limit": 200000,
+                    "unsecured_cap": 200000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -220,19 +220,19 @@ class TestCreditLimitEnforcement:
                 {
                     "id": "BANK_A",
                     "opening_balance": 500000,   # $5,000
-                    "credit_limit": 200000,      # $2,000
+                    "unsecured_cap": 200000,      # $2,000
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 500000,
-                    "credit_limit": 200000,
+                    "unsecured_cap": 200000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_C",
                     "opening_balance": 500000,
-                    "credit_limit": 200000,
+                    "unsecured_cap": 200000,
                     "policy": {"type": "Fifo"},
                 },
             ],

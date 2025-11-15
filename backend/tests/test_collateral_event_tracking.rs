@@ -18,7 +18,7 @@ fn create_test_config() -> OrchestratorConfig {
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
             opening_balance: 50_000,
-            credit_limit: 0,
+            unsecured_cap: 0,
             policy: PolicyConfig::Fifo,
             arrival_config: None,
             posted_collateral: None,
@@ -63,7 +63,7 @@ fn test_collateral_events_filter_by_day() {
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
             opening_balance: 50_000,
-            credit_limit: 0,
+            unsecured_cap: 0,
             policy: PolicyConfig::Fifo,
             arrival_config: None,
             posted_collateral: None,

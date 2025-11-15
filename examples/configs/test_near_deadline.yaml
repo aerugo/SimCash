@@ -9,7 +9,7 @@ simulation:
 agents:
   - id: BANK_A
     opening_balance: 50000  # Low balance
-    credit_limit: 0  # No credit
+    unsecured_cap: 0  # No unsecured overdraft
     policy:
       type: Fifo
     arrival_config:
@@ -27,7 +27,7 @@ agents:
 
   - id: BANK_B
     opening_balance: 50000  # Low balance
-    credit_limit: 0  # No credit
+    unsecured_cap: 0  # No unsecured overdraft
     policy:
       type: Fifo
     arrival_config:

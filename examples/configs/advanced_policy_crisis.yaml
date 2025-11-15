@@ -55,7 +55,7 @@ agents:
   # METRO_CENTRAL - Large Money Center Bank (Cautious with smart collateral)
   - id: "METRO_CENTRAL"
     opening_balance: 5000000          # $50,000 (calibrated for LSM + good settlement)
-    credit_limit: 2000000             # $20,000 credit
+    unsecured_cap: 2000000            # $20,000 unsecured overdraft capacity
     policy:
       type: "FromJson"
       json_path: "backend/policies/cautious_liquidity_preserver.json"
@@ -80,7 +80,7 @@ agents:
   # REGIONAL_TRUST - Regional Bank (Cautious with smart collateral)
   - id: "REGIONAL_TRUST"
     opening_balance: 4500000          # $45,000 (calibrated for LSM + good settlement)
-    credit_limit: 1800000             # $18,000 credit
+    unsecured_cap: 1800000            # $18,000 unsecured overdraft capacity
     policy:
       type: "FromJson"
       json_path: "backend/policies/cautious_liquidity_preserver.json"
@@ -105,7 +105,7 @@ agents:
   # MOMENTUM_CAPITAL - Investment Bank (Cautious with smart collateral)
   - id: "MOMENTUM_CAPITAL"
     opening_balance: 4800000          # $48,000 (calibrated for LSM + good settlement)
-    credit_limit: 1900000             # $19,000 credit
+    unsecured_cap: 1900000            # $19,000 unsecured overdraft capacity
     policy:
       type: "FromJson"
       json_path: "backend/policies/cautious_liquidity_preserver.json"
@@ -130,7 +130,7 @@ agents:
   # CORRESPONDENT_HUB - Central Correspondent Bank (Cautious with smart collateral)
   - id: "CORRESPONDENT_HUB"
     opening_balance: 5500000          # $55,000 (calibrated for LSM + good settlement)
-    credit_limit: 2200000             # $22,000 credit
+    unsecured_cap: 2200000            # $22,000 unsecured overdraft capacity
     policy:
       type: "FromJson"
       json_path: "backend/policies/cautious_liquidity_preserver.json"

@@ -26,7 +26,7 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,  // Disable arrivals for scenario event tests
                 posted_collateral: None,
@@ -36,7 +36,7 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,  // Disable arrivals for scenario event tests
                 posted_collateral: None,
@@ -60,7 +60,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(ArrivalConfig {
                     rate_per_tick: 0.5,
@@ -80,7 +80,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(ArrivalConfig {
                     rate_per_tick: 0.5,

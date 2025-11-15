@@ -47,13 +47,13 @@ class TestUnifiedLogAgentState:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -69,7 +69,7 @@ class TestUnifiedLogAgentState:
             "agent_states": {
                 "BANK_A": {
                     "balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "collateral_posted": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 0,
@@ -178,7 +178,7 @@ class TestUnifiedLogAgentState:
             "agent_states": {
                 "BANK_A": {
                     "balance": -100000,  # Negative balance (overdraft)
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "collateral_posted": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 0,
@@ -218,7 +218,7 @@ class TestUnifiedLogAgentState:
             "agent_states": {
                 "BANK_A": {
                     "balance": -300000,  # Using 300K of 500K credit line
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "collateral_posted": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 0,
@@ -267,7 +267,7 @@ class TestUnifiedLogAgentState:
             "agent_states": {
                 "BANK_A": {
                     "balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "collateral_posted": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 0,
@@ -305,7 +305,7 @@ class TestUnifiedLogAgentState:
             "agent_states": {
                 "BANK_A": {
                     "balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "posted_collateral": 250000,  # $2,500 collateral
                     "liquidity_cost": 0,
                     "delay_cost": 0,
@@ -357,13 +357,13 @@ class TestUnifiedLogCostBreakdown:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -379,7 +379,7 @@ class TestUnifiedLogCostBreakdown:
             "agent_states": {
                 "BANK_A": {
                     "balance": 900000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "collateral_posted": 0,
                     "liquidity_cost": 5000,  # $50.00
                     "delay_cost": 2500,      # $25.00
@@ -389,7 +389,7 @@ class TestUnifiedLogCostBreakdown:
                 },
                 "BANK_B": {
                     "balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "collateral_posted": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 3000,      # $30.00

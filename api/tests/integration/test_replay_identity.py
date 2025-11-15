@@ -54,13 +54,13 @@ class TestReplayIdentity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 500000,   # $5,000
-                    "credit_limit": 200000,      # $2,000
+                    "unsecured_cap": 200000,      # $2,000
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 500000,
-                    "credit_limit": 200000,
+                    "unsecured_cap": 200000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -112,7 +112,7 @@ class TestReplayIdentity:
                 "agent_id": agent_id,
                 "balance": balance,
                 "balance_change": 0,  # Required field (could calculate but not needed for test)
-                "credit_limit": credit_limit,
+                "unsecured_cap": credit_limit,
                 "posted_collateral": collateral,
                 "liquidity_cost": costs.get("liquidity_cost", 0),
                 "delay_cost": costs.get("delay_cost", 0),
@@ -194,7 +194,7 @@ class TestReplayIdentity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,  # $10,000
-                    "credit_limit": 500000,      # $5,000
+                    "unsecured_cap": 500000,      # $5,000
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -226,7 +226,7 @@ class TestReplayIdentity:
             "agent_id": "BANK_A",
             "balance": live_balance,
             "balance_change": 0,
-            "credit_limit": live_credit_limit,
+            "unsecured_cap": live_credit_limit,
             "posted_collateral": live_collateral,
             "liquidity_cost": 0,
             "delay_cost": 0,

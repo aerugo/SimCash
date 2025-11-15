@@ -18,7 +18,7 @@ fn create_test_config() -> OrchestratorConfig {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -28,7 +28,7 @@ fn create_test_config() -> OrchestratorConfig {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 2_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -126,7 +126,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 10_000, // Very low balance
-                credit_limit: 0,         // No credit
+                unsecured_cap: 0,         // No credit
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -136,7 +136,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 2_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,

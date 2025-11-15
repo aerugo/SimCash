@@ -47,7 +47,7 @@ class TestCollateralTimerAutoWithdrawal:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 100000,
-                    "credit_limit": 100000,  # capacity = 10 × credit_limit = 1M
+                    "unsecured_cap": 100000,  # capacity = 10 × credit_limit = 1M
                     "policy_id": "test_timer",
                 }
             ],
@@ -157,7 +157,7 @@ class TestCollateralTimerAutoWithdrawal:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 100000,
-                    "credit_limit": 100000,  # capacity = 10 × credit_limit = 1M
+                    "unsecured_cap": 100000,  # capacity = 10 × credit_limit = 1M
                     "policy_id": "test_multi_timer",
                 }
             ],
@@ -293,7 +293,7 @@ class TestCollateralTimerAutoWithdrawal:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 100000,
-                    "credit_limit": 100000,  # capacity = 10 × credit_limit = 1M
+                    "unsecured_cap": 100000,  # capacity = 10 × credit_limit = 1M
                     "collateral_posted": 100000,  # Start with collateral
                     "policy_id": "test_cap",
                 }

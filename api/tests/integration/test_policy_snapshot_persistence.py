@@ -32,13 +32,13 @@ class TestFFIPolicyRetrieval:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 300_000,
+                    "unsecured_cap": 300_000,
                     "policy": {"type": "LiquidityAware", "target_buffer": 500_000, "urgency_threshold": 5},
                 },
             ],
@@ -64,7 +64,7 @@ class TestFFIPolicyRetrieval:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_500_000,
-                    "credit_limit": 400_000,
+                    "unsecured_cap": 400_000,
                     "policy": {"type": "Deadline", "urgency_threshold": 10},
                 },
             ],
@@ -103,7 +103,7 @@ class TestFFIPolicyRetrieval:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 600_000,
+                    "unsecured_cap": 600_000,
                     "policy": {"type": "LiquidityAware", "target_buffer": 300_000, "urgency_threshold": 7},
                 },
             ],
@@ -184,7 +184,7 @@ class TestPolarsPolicySnapshotConversion:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -233,7 +233,7 @@ class TestPolarsPolicySnapshotConversion:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 600_000,
+                    "unsecured_cap": 600_000,
                     "policy": {"type": "LiquidityAware", "target_buffer": 400_000, "urgency_threshold": 5},
                 },
             ],
@@ -295,13 +295,13 @@ class TestDuckDBPolicySnapshotBatchWrite:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1_000_000,
-                    "credit_limit": 500_000,
+                    "unsecured_cap": 500_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1_500_000,
-                    "credit_limit": 400_000,
+                    "unsecured_cap": 400_000,
                     "policy": {"type": "Deadline", "urgency_threshold": 5},
                 },
             ],
@@ -435,13 +435,13 @@ class TestEndToEndPolicySnapshotPersistence:
                 {
                     "id": "BANK_A",
                     "opening_balance": 2_000_000,
-                    "credit_limit": 800_000,
+                    "unsecured_cap": 800_000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1_500_000,
-                    "credit_limit": 600_000,
+                    "unsecured_cap": 600_000,
                     "policy": {"type": "LiquidityAware", "target_buffer": 500_000, "urgency_threshold": 5},
                 },
             ],

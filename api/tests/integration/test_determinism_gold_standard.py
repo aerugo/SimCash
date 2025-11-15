@@ -24,7 +24,7 @@ def test_determinism_five_consecutive_runs_simple():
             {
                 "id": "BANK_A",
                 "opening_balance": 10000000,
-                "credit_limit": 5000000,
+                "unsecured_cap": 5000000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -39,7 +39,7 @@ def test_determinism_five_consecutive_runs_simple():
             {
                 "id": "BANK_B",
                 "opening_balance": 10000000,
-                "credit_limit": 5000000,
+                "unsecured_cap": 5000000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -191,7 +191,7 @@ def test_determinism_tick_by_tick():
             {
                 "id": "A",
                 "opening_balance": 5000000,
-                "credit_limit": 2000000,
+                "unsecured_cap": 2000000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -202,7 +202,7 @@ def test_determinism_tick_by_tick():
             {
                 "id": "B",
                 "opening_balance": 5000000,
-                "credit_limit": 2000000,
+                "unsecured_cap": 2000000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -213,7 +213,7 @@ def test_determinism_tick_by_tick():
             {
                 "id": "C",
                 "opening_balance": 5000000,
-                "credit_limit": 2000000,
+                "unsecured_cap": 2000000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,
@@ -267,7 +267,7 @@ def test_determinism_different_seeds_produce_different_results():
             {
                 "id": "X",
                 "opening_balance": 10000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,
@@ -278,7 +278,7 @@ def test_determinism_different_seeds_produce_different_results():
             {
                 "id": "Y",
                 "opening_balance": 10000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,

@@ -52,7 +52,7 @@ class TestBudgetOperationDisplay:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 100000,
-                    "credit_limit": 50000,
+                    "unsecured_cap": 50000,
                     "policy_id": "test_budget",
                 }
             ],
@@ -172,13 +172,13 @@ class TestBudgetOperationDisplay:
                 {
                     "id": "TEST_BANK",
                     "opening_balance": 100000,
-                    "credit_limit": 50000,
+                    "unsecured_cap": 50000,
                     "policy_id": "test_budget_full",
                 },
                 {
                     "id": "COUNTERPARTY",
                     "opening_balance": 100000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy_id": "test_budget_full",
                 }
             ],

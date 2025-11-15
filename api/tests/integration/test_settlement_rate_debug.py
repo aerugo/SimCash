@@ -38,7 +38,7 @@ def test_settlement_rate_debug():
         agent_config = {
             "id": agent["id"],
             "opening_balance": agent["opening_balance"],
-            "credit_limit": agent.get("credit_limit", 0),
+            "unsecured_cap": agent.get("credit_limit", 0),
         }
 
         # Handle policy - load JSON if FromJson type

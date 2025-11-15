@@ -34,17 +34,17 @@ def test_get_simulation_metadata_with_config_json():
                 {
                     "id": "BANK_A",
                     "opening_balance": 10000000,
-                    "credit_limit": 5000000,
+                    "unsecured_cap": 5000000,
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 20000000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                 },
                 {
                     "id": "BANK_C",
                     "opening_balance": 15000000,
-                    "credit_limit": 2500000,
+                    "unsecured_cap": 2500000,
                 },
             ],
         }
@@ -169,7 +169,7 @@ def test_get_simulation_metadata_with_12_bank_config():
             {
                 "id": f"BANK_{i}",
                 "opening_balance": 10000000 + (i * 1000000),
-                "credit_limit": 5000000,
+                "unsecured_cap": 5000000,
             }
             for i in range(12)
         ]
