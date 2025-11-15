@@ -14,7 +14,7 @@ mod test_system_context {
 
     /// Helper: Create test context with system config at specific tick
     fn create_test_context_at_tick(tick: usize, ticks_per_day: usize) -> EvalContext {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let tx = Transaction::new(
             "BANK_A".to_string(),
             "BANK_B".to_string(),
@@ -197,7 +197,7 @@ mod test_system_context {
     // ========================================================================
     #[test]
     fn test_eod_rush_threshold_configurable() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = CostRates::default();

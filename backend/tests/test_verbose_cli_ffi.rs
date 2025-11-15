@@ -169,14 +169,14 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
 }
 
 #[test]
-fn test_get_agent_credit_limit_returns_limit() {
-    // RED TEST - This will fail until we implement get_agent_credit_limit
+fn test_get_agent_unsecured_cap_returns_limit() {
+    // RED TEST - This will fail until we implement get_agent_unsecured_cap
 
     // Create orchestrator
     let orch = Orchestrator::new(create_test_config()).unwrap();
 
     // Query credit limit - THIS METHOD DOESN'T EXIST YET
-    let credit_limit = orch.get_agent_credit_limit("BANK_A");
+    let credit_limit = orch.get_agent_unsecured_cap("BANK_A");
 
     // Verify we got the credit limit
     assert!(credit_limit.is_some());

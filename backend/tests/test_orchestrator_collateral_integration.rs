@@ -44,7 +44,6 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-                unsecured_cap: Some(0), // Explicitly set to 0 to prevent credit borrowing
             },
             // Add BANK_B as receiver with simple FIFO policy
             AgentConfig {

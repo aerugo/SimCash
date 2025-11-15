@@ -14,7 +14,7 @@ mod test_cost_context {
 
     /// Helper: Create test context with cost rates
     fn create_test_context_with_costs() -> EvalContext {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let tx = Transaction::new(
             "BANK_A".to_string(),
             "BANK_B".to_string(),
@@ -39,7 +39,7 @@ mod test_cost_context {
 
     /// Helper: Create scenario where delay is cheaper than overdraft
     fn create_scenario_where_delay_cheaper_than_overdraft() -> (Transaction, Agent, SimulationState, usize) {
-        let agent = Agent::new("BANK_A".to_string(), -100_000, 500_000); // Negative balance
+        let agent = Agent::new("BANK_A".to_string(), -100_000); // Negative balance
         let tx = Transaction::new(
             "BANK_A".to_string(),
             "BANK_B".to_string(),
@@ -179,7 +179,7 @@ mod test_cost_context {
     // ========================================================================
     #[test]
     fn test_cost_context_with_zero_rates() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
         let state = SimulationState::new(vec![agent.clone()]);
 
@@ -270,7 +270,7 @@ mod test_cost_context {
     #[test]
     fn test_cost_based_hold_decision() {
         // Scenario: Delay is much cheaper than overdraft
-        let agent = Agent::new("BANK_A".to_string(), -500_000, 100_000); // Using credit
+        let agent = Agent::new("BANK_A".to_string(), -500_000); // Using credit
         let tx = Transaction::new(
             "BANK_A".to_string(),
             "BANK_B".to_string(),
@@ -306,7 +306,7 @@ mod test_cost_context {
     #[test]
     fn test_cost_based_release_decision() {
         // Scenario: Overdraft is cheaper than delay (e.g., near deadline)
-        let agent = Agent::new("BANK_A".to_string(), 500_000, 1_000_000); // Has credit
+        let agent = Agent::new("BANK_A".to_string(), 500_000); // Has credit
         let tx = Transaction::new(
             "BANK_A".to_string(),
             "BANK_B".to_string(),
@@ -357,7 +357,7 @@ mod test_cost_context {
     #[test]
     fn test_cost_context_determinism() {
         // Same inputs should produce same cost calculations
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 500_000);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
         let state = SimulationState::new(vec![agent.clone()]);
 

@@ -185,14 +185,14 @@ fn test_orchestrator_collateral_adjustment() {
     let config = create_basic_config_with_events(events);
     let mut orch = Orchestrator::new(config).expect("Failed to create orchestrator");
 
-    let initial_limit = orch.get_agent_credit_limit("BANK_A").unwrap();
+    let initial_limit = orch.get_agent_unsecured_cap("BANK_A").unwrap();
 
     // Run through tick 10
     for _ in 0..11 {
         orch.tick().expect("Tick failed");
     }
 
-    let final_limit = orch.get_agent_credit_limit("BANK_A").unwrap();
+    let final_limit = orch.get_agent_unsecured_cap("BANK_A").unwrap();
 
     assert_eq!(final_limit, initial_limit + 200_000);
 }
@@ -349,7 +349,7 @@ fn test_orchestrator_multiple_events_same_tick() {
 
     let initial_balance_a = orch.get_agent_balance("BANK_A").unwrap();
     let initial_balance_b = orch.get_agent_balance("BANK_B").unwrap();
-    let initial_credit_a = orch.get_agent_credit_limit("BANK_A").unwrap();
+    let initial_credit_a = orch.get_agent_unsecured_cap("BANK_A").unwrap();
 
     // Run to tick 10
     for _ in 0..11 {
@@ -366,7 +366,7 @@ fn test_orchestrator_multiple_events_same_tick() {
         initial_balance_b + 100_000
     );
     assert_eq!(
-        orch.get_agent_credit_limit("BANK_A").unwrap(),
+        orch.get_agent_unsecured_cap("BANK_A").unwrap(),
         initial_credit_a + 300_000
     );
 }

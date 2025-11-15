@@ -140,7 +140,7 @@ impl EvalContext {
     /// use payment_simulator_core_rs::{Agent, Transaction, SimulationState};
     /// use payment_simulator_core_rs::orchestrator::CostRates;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
     /// let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100);
     /// let state = SimulationState::new(vec![agent.clone()]);
     /// let cost_rates = CostRates::default();
@@ -623,7 +623,7 @@ impl EvalContext {
     /// use payment_simulator_core_rs::{Agent, SimulationState};
     /// use payment_simulator_core_rs::orchestrator::CostRates;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+    /// let agent = Agent::new("BANK_A".to_string(), 1_000_000);
     /// let state = SimulationState::new(vec![agent.clone()]);
     /// let cost_rates = CostRates::default();
     ///
@@ -914,7 +914,6 @@ mod tests {
         let mut agent = Agent::with_buffer(
             "BANK_A".to_string(),
             500_000, // balance
-            200_000, // credit_limit
             100_000, // liquidity_buffer
         );
         agent.queue_outgoing("tx_001".to_string());
@@ -924,8 +923,8 @@ mod tests {
         // Create simulation state
         let state = SimulationState::new(vec![
             agent.clone(),
-            Agent::new("BANK_B".to_string(), 1_000_000, 0),
-            Agent::new("BANK_C".to_string(), 2_000_000, 0),
+            Agent::new("BANK_B".to_string(), 1_000_000),
+            Agent::new("BANK_C".to_string(), 2_000_000),
         ]);
 
         let tick = 30; // Current tick
@@ -1045,7 +1044,7 @@ mod tests {
     #[test]
     fn test_boolean_fields_as_floats() {
         // Create a transaction that uses credit
-        let agent = Agent::new("BANK_A".to_string(), -50_000, 200_000);
+        let agent = Agent::new("BANK_A".to_string(), -50_000);
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 10_000, 0, 10);
         let state = SimulationState::new(vec![agent.clone()]);
 
@@ -1069,7 +1068,7 @@ mod tests {
             parent_id,
         );
 
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let state = SimulationState::new(vec![agent.clone()]);
 
         let context = EvalContext::build(&child, &agent, &state, 5, &create_cost_rates(), 100, 0.8);
@@ -1128,7 +1127,7 @@ mod tests {
     #[test]
     fn test_collateral_utilization_with_posted_collateral() {
         // Create agent with posted collateral
-        let mut agent = Agent::with_buffer("BANK_A".to_string(), 500_000, 200_000, 100_000);
+        let mut agent = Agent::with_buffer("BANK_A".to_string(), 500_000, 100_000);
         // TODO: Need to add posted_collateral to agent for this test
         // For now, test will fail until Agent supports collateral
 
@@ -1147,7 +1146,7 @@ mod tests {
 
     #[test]
     fn test_context_includes_is_overdue_field() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = create_cost_rates();
@@ -1164,7 +1163,7 @@ mod tests {
 
     #[test]
     fn test_context_includes_overdue_duration() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let mut tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = create_cost_rates();
@@ -1180,7 +1179,7 @@ mod tests {
 
     #[test]
     fn test_overdue_duration_zero_when_not_overdue() {
-        let agent = Agent::new("BANK_A".to_string(), 1_000_000, 0);
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
         let state = SimulationState::new(vec![agent.clone()]);
         let cost_rates = create_cost_rates();
