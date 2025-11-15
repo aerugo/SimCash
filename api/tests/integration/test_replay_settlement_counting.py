@@ -58,14 +58,14 @@ def test_replay_settlement_count_matches_run_verbose_output():
 
         assert run_result.returncode == 0, f"Run failed: {run_result.stderr}"
 
-        # Extract simulation ID
+        # Extract simulation ID from JSON in stdout
         match = re.search(r'sim-[a-z0-9]+', run_result.stdout)
         assert match, "Could not find simulation ID"
         sim_id = match.group(0)
 
-        # Find tick sections with both settlements and LSM
+        # Find tick sections with both settlements and LSM - verbose output is in stderr
         # Format: "═══ Tick N ═══" ... "X in, Y settled, Z LSM"
-        lines = run_result.stdout.split('\n')
+        lines = run_result.stderr.split('\n')
 
         test_tick = None
         run_settlement_count = None
@@ -125,8 +125,8 @@ def test_replay_settlement_count_matches_run_verbose_output():
 
         assert replay_result.returncode == 0, f"Replay failed: {replay_result.stderr}"
 
-        # Extract settlement count from replay tick summary
-        replay_lines = replay_result.stdout.split('\n')
+        # Extract settlement count from replay tick summary - verbose output is in stderr
+        replay_lines = replay_result.stderr.split('\n')
         replay_settlement_count = None
         replay_lsm_count = None
 
