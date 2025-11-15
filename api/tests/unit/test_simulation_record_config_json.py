@@ -20,8 +20,8 @@ def test_simulation_record_accepts_config_json():
             "rng_seed": 42,
         },
         "agents": [
-            {"id": "BANK_A", "opening_balance": 1000000, "credit_limit": 500000},
-            {"id": "BANK_B", "opening_balance": 2000000, "credit_limit": 0},
+            {"id": "BANK_A", "opening_balance": 1000000, "unsecured_cap": 500000},
+            {"id": "BANK_B", "opening_balance": 2000000, "unsecured_cap": 0},
         ],
     }
 
@@ -104,7 +104,7 @@ def test_simulation_record_with_large_config():
             {
                 "id": f"BANK_{i}",
                 "opening_balance": 10000000 + (i * 500000),
-                "credit_limit": 5000000,
+                "unsecured_cap": 5000000,
                 "policy": {"type": "FromJson", "json_path": "policy.json"},
                 "arrival_config": {
                     "rate_per_tick": 0.5 + (i * 0.05),

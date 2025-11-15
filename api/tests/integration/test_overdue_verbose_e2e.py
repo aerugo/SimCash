@@ -24,8 +24,8 @@ def test_overdue_display_functions():
         "num_days": 1,
         "rng_seed": 42,
         "agent_configs": [
-            {"id": "A", "opening_balance": 0, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "B", "opening_balance": 100_000_00, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "A", "opening_balance": 0, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "B", "opening_balance": 100_000_00, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
         "cost_rates": {
             "deadline_penalty": 50_000_00,

@@ -18,7 +18,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
             opening_balance: 1_000_000,
-            credit_limit: 0,
+            unsecured_cap: 0,
             policy: PolicyConfig::Fifo, // Should load from policies/fifo.json
             arrival_config: None,
             posted_collateral: None,
@@ -55,7 +55,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
             opening_balance: 1_000_000,
-            credit_limit: 0,
+            unsecured_cap: 0,
             policy: PolicyConfig::Deadline {
                 urgency_threshold: 5, // Should inject this into JSON tree
             },
@@ -97,7 +97,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
             opening_balance: 1_000_000,
-            credit_limit: 0,
+            unsecured_cap: 0,
             policy: PolicyConfig::Deadline {
                 urgency_threshold: 10, // Custom threshold, should override JSON default
             },
@@ -139,7 +139,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
             opening_balance: 300_000, // $3,000
-            credit_limit: 0,
+            unsecured_cap: 0,
             policy: PolicyConfig::LiquidityAware {
                 target_buffer: 100_000, // Keep at least $1,000
                 urgency_threshold: 5,
@@ -199,7 +199,7 @@ fn test_multi_agent_different_json_policies() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo, // FIFO from JSON
                 arrival_config: None,
                 posted_collateral: None,
@@ -209,7 +209,7 @@ fn test_multi_agent_different_json_policies() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Deadline {
                     urgency_threshold: 5,
                 }, // Deadline from JSON
@@ -221,7 +221,7 @@ fn test_multi_agent_different_json_policies() {
             AgentConfig {
                 id: "BANK_C".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::LiquidityAware {
                     target_buffer: 500_000,
                     urgency_threshold: 5,
@@ -258,7 +258,7 @@ fn test_determinism_with_json_policies() {
         agent_configs: vec![AgentConfig {
             id: "BANK_A".to_string(),
             opening_balance: 500_000,
-            credit_limit: 200_000,
+            unsecured_cap: 200_000,
             policy: PolicyConfig::LiquidityAware {
                 target_buffer: 100_000,
                 urgency_threshold: 5,

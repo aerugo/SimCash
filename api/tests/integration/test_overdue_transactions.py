@@ -23,13 +23,13 @@ def test_transaction_becomes_overdue_after_deadline():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,  # Insufficient for transaction
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 0,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -75,13 +75,13 @@ def test_overdue_transaction_eventually_settles():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,  # Insufficient for 500k transaction
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 500_000,  # Give BANK_B money so it can send to BANK_A
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -162,13 +162,13 @@ def test_overdue_delay_cost_multiplier_applied():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 0,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -211,13 +211,13 @@ def test_deadline_penalty_charged_once():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 0,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -258,19 +258,19 @@ def test_multiple_overdue_transactions():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 0,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 0,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -320,13 +320,13 @@ def test_config_with_overdue_multiplier():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 0,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -351,13 +351,13 @@ def test_config_uses_default_multiplier_when_not_specified():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 0,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],

@@ -22,7 +22,7 @@ def test_agent_arrival_rate_change_doubles_rate():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,  # ~10 arrivals over 20 ticks
@@ -40,7 +40,7 @@ def test_agent_arrival_rate_change_doubles_rate():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,  # Should remain unchanged
@@ -114,7 +114,7 @@ def test_agent_arrival_rate_change_halves_rate():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,  # Start with 1.0
@@ -132,7 +132,7 @@ def test_agent_arrival_rate_change_halves_rate():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -196,7 +196,7 @@ def test_agent_arrival_rate_change_near_halt():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -214,7 +214,7 @@ def test_agent_arrival_rate_change_near_halt():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -266,7 +266,7 @@ def test_agent_arrival_rate_change_logged_to_events():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.8,
@@ -284,7 +284,7 @@ def test_agent_arrival_rate_change_logged_to_events():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -346,7 +346,7 @@ def test_multiple_agent_arrival_rate_changes():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,  # Start: 0.5
@@ -364,7 +364,7 @@ def test_multiple_agent_arrival_rate_changes():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 500000,
+                "unsecured_cap": 500000,
                 "policy": {"type": "Fifo"},
             },
         ],

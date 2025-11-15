@@ -34,7 +34,7 @@ fn test_fifo_preserves_arrival_order() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000_000, // Ample liquidity
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
@@ -44,7 +44,7 @@ fn test_fifo_preserves_arrival_order() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -107,7 +107,7 @@ fn test_fifo_partial_submission() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 5_000_000, // Limited liquidity
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
@@ -117,7 +117,7 @@ fn test_fifo_partial_submission() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 10_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -193,7 +193,7 @@ fn test_fifo_vs_deadline_under_pressure() {
             AgentConfig {
                 id: "BANK_FIFO".to_string(),
                 opening_balance: 8_000_000, // Moderate liquidity
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
@@ -204,7 +204,7 @@ fn test_fifo_vs_deadline_under_pressure() {
             AgentConfig {
                 id: "BANK_DEADLINE".to_string(),
                 opening_balance: 8_000_000, // Same liquidity
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Deadline {
                     urgency_threshold: 3,
                 },
@@ -217,7 +217,7 @@ fn test_fifo_vs_deadline_under_pressure() {
             AgentConfig {
                 id: "BANK_C".to_string(),
                 opening_balance: 20_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,

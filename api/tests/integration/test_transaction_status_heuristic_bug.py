@@ -31,19 +31,19 @@ def simulation_with_three_agents(client):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,  # $10,000
-                "credit_limit": 0,  # No credit to avoid overdraft
+                "unsecured_cap": 0,  # No credit to avoid overdraft
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],

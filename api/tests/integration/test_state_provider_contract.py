@@ -54,13 +54,13 @@ class TestStateProviderContract:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,
-                    "credit_limit": 50000,
+                    "unsecured_cap": 50000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 200000,
-                    "credit_limit": 75000,
+                    "unsecured_cap": 75000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -92,7 +92,7 @@ class TestStateProviderContract:
         agent_states = {
             "BANK_A": {
                 "balance": live_balance_a,  # Use the actual value from live
-                "credit_limit": 50000,
+                "unsecured_cap": 50000,
                 "collateral_posted": 0,
                 "liquidity_cost": 0,
                 "delay_cost": 0,
@@ -102,7 +102,7 @@ class TestStateProviderContract:
             },
             "BANK_B": {
                 "balance": live_balance_b,  # Use the actual value from live
-                "credit_limit": 75000,
+                "unsecured_cap": 75000,
                 "collateral_posted": 0,
                 "liquidity_cost": 0,
                 "delay_cost": 0,
@@ -149,7 +149,7 @@ class TestStateProviderContract:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,
-                    "credit_limit": 50000,
+                    "unsecured_cap": 50000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -165,7 +165,7 @@ class TestStateProviderContract:
         agent_states = {
             "BANK_A": {
                 "balance": 100000,
-                "credit_limit": 50000,  # From config
+                "unsecured_cap": 50000,  # From config
                 "collateral_posted": 0,
                 "liquidity_cost": 0,
                 "delay_cost": 0,

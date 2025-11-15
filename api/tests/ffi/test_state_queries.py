@@ -13,13 +13,13 @@ def test_get_agent_balance():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -44,7 +44,7 @@ def test_get_queue1_size():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 1.0,  # Expect ~1 transaction per tick
@@ -58,7 +58,7 @@ def test_get_queue1_size():
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -92,7 +92,7 @@ def test_get_queue2_size():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000,  # Low balance
-                "credit_limit": 0,  # No credit
+                "unsecured_cap": 0,  # No credit
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 2.0,  # High arrival rate
@@ -106,7 +106,7 @@ def test_get_queue2_size():
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -132,9 +132,9 @@ def test_get_agent_ids():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_B", "opening_balance": 2_000_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
-            {"id": "BANK_C", "opening_balance": 500_000, "credit_limit": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_A", "opening_balance": 1_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_B", "opening_balance": 2_000_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
+            {"id": "BANK_C", "opening_balance": 500_000, "unsecured_cap": 0, "policy": {"type": "Fifo"}},
         ],
     }
     orch = Orchestrator.new(config)
@@ -158,7 +158,7 @@ def test_query_methods_during_simulation():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -172,7 +172,7 @@ def test_query_methods_during_simulation():
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
                     "rate_per_tick": 0.3,
@@ -225,7 +225,7 @@ def test_iterate_all_agents():
         "num_days": 1,
         "rng_seed": 12345,
         "agent_configs": [
-            {"id": f"BANK_{i}", "opening_balance": 1_000_000 + (i * 100_000), "credit_limit": 0, "policy": {"type": "Fifo"}}
+            {"id": f"BANK_{i}", "opening_balance": 1_000_000 + (i * 100_000), "unsecured_cap": 0, "policy": {"type": "Fifo"}}
             for i in range(5)
         ],
     }

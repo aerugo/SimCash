@@ -43,13 +43,13 @@ class TestOrchestratorStateProvider:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -132,7 +132,7 @@ class TestDatabaseStateProvider:
                 "BANK_A": {
                     "agent_id": "BANK_A",
                     "balance": 900000,  # After sending tx_001
-                    "credit_limit": 500000,
+                    "unsecured_cap": 500000,
                     "posted_collateral": 100000,
                     "liquidity_cost": 1000,
                     "delay_cost": 500,
@@ -143,7 +143,7 @@ class TestDatabaseStateProvider:
                 "BANK_B": {
                     "agent_id": "BANK_B",
                     "balance": 2000000,
-                    "credit_limit": 1000000,
+                    "unsecured_cap": 1000000,
                     "posted_collateral": 0,
                     "liquidity_cost": 0,
                     "delay_cost": 0,

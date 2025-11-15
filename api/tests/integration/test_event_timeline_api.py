@@ -56,19 +56,19 @@ def sample_simulation_with_events(test_db):
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_C",
                 "opening_balance": 1_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],

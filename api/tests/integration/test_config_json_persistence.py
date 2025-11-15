@@ -34,13 +34,13 @@ def test_persist_simulation_stores_config_json():
                 {
                     "id": "BANK_A",
                     "opening_balance": 10000000,
-                    "credit_limit": 5000000,
+                    "unsecured_cap": 5000000,
                     "policy": {"type": "FromJson", "json_path": "policy.json"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 20000000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                 },
             ],
             "lsm_config": {
@@ -108,7 +108,7 @@ def test_config_json_handles_large_configs():
                 {
                     "id": f"BANK_{i}",
                     "opening_balance": 10000000 + (i * 500000),
-                    "credit_limit": 5000000,
+                    "unsecured_cap": 5000000,
                     "policy": {"type": "FromJson", "json_path": f"policy_{i}.json"},
                     "arrival_config": {
                         "rate_per_tick": 0.5 + (i * 0.05),

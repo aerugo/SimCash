@@ -36,7 +36,7 @@ def test_split_parent_investigation():
         agent_config = {
             "id": agent["id"],
             "opening_balance": agent["opening_balance"],
-            "credit_limit": agent.get("credit_limit", 0),
+            "unsecured_cap": agent.get("credit_limit", 0),
         }
 
         # Handle policy - load JSON if FromJson type

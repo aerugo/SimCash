@@ -17,19 +17,19 @@ use payment_simulator_core_rs::{
     CostRates,
 };
 
-// Helper to create minimal test config with specific credit limit
+// Helper to create minimal test config with specific unsecured cap
 fn create_test_config(
     agent_id: &str,
-    credit_limit: i64,
+    unsecured_cap: i64,
     opening_balance: i64,
     policy_json: &str,
 ) -> OrchestratorConfig {
-    create_test_config_with_haircut(agent_id, credit_limit, opening_balance, policy_json, None)
+    create_test_config_with_haircut(agent_id, unsecured_cap, opening_balance, policy_json, None)
 }
 
 fn create_test_config_with_haircut(
     agent_id: &str,
-    credit_limit: i64,
+    unsecured_cap: i64,
     opening_balance: i64,
     policy_json: &str,
     collateral_haircut: Option<f64>,
@@ -39,24 +39,22 @@ fn create_test_config_with_haircut(
             AgentConfig {
                 id: agent_id.to_string(),
                 opening_balance,
-                credit_limit,
+                unsecured_cap,
                 policy: PolicyConfig::FromJson {
                     json: policy_json.to_string(),
                 },
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut,
-                unsecured_cap: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
-            unsecured_cap: None,
             },
         ],
         ticks_per_day: 100,
@@ -609,7 +607,7 @@ fn test_cross_agent_collateral_isolation() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000,
-                credit_limit: 10_000,
+                unsecured_cap: 10_000,
                 policy: PolicyConfig::FromJson {
                     json: policy_a.to_string(),
                 },
@@ -621,7 +619,7 @@ fn test_cross_agent_collateral_isolation() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 50_000,
-                credit_limit: 10_000,
+                unsecured_cap: 10_000,
                 policy: PolicyConfig::Fifo, // No collateral operations
                 arrival_config: None,
                 posted_collateral: None,
@@ -741,7 +739,7 @@ fn test_hold_collateral_action_is_noop() {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 50_000,
-                credit_limit: 10_000,
+                unsecured_cap: 10_000,
                 policy: PolicyConfig::FromJson {
                     json: policy_json.to_string(),
                 },
@@ -753,7 +751,7 @@ fn test_hold_collateral_action_is_noop() {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 100_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,

@@ -41,13 +41,13 @@ def simple_config():
             {
                 "id": "BANK_A",
                 "opening_balance": 1_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 2_000_000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "policy": {"type": "Fifo"},
             },
         ],
@@ -65,7 +65,7 @@ def config_with_transactions():
             {
                 "id": "BANK_A",
                 "opening_balance": 5_000_000,
-                "credit_limit": 1_000_000,
+                "unsecured_cap": 1_000_000,
                 "policy": {"type": "LiquidityAware", "target_buffer": 500_000, "urgency_threshold": 5},
                 "arrival_config": {
                     "rate_per_tick": 0.5,
@@ -79,7 +79,7 @@ def config_with_transactions():
             {
                 "id": "BANK_B",
                 "opening_balance": 3_000_000,
-                "credit_limit": 500_000,
+                "unsecured_cap": 500_000,
                 "policy": {"type": "Deadline", "urgency_threshold": 10},
                 "arrival_config": {
                     "rate_per_tick": 0.3,

@@ -14,7 +14,7 @@
 use payment_simulator_core_rs::{Agent, SimulationState, Transaction};
 
 /// Helper to create agent
-fn create_agent(id: &str, balance: i64, credit_limit: i64) -> Agent {
+fn create_agent(id: &str, balance: i64, unsecured_cap: i64) -> Agent {
     Agent::new(id.to_string(), balance, credit_limit)
 }
 

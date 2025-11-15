@@ -26,7 +26,7 @@ def test_cannot_withdraw_while_overdrawn():
             {
                 "id": "BANK_A",
                 "opening_balance": -100_000_00,  # $100k overdraft
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.10,  # 10% haircut
                 "unsecured_cap": 0,
                 "posted_collateral": 120_000_00,  # Posted to cover overdraft
@@ -76,7 +76,7 @@ def test_can_withdraw_excess_collateral():
             {
                 "id": "BANK_A",
                 "opening_balance": 0,  # No overdraft
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.05,
                 "posted_collateral": 200_000_00,  # Excess posted
                 "policy": {"type": "Fifo"},
@@ -112,7 +112,7 @@ def test_withdrawal_respects_safety_buffer():
             {
                 "id": "BANK_A",
                 "opening_balance": -30_000_00,  # Using $30k credit
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.10,
                 "posted_collateral": 100_000_00,
                 "policy": {"type": "Fifo"},
@@ -162,7 +162,7 @@ def test_max_withdrawable_at_utilization_limit():
             {
                 "id": "BANK_A",
                 "opening_balance": -90_000_00,  # $90k overdraft
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.10,
                 "posted_collateral": 100_000_00,  # Exactly covers usage
                 "policy": {"type": "Fifo"},
@@ -200,7 +200,7 @@ def test_tick_282_scenario_withdrawal_blocked():
             {
                 "id": "REGIONAL_TRUST",
                 "opening_balance": -164_897_33,  # Deep overdraft
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.02,
                 "posted_collateral": 50_000_00,  # Hypothetical amount
                 "policy": {"type": "Fifo"},
@@ -239,7 +239,7 @@ def test_can_withdraw_partial_amount_safely():
             {
                 "id": "BANK_A",
                 "opening_balance": -60_000_00,  # $60k overdraft
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.10,
                 "posted_collateral": 100_000_00,
                 "policy": {"type": "Fifo"},
@@ -283,7 +283,7 @@ def test_withdrawal_with_unsecured_cap():
             {
                 "id": "BANK_A",
                 "opening_balance": -50_000_00,  # $50k overdraft
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.10,
                 "unsecured_cap": 20_000_00,  # $20k unsecured daylight cap
                 "posted_collateral": 80_000_00,
@@ -326,7 +326,7 @@ def test_min_holding_ticks_still_enforced():
             {
                 "id": "BANK_A",
                 "opening_balance": 100_000_00,  # Positive balance
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "posted_collateral": 0,
                 "policy": {"type": "Fifo"},
             }
@@ -360,7 +360,7 @@ def test_state_exposes_new_collateral_fields():
             {
                 "id": "BANK_A",
                 "opening_balance": -50_000_00,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.10,
                 "unsecured_cap": 10_000_00,
                 "posted_collateral": 100_000_00,
@@ -407,7 +407,7 @@ def test_zero_haircut_edge_case():
             {
                 "id": "BANK_A",
                 "opening_balance": -80_000_00,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 0.0,  # 0% haircut
                 "posted_collateral": 100_000_00,
                 "policy": {"type": "Fifo"},
@@ -443,7 +443,7 @@ def test_100_percent_haircut_edge_case():
             {
                 "id": "BANK_A",
                 "opening_balance": 50_000_00,  # Positive balance
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_haircut": 1.0,  # 100% haircut (worthless collateral)
                 "posted_collateral": 100_000_00,
                 "unsecured_cap": 0,

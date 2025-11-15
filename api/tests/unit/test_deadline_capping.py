@@ -25,14 +25,14 @@ def test_deadlines_capped_at_episode_end():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
@@ -101,7 +101,7 @@ def test_deadline_offset_respects_episode_boundary():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
@@ -120,7 +120,7 @@ def test_deadline_offset_respects_episode_boundary():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
@@ -183,7 +183,7 @@ def test_deadlines_reasonable_within_episode():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
                 "arrival_config": {
@@ -202,7 +202,7 @@ def test_deadlines_reasonable_within_episode():
             {
                 "id": "BANK_B",
                 "opening_balance": 1000000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },

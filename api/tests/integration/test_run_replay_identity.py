@@ -87,13 +87,13 @@ class TestRunReplayIdentity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 1000000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],
@@ -379,13 +379,13 @@ class TestRunReplayIdentity:
                 {
                     "id": "BANK_A",
                     "opening_balance": 1000000,
-                    "credit_limit": 1000000,  # $10,000.00
+                    "unsecured_cap": 1000000,  # $10,000.00
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 2000000,
-                    "credit_limit": 500000,  # $5,000.00
+                    "unsecured_cap": 500000,  # $5,000.00
                     "policy": {"type": "Fifo"},
                 },
             ]

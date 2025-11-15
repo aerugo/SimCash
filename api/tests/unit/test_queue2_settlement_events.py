@@ -25,14 +25,14 @@ def test_queue2_settlement_emits_rtgs_queue2_settle_event():
             {
                 "id": "BANK_A",
                 "opening_balance": 5000,  # $50 - Very low to force queuing
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 100000,  # $1000 - High balance
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
@@ -126,14 +126,14 @@ def test_queued_rtgs_event_exists_for_queue2_entry():
             {
                 "id": "BANK_A",
                 "opening_balance": 1000,  # $10 - Very low
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },
             {
                 "id": "BANK_B",
                 "opening_balance": 100000,
-                "credit_limit": 0,
+                "unsecured_cap": 0,
                 "collateral_pool": 0,
                 "policy": {"type": "Fifo"},
             },

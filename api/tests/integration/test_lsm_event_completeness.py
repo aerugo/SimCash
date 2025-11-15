@@ -37,13 +37,13 @@ class TestLsmEventCompleteness:
                 {
                     "id": "BANK_A",
                     "opening_balance": 100000,  # Low balance to force queuing
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 100000,
-                    "credit_limit": 0,
+                    "unsecured_cap": 0,
                     "policy": {"type": "Fifo"},
                 },
             ],

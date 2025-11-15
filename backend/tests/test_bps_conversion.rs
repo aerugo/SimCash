@@ -26,7 +26,7 @@ fn create_test_config() -> OrchestratorConfig {
             AgentConfig {
                 id: "BANK_A".to_string(),
                 opening_balance: 1_000_000,
-                credit_limit: 500_000,
+                unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
@@ -36,7 +36,7 @@ fn create_test_config() -> OrchestratorConfig {
             AgentConfig {
                 id: "BANK_B".to_string(),
                 opening_balance: 2_000_000,
-                credit_limit: 0,
+                unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
                 posted_collateral: None,
