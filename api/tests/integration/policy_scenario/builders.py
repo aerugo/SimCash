@@ -14,7 +14,7 @@ class AgentScenarioConfig:
 
     agent_id: str
     opening_balance: int  # cents
-    credit_limit: int = 0  # cents
+    unsecured_cap: int = 0  # cents (unsecured overdraft capacity)
     arrival_rate: float = 0.0  # arrivals per tick
     arrival_amount_range: Tuple[int, int] = (100_000, 250_000)  # (min, max) cents
     deadline_range: Tuple[int, int] = (10, 40)  # (min, max) ticks
@@ -99,7 +99,7 @@ class ScenarioDefinition:
             agent_dict = {
                 "id": agent_cfg.agent_id,
                 "opening_balance": agent_cfg.opening_balance,
-                "unsecured_cap": agent_cfg.credit_limit,
+                "unsecured_cap": agent_cfg.unsecured_cap,
                 "policy": policy_config,
             }
 

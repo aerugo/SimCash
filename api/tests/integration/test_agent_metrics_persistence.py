@@ -87,7 +87,7 @@ class TestFFIAgentMetricsRetrieval:
             "closing_balance",
             "min_balance",
             "max_balance",
-            "credit_limit",
+            "unsecured_cap",
             "peak_overdraft",
             # Phase 8: Collateral fields
             "opening_posted_collateral",
