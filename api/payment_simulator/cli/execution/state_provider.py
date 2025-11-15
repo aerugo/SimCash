@@ -312,9 +312,10 @@ class DatabaseStateProvider:
             if tx_id not in queued_tx_ids:
                 continue
 
-            # Skip settled transactions
-            if tx.get("status") == "settled":
-                continue
+            # CRITICAL FIX (Discrepancy #1): Don't check status field in replay!
+            # In replay, tx_cache contains FINAL state (status='settled' at end of sim),
+            # not state at current tick. We must check settlement_tick instead.
+            # The old check `if tx.get("status") == "settled": continue` was wrong!
 
             # Calculate remaining amount with tick-awareness (Issue #3 fix)
             # Only count amount_settled if settlement happened BY current tick
