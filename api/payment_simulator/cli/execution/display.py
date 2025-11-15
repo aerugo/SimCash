@@ -67,6 +67,7 @@ def display_tick_verbose_output(
         log_collateral_activity,
         log_cost_accrual_events,
         log_cost_breakdown,
+        log_end_of_day_event,
         log_lsm_cycle_visualization,
         log_overdue_transaction_settled_event,
         log_overdue_transactions_summary,
@@ -227,5 +228,10 @@ def display_tick_verbose_output(
         num_lsm_releases,
         total_queued,
     )
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 9: END OF DAY EVENT (if present)
+    # ═══════════════════════════════════════════════════════════
+    log_end_of_day_event(display_events, quiet=quiet)
 
     return updated_balances
