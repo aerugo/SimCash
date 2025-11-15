@@ -1726,7 +1726,8 @@ def replay_simulation(
                     "ticks_per_second": round(ticks_per_second, 2),
                 },
             }
-            output_json(output_data)
+            # Use compact JSON format (single line) for machine parseability
+            output_json(output_data, indent=None)
 
         db_manager.close()
 

@@ -704,7 +704,8 @@ def run_simulation(
                 output_data["simulation"]["simulation_id"] = sim_id
                 output_data["simulation"]["database"] = db_path
 
-            output_json(output_data)
+            # Use compact JSON format (single line) for machine parseability
+            output_json(output_data, indent=None)
             return
 
         elif use_new_runner and event_stream:
@@ -932,7 +933,8 @@ def run_simulation(
                 output_data["simulation"]["simulation_id"] = sim_id
                 output_data["simulation"]["database"] = db_path
 
-            output_json(output_data)
+            # Use compact JSON format (single line) for machine parseability
+            output_json(output_data, indent=None)
             return
 
     except typer.Exit:
