@@ -1121,9 +1121,16 @@ def replay_simulation(
                     # Update statistics
                     num_arrivals = len(arrival_events)
 
-                    # CRITICAL: Count actual settlements, not just Settlement events
+                    # CRITICAL FIX (Discrepancy #2): Count ALL settlement event types
+                    # Rust emits specific settlement events (RtgsImmediateSettlement, Queue2LiquidityRelease)
+                    # instead of generic Settlement events. We must count them all.
+                    num_settlements = (
+                        len(settlement_events) +  # Legacy generic Settlement events
+                        len(rtgs_immediate_events) +  # Specific RTGS immediate settlements
+                        len(queue2_release_events)  # Specific Queue2 releases
+                    )
+
                     # LSM events settle multiple transactions - count them from tx_ids field
-                    num_settlements = len(settlement_events)
                     num_lsm_settlements = 0
                     for lsm_event in lsm_events:
                         tx_ids = lsm_event.get("tx_ids", [])
