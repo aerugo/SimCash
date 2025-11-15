@@ -916,6 +916,7 @@ mod tests {
             500_000, // balance
             100_000, // liquidity_buffer
         );
+        agent.set_unsecured_cap(200_000); // $2,000 unsecured overdraft capacity
         agent.queue_outgoing("tx_001".to_string());
         agent.queue_outgoing("tx_002".to_string());
         agent.add_expected_inflow("tx_003".to_string());
@@ -943,7 +944,7 @@ mod tests {
 
         // Check agent fields
         assert_eq!(context.get_field("balance").unwrap(), 500_000.0);
-        assert_eq!(context.get_field("credit_limit").unwrap(), 200_000.0);
+        assert_eq!(context.get_field("unsecured_cap").unwrap(), 200_000.0);
         assert_eq!(context.get_field("available_liquidity").unwrap(), 700_000.0);
         assert_eq!(context.get_field("credit_used").unwrap(), 0.0);
         assert_eq!(context.get_field("is_using_credit").unwrap(), 0.0);

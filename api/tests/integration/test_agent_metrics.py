@@ -105,8 +105,8 @@ class TestFFIAgentMetricsRetrieval:
             "closing_balance",
             "min_balance",
             "max_balance",
-            # Credit usage
-            "credit_limit",
+            # Unsecured overdraft capacity
+            "unsecured_cap",
             "peak_overdraft",
             # Collateral management (Phase 8)
             "opening_posted_collateral",

@@ -9,9 +9,11 @@ use payment_simulator_core_rs::{Agent, Transaction, TransactionStatus};
 // Test Helpers
 // ============================================================================
 
-/// Create a test agent with given balance and credit limit
+/// Create a test agent with given balance and unsecured overdraft capacity
 fn create_test_agent(id: &str, balance: i64, unsecured_cap: i64) -> Agent {
-    Agent::new(id.to_string(), balance)
+    let mut agent = Agent::new(id.to_string(), balance);
+    agent.set_unsecured_cap(unsecured_cap);
+    agent
 }
 
 /// Create a test transaction

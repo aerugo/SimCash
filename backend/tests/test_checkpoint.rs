@@ -180,8 +180,8 @@ fn test_save_state_captures_agent_data() {
     assert!(agent["id"].is_string(), "Agent missing id");
     assert!(agent["balance"].is_number(), "Agent missing balance");
     assert!(
-        agent["credit_limit"].is_number(),
-        "Agent missing credit_limit"
+        agent["unsecured_cap"].is_number(),
+        "Agent missing unsecured_cap"
     );
     assert!(
         agent["outgoing_queue"].is_array(),
