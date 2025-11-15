@@ -264,8 +264,8 @@ pub struct LsmPassResult {
 /// use payment_simulator_core_rs::settlement::lsm::bilateral_offset;
 ///
 /// let agents = vec![
-///     Agent::new("BANK_A".to_string(), 100_000, 0),
-///     Agent::new("BANK_B".to_string(), 100_000, 0),
+///     Agent::new("BANK_A".to_string(), 100_000),
+///     Agent::new("BANK_B".to_string(), 100_000),
 /// ];
 /// let mut state = SimulationState::new(agents);
 ///
