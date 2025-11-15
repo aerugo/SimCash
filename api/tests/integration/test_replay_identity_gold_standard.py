@@ -83,8 +83,8 @@ class TestEventEnrichment:
         # Get ALL events to find bilateral offset
         all_events = orch.get_all_events()
 
-        # Find LSM bilateral offset event
-        lsm_bilateral = [e for e in all_events if e.get('event_type') == 'lsm_bilateral_offset']
+        # Find LSM bilateral offset event (use correct casing from Rust)
+        lsm_bilateral = [e for e in all_events if e.get('event_type') == 'LsmBilateralOffset']
 
         assert len(lsm_bilateral) > 0, (
             f"Expected LSM bilateral offset event. Events: {[e.get('event_type') for e in all_events]}"
@@ -159,7 +159,7 @@ class TestEventEnrichment:
 
         # Get ALL events
         all_events = orch.get_all_events()
-        lsm_cycles = [e for e in all_events if e.get('event_type') == 'lsm_cycle_settlement']
+        lsm_cycles = [e for e in all_events if e.get('event_type') == 'LsmCycleSettlement']
 
         assert len(lsm_cycles) > 0, (
             f"Expected LSM cycle settlement event. Events: {[e.get('event_type') for e in all_events]}"
@@ -229,7 +229,7 @@ class TestEventEnrichment:
 
         # Get ALL events
         all_events = orch.get_all_events()
-        collateral_events = [e for e in all_events if e.get('event_type') == 'collateral_posted']
+        collateral_events = [e for e in all_events if e.get('event_type') == 'CollateralPosted']
 
         assert len(collateral_events) > 0, (
             f"Expected collateral posting event. Events: {[e.get('event_type') for e in all_events]}"
@@ -358,7 +358,7 @@ class TestFFIEventSerialization:
         # Get ALL events via FFI
         all_events = orch.get_all_events()
 
-        lsm_events = [e for e in all_events if e.get('event_type') == 'lsm_bilateral_offset']
+        lsm_events = [e for e in all_events if e.get('event_type') == 'LsmBilateralOffset']
 
         assert len(lsm_events) > 0, (
             f"Expected LSM bilateral offset. Events: {[e.get('event_type') for e in all_events]}"
