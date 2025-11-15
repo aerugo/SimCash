@@ -448,6 +448,191 @@ def _reconstruct_queued_rtgs_events(events: list[dict]) -> list[dict]:
     return result
 
 
+def _reconstruct_rtgs_immediate_settlement_events(events: list[dict]) -> list[dict]:
+    """Reconstruct RtgsImmediateSettlement events from simulation_events table.
+
+    CRITICAL FIX (Discrepancy #3): These events are needed for "RTGS Immediate" display block.
+
+    Args:
+        events: List of simulation event records with event_type = 'RtgsImmediateSettlement'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "RtgsImmediateSettlement":
+            details = event.get("details", {})
+            result.append({
+                "event_type": "RtgsImmediateSettlement",
+                "tick": event["tick"],
+                "tx_id": event.get("tx_id"),
+                "sender": details.get("sender"),
+                "receiver": details.get("receiver"),
+                "amount": details.get("amount", 0),
+                "sender_balance_before": details.get("sender_balance_before"),
+                "sender_balance_after": details.get("sender_balance_after"),
+            })
+    return result
+
+
+def _reconstruct_queue2_liquidity_release_events(events: list[dict]) -> list[dict]:
+    """Reconstruct Queue2LiquidityRelease events from simulation_events table.
+
+    CRITICAL FIX (Discrepancy #3): These events are needed for "Queue 2 Releases" display block.
+
+    Args:
+        events: List of simulation event records with event_type = 'Queue2LiquidityRelease'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "Queue2LiquidityRelease":
+            details = event.get("details", {})
+            result.append({
+                "event_type": "Queue2LiquidityRelease",
+                "tick": event["tick"],
+                "tx_id": event.get("tx_id"),
+                "sender": details.get("sender"),
+                "receiver": details.get("receiver"),
+                "amount": details.get("amount", 0),
+                "queue_wait_ticks": details.get("queue_wait_ticks", 0),
+                "release_reason": details.get("release_reason", ""),
+            })
+    return result
+
+
+def _reconstruct_queue_snapshots(
+    conn,
+    simulation_id: str,
+    tick: int,
+    tx_cache: dict[str, dict]
+) -> dict[str, dict]:
+    """Reconstruct queue snapshots from transaction cache and events.
+
+    CRITICAL FIX (Discrepancy #1): Near-deadline warnings require knowing which
+    transactions are queued. Without --full-replay, queue_snapshots weren't available.
+    This reconstructs them from transaction state.
+
+    Args:
+        conn: Database connection
+        simulation_id: Simulation identifier
+        tick: Current tick
+        tx_cache: Transaction cache with full transaction info
+
+    Returns:
+        Dict mapping agent_id to queue state:
+        {
+            "AGENT_ID": {
+                "queue1": [tx_id1, tx_id2, ...],  # Generic queue
+                "rtgs": [tx_id3, tx_id4, ...]     # RTGS queue
+            }
+        }
+    """
+    # Get all settlement events up to and including current tick
+    # to determine which transactions have been settled
+    settled_query = """
+        SELECT tx_id, SUM(CAST(json_extract_string(details, '$.amount') AS BIGINT)) as settled_amount
+        FROM simulation_events
+        WHERE simulation_id = ?
+        AND tick <= ?
+        AND event_type IN (
+            'Settlement', 'RtgsImmediateSettlement', 'Queue2LiquidityRelease',
+            'LsmBilateralOffset', 'LsmCycleSettlement'
+        )
+        AND tx_id IS NOT NULL
+        GROUP BY tx_id
+    """
+    settled_result = conn.execute(settled_query, [simulation_id, tick]).fetchall()
+    settled_amounts = {row[0]: row[1] if row[1] is not None else 0 for row in settled_result}
+
+    # Also check LSM events which settle multiple transactions at once
+    lsm_query = """
+        SELECT json_extract_string(details, '$.tx_ids') as tx_ids_json
+        FROM simulation_events
+        WHERE simulation_id = ?
+        AND tick <= ?
+        AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
+    """
+    lsm_result = conn.execute(lsm_query, [simulation_id, tick]).fetchall()
+    for row in lsm_result:
+        if row[0]:
+            try:
+                import json
+                tx_ids = json.loads(row[0])
+                for tx_id in tx_ids:
+                    # Mark as fully settled (LSM settles full amounts)
+                    if tx_id in tx_cache:
+                        settled_amounts[tx_id] = tx_cache[tx_id]["amount"]
+            except:
+                pass
+
+    # Build queue snapshots by agent
+    queue_snapshots = {}
+    for tx_id, tx in tx_cache.items():
+        # Skip if not arrived yet
+        if tx["arrival_tick"] > tick:
+            continue
+
+        # CRITICAL: Check if settled BY current tick (not final status)
+        # tx_cache contains final state, but we need state AT this tick
+        # A transaction is settled at tick T if settlement_tick <= T
+        settlement_tick = tx.get("settlement_tick")
+        if settlement_tick is not None and settlement_tick <= tick:
+            # Transaction was settled by this tick - not queued
+            continue
+
+        # Also check with settled_amounts from events query
+        settled = settled_amounts.get(tx_id, 0)
+        remaining = tx["amount"] - settled
+        if remaining <= 0:
+            continue
+
+        # Transaction is queued at this tick - add to sender's queue
+        sender = tx["sender_id"]
+        if sender not in queue_snapshots:
+            queue_snapshots[sender] = {"queue1": [], "rtgs": []}
+
+        # Add to generic queue (exact queue doesn't matter for near-deadline detection)
+        queue_snapshots[sender]["rtgs"].append(tx_id)
+
+    return queue_snapshots
+
+
+def _calculate_final_queue_sizes(
+    conn,
+    simulation_id: str,
+    final_tick: int,
+    tx_cache: dict[str, dict],
+    agent_ids: list[str]
+) -> dict[str, int]:
+    """Calculate queue sizes at final tick from events.
+
+    CRITICAL FIX (Discrepancy #6): JSON queue sizes were 0 without --full-replay.
+    This reconstructs queue sizes from transaction state at final tick.
+
+    Args:
+        conn: Database connection
+        simulation_id: Simulation identifier
+        final_tick: Last tick of simulation
+        tx_cache: Transaction cache
+        agent_ids: List of agent IDs
+
+    Returns:
+        Dict mapping agent_id -> queue1_size
+    """
+    queue_snapshots = _reconstruct_queue_snapshots(conn, simulation_id, final_tick, tx_cache)
+
+    # Count queued transactions per agent
+    queue_sizes = {agent_id: 0 for agent_id in agent_ids}
+    for agent_id, queues in queue_snapshots.items():
+        queue_sizes[agent_id] = len(queues.get("queue1", [])) + len(queues.get("rtgs", []))
+
+    return queue_sizes
+
+
 def _has_full_replay_data(conn, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
@@ -988,6 +1173,8 @@ def replay_simulation(
                     # Organize events by type
                     arrival_events_raw = []
                     settlement_events_raw = []
+                    rtgs_immediate_events_raw = []  # DISCREPANCY #3 FIX
+                    queue2_release_events_raw = []  # DISCREPANCY #3 FIX
                     lsm_events_raw = []
                     collateral_events_raw = []
                     cost_accrual_events_raw = []
@@ -1005,6 +1192,11 @@ def replay_simulation(
                             arrival_events_raw.append(event)
                         elif event_type == "Settlement":
                             settlement_events_raw.append(event)
+                        # DISCREPANCY #3 FIX: Capture specific settlement event types
+                        elif event_type == "RtgsImmediateSettlement":
+                            rtgs_immediate_events_raw.append(event)
+                        elif event_type == "Queue2LiquidityRelease":
+                            queue2_release_events_raw.append(event)
                         elif event_type in ["LsmBilateralOffset", "LsmCycleSettlement"]:
                             lsm_events_raw.append(event)
                         elif event_type in ["CollateralPost", "CollateralWithdraw"]:
@@ -1029,6 +1221,9 @@ def replay_simulation(
                     # This is the unified replay architecture - NO manual reconstruction from legacy tables
                     arrival_events = _reconstruct_arrival_events_from_simulation_events(arrival_events_raw)
                     settlement_events = _reconstruct_settlement_events_from_simulation_events(settlement_events_raw)
+                    # DISCREPANCY #3 FIX: Reconstruct specific settlement event types
+                    rtgs_immediate_events = _reconstruct_rtgs_immediate_settlement_events(rtgs_immediate_events_raw)
+                    queue2_release_events = _reconstruct_queue2_liquidity_release_events(queue2_release_events_raw)
                     lsm_events = _reconstruct_lsm_events_from_simulation_events(lsm_events_raw)
                     collateral_events = _reconstruct_collateral_events_from_simulation_events(collateral_events_raw)
                     collateral_timer_events = _reconstruct_collateral_timer_events(collateral_timer_events_raw)  # Phase 3.4
@@ -1042,7 +1237,10 @@ def replay_simulation(
 
                     # Combine all events
                     events = (
-                        arrival_events + settlement_events + lsm_events + collateral_events +
+                        arrival_events + settlement_events +
+                        # DISCREPANCY #3 FIX: Include specific settlement events for display
+                        rtgs_immediate_events + queue2_release_events +
+                        lsm_events + collateral_events +
                         collateral_timer_events + cost_accrual_events + scenario_events +
                         state_register_events + budget_events +
                         # PHASE 4 FIX: Include missing event types for replay identity
@@ -1052,9 +1250,16 @@ def replay_simulation(
                     # Update statistics
                     num_arrivals = len(arrival_events)
 
-                    # CRITICAL: Count actual settlements, not just Settlement events
+                    # CRITICAL FIX (Discrepancy #2): Count ALL settlement event types
+                    # Rust emits specific settlement events (RtgsImmediateSettlement, Queue2LiquidityRelease)
+                    # instead of generic Settlement events. We must count them all.
+                    num_settlements = (
+                        len(settlement_events) +  # Legacy generic Settlement events
+                        len(rtgs_immediate_events) +  # Specific RTGS immediate settlements
+                        len(queue2_release_events)  # Specific Queue2 releases
+                    )
+
                     # LSM events settle multiple transactions - count them from tx_ids field
-                    num_settlements = len(settlement_events)
                     num_lsm_settlements = 0
                     for lsm_event in lsm_events:
                         tx_ids = lsm_event.get("tx_ids", [])
@@ -1102,17 +1307,34 @@ def replay_simulation(
                     # Add policy events to events list for display
                     all_events = events + policy_events
 
+                    # DISCREPANCY #4 FIX: Calculate total_cost from CostAccrual events
+                    # NOT from agent_states (which only exist with --full-replay)
+                    # This ensures cost breakdown displays even without --full-replay
+                    total_cost = 0
+                    for event in cost_accrual_events:
+                        # CostAccrual events have individual cost amounts
+                        total_cost += event.get("liquidity_cost", 0)
+                        total_cost += event.get("delay_cost", 0)
+                        total_cost += event.get("collateral_cost", 0)
+                        total_cost += event.get("penalty_cost", 0)
+                        total_cost += event.get("split_friction_cost", 0)
+
                     # Query agent states and queue snapshots (needed for DatabaseStateProvider)
                     agent_states_list = []
-                    queue_snapshots = {}
-                    total_cost = 0
                     if has_full_replay:
                         agent_states_list = get_tick_agent_states(db_manager.conn, simulation_id, tick_num)
-                        queue_snapshots = get_tick_queue_snapshots(db_manager.conn, simulation_id, tick_num)
-                        # Calculate total cost from agent states
-                        for state in agent_states_list:
-                            costs = state.get("costs", {})
-                            total_cost += costs.get("total", 0)
+                        # NOTE: total_cost already calculated from CostAccrual events above
+                        # No need to recalculate from agent_states (would duplicate)
+
+                    # CRITICAL FIX (Discrepancy #1): Reconstruct queue_snapshots from events
+                    # Without --full-replay, queue_snapshots wasn't available, so near-deadline
+                    # transactions couldn't be detected. Now we reconstruct from events.
+                    queue_snapshots = _reconstruct_queue_snapshots(
+                        db_manager.conn,
+                        simulation_id,
+                        tick_num,
+                        mock_orch._tx_cache
+                    )
 
                     # Convert agent_states list to dict for DatabaseStateProvider
                     agent_states_dict = {state["agent_id"]: state for state in agent_states_list}
@@ -1152,17 +1374,76 @@ def replay_simulation(
                     if (tick_num + 1) % ticks_per_day == 0:
                         current_day = tick_num // ticks_per_day
 
+                        # CRITICAL FIX: Query FULL DAY statistics from database
+                        # NOT just the replayed tick range (which could be a single tick)
+                        # This fixes Discrepancy #5 - EOD metrics scope confusion
+
+                        # Calculate full day tick range
+                        day_start_tick = current_day * ticks_per_day
+                        day_end_tick = (current_day + 1) * ticks_per_day - 1
+
+                        # Query full day arrivals
+                        day_arrivals_query = """
+                            SELECT COUNT(*) FROM simulation_events
+                            WHERE simulation_id = ? AND event_type = 'Arrival'
+                            AND tick BETWEEN ? AND ?
+                        """
+                        day_arrivals_result = db_manager.conn.execute(
+                            day_arrivals_query, [simulation_id, day_start_tick, day_end_tick]
+                        ).fetchone()
+                        full_day_arrivals = day_arrivals_result[0] if day_arrivals_result else 0
+
+                        # Query full day settlements (including LSM settlements)
+                        # Count Settlement events
+                        day_settlements_query = """
+                            SELECT COUNT(*) FROM simulation_events
+                            WHERE simulation_id = ? AND event_type = 'Settlement'
+                            AND tick BETWEEN ? AND ?
+                        """
+                        day_settlements_result = db_manager.conn.execute(
+                            day_settlements_query, [simulation_id, day_start_tick, day_end_tick]
+                        ).fetchone()
+                        full_day_settlements = day_settlements_result[0] if day_settlements_result else 0
+
+                        # Count LSM-settled transactions by extracting tx_ids from LSM events
+                        day_lsm_query = """
+                            SELECT event_type, details FROM simulation_events
+                            WHERE simulation_id = ?
+                            AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
+                            AND tick BETWEEN ? AND ?
+                        """
+                        day_lsm_results = db_manager.conn.execute(
+                            day_lsm_query, [simulation_id, day_start_tick, day_end_tick]
+                        ).fetchall()
+
+                        full_day_lsm_releases = len(day_lsm_results)
+                        day_lsm_settlements = 0
+                        for event_type, details_json in day_lsm_results:
+                            details = json.loads(details_json) if isinstance(details_json, str) else details_json
+                            tx_ids = details.get("tx_ids", [])
+                            day_lsm_settlements += len(tx_ids)
+
+                        full_day_settlements += day_lsm_settlements
+
                         # Query database for EOD agent metrics
                         from payment_simulator.persistence.queries import get_agent_daily_metrics
 
                         # Get list of agent IDs from config
                         agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
 
-                        # Build mapping of agent_id -> credit_limit from config
-                        agent_credit_limits = {
-                            agent["id"]: agent.get("credit_limit", 0)
-                            for agent in config_dict.get("agents", [])
-                        }
+                        # Build mapping of agent_id -> unsecured_cap from config
+                        # CRITICAL FIX (Discrepancy #8): Apply same backward compatibility as Rust
+                        # Rust logic: unsecured_cap = config.unsecured_cap ?? config.credit_limit
+                        # This ensures allowed_overdraft calculation matches between run and replay
+                        agent_credit_limits = {}
+                        for agent in config_dict.get("agents", []):
+                            agent_id = agent["id"]
+                            # Use unsecured_cap if specified, otherwise fall back to credit_limit
+                            unsecured_cap = agent.get("unsecured_cap")
+                            if unsecured_cap is not None:
+                                agent_credit_limits[agent_id] = unsecured_cap
+                            else:
+                                agent_credit_limits[agent_id] = agent.get("credit_limit", 0)
 
                         agent_stats = []
                         day_total_costs = 0
@@ -1178,19 +1459,22 @@ def replay_simulation(
                                 agent_total_cost = row_dict["total_cost"]
                                 day_total_costs += agent_total_cost
 
-                                # Calculate credit utilization (Issue #4 fix - CORRECTED)
-                                # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just credit_limit!
+                                # Calculate credit utilization (CRITICAL FIX - Discrepancy #8)
+                                # Must match Rust's Agent::allowed_overdraft_limit() formula exactly!
+                                # Rust: collateral_capacity + unsecured_cap
                                 balance = row_dict["closing_balance"]
-                                credit_limit = agent_credit_limits.get(agent_id, 0)
+                                unsecured_cap = agent_credit_limits.get(agent_id, 0)  # Contains unsecured_cap (or credit_limit fallback)
 
-                                # Get collateral backing from database (Phase 8)
+                                # Get collateral backing from database
                                 posted_collateral = row_dict.get("closing_posted_collateral", 0)
 
-                                # Calculate allowed overdraft: credit_limit + collateral_backing
-                                # Use default 2% haircut (0.98 retention) - matches Agent::new() default
-                                collateral_haircut = 0.02
-                                collateral_backing = int(posted_collateral * (1.0 - collateral_haircut))
-                                allowed_overdraft = credit_limit + collateral_backing
+                                # Calculate collateral_capacity using same formula as Rust
+                                # Rust: (posted_collateral * (1.0 - collateral_haircut)).floor()
+                                collateral_haircut = 0.02  # Default from Agent::new()
+                                collateral_capacity = int(posted_collateral * (1.0 - collateral_haircut))
+
+                                # Rust formula: allowed_overdraft_limit = collateral_capacity + unsecured_cap
+                                allowed_overdraft = collateral_capacity + unsecured_cap
 
                                 credit_util = 0
                                 if allowed_overdraft and allowed_overdraft > 0:
@@ -1225,16 +1509,18 @@ def replay_simulation(
                         )
                         log_end_of_day_event(eod_events_result["events"])
 
+                        # CRITICAL: Use full day statistics, NOT accumulated daily_stats which only
+                        # covers the replayed tick range. This fixes Discrepancy #5.
                         log_end_of_day_statistics(
                             day=current_day,
-                            total_arrivals=daily_stats["arrivals"],
-                            total_settlements=daily_stats["settlements"],
-                            total_lsm_releases=daily_stats["lsm_releases"],
+                            total_arrivals=full_day_arrivals,
+                            total_settlements=full_day_settlements,
+                            total_lsm_releases=full_day_lsm_releases,
                             total_costs=day_total_costs,
                             agent_stats=agent_stats,
                         )
 
-                        # Reset daily stats for next day
+                        # Reset daily stats for next day (still useful for tracking replayed range)
                         daily_stats = {
                             "arrivals": 0,
                             "settlements": 0,
@@ -1256,15 +1542,14 @@ def replay_simulation(
                 tick_count_settlements = summary["total_settlements"]
                 total_cost = summary["total_cost_cents"]
 
-                # LSM release count not in summary table - calculate from events if needed
-                # (This is a minor metric, not critical for accuracy)
+                # CRITICAL FIX (Discrepancy #9): Query FULL SIMULATION LSM count, not just replayed range
+                # LSM release count not in summary table - calculate from ALL events for this simulation
                 lsm_query = """
                     SELECT COUNT(*) FROM simulation_events
                     WHERE simulation_id = ?
                     AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
-                    AND tick BETWEEN ? AND ?
                 """
-                result = db_manager.conn.execute(lsm_query, [simulation_id, from_tick, end_tick]).fetchone()
+                result = db_manager.conn.execute(lsm_query, [simulation_id]).fetchone()
                 tick_count_lsm = result[0] if result else 0
 
                 # Get final agent balances from daily_agent_metrics (always available, not dependent on --full-replay)
@@ -1341,11 +1626,65 @@ def replay_simulation(
                         for row in agent_results
                     ]
                 except Exception:
-                    # Last resort: agent IDs only
-                    final_agents_output = [{"id": agent["id"]} for agent in config_dict.get("agents", [])]
+                    # CRITICAL FIX (Discrepancy #6): Calculate queue sizes from events
+                    # when daily_agent_metrics unavailable
+                    agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
+
+                    # Calculate final tick
+                    final_tick = summary["ticks_per_day"] * summary["num_days"] - 1
+
+                    # Reconstruct queue sizes from events
+                    queue_sizes = _calculate_final_queue_sizes(
+                        conn=db_manager.conn,
+                        simulation_id=simulation_id,
+                        final_tick=final_tick,
+                        tx_cache=mock_orch._tx_cache,
+                        agent_ids=agent_ids
+                    )
+
+                    # Get final balances from simulation summary or query
+                    # Try to get from daily_agent_metrics even if queue1_eod_size failed
+                    balance_query = """
+                        SELECT agent_id, closing_balance
+                        FROM daily_agent_metrics
+                        WHERE simulation_id = ? AND day = ?
+                    """
+                    try:
+                        balance_results = db_manager.conn.execute(balance_query, [simulation_id, final_day]).fetchall()
+                        balances = {row[0]: row[1] for row in balance_results}
+                    except:
+                        # Last resort: balances from config (opening balances)
+                        balances = {agent["id"]: agent.get("opening_balance", 0) for agent in config_dict.get("agents", [])}
+
+                    final_agents_output = [
+                        {
+                            "id": agent_id,
+                            "final_balance": balances.get(agent_id, 0),
+                            "queue1_size": queue_sizes.get(agent_id, 0),
+                        }
+                        for agent_id in agent_ids
+                    ]
             else:
                 # Last resort: agent IDs only
-                final_agents_output = [{"id": agent["id"]} for agent in config_dict.get("agents", [])]
+                # CRITICAL FIX (Discrepancy #6): Even in last resort, calculate queue sizes
+                agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
+
+                final_tick = summary["ticks_per_day"] * summary["num_days"] - 1
+                queue_sizes = _calculate_final_queue_sizes(
+                    conn=db_manager.conn,
+                    simulation_id=simulation_id,
+                    final_tick=final_tick,
+                    tx_cache=mock_orch._tx_cache,
+                    agent_ids=agent_ids
+                )
+
+                final_agents_output = [
+                    {
+                        "id": agent_id,
+                        "queue1_size": queue_sizes.get(agent_id, 0),
+                    }
+                    for agent_id in agent_ids
+                ]
 
             # PHASE 1 FIX: Use authoritative statistics from simulations table
             # This ensures replay output matches run output exactly (Replay Identity principle)
