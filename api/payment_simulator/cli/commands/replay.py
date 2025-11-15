@@ -1152,6 +1152,57 @@ def replay_simulation(
                     if (tick_num + 1) % ticks_per_day == 0:
                         current_day = tick_num // ticks_per_day
 
+                        # CRITICAL FIX: Query FULL DAY statistics from database
+                        # NOT just the replayed tick range (which could be a single tick)
+                        # This fixes Discrepancy #5 - EOD metrics scope confusion
+
+                        # Calculate full day tick range
+                        day_start_tick = current_day * ticks_per_day
+                        day_end_tick = (current_day + 1) * ticks_per_day - 1
+
+                        # Query full day arrivals
+                        day_arrivals_query = """
+                            SELECT COUNT(*) FROM simulation_events
+                            WHERE simulation_id = ? AND event_type = 'Arrival'
+                            AND tick BETWEEN ? AND ?
+                        """
+                        day_arrivals_result = db_manager.conn.execute(
+                            day_arrivals_query, [simulation_id, day_start_tick, day_end_tick]
+                        ).fetchone()
+                        full_day_arrivals = day_arrivals_result[0] if day_arrivals_result else 0
+
+                        # Query full day settlements (including LSM settlements)
+                        # Count Settlement events
+                        day_settlements_query = """
+                            SELECT COUNT(*) FROM simulation_events
+                            WHERE simulation_id = ? AND event_type = 'Settlement'
+                            AND tick BETWEEN ? AND ?
+                        """
+                        day_settlements_result = db_manager.conn.execute(
+                            day_settlements_query, [simulation_id, day_start_tick, day_end_tick]
+                        ).fetchone()
+                        full_day_settlements = day_settlements_result[0] if day_settlements_result else 0
+
+                        # Count LSM-settled transactions by extracting tx_ids from LSM events
+                        day_lsm_query = """
+                            SELECT event_type, details FROM simulation_events
+                            WHERE simulation_id = ?
+                            AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
+                            AND tick BETWEEN ? AND ?
+                        """
+                        day_lsm_results = db_manager.conn.execute(
+                            day_lsm_query, [simulation_id, day_start_tick, day_end_tick]
+                        ).fetchall()
+
+                        full_day_lsm_releases = len(day_lsm_results)
+                        day_lsm_settlements = 0
+                        for event_type, details_json in day_lsm_results:
+                            details = json.loads(details_json) if isinstance(details_json, str) else details_json
+                            tx_ids = details.get("tx_ids", [])
+                            day_lsm_settlements += len(tx_ids)
+
+                        full_day_settlements += day_lsm_settlements
+
                         # Query database for EOD agent metrics
                         from payment_simulator.persistence.queries import get_agent_daily_metrics
 
@@ -1225,16 +1276,18 @@ def replay_simulation(
                         )
                         log_end_of_day_event(eod_events_result["events"])
 
+                        # CRITICAL: Use full day statistics, NOT accumulated daily_stats which only
+                        # covers the replayed tick range. This fixes Discrepancy #5.
                         log_end_of_day_statistics(
                             day=current_day,
-                            total_arrivals=daily_stats["arrivals"],
-                            total_settlements=daily_stats["settlements"],
-                            total_lsm_releases=daily_stats["lsm_releases"],
+                            total_arrivals=full_day_arrivals,
+                            total_settlements=full_day_settlements,
+                            total_lsm_releases=full_day_lsm_releases,
                             total_costs=day_total_costs,
                             agent_stats=agent_stats,
                         )
 
-                        # Reset daily stats for next day
+                        # Reset daily stats for next day (still useful for tracking replayed range)
                         daily_stats = {
                             "arrivals": 0,
                             "settlements": 0,
