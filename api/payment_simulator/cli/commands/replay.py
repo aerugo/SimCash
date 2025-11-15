@@ -1431,11 +1431,19 @@ def replay_simulation(
                         # Get list of agent IDs from config
                         agent_ids = [agent["id"] for agent in config_dict.get("agents", [])]
 
-                        # Build mapping of agent_id -> credit_limit from config
-                        agent_credit_limits = {
-                            agent["id"]: agent.get("credit_limit", 0)
-                            for agent in config_dict.get("agents", [])
-                        }
+                        # Build mapping of agent_id -> unsecured_cap from config
+                        # CRITICAL FIX (Discrepancy #8): Apply same backward compatibility as Rust
+                        # Rust logic: unsecured_cap = config.unsecured_cap ?? config.credit_limit
+                        # This ensures allowed_overdraft calculation matches between run and replay
+                        agent_credit_limits = {}
+                        for agent in config_dict.get("agents", []):
+                            agent_id = agent["id"]
+                            # Use unsecured_cap if specified, otherwise fall back to credit_limit
+                            unsecured_cap = agent.get("unsecured_cap")
+                            if unsecured_cap is not None:
+                                agent_credit_limits[agent_id] = unsecured_cap
+                            else:
+                                agent_credit_limits[agent_id] = agent.get("credit_limit", 0)
 
                         agent_stats = []
                         day_total_costs = 0
@@ -1451,19 +1459,22 @@ def replay_simulation(
                                 agent_total_cost = row_dict["total_cost"]
                                 day_total_costs += agent_total_cost
 
-                                # Calculate credit utilization (Issue #4 fix - CORRECTED)
-                                # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just credit_limit!
+                                # Calculate credit utilization (CRITICAL FIX - Discrepancy #8)
+                                # Must match Rust's Agent::allowed_overdraft_limit() formula exactly!
+                                # Rust: collateral_capacity + unsecured_cap
                                 balance = row_dict["closing_balance"]
-                                credit_limit = agent_credit_limits.get(agent_id, 0)
+                                unsecured_cap = agent_credit_limits.get(agent_id, 0)  # Contains unsecured_cap (or credit_limit fallback)
 
-                                # Get collateral backing from database (Phase 8)
+                                # Get collateral backing from database
                                 posted_collateral = row_dict.get("closing_posted_collateral", 0)
 
-                                # Calculate allowed overdraft: credit_limit + collateral_backing
-                                # Use default 2% haircut (0.98 retention) - matches Agent::new() default
-                                collateral_haircut = 0.02
-                                collateral_backing = int(posted_collateral * (1.0 - collateral_haircut))
-                                allowed_overdraft = credit_limit + collateral_backing
+                                # Calculate collateral_capacity using same formula as Rust
+                                # Rust: (posted_collateral * (1.0 - collateral_haircut)).floor()
+                                collateral_haircut = 0.02  # Default from Agent::new()
+                                collateral_capacity = int(posted_collateral * (1.0 - collateral_haircut))
+
+                                # Rust formula: allowed_overdraft_limit = collateral_capacity + unsecured_cap
+                                allowed_overdraft = collateral_capacity + unsecured_cap
 
                                 credit_util = 0
                                 if allowed_overdraft and allowed_overdraft > 0:
