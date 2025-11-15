@@ -84,13 +84,6 @@ pub struct Agent {
     /// settlement debits and credits occur.
     balance: i64,
 
-    /// Maximum intraday credit/overdraft allowed (i64 cents)
-    /// This is the absolute limit the agent can go negative
-    ///
-    /// Represents collateralized intraday credit or priced overdraft facility
-    /// provided by the central bank.
-    credit_limit: i64,
-
     // Phase 4 additions: Queue 1 (Internal Bank Queue)
     /// Transaction IDs awaiting cash manager release decision (Queue 1)
     ///
@@ -199,15 +192,13 @@ impl Agent {
     /// ```
     /// use payment_simulator_core_rs::Agent;
     ///
-    /// let agent = Agent::new("BANK_A".to_string(), 1000000, 500000);
+    /// let agent = Agent::new("BANK_A".to_string(), 1000000);
     /// assert_eq!(agent.balance(), 1000000);
     /// ```
-    pub fn new(id: String, balance: i64, credit_limit: i64) -> Self {
-        assert!(credit_limit >= 0, "credit_limit must be non-negative");
+    pub fn new(id: String, balance: i64) -> Self {
         Self {
             id,
             balance,
-            credit_limit,
             outgoing_queue: Vec::new(),
             incoming_expected: Vec::new(),
             last_decision_tick: None,
@@ -234,7 +225,6 @@ impl Agent {
     /// # Arguments
     /// * `id` - Unique identifier
     /// * `balance` - Opening balance in cents
-    /// * `credit_limit` - Maximum overdraft in cents
     /// * `liquidity_buffer` - Minimum balance to maintain in cents
     ///
     /// # Example
@@ -242,11 +232,10 @@ impl Agent {
     /// use payment_simulator_core_rs::Agent;
     ///
     /// // Bank wants to keep at least $1000 as buffer
-    /// let agent = Agent::with_buffer("BANK_A".to_string(), 1000000, 500000, 100000);
+    /// let agent = Agent::with_buffer("BANK_A".to_string(), 1000000, 100000);
     /// assert_eq!(agent.liquidity_buffer(), 100000);
     /// ```
-    pub fn with_buffer(id: String, balance: i64, credit_limit: i64, liquidity_buffer: i64) -> Self {
-        assert!(credit_limit >= 0, "credit_limit must be non-negative");
+    pub fn with_buffer(id: String, balance: i64, liquidity_buffer: i64) -> Self {
         assert!(
             liquidity_buffer >= 0,
             "liquidity_buffer must be non-negative"
@@ -254,7 +243,6 @@ impl Agent {
         Self {
             id,
             balance,
-            credit_limit,
             outgoing_queue: Vec::new(),
             incoming_expected: Vec::new(),
             last_decision_tick: None,
@@ -364,11 +352,6 @@ impl Agent {
     /// ```
     pub fn balance(&self) -> i64 {
         self.balance
-    }
-
-    /// Get credit limit (i64 cents)
-    pub fn credit_limit(&self) -> i64 {
-        self.credit_limit
     }
 
     /// Get amount of credit currently in use
@@ -552,10 +535,8 @@ impl Agent {
         let one_minus_haircut = (1.0 - self.collateral_haircut).max(0.0);
         let collateral_headroom = (self.posted_collateral as f64 * one_minus_haircut).floor() as i64;
 
-        // BACKWARD COMPATIBILITY: Use MAX(credit_limit, unsecured_cap) to avoid double-counting
-        // during the transition from credit_limit (old system) to unsecured_cap (new T2/CLM system).
-        // This ensures agents with both set don't get double credit capacity.
-        let unsecured_headroom = self.credit_limit.max(self.unsecured_cap);
+        // Total overdraft headroom = unsecured + collateralized
+        let unsecured_headroom = self.unsecured_cap;
         let total_headroom = unsecured_headroom + collateral_headroom;
 
         // Available headroom is what's left after subtracting credit in use
