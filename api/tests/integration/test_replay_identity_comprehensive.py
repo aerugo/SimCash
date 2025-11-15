@@ -114,7 +114,10 @@ class SimulationRunner:
         }
 
     def _extract_json(self, stdout: str) -> dict:
-        """Extract JSON object from stdout (finds last JSON block)."""
+        """Extract JSON object from stdout (finds last JSON block).
+
+        Handles both single-line compact JSON and multi-line pretty-printed JSON.
+        """
         lines = stdout.strip().split("\n")
         json_lines = []
         in_json = False
@@ -123,10 +126,17 @@ class SimulationRunner:
             if line.strip().startswith("{"):
                 in_json = True
                 json_lines = [line]
+                # Check if JSON is on single line (compact format)
+                if line.strip().endswith("}"):
+                    try:
+                        return json.loads(line)
+                    except json.JSONDecodeError:
+                        # Not valid JSON, continue multi-line parsing
+                        pass
             elif in_json:
                 json_lines.append(line)
                 if line.strip().startswith("}"):
-                    # Try to parse
+                    # Try to parse multi-line JSON
                     try:
                         return json.loads("\n".join(json_lines))
                     except json.JSONDecodeError:
