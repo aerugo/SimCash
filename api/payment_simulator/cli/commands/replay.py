@@ -391,6 +391,63 @@ def _reconstruct_collateral_timer_events(events: list[dict]) -> list[dict]:
     return result
 
 
+def _reconstruct_transaction_went_overdue_events(events: list[dict]) -> list[dict]:
+    """Reconstruct TransactionWentOverdue events from simulation_events table.
+
+    Phase 4: Replay Identity - missing event types fix.
+
+    Args:
+        events: List of simulation event records with event_type = 'TransactionWentOverdue'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "TransactionWentOverdue":
+            details = event.get("details", {})
+            # Merge top-level fields with details for display functions
+            result.append({
+                "event_type": "TransactionWentOverdue",
+                "tick": event["tick"],
+                "tx_id": event.get("tx_id"),
+                "sender_id": details.get("sender_id"),
+                "receiver_id": details.get("receiver_id"),
+                "amount": details.get("amount"),
+                "remaining_amount": details.get("remaining_amount"),
+                "deadline_tick": details.get("deadline_tick"),
+                "ticks_overdue": details.get("ticks_overdue"),
+                "deadline_penalty_cost": details.get("deadline_penalty_cost"),
+            })
+    return result
+
+
+def _reconstruct_queued_rtgs_events(events: list[dict]) -> list[dict]:
+    """Reconstruct QueuedRtgs events from simulation_events table.
+
+    Phase 4: Replay Identity - missing event types fix.
+
+    Args:
+        events: List of simulation event records with event_type = 'QueuedRtgs'
+
+    Returns:
+        List of event dicts compatible with verbose output functions
+    """
+    result = []
+    for event in events:
+        if event["event_type"] == "QueuedRtgs":
+            details = event.get("details", {})
+            # Merge top-level fields with details for display functions
+            result.append({
+                "event_type": "QueuedRtgs",
+                "tick": event["tick"],
+                "tx_id": event.get("tx_id"),
+                "sender_id": details.get("sender_id"),
+                # Add other fields as needed by display logic
+            })
+    return result
+
+
 def _has_full_replay_data(conn, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
@@ -938,6 +995,9 @@ def replay_simulation(
                     state_register_events_raw = []  # Phase 4.6: Decision path auditing
                     budget_events_raw = []  # Phase 3.3: Bank-level budgets
                     collateral_timer_events_raw = []  # Phase 3.4: Collateral timer auto-withdrawal
+                    # PHASE 4 FIX: Add missing event types for replay identity
+                    transaction_went_overdue_events_raw = []
+                    queued_rtgs_events_raw = []
 
                     for event in tick_events_result["events"]:
                         event_type = event["event_type"]
@@ -959,6 +1019,11 @@ def replay_simulation(
                             state_register_events_raw.append(event)
                         elif event_type == "BankBudgetSet":  # Phase 3.3
                             budget_events_raw.append(event)
+                        # PHASE 4 FIX: Capture missing event types
+                        elif event_type == "TransactionWentOverdue":
+                            transaction_went_overdue_events_raw.append(event)
+                        elif event_type == "QueuedRtgs":
+                            queued_rtgs_events_raw.append(event)
 
                     # Reconstruct events from database (using simulation_events table as SINGLE SOURCE)
                     # This is the unified replay architecture - NO manual reconstruction from legacy tables
@@ -971,12 +1036,17 @@ def replay_simulation(
                     scenario_events = _reconstruct_scenario_events_from_simulation_events(scenario_events_raw)
                     state_register_events = _reconstruct_state_register_events(state_register_events_raw)  # Phase 4.6
                     budget_events = _reconstruct_budget_events(budget_events_raw)  # Phase 3.3
+                    # PHASE 4 FIX: Reconstruct missing event types
+                    transaction_went_overdue_events = _reconstruct_transaction_went_overdue_events(transaction_went_overdue_events_raw)
+                    queued_rtgs_events = _reconstruct_queued_rtgs_events(queued_rtgs_events_raw)
 
                     # Combine all events
                     events = (
                         arrival_events + settlement_events + lsm_events + collateral_events +
                         collateral_timer_events + cost_accrual_events + scenario_events +
-                        state_register_events + budget_events
+                        state_register_events + budget_events +
+                        # PHASE 4 FIX: Include missing event types for replay identity
+                        transaction_went_overdue_events + queued_rtgs_events
                     )
 
                     # Update statistics
