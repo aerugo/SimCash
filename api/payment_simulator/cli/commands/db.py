@@ -582,6 +582,12 @@ def db_costs(
         "-o",
         help="Export to CSV file",
     ),
+    chart_output: Optional[str] = typer.Option(
+        None,
+        "--chart-output",
+        "-c",
+        help="Generate PNG chart (e.g., costs.png)",
+    ),
     show_per_tick: bool = typer.Option(
         False,
         "--per-tick",
@@ -601,15 +607,288 @@ def db_costs(
     Shows accumulated costs per agent per tick with optional filtering and export.
     """
     try:
-        generate_cost_chart(
-            simulation_id=simulation_id,
-            db_path=db_path,
-            agent=agent,
-            output_csv=output_csv,
-            show_per_tick=show_per_tick,
-            limit=limit,
-            quiet=False,
-        )
+        from payment_simulator.api.main import manager
+        from payment_simulator.persistence.queries import get_simulation_summary
+        from collections import defaultdict
+        import csv
+
+        console.print(f"[yellow]Loading cost timeline for simulation {simulation_id}...[/yellow]")
+
+        # Set up database manager
+        if not manager.db_manager:
+            manager.db_manager = DatabaseManager(db_path)
+
+        conn = manager.db_manager.get_connection()
+
+        # Check if simulation exists
+        summary = get_simulation_summary(conn, simulation_id)
+        if not summary:
+            console.print(f"[red]✗ Simulation not found: {simulation_id}[/red]")
+            raise typer.Exit(code=1)
+
+        ticks_per_day = summary["ticks_per_day"]
+
+        # Get all agents from the simulation
+        agents_query = """
+            SELECT DISTINCT agent_id
+            FROM daily_agent_metrics
+            WHERE simulation_id = ?
+            ORDER BY agent_id
+        """
+        agent_results = conn.execute(agents_query, [simulation_id]).fetchall()
+        all_agents = {row[0] for row in agent_results}
+
+        if not all_agents:
+            console.print(f"[yellow]No cost data available for simulation {simulation_id}[/yellow]")
+            raise typer.Exit(code=0)
+
+        # Filter agents if requested
+        if agent:
+            if agent not in all_agents:
+                console.print(f"[red]✗ Agent '{agent}' not found in simulation[/red]")
+                console.print(f"[yellow]Available agents: {', '.join(sorted(all_agents))}[/yellow]")
+                raise typer.Exit(code=1)
+            agent_ids = [agent]
+        else:
+            agent_ids = sorted(list(all_agents))
+
+        # Query actual tick-level cost events
+        # 1. CostAccrual events for continuous costs (liquidity, delay, collateral)
+        # 2. TransactionWentOverdue events for deadline penalties
+        cost_accrual_query = """
+            SELECT
+                tick,
+                agent_id,
+                CAST(json_extract(details, '$.costs.total') AS INTEGER) as tick_cost
+            FROM simulation_events
+            WHERE simulation_id = ?
+              AND event_type = 'CostAccrual'
+            ORDER BY tick
+        """
+
+        deadline_penalty_query = """
+            SELECT
+                tick,
+                json_extract(details, '$.sender_id') as agent_id,
+                CAST(json_extract(details, '$.deadline_penalty_cost') AS INTEGER) as penalty_cost
+            FROM simulation_events
+            WHERE simulation_id = ?
+              AND event_type = 'TransactionWentOverdue'
+            ORDER BY tick
+        """
+
+        # Aggregate costs by tick and agent
+        tick_agent_costs = defaultdict(lambda: defaultdict(int))
+
+        # Add continuous costs from CostAccrual events
+        for row in conn.execute(cost_accrual_query, [simulation_id]).fetchall():
+            tick, agent_id_event, cost = row
+            tick_agent_costs[tick][agent_id_event] += cost
+
+        # Add deadline penalties from TransactionWentOverdue events
+        for row in conn.execute(deadline_penalty_query, [simulation_id]).fetchall():
+            tick, agent_id_event, penalty = row
+            tick_agent_costs[tick][agent_id_event] += penalty
+
+        # Add EOD penalties from daily_agent_metrics (these aren't in event stream per-agent)
+        # EOD penalties are $5,000 per unsettled transaction assessed at end of each day
+        eod_penalty_query = """
+            SELECT
+                day,
+                agent_id,
+                deadline_penalty_cost
+            FROM daily_agent_metrics
+            WHERE simulation_id = ?
+            ORDER BY day, agent_id
+        """
+
+        for row in conn.execute(eod_penalty_query, [simulation_id]).fetchall():
+            day, agent_id_event, deadline_pen = row
+
+            # Calculate costs already captured from events for this agent this day
+            event_costs_this_day = 0
+            for tick in range(day * ticks_per_day, (day + 1) * ticks_per_day):
+                event_costs_this_day += tick_agent_costs[tick].get(agent_id_event, 0)
+
+            # EOD penalty is the difference (what's in daily table but not in events)
+            eod_penalty = deadline_pen - event_costs_this_day
+
+            if eod_penalty > 0:
+                # Apply EOD penalty at the LAST tick of the day
+                eod_tick = (day + 1) * ticks_per_day - 1
+                tick_agent_costs[eod_tick][agent_id_event] += eod_penalty
+
+        # Get max tick from simulation
+        num_days = summary.get("num_days", 3)
+        max_tick = (ticks_per_day * num_days) - 1
+
+        # Build accumulated costs for all ticks
+        tick_costs = []
+        accumulated = {agent_id: 0 for agent_id in agent_ids}
+
+        for tick in range(max_tick + 1):
+            # Store previous accumulated for per-tick calculation
+            prev_accumulated = dict(accumulated)
+
+            # Add costs that occurred at this tick
+            for agent_id in agent_ids:
+                accumulated[agent_id] += tick_agent_costs[tick].get(agent_id, 0)
+
+            # Calculate per-tick costs if requested
+            if show_per_tick:
+                tick_data = {
+                    "tick": tick,
+                    "day": tick // ticks_per_day,
+                    "costs": {agent_id: int(accumulated[agent_id] - prev_accumulated[agent_id]) for agent_id in agent_ids}
+                }
+            else:
+                tick_data = {
+                    "tick": tick,
+                    "day": tick // ticks_per_day,
+                    "costs": {agent_id: int(accumulated[agent_id]) for agent_id in agent_ids}
+                }
+
+            tick_costs.append(tick_data)
+
+        # Export to CSV if requested
+        if output_csv:
+            with open(output_csv, 'w', newline='') as csvfile:
+                fieldnames = ['tick', 'day'] + agent_ids
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                writer.writeheader()
+                for data in tick_costs:
+                    row = {'tick': data['tick'], 'day': data['day']}
+                    row.update(data['costs'])
+                    writer.writerow(row)
+
+            console.print(f"[green]✓ Exported {len(tick_costs)} tick records to {output_csv}[/green]")
+            return
+
+        # Generate chart if requested
+        if chart_output:
+            import matplotlib
+            matplotlib.use('Agg')  # Use non-interactive backend
+            import matplotlib.pyplot as plt
+            from matplotlib.ticker import FuncFormatter
+
+            # Prepare data for plotting
+            ticks = [data['tick'] for data in tick_costs]
+
+            # Create figure with larger size for readability
+            fig, ax = plt.subplots(figsize=(14, 8))
+
+            # Plot each agent's costs
+            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+            for i, agent_id in enumerate(agent_ids):
+                costs_usd = [data['costs'][agent_id] / 100.0 for data in tick_costs]
+                ax.plot(ticks, costs_usd, label=agent_id, linewidth=2, color=colors[i % len(colors)])
+
+            # Format y-axis as currency
+            def currency_formatter(x, p):
+                return f'${x:,.0f}'
+
+            ax.yaxis.set_major_formatter(FuncFormatter(currency_formatter))
+
+            # Add labels and title
+            mode_str = 'Per-Tick' if show_per_tick else 'Accumulated'
+            ax.set_xlabel('Tick', fontsize=12, fontweight='bold')
+            ax.set_ylabel(f'{mode_str} Cost (USD)', fontsize=12, fontweight='bold')
+            ax.set_title(f'Cost Timeline - {simulation_id}\n{mode_str} Costs by Agent',
+                        fontsize=14, fontweight='bold', pad=20)
+
+            # Add legend
+            ax.legend(loc='upper left', fontsize=10, framealpha=0.9)
+
+            # Add grid for readability
+            ax.grid(True, alpha=0.3, linestyle='--')
+
+            # Add day boundaries as vertical lines
+            if ticks_per_day:
+                for day in range(1, (max(ticks) // ticks_per_day) + 1):
+                    day_tick = day * ticks_per_day
+                    if day_tick <= max(ticks):
+                        ax.axvline(x=day_tick, color='gray', linestyle=':', alpha=0.5, linewidth=1)
+                        ax.text(day_tick, ax.get_ylim()[1] * 0.98, f'Day {day}',
+                               rotation=90, verticalalignment='top', fontsize=8, alpha=0.7)
+
+            # Tight layout to prevent label cutoff
+            plt.tight_layout()
+
+            # Save the chart
+            plt.savefig(chart_output, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+
+            console.print(f"[green]✓ Generated chart: {chart_output}[/green]")
+            if not output_csv:  # If only generating chart, return here
+                return
+
+        # Display in terminal
+        console.print(f"\n[bold cyan]Cost Timeline for {simulation_id}[/bold cyan]")
+        console.print(f"  Total ticks: {len(tick_costs)}")
+        console.print(f"  Agents: {', '.join(agent_ids)}")
+        console.print(f"  Mode: {'Per-tick' if show_per_tick else 'Accumulated'}")
+
+        # Determine which ticks to show
+        if limit > 0 and len(tick_costs) > limit:
+            # Show first limit/2 and last limit/2
+            half = limit // 2
+            display_costs = tick_costs[:half] + tick_costs[-half:]
+            show_ellipsis = True
+        else:
+            display_costs = tick_costs
+            show_ellipsis = False
+
+        # Create table
+        table = Table(title=f"{'Per-Tick' if show_per_tick else 'Accumulated'} Costs")
+        table.add_column("Tick", justify="right", style="cyan")
+        table.add_column("Day", justify="right", style="blue")
+
+        for agent_id in agent_ids:
+            table.add_column(agent_id, justify="right", style="green")
+
+        # Add rows
+        prev_tick = -1
+        for i, data in enumerate(display_costs):
+            if show_ellipsis and i == half and data['tick'] - prev_tick > 1:
+                table.add_row("...", "...", *["..." for _ in agent_ids], style="dim")
+
+            # Format costs as dollars
+            cost_strs = []
+            for agent_id in agent_ids:
+                cost_cents = data['costs'][agent_id]
+                cost_strs.append(f"${cost_cents / 100:,.2f}")
+
+            table.add_row(
+                str(data['tick']),
+                str(data['day']),
+                *cost_strs
+            )
+            prev_tick = data['tick']
+
+        console.print()
+        console.print(table)
+
+        # Show summary
+        console.print()
+        table_summary = Table(title="Final Costs Summary")
+        table_summary.add_column("Agent", style="cyan")
+        table_summary.add_column("Total Cost", justify="right", style="green")
+
+        final_costs = tick_costs[-1]['costs']
+        total_system_cost = sum(final_costs.values())
+
+        for agent_id in agent_ids:
+            cost = final_costs[agent_id]
+            table_summary.add_row(agent_id, f"${cost / 100:,.2f}")
+
+        table_summary.add_row("[bold]TOTAL", f"[bold]${total_system_cost / 100:,.2f}", style="bold yellow")
+
+        console.print(table_summary)
+
+        if limit > 0 and len(tick_costs) > limit:
+            console.print(f"\n[dim]Showing {len(display_costs)} of {len(tick_costs)} ticks. Use --limit 0 to show all or --output-csv to export.[/dim]")
+
     except Exception as e:
         console.print(f"[red]✗ Error getting costs: {e}[/red]")
         import traceback

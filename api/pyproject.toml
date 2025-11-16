@@ -17,6 +17,7 @@ dependencies = [
     "pyarrow>=14.0.0",  # Required for Polars-DuckDB zero-copy integration
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
+    "matplotlib>=3.7.0",
 ]
 
 [project.optional-dependencies]
