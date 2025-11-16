@@ -360,6 +360,7 @@ def generate_cost_chart(
     db_path: str = "simulation_data.db",
     agent: Optional[str] = None,
     output_csv: Optional[str] = None,
+    chart_output: Optional[str] = None,
     show_per_tick: bool = False,
     limit: int = 50,
     quiet: bool = False,
@@ -374,6 +375,7 @@ def generate_cost_chart(
         db_path: Path to database file
         agent: Filter costs for specific agent
         output_csv: Export to CSV file
+        chart_output: Generate PNG chart (e.g., costs.png)
         show_per_tick: Show per-tick costs instead of accumulated
         limit: Maximum number of ticks to display (0 = show all)
         quiet: Suppress informational messages
@@ -489,6 +491,71 @@ def generate_cost_chart(
                 writer.writerow(row)
 
         console.print(f"[green]✓ Exported {len(tick_costs)} tick records to {output_csv}[/green]")
+
+    # Generate PNG chart if requested
+    if chart_output:
+        import matplotlib
+        matplotlib.use('Agg')  # Use non-interactive backend
+        import matplotlib.pyplot as plt
+        from matplotlib.ticker import FuncFormatter
+
+        # Prepare data for plotting
+        ticks = [data['tick'] for data in tick_costs]
+
+        # Create figure with larger size for readability
+        fig, ax = plt.subplots(figsize=(14, 8))
+
+        # Plot each agent's costs
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+        for i, agent_id in enumerate(agent_ids):
+            costs_usd = [data['costs'][agent_id] / 100.0 for data in tick_costs]
+            ax.plot(ticks, costs_usd, label=agent_id, linewidth=2, color=colors[i % len(colors)])
+
+        # Format y-axis as currency
+        def currency_formatter(x, p):
+            return f'${x:,.0f}'
+
+        ax.yaxis.set_major_formatter(FuncFormatter(currency_formatter))
+
+        # Add labels and title
+        mode_str = 'Per-Tick' if show_per_tick else 'Accumulated'
+        ax.set_xlabel('Tick', fontsize=12, fontweight='bold')
+        ax.set_ylabel(f'{mode_str} Cost (USD)', fontsize=12, fontweight='bold')
+        ax.set_title(f'Cost Timeline - {simulation_id}\n{mode_str} Costs by Agent',
+                    fontsize=14, fontweight='bold', pad=20)
+
+        # Add legend
+        ax.legend(loc='upper left', fontsize=10, framealpha=0.9)
+
+        # Add grid for readability
+        ax.grid(True, alpha=0.3, linestyle='--')
+
+        # Add day boundaries as vertical lines
+        if ticks_per_day:
+            for day in range(1, (max(ticks) // ticks_per_day) + 1):
+                day_tick = day * ticks_per_day
+                if day_tick <= max(ticks):
+                    ax.axvline(x=day_tick, color='gray', linestyle=':', alpha=0.5, linewidth=1)
+                    ax.text(day_tick, ax.get_ylim()[1] * 0.98, f'Day {day}',
+                           rotation=90, verticalalignment='top', fontsize=8, alpha=0.7)
+
+        # Tight layout to prevent label cutoff
+        plt.tight_layout()
+
+        # Create directory if it doesn't exist
+        from pathlib import Path
+        chart_path = Path(chart_output)
+        chart_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Save the chart
+        plt.savefig(chart_output, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+
+        if not quiet:
+            console.print(f"[green]✓ Generated chart: {chart_output}[/green]")
+
+    # Return early if only exporting (no terminal display)
+    if output_csv or chart_output:
         return
 
     # Display in terminal
