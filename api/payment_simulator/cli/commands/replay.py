@@ -1280,23 +1280,47 @@ def replay_simulation(
                     # Update statistics
                     num_arrivals = len(arrival_events)
 
-                    # CRITICAL FIX (Discrepancy #2): Count ALL settlement event types
-                    # Rust emits specific settlement events (RtgsImmediateSettlement, Queue2LiquidityRelease)
-                    # instead of generic Settlement events. We must count them all.
+                    # CRITICAL FIX: Count settlement events without double-counting
+                    # Rust currently emits BOTH deprecated Settlement events AND new specific events
+                    # (RtgsImmediateSettlement, Queue2LiquidityRelease) for backward compatibility.
+                    # We must count ONLY the new specific events to avoid double-counting.
+                    #
+                    # Background: Rust code has comments like "DEPRECATED: Also log old Settlement event
+                    # for backward compatibility" - so it logs Settlement + RtgsImmediateSettlement for
+                    # the same transaction.
                     num_settlements = (
-                        len(settlement_events) +  # Legacy generic Settlement events
-                        len(rtgs_immediate_events) +  # Specific RTGS immediate settlements
-                        len(queue2_release_events)  # Specific Queue2 releases
+                        # DO NOT count deprecated Settlement events (would double-count)
+                        # len(settlement_events) +  # ❌ Deprecated - causes double-counting
+                        len(rtgs_immediate_events) +  # ✅ New specific RTGS immediate settlements
+                        len(queue2_release_events)  # ✅ New specific Queue2 releases
                     )
 
                     # LSM events settle multiple transactions - count them from tx_ids field
                     num_lsm_settlements = 0
+                    lsm_settled_parent_ids = set()  # Track unique parent transactions settled by LSM
+
                     for lsm_event in lsm_events:
                         tx_ids = lsm_event.get("tx_ids", [])
                         num_lsm_settlements += len(tx_ids)
+
+                        # CRITICAL FIX: Count unique parent transactions settled by LSM
+                        # This matches run mode's _count_corrected_lsm_settlements() logic
+                        for tx_id in tx_ids:
+                            # Check if this is a split child transaction
+                            tx_details = mock_orch._tx_cache.get(tx_id)
+                            if tx_details and tx_details.get("parent_id"):
+                                # This is a child - count the parent
+                                lsm_settled_parent_ids.add(tx_details["parent_id"])
+                            else:
+                                # This is a parent transaction (or has no splits)
+                                lsm_settled_parent_ids.add(tx_id)
+
                     num_settlements += num_lsm_settlements  # Add LSM-settled transactions to total
 
-                    num_lsm = len(lsm_events)
+                    # CRITICAL FIX: num_lsm should count unique parent transactions, not events
+                    # This matches run mode semantics where total_lsm_releases counts
+                    # unique parent transactions settled by LSM (len(lsm_settled_parents))
+                    num_lsm = len(lsm_settled_parent_ids)
 
                     daily_stats["arrivals"] += num_arrivals
                     daily_stats["settlements"] += num_settlements
@@ -1341,8 +1365,31 @@ def replay_simulation(
                     # NOT from agent_states (which only exist with --full-replay)
                     # This ensures cost breakdown displays even without --full-replay
                     total_cost = 0
+                    agent_cost_aggregates = {}  # Track costs per agent for cost breakdown display
+
                     for event in cost_accrual_events:
-                        # CostAccrual events have individual cost amounts
+                        agent_id = event.get("agent_id")
+                        if not agent_id:
+                            continue
+
+                        # Initialize agent costs if needed
+                        if agent_id not in agent_cost_aggregates:
+                            agent_cost_aggregates[agent_id] = {
+                                "liquidity_cost": 0,
+                                "delay_cost": 0,
+                                "collateral_cost": 0,
+                                "penalty_cost": 0,
+                                "split_friction_cost": 0,
+                            }
+
+                        # Aggregate costs per agent
+                        agent_cost_aggregates[agent_id]["liquidity_cost"] += event.get("liquidity_cost", 0)
+                        agent_cost_aggregates[agent_id]["delay_cost"] += event.get("delay_cost", 0)
+                        agent_cost_aggregates[agent_id]["collateral_cost"] += event.get("collateral_cost", 0)
+                        agent_cost_aggregates[agent_id]["penalty_cost"] += event.get("penalty_cost", 0)
+                        agent_cost_aggregates[agent_id]["split_friction_cost"] += event.get("split_friction_cost", 0)
+
+                        # Calculate total
                         total_cost += event.get("liquidity_cost", 0)
                         total_cost += event.get("delay_cost", 0)
                         total_cost += event.get("collateral_cost", 0)
@@ -1368,6 +1415,16 @@ def replay_simulation(
 
                     # Convert agent_states list to dict for DatabaseStateProvider
                     agent_states_dict = {state["agent_id"]: state for state in agent_states_list}
+
+                    # CRITICAL FIX: Inject cost aggregates into agent_states for cost breakdown display
+                    # Without --full-replay, agent_states is empty, so get_agent_accumulated_costs()
+                    # would return all zeros. We need to inject costs from CostAccrual events.
+                    for agent_id, costs in agent_cost_aggregates.items():
+                        if agent_id not in agent_states_dict:
+                            # Create minimal agent state entry for cost display
+                            agent_states_dict[agent_id] = {}
+                        # Inject or update cost fields
+                        agent_states_dict[agent_id].update(costs)
 
                     # ═══════════════════════════════════════════════════════════
                     # USE SHARED DISPLAY FUNCTION (SINGLE SOURCE OF TRUTH)
@@ -1570,13 +1627,37 @@ def replay_simulation(
 
                 # CRITICAL FIX (Discrepancy #9): Query FULL SIMULATION LSM count, not just replayed range
                 # LSM release count not in summary table - calculate from ALL events for this simulation
+                # CRITICAL FIX: Count unique parent transactions settled by LSM, not number of events
+                # This matches run mode semantics (runner.py _count_corrected_lsm_settlements)
                 lsm_query = """
-                    SELECT COUNT(*) FROM simulation_events
+                    SELECT event_type, tx_id, details FROM simulation_events
                     WHERE simulation_id = ?
                     AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
                 """
-                result = db_manager.conn.execute(lsm_query, [simulation_id]).fetchone()
-                tick_count_lsm = result[0] if result else 0
+                lsm_results = db_manager.conn.execute(lsm_query, [simulation_id]).fetchall()
+
+                # Extract unique parent transactions from LSM events
+                lsm_settled_parents = set()
+                for event_type, tx_id, details_json in lsm_results:
+                    import json
+                    details = json.loads(details_json) if isinstance(details_json, str) else details_json
+                    tx_ids = details.get("tx_ids", [])
+
+                    # Load transaction cache to check for split transactions
+                    # Note: In non-verbose mode we don't have full tx_cache, so we query transactions table
+                    for settled_tx_id in tx_ids:
+                        # Query if this transaction has a parent_tx_id (database column name)
+                        parent_query = "SELECT parent_tx_id FROM transactions WHERE tx_id = ? AND simulation_id = ?"
+                        parent_result = db_manager.conn.execute(parent_query, [settled_tx_id, simulation_id]).fetchone()
+
+                        if parent_result and parent_result[0]:
+                            # This is a child - count the parent
+                            lsm_settled_parents.add(parent_result[0])
+                        else:
+                            # This is a parent transaction (or has no splits)
+                            lsm_settled_parents.add(settled_tx_id)
+
+                tick_count_lsm = len(lsm_settled_parents)
 
                 # Get final agent balances from daily_agent_metrics (always available, not dependent on --full-replay)
                 final_day = summary["num_days"] - 1
