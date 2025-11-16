@@ -516,7 +516,8 @@ def db_costs(
                 tick_agent_costs[eod_tick][agent_id_event] += eod_penalty
 
         # Get max tick from simulation
-        max_tick = summary.get("ticks_executed", ticks_per_day * 3) - 1
+        num_days = summary.get("num_days", 3)
+        max_tick = (ticks_per_day * num_days) - 1
 
         # Build accumulated costs for all ticks
         tick_costs = []
