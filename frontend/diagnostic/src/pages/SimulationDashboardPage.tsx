@@ -178,7 +178,13 @@ export function SimulationDashboardPage() {
               to={`/simulations/${simulation_id}/costs`}
               className="block w-full px-4 py-3 bg-purple-600 text-white text-center rounded-lg hover:bg-purple-700 transition-colors font-medium"
             >
-              View Cost Timeline Chart
+              View Cost Breakdown
+            </Link>
+            <Link
+              to={`/simulations/${simulation_id}/costs/chart`}
+              className="block w-full px-4 py-3 bg-purple-500 text-white text-center rounded-lg hover:bg-purple-600 transition-colors font-medium"
+            >
+              View Interactive Cost Chart
             </Link>
             <Link
               to={`/simulations/${simulation_id}/events`}
@@ -191,12 +197,6 @@ export function SimulationDashboardPage() {
               className="block w-full px-4 py-3 bg-green-600 text-white text-center rounded-lg hover:bg-green-700 transition-colors font-medium"
             >
               View Transactions
-            </Link>
-            <Link
-              to={`/simulations/${simulation_id}/costs`}
-              className="block w-full px-4 py-3 bg-purple-600 text-white text-center rounded-lg hover:bg-purple-700 transition-colors font-medium"
-            >
-              View Cost Timeline Chart
             </Link>
           </div>
         </section>
