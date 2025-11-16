@@ -141,6 +141,21 @@ class CostResponse(BaseModel):
     )
 
 
+class DailyCostDataPoint(BaseModel):
+    """Cost data for a single day."""
+
+    day: int
+    agent_costs: Dict[str, int]  # agent_id -> accumulated cost in cents
+
+
+class CostTimelineResponse(BaseModel):
+    """Response model for GET /simulations/{id}/costs/timeline endpoint."""
+
+    simulation_id: str
+    agent_ids: List[str]
+    daily_costs: List[DailyCostDataPoint]
+
+
 class SystemMetrics(BaseModel):
     """System-wide performance metrics."""
 
@@ -803,6 +818,93 @@ def get_simulation_state(sim_id: str):
         return state
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get(
+    "/simulations/{sim_id}/costs/timeline",
+    response_model=CostTimelineResponse,
+)
+def get_cost_timeline(sim_id: str):
+    """
+    Get cost timeline data for chart visualization.
+
+    Returns accumulated costs per agent per day.
+    Only supports database-persisted simulations.
+    """
+    try:
+        if not manager.db_manager:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Simulation not found: {sim_id}. Cost timeline only available for persisted simulations."
+            )
+
+        from payment_simulator.persistence.queries import get_simulation_summary
+
+        conn = manager.db_manager.get_connection()
+
+        # Check if simulation exists in database
+        summary = get_simulation_summary(conn, sim_id)
+        if not summary:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Simulation not found: {sim_id}"
+            )
+
+        # Query daily_agent_metrics for cost data
+        query = """
+            SELECT
+                day,
+                agent_id,
+                total_cost
+            FROM daily_agent_metrics
+            WHERE simulation_id = ?
+            ORDER BY day, agent_id
+        """
+
+        results = conn.execute(query, [sim_id]).fetchall()
+
+        if not results:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No cost timeline data available for simulation: {sim_id}"
+            )
+
+        # Organize data by day
+        from collections import defaultdict
+        daily_data = defaultdict(dict)
+        all_agents = set()
+
+        for row in results:
+            day, agent_id, total_cost = row
+            daily_data[day][agent_id] = total_cost
+            all_agents.add(agent_id)
+
+        # Convert to response format with accumulated costs
+        agent_ids = sorted(list(all_agents))
+        daily_costs = []
+        accumulated = {agent_id: 0 for agent_id in agent_ids}
+
+        for day in sorted(daily_data.keys()):
+            # Accumulate costs
+            for agent_id in agent_ids:
+                if agent_id in daily_data[day]:
+                    accumulated[agent_id] += daily_data[day][agent_id]
+
+            daily_costs.append(DailyCostDataPoint(
+                day=day,
+                agent_costs=dict(accumulated)
+            ))
+
+        return CostTimelineResponse(
+            simulation_id=sim_id,
+            agent_ids=agent_ids,
+            daily_costs=daily_costs,
+        )
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
