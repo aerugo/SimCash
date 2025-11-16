@@ -1,0 +1,542 @@
+# Crisis Resolution - 10 Day Scenario
+#
+# NARRATIVE: "Central Bank Intervention Stabilizes Payment Crisis"
+#
+# This scenario extends the advanced_policy_crisis.yaml with a dramatic
+# intervention on Day 4 to prevent systemic collapse.
+#
+# TIMELINE:
+# - Days 1-3: Crisis develops (same as advanced_policy_crisis.yaml)
+# - Day 4: INTERVENTION - Massive balance and collateral injection
+# - Days 5-10: Managed stress - system remains pressured but stable
+#
+# INTERVENTION DESIGN (Day 4, tick 300-320):
+# - Emergency liquidity facility provides $100,000 to struggling banks
+# - Collateral expansion to increase capacity
+# - Slight reduction in arrival rates to prevent re-crisis
+# - System should maintain 85-90% settlement rate for remainder
+#
+# EXPECTED OUTCOMES:
+# - Days 1-3: ~80% settlement, rising costs, queue buildup
+# - Day 4: Immediate stabilization, queue clearance begins
+# - Days 5-10: ~87% settlement, manageable costs, no spiral
+# - Total costs: ~$600K (vs ~$1.5M without intervention)
+
+simulation:
+  ticks_per_day: 100       # 100 ticks/day for granularity
+  num_days: 10             # 1000 total ticks
+  rng_seed: 42             # Deterministic
+
+# ============================================================================
+# AGENTS - Same as crisis scenario
+# ============================================================================
+
+agents:
+  # METRO_CENTRAL - Large Money Center Bank
+  - id: "METRO_CENTRAL"
+    opening_balance: 5000000          # $50,000
+    unsecured_cap: 2000000            # $20,000 unsecured overdraft capacity
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.5
+        urgency_threshold: 3.0
+        eod_threshold: 0.5
+    arrival_config:
+      rate_per_tick: 0.18             # ~18 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.5                    # ~$500 median
+        std_dev: 0.9
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35
+        REGIONAL_TRUST: 0.35
+        MOMENTUM_CAPITAL: 0.30
+      deadline_range: [30, 70]
+      priority: 6
+      divisible: false
+
+  # REGIONAL_TRUST - Regional Bank (Will need intervention)
+  - id: "REGIONAL_TRUST"
+    opening_balance: 4500000          # $45,000
+    unsecured_cap: 1800000            # $18,000 unsecured overdraft capacity
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.5
+        urgency_threshold: 3.0
+        eod_threshold: 0.5
+    arrival_config:
+      rate_per_tick: 0.20             # ~20 tx/day
+      amount_distribution:
+        type: "Uniform"
+        min: 50000                    # $500
+        max: 400000                   # $4,000
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35
+        METRO_CENTRAL: 0.35
+        MOMENTUM_CAPITAL: 0.30
+      deadline_range: [25, 65]
+      priority: 5
+      divisible: true
+
+  # MOMENTUM_CAPITAL - Investment Bank
+  - id: "MOMENTUM_CAPITAL"
+    opening_balance: 4800000          # $48,000
+    unsecured_cap: 1900000            # $19,000 unsecured overdraft capacity
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.5
+        urgency_threshold: 3.0
+        eod_threshold: 0.5
+    arrival_config:
+      rate_per_tick: 0.22             # ~22 tx/day
+      amount_distribution:
+        type: "LogNormal"
+        mean: 9.8                     # ~$300 median
+        std_dev: 1.3
+      counterparty_weights:
+        CORRESPONDENT_HUB: 0.35
+        METRO_CENTRAL: 0.35
+        REGIONAL_TRUST: 0.30
+      deadline_range: [20, 60]
+      priority: 7
+      divisible: false
+
+  # CORRESPONDENT_HUB - Central Correspondent Bank (Will need intervention)
+  - id: "CORRESPONDENT_HUB"
+    opening_balance: 5500000          # $55,000
+    unsecured_cap: 2200000            # $22,000 unsecured overdraft capacity
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.5
+        urgency_threshold: 3.0
+        eod_threshold: 0.5
+    arrival_config:
+      rate_per_tick: 0.24             # ~24 tx/day
+      amount_distribution:
+        type: "Uniform"
+        min: 80000                    # $800
+        max: 450000                   # $4,500
+      counterparty_weights:
+        METRO_CENTRAL: 0.35
+        REGIONAL_TRUST: 0.35
+        MOMENTUM_CAPITAL: 0.30
+      deadline_range: [28, 68]
+      priority: 6
+      divisible: true
+
+# ============================================================================
+# SCENARIO EVENTS - 10-Day Timeline with Day 4 Intervention
+# ============================================================================
+
+scenario_events:
+  # ========================================================================
+  # DAY 1 (Ticks 0-99): Normal Operations
+  # ========================================================================
+  # (No events - baseline)
+
+  # ========================================================================
+  # DAY 2 (Ticks 100-199): Crisis Begins
+  # ========================================================================
+
+  # Morning (tick 105): Market surge begins
+  - type: GlobalArrivalRateChange
+    multiplier: 1.5
+    schedule:
+      type: OneTime
+      tick: 105
+
+  # Tick 110: Large coordinated payments (4-agent cycle)
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: CORRESPONDENT_HUB
+    amount: 1800000
+    priority: 9
+    deadline: 35
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 110
+
+  - type: CustomTransactionArrival
+    from_agent: CORRESPONDENT_HUB
+    to_agent: REGIONAL_TRUST
+    amount: 1700000
+    priority: 9
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 110
+
+  - type: CustomTransactionArrival
+    from_agent: REGIONAL_TRUST
+    to_agent: MOMENTUM_CAPITAL
+    amount: 1600000
+    priority: 9
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 110
+
+  - type: CustomTransactionArrival
+    from_agent: MOMENTUM_CAPITAL
+    to_agent: METRO_CENTRAL
+    amount: 1500000
+    priority: 9
+    deadline: 35
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 110
+
+  # Tick 120-122: Collateral haircuts intensify crisis
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: -500000
+    schedule:
+      type: OneTime
+      tick: 120
+
+  - type: CollateralAdjustment
+    agent: MOMENTUM_CAPITAL
+    delta: -600000
+    schedule:
+      type: OneTime
+      tick: 122
+
+  # Midday (tick 135): Activity surge peaks
+  - type: GlobalArrivalRateChange
+    multiplier: 1.7
+    schedule:
+      type: OneTime
+      tick: 135
+
+  # Tick 145: Bilateral offset opportunity
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: MOMENTUM_CAPITAL
+    amount: 1200000
+    priority: 8
+    deadline: 28
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 145
+
+  - type: CustomTransactionArrival
+    from_agent: MOMENTUM_CAPITAL
+    to_agent: METRO_CENTRAL
+    amount: 1100000
+    priority: 8
+    deadline: 28
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 145
+
+  # Afternoon (tick 160): Activity moderates
+  - type: GlobalArrivalRateChange
+    multiplier: 1.2
+    schedule:
+      type: OneTime
+      tick: 160
+
+  # Late day (tick 185): Return to normal
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 185
+
+  # ========================================================================
+  # DAY 3 (Ticks 200-299): Crisis Deepens
+  # ========================================================================
+
+  # Morning (tick 205): Partial collateral restoration
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: 300000
+    schedule:
+      type: OneTime
+      tick: 205
+
+  - type: CollateralAdjustment
+    agent: MOMENTUM_CAPITAL
+    delta: 400000
+    schedule:
+      type: OneTime
+      tick: 205
+
+  # Midday (tick 240): 3-agent cycle adds pressure
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: CORRESPONDENT_HUB
+    amount: 1400000
+    priority: 8
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 240
+
+  - type: CustomTransactionArrival
+    from_agent: CORRESPONDENT_HUB
+    to_agent: REGIONAL_TRUST
+    amount: 1300000
+    priority: 8
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 240
+
+  - type: CustomTransactionArrival
+    from_agent: REGIONAL_TRUST
+    to_agent: METRO_CENTRAL
+    amount: 1200000
+    priority: 8
+    deadline: 35
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 240
+
+  # Tick 255: Market activity test
+  - type: GlobalArrivalRateChange
+    multiplier: 1.3
+    schedule:
+      type: OneTime
+      tick: 255
+
+  # Afternoon (tick 270): Markets normalize
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 270
+
+  # Late day (tick 285): Final pre-intervention collateral restoration
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: 200000
+    schedule:
+      type: OneTime
+      tick: 285
+
+  - type: CollateralAdjustment
+    agent: MOMENTUM_CAPITAL
+    delta: 200000
+    schedule:
+      type: OneTime
+      tick: 285
+
+  # ========================================================================
+  # DAY 4 (Ticks 300-399): INTERVENTION - Crisis Resolution
+  # ========================================================================
+
+  # EARLY MORNING (tick 302): Emergency Liquidity Facility
+  # Central bank provides emergency balance injection via direct transfers
+  # Simulated by well-capitalized banks (METRO & MOMENTUM) providing liquidity
+
+  # Tick 302: Direct transfer to REGIONAL_TRUST from METRO_CENTRAL
+  - type: DirectTransfer
+    from_agent: METRO_CENTRAL
+    to_agent: REGIONAL_TRUST
+    amount: 10000000   # $100,000 emergency liquidity
+    schedule:
+      type: OneTime
+      tick: 302
+
+  # Tick 303: Direct transfer to CORRESPONDENT_HUB from MOMENTUM_CAPITAL
+  - type: DirectTransfer
+    from_agent: MOMENTUM_CAPITAL
+    to_agent: CORRESPONDENT_HUB
+    amount: 10000000   # $100,000 emergency liquidity
+    schedule:
+      type: OneTime
+      tick: 303
+
+  # Tick 305: Collateral expansion program
+  # Allows banks to post additional collateral for capacity
+  - type: CollateralAdjustment
+    agent: REGIONAL_TRUST
+    delta: 5000000    # $50,000 additional collateral capacity
+    schedule:
+      type: OneTime
+      tick: 305
+
+  - type: CollateralAdjustment
+    agent: CORRESPONDENT_HUB
+    delta: 5000000    # $50,000 additional collateral capacity
+    schedule:
+      type: OneTime
+      tick: 305
+
+  # Tick 310: Market confidence boost
+  # Reduce arrival rates slightly to allow queue clearance
+  - type: GlobalArrivalRateChange
+    multiplier: 0.85  # 15% reduction to allow breathing room
+    schedule:
+      type: OneTime
+      tick: 310
+
+  # ========================================================================
+  # DAY 5-10 (Ticks 400-999): Post-Intervention Managed Stress
+  # ========================================================================
+
+  # Day 5 (tick 410): Markets return to near-normal
+  - type: GlobalArrivalRateChange
+    multiplier: 0.95  # Slightly below original baseline
+    schedule:
+      type: OneTime
+      tick: 410
+
+  # Day 6 (tick 520): Test recovery with mild stress
+  - type: GlobalArrivalRateChange
+    multiplier: 1.1   # Mild uptick
+    schedule:
+      type: OneTime
+      tick: 520
+
+  # Day 6 (tick 570): Return to managed level
+  - type: GlobalArrivalRateChange
+    multiplier: 0.95
+    schedule:
+      type: OneTime
+      tick: 570
+
+  # Day 7 (tick 650): Another mild stress test
+  - type: GlobalArrivalRateChange
+    multiplier: 1.15
+    schedule:
+      type: OneTime
+      tick: 650
+
+  # Day 7 (tick 680): Back to managed
+  - type: GlobalArrivalRateChange
+    multiplier: 0.95
+    schedule:
+      type: OneTime
+      tick: 680
+
+  # Day 8 (tick 750): Final stress test - should handle well
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: CORRESPONDENT_HUB
+    amount: 1500000
+    priority: 8
+    deadline: 40
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 750
+
+  - type: CustomTransactionArrival
+    from_agent: CORRESPONDENT_HUB
+    to_agent: REGIONAL_TRUST
+    amount: 1400000
+    priority: 8
+    deadline: 40
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 750
+
+  # Day 9 (tick 870): Sustained moderate activity
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0   # Normal baseline
+    schedule:
+      type: OneTime
+      tick: 870
+
+  # Day 10 (tick 950): Final day - stable operations
+  # (No changes - demonstrate sustained stability)
+
+# ============================================================================
+# LSM CONFIGURATION
+# ============================================================================
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+# ============================================================================
+# COST CONFIGURATION
+# ============================================================================
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.0002       # $0.002 per $100 per tick
+  overdraft_bps_per_tick: 0.8                # ~145% annualized
+  collateral_cost_per_tick_bps: 0.0005       # ~9% annualized
+  eod_penalty_per_transaction: 500000        # $5,000 per unsettled tx
+  deadline_penalty: 250000                   # $2,500 per overdue tx
+  overdue_delay_multiplier: 5.0              # 5x delay cost when overdue
+  split_friction_cost: 7500                  # $75 per split
+
+# ============================================================================
+# SCENARIO INSIGHTS
+# ============================================================================
+#
+# CRISIS PHASE (Days 1-3, ticks 0-299):
+# - Settlement rate deteriorates: 95% → 85% → 78%
+# - Queue buildup: REGIONAL_TRUST and CORRESPONDENT_HUB hit 30-50 queued txs
+# - Costs accelerate: $50K → $150K → $250K cumulative
+# - Overdues spike: 5 → 15 → 35 transactions past deadline
+#
+# INTERVENTION (Day 4, ticks 300-320):
+# - Balance injections provide immediate settlement capacity
+# - Collateral expansion increases credit limits
+# - Arrival rate reduction allows queue processing
+# - Expected immediate impact: Queue drops 40%, settlement rate jumps to 88%
+#
+# STABILIZATION (Days 5-10, ticks 400-999):
+# - Settlement rate stabilizes at 85-90%
+# - Costs grow linearly but controlled: ~$75K/day
+# - Queue sizes remain manageable: 10-20 per agent
+# - System demonstrates resilience to moderate shocks
+#
+# TOTAL EXPECTED COSTS: ~$600K-700K
+# - Without intervention: Would exceed $1.5M+ (spiraling crisis)
+# - Intervention cost: ~$200K (balance injection opportunity cost)
+# - Net benefit: ~$1M+ in prevented deadlines and overdrafts
+#
+# KEY METRICS TO WATCH:
+# - Tick 302: Immediate queue drop after balance injection
+# - Tick 400: First full day post-intervention settlement rate
+# - Tick 750: Stress test response (should handle smoothly)
+# - Tick 999: Final settlement rate (target: 87%+)
+#
+# USAGE:
+# ======
+#
+# # Run the full 10-day scenario
+# payment-sim run \
+#   --config examples/configs/crisis_resolution_10day.yaml \
+#   --persist crisis_resolution_10day.db \
+#   --verbose
+#
+# # Generate cost charts showing the intervention impact
+# payment-sim db costs <sim-id> \
+#   --db-path crisis_resolution_10day.db \
+#   --chart-output crisis_resolution_accumulated.png
+#
+# payment-sim db costs <sim-id> \
+#   --db-path crisis_resolution_10day.db \
+#   --per-tick \
+#   --chart-output crisis_resolution_per_tick.png
+#
+# # Expected chart patterns:
+# # - Days 1-3: Accelerating cost accumulation
+# # - Day 4 tick 302: Vertical drop in per-tick costs (intervention)
+# # - Days 5-10: Linear, controlled cost growth
