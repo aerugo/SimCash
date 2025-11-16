@@ -6,6 +6,8 @@ import { EventTimelinePage } from './pages/EventTimelinePage'
 import { TransactionDetailPage } from './pages/TransactionDetailPage'
 import { CostChartPage } from './pages/CostChartPage'
 
+console.log('App.tsx loaded - CostChartPage:', CostChartPage)
+
 function App() {
   return (
     <div className="min-h-screen bg-gray-50">
