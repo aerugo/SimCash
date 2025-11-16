@@ -238,20 +238,21 @@ fn test_end_of_day_penalty() {
     let mut config = create_test_config();
     config.ticks_per_day = 10;
     config.cost_rates.eod_penalty_per_transaction = 10_000; // $100 per unsettled tx
-    config.agent_configs[0].policy = PolicyConfig::LiquidityAware {
-        target_buffer: 1_500_000, // Force holding
-        urgency_threshold: 5,
-    };
+    config.agent_configs[0].opening_balance = 0; // No liquidity - transaction can't settle
+    config.agent_configs[0].unsecured_cap = 0; // No credit
+    config.agent_configs[0].policy = PolicyConfig::Fifo; // Submit immediately to RTGS
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
 
-    // Create transaction that will be held
+    // Create transaction that will be held AND become overdue before EOD
+    // With ticks_per_day = 10, EOD is at tick 9
+    // Deadline 5 means transaction becomes overdue at tick 5, so it's overdue at EOD
     let tx = Transaction::new(
         "BANK_A".to_string(),
         "BANK_B".to_string(),
         500_000,
         0,
-        50, // Far deadline
+        5, // Deadline tick 5 - will be overdue at EOD (tick 9)
     );
 
     orchestrator.state_mut().add_transaction(tx.clone());
@@ -266,11 +267,23 @@ fn test_end_of_day_penalty() {
         orchestrator.tick().unwrap();
     }
 
-    // Check EOD penalty was applied
+    // Check penalties were applied:
+    // 1. Deadline penalty when tx went overdue at tick 5
+    // 2. EOD penalty for overdue tx at tick 9 (EOD)
     // After EOD, costs are stored in historical metrics (day 0)
     let metrics = orchestrator.get_daily_agent_metrics(0);
     let bank_a_metrics = metrics.iter().find(|m| m.agent_id == "BANK_A").unwrap();
-    assert_eq!(bank_a_metrics.deadline_penalty_cost, 10_000); // $100 for 1 unsettled tx
+
+    // deadline_penalty_cost includes both deadline penalty and EOD penalty
+    // Default deadline_penalty is 50_000 ($500), plus EOD penalty of 10_000 ($100)
+    let expected_deadline_penalty = orchestrator.cost_rates().deadline_penalty;
+    let expected_eod_penalty = 10_000; // Set in config above
+    let expected_total = expected_deadline_penalty + expected_eod_penalty;
+
+    assert_eq!(
+        bank_a_metrics.deadline_penalty_cost, expected_total,
+        "Expected deadline penalty ($500 when tx went overdue at tick 5) + EOD penalty ($100 for 1 overdue tx at tick 9)"
+    );
 }
 
 #[test]

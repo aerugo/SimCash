@@ -7,6 +7,9 @@
 pub mod checkpoint;
 pub mod engine;
 
+#[cfg(test)]
+mod tests;
+
 // Re-export main types for convenience
 pub use engine::{
     AgentConfig, CostAccumulator, CostBreakdown, CostRates, DailyMetrics, Orchestrator,
