@@ -11,11 +11,13 @@ This directory contains example PNG charts generated from simulations using the 
 
 Shows the running total of costs accumulated by each agent over 300 ticks (3 days). Key observations:
 
-- **REGIONAL_TRUST** (orange): Highest total costs ($342,963), showing steady climb with visible steps
-- **CORRESPONDENT_HUB** (blue): Second highest ($295,852), similar stepped pattern
+- **REGIONAL_TRUST** (orange): Highest total costs (~$145,000), showing steady climb with visible steps
+- **CORRESPONDENT_HUB** (blue): Second highest (~$117,000), similar stepped pattern
 - **METRO_CENTRAL & MOMENTUM_CAPITAL**: Zero costs - perfect liquidity management
 - **Sharp steps visible**: Each vertical jump represents a deadline penalty event ($2,500)
 - **Day boundaries**: Vertical gray lines mark transitions between days
+
+**Note**: After fixing the EOD penalty bug (which was incorrectly applying penalties to all unsettled transactions instead of only overdue ones), total system costs dropped from $638,815 to $263,815 - a 59% reduction. The corrected charts show the true cost dynamics.
 
 ### Per-Tick Costs
 ![Per-Tick Costs](crisis_costs_per_tick.png)
