@@ -4,6 +4,7 @@ import { SimulationDashboardPage } from './pages/SimulationDashboardPage'
 import { AgentDetailPage } from './pages/AgentDetailPage'
 import { EventTimelinePage } from './pages/EventTimelinePage'
 import { TransactionDetailPage } from './pages/TransactionDetailPage'
+import { CostChartPage } from './pages/CostChartPage'
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
           <Route path="/simulations/:simId/agents/:agentId" element={<AgentDetailPage />} />
           <Route path="/simulations/:simId/events" element={<EventTimelinePage />} />
           <Route path="/simulations/:simId/transactions/:txId" element={<TransactionDetailPage />} />
+          <Route path="/simulations/:simId/costs" element={<CostChartPage />} />
         </Routes>
       </main>
     </div>
