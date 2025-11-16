@@ -2,7 +2,7 @@
 
 This directory contains example PNG charts generated from simulations using the CLI cost tool.
 
-## Charts from Advanced Policy Crisis Simulation
+## Charts from Advanced Policy Crisis Simulation (3 Days)
 
 ### Accumulated Costs
 ![Accumulated Costs](crisis_costs_accumulated.png)
@@ -31,6 +31,42 @@ Shows the cost incurred at each individual tick, revealing the true cost dynamic
 - **Crisis pattern**: Most penalties occur in Day 2 (ticks 200-299) after the crisis intensifies
 - **Multiple simultaneous penalties**: Some ticks show $5,000+ when 2+ transactions miss deadlines
 - **Contrast with old view**: Previously these were averaged to appear as constant $552/tick
+
+## Charts from Crisis Resolution Scenario (10 Days)
+
+### Accumulated Costs - Crisis Resolution
+![Crisis Resolution Accumulated](crisis_resolution_accumulated.png)
+
+**File**: `crisis_resolution_accumulated.png`
+
+Shows 10 days (1000 ticks) demonstrating central bank intervention preventing systemic collapse:
+
+- **Days 1-3 (ticks 0-299)**: Crisis develops, costs accelerate
+- **Day 4 (tick 302-305)**: INTERVENTION - Emergency liquidity injections
+  - Direct transfer: $100K to REGIONAL_TRUST
+  - Direct transfer: $100K to CORRESPONDENT_HUB
+  - Collateral expansion: +$50K each
+  - Arrival rate reduction to 85%
+- **Days 5-10 (ticks 400-999)**: Post-intervention managed stress
+  - **Visible inflection**: Cost growth rate changes dramatically after intervention
+  - System stabilizes at 85-90% settlement rate
+  - Costs grow linearly instead of exponentially
+
+**Key observation**: Without intervention, costs would have exceeded $1.5M+ with gridlock. With intervention, total costs remain controlled at ~$600-700K.
+
+### Per-Tick Costs - Crisis Resolution
+![Crisis Resolution Per-Tick](crisis_resolution_per_tick.png)
+
+**File**: `crisis_resolution_per_tick.png`
+
+Shows the tick-by-tick impact of the intervention:
+
+- **Days 1-3**: Escalating penalty spikes as crisis worsens
+- **Day 4 tick 302**: Dramatic reduction in per-tick costs immediately after liquidity injection
+- **Days 5-10**: Lower baseline costs, smaller/less frequent spikes
+- **Intervention effectiveness**: Compare pre-intervention spikes ($5K-10K/tick) vs post-intervention ($500-2K/tick)
+
+This chart clearly demonstrates how timely central bank intervention can stabilize a payment system crisis.
 
 ## Generating Your Own Charts
 
