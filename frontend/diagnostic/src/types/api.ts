@@ -190,13 +190,14 @@ export interface CostResponse {
   total_system_cost: number;
 }
 
-export interface DailyCostDataPoint {
-  day: number;
+export interface TickCostDataPoint {
+  tick: number;
   agent_costs: Record<string, number>; // agent_id -> accumulated cost in cents
 }
 
 export interface CostTimelineResponse {
   simulation_id: string;
   agent_ids: string[];
-  daily_costs: DailyCostDataPoint[];
+  tick_costs: TickCostDataPoint[];  // Changed from daily_costs
+  ticks_per_day: number;
 }
