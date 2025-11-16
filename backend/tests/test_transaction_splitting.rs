@@ -582,7 +582,7 @@ fn test_full_splitting_workflow() {
     // First child should settle (balance available)
     let settlement_events: Vec<_> = events_tick0
         .iter()
-        .filter(|e| matches!(e, Event::Settlement { .. }))
+        .filter(|e| matches!(e, Event::RtgsImmediateSettlement { .. } | Event::Queue2LiquidityRelease { .. }))
         .collect();
 
     // At least one child should settle
