@@ -1280,19 +1280,11 @@ def replay_simulation(
                     # Update statistics
                     num_arrivals = len(arrival_events)
 
-                    # CRITICAL FIX: Count settlement events without double-counting
-                    # Rust currently emits BOTH deprecated Settlement events AND new specific events
-                    # (RtgsImmediateSettlement, Queue2LiquidityRelease) for backward compatibility.
-                    # We must count ONLY the new specific events to avoid double-counting.
-                    #
-                    # Background: Rust code has comments like "DEPRECATED: Also log old Settlement event
-                    # for backward compatibility" - so it logs Settlement + RtgsImmediateSettlement for
-                    # the same transaction.
+                    # Count settlement events by type
                     num_settlements = (
-                        # DO NOT count deprecated Settlement events (would double-count)
-                        # len(settlement_events) +  # ❌ Deprecated - causes double-counting
-                        len(rtgs_immediate_events) +  # ✅ New specific RTGS immediate settlements
-                        len(queue2_release_events)  # ✅ New specific Queue2 releases
+                        len(rtgs_immediate_events) +  # RTGS immediate settlements
+                        len(queue2_release_events)    # Queue2 releases
+                        # Note: LSM settlements counted separately via tx_ids in LSM events
                     )
 
                     # LSM events settle multiple transactions - count them from tx_ids field
