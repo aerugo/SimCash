@@ -6,6 +6,7 @@ import {
   fetchEvents,
   fetchAgentTimeline,
   fetchTransactionLifecycle,
+  fetchCosts,
 } from '../api/simulations'
 
 /**
@@ -84,5 +85,16 @@ export function useTransactionLifecycle(simId: string, txId: string) {
     queryKey: ['transactionLifecycle', simId, txId],
     queryFn: () => fetchTransactionLifecycle(simId, txId),
     enabled: !!simId && !!txId,
+  })
+}
+
+/**
+ * Fetch cost breakdown for a simulation
+ */
+export function useCosts(simId: string) {
+  return useQuery({
+    queryKey: ['costs', simId],
+    queryFn: () => fetchCosts(simId),
+    enabled: !!simId,
   })
 }

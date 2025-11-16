@@ -192,6 +192,12 @@ export function SimulationDashboardPage() {
             >
               View Transactions
             </Link>
+            <Link
+              to={`/simulations/${simulation_id}/costs`}
+              className="block w-full px-4 py-3 bg-purple-600 text-white text-center rounded-lg hover:bg-purple-700 transition-colors font-medium"
+            >
+              View Cost Timeline Chart
+            </Link>
           </div>
         </section>
       </div>

@@ -172,3 +172,20 @@ export interface TransactionLifecycleResponse {
   events: TransactionEvent[];
   related_transactions: RelatedTransaction[];
 }
+
+export interface AgentCostBreakdown {
+  liquidity_cost: number;
+  collateral_cost: number;
+  delay_cost: number;
+  split_friction_cost: number;
+  deadline_penalty: number;
+  total_cost: number;
+}
+
+export interface CostResponse {
+  simulation_id: string;
+  tick: number;
+  day: number;
+  agents: Record<string, AgentCostBreakdown>;
+  total_system_cost: number;
+}

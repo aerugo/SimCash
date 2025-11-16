@@ -6,6 +6,7 @@ import type {
   EventListResponse,
   AgentTimelineResponse,
   TransactionLifecycleResponse,
+  CostResponse,
 } from '../types/api'
 
 /**
@@ -101,4 +102,11 @@ export async function fetchCostTimeline(simId: string) {
   )
 
   return agentTimelines
+}
+
+/**
+ * Fetch cost breakdown for a simulation
+ */
+export async function fetchCosts(simId: string): Promise<CostResponse> {
+  return apiFetch<CostResponse>(`/simulations/${simId}/costs`)
 }

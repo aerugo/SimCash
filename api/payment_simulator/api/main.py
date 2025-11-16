@@ -1451,7 +1451,7 @@ def get_simulation_costs(sim_id: str):
     ```
     """
     try:
-        # Get simulation
+        # Try to get from active simulation first
         orchestrator = manager.get_simulation(sim_id)
 
         # Get costs for all agents
@@ -1486,7 +1486,63 @@ def get_simulation_costs(sim_id: str):
         )
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        # Not an active simulation - try database
+        if not manager.db_manager:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Simulation not found: {sim_id}"
+            )
+
+        from payment_simulator.persistence.queries import get_cost_breakdown_by_agent, get_simulation_summary
+
+        conn = manager.db_manager.get_connection()
+
+        # Check if simulation exists in database
+        summary = get_simulation_summary(conn, sim_id)
+        if not summary:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Simulation not found: {sim_id}"
+            )
+
+        # Get cost breakdown from database
+        df = get_cost_breakdown_by_agent(conn, sim_id)
+
+        if df.is_empty():
+            # Simulation exists but has no cost data
+            raise HTTPException(
+                status_code=404,
+                detail=f"No cost data available for simulation: {sim_id}"
+            )
+
+        # Convert Polars DataFrame to dict
+        agent_costs = {}
+        total_system_cost = 0
+
+        for row in df.iter_rows(named=True):
+            breakdown = AgentCostBreakdown(
+                liquidity_cost=row["liquidity_cost"],
+                collateral_cost=row["collateral_cost"],
+                delay_cost=row["delay_cost"],
+                split_friction_cost=row["split_friction_cost"],
+                deadline_penalty=row["deadline_penalty_cost"],
+                total_cost=row["total_cost"],
+            )
+            agent_costs[row["agent_id"]] = breakdown
+            total_system_cost += breakdown.total_cost
+
+        # Get final tick/day from summary
+        final_tick = summary["ticks_per_day"] * summary["num_days"]
+        final_day = summary["num_days"]
+
+        return CostResponse(
+            simulation_id=sim_id,
+            tick=final_tick,
+            day=final_day,
+            agents=agent_costs,
+            total_system_cost=total_system_cost,
+        )
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
