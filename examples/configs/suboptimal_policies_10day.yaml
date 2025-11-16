@@ -1,0 +1,238 @@
+# Suboptimal Policies - 10 Day Scenario
+#
+# NARRATIVE: "Cost of Inefficiency - When Good Isn't Good Enough"
+#
+# This scenario demonstrates how suboptimal liquidity management policies
+# lead to unnecessary costs even in a non-crisis environment.
+#
+# SCENARIO DESIGN:
+# - Two banks (CONSERVATIVE_BANK, REACTIVE_BANK) use suboptimal policies
+# - Two banks (METRO_CENTRAL, REGIONAL_TRUST) use optimal policies
+# - Slightly unbalanced transaction flows create natural stress
+# - Occasional events test the system without causing crisis
+#
+# POLICY ISSUES:
+# - CONSERVATIVE_BANK: Overly cautious, holds too much liquidity idle
+# - REACTIVE_BANK: Poor urgency assessment, submits late
+#
+# EXPECTED OUTCOMES:
+# - Overall settlement rate: 92-95% (good but not great)
+# - Total costs: $80K-150K (from missed deadlines, not crisis)
+# - METRO_CENTRAL & REGIONAL_TRUST: Near-zero costs (optimal)
+# - CONSERVATIVE_BANK: Moderate costs (holds payments too long)
+# - REACTIVE_BANK: Higher costs (submits at last minute, misses deadlines)
+
+simulation:
+  ticks_per_day: 100
+  num_days: 10
+  rng_seed: 42
+
+# ============================================================================
+# AGENTS - Mix of optimal and suboptimal policies
+# ============================================================================
+
+agents:
+  # METRO_CENTRAL - Optimal Policy (baseline)
+  - id: "METRO_CENTRAL"
+    opening_balance: 12000000         # $120,000 (increased)
+    unsecured_cap: 4000000            # $40,000 (increased)
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.0        # Well-tuned
+        urgency_threshold: 2.5
+        eod_threshold: 0.7
+    arrival_config:
+      rate_per_tick: 0.12             # Reduced from 0.15
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.0
+        std_dev: 0.8
+      counterparty_weights:
+        REGIONAL_TRUST: 0.35
+        CONSERVATIVE_BANK: 0.35
+        REACTIVE_BANK: 0.30
+      deadline_range: [40, 80]
+      priority: 6
+      divisible: false
+
+  # REGIONAL_TRUST - Optimal Policy (baseline)
+  - id: "REGIONAL_TRUST"
+    opening_balance: 13000000         # $130,000 (increased again)
+    unsecured_cap: 4500000            # $45,000 (increased again)
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 2.0        # Well-tuned
+        urgency_threshold: 2.5
+        eod_threshold: 0.7
+    arrival_config:
+      rate_per_tick: 0.12             # Reduced from 0.16
+      amount_distribution:
+        type: "Uniform"
+        min: 80000
+        max: 350000
+      counterparty_weights:
+        METRO_CENTRAL: 0.35
+        CONSERVATIVE_BANK: 0.35
+        REACTIVE_BANK: 0.30
+      deadline_range: [35, 75]
+      priority: 6
+      divisible: true
+
+  # CONSERVATIVE_BANK - SUBOPTIMAL: Overly cautious
+  - id: "CONSERVATIVE_BANK"
+    opening_balance: 13000000         # $130,000 (higher balance, increased)
+    unsecured_cap: 4500000            # $45,000 (increased)
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 3.5        # SUBOPTIMAL but not terrible (should be ~2.0)
+        urgency_threshold: 1.8        # SUBOPTIMAL (waits a bit too long)
+        eod_threshold: 0.85           # SUBOPTIMAL (waits until late)
+    arrival_config:
+      rate_per_tick: 0.13             # Reduced from 0.20
+      amount_distribution:
+        type: "LogNormal"
+        mean: 10.2
+        std_dev: 0.9
+      counterparty_weights:
+        METRO_CENTRAL: 0.35
+        REGIONAL_TRUST: 0.35
+        REACTIVE_BANK: 0.30
+      deadline_range: [30, 70]       # Shorter deadlines
+      priority: 5
+      divisible: false
+
+  # REACTIVE_BANK - SUBOPTIMAL: Poor urgency assessment
+  - id: "REACTIVE_BANK"
+    opening_balance: 12000000         # $120,000 (increased again)
+    unsecured_cap: 4500000            # $45,000 (increased again)
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      params:
+        buffer_multiplier: 1.7        # SUBOPTIMAL (should be ~2.0)
+        urgency_threshold: 2.8        # SUBOPTIMAL (threshold a bit high)
+        eod_threshold: 0.7            # SUBOPTIMAL (acts a bit late)
+    arrival_config:
+      rate_per_tick: 0.11             # Reduced from 0.14
+      amount_distribution:
+        type: "Uniform"
+        min: 100000
+        max: 400000
+      counterparty_weights:
+        METRO_CENTRAL: 0.35
+        REGIONAL_TRUST: 0.35
+        CONSERVATIVE_BANK: 0.30
+      deadline_range: [25, 65]       # Shorter deadlines
+      priority: 7
+      divisible: true
+
+# ============================================================================
+# SCENARIO EVENTS - Mild stress tests, not crisis
+# ============================================================================
+
+scenario_events:
+  # Day 2 (tick 150): Morning activity spike (mild)
+  - type: GlobalArrivalRateChange
+    multiplier: 1.25
+    schedule:
+      type: OneTime
+      tick: 150
+
+  # Day 2 (tick 180): Return to normal
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 180
+
+  # Day 3 (tick 250): Test with coordinated payments (smaller amounts)
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: METRO_CENTRAL
+    amount: 800000
+    priority: 8
+    deadline: 40
+    is_divisible: false
+    schedule:
+      type: OneTime
+      tick: 250
+
+  - type: CustomTransactionArrival
+    from_agent: REACTIVE_BANK
+    to_agent: REGIONAL_TRUST
+    amount: 750000
+    priority: 8
+    deadline: 38
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 250
+
+  # Day 5 (tick 480): Moderate activity increase
+  - type: GlobalArrivalRateChange
+    multiplier: 1.2
+    schedule:
+      type: OneTime
+      tick: 480
+
+  # Day 5 (tick 520): Return to normal
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 520
+
+  # Day 7 (tick 720): Another mild spike
+  - type: GlobalArrivalRateChange
+    multiplier: 1.15
+    schedule:
+      type: OneTime
+      tick: 720
+
+  # Day 7 (tick 750): Back to normal
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 750
+
+  # Day 8 (tick 820): Final test - larger transaction
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 1000000
+    priority: 8
+    deadline: 45
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 820
+
+# ============================================================================
+# LSM CONFIGURATION
+# ============================================================================
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+# ============================================================================
+# COST CONFIGURATION
+# ============================================================================
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.0002
+  overdraft_bps_per_tick: 0.8
+  collateral_cost_per_tick_bps: 0.0005
+  eod_penalty_per_transaction: 500000        # $5,000
+  deadline_penalty: 250000                   # $2,500
+  overdue_delay_multiplier: 5.0
+  split_friction_cost: 7500

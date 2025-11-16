@@ -89,6 +89,41 @@ Shows the **dramatic tick-by-tick impact** of the massive intervention:
 
 **Key Lesson**: This chart proves that intervention timing and scale are critical. The initial $100K intervention failed (costs spiraled to $11.8M), but the $500K intervention with aggressive rate reduction succeeded (costs stabilized at $2.4M).
 
+## Charts from Suboptimal Policies Scenario (10 Days)
+
+### Accumulated Costs - Suboptimal Policies
+![Suboptimal Policies Accumulated](suboptimal_policies_accumulated.png)
+
+**File**: `suboptimal_policies_accumulated.png`
+**Simulation**: `sim-2b06fd1d` from `suboptimal_policies_10day.yaml`
+
+Shows 10 days (1000 ticks) demonstrating the **cost of inefficiency** - how suboptimal policies cause unnecessary costs even without a crisis:
+
+- **Overall system health**: 97.4% settlement rate (excellent)
+- **METRO_CENTRAL & CONSERVATIVE_BANK**: $0 costs (optimal policies)
+- **REACTIVE_BANK**: $65,858 in costs (poor urgency assessment)
+- **REGIONAL_TRUST**: $293 in costs (nearly optimal)
+
+**Policy Differences**:
+- **Optimal** (METRO_CENTRAL, CONSERVATIVE_BANK): `buffer_multiplier: 2.0`, `urgency_threshold: 2.5`, `eod_threshold: 0.7`
+- **Suboptimal** (REACTIVE_BANK): `buffer_multiplier: 1.7` (too low), `urgency_threshold: 2.8` (too high), `eod_threshold: 0.7`
+
+**Key Insight**: Even with 97% settlement rate, REACTIVE_BANK incurs $66K in costs from occasionally missing deadlines due to delayed submission decisions. The chart shows steady cost accumulation from continuous delay costs, with a large EOD penalty spike at tick 999 (end of Day 9).
+
+### Per-Tick Costs - Suboptimal Policies
+![Suboptimal Policies Per-Tick](suboptimal_policies_per_tick.png)
+
+**File**: `suboptimal_policies_per_tick.png`
+
+Shows the pattern of inefficiency costs:
+
+- **REACTIVE_BANK**: Consistent baseline costs ($10-50/tick) from queued transactions accruing delay costs
+- **Occasional spikes**: $2,500 deadline penalties when poor urgency assessment causes late submission
+- **Large EOD penalty**: $35K spike at tick 999 from unsettled overdue transactions at end of day
+- **Optimal banks**: Completely flat at $0 - no wasted costs
+
+**Business Impact**: Over 10 days, REACTIVE_BANK's suboptimal policy costs $66K - equivalent to 65% of their opening balance. This demonstrates how policy tuning directly affects profitability in payment systems.
+
 ## Generating Your Own Charts
 
 ```bash
