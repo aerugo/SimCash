@@ -127,13 +127,13 @@ def test_queue2_drop_at_deadline():
                 "This test documents intended behavior if drop logic is added.")
 
 
-def test_settlement_event_still_emitted():
+def test_settlement_event_no_longer_emitted():
     """
     GIVEN a transaction settling from Queue-2
     WHEN Queue2LiquidityRelease event is emitted
-    THEN a generic Settlement event should ALSO be emitted for compatibility
+    THEN no generic Settlement event should be emitted (backwards compatibility removed)
 
-    (Ensures backward compatibility with existing metrics/analysis that rely on Settlement events)
+    This test verifies that the deprecated Settlement event has been removed.
     """
     from payment_simulator._core import Orchestrator
 
@@ -199,12 +199,13 @@ def test_settlement_event_still_emitted():
 
     tick1_events = orch.get_tick_events(1)
 
-    # Should have BOTH events
+    # Verify NO Settlement events (deprecated event removed)
     settlement_events = [e for e in tick1_events if e.get("event_type") == "Settlement"]
-    queue2_settle_events = [e for e in tick1_events if e.get("event_type") == "Queue2LiquidityRelease"]
+    assert len(settlement_events) == 0, "Generic Settlement events should not be emitted (deprecated)"
 
-    assert len(settlement_events) >= 1, "Generic Settlement event should still exist for compatibility"
-    assert len(queue2_settle_events) == 1, "Queue2LiquidityRelease event should also exist for audit trail"
+    # Verify Queue2LiquidityRelease IS emitted
+    queue2_settle_events = [e for e in tick1_events if e.get("event_type") == "Queue2LiquidityRelease"]
+    assert len(queue2_settle_events) >= 1, "Queue2LiquidityRelease event should be emitted"
 
 
 if __name__ == "__main__":

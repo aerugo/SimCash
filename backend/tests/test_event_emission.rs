@@ -360,20 +360,20 @@ fn test_settlement_event() {
     // ACT: Execute tick
     orchestrator.tick().unwrap();
 
-    // ASSERT: Verify Settlement event was logged
+    // ASSERT: Verify RtgsImmediateSettlement event was logged
     let event_log = orchestrator.event_log();
-    let settlement_events = event_log.events_of_type("Settlement");
+    let settlement_events = event_log.events_of_type("RtgsImmediateSettlement");
 
     assert!(
         !settlement_events.is_empty(),
-        "Expected Settlement event"
+        "Expected RtgsImmediateSettlement event"
     );
 
     // Verify event details
     let settlement = settlement_events
         .iter()
         .find(|e| {
-            if let payment_simulator_core_rs::models::Event::Settlement {
+            if let payment_simulator_core_rs::models::Event::RtgsImmediateSettlement {
                 tx_id: event_tx_id,
                 ..
             } = e
@@ -383,19 +383,19 @@ fn test_settlement_event() {
                 false
             }
         })
-        .expect("Should find Settlement event");
+        .expect("Should find RtgsImmediateSettlement event");
 
-    if let payment_simulator_core_rs::models::Event::Settlement {
+    if let payment_simulator_core_rs::models::Event::RtgsImmediateSettlement {
         tick,
-        sender_id,
-        receiver_id,
+        sender,
+        receiver,
         amount,
         ..
     } = settlement
     {
         assert_eq!(*tick, 0);
-        assert_eq!(sender_id, "BANK_A");
-        assert_eq!(receiver_id, "BANK_B");
+        assert_eq!(sender, "BANK_A");
+        assert_eq!(receiver, "BANK_B");
         assert_eq!(*amount, 100_000);
     }
 }

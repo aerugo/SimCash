@@ -3193,9 +3193,8 @@ impl Orchestrator {
                         }
                     }
 
-                    // Log RTGS immediate settlement event (replaces generic Settlement event)
+                    // Log RTGS immediate settlement event
                     // This transaction settled immediately on submission (sender had liquidity)
-                    #[allow(deprecated)]
                     self.log_event(Event::RtgsImmediateSettlement {
                         tick: current_tick,
                         tx_id: tx_id.clone(),
@@ -3204,17 +3203,6 @@ impl Orchestrator {
                         amount,
                         sender_balance_before,
                         sender_balance_after,
-                    });
-
-                    // DEPRECATED: Also log old Settlement event for backward compatibility
-                    // Remove this after migration period
-                    #[allow(deprecated)]
-                    self.log_event(Event::Settlement {
-                        tick: current_tick,
-                        tx_id: tx_id.clone(),
-                        sender_id,
-                        receiver_id,
-                        amount,
                     });
                 }
                 SettlementOutcome::Queued => {
@@ -3259,17 +3247,6 @@ impl Orchestrator {
                 amount: settled_tx.amount,
                 queue_wait_ticks,
                 release_reason: "liquidity_available".to_string(),
-            });
-
-            // DEPRECATED: Also log old Settlement event for backward compatibility
-            // Remove this after migration period
-            #[allow(deprecated)]
-            self.log_event(Event::Settlement {
-                tick: current_tick,
-                tx_id: settled_tx.tx_id.clone(),
-                sender_id: settled_tx.sender_id.clone(),
-                receiver_id: settled_tx.receiver_id.clone(),
-                amount: settled_tx.amount,
             });
         }
 

@@ -470,13 +470,23 @@ def log_event_chronological(event: dict, tick: int, quiet: bool = False):
             f"[cyan][Tick {tick}][/cyan] [magenta]PolicySplit[/magenta]: {agent} | TX {tx_id_short} → {num_splits} children"
         )
 
-    elif event_type == "Settlement":
-        sender = event.get("sender_id", "?")
-        receiver = event.get("receiver_id", "?")
+    elif event_type == "RtgsImmediateSettlement":
+        sender = event.get("sender", "?")
+        receiver = event.get("receiver", "?")
         amount = event.get("amount", 0)
         console.print(
-            f"[cyan][Tick {tick}][/cyan] [green]Settlement[/green]: TX {tx_id_short} | "
+            f"[cyan][Tick {tick}][/cyan] [green]RTGS Settlement[/green]: TX {tx_id_short} | "
             f"{sender} → {receiver} | ${amount / 100:,.2f}"
+        )
+
+    elif event_type == "Queue2LiquidityRelease":
+        sender = event.get("sender", "?")
+        receiver = event.get("receiver", "?")
+        amount = event.get("amount", 0)
+        wait_ticks = event.get("queue_wait_ticks", 0)
+        console.print(
+            f"[cyan][Tick {tick}][/cyan] [green]Queue Release[/green]: TX {tx_id_short} | "
+            f"{sender} → {receiver} | ${amount / 100:,.2f} | waited {wait_ticks} ticks"
         )
 
     elif event_type == "QueuedRtgs":
@@ -641,9 +651,6 @@ def log_settlement_details(provider, events, tick, num_settlements=None, quiet=F
     lsm_bilateral = [e for e in events if e.get("event_type") == "LsmBilateralOffset"]
     lsm_cycles = [e for e in events if e.get("event_type") == "LsmCycleSettlement"]
 
-    # Legacy: Also include old generic Settlement events for backward compatibility
-    legacy_settlements = [e for e in events if e.get("event_type") == "Settlement"]
-
     # PHASE 5 FIX: Use provided num_settlements instead of recounting
     # This prevents discrepancies between header and summary
     if num_settlements is not None:
@@ -652,7 +659,7 @@ def log_settlement_details(provider, events, tick, num_settlements=None, quiet=F
     else:
         # Fallback: recount from events (INCORRECT for LSM events!)
         # LSM events are counted as 1 each, but they settle multiple transactions
-        total_settlements = len(rtgs_immediate) + len(queue_releases) + len(legacy_settlements)
+        total_settlements = len(rtgs_immediate) + len(queue_releases)
         total = total_settlements + len(lsm_bilateral) + len(lsm_cycles)
 
     if total == 0:
@@ -695,17 +702,6 @@ def log_settlement_details(provider, events, tick, num_settlements=None, quiet=F
 
             console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f}")
             console.print(f"     [dim]Queued for {wait_ticks} tick(s) | Released: {reason}[/dim]")
-        console.print()
-
-    # Legacy generic Settlement events (deprecated but shown for compatibility)
-    if legacy_settlements:
-        console.print(f"   [dim]Legacy Settlements ({len(legacy_settlements)}):[/dim]")
-        for event in legacy_settlements:
-            tx_id = event.get("tx_id", "unknown")[:8]
-            sender = event.get("sender_id", "unknown")
-            receiver = event.get("receiver_id", "unknown")
-            amount = event.get("amount", 0)
-            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f}")
         console.print()
 
     # LSM bilateral offsets
