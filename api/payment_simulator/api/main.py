@@ -141,10 +141,10 @@ class CostResponse(BaseModel):
     )
 
 
-class DailyCostDataPoint(BaseModel):
-    """Cost data for a single day."""
+class TickCostDataPoint(BaseModel):
+    """Cost data for a single tick."""
 
-    day: int
+    tick: int
     agent_costs: Dict[str, int]  # agent_id -> accumulated cost in cents
 
 
@@ -153,7 +153,8 @@ class CostTimelineResponse(BaseModel):
 
     simulation_id: str
     agent_ids: List[str]
-    daily_costs: List[DailyCostDataPoint]
+    tick_costs: List[TickCostDataPoint]  # Changed from daily_costs to tick_costs
+    ticks_per_day: int
 
 
 class SystemMetrics(BaseModel):
@@ -852,6 +853,9 @@ def get_cost_timeline(sim_id: str):
                 detail=f"Simulation not found: {sim_id}"
             )
 
+        # Get ticks_per_day from simulation config
+        ticks_per_day = summary["ticks_per_day"]
+
         # Query daily_agent_metrics for cost data
         query = """
             SELECT
@@ -881,26 +885,38 @@ def get_cost_timeline(sim_id: str):
             daily_data[day][agent_id] = total_cost
             all_agents.add(agent_id)
 
-        # Convert to response format with accumulated costs
+        # Convert to tick-level data with linear interpolation
         agent_ids = sorted(list(all_agents))
-        daily_costs = []
+        tick_costs = []
         accumulated = {agent_id: 0 for agent_id in agent_ids}
 
         for day in sorted(daily_data.keys()):
-            # Accumulate costs
+            # Get daily cost increments for this day
+            day_increments = {}
             for agent_id in agent_ids:
-                if agent_id in daily_data[day]:
-                    accumulated[agent_id] += daily_data[day][agent_id]
+                day_increments[agent_id] = daily_data[day].get(agent_id, 0)
 
-            daily_costs.append(DailyCostDataPoint(
-                day=day,
-                agent_costs=dict(accumulated)
-            ))
+            # Distribute costs evenly across ticks in this day
+            cost_per_tick = {agent_id: day_increments[agent_id] / ticks_per_day for agent_id in agent_ids}
+
+            # Generate tick-level data points for this day
+            for tick_offset in range(ticks_per_day):
+                tick = day * ticks_per_day + tick_offset
+
+                # Accumulate costs gradually across ticks
+                for agent_id in agent_ids:
+                    accumulated[agent_id] += cost_per_tick[agent_id]
+
+                tick_costs.append(TickCostDataPoint(
+                    tick=tick,
+                    agent_costs={agent_id: int(accumulated[agent_id]) for agent_id in agent_ids}
+                ))
 
         return CostTimelineResponse(
             simulation_id=sim_id,
             agent_ids=agent_ids,
-            daily_costs=daily_costs,
+            tick_costs=tick_costs,
+            ticks_per_day=ticks_per_day,
         )
 
     except HTTPException:
