@@ -913,6 +913,34 @@ def get_cost_timeline(sim_id: str):
             tick, agent_id, penalty = row
             tick_agent_costs[tick][agent_id] += penalty
 
+        # Add EOD penalties from daily_agent_metrics (these aren't in event stream per-agent)
+        # EOD penalties are $5,000 per unsettled transaction assessed at end of each day
+        eod_penalty_query = """
+            SELECT
+                day,
+                agent_id,
+                deadline_penalty_cost
+            FROM daily_agent_metrics
+            WHERE simulation_id = ?
+            ORDER BY day, agent_id
+        """
+
+        for row in conn.execute(eod_penalty_query, [sim_id]).fetchall():
+            day, agent_id, deadline_pen = row
+
+            # Calculate costs already captured from events for this agent this day
+            event_costs_this_day = 0
+            for tick in range(day * ticks_per_day, (day + 1) * ticks_per_day):
+                event_costs_this_day += tick_agent_costs[tick].get(agent_id, 0)
+
+            # EOD penalty is the difference (what's in daily table but not in events)
+            eod_penalty = deadline_pen - event_costs_this_day
+
+            if eod_penalty > 0:
+                # Apply EOD penalty at the LAST tick of the day
+                eod_tick = (day + 1) * ticks_per_day - 1
+                tick_agent_costs[eod_tick][agent_id] += eod_penalty
+
         # Get max tick from simulation
         max_tick = summary.get("ticks_executed", ticks_per_day * 3) - 1
 
