@@ -1280,13 +1280,19 @@ def replay_simulation(
                     # Update statistics
                     num_arrivals = len(arrival_events)
 
-                    # CRITICAL FIX (Discrepancy #2): Count ALL settlement event types
-                    # Rust emits specific settlement events (RtgsImmediateSettlement, Queue2LiquidityRelease)
-                    # instead of generic Settlement events. We must count them all.
+                    # CRITICAL FIX: Count settlement events without double-counting
+                    # Rust currently emits BOTH deprecated Settlement events AND new specific events
+                    # (RtgsImmediateSettlement, Queue2LiquidityRelease) for backward compatibility.
+                    # We must count ONLY the new specific events to avoid double-counting.
+                    #
+                    # Background: Rust code has comments like "DEPRECATED: Also log old Settlement event
+                    # for backward compatibility" - so it logs Settlement + RtgsImmediateSettlement for
+                    # the same transaction.
                     num_settlements = (
-                        len(settlement_events) +  # Legacy generic Settlement events
-                        len(rtgs_immediate_events) +  # Specific RTGS immediate settlements
-                        len(queue2_release_events)  # Specific Queue2 releases
+                        # DO NOT count deprecated Settlement events (would double-count)
+                        # len(settlement_events) +  # ❌ Deprecated - causes double-counting
+                        len(rtgs_immediate_events) +  # ✅ New specific RTGS immediate settlements
+                        len(queue2_release_events)  # ✅ New specific Queue2 releases
                     )
 
                     # LSM events settle multiple transactions - count them from tx_ids field
@@ -1341,8 +1347,31 @@ def replay_simulation(
                     # NOT from agent_states (which only exist with --full-replay)
                     # This ensures cost breakdown displays even without --full-replay
                     total_cost = 0
+                    agent_cost_aggregates = {}  # Track costs per agent for cost breakdown display
+
                     for event in cost_accrual_events:
-                        # CostAccrual events have individual cost amounts
+                        agent_id = event.get("agent_id")
+                        if not agent_id:
+                            continue
+
+                        # Initialize agent costs if needed
+                        if agent_id not in agent_cost_aggregates:
+                            agent_cost_aggregates[agent_id] = {
+                                "liquidity_cost": 0,
+                                "delay_cost": 0,
+                                "collateral_cost": 0,
+                                "penalty_cost": 0,
+                                "split_friction_cost": 0,
+                            }
+
+                        # Aggregate costs per agent
+                        agent_cost_aggregates[agent_id]["liquidity_cost"] += event.get("liquidity_cost", 0)
+                        agent_cost_aggregates[agent_id]["delay_cost"] += event.get("delay_cost", 0)
+                        agent_cost_aggregates[agent_id]["collateral_cost"] += event.get("collateral_cost", 0)
+                        agent_cost_aggregates[agent_id]["penalty_cost"] += event.get("penalty_cost", 0)
+                        agent_cost_aggregates[agent_id]["split_friction_cost"] += event.get("split_friction_cost", 0)
+
+                        # Calculate total
                         total_cost += event.get("liquidity_cost", 0)
                         total_cost += event.get("delay_cost", 0)
                         total_cost += event.get("collateral_cost", 0)
@@ -1368,6 +1397,16 @@ def replay_simulation(
 
                     # Convert agent_states list to dict for DatabaseStateProvider
                     agent_states_dict = {state["agent_id"]: state for state in agent_states_list}
+
+                    # CRITICAL FIX: Inject cost aggregates into agent_states for cost breakdown display
+                    # Without --full-replay, agent_states is empty, so get_agent_accumulated_costs()
+                    # would return all zeros. We need to inject costs from CostAccrual events.
+                    for agent_id, costs in agent_cost_aggregates.items():
+                        if agent_id not in agent_states_dict:
+                            # Create minimal agent state entry for cost display
+                            agent_states_dict[agent_id] = {}
+                        # Inject or update cost fields
+                        agent_states_dict[agent_id].update(costs)
 
                     # ═══════════════════════════════════════════════════════════
                     # USE SHARED DISPLAY FUNCTION (SINGLE SOURCE OF TRUTH)
