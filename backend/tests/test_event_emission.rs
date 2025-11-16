@@ -110,11 +110,11 @@ fn test_policy_and_settlement_events_for_manual_transaction() {
         "Expected PolicySubmit event for manual transaction"
     );
 
-    // Should have Settlement event (sufficient liquidity)
-    let settlement_events = event_log.events_of_type("Settlement");
+    // Should have RtgsImmediateSettlement event (sufficient liquidity)
+    let settlement_events = event_log.events_of_type("RtgsImmediateSettlement");
     assert!(
         !settlement_events.is_empty(),
-        "Expected Settlement event for manual transaction"
+        "Expected RtgsImmediateSettlement event for manual transaction"
     );
 
     // Verify the transaction ID is in the events

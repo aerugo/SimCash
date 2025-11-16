@@ -3720,9 +3720,12 @@ impl Orchestrator {
 
     /// Handle end-of-day processing
     ///
-    /// Applies penalties for unsettled transactions at end of day.
-    /// Each agent pays eod_penalty_per_transaction for each unsettled transaction
-    /// in their Queue 1 (internal queue).
+    /// Applies penalties for OVERDUE transactions that remain unsettled at end of day.
+    /// Each agent pays eod_penalty_per_transaction for each OVERDUE transaction
+    /// in either Queue 1 (outgoing queue) or Queue 2 (RTGS queue).
+    ///
+    /// IMPORTANT: Only transactions past their deadline (overdue) incur EOD penalties.
+    /// Transactions still within their deadline window do NOT incur EOD penalties.
     ///
     /// Returns the total EOD penalties accrued across all agents.
     fn handle_end_of_day(&mut self) -> Result<i64, SimulationError> {
@@ -3735,15 +3738,35 @@ impl Orchestrator {
         let agent_ids: Vec<String> = self.state.agents().keys().cloned().collect();
 
         for agent_id in agent_ids {
+            // Count OVERDUE transactions (not just unsettled)
+            // Check both Queue 1 (outgoing) and Queue 2 (RTGS)
+            let mut overdue_count = 0;
+
+            // Check Queue 1 (outgoing queue)
             let agent = self.state.get_agent(&agent_id).unwrap();
+            for tx_id in agent.outgoing_queue() {
+                if let Some(tx) = self.state.get_transaction(tx_id) {
+                    // Only count transactions that are OVERDUE (past their deadline)
+                    if tx.deadline_tick() < current_tick {
+                        overdue_count += 1;
+                    }
+                }
+            }
 
-            // Count unsettled transactions in Queue 1
-            let unsettled_count = agent.outgoing_queue().len();
+            // Check Queue 2 (RTGS queue)
+            for tx_id in self.state.rtgs_queue() {
+                if let Some(tx) = self.state.get_transaction(tx_id) {
+                    // Only count if sender matches AND transaction is overdue
+                    if tx.sender_id() == agent_id && tx.deadline_tick() < current_tick {
+                        overdue_count += 1;
+                    }
+                }
+            }
 
-            if unsettled_count > 0 {
-                // Calculate penalty
+            if overdue_count > 0 {
+                // Calculate penalty for OVERDUE transactions only
                 let penalty =
-                    (unsettled_count as i64) * self.cost_rates.eod_penalty_per_transaction;
+                    (overdue_count as i64) * self.cost_rates.eod_penalty_per_transaction;
                 total_penalties += penalty;
 
                 // Accumulate penalty cost
