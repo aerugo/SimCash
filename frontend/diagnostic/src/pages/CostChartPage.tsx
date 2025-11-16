@@ -45,9 +45,24 @@ export function CostChartPage() {
     enabled: !!simId,
   })
 
+  // Debug logging
+  console.log('CostChartPage - Debug Info:', {
+    simId,
+    isLoading,
+    error,
+    agentTimelines,
+    agentCount: agentTimelines?.length,
+    firstAgentMetricsCount: agentTimelines?.[0]?.daily_metrics?.length,
+  })
+
   // Transform data for the chart
   const chartData = useMemo(() => {
-    if (!agentTimelines || agentTimelines.length === 0) return []
+    if (!agentTimelines || agentTimelines.length === 0) {
+      console.log('No agent timelines to display')
+      return []
+    }
+
+    console.log('Transforming chart data for', agentTimelines.length, 'agents')
 
     // Find the maximum number of days across all agents
     const maxDays = Math.max(
@@ -142,7 +157,13 @@ export function CostChartPage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
-          <p>No cost data available for this simulation.</p>
+          <p className="font-semibold mb-2">No cost data available for this simulation.</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm">Debug Info</summary>
+            <pre className="mt-2 text-xs bg-white p-2 rounded overflow-auto">
+              {JSON.stringify({ simId, agentTimelines, error: error?.toString() }, null, 2)}
+            </pre>
+          </details>
         </div>
       </div>
     )
@@ -166,6 +187,19 @@ export function CostChartPage() {
         <p className="text-gray-600">
           {showCumulative ? 'Accumulated' : 'Daily'} cost per agent over time
         </p>
+        {/* Debug Info */}
+        <details className="mt-4 p-3 bg-gray-100 rounded">
+          <summary className="cursor-pointer text-sm font-medium">Debug: Data Status</summary>
+          <div className="mt-2 text-xs space-y-1">
+            <p>Agents loaded: {agentTimelines?.length ?? 0}</p>
+            <p>Chart data points: {chartData.length}</p>
+            <p>Displayed agents: {displayedAgentIds.length}</p>
+            <p>All agent IDs: {allAgentIds.join(', ') || 'none'}</p>
+            {agentTimelines && agentTimelines.length > 0 && (
+              <p>Sample metrics (first agent): {agentTimelines[0]?.daily_metrics?.length ?? 0} days</p>
+            )}
+          </div>
+        </details>
       </div>
 
       {/* Controls */}
@@ -255,6 +289,20 @@ export function CostChartPage() {
         {displayedAgentIds.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             No agents selected. Please select at least one agent to view the chart.
+          </div>
+        ) : chartData.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 mb-2">No chart data available.</p>
+            <details className="inline-block text-left">
+              <summary className="cursor-pointer text-sm text-gray-400">Debug Info</summary>
+              <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-w-lg">
+                {JSON.stringify({
+                  agentCount: agentTimelines?.length,
+                  displayedAgents: displayedAgentIds,
+                  sampleAgent: agentTimelines?.[0]
+                }, null, 2)}
+              </pre>
+            </details>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={500}>
