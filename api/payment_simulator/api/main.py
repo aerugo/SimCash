@@ -856,61 +856,80 @@ def get_cost_timeline(sim_id: str):
         # Get ticks_per_day from simulation config
         ticks_per_day = summary["ticks_per_day"]
 
-        # Query daily_agent_metrics for cost data
-        query = """
-            SELECT
-                day,
-                agent_id,
-                total_cost
+        # Get all agents from the simulation
+        agents_query = """
+            SELECT DISTINCT agent_id
             FROM daily_agent_metrics
             WHERE simulation_id = ?
-            ORDER BY day, agent_id
+            ORDER BY agent_id
         """
+        agent_results = conn.execute(agents_query, [sim_id]).fetchall()
+        agent_ids = sorted([row[0] for row in agent_results])
 
-        results = conn.execute(query, [sim_id]).fetchall()
-
-        if not results:
+        if not agent_ids:
             raise HTTPException(
                 status_code=404,
                 detail=f"No cost timeline data available for simulation: {sim_id}"
             )
 
-        # Organize data by day
+        # Query actual tick-level cost events
+        # 1. CostAccrual events for continuous costs (liquidity, delay, collateral)
+        # 2. TransactionWentOverdue events for deadline penalties
+        import json
         from collections import defaultdict
-        daily_data = defaultdict(dict)
-        all_agents = set()
 
-        for row in results:
-            day, agent_id, total_cost = row
-            daily_data[day][agent_id] = total_cost
-            all_agents.add(agent_id)
+        cost_accrual_query = """
+            SELECT
+                tick,
+                agent_id,
+                CAST(json_extract(details, '$.costs.total') AS INTEGER) as tick_cost
+            FROM simulation_events
+            WHERE simulation_id = ?
+              AND event_type = 'CostAccrual'
+            ORDER BY tick
+        """
 
-        # Convert to tick-level data with linear interpolation
-        agent_ids = sorted(list(all_agents))
+        deadline_penalty_query = """
+            SELECT
+                tick,
+                json_extract(details, '$.sender_id') as agent_id,
+                CAST(json_extract(details, '$.deadline_penalty_cost') AS INTEGER) as penalty_cost
+            FROM simulation_events
+            WHERE simulation_id = ?
+              AND event_type = 'TransactionWentOverdue'
+            ORDER BY tick
+        """
+
+        # Aggregate costs by tick and agent
+        tick_agent_costs = defaultdict(lambda: defaultdict(int))
+
+        # Add continuous costs from CostAccrual events
+        for row in conn.execute(cost_accrual_query, [sim_id]).fetchall():
+            tick, agent_id, cost = row
+            tick_agent_costs[tick][agent_id] += cost
+
+        # Add deadline penalties from TransactionWentOverdue events
+        for row in conn.execute(deadline_penalty_query, [sim_id]).fetchall():
+            tick, agent_id, penalty = row
+            tick_agent_costs[tick][agent_id] += penalty
+
+        # Get max tick from simulation
+        max_tick = summary.get("ticks_executed", ticks_per_day * 3) - 1
+
+        # Build accumulated costs for all ticks
         tick_costs = []
         accumulated = {agent_id: 0 for agent_id in agent_ids}
 
-        for day in sorted(daily_data.keys()):
-            # Get daily cost increments for this day
-            day_increments = {}
+        for tick in range(max_tick + 1):
+            # Add costs that occurred at this tick
             for agent_id in agent_ids:
-                day_increments[agent_id] = daily_data[day].get(agent_id, 0)
+                accumulated[agent_id] += tick_agent_costs[tick].get(agent_id, 0)
 
-            # Distribute costs evenly across ticks in this day
-            cost_per_tick = {agent_id: day_increments[agent_id] / ticks_per_day for agent_id in agent_ids}
-
-            # Generate tick-level data points for this day
-            for tick_offset in range(ticks_per_day):
-                tick = day * ticks_per_day + tick_offset
-
-                # Accumulate costs gradually across ticks
-                for agent_id in agent_ids:
-                    accumulated[agent_id] += cost_per_tick[agent_id]
-
-                tick_costs.append(TickCostDataPoint(
-                    tick=tick,
-                    agent_costs={agent_id: int(accumulated[agent_id]) for agent_id in agent_ids}
-                ))
+            # Store accumulated costs (in cents)
+            tick_costs.append(TickCostDataPoint(
+                tick=tick,
+                agent_costs={agent_id: int(accumulated[agent_id]) for agent_id in agent_ids}
+            ))
 
         return CostTimelineResponse(
             simulation_id=sim_id,
