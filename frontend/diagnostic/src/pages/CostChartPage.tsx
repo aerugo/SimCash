@@ -29,8 +29,8 @@ const AGENT_COLORS = [
 ]
 
 interface ChartDataPoint {
-  day: number
-  [agentId: string]: number // day number or cost for each agent
+  tick: number
+  [agentId: string]: number // tick number or cost for each agent
 }
 
 export function CostChartPage() {
@@ -46,33 +46,33 @@ export function CostChartPage() {
 
   // Transform data for the chart
   const chartData = useMemo(() => {
-    if (!costTimeline || !costTimeline.daily_costs) return []
+    if (!costTimeline || !costTimeline.tick_costs) return []
 
     if (showCumulative) {
       // Data is already accumulated from the backend
-      return costTimeline.daily_costs.map(dataPoint => ({
-        day: dataPoint.day,
+      return costTimeline.tick_costs.map(dataPoint => ({
+        tick: dataPoint.tick,
         ...dataPoint.agent_costs,
       }))
     } else {
-      // Calculate daily costs (difference between consecutive days)
-      const dailyData: ChartDataPoint[] = []
+      // Calculate per-tick costs (difference between consecutive ticks)
+      const tickData: ChartDataPoint[] = []
       let prevCosts: Record<string, number> = {}
 
-      costTimeline.daily_costs.forEach((dataPoint, index) => {
-        const dayData: ChartDataPoint = { day: dataPoint.day }
+      costTimeline.tick_costs.forEach((dataPoint) => {
+        const tickDataPoint: ChartDataPoint = { tick: dataPoint.tick }
 
         costTimeline.agent_ids.forEach(agentId => {
           const currentCost = dataPoint.agent_costs[agentId] || 0
           const previousCost = prevCosts[agentId] || 0
-          dayData[agentId] = currentCost - previousCost
+          tickDataPoint[agentId] = currentCost - previousCost
         })
 
-        dailyData.push(dayData)
+        tickData.push(tickDataPoint)
         prevCosts = { ...dataPoint.agent_costs }
       })
 
-      return dailyData
+      return tickData
     }
   }, [costTimeline, showCumulative])
 
@@ -91,15 +91,19 @@ export function CostChartPage() {
   const agentStats = useMemo(() => {
     if (!costTimeline) return []
 
+    const totalTicks = costTimeline.tick_costs.length
+    const totalDays = totalTicks / costTimeline.ticks_per_day
+
     return allAgentIds.map(agentId => {
-      const finalCost = costTimeline.daily_costs[costTimeline.daily_costs.length - 1]?.agent_costs[agentId] || 0
-      const avgDailyCost = finalCost / costTimeline.daily_costs.length
+      const finalCost = costTimeline.tick_costs[costTimeline.tick_costs.length - 1]?.agent_costs[agentId] || 0
+      const avgDailyCost = finalCost / totalDays
 
       return {
         agentId,
         totalCost: finalCost,
         avgDailyCost,
-        days: costTimeline.daily_costs.length,
+        totalTicks,
+        totalDays: Math.floor(totalDays),
       }
     })
   }, [costTimeline, allAgentIds])
@@ -173,7 +177,7 @@ export function CostChartPage() {
           Interactive Cost Chart
         </h1>
         <p className="text-gray-600">
-          {showCumulative ? 'Accumulated' : 'Daily'} cost per agent over time
+          {showCumulative ? 'Accumulated' : 'Per-tick'} cost per agent over time (tick-by-tick granularity)
         </p>
       </div>
 
@@ -201,7 +205,7 @@ export function CostChartPage() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              Daily
+              Per-Tick
             </button>
           </div>
 
@@ -258,7 +262,7 @@ export function CostChartPage() {
       {/* Chart */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          {showCumulative ? 'Accumulated Cost Over Time' : 'Daily Cost Over Time'}
+          {showCumulative ? 'Accumulated Cost Over Time' : 'Per-Tick Cost Over Time'}
         </h2>
 
         {displayedAgentIds.length === 0 ? (
@@ -273,12 +277,12 @@ export function CostChartPage() {
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
-                dataKey="day"
-                label={{ value: 'Day', position: 'insideBottom', offset: -5 }}
+                dataKey="tick"
+                label={{ value: 'Tick', position: 'insideBottom', offset: -5 }}
               />
               <YAxis
                 label={{
-                  value: `Cost (${showCumulative ? 'Accumulated' : 'Daily'})`,
+                  value: `Cost (${showCumulative ? 'Accumulated' : 'Per-Tick'})`,
                   angle: -90,
                   position: 'insideLeft',
                 }}
@@ -293,9 +297,13 @@ export function CostChartPage() {
                 content={({ active, payload, label }) => {
                   if (!active || !payload) return null
 
+                  const tick = Number(label)
+                  const day = costTimeline ? Math.floor(tick / costTimeline.ticks_per_day) : 0
+
                   return (
                     <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4">
-                      <p className="font-semibold text-gray-900 mb-2">Day {label}</p>
+                      <p className="font-semibold text-gray-900 mb-1">Tick {label}</p>
+                      <p className="text-xs text-gray-500 mb-2">Day {day}</p>
                       <div className="space-y-1">
                         {payload.map((entry, index) => (
                           <div key={index} className="flex items-center gap-2">
@@ -379,9 +387,15 @@ export function CostChartPage() {
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-sm text-gray-600">Days:</dt>
+                  <dt className="text-sm text-gray-600">Total Ticks:</dt>
                   <dd className="text-sm font-medium text-gray-900">
-                    {stat.days}
+                    {stat.totalTicks}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-sm text-gray-600">Total Days:</dt>
+                  <dd className="text-sm font-medium text-gray-900">
+                    {stat.totalDays}
                   </dd>
                 </div>
               </dl>
