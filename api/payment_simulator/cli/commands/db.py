@@ -419,31 +419,19 @@ def db_costs(
 
         ticks_per_day = summary["ticks_per_day"]
 
-        # Query daily_agent_metrics for cost data
-        query = """
-            SELECT
-                day,
-                agent_id,
-                total_cost
+        # Get all agents from the simulation
+        agents_query = """
+            SELECT DISTINCT agent_id
             FROM daily_agent_metrics
             WHERE simulation_id = ?
-            ORDER BY day, agent_id
+            ORDER BY agent_id
         """
+        agent_results = conn.execute(agents_query, [simulation_id]).fetchall()
+        all_agents = {row[0] for row in agent_results}
 
-        results = conn.execute(query, [simulation_id]).fetchall()
-
-        if not results:
+        if not all_agents:
             console.print(f"[yellow]No cost data available for simulation {simulation_id}[/yellow]")
             raise typer.Exit(code=0)
-
-        # Organize data by day
-        daily_data = defaultdict(dict)
-        all_agents = set()
-
-        for row in results:
-            day, agent_id, total_cost = row
-            daily_data[day][agent_id] = total_cost
-            all_agents.add(agent_id)
 
         # Filter agents if requested
         if agent:
@@ -455,45 +443,74 @@ def db_costs(
         else:
             agent_ids = sorted(list(all_agents))
 
-        # Convert to tick-level data with linear interpolation
+        # Query actual tick-level cost events
+        # 1. CostAccrual events for continuous costs (liquidity, delay, collateral)
+        # 2. TransactionWentOverdue events for deadline penalties
+        cost_accrual_query = """
+            SELECT
+                tick,
+                agent_id,
+                CAST(json_extract(details, '$.costs.total') AS INTEGER) as tick_cost
+            FROM simulation_events
+            WHERE simulation_id = ?
+              AND event_type = 'CostAccrual'
+            ORDER BY tick
+        """
+
+        deadline_penalty_query = """
+            SELECT
+                tick,
+                json_extract(details, '$.sender_id') as agent_id,
+                CAST(json_extract(details, '$.deadline_penalty_cost') AS INTEGER) as penalty_cost
+            FROM simulation_events
+            WHERE simulation_id = ?
+              AND event_type = 'TransactionWentOverdue'
+            ORDER BY tick
+        """
+
+        # Aggregate costs by tick and agent
+        tick_agent_costs = defaultdict(lambda: defaultdict(int))
+
+        # Add continuous costs from CostAccrual events
+        for row in conn.execute(cost_accrual_query, [simulation_id]).fetchall():
+            tick, agent_id_event, cost = row
+            tick_agent_costs[tick][agent_id_event] += cost
+
+        # Add deadline penalties from TransactionWentOverdue events
+        for row in conn.execute(deadline_penalty_query, [simulation_id]).fetchall():
+            tick, agent_id_event, penalty = row
+            tick_agent_costs[tick][agent_id_event] += penalty
+
+        # Get max tick from simulation
+        max_tick = summary.get("ticks_executed", ticks_per_day * 3) - 1
+
+        # Build accumulated costs for all ticks
         tick_costs = []
         accumulated = {agent_id: 0 for agent_id in agent_ids}
 
-        for day in sorted(daily_data.keys()):
-            # Get daily cost increments for this day
-            day_increments = {}
+        for tick in range(max_tick + 1):
+            # Store previous accumulated for per-tick calculation
+            prev_accumulated = dict(accumulated)
+
+            # Add costs that occurred at this tick
             for agent_id in agent_ids:
-                day_increments[agent_id] = daily_data[day].get(agent_id, 0)
+                accumulated[agent_id] += tick_agent_costs[tick].get(agent_id, 0)
 
-            # Distribute costs evenly across ticks in this day
-            cost_per_tick = {agent_id: day_increments[agent_id] / ticks_per_day for agent_id in agent_ids}
+            # Calculate per-tick costs if requested
+            if show_per_tick:
+                tick_data = {
+                    "tick": tick,
+                    "day": tick // ticks_per_day,
+                    "costs": {agent_id: int(accumulated[agent_id] - prev_accumulated[agent_id]) for agent_id in agent_ids}
+                }
+            else:
+                tick_data = {
+                    "tick": tick,
+                    "day": tick // ticks_per_day,
+                    "costs": {agent_id: int(accumulated[agent_id]) for agent_id in agent_ids}
+                }
 
-            # Generate tick-level data points for this day
-            for tick_offset in range(ticks_per_day):
-                tick = day * ticks_per_day + tick_offset
-
-                # Store previous costs for per-tick calculation
-                prev_accumulated = dict(accumulated)
-
-                # Accumulate costs gradually across ticks
-                for agent_id in agent_ids:
-                    accumulated[agent_id] += cost_per_tick[agent_id]
-
-                # Calculate per-tick costs if requested
-                if show_per_tick:
-                    tick_data = {
-                        "tick": tick,
-                        "day": day,
-                        "costs": {agent_id: int(cost_per_tick[agent_id]) for agent_id in agent_ids}
-                    }
-                else:
-                    tick_data = {
-                        "tick": tick,
-                        "day": day,
-                        "costs": {agent_id: int(accumulated[agent_id]) for agent_id in agent_ids}
-                    }
-
-                tick_costs.append(tick_data)
+            tick_costs.append(tick_data)
 
         # Export to CSV if requested
         if output_csv:
