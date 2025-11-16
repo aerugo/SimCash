@@ -1297,12 +1297,30 @@ def replay_simulation(
 
                     # LSM events settle multiple transactions - count them from tx_ids field
                     num_lsm_settlements = 0
+                    lsm_settled_parent_ids = set()  # Track unique parent transactions settled by LSM
+
                     for lsm_event in lsm_events:
                         tx_ids = lsm_event.get("tx_ids", [])
                         num_lsm_settlements += len(tx_ids)
+
+                        # CRITICAL FIX: Count unique parent transactions settled by LSM
+                        # This matches run mode's _count_corrected_lsm_settlements() logic
+                        for tx_id in tx_ids:
+                            # Check if this is a split child transaction
+                            tx_details = mock_orch._tx_cache.get(tx_id)
+                            if tx_details and tx_details.get("parent_id"):
+                                # This is a child - count the parent
+                                lsm_settled_parent_ids.add(tx_details["parent_id"])
+                            else:
+                                # This is a parent transaction (or has no splits)
+                                lsm_settled_parent_ids.add(tx_id)
+
                     num_settlements += num_lsm_settlements  # Add LSM-settled transactions to total
 
-                    num_lsm = len(lsm_events)
+                    # CRITICAL FIX: num_lsm should count unique parent transactions, not events
+                    # This matches run mode semantics where total_lsm_releases counts
+                    # unique parent transactions settled by LSM (len(lsm_settled_parents))
+                    num_lsm = len(lsm_settled_parent_ids)
 
                     daily_stats["arrivals"] += num_arrivals
                     daily_stats["settlements"] += num_settlements
@@ -1609,13 +1627,37 @@ def replay_simulation(
 
                 # CRITICAL FIX (Discrepancy #9): Query FULL SIMULATION LSM count, not just replayed range
                 # LSM release count not in summary table - calculate from ALL events for this simulation
+                # CRITICAL FIX: Count unique parent transactions settled by LSM, not number of events
+                # This matches run mode semantics (runner.py _count_corrected_lsm_settlements)
                 lsm_query = """
-                    SELECT COUNT(*) FROM simulation_events
+                    SELECT event_type, tx_id, details FROM simulation_events
                     WHERE simulation_id = ?
                     AND event_type IN ('LsmBilateralOffset', 'LsmCycleSettlement')
                 """
-                result = db_manager.conn.execute(lsm_query, [simulation_id]).fetchone()
-                tick_count_lsm = result[0] if result else 0
+                lsm_results = db_manager.conn.execute(lsm_query, [simulation_id]).fetchall()
+
+                # Extract unique parent transactions from LSM events
+                lsm_settled_parents = set()
+                for event_type, tx_id, details_json in lsm_results:
+                    import json
+                    details = json.loads(details_json) if isinstance(details_json, str) else details_json
+                    tx_ids = details.get("tx_ids", [])
+
+                    # Load transaction cache to check for split transactions
+                    # Note: In non-verbose mode we don't have full tx_cache, so we query transactions table
+                    for settled_tx_id in tx_ids:
+                        # Query if this transaction has a parent_tx_id (database column name)
+                        parent_query = "SELECT parent_tx_id FROM transactions WHERE tx_id = ? AND simulation_id = ?"
+                        parent_result = db_manager.conn.execute(parent_query, [settled_tx_id, simulation_id]).fetchone()
+
+                        if parent_result and parent_result[0]:
+                            # This is a child - count the parent
+                            lsm_settled_parents.add(parent_result[0])
+                        else:
+                            # This is a parent transaction (or has no splits)
+                            lsm_settled_parents.add(settled_tx_id)
+
+                tick_count_lsm = len(lsm_settled_parents)
 
                 # Get final agent balances from daily_agent_metrics (always available, not dependent on --full-replay)
                 final_day = summary["num_days"] - 1
