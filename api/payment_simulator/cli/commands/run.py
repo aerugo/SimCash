@@ -682,9 +682,21 @@ def run_simulation(
             if cost_chart and persist and sim_id:
                 from payment_simulator.cli.commands.db import generate_cost_chart
                 try:
+                    # Create chart output path: examples/charts/scenario-name.png
+                    # Find project root by looking for .git or backend directory
+                    project_root = Path.cwd()
+                    while project_root != project_root.parent:
+                        if (project_root / ".git").exists() or (project_root / "backend").exists():
+                            break
+                        project_root = project_root.parent
+
+                    chart_filename = config.stem + ".png"
+                    chart_path = project_root / "examples/charts" / chart_filename
+
                     generate_cost_chart(
                         simulation_id=sim_id,
                         db_path=db_path,
+                        chart_output=str(chart_path),
                         quiet=quiet,
                     )
                 except Exception as e:
@@ -796,9 +808,21 @@ def run_simulation(
             if cost_chart and persist and sim_id:
                 from payment_simulator.cli.commands.db import generate_cost_chart
                 try:
+                    # Create chart output path: examples/charts/scenario-name.png
+                    # Find project root by looking for .git or backend directory
+                    project_root = Path.cwd()
+                    while project_root != project_root.parent:
+                        if (project_root / ".git").exists() or (project_root / "backend").exists():
+                            break
+                        project_root = project_root.parent
+
+                    chart_filename = config.stem + ".png"
+                    chart_path = project_root / "examples/charts" / chart_filename
+
                     generate_cost_chart(
                         simulation_id=sim_id,
                         db_path=db_path,
+                        chart_output=str(chart_path),
                         quiet=quiet,
                     )
                 except Exception as e:
@@ -870,9 +894,21 @@ def run_simulation(
             if cost_chart and persist and sim_id:
                 from payment_simulator.cli.commands.db import generate_cost_chart
                 try:
+                    # Create chart output path: examples/charts/scenario-name.png
+                    # Find project root by looking for .git or backend directory
+                    project_root = Path.cwd()
+                    while project_root != project_root.parent:
+                        if (project_root / ".git").exists() or (project_root / "backend").exists():
+                            break
+                        project_root = project_root.parent
+
+                    chart_filename = config.stem + ".png"
+                    chart_path = project_root / "examples/charts" / chart_filename
+
                     generate_cost_chart(
                         simulation_id=sim_id,
                         db_path=db_path,
+                        chart_output=str(chart_path),
                         quiet=quiet,
                     )
                 except Exception as e:
@@ -946,9 +982,21 @@ def run_simulation(
             if cost_chart and persist and sim_id:
                 from payment_simulator.cli.commands.db import generate_cost_chart
                 try:
+                    # Create chart output path: examples/charts/scenario-name.png
+                    # Find project root by looking for .git or backend directory
+                    project_root = Path.cwd()
+                    while project_root != project_root.parent:
+                        if (project_root / ".git").exists() or (project_root / "backend").exists():
+                            break
+                        project_root = project_root.parent
+
+                    chart_filename = config.stem + ".png"
+                    chart_path = project_root / "examples/charts" / chart_filename
+
                     generate_cost_chart(
                         simulation_id=sim_id,
                         db_path=db_path,
+                        chart_output=str(chart_path),
                         quiet=quiet,
                     )
                 except Exception as e:
