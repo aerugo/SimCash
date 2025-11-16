@@ -189,19 +189,6 @@ pub enum Event {
         sender_balance_after: i64,   // For audit trail
     },
 
-    /// DEPRECATED: Generic settlement event (replaced by specific types)
-    ///
-    /// Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events instead.
-    /// Kept for backward compatibility with old databases.
-    #[deprecated(note = "Use RtgsImmediateSettlement, Queue2LiquidityRelease, or LSM events")]
-    Settlement {
-        tick: usize,
-        tx_id: String,
-        sender_id: String,
-        receiver_id: String,
-        amount: i64,
-    },
-
     /// Transaction queued to RTGS queue (insufficient liquidity)
     QueuedRtgs {
         tick: usize,
@@ -337,8 +324,6 @@ impl Event {
             Event::StateRegisterSet { tick, .. } => *tick,
             Event::BankBudgetSet { tick, .. } => *tick,
             Event::RtgsImmediateSettlement { tick, .. } => *tick,
-            #[allow(deprecated)]
-            Event::Settlement { tick, .. } => *tick,
             Event::QueuedRtgs { tick, .. } => *tick,
             Event::LsmBilateralOffset { tick, .. } => *tick,
             Event::LsmCycleSettlement { tick, .. } => *tick,
@@ -369,8 +354,6 @@ impl Event {
             Event::StateRegisterSet { .. } => "StateRegisterSet",
             Event::BankBudgetSet { .. } => "BankBudgetSet",
             Event::RtgsImmediateSettlement { .. } => "RtgsImmediateSettlement",
-            #[allow(deprecated)]
-            Event::Settlement { .. } => "Settlement",
             Event::QueuedRtgs { .. } => "QueuedRtgs",
             Event::LsmBilateralOffset { .. } => "LsmBilateralOffset",
             Event::LsmCycleSettlement { .. } => "LsmCycleSettlement",
@@ -395,8 +378,6 @@ impl Event {
             Event::PolicySplit { tx_id, .. } => Some(tx_id),
             Event::TransactionReprioritized { tx_id, .. } => Some(tx_id),
             Event::RtgsImmediateSettlement { tx_id, .. } => Some(tx_id),
-            #[allow(deprecated)]
-            Event::Settlement { tx_id, .. } => Some(tx_id),
             Event::QueuedRtgs { tx_id, .. } => Some(tx_id),
             Event::TransactionWentOverdue { tx_id, .. } => Some(tx_id),
             Event::OverdueTransactionSettled { tx_id, .. } => Some(tx_id),
@@ -419,8 +400,6 @@ impl Event {
             Event::CollateralPost { agent_id, .. } => Some(agent_id),
             Event::CollateralWithdraw { agent_id, .. } => Some(agent_id),
             Event::RtgsImmediateSettlement { sender, .. } => Some(sender),
-            #[allow(deprecated)]
-            Event::Settlement { sender_id, .. } => Some(sender_id),
             Event::QueuedRtgs { sender_id, .. } => Some(sender_id),
             Event::CostAccrual { agent_id, .. } => Some(agent_id),
             Event::TransactionWentOverdue { sender_id, .. } => Some(sender_id),
@@ -524,15 +503,17 @@ mod tests {
 
     #[test]
     fn test_event_type() {
-        let event = Event::Settlement {
+        let event = Event::RtgsImmediateSettlement {
             tick: 10,
             tx_id: "tx_001".to_string(),
-            sender_id: "BANK_A".to_string(),
-            receiver_id: "BANK_B".to_string(),
+            sender: "BANK_A".to_string(),
+            receiver: "BANK_B".to_string(),
             amount: 100_000,
+            sender_balance_before: 500_000,
+            sender_balance_after: 400_000,
         };
 
-        assert_eq!(event.event_type(), "Settlement");
+        assert_eq!(event.event_type(), "RtgsImmediateSettlement");
     }
 
     #[test]
@@ -595,12 +576,14 @@ mod tests {
             is_divisible: false,
         });
 
-        log.log(Event::Settlement {
+        log.log(Event::RtgsImmediateSettlement {
             tick: 1,
             tx_id: "tx_001".to_string(),
-            sender_id: "BANK_A".to_string(),
-            receiver_id: "BANK_B".to_string(),
+            sender: "BANK_A".to_string(),
+            receiver: "BANK_B".to_string(),
             amount: 100_000,
+            sender_balance_before: 500_000,
+            sender_balance_after: 400_000,
         });
 
         log.log(Event::Arrival {
@@ -636,18 +619,20 @@ mod tests {
             is_divisible: false,
         });
 
-        log.log(Event::Settlement {
+        log.log(Event::RtgsImmediateSettlement {
             tick: 1,
             tx_id: "tx_001".to_string(),
-            sender_id: "BANK_A".to_string(),
-            receiver_id: "BANK_B".to_string(),
+            sender: "BANK_A".to_string(),
+            receiver: "BANK_B".to_string(),
             amount: 100_000,
+            sender_balance_before: 500_000,
+            sender_balance_after: 400_000,
         });
 
         let arrivals = log.events_of_type("Arrival");
         assert_eq!(arrivals.len(), 1);
 
-        let settlements = log.events_of_type("Settlement");
+        let settlements = log.events_of_type("RtgsImmediateSettlement");
         assert_eq!(settlements.len(), 1);
     }
 
@@ -672,12 +657,14 @@ mod tests {
             tx_id: "tx_001".to_string(),
         });
 
-        log.log(Event::Settlement {
+        log.log(Event::RtgsImmediateSettlement {
             tick: 1,
             tx_id: "tx_001".to_string(),
-            sender_id: "BANK_A".to_string(),
-            receiver_id: "BANK_B".to_string(),
+            sender: "BANK_A".to_string(),
+            receiver: "BANK_B".to_string(),
             amount: 100_000,
+            sender_balance_before: 500_000,
+            sender_balance_after: 400_000,
         });
 
         let tx_events = log.events_for_tx("tx_001");

@@ -875,6 +875,28 @@ Red flags:
 
 ---
 
+## Breaking Changes
+
+### Removed in 2025-11-16
+
+**Deprecated `Settlement` event removed**
+
+The generic `Settlement` event has been completely removed. All settlements now use specific event types:
+
+- **RTGS immediate settlements**: Use `RtgsImmediateSettlement` event
+- **Queue-2 releases**: Use `Queue2LiquidityRelease` event
+- **LSM settlements**: Use `LsmBilateralOffset` or `LsmCycleSettlement` events
+
+**Migration**: No action required for configurations. However, if you have custom analysis scripts that filter for `"Settlement"` events, update them to use the specific event types listed above.
+
+**Rationale**: The generic Settlement event was a holdover from early development before settlement types were differentiated. Maintaining dual emission (both generic Settlement AND specific events) added complexity and risk of double-counting in metrics. The new event types provide richer metadata for analysis:
+- `RtgsImmediateSettlement` includes `sender_balance_before` and `sender_balance_after` for audit trails
+- `Queue2LiquidityRelease` includes `queue_wait_ticks` and `release_reason` for queue analysis
+
+See `docs/research/deprecate-settlement-event-compatibility.md` for details.
+
+---
+
 ## Questions? Issues?
 
 1. Check subdirectory CLAUDE.md files for layer-specific guidance
@@ -887,5 +909,5 @@ Red flags:
 
 ---
 
-*Last updated: 2025-10-27*
+*Last updated: 2025-11-16*
 *This is a living document. Update it as the project evolves.*

@@ -149,13 +149,6 @@ fn event_to_py_dict<'py>(
             dict.set_item("reason", reason)?;
             dict.set_item("decision_path", decision_path)?;
         }
-        #[allow(deprecated)]
-        crate::models::event::Event::Settlement { tx_id, sender_id, receiver_id, amount, .. } => {
-            dict.set_item("tx_id", tx_id)?;
-            dict.set_item("sender_id", sender_id)?;
-            dict.set_item("receiver_id", receiver_id)?;
-            dict.set_item("amount", amount)?;
-        }
         crate::models::event::Event::RtgsImmediateSettlement { tx_id, sender, receiver, amount, sender_balance_before, sender_balance_after, .. } => {
             dict.set_item("tx_id", tx_id)?;
             dict.set_item("sender", sender)?;
