@@ -13,7 +13,6 @@ import {
 } from 'recharts'
 import { fetchCostTimeline } from '@/api/simulations'
 import { formatCurrency } from '@/utils/currency'
-import type { AgentTimelineResponse } from '@/types/api'
 
 // Color palette for different agents
 const AGENT_COLORS = [
@@ -31,7 +30,7 @@ const AGENT_COLORS = [
 
 interface ChartDataPoint {
   day: number
-  [agentId: string]: number // accumulated cost for each agent
+  [agentId: string]: number // day number or cost for each agent
 }
 
 export function CostChartPage() {
@@ -39,77 +38,71 @@ export function CostChartPage() {
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
   const [showCumulative, setShowCumulative] = useState(true)
 
-  const { data: agentTimelines, isLoading, error } = useQuery({
+  const { data: costTimeline, isLoading, error } = useQuery({
     queryKey: ['costTimeline', simId],
     queryFn: () => fetchCostTimeline(simId!),
     enabled: !!simId,
   })
 
-  // Debug logging
-  console.log('CostChartPage - Debug Info:', {
-    simId,
-    isLoading,
-    error,
-    agentTimelines,
-    agentCount: agentTimelines?.length,
-    firstAgentMetricsCount: agentTimelines?.[0]?.daily_metrics?.length,
-  })
-
   // Transform data for the chart
   const chartData = useMemo(() => {
-    if (!agentTimelines || agentTimelines.length === 0) {
-      console.log('No agent timelines to display')
-      return []
-    }
+    if (!costTimeline || !costTimeline.daily_costs) return []
 
-    console.log('Transforming chart data for', agentTimelines.length, 'agents')
+    if (showCumulative) {
+      // Data is already accumulated from the backend
+      return costTimeline.daily_costs.map(dataPoint => ({
+        day: dataPoint.day,
+        ...dataPoint.agent_costs,
+      }))
+    } else {
+      // Calculate daily costs (difference between consecutive days)
+      const dailyData: ChartDataPoint[] = []
+      let prevCosts: Record<string, number> = {}
 
-    // Find the maximum number of days across all agents
-    const maxDays = Math.max(
-      ...agentTimelines.map(timeline => timeline.daily_metrics.length)
-    )
+      costTimeline.daily_costs.forEach((dataPoint, index) => {
+        const dayData: ChartDataPoint = { day: dataPoint.day }
 
-    const data: ChartDataPoint[] = []
+        costTimeline.agent_ids.forEach(agentId => {
+          const currentCost = dataPoint.agent_costs[agentId] || 0
+          const previousCost = prevCosts[agentId] || 0
+          dayData[agentId] = currentCost - previousCost
+        })
 
-    // Create a data point for each day
-    for (let day = 0; day < maxDays; day++) {
-      const dataPoint: ChartDataPoint = { day }
-
-      agentTimelines.forEach((timeline: AgentTimelineResponse) => {
-        const metric = timeline.daily_metrics[day]
-        if (metric) {
-          if (showCumulative) {
-            // Calculate accumulated cost up to this day
-            const accumulatedCost = timeline.daily_metrics
-              .slice(0, day + 1)
-              .reduce((sum, m) => sum + m.total_cost_cents, 0)
-            dataPoint[timeline.agent_id] = accumulatedCost
-          } else {
-            // Show daily cost
-            dataPoint[timeline.agent_id] = metric.total_cost_cents
-          }
-        } else {
-          dataPoint[timeline.agent_id] = 0
-        }
+        dailyData.push(dayData)
+        prevCosts = { ...dataPoint.agent_costs }
       })
 
-      data.push(dataPoint)
+      return dailyData
     }
-
-    return data
-  }, [agentTimelines, showCumulative])
+  }, [costTimeline, showCumulative])
 
   // Get list of all agent IDs
   const allAgentIds = useMemo(() => {
-    if (!agentTimelines) return []
-    return agentTimelines.map((timeline: AgentTimelineResponse) => timeline.agent_id)
-  }, [agentTimelines])
+    return costTimeline?.agent_ids || []
+  }, [costTimeline])
 
   // Get filtered agent IDs (either selected or all)
   const displayedAgentIds = useMemo(() => {
     if (selectedAgents.size === 0) return allAgentIds
     return allAgentIds.filter(id => selectedAgents.has(id))
   }, [allAgentIds, selectedAgents])
+
+  // Calculate summary statistics
+  const agentStats = useMemo(() => {
+    if (!costTimeline) return []
+
+    return allAgentIds.map(agentId => {
+      const finalCost = costTimeline.daily_costs[costTimeline.daily_costs.length - 1]?.agent_costs[agentId] || 0
+      const avgDailyCost = finalCost / costTimeline.daily_costs.length
+
+      return {
+        agentId,
+        totalCost: finalCost,
+        avgDailyCost,
+        days: costTimeline.daily_costs.length,
+      }
+    })
+  }, [costTimeline, allAgentIds])
 
   // Toggle agent selection
   const toggleAgent = (agentId: string) => {
@@ -129,7 +122,7 @@ export function CostChartPage() {
     setSelectedAgents(new Set())
   }
 
-  // Deselect all agents (for clarity, we'll show a message when no agents are selected)
+  // Deselect all agents
   const deselectAllAgents = () => {
     setSelectedAgents(new Set(allAgentIds))
   }
@@ -153,17 +146,12 @@ export function CostChartPage() {
     )
   }
 
-  if (!agentTimelines || agentTimelines.length === 0) {
+  if (!costTimeline || costTimeline.agent_ids.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
-          <p className="font-semibold mb-2">No cost data available for this simulation.</p>
-          <details className="mt-2">
-            <summary className="cursor-pointer text-sm">Debug Info</summary>
-            <pre className="mt-2 text-xs bg-white p-2 rounded overflow-auto">
-              {JSON.stringify({ simId, agentTimelines, error: error?.toString() }, null, 2)}
-            </pre>
-          </details>
+          <p className="font-semibold mb-2">No cost timeline data available for this simulation.</p>
+          <p className="text-sm">Cost timeline charts are only available for database-persisted simulations.</p>
         </div>
       </div>
     )
@@ -182,24 +170,11 @@ export function CostChartPage() {
           </Link>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Cost Timeline Analysis
+          Interactive Cost Chart
         </h1>
         <p className="text-gray-600">
           {showCumulative ? 'Accumulated' : 'Daily'} cost per agent over time
         </p>
-        {/* Debug Info */}
-        <details className="mt-4 p-3 bg-gray-100 rounded">
-          <summary className="cursor-pointer text-sm font-medium">Debug: Data Status</summary>
-          <div className="mt-2 text-xs space-y-1">
-            <p>Agents loaded: {agentTimelines?.length ?? 0}</p>
-            <p>Chart data points: {chartData.length}</p>
-            <p>Displayed agents: {displayedAgentIds.length}</p>
-            <p>All agent IDs: {allAgentIds.join(', ') || 'none'}</p>
-            {agentTimelines && agentTimelines.length > 0 && (
-              <p>Sample metrics (first agent): {agentTimelines[0]?.daily_metrics?.length ?? 0} days</p>
-            )}
-          </div>
-        </details>
       </div>
 
       {/* Controls */}
@@ -290,20 +265,6 @@ export function CostChartPage() {
           <div className="text-center py-12 text-gray-500">
             No agents selected. Please select at least one agent to view the chart.
           </div>
-        ) : chartData.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 mb-2">No chart data available.</p>
-            <details className="inline-block text-left">
-              <summary className="cursor-pointer text-sm text-gray-400">Debug Info</summary>
-              <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-w-lg">
-                {JSON.stringify({
-                  agentCount: agentTimelines?.length,
-                  displayedAgents: displayedAgentIds,
-                  sampleAgent: agentTimelines?.[0]
-                }, null, 2)}
-              </pre>
-            </details>
-          </div>
         ) : (
           <ResponsiveContainer width="100%" height={500}>
             <LineChart
@@ -387,16 +348,10 @@ export function CostChartPage() {
 
       {/* Summary Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-        {agentTimelines.map((timeline: AgentTimelineResponse, index) => {
-          const totalCost = timeline.daily_metrics.reduce(
-            (sum, metric) => sum + metric.total_cost_cents,
-            0
-          )
-          const avgDailyCost = totalCost / timeline.daily_metrics.length
-
+        {agentStats.map((stat, index) => {
           return (
             <div
-              key={timeline.agent_id}
+              key={stat.agentId}
               className="bg-white rounded-lg shadow p-6"
             >
               <div className="flex items-center gap-2 mb-4">
@@ -407,31 +362,31 @@ export function CostChartPage() {
                   }}
                 />
                 <h3 className="text-lg font-semibold text-gray-900">
-                  {timeline.agent_id}
+                  {stat.agentId}
                 </h3>
               </div>
               <dl className="space-y-2">
                 <div className="flex justify-between">
                   <dt className="text-sm text-gray-600">Total Cost:</dt>
                   <dd className="text-sm font-medium text-gray-900">
-                    {formatCurrency(totalCost)}
+                    {formatCurrency(stat.totalCost)}
                   </dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-sm text-gray-600">Avg Daily Cost:</dt>
                   <dd className="text-sm font-medium text-gray-900">
-                    {formatCurrency(avgDailyCost)}
+                    {formatCurrency(stat.avgDailyCost)}
                   </dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-sm text-gray-600">Days:</dt>
                   <dd className="text-sm font-medium text-gray-900">
-                    {timeline.daily_metrics.length}
+                    {stat.days}
                   </dd>
                 </div>
               </dl>
               <Link
-                to={`/simulations/${simId}/agents/${timeline.agent_id}`}
+                to={`/simulations/${simId}/agents/${stat.agentId}`}
                 className="mt-4 block text-center px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
               >
                 View Details
