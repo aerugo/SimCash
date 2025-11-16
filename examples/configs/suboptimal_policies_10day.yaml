@@ -232,7 +232,7 @@ cost_rates:
   delay_cost_per_tick_per_cent: 0.0002
   overdraft_bps_per_tick: 0.8
   collateral_cost_per_tick_bps: 0.0005
-  eod_penalty_per_transaction: 500000        # $5,000
-  deadline_penalty: 250000                   # $2,500
-  overdue_delay_multiplier: 5.0
+  eod_penalty_per_transaction: 0
+  deadline_penalty: 0
+  overdue_delay_multiplier: 3.0
   split_friction_cost: 7500
