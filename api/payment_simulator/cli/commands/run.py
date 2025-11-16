@@ -678,11 +678,11 @@ def run_simulation(
                     orch=orch,
                 )
 
-            # Generate cost chart if requested
+            # Generate cost charts if requested (accumulated and per-tick)
             if cost_chart and persist and sim_id:
-                from payment_simulator.cli.commands.db import generate_cost_chart
+                from payment_simulator.cli.commands.db import generate_cost_charts
                 try:
-                    # Create chart output path: examples/charts/scenario-name.png
+                    # Create chart output path: examples/charts/scenario-name
                     # Find project root by looking for .git or backend directory
                     project_root = Path.cwd()
                     while project_root != project_root.parent:
@@ -690,17 +690,16 @@ def run_simulation(
                             break
                         project_root = project_root.parent
 
-                    chart_filename = config.stem + ".png"
-                    chart_path = project_root / "examples/charts" / chart_filename
+                    chart_base_path = project_root / "examples/charts" / config.stem
 
-                    generate_cost_chart(
+                    generate_cost_charts(
                         simulation_id=sim_id,
                         db_path=db_path,
-                        chart_output=str(chart_path),
+                        output_base_path=str(chart_base_path),
                         quiet=quiet,
                     )
                 except Exception as e:
-                    log_error(f"Failed to generate cost chart: {e}")
+                    log_error(f"Failed to generate cost charts: {e}")
 
             # Output final JSON summary (even in verbose mode)
             agents = []
@@ -804,11 +803,11 @@ def run_simulation(
                     orch=orch,
                 )
 
-            # Generate cost chart if requested
+            # Generate cost charts if requested (accumulated and per-tick)
             if cost_chart and persist and sim_id:
-                from payment_simulator.cli.commands.db import generate_cost_chart
+                from payment_simulator.cli.commands.db import generate_cost_charts
                 try:
-                    # Create chart output path: examples/charts/scenario-name.png
+                    # Create chart output path: examples/charts/scenario-name
                     # Find project root by looking for .git or backend directory
                     project_root = Path.cwd()
                     while project_root != project_root.parent:
@@ -816,17 +815,16 @@ def run_simulation(
                             break
                         project_root = project_root.parent
 
-                    chart_filename = config.stem + ".png"
-                    chart_path = project_root / "examples/charts" / chart_filename
+                    chart_base_path = project_root / "examples/charts" / config.stem
 
-                    generate_cost_chart(
+                    generate_cost_charts(
                         simulation_id=sim_id,
                         db_path=db_path,
-                        chart_output=str(chart_path),
+                        output_base_path=str(chart_base_path),
                         quiet=quiet,
                     )
                 except Exception as e:
-                    log_error(f"Failed to generate cost chart: {e}")
+                    log_error(f"Failed to generate cost charts: {e}")
 
             # Return early - new runner handles everything (final JSON already output)
             return
@@ -890,11 +888,11 @@ def run_simulation(
                     orch=orch,
                 )
 
-            # Generate cost chart if requested
+            # Generate cost charts if requested (accumulated and per-tick)
             if cost_chart and persist and sim_id:
-                from payment_simulator.cli.commands.db import generate_cost_chart
+                from payment_simulator.cli.commands.db import generate_cost_charts
                 try:
-                    # Create chart output path: examples/charts/scenario-name.png
+                    # Create chart output path: examples/charts/scenario-name
                     # Find project root by looking for .git or backend directory
                     project_root = Path.cwd()
                     while project_root != project_root.parent:
@@ -902,17 +900,16 @@ def run_simulation(
                             break
                         project_root = project_root.parent
 
-                    chart_filename = config.stem + ".png"
-                    chart_path = project_root / "examples/charts" / chart_filename
+                    chart_base_path = project_root / "examples/charts" / config.stem
 
-                    generate_cost_chart(
+                    generate_cost_charts(
                         simulation_id=sim_id,
                         db_path=db_path,
-                        chart_output=str(chart_path),
+                        output_base_path=str(chart_base_path),
                         quiet=quiet,
                     )
                 except Exception as e:
-                    log_error(f"Failed to generate cost chart: {e}")
+                    log_error(f"Failed to generate cost charts: {e}")
 
             # Return early - new runner handles everything
             return
@@ -978,11 +975,11 @@ def run_simulation(
                     orch=orch,
                 )
 
-            # Generate cost chart if requested
+            # Generate cost charts if requested (accumulated and per-tick)
             if cost_chart and persist and sim_id:
-                from payment_simulator.cli.commands.db import generate_cost_chart
+                from payment_simulator.cli.commands.db import generate_cost_charts
                 try:
-                    # Create chart output path: examples/charts/scenario-name.png
+                    # Create chart output path: examples/charts/scenario-name
                     # Find project root by looking for .git or backend directory
                     project_root = Path.cwd()
                     while project_root != project_root.parent:
@@ -990,17 +987,16 @@ def run_simulation(
                             break
                         project_root = project_root.parent
 
-                    chart_filename = config.stem + ".png"
-                    chart_path = project_root / "examples/charts" / chart_filename
+                    chart_base_path = project_root / "examples/charts" / config.stem
 
-                    generate_cost_chart(
+                    generate_cost_charts(
                         simulation_id=sim_id,
                         db_path=db_path,
-                        chart_output=str(chart_path),
+                        output_base_path=str(chart_base_path),
                         quiet=quiet,
                     )
                 except Exception as e:
-                    log_error(f"Failed to generate cost chart: {e}")
+                    log_error(f"Failed to generate cost charts: {e}")
 
             # Build and output final JSON
             agent_ids = orch.get_agent_ids()
