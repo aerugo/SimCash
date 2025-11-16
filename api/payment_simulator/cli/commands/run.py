@@ -425,6 +425,13 @@ def run_simulation(
             help="Filter events by tick range (format: 'min-max', 'min-', or '-max')",
         ),
     ] = None,
+    cost_chart: Annotated[
+        bool,
+        typer.Option(
+            "--cost-chart",
+            help="Generate and display cost chart after simulation (automatically enables --persist)",
+        ),
+    ] = False,
 ):
     """Run a simulation from a configuration file.
 
@@ -468,6 +475,12 @@ def run_simulation(
         if full_replay and not persist:
             log_error("--full-replay requires --persist to be enabled")
             raise typer.Exit(1)
+
+        # Auto-enable persistence when --cost-chart is used
+        if cost_chart:
+            persist = True
+            if not quiet:
+                log_info("Auto-enabling persistence for cost chart generation", quiet)
 
         # Load configuration
         log_info(f"Loading configuration from {config}", quiet)
@@ -665,6 +678,18 @@ def run_simulation(
                     orch=orch,
                 )
 
+            # Generate cost chart if requested
+            if cost_chart and persist and sim_id:
+                from payment_simulator.cli.commands.db import generate_cost_chart
+                try:
+                    generate_cost_chart(
+                        simulation_id=sim_id,
+                        db_path=db_path,
+                        quiet=quiet,
+                    )
+                except Exception as e:
+                    log_error(f"Failed to generate cost chart: {e}")
+
             # Output final JSON summary (even in verbose mode)
             agents = []
             for agent_id in agent_ids:
@@ -767,6 +792,18 @@ def run_simulation(
                     orch=orch,
                 )
 
+            # Generate cost chart if requested
+            if cost_chart and persist and sim_id:
+                from payment_simulator.cli.commands.db import generate_cost_chart
+                try:
+                    generate_cost_chart(
+                        simulation_id=sim_id,
+                        db_path=db_path,
+                        quiet=quiet,
+                    )
+                except Exception as e:
+                    log_error(f"Failed to generate cost chart: {e}")
+
             # Return early - new runner handles everything (final JSON already output)
             return
 
@@ -828,6 +865,18 @@ def run_simulation(
                     duration=sim_duration,
                     orch=orch,
                 )
+
+            # Generate cost chart if requested
+            if cost_chart and persist and sim_id:
+                from payment_simulator.cli.commands.db import generate_cost_chart
+                try:
+                    generate_cost_chart(
+                        simulation_id=sim_id,
+                        db_path=db_path,
+                        quiet=quiet,
+                    )
+                except Exception as e:
+                    log_error(f"Failed to generate cost chart: {e}")
 
             # Return early - new runner handles everything
             return
@@ -892,6 +941,18 @@ def run_simulation(
                     duration=sim_duration,
                     orch=orch,
                 )
+
+            # Generate cost chart if requested
+            if cost_chart and persist and sim_id:
+                from payment_simulator.cli.commands.db import generate_cost_chart
+                try:
+                    generate_cost_chart(
+                        simulation_id=sim_id,
+                        db_path=db_path,
+                        quiet=quiet,
+                    )
+                except Exception as e:
+                    log_error(f"Failed to generate cost chart: {e}")
 
             # Build and output final JSON
             agent_ids = orch.get_agent_ids()
