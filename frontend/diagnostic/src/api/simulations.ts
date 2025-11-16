@@ -84,3 +84,21 @@ export async function fetchTransactionLifecycle(
     `/simulations/${simId}/transactions/${txId}/lifecycle`
   )
 }
+
+/**
+ * Fetch cost timeline data for all agents
+ * This fetches timelines for all agents and aggregates the cost data
+ */
+export async function fetchCostTimeline(simId: string) {
+  // First, fetch all agents
+  const agentListResponse = await fetchAgents(simId)
+
+  // Then fetch timeline for each agent
+  const agentTimelines = await Promise.all(
+    agentListResponse.agents.map(agent =>
+      fetchAgentTimeline(simId, agent.agent_id)
+    )
+  )
+
+  return agentTimelines
+}
