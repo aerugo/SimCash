@@ -355,6 +355,52 @@ def db_simulations(
         raise typer.Exit(code=1)
 
 
+def _extract_policy_names(config_json: str) -> dict[str, str]:
+    """Extract policy names from simulation config JSON.
+
+    Args:
+        config_json: Serialized configuration JSON string
+
+    Returns:
+        Dictionary mapping agent_id to policy name (extracted from json_path)
+
+    Examples:
+        >>> config = '{"agents": [{"id": "BANK_A", "policy": {"json_path": "backend/policies/efficient.json"}}]}'
+        >>> _extract_policy_names(config)
+        {'BANK_A': 'efficient'}
+    """
+    import json
+    from pathlib import Path
+
+    policy_names = {}
+
+    try:
+        config = json.loads(config_json)
+        agents = config.get("agents", [])
+
+        for agent in agents:
+            agent_id = agent.get("id")
+            policy = agent.get("policy", {})
+
+            # Extract policy name from json_path if it exists
+            if "json_path" in policy:
+                json_path = policy["json_path"]
+                # Get filename without extension
+                # e.g., "backend/policies/efficient_proactive.json" -> "efficient_proactive"
+                policy_name = Path(json_path).stem
+                policy_names[agent_id] = policy_name
+            elif policy.get("type") in ["AlwaysSubmit", "SimpleThreshold", "BasicBalancePreserver"]:
+                # Handle built-in policy types
+                policy_names[agent_id] = policy.get("type", "Unknown")
+
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        # If parsing fails, return empty dict (charts will just use agent IDs)
+        console.print(f"[yellow]Warning: Could not parse policy names from config: {e}[/yellow]")
+        return {}
+
+    return policy_names
+
+
 def _collect_event_based_cost_data(conn, simulation_id: str, agent_ids: list[str], ticks_per_day: int, num_days: int):
     """Collect tick-level cost data from simulation events.
 
@@ -479,6 +525,8 @@ def _generate_cost_chart_png(
     output_path: str,
     show_per_tick: bool = False,
     quiet: bool = False,
+    policy_names: dict[str, str] = None,
+    max_y: Optional[int] = None,
 ):
     """Generate a PNG cost chart from tick-level cost data.
 
@@ -490,6 +538,8 @@ def _generate_cost_chart_png(
         output_path: Path to save PNG file
         show_per_tick: If True, show per-tick costs; if False, show accumulated
         quiet: If True, suppress console output
+        policy_names: Optional dict mapping agent_id to policy name for legend
+        max_y: Optional maximum Y-axis value in dollars (None = adaptive)
     """
     import matplotlib
     matplotlib.use('Agg')  # Use non-interactive backend
@@ -510,7 +560,12 @@ def _generate_cost_chart_png(
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     for i, agent_id in enumerate(agent_ids):
         costs_usd = [data[cost_key][agent_id] / 100.0 for data in tick_costs]
-        ax.plot(ticks, costs_usd, label=agent_id, linewidth=2, color=colors[i % len(colors)])
+        # Create label with policy name if available
+        if policy_names and agent_id in policy_names:
+            label = f"{agent_id}: {policy_names[agent_id]}"
+        else:
+            label = agent_id
+        ax.plot(ticks, costs_usd, label=label, linewidth=2, color=colors[i % len(colors)])
 
     # Format y-axis as currency
     def currency_formatter(x, p):
@@ -530,6 +585,10 @@ def _generate_cost_chart_png(
 
     # Add grid for readability
     ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Set Y-axis limits if specified
+    if max_y is not None:
+        ax.set_ylim(0, max_y)
 
     # Add day boundaries as vertical lines
     if ticks_per_day:
@@ -561,6 +620,8 @@ def generate_cost_charts(
     output_base_path: str = None,
     agent: Optional[str] = None,
     quiet: bool = False,
+    max_y_per_tick: Optional[int] = None,
+    max_y_accumulated: Optional[int] = None,
 ) -> None:
     """Generate both accumulated and per-tick cost charts for a simulation.
 
@@ -574,6 +635,8 @@ def generate_cost_charts(
                          Will generate {base}_accumulated.png and {base}_per_tick.png
         agent: Filter costs for specific agent (optional)
         quiet: Suppress informational messages
+        max_y_per_tick: Optional maximum Y-axis value for per-tick chart in dollars (None = adaptive)
+        max_y_accumulated: Optional maximum Y-axis value for accumulated chart in dollars (None = adaptive)
     """
     from payment_simulator.api.main import manager
     from payment_simulator.persistence.queries import get_simulation_summary
@@ -596,6 +659,11 @@ def generate_cost_charts(
 
     ticks_per_day = summary["ticks_per_day"]
     num_days = summary.get("num_days", 3)
+
+    # Extract policy names from config for legend
+    policy_names = {}
+    if summary.get("config_json"):
+        policy_names = _extract_policy_names(summary["config_json"])
 
     # Get all agents from the simulation
     agents_query = """
@@ -641,6 +709,8 @@ def generate_cost_charts(
         output_path=accumulated_path,
         show_per_tick=False,
         quiet=quiet,
+        policy_names=policy_names,
+        max_y=max_y_accumulated,
     )
 
     # Per-tick chart
@@ -653,6 +723,8 @@ def generate_cost_charts(
         output_path=per_tick_path,
         show_per_tick=True,
         quiet=quiet,
+        policy_names=policy_names,
+        max_y=max_y_per_tick,
     )
 
 
@@ -725,6 +797,11 @@ def db_costs(
             raise typer.Exit(code=1)
 
         ticks_per_day = summary["ticks_per_day"]
+
+        # Extract policy names from config for legend
+        policy_names = {}
+        if summary.get("config_json"):
+            policy_names = _extract_policy_names(summary["config_json"])
 
         # Get all agents from the simulation
         agents_query = """
@@ -880,7 +957,12 @@ def db_costs(
             colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
             for i, agent_id in enumerate(agent_ids):
                 costs_usd = [data['costs'][agent_id] / 100.0 for data in tick_costs]
-                ax.plot(ticks, costs_usd, label=agent_id, linewidth=2, color=colors[i % len(colors)])
+                # Create label with policy name if available
+                if policy_names and agent_id in policy_names:
+                    label = f"{agent_id}: {policy_names[agent_id]}"
+                else:
+                    label = agent_id
+                ax.plot(ticks, costs_usd, label=label, linewidth=2, color=colors[i % len(colors)])
 
             # Format y-axis as currency
             def currency_formatter(x, p):
