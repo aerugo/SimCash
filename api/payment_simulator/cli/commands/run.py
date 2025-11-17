@@ -248,6 +248,49 @@ def _persist_simulation_metadata(
     log_success(f"Simulation metadata persisted (ID: {sim_id})", quiet)
 
 
+def _parse_cost_chart_value(value: str) -> tuple[Optional[int], Optional[int]]:
+    """Parse cost chart value string into per-tick and accumulated max Y values.
+
+    Args:
+        value: Cost chart string in format "PER_TICK[:ACCUMULATED]"
+               Examples: "5000", "10000:50000", "0", "5000:0"
+
+    Returns:
+        Tuple of (per_tick_max_y, accumulated_max_y) where None means adaptive
+
+    Examples:
+        >>> _parse_cost_chart_value("5000")
+        (5000, None)
+        >>> _parse_cost_chart_value("10000:50000")
+        (10000, 50000)
+        >>> _parse_cost_chart_value("0")
+        (None, None)
+        >>> _parse_cost_chart_value("5000:0")
+        (5000, None)
+    """
+    try:
+        if ':' in value:
+            # Format: PER_TICK:ACCUMULATED
+            per_tick_str, accumulated_str = value.split(':', 1)
+            per_tick = int(per_tick_str)
+            accumulated = int(accumulated_str)
+        else:
+            # Format: PER_TICK (accumulated is adaptive)
+            per_tick = int(value)
+            accumulated = 0  # 0 = adaptive
+
+        # Convert 0 to None (adaptive)
+        per_tick_max = None if per_tick == 0 else per_tick
+        accumulated_max = None if accumulated == 0 else accumulated
+
+        return per_tick_max, accumulated_max
+
+    except (ValueError, AttributeError):
+        # Invalid format, return both adaptive
+        log_error(f"Invalid --cost-chart format: '{value}'. Using adaptive Y-axis for both charts.")
+        return None, None
+
+
 def _create_output_strategy(
     mode: str,
     orch: Orchestrator,
@@ -426,12 +469,12 @@ def run_simulation(
         ),
     ] = None,
     cost_chart: Annotated[
-        bool,
+        Optional[str],
         typer.Option(
             "--cost-chart",
-            help="Generate and display cost chart after simulation (automatically enables --persist)",
+            help="Generate cost chart after simulation (automatically enables --persist). Format: PER_TICK[:ACCUMULATED] in dollars. Examples: --cost-chart 5000 (per-tick=$5k, accumulated=adaptive), --cost-chart 10000:50000 (per-tick=$10k, accumulated=$50k), --cost-chart 0 (both adaptive)",
         ),
-    ] = False,
+    ] = None,
 ):
     """Run a simulation from a configuration file.
 
@@ -477,7 +520,7 @@ def run_simulation(
             raise typer.Exit(1)
 
         # Auto-enable persistence when --cost-chart is used
-        if cost_chart:
+        if cost_chart is not None:
             persist = True
             if not quiet:
                 log_info("Auto-enabling persistence for cost chart generation", quiet)
@@ -679,7 +722,7 @@ def run_simulation(
                 )
 
             # Generate cost charts if requested (accumulated and per-tick)
-            if cost_chart and persist and sim_id:
+            if cost_chart is not None and persist and sim_id:
                 from payment_simulator.cli.commands.db import generate_cost_charts
                 try:
                     # Create chart output path: examples/charts/scenario-name
@@ -692,11 +735,15 @@ def run_simulation(
 
                     chart_base_path = project_root / "examples/charts" / config.stem
 
+                    # Parse cost_chart string into per-tick and accumulated max Y values
+                    max_y_per_tick, max_y_accumulated = _parse_cost_chart_value(cost_chart)
                     generate_cost_charts(
                         simulation_id=sim_id,
                         db_path=db_path,
                         output_base_path=str(chart_base_path),
                         quiet=quiet,
+                        max_y_per_tick=max_y_per_tick,
+                        max_y_accumulated=max_y_accumulated,
                     )
                 except Exception as e:
                     log_error(f"Failed to generate cost charts: {e}")
@@ -804,7 +851,7 @@ def run_simulation(
                 )
 
             # Generate cost charts if requested (accumulated and per-tick)
-            if cost_chart and persist and sim_id:
+            if cost_chart is not None and persist and sim_id:
                 from payment_simulator.cli.commands.db import generate_cost_charts
                 try:
                     # Create chart output path: examples/charts/scenario-name
@@ -817,11 +864,15 @@ def run_simulation(
 
                     chart_base_path = project_root / "examples/charts" / config.stem
 
+                    # Parse cost_chart string into per-tick and accumulated max Y values
+                    max_y_per_tick, max_y_accumulated = _parse_cost_chart_value(cost_chart)
                     generate_cost_charts(
                         simulation_id=sim_id,
                         db_path=db_path,
                         output_base_path=str(chart_base_path),
                         quiet=quiet,
+                        max_y_per_tick=max_y_per_tick,
+                        max_y_accumulated=max_y_accumulated,
                     )
                 except Exception as e:
                     log_error(f"Failed to generate cost charts: {e}")
@@ -889,7 +940,7 @@ def run_simulation(
                 )
 
             # Generate cost charts if requested (accumulated and per-tick)
-            if cost_chart and persist and sim_id:
+            if cost_chart is not None and persist and sim_id:
                 from payment_simulator.cli.commands.db import generate_cost_charts
                 try:
                     # Create chart output path: examples/charts/scenario-name
@@ -902,11 +953,15 @@ def run_simulation(
 
                     chart_base_path = project_root / "examples/charts" / config.stem
 
+                    # Parse cost_chart string into per-tick and accumulated max Y values
+                    max_y_per_tick, max_y_accumulated = _parse_cost_chart_value(cost_chart)
                     generate_cost_charts(
                         simulation_id=sim_id,
                         db_path=db_path,
                         output_base_path=str(chart_base_path),
                         quiet=quiet,
+                        max_y_per_tick=max_y_per_tick,
+                        max_y_accumulated=max_y_accumulated,
                     )
                 except Exception as e:
                     log_error(f"Failed to generate cost charts: {e}")
@@ -976,7 +1031,7 @@ def run_simulation(
                 )
 
             # Generate cost charts if requested (accumulated and per-tick)
-            if cost_chart and persist and sim_id:
+            if cost_chart is not None and persist and sim_id:
                 from payment_simulator.cli.commands.db import generate_cost_charts
                 try:
                     # Create chart output path: examples/charts/scenario-name
@@ -989,11 +1044,15 @@ def run_simulation(
 
                     chart_base_path = project_root / "examples/charts" / config.stem
 
+                    # Parse cost_chart string into per-tick and accumulated max Y values
+                    max_y_per_tick, max_y_accumulated = _parse_cost_chart_value(cost_chart)
                     generate_cost_charts(
                         simulation_id=sim_id,
                         db_path=db_path,
                         output_base_path=str(chart_base_path),
                         quiet=quiet,
+                        max_y_per_tick=max_y_per_tick,
+                        max_y_accumulated=max_y_accumulated,
                     )
                 except Exception as e:
                     log_error(f"Failed to generate cost charts: {e}")
