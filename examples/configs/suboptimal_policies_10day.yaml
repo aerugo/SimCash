@@ -137,19 +137,44 @@ agents:
 # ============================================================================
 
 scenario_events:
-  # Day 2 (tick 150): Morning activity spike (mild)
-  - type: GlobalArrivalRateChange
-    multiplier: 1.25
+
+  # Day 1: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 3300000
+    priority: 8
+    deadline: 25
+    is_divisible: true
     schedule:
       type: OneTime
-      tick: 150
+      tick: 060
+
+  # Day 2 (tick 150): Morning activity spike (mild)
+  - type: GlobalArrivalRateChange
+    multiplier: 1.5
+    schedule:
+      type: OneTime
+      tick: 100
 
   # Day 2 (tick 180): Return to normal
   - type: GlobalArrivalRateChange
     multiplier: 1.0
     schedule:
       type: OneTime
-      tick: 180
+      tick: 150
+
+  # Day 2: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 3100000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 159
 
   # Day 3 (tick 250): Test with coordinated payments (smaller amounts)
   - type: CustomTransactionArrival
@@ -163,6 +188,7 @@ scenario_events:
       type: OneTime
       tick: 250
 
+  # Day 3 (tick 250): Test with coordinated payments (smaller amounts)
   - type: CustomTransactionArrival
     from_agent: REACTIVE_BANK
     to_agent: REGIONAL_TRUST
@@ -174,35 +200,43 @@ scenario_events:
       type: OneTime
       tick: 250
 
-  # Day 5 (tick 480): Moderate activity increase
-  - type: GlobalArrivalRateChange
-    multiplier: 1.2
+  # Day 3: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 3000000
+    priority: 8
+    deadline: 25
+    is_divisible: true
     schedule:
       type: OneTime
-      tick: 480
+      tick: 259
 
-  # Day 5 (tick 520): Return to normal
-  - type: GlobalArrivalRateChange
-    multiplier: 1.0
+  # Day 3: Batch to REGIONAL_TRUST from METRO_CENTRAL
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: REGIONAL_TRUST
+    amount: 3500000
+    priority: 8
+    deadline: 25
+    is_divisible: true
     schedule:
       type: OneTime
-      tick: 520
+      tick: 351
 
-  # Day 7 (tick 720): Another mild spike
-  - type: GlobalArrivalRateChange
-    multiplier: 1.15
+  # Day 4: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 2800000
+    priority: 8
+    deadline: 25
+    is_divisible: true
     schedule:
       type: OneTime
-      tick: 720
+      tick: 355
 
-  # Day 7 (tick 750): Back to normal
-  - type: GlobalArrivalRateChange
-    multiplier: 1.0
-    schedule:
-      type: OneTime
-      tick: 750
-
-  # Day 8 (tick 820): Final test - larger transaction
+  # Day 5 (tick 420): Larger transaction
   - type: CustomTransactionArrival
     from_agent: CONSERVATIVE_BANK
     to_agent: REACTIVE_BANK
@@ -212,7 +246,147 @@ scenario_events:
     is_divisible: true
     schedule:
       type: OneTime
-      tick: 820
+      tick: 420
+
+  # Day 5 (tick 480): Moderate activity increase
+  - type: GlobalArrivalRateChange
+    multiplier: 3.0
+    schedule:
+      type: OneTime
+      tick: 400
+
+  # Day 5 (tick 520): Return to normal
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 520
+
+  # Day 5 (tick 540): Afternoon slowdown
+  - type: GlobalArrivalRateChange
+    multiplier: 0.7
+    schedule:
+      type: OneTime
+      tick: 520
+
+  # Day 5: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 3500000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 459
+
+  # Day 5 (tick 540): Back to normal
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 599
+
+  # Day 6: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 2500000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 566
+
+  # Day 7 (tick 720): Another mild spike
+  - type: GlobalArrivalRateChange
+    multiplier: 1.3
+    schedule:
+      type: OneTime
+      tick: 710
+
+  # Day 7 (tick 750): Back to normal
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule:
+      type: OneTime
+      tick: 750
+
+  # Day 7: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 3300000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 641
+
+  # Day 7: Batch to REGIONAL_TRUST from METRO_CENTRAL
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: REGIONAL_TRUST
+    amount: 4500000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 651
+
+  # Day 8: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 3500000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 745
+
+  # Day 9: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 3000000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 865
+
+  # Day 9: Batch to REGIONAL_TRUST from METRO_CENTRAL
+  - type: CustomTransactionArrival
+    from_agent: METRO_CENTRAL
+    to_agent: REGIONAL_TRUST
+    amount: 4500000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 921
+
+  # Day 10: Afternoon batch to REACTIVE_BANK from CONSERVATIVE_BANK
+  - type: CustomTransactionArrival
+    from_agent: CONSERVATIVE_BANK
+    to_agent: REACTIVE_BANK
+    amount: 2900000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule:
+      type: OneTime
+      tick: 951
+
+
 
 # ============================================================================
 # LSM CONFIGURATION
