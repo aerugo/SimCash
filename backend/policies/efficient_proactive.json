@@ -1,0 +1,131 @@
+{
+  "version": "1.0",
+  "policy_id": "efficient_regional_policy_v1",
+  "description": "A proactive, efficient policy that anticipates liquidity needs, uses collateral strategically to minimize costs, and releases payments smoothly to avoid both delay and liquidity penalties.",
+  "parameters": {
+    "modest_buffer_multiplier": 1.2,
+    "proactive_urgency_threshold": 10.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "ERP-N1-Urgent",
+    "description": "Is the deadline approaching?",
+    "condition": {
+      "op": "<=",
+      "left": { "field": "ticks_to_deadline" },
+      "right": { "param": "proactive_urgency_threshold" }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "ERP-N2-Urgent-CanAfford",
+      "description": "Can we afford to send this urgent payment?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "effective_liquidity" },
+        "right": { "field": "remaining_amount" }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "ERP-A1-Urgent-Release",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "ERP-A2-Urgent-UseCredit",
+        "action": "ReleaseWithCredit",
+        "description": "Urgent, so use credit. Our collateral strategy should keep this cheap."
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "ERP-N3-NonUrgent-BufferCheck",
+      "description": "Is our modest liquidity buffer satisfied?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "effective_liquidity" },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": { "field": "remaining_amount" },
+            "right": { "param": "modest_buffer_multiplier" }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "ERP-A3-Safe-Release",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "ERP-A4-Hold-NonUrgent",
+        "action": "Hold",
+        "description": "Not urgent and below buffer, hold and wait for better liquidity.",
+        "parameters": { "reason": { "value": "AwaitingInflows" } }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "ERP-SC1-Gap-Check",
+    "description": "Is there an upcoming liquidity gap in our payment queue?",
+    "condition": {
+      "op": ">",
+      "left": { "field": "queue1_liquidity_gap" },
+      "right": { "value": 0.0 }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "ERP-SCA1-Proactive-Post",
+      "action": "PostCollateral",
+      "description": "Proactively post collateral to cover the exact anticipated gap.",
+      "parameters": {
+        "amount": { "field": "queue1_liquidity_gap" },
+        "reason": { "value": "PreemptivePosting" },
+        "auto_withdraw_after_ticks": { "value": 20 }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "ERP-SCA2-No-Gap-Hold",
+      "action": "HoldCollateral",
+      "description": "No liquidity gap, so no need for proactive collateral."
+    }
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "ERP-EC1-Can-Withdraw",
+    "description": "Do we have posted collateral that is no longer needed?",
+    "condition": {
+      "op": "and",
+      "conditions": [
+        {
+          "op": ">",
+          "left": { "field": "posted_collateral" },
+          "right": { "value": 0.0 }
+        },
+        {
+          "op": "==",
+          "left": { "field": "credit_used" },
+          "right": { "value": 0.0 }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "ERP-ECA1-Withdraw-Unused",
+      "action": "WithdrawCollateral",
+      "description": "Withdraw unused collateral to minimize costs.",
+      "parameters": {
+        "amount": { "field": "posted_collateral" },
+        "reason": { "value": "EndOfDayCleanup" }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "ERP-ECA2-Hold",
+      "action": "HoldCollateral",
+      "description": "Collateral is still needed or none is posted."
+    }
+  }
+}
