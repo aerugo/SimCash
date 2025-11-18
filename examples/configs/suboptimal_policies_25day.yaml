@@ -78,7 +78,7 @@ agents:
     unsecured_cap: 4500000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "backend/policies/efficient_memory_adaptive.json"
     arrival_config:
       rate_per_tick: 0.11
       amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
@@ -92,7 +92,7 @@ agents:
     unsecured_cap: 4500000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/efficient_proactive.json"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
     arrival_config:
       rate_per_tick: 0.11
       amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
@@ -139,13 +139,20 @@ scenario_events:
 
   # *** RECOVERY MECHANISM 1 ***
   # Day 12 (Post-Shock): Stressed agents gain access to additional collateral to help them manage the sudden outflows.
-  # Small Bank A does not receive additional collateral.
+  - { type: CollateralAdjustment, agent: SMALL_BANK_A, delta: 8000000, schedule: { type: OneTime, tick: 1190 } } # +$80k headroom
   - { type: CollateralAdjustment, agent: SMALL_BANK_B, delta: 2500000, schedule: { type: OneTime, tick: 1180 } } # +$25k headroom
   - { type: CollateralAdjustment, agent: BIG_BANK_A, delta: 2000000, schedule: { type: OneTime, tick: 1182 } } # +$20k headroom
+
+  # ** DELAYED RECOVERY ACTIONS **
+  # Day 15: Small bank B gets more collateral to handle lingering liquidity issues.
+  - { type: CollateralAdjustment, agent: SMALL_BANK_B, delta: 8000000, schedule: { type: OneTime, tick: 1480 } }
 
   # Day 16: Sharp, short-lived global activity spike
   - { type: GlobalArrivalRateChange, multiplier: 2.5, schedule: { type: OneTime, tick: 1550 } }
   - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 1570 } }
+
+  # Day 17: Additional collateral to Big Bank B to stabilize
+  - { type: CollateralAdjustment, agent: BIG_BANK_B, delta: 4000000, schedule: { type: OneTime, tick: 1580 } }
 
   # Day 19: Large, urgent payment from the most cautious agent
   - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: BIG_BANK_A, amount: 9500000, deadline: 20, priority: 9, schedule: { type: OneTime, tick: 1820 } }
@@ -167,14 +174,6 @@ scenario_events:
   # Day 25: Final liquidity push before EOD
   - { type: GlobalArrivalRateChange, multiplier: 1.5, schedule: { type: OneTime, tick: 2480 } }
   - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 2495 } }
-
-
-  # --- NEW: STRATEGIC COLLATERAL INJECTIONS (The Safety Valve) ---
-  # These events simulate a realistic response to the stress events, allowing
-  # the system to recover rather than spiral.
-  - { type: CollateralAdjustment, agent: SMALL_BANK_B, delta: 8000000, schedule: { type: OneTime, tick: 1480 } }
-  - { type: CollateralAdjustment, agent: SMALL_BANK_A, delta: 8000000, schedule: { type: OneTime, tick: 1190 } }
-  - { type: CollateralAdjustment, agent: BIG_BANK_B, delta: 4000000, schedule: { type: OneTime, tick: 1580 } }
 
 # ============================================================================
 # LSM AND COSTS - Tuned for a balanced trade-off.
