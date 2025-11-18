@@ -278,37 +278,39 @@ fn validate_field_references(
         }
     }
 
-    // Validate strategic collateral tree (has bank-level context, NO state registers)
+    // Validate strategic collateral tree (has bank-level context WITH state registers)
+    // Uses EvalContext::build() which includes state registers and bank-level fields
     if let Some(ref strategic_tree) = tree.strategic_collateral_tree {
         let mut fields = HashSet::new();
         collect_field_references(strategic_tree, &mut fields);
         for field in fields {
-            // Collateral trees can only access bank-level fields
-            // NO transaction fields, NO state registers
-            if field.starts_with("bank_state_") {
+            // Collateral trees can access:
+            // - bank-level fields
+            // - state registers (bank_state_*)
+            // But NOT transaction-specific fields
+            if is_transaction_only_field(&field) {
                 errors.push(ValidationError::InvalidFieldReference(field));
-            } else if is_transaction_only_field(&field) {
-                errors.push(ValidationError::InvalidFieldReference(field));
-            } else if !is_bank_level_field(&field) {
-                // Field is not bank-level, transaction-only, or state register - it's invalid
+            } else if !field.starts_with("bank_state_") && !is_bank_level_field(&field) {
+                // Field is not bank-level or state register - it's invalid
                 errors.push(ValidationError::InvalidFieldReference(field));
             }
         }
     }
 
-    // Validate end-of-tick collateral tree (has bank-level context, NO state registers)
+    // Validate end-of-tick collateral tree (has bank-level context WITH state registers)
+    // Uses EvalContext::build() which includes state registers and bank-level fields
     if let Some(ref eot_tree) = tree.end_of_tick_collateral_tree {
         let mut fields = HashSet::new();
         collect_field_references(eot_tree, &mut fields);
         for field in fields {
-            // Collateral trees can only access bank-level fields
-            // NO transaction fields, NO state registers
-            if field.starts_with("bank_state_") {
+            // Collateral trees can access:
+            // - bank-level fields
+            // - state registers (bank_state_*)
+            // But NOT transaction-specific fields
+            if is_transaction_only_field(&field) {
                 errors.push(ValidationError::InvalidFieldReference(field));
-            } else if is_transaction_only_field(&field) {
-                errors.push(ValidationError::InvalidFieldReference(field));
-            } else if !is_bank_level_field(&field) {
-                // Field is not bank-level, transaction-only, or state register - it's invalid
+            } else if !field.starts_with("bank_state_") && !is_bank_level_field(&field) {
+                // Field is not bank-level or state register - it's invalid
                 errors.push(ValidationError::InvalidFieldReference(field));
             }
         }
@@ -381,6 +383,13 @@ fn is_bank_level_field(field: &str) -> bool {
             | "max_collateral_capacity"
             | "remaining_collateral_capacity"
             | "collateral_utilization"
+            | "required_collateral_for_usage"
+            | "excess_collateral"
+            | "overdraft_utilization"
+            | "overdraft_headroom"
+            | "collateral_haircut"
+            | "unsecured_cap"
+            | "allowed_overdraft_limit"
             // Queue 2 metrics
             | "queue2_size"
             | "queue2_count_for_agent"
@@ -1330,5 +1339,208 @@ mod tests {
 
         let result = validate_tree(&tree, &context);
         assert!(result.is_ok());
+    }
+
+    // ========================================================================
+    // Collateral Tree Field Access Tests
+    // ========================================================================
+
+    #[test]
+    fn test_collateral_tree_can_access_state_registers() {
+        let context = create_sample_context();
+
+        // Strategic collateral tree should accept bank_state_* fields
+        // because it uses EvalContext::build() which includes state registers
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test".to_string(),
+            description: None,
+            bank_tree: None,
+            payment_tree: None,
+            strategic_collateral_tree: Some(TreeNode::Condition {
+                node_id: "SC1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "bank_state_stress".to_string(), // State register
+                    },
+                    right: Value::Literal { value: json!(0.5) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "SCA1".to_string(),
+                    action: ActionType::PostCollateral,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "SCA2".to_string(),
+                    action: ActionType::HoldCollateral,
+                    parameters: HashMap::new(),
+                }),
+            }),
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok(), "Collateral trees should accept bank_state_* fields");
+    }
+
+    #[test]
+    fn test_collateral_tree_can_access_excess_collateral() {
+        let context = create_sample_context();
+
+        // Strategic collateral tree should accept excess_collateral field
+        // because it's provided by EvalContext::build()
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test".to_string(),
+            description: None,
+            bank_tree: None,
+            payment_tree: None,
+            strategic_collateral_tree: Some(TreeNode::Condition {
+                node_id: "SC1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "excess_collateral".to_string(), // Derived collateral field
+                    },
+                    right: Value::Literal { value: json!(0) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "SCA1".to_string(),
+                    action: ActionType::WithdrawCollateral,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "SCA2".to_string(),
+                    action: ActionType::HoldCollateral,
+                    parameters: HashMap::new(),
+                }),
+            }),
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok(), "Collateral trees should accept excess_collateral field");
+    }
+
+    #[test]
+    fn test_end_of_tick_collateral_tree_can_access_bank_state() {
+        let context = create_sample_context();
+
+        // End-of-tick collateral tree should also accept state registers
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test".to_string(),
+            description: None,
+            bank_tree: None,
+            payment_tree: None,
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: Some(TreeNode::Condition {
+                node_id: "EC1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "bank_state_cooldown".to_string(), // State register
+                    },
+                    right: Value::Literal { value: json!(0) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "ECA1".to_string(),
+                    action: ActionType::HoldCollateral,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "ECA2".to_string(),
+                    action: ActionType::WithdrawCollateral,
+                    parameters: HashMap::new(),
+                }),
+            }),
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok(), "End-of-tick collateral trees should accept bank_state_* fields");
+    }
+
+    #[test]
+    fn test_collateral_tree_can_access_required_collateral_for_usage() {
+        let context = create_sample_context();
+
+        // Test another derived collateral field
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test".to_string(),
+            description: None,
+            bank_tree: None,
+            payment_tree: None,
+            strategic_collateral_tree: Some(TreeNode::Condition {
+                node_id: "SC1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "required_collateral_for_usage".to_string(),
+                    },
+                    right: Value::Field {
+                        field: "posted_collateral".to_string(),
+                    },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "SCA1".to_string(),
+                    action: ActionType::PostCollateral,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "SCA2".to_string(),
+                    action: ActionType::HoldCollateral,
+                    parameters: HashMap::new(),
+                }),
+            }),
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok(), "Collateral trees should accept required_collateral_for_usage field");
+    }
+
+    #[test]
+    fn test_collateral_tree_can_access_overdraft_utilization() {
+        let context = create_sample_context();
+
+        // Test overdraft_utilization field
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test".to_string(),
+            description: None,
+            bank_tree: None,
+            payment_tree: None,
+            strategic_collateral_tree: Some(TreeNode::Condition {
+                node_id: "SC1".to_string(),
+                description: String::new(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "overdraft_utilization".to_string(),
+                    },
+                    right: Value::Literal { value: json!(0.8) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "SCA1".to_string(),
+                    action: ActionType::PostCollateral,
+                    parameters: HashMap::new(),
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "SCA2".to_string(),
+                    action: ActionType::HoldCollateral,
+                    parameters: HashMap::new(),
+                }),
+            }),
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let result = validate_tree(&tree, &context);
+        assert!(result.is_ok(), "Collateral trees should accept overdraft_utilization field");
     }
 }
