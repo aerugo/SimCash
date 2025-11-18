@@ -2470,23 +2470,26 @@ impl Orchestrator {
                     let agent = self.state.get_agent(&agent_id).unwrap();
                     let posted = agent.posted_collateral();
 
-                    if amount > posted {
-                        return Err(SimulationError::InvalidConfig(format!(
-                            "Agent {} tried to withdraw {} collateral but only has {} posted",
-                            agent_id, amount, posted
-                        )));
+                    // Clamp withdrawal amount to what's actually available
+                    // This handles race conditions where collateral changes between
+                    // policy evaluation and execution (e.g., auto-withdrawals, external events)
+                    let actual_amount = amount.min(posted);
+
+                    // If nothing to withdraw, treat as Hold (no-op)
+                    if actual_amount <= 0 {
+                        continue;
                     }
 
                     let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
                     let old_collateral = agent_mut.posted_collateral();
-                    let new_collateral = old_collateral - amount;
+                    let new_collateral = old_collateral - actual_amount;
                     agent_mut.set_posted_collateral(new_collateral);
 
                     // Record detailed collateral event (Phase 10)
                     self.record_collateral_event(
                         &agent_id,
                         crate::models::CollateralAction::Withdraw,
-                        amount,
+                        actual_amount,
                         format!("{:?}", reason),
                         crate::models::CollateralLayer::Strategic,
                     );
@@ -2494,7 +2497,7 @@ impl Orchestrator {
                     self.log_event(Event::CollateralWithdraw {
                         tick: current_tick,
                         agent_id: agent_id.clone(),
-                        amount,
+                        amount: actual_amount,
                         reason: format!("{:?}", reason),
                         new_total: new_collateral,
                     });
@@ -3432,24 +3435,27 @@ impl Orchestrator {
                     let agent = self.state.get_agent(&agent_id).unwrap();
                     let posted = agent.posted_collateral();
 
-                    if amount > posted {
-                        return Err(SimulationError::InvalidConfig(format!(
-                            "Agent {} tried to withdraw {} collateral but only has {} posted",
-                            agent_id, amount, posted
-                        )));
+                    // Clamp withdrawal amount to what's actually available
+                    // This handles race conditions where collateral changes between
+                    // policy evaluation and execution (e.g., auto-withdrawals, external events)
+                    let actual_amount = amount.min(posted);
+
+                    // If nothing to withdraw, treat as Hold (no-op)
+                    if actual_amount <= 0 {
+                        continue;
                     }
 
                     // Execute the withdrawal
                     let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
                     let old_collateral = agent_mut.posted_collateral();
-                    let new_collateral = old_collateral - amount;
+                    let new_collateral = old_collateral - actual_amount;
                     agent_mut.set_posted_collateral(new_collateral);
 
                     // Record detailed collateral event (Phase 10)
                     self.record_collateral_event(
                         &agent_id,
                         crate::models::CollateralAction::Withdraw,
-                        amount,
+                        actual_amount,
                         format!("{:?}", reason),
                         crate::models::CollateralLayer::EndOfTick,
                     );
@@ -3458,7 +3464,7 @@ impl Orchestrator {
                     self.log_event(Event::CollateralWithdraw {
                         tick: current_tick,
                         agent_id: agent_id.clone(),
-                        amount,
+                        amount: actual_amount,
                         reason: format!("{:?}", reason),
                         new_total: new_collateral,
                     });
