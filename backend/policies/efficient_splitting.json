@@ -1,0 +1,117 @@
+{
+  "version": "1.0",
+  "policy_id": "efficient_splitting",
+  "description": "Proactive collateral usage combined with aggressive splitting to reduce head-of-line blocking.",
+  "parameters": {
+    "min_buffer": 50000.0,
+    "collateral_buffer_target": 200000.0,
+    "split_threshold_amount": 500000.0
+  },
+  "strategic_collateral_tree": {
+    "node_id": "S1",
+    "type": "condition",
+    "description": "Check if Queue 1 liquidity gap exists",
+    "condition": {
+      "op": ">",
+      "left": { "field": "queue1_liquidity_gap" },
+      "right": { "value": 0 }
+    },
+    "on_true": {
+      "node_id": "S_Action_Post",
+      "type": "action",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "+",
+            "left": { "field": "queue1_liquidity_gap" },
+            "right": { "param": "collateral_buffer_target" }
+          }
+        },
+        "reason": { "value": "PreemptivePosting" }
+      }
+    },
+    "on_false": {
+      "node_id": "S_Action_Hold",
+      "type": "action",
+      "action": "HoldCollateral",
+      "parameters": {}
+    }
+  },
+  "payment_tree": {
+    "node_id": "P1",
+    "type": "condition",
+    "description": "Emergency: Is it past deadline?",
+    "condition": {
+      "op": "==",
+      "left": { "field": "is_past_deadline" },
+      "right": { "value": 1.0 }
+    },
+    "on_true": {
+      "node_id": "P_Panic_Release",
+      "type": "action",
+      "action": "Release",
+      "parameters": {
+        "priority_flag": { "value": "HIGH" }
+      }
+    },
+    "on_false": {
+      "node_id": "P2",
+      "type": "condition",
+      "description": "Can we afford the whole thing?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "available_liquidity" },
+        "right": { "field": "amount" }
+      },
+      "on_true": {
+        "node_id": "P_Full_Release",
+        "type": "action",
+        "action": "Release",
+        "parameters": {}
+      },
+      "on_false": {
+        "node_id": "P3",
+        "type": "condition",
+        "description": "Is transaction large enough to split AND do we have partial liquidity?",
+        "condition": {
+          "op": "and",
+          "conditions": [
+            {
+              "op": ">",
+              "left": { "field": "amount" },
+              "right": { "param": "split_threshold_amount" }
+            },
+            {
+              "op": ">",
+              "left": { "field": "available_liquidity" },
+              "right": {
+                "compute": {
+                  "op": "/",
+                  "left": { "field": "amount" },
+                  "right": { "value": 4 }
+                }
+              }
+            }
+          ]
+        },
+        "on_true": {
+          "node_id": "P_Split_Action",
+          "type": "action",
+          "action": "Split",
+          "parameters": {
+            "num_splits": { "value": 4 }
+          }
+        },
+        "on_false": {
+          "node_id": "P_Wait",
+          "type": "action",
+          "action": "Hold",
+          "parameters": {
+            "reason": { "value": "InsufficientLiquidity" }
+          }
+        }
+      }
+    }
+  }
+}
