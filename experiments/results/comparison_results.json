@@ -1,0 +1,260 @@
+{
+  "baseline": {
+    "simulation": {
+      "config_file": "examples/configs/suboptimal_policies_25day.yaml",
+      "seed": 42,
+      "ticks_executed": 2500,
+      "duration_seconds": 7.967,
+      "ticks_per_second": 313.88
+    },
+    "metrics": {
+      "total_arrivals": 7121,
+      "total_settlements": 6898,
+      "total_lsm_releases": 12,
+      "settlement_rate": 0.9686841735711277
+    },
+    "agents": [
+      {
+        "id": "BIG_BANK_A",
+        "final_balance": 95051461,
+        "queue1_size": 0
+      },
+      {
+        "id": "BIG_BANK_B",
+        "final_balance": 30991934,
+        "queue1_size": 0
+      },
+      {
+        "id": "SMALL_BANK_A",
+        "final_balance": -54489928,
+        "queue1_size": 143
+      },
+      {
+        "id": "SMALL_BANK_B",
+        "final_balance": -20553467,
+        "queue1_size": 80
+      }
+    ],
+    "costs": {
+      "total_cost": 10370428
+    },
+    "performance": {
+      "ticks_per_second": 313.88
+    }
+  },
+  "all_cautious": {
+    "simulation": {
+      "config_file": "experiments/results/all_cautious.yaml",
+      "seed": 42,
+      "ticks_executed": 2500,
+      "duration_seconds": 0.587,
+      "ticks_per_second": 4261.9
+    },
+    "metrics": {
+      "total_arrivals": 1187,
+      "total_settlements": 1181,
+      "total_lsm_releases": 0,
+      "settlement_rate": 0.9949452401010952
+    },
+    "agents": [
+      {
+        "id": "BIG_BANK_A",
+        "final_balance": 28722734,
+        "queue1_size": 0
+      },
+      {
+        "id": "BIG_BANK_B",
+        "final_balance": 30404999,
+        "queue1_size": 0
+      },
+      {
+        "id": "SMALL_BANK_A",
+        "final_balance": -5765794,
+        "queue1_size": 5
+      },
+      {
+        "id": "SMALL_BANK_B",
+        "final_balance": -2361939,
+        "queue1_size": 1
+      }
+    ],
+    "costs": {
+      "total_cost": 470223
+    },
+    "performance": {
+      "ticks_per_second": 4261.9
+    }
+  },
+  "sba_proactive": {
+    "simulation": {
+      "config_file": "experiments/results/sba_proactive.yaml",
+      "seed": 42,
+      "ticks_executed": 2500,
+      "duration_seconds": 7.443,
+      "ticks_per_second": 335.94
+    },
+    "metrics": {
+      "total_arrivals": 7121,
+      "total_settlements": 7093,
+      "total_lsm_releases": 0,
+      "settlement_rate": 0.996067967982025
+    },
+    "agents": [
+      {
+        "id": "BIG_BANK_A",
+        "final_balance": 111945483,
+        "queue1_size": 0
+      },
+      {
+        "id": "BIG_BANK_B",
+        "final_balance": 46508579,
+        "queue1_size": 0
+      },
+      {
+        "id": "SMALL_BANK_A",
+        "final_balance": -92539433,
+        "queue1_size": 0
+      },
+      {
+        "id": "SMALL_BANK_B",
+        "final_balance": -14914629,
+        "queue1_size": 25
+      }
+    ],
+    "costs": {
+      "total_cost": 5920198
+    },
+    "performance": {
+      "ticks_per_second": 335.94
+    }
+  },
+  "sba_aggressive": {
+    "simulation": {
+      "config_file": "experiments/results/sba_aggressive.yaml",
+      "seed": 42,
+      "ticks_executed": 2500,
+      "duration_seconds": 5.528,
+      "ticks_per_second": 452.46
+    },
+    "metrics": {
+      "total_arrivals": 7121,
+      "total_settlements": 7047,
+      "total_lsm_releases": 5,
+      "settlement_rate": 0.9896082010953517
+    },
+    "agents": [
+      {
+        "id": "BIG_BANK_A",
+        "final_balance": 107918233,
+        "queue1_size": 0
+      },
+      {
+        "id": "BIG_BANK_B",
+        "final_balance": 42825801,
+        "queue1_size": 0
+      },
+      {
+        "id": "SMALL_BANK_A",
+        "final_balance": -84980354,
+        "queue1_size": 0
+      },
+      {
+        "id": "SMALL_BANK_B",
+        "final_balance": -14763680,
+        "queue1_size": 38
+      }
+    ],
+    "costs": {
+      "total_cost": 5110212
+    },
+    "performance": {
+      "ticks_per_second": 452.46
+    }
+  },
+  "bba_proactive": {
+    "simulation": {
+      "config_file": "experiments/results/bba_proactive.yaml",
+      "seed": 42,
+      "ticks_executed": 2500,
+      "duration_seconds": 7.961,
+      "ticks_per_second": 314.11
+    },
+    "metrics": {
+      "total_arrivals": 7121,
+      "total_settlements": 6898,
+      "total_lsm_releases": 12,
+      "settlement_rate": 0.9686841735711277
+    },
+    "agents": [
+      {
+        "id": "BIG_BANK_A",
+        "final_balance": 95051461,
+        "queue1_size": 0
+      },
+      {
+        "id": "BIG_BANK_B",
+        "final_balance": 30991934,
+        "queue1_size": 0
+      },
+      {
+        "id": "SMALL_BANK_A",
+        "final_balance": -54489928,
+        "queue1_size": 143
+      },
+      {
+        "id": "SMALL_BANK_B",
+        "final_balance": -20553467,
+        "queue1_size": 80
+      }
+    ],
+    "costs": {
+      "total_cost": 10370428
+    },
+    "performance": {
+      "ticks_per_second": 314.11
+    }
+  },
+  "bba_aggressive": {
+    "simulation": {
+      "config_file": "experiments/results/bba_aggressive.yaml",
+      "seed": 42,
+      "ticks_executed": 2500,
+      "duration_seconds": 7.997,
+      "ticks_per_second": 312.68
+    },
+    "metrics": {
+      "total_arrivals": 7121,
+      "total_settlements": 6898,
+      "total_lsm_releases": 12,
+      "settlement_rate": 0.9686841735711277
+    },
+    "agents": [
+      {
+        "id": "BIG_BANK_A",
+        "final_balance": 95051461,
+        "queue1_size": 0
+      },
+      {
+        "id": "BIG_BANK_B",
+        "final_balance": 30991934,
+        "queue1_size": 0
+      },
+      {
+        "id": "SMALL_BANK_A",
+        "final_balance": -54489928,
+        "queue1_size": 143
+      },
+      {
+        "id": "SMALL_BANK_B",
+        "final_balance": -20553467,
+        "queue1_size": 80
+      }
+    ],
+    "costs": {
+      "total_cost": 10370428
+    },
+    "performance": {
+      "ticks_per_second": 312.68
+    }
+  }
+}
