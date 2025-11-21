@@ -135,6 +135,15 @@ pub struct OrchestratorConfig {
     /// - "priority_deadline": Sort by priority (descending), then deadline (ascending)
     #[serde(default)]
     pub queue1_ordering: Queue1Ordering,
+
+    /// T2-style Queue 2 priority mode (default: false)
+    /// When enabled, Queue 2 processes transactions by priority bands:
+    /// - Urgent (8-10): Processed first
+    /// - Normal (4-7): Processed second
+    /// - Low (0-3): Processed last
+    /// Within each band, FIFO ordering is preserved.
+    #[serde(default)]
+    pub priority_mode: bool,
 }
 
 /// Queue 1 ordering strategy
@@ -798,6 +807,7 @@ impl Orchestrator {
     ///     lsm_config: LsmConfig::default(),
     ///     scenario_events: None,
     ///     queue1_ordering: Default::default(),
+    ///     priority_mode: false,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -1495,6 +1505,18 @@ impl Orchestrator {
     /// central queue for liquidity to become available.
     pub fn get_queue2_size(&self) -> usize {
         self.state.queue_size()
+    }
+
+    /// Get contents of RTGS queue (Queue 2)
+    ///
+    /// Returns a vector of transaction IDs currently in the central RTGS queue,
+    /// preserving queue order.
+    ///
+    /// # Returns
+    ///
+    /// Vector of transaction IDs in queue order.
+    pub fn get_queue2_contents(&self) -> Vec<String> {
+        self.state.rtgs_queue().clone()
     }
 
     /// Get contents of agent's internal queue (Queue 1)
@@ -3249,6 +3271,10 @@ impl Orchestrator {
 
         // STEP 4: PROCESS RTGS QUEUE (Queue 2)
         // Retry queued transactions
+
+        // Sort Queue 2 by priority bands if priority_mode is enabled
+        self.sort_queue2_by_priority_bands();
+
         let rtgs_queue_start = Instant::now();
         let queue_result = rtgs::process_queue(&mut self.state, current_tick);
         num_settlements += queue_result.settled_count;
@@ -3803,6 +3829,75 @@ impl Orchestrator {
         if let Some(agent) = self.state.get_agent_mut(agent_id) {
             agent.replace_outgoing_queue(sorted_ids);
         }
+    }
+
+    /// Sort Queue 2 (RTGS queue) by T2-style priority bands
+    ///
+    /// When `priority_mode` is enabled, Queue 2 is sorted by priority bands:
+    /// - Urgent (8-10): Processed first
+    /// - Normal (4-7): Processed second
+    /// - Low (0-3): Processed last
+    ///
+    /// Within each band, FIFO ordering is preserved (original insertion order).
+    ///
+    /// # Priority Bands (T2-style)
+    ///
+    /// | Band   | Priority | Description |
+    /// |--------|----------|-------------|
+    /// | Urgent | 8-10     | Time-critical payments, securities settlement |
+    /// | Normal | 4-7      | Standard interbank payments |
+    /// | Low    | 0-3      | Discretionary payments |
+    fn sort_queue2_by_priority_bands(&mut self) {
+        // Only sort if priority_mode is enabled
+        if !self.config.priority_mode {
+            return;
+        }
+
+        let queue = self.state.rtgs_queue().clone();
+        if queue.len() <= 1 {
+            return; // Nothing to sort
+        }
+
+        // Collect (tx_id, priority, original_index) for stable sorting
+        let mut tx_info: Vec<(String, u8, usize)> = queue
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, tx_id)| {
+                self.state.get_transaction(tx_id).map(|tx| {
+                    (tx_id.clone(), tx.priority(), idx)
+                })
+            })
+            .collect();
+
+        // Helper function to get priority band (0=low, 1=normal, 2=urgent)
+        fn priority_band(priority: u8) -> u8 {
+            match priority {
+                8..=10 => 2, // Urgent
+                4..=7 => 1,  // Normal
+                _ => 0,      // Low (0-3)
+            }
+        }
+
+        // Sort by priority band (descending), then by original index (ascending, FIFO)
+        tx_info.sort_by(|a, b| {
+            let band_a = priority_band(a.1);
+            let band_b = priority_band(b.1);
+
+            // Higher band first (urgent before normal before low)
+            match band_b.cmp(&band_a) {
+                std::cmp::Ordering::Equal => {
+                    // Same band: preserve FIFO (original index)
+                    a.2.cmp(&b.2)
+                }
+                other => other,
+            }
+        });
+
+        // Extract sorted tx_ids
+        let sorted_ids: Vec<String> = tx_info.into_iter().map(|(id, _, _)| id).collect();
+
+        // Replace RTGS queue with sorted version
+        *self.state.rtgs_queue_mut() = sorted_ids;
     }
 
     /// Handle end-of-day processing

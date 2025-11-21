@@ -54,6 +54,7 @@ fn test_fifo_preserves_arrival_order() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -126,6 +127,7 @@ fn test_fifo_partial_submission() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -224,6 +226,7 @@ fn test_fifo_vs_deadline_under_pressure() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

@@ -72,6 +72,7 @@ fn create_test_config_with_haircut(
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     }
 }
 
@@ -633,6 +634,7 @@ fn test_cross_agent_collateral_isolation() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
@@ -764,6 +766,7 @@ fn test_hold_collateral_action_is_noop() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

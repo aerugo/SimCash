@@ -472,6 +472,42 @@ rtgs_config:
 - `backend/src/models/agent.rs` (replace_outgoing_queue method)
 - All Rust test files updated for new config field
 
-### Phase 3-6: Pending
+### Phase 3: Payment Types - Pending
 
-Payment Types, T2 Priority Mode, Dynamic Escalation, and Metrics not yet started.
+Payment Types enhancement not yet started.
+
+### Phase 4: T2 Priority Mode for Queue 2 ✅ COMPLETE
+
+**Completed 2025-11-21**
+
+- 10 integration tests written and passing (`api/tests/integration/test_queue2_priority_mode.py`)
+- Tests verify:
+  - Default FIFO behavior preserved (priority_mode=false)
+  - `priority_mode: true` config accepted
+  - Priority band ordering: Urgent (8-10) → Normal (4-7) → Low (0-3)
+  - FIFO preserved within each priority band
+  - Works together with Queue 1 priority ordering
+
+**Implementation Details**:
+1. Added `priority_mode` field to `OrchestratorConfig` with `#[serde(default)]`
+2. Added FFI parsing in `backend/src/ffi/types.rs` (bool, defaults to false)
+3. Added `sort_queue2_by_priority_bands()` method in Orchestrator
+4. Added `get_queue2_contents()` FFI method for testing
+5. Queue 2 sorting happens before `rtgs::process_queue()` in tick loop
+
+**Priority Bands (T2-style)**:
+| Band   | Priority | Description                              |
+|--------|----------|------------------------------------------|
+| Urgent | 8-10     | Time-critical payments, securities       |
+| Normal | 4-7      | Standard interbank payments              |
+| Low    | 0-3      | Discretionary payments                   |
+
+**Files Modified**:
+- `backend/src/orchestrator/engine.rs` (priority_mode config, sort method)
+- `backend/src/ffi/types.rs` (FFI parsing)
+- `backend/src/ffi/orchestrator.rs` (get_queue2_contents)
+- All Rust test files updated for new config field
+
+### Phase 5-6: Pending
+
+Dynamic Escalation and Priority Metrics not yet started.

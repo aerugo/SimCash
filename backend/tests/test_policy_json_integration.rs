@@ -28,6 +28,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     // Should successfully create orchestrator with JSON-loaded policy
@@ -67,6 +68,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -109,6 +111,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -152,6 +155,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -233,6 +237,7 @@ fn test_multi_agent_different_json_policies() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     // Should successfully create orchestrator with all three JSON policies
@@ -269,6 +274,7 @@ fn test_determinism_with_json_policies() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     // Run simulation 1

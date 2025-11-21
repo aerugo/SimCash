@@ -680,6 +680,29 @@ impl PyOrchestrator {
         self.inner.get_queue2_size()
     }
 
+    /// Get contents of RTGS queue (Queue 2)
+    ///
+    /// Returns a list of transaction IDs currently in the central RTGS queue,
+    /// preserving queue order. This is the system-wide queue managed by the
+    /// central bank, not individual agent queues.
+    ///
+    /// # Returns
+    ///
+    /// List of transaction IDs (strings) in queue order.
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// queue2_contents = orch.get_queue2_contents()
+    /// print(f"RTGS Queue 2 has {len(queue2_contents)} transactions:")
+    /// for tx_id in queue2_contents:
+    ///     details = orch.get_transaction_details(tx_id)
+    ///     print(f"  - {tx_id}: priority={details['priority']}")
+    /// ```
+    fn get_queue2_contents(&self) -> Vec<String> {
+        self.inner.get_queue2_contents()
+    }
+
     /// Get contents of agent's internal queue (Queue 1)
     ///
     /// Returns a list of transaction IDs currently in the agent's

@@ -44,6 +44,7 @@ fn create_test_config() -> OrchestratorConfig {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     }
 }
 
