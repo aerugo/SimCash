@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
-use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, Queue1Ordering, TickResult};
+use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, TickResult};
 use crate::settlement::lsm::LsmConfig;
 
 // ========================================================================
@@ -187,6 +187,44 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         .transpose()?
         .unwrap_or(false);
 
+    // Parse priority_escalation (default: disabled for backward compatibility)
+    let priority_escalation = if let Some(py_escalation) = py_config.get_item("priority_escalation")? {
+        let escalation_dict: Bound<'_, PyDict> = py_escalation.downcast_into()?;
+
+        let enabled: bool = escalation_dict
+            .get_item("enabled")?
+            .map(|item| item.extract())
+            .transpose()?
+            .unwrap_or(false);
+
+        let curve: String = escalation_dict
+            .get_item("curve")?
+            .map(|item| item.extract())
+            .transpose()?
+            .unwrap_or_else(|| "linear".to_string());
+
+        let start_escalating_at_ticks: usize = escalation_dict
+            .get_item("start_escalating_at_ticks")?
+            .map(|item| item.extract())
+            .transpose()?
+            .unwrap_or(20);
+
+        let max_boost: u8 = escalation_dict
+            .get_item("max_boost")?
+            .map(|item| item.extract())
+            .transpose()?
+            .unwrap_or(3);
+
+        PriorityEscalationConfig {
+            enabled,
+            curve,
+            start_escalating_at_ticks,
+            max_boost,
+        }
+    } else {
+        PriorityEscalationConfig::default()
+    };
+
     Ok(OrchestratorConfig {
         ticks_per_day,
         eod_rush_threshold,
@@ -198,6 +236,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         scenario_events,
         queue1_ordering,
         priority_mode,
+        priority_escalation,
     })
 }
 

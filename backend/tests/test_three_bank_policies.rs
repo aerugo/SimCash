@@ -81,6 +81,7 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
         scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     }
 }
 

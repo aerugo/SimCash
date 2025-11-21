@@ -508,6 +508,48 @@ Payment Types enhancement not yet started.
 - `backend/src/ffi/orchestrator.rs` (get_queue2_contents)
 - All Rust test files updated for new config field
 
-### Phase 5-6: Pending
+### Phase 5: Dynamic Priority Escalation ✅ COMPLETE
 
-Dynamic Escalation and Priority Metrics not yet started.
+**Completed 2025-11-21**
+
+- 9 integration tests written and passing (`api/tests/integration/test_priority_escalation.py`)
+- Tests verify:
+  - Default disabled behavior (no priority change)
+  - Escalation config acceptance
+  - Priority boost as deadline approaches
+  - Max boost capping (priority capped at 10)
+  - Escalation only starts at threshold
+  - Integration with queue ordering
+
+**Implementation Details**:
+1. Added `PriorityEscalationConfig` struct with fields:
+   - `enabled: bool` (default: false)
+   - `curve: String` (default: "linear")
+   - `start_escalating_at_ticks: usize` (default: 20)
+   - `max_boost: u8` (default: 3)
+2. Added FFI parsing in `backend/src/ffi/types.rs`
+3. Added `apply_priority_escalation()` method in Orchestrator
+4. Escalation runs before queue sorting in tick loop
+
+**Escalation Formula (linear)**:
+```
+progress = 1 - (ticks_remaining / start_escalating_at_ticks)
+boost = max_boost * progress
+new_priority = min(10, original_priority + boost)
+```
+
+Example with start=20, max_boost=3:
+- 20 ticks remaining: +0 boost
+- 10 ticks remaining: +1.5 boost
+- 5 ticks remaining: +2.25 boost
+- 1 tick remaining: +3 boost (capped)
+
+**Files Modified**:
+- `backend/src/orchestrator/engine.rs` (config, escalation method)
+- `backend/src/orchestrator/mod.rs` (exports)
+- `backend/src/ffi/types.rs` (FFI parsing)
+- All Rust test files updated for new config field
+
+### Phase 6: Priority Metrics - Pending
+
+Priority metrics and analysis not yet started.

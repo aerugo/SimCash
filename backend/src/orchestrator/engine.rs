@@ -144,6 +144,70 @@ pub struct OrchestratorConfig {
     /// Within each band, FIFO ordering is preserved.
     #[serde(default)]
     pub priority_mode: bool,
+
+    /// Dynamic priority escalation configuration (default: disabled)
+    /// When enabled, transaction priorities are boosted as deadlines approach.
+    #[serde(default)]
+    pub priority_escalation: PriorityEscalationConfig,
+}
+
+/// Priority escalation configuration
+///
+/// Automatically boosts transaction priority as the deadline approaches.
+/// This prevents low-priority transactions from being starved when they
+/// become urgent due to time pressure.
+///
+/// # Escalation Formula (linear)
+///
+/// ```text
+/// boost = max_boost * (1 - ticks_remaining / start_escalating_at_ticks)
+/// ```
+///
+/// Example with start_escalating_at_ticks=20, max_boost=3:
+/// - 20 ticks remaining: +0 boost
+/// - 10 ticks remaining: +1.5 boost
+/// - 5 ticks remaining: +2.25 boost
+/// - 1 tick remaining: +3 boost (capped)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PriorityEscalationConfig {
+    /// Whether priority escalation is enabled
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Escalation curve type (currently only "linear" supported)
+    #[serde(default = "default_escalation_curve")]
+    pub curve: String,
+
+    /// Number of ticks before deadline when escalation starts
+    #[serde(default = "default_start_escalating_at_ticks")]
+    pub start_escalating_at_ticks: usize,
+
+    /// Maximum priority boost (capped at this value)
+    #[serde(default = "default_max_boost")]
+    pub max_boost: u8,
+}
+
+impl Default for PriorityEscalationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            curve: "linear".to_string(),
+            start_escalating_at_ticks: 20,
+            max_boost: 3,
+        }
+    }
+}
+
+fn default_escalation_curve() -> String {
+    "linear".to_string()
+}
+
+fn default_start_escalating_at_ticks() -> usize {
+    20
+}
+
+fn default_max_boost() -> u8 {
+    3
 }
 
 /// Queue 1 ordering strategy
@@ -808,6 +872,7 @@ impl Orchestrator {
     ///     scenario_events: None,
     ///     queue1_ordering: Default::default(),
     ///     priority_mode: false,
+    ///     priority_escalation: Default::default(),
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -2752,6 +2817,10 @@ impl Orchestrator {
             .into_iter()
             .collect();
 
+        // Apply priority escalation before queue sorting (Phase 5)
+        // This boosts priorities of transactions approaching their deadline
+        self.apply_priority_escalation(current_tick);
+
         // Apply queue ordering based on config (Phase 2: Priority Ordering)
         // When PriorityDeadline: sort by priority (desc), then deadline (asc)
         for agent_id in &agents_with_queues {
@@ -3828,6 +3897,71 @@ impl Orchestrator {
         // Replace agent's queue with sorted version
         if let Some(agent) = self.state.get_agent_mut(agent_id) {
             agent.replace_outgoing_queue(sorted_ids);
+        }
+    }
+
+    /// Apply dynamic priority escalation to all pending transactions
+    ///
+    /// When `priority_escalation.enabled` is true, this method boosts transaction
+    /// priorities as their deadlines approach. This prevents low-priority transactions
+    /// from being starved when they become urgent due to time pressure.
+    ///
+    /// # Escalation Formula (linear)
+    ///
+    /// ```text
+    /// ticks_remaining = deadline - current_tick
+    /// if ticks_remaining <= start_escalating_at_ticks:
+    ///     progress = 1 - (ticks_remaining / start_escalating_at_ticks)
+    ///     boost = max_boost * progress
+    ///     new_priority = min(10, original_priority + boost)
+    /// ```
+    fn apply_priority_escalation(&mut self, current_tick: usize) {
+        if !self.config.priority_escalation.enabled {
+            return;
+        }
+
+        let start_at = self.config.priority_escalation.start_escalating_at_ticks;
+        let max_boost = self.config.priority_escalation.max_boost;
+
+        // Collect all transaction IDs that need escalation
+        let tx_ids: Vec<String> = self.state.transactions().keys().cloned().collect();
+
+        for tx_id in tx_ids {
+            if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                // Skip already settled transactions
+                if tx.is_fully_settled() {
+                    continue;
+                }
+
+                let deadline = tx.deadline_tick();
+                let ticks_remaining = if deadline > current_tick {
+                    deadline - current_tick
+                } else {
+                    0 // Past deadline
+                };
+
+                // Only escalate if within the escalation window
+                if ticks_remaining <= start_at {
+                    // Calculate progress through escalation window (0.0 to 1.0)
+                    let progress = if start_at > 0 {
+                        1.0 - (ticks_remaining as f64 / start_at as f64)
+                    } else {
+                        1.0
+                    };
+
+                    // Calculate boost (linear curve)
+                    let boost = (max_boost as f64 * progress).round() as u8;
+
+                    // Apply boost, capped at priority 10
+                    let original_priority = tx.priority();
+                    let new_priority = std::cmp::min(10, original_priority.saturating_add(boost));
+
+                    // Update priority if it changed
+                    if new_priority > original_priority {
+                        tx.set_priority(new_priority);
+                    }
+                }
+            }
         }
     }
 
