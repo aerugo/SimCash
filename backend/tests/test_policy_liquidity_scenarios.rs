@@ -8,7 +8,7 @@
 
 use payment_simulator_core_rs::{
     arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
 };
 use std::collections::HashMap;
@@ -60,6 +60,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -145,6 +146,7 @@ fn test_liquidity_aware_buffer_recovery() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -253,6 +255,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -355,6 +358,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     // Aggressive (high urgency threshold = more overrides)
@@ -388,6 +392,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orch_conservative = Orchestrator::new(config_conservative).unwrap();

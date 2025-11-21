@@ -13,7 +13,7 @@
 
 use payment_simulator_core_rs::models::{Event, Transaction};
 use payment_simulator_core_rs::orchestrator::{
-    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
+    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering,
 };
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 
@@ -695,6 +695,7 @@ fn create_basic_config() -> OrchestratorConfig {
             max_cycles_per_tick: 10,
         },
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     }
 }
 

@@ -11,7 +11,7 @@
 
 use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use payment_simulator_core_rs::orchestrator::{
-    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
+    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering,
 };
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 use std::collections::HashMap;
@@ -54,6 +54,7 @@ fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     Orchestrator::new(config).expect("Failed to create test orchestrator")
@@ -116,6 +117,7 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     Orchestrator::new(config).expect("Failed to create orchestrator with arrivals")
@@ -234,6 +236,7 @@ fn test_load_state_restores_exact_state() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
     let state_json = original.save_state().unwrap();
 
@@ -315,6 +318,7 @@ fn test_determinism_after_restore() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
     let state_json = sim1.save_state().unwrap();
 
@@ -415,6 +419,7 @@ fn test_balance_conservation_preserved() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
     let state_json = orchestrator.save_state().unwrap();
     let restored = Orchestrator::load_state(config, &state_json).unwrap();
@@ -470,6 +475,7 @@ fn test_config_mismatch_rejected() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     // Should fail to load with config mismatch error
@@ -506,6 +512,7 @@ fn test_corrupted_state_json_rejected() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     // Invalid JSON
@@ -559,6 +566,7 @@ fn test_save_load_roundtrip_preserves_state_multiple_seeds() {
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
         };
         let state_json = original.save_state().unwrap();
         let mut restored = Orchestrator::load_state(config, &state_json).unwrap();

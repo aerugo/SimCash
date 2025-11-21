@@ -5,7 +5,7 @@
 
 use payment_simulator_core_rs::{
     arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
 };
 use std::collections::HashMap;
@@ -53,6 +53,7 @@ fn test_fifo_preserves_arrival_order() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -124,6 +125,7 @@ fn test_fifo_partial_submission() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -221,6 +223,7 @@ fn test_fifo_vs_deadline_under_pressure() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

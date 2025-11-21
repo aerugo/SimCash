@@ -129,6 +129,23 @@ pub struct OrchestratorConfig {
     /// Scheduled events that modify simulation state at specific ticks
     #[serde(default)]
     pub scenario_events: Option<Vec<crate::events::ScheduledEvent>>,
+
+    /// Queue 1 ordering strategy (default: FIFO)
+    /// - "fifo": First-In-First-Out (default, backward compatible)
+    /// - "priority_deadline": Sort by priority (descending), then deadline (ascending)
+    #[serde(default)]
+    pub queue1_ordering: Queue1Ordering,
+}
+
+/// Queue 1 ordering strategy
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Queue1Ordering {
+    /// First-In-First-Out ordering (default)
+    #[default]
+    Fifo,
+    /// Priority-deadline ordering: high priority first, then soonest deadline
+    PriorityDeadline,
 }
 
 /// Per-agent configuration
@@ -780,6 +797,7 @@ impl Orchestrator {
     ///     cost_rates: Default::default(),
     ///     lsm_config: LsmConfig::default(),
     ///     scenario_events: None,
+    ///     queue1_ordering: Default::default(),
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -2712,6 +2730,12 @@ impl Orchestrator {
             .into_iter()
             .collect();
 
+        // Apply queue ordering based on config (Phase 2: Priority Ordering)
+        // When PriorityDeadline: sort by priority (desc), then deadline (asc)
+        for agent_id in &agents_with_queues {
+            self.sort_agent_queue(agent_id);
+        }
+
         for agent_id in agents_with_queues {
             // Get agent and policy
             let agent = self
@@ -3722,6 +3746,63 @@ impl Orchestrator {
         // Example: 2 bps on $1M = $1M × (2/10,000) = $200
         let cost = collateral_amount * (self.cost_rates.collateral_cost_per_tick_bps / 10_000.0);
         cost.round() as i64
+    }
+
+    /// Sort an agent's Queue 1 based on queue1_ordering configuration
+    ///
+    /// When queue1_ordering is PriorityDeadline:
+    /// - Higher priority transactions come first (descending)
+    /// - For same priority, earlier deadline comes first (ascending)
+    ///
+    /// When queue1_ordering is Fifo (default):
+    /// - No sorting - maintains insertion order
+    ///
+    /// This method mutates the agent's queue in place.
+    fn sort_agent_queue(&mut self, agent_id: &str) {
+        // Only sort if PriorityDeadline ordering is configured
+        if self.config.queue1_ordering != Queue1Ordering::PriorityDeadline {
+            return;
+        }
+
+        // Get agent's current queue
+        let queue = match self.state.get_agent(agent_id) {
+            Some(agent) => agent.outgoing_queue().to_vec(),
+            None => return,
+        };
+
+        if queue.len() <= 1 {
+            return; // Nothing to sort
+        }
+
+        // Collect (tx_id, priority, deadline) for sorting
+        let mut tx_info: Vec<(String, u8, usize)> = queue
+            .iter()
+            .filter_map(|tx_id| {
+                self.state.get_transaction(tx_id).map(|tx| {
+                    (tx_id.clone(), tx.priority(), tx.deadline_tick())
+                })
+            })
+            .collect();
+
+        // Sort by priority (descending), then deadline (ascending)
+        tx_info.sort_by(|a, b| {
+            // Higher priority first
+            match b.1.cmp(&a.1) {
+                std::cmp::Ordering::Equal => {
+                    // Same priority: earlier deadline first
+                    a.2.cmp(&b.2)
+                }
+                other => other,
+            }
+        });
+
+        // Extract sorted tx_ids
+        let sorted_ids: Vec<String> = tx_info.into_iter().map(|(id, _, _)| id).collect();
+
+        // Replace agent's queue with sorted version
+        if let Some(agent) = self.state.get_agent_mut(agent_id) {
+            agent.replace_outgoing_queue(sorted_ids);
+        }
     }
 
     /// Handle end-of-day processing

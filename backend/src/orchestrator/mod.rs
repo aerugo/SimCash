@@ -13,7 +13,7 @@ mod tests;
 // Re-export main types for convenience
 pub use engine::{
     AgentConfig, CostAccumulator, CostBreakdown, CostRates, DailyMetrics, Orchestrator,
-    OrchestratorConfig, PolicyConfig, SimulationError, TickResult,
+    OrchestratorConfig, PolicyConfig, Queue1Ordering, SimulationError, TickResult,
 };
 
 // Re-export checkpoint types

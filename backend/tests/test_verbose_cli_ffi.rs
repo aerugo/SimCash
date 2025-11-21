@@ -3,7 +3,7 @@
 //! Tests the methods exposed via FFI to support enhanced verbose CLI output.
 
 use payment_simulator_core_rs::{
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
 };
 
@@ -37,6 +37,7 @@ fn create_test_config() -> OrchestratorConfig {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     }
 }
 
@@ -143,6 +144,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
