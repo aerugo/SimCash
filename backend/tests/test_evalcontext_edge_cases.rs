@@ -325,17 +325,11 @@ fn test_tx_is_top_counterparty_only_zero_or_one() {
 // ============================================================================
 
 #[test]
-fn test_zero_amount_transaction() {
-    let agent = create_agent("BANK_A", 1_000_000, 500_000);
-    let tx = create_tx("BANK_A", "BANK_B", 0, 0, 100); // Zero amount
-    let state = SimulationState::new(vec![agent.clone()]);
-
-    let context = EvalContext::build(&tx, &agent, &state, 50, &default_cost_rates(), 100, 0.8);
-
-    assert_eq!(context.get_field("amount").unwrap(), 0.0);
-    assert_eq!(context.get_field("remaining_amount").unwrap(), 0.0);
-    // Cost calculations should be zero for zero amount
-    assert_eq!(context.get_field("cost_delay_this_tx_one_tick").unwrap(), 0.0);
+#[should_panic(expected = "amount must be positive")]
+fn test_zero_amount_transaction_panics() {
+    // Zero-amount transactions are rejected at creation time.
+    // This is intentional - the system should never process a zero-value payment.
+    let _tx = create_tx("BANK_A", "BANK_B", 0, 0, 100); // Zero amount panics
 }
 
 #[test]
