@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
 
-use crate::arrivals::{AmountDistribution, ArrivalConfig};
+use crate::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
 use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, TickResult};
 use crate::settlement::lsm::LsmConfig;
@@ -372,12 +372,19 @@ fn parse_arrival_config(py_arrivals: &Bound<'_, PyDict>) -> PyResult<ArrivalConf
             (10, 50) // Default range
         };
 
-    // Parse priority (default 5 if not provided)
-    let priority: u8 = py_arrivals
-        .get_item("priority")?
-        .map(|v| v.extract())
-        .transpose()?
-        .unwrap_or(5);
+    // Parse priority_distribution (new format) or fall back to legacy priority
+    let priority_distribution: PriorityDistribution =
+        if let Some(py_priority_dist) = py_arrivals.get_item("priority_distribution")? {
+            let dist_dict: Bound<'_, PyDict> = py_priority_dist.downcast_into()?;
+            parse_priority_distribution(&dist_dict)?
+        } else if let Some(priority_val) = py_arrivals.get_item("priority")? {
+            // Legacy: single priority value
+            let priority: u8 = priority_val.extract()?;
+            PriorityDistribution::Fixed { value: priority }
+        } else {
+            // Default: fixed priority of 5
+            PriorityDistribution::Fixed { value: 5 }
+        };
 
     // Parse divisible (default false if not provided)
     let divisible: bool = py_arrivals
@@ -391,9 +398,76 @@ fn parse_arrival_config(py_arrivals: &Bound<'_, PyDict>) -> PyResult<ArrivalConf
         amount_distribution,
         counterparty_weights,
         deadline_range,
-        priority,
+        priority_distribution,
         divisible,
     })
+}
+
+/// Convert Python dict to PriorityDistribution
+fn parse_priority_distribution(py_dist: &Bound<'_, PyDict>) -> PyResult<PriorityDistribution> {
+    let dist_type: String = py_dist
+        .get_item("type")?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing priority distribution 'type'")
+        })?
+        .extract()?;
+
+    match dist_type.as_str() {
+        "Fixed" => {
+            let value: u8 = py_dist
+                .get_item("value")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Fixed priority requires 'value'")
+                })?
+                .extract()?;
+
+            Ok(PriorityDistribution::Fixed { value: value.min(10) })
+        }
+        "Categorical" => {
+            let values: Vec<u8> = py_dist
+                .get_item("values")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Categorical requires 'values'")
+                })?
+                .extract()?;
+
+            let weights: Vec<f64> = py_dist
+                .get_item("weights")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Categorical requires 'weights'")
+                })?
+                .extract()?;
+
+            // Validate and cap values at 10
+            let values: Vec<u8> = values.into_iter().map(|v| v.min(10)).collect();
+
+            Ok(PriorityDistribution::Categorical { values, weights })
+        }
+        "Uniform" => {
+            let min: u8 = py_dist
+                .get_item("min")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Uniform priority requires 'min'")
+                })?
+                .extract()?;
+
+            let max: u8 = py_dist
+                .get_item("max")?
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>("Uniform priority requires 'max'")
+                })?
+                .extract()?;
+
+            Ok(PriorityDistribution::Uniform {
+                min: min.min(10),
+                max: max.min(10),
+            })
+        }
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown priority distribution type: {}",
+            dist_type
+        ))),
+    }
 }
 
 /// Convert Python dict to AmountDistribution

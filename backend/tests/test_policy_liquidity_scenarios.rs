@@ -7,7 +7,7 @@
 //! - Urgency threshold tuning
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
 };
@@ -26,7 +26,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 40), // Mix of urgent and non-urgent
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -111,7 +111,7 @@ fn test_liquidity_aware_buffer_recovery() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (20, 50), // Non-urgent
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -219,7 +219,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 30),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -320,7 +320,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (3, 15), // Mix of deadlines
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 

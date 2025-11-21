@@ -14,7 +14,7 @@
 //! # Example
 //!
 //! ```
-//! use payment_simulator_core_rs::arrivals::{ArrivalConfig, AmountDistribution};
+//! use payment_simulator_core_rs::arrivals::{ArrivalConfig, AmountDistribution, PriorityDistribution};
 //! use payment_simulator_core_rs::rng::RngManager;
 //! use std::collections::HashMap;
 //!
@@ -27,7 +27,7 @@
 //!     },
 //!     counterparty_weights: HashMap::new(),
 //!     deadline_range: (5, 20),
-//!     priority: 0,
+//!     priority_distribution: PriorityDistribution::Fixed { value: 5 },
 //!     divisible: false,
 //! };
 //! ```
@@ -35,6 +35,28 @@
 use crate::models::Transaction;
 use crate::rng::RngManager;
 use std::collections::HashMap;
+
+/// Priority distribution types for transaction generation.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum PriorityDistribution {
+    /// Fixed priority (all transactions get same value)
+    Fixed { value: u8 },
+
+    /// Categorical distribution (discrete values with weights)
+    Categorical {
+        values: Vec<u8>,
+        weights: Vec<f64>,
+    },
+
+    /// Uniform distribution (random integer in range)
+    Uniform { min: u8, max: u8 },
+}
+
+impl Default for PriorityDistribution {
+    fn default() -> Self {
+        PriorityDistribution::Fixed { value: 5 }
+    }
+}
 
 /// Configuration for transaction arrivals for a single agent.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -52,8 +74,8 @@ pub struct ArrivalConfig {
     /// Deadline range in ticks from arrival (min, max)
     pub deadline_range: (usize, usize),
 
-    /// Priority for generated transactions (0-10)
-    pub priority: u8,
+    /// Priority distribution for generated transactions
+    pub priority_distribution: PriorityDistribution,
 
     /// Whether generated transactions are divisible
     pub divisible: bool,
@@ -152,15 +174,18 @@ impl ArrivalGenerator {
             // Generate deadline
             let deadline = self.generate_deadline(tick, config.deadline_range, rng);
 
+            // Sample priority from distribution
+            let priority = self.sample_priority(&config.priority_distribution, rng);
+
             // Create transaction
             let tx_id = format!("tx_{:08}", self.next_tx_id);
             self.next_tx_id += 1;
 
             let mut tx = Transaction::new(agent_id.to_string(), receiver, amount, tick, deadline);
 
-            // Set priority if configured
-            if config.priority > 0 {
-                tx = tx.with_priority(config.priority);
+            // Set priority
+            if priority > 0 {
+                tx = tx.with_priority(priority);
             }
 
             transactions.push(tx);
@@ -263,6 +288,46 @@ impl ArrivalGenerator {
         (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
     }
 
+    /// Sample a priority from the configured distribution.
+    fn sample_priority(&self, distribution: &PriorityDistribution, rng: &mut RngManager) -> u8 {
+        match distribution {
+            PriorityDistribution::Fixed { value } => *value,
+            PriorityDistribution::Categorical { values, weights } => {
+                self.sample_categorical(values, weights, rng)
+            }
+            PriorityDistribution::Uniform { min, max } => {
+                // Sample uniformly in range [min, max] inclusive
+                let range = (*max as i64 - *min as i64 + 1) as i64;
+                let sampled = rng.range(*min as i64, *min as i64 + range) as u8;
+                sampled.min(10) // Cap at 10
+            }
+        }
+    }
+
+    /// Sample from a categorical distribution using weighted selection.
+    fn sample_categorical(&self, values: &[u8], weights: &[f64], rng: &mut RngManager) -> u8 {
+        if values.is_empty() {
+            return 5; // Default priority
+        }
+
+        let total_weight: f64 = weights.iter().sum();
+        if total_weight <= 0.0 {
+            return values[0]; // Fallback to first value
+        }
+
+        let mut target = rng.next_f64() * total_weight;
+
+        for (i, weight) in weights.iter().enumerate() {
+            target -= weight;
+            if target <= 0.0 {
+                return values[i].min(10); // Cap at 10
+            }
+        }
+
+        // Fallback to last value
+        values.last().copied().unwrap_or(5).min(10)
+    }
+
     // ========================================================================
     // Query Methods (for scenario events)
     // ========================================================================
@@ -343,13 +408,16 @@ mod tests {
             },
             counterparty_weights: HashMap::new(),
             deadline_range: (5, 15),
-            priority: 5,
+            priority_distribution: PriorityDistribution::Fixed { value: 5 },
             divisible: true,
         };
 
         assert_eq!(config.rate_per_tick, 2.0);
-        assert_eq!(config.priority, 5);
         assert!(config.divisible);
+        match config.priority_distribution {
+            PriorityDistribution::Fixed { value } => assert_eq!(value, 5),
+            _ => panic!("Expected Fixed priority distribution"),
+        }
     }
 
     #[test]
@@ -365,7 +433,7 @@ mod tests {
                 },
                 counterparty_weights: HashMap::new(),
                 deadline_range: (5, 15),
-                priority: 0,
+                priority_distribution: PriorityDistribution::Fixed { value: 0 },
                 divisible: false,
             },
         );
@@ -389,7 +457,7 @@ mod tests {
                 },
                 counterparty_weights: HashMap::new(),
                 deadline_range: (5, 10),
-                priority: 0,
+                priority_distribution: PriorityDistribution::Fixed { value: 0 },
                 divisible: false,
             },
         );
@@ -426,7 +494,7 @@ mod tests {
             },
             counterparty_weights: HashMap::new(),
             deadline_range: (5, 10),
-            priority: 0,
+            priority_distribution: PriorityDistribution::Fixed { value: 0 },
             divisible: false,
         };
 
@@ -457,7 +525,7 @@ mod tests {
             },
             counterparty_weights: HashMap::new(),
             deadline_range: (5, 10),
-            priority: 0,
+            priority_distribution: PriorityDistribution::Fixed { value: 0 },
             divisible: false,
         };
 
@@ -492,7 +560,7 @@ mod tests {
             },
             counterparty_weights: HashMap::new(),
             deadline_range: (5, 15),
-            priority: 0,
+            priority_distribution: PriorityDistribution::Fixed { value: 0 },
             divisible: false,
         };
 
@@ -528,7 +596,7 @@ mod tests {
             },
             counterparty_weights: weights,
             deadline_range: (5, 10),
-            priority: 0,
+            priority_distribution: PriorityDistribution::Fixed { value: 0 },
             divisible: false,
         };
 

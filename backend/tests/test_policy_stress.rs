@@ -8,7 +8,7 @@
 //! These tests verify performance, stability, and reasonable completion times.
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
 };
@@ -28,7 +28,7 @@ fn test_high_frequency_arrivals_single_agent() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 20),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -131,7 +131,7 @@ fn test_sustained_high_load_100_ticks() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 40),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -238,7 +238,7 @@ fn test_extreme_high_frequency_arrivals() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 15),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -332,7 +332,7 @@ fn test_50_agent_high_frequency_simulation() {
         },
         counterparty_weights: HashMap::new(), // Uniform selection across 49 counterparties
         deadline_range: (10, 30),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 

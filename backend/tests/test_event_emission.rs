@@ -26,7 +26,7 @@
 //! manual injection is for testing, not real simulation arrivals.
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
     Transaction,
@@ -145,7 +145,7 @@ fn test_arrival_events_for_automatic_transactions() {
             weights
         },
         deadline_range: (10, 50),
-        priority: 5,
+        priority_distribution: PriorityDistribution::Fixed { value: 5 },
         divisible: true,
     });
 
