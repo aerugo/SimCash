@@ -35,6 +35,72 @@ EvalContext provides **94 fixed fields** (plus dynamic state registers) across *
 
 ---
 
+## Test Execution Results (2025-11-21)
+
+### New Test Files Created
+
+| File | Tests | Passed | Failed |
+|------|-------|--------|--------|
+| `test_evalcontext_comprehensive.rs` | 99 | 99 | 0 |
+| `test_evalcontext_edge_cases.rs` | 31 | 29 | 2 |
+| `test_evalcontext_bank_level.rs` | 37 | 37 | 0 |
+| `test_evalcontext_collateral_fields.rs` | 34 | 30 | 4 |
+
+**Total: 201 new tests written, 195 passing, 6 failing**
+
+### Implementation Bugs Discovered
+
+Following TDD principles, these test failures document implementation issues that need fixing:
+
+#### 1. `ticks_to_nearest_queue2_deadline` doesn't return INFINITY when Q2 is empty
+
+**Test**: `test_ticks_to_nearest_queue2_deadline_infinity_when_empty`
+**Expected**: Returns `f64::INFINITY` when Queue 2 is empty
+**Actual**: Returns a finite value
+**Impact**: Policies cannot distinguish "no deadline pressure" from "very far deadline"
+
+#### 2. `queue2_nearest_deadline` doesn't return MAX when Q2 is empty
+
+**Test**: `test_queue2_nearest_deadline_max_when_empty`
+**Expected**: Returns very large value (usize::MAX) when Queue 2 is empty
+**Actual**: Returns a small value
+**Impact**: Policies may misinterpret empty queue as having imminent deadline
+
+#### 3. `required_collateral_for_usage` returns negative values
+
+**Test**: `test_required_collateral_for_usage_zero_when_not_using_credit`
+**Expected**: Returns 0.0 when agent is not using credit beyond unsecured cap
+**Actual**: Returns -510204.0
+**Impact**: Negative required collateral is semantically meaningless
+
+#### 4. `excess_collateral` calculation affected by above bug
+
+**Test**: `test_excess_collateral_when_over_required`
+**Expected**: Returns positive excess when more collateral posted than required
+**Actual**: Incorrect due to required_collateral calculation bug
+
+#### 5. Transaction::new requires positive amount (by design)
+
+**Test**: `test_zero_amount_transaction`
+**Expected**: Handle zero-amount transaction gracefully
+**Actual**: Panics with "amount must be positive"
+**Note**: This may be intentional - zero amount transactions are invalid
+
+### Next Steps (DO NOT implement yet - just document)
+
+Per TDD principles, implementation fixes should:
+1. Start from failing tests
+2. Make minimal changes to pass tests
+3. Refactor after tests pass
+
+Recommended fix order:
+1. Fix `queue2_nearest_deadline` and `ticks_to_nearest_queue2_deadline` for empty Q2
+2. Fix `required_collateral_for_usage` formula
+3. Fix `excess_collateral` (may auto-fix after #2)
+4. Decide if zero-amount transaction should be allowed (probably not)
+
+---
+
 ## Complete Field Inventory (94 Fields)
 
 ### Category 1: Transaction Fields (12 fields)
