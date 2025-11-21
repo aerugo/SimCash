@@ -8,7 +8,7 @@
 //! - Cost accumulation over multiple ticks
 
 use payment_simulator_core_rs::{
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
     Transaction,
 };
@@ -43,6 +43,9 @@ fn create_test_config() -> OrchestratorConfig {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     }
 }
 

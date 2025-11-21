@@ -109,6 +109,14 @@ fn event_to_py_dict<'py>(
             dict.set_item("old_priority", old_priority)?;
             dict.set_item("new_priority", new_priority)?;
         }
+        crate::models::event::Event::PriorityEscalated { tx_id, sender_id, original_priority, escalated_priority, ticks_until_deadline, boost_applied, .. } => {
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("sender_id", sender_id)?;
+            dict.set_item("original_priority", original_priority)?;
+            dict.set_item("escalated_priority", escalated_priority)?;
+            dict.set_item("ticks_until_deadline", ticks_until_deadline)?;
+            dict.set_item("boost_applied", boost_applied)?;
+        }
         crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
             dict.set_item("agent_id", agent_id)?;
             dict.set_item("amount", amount)?;
@@ -678,6 +686,29 @@ impl PyOrchestrator {
     /// ```
     fn get_queue2_size(&self) -> usize {
         self.inner.get_queue2_size()
+    }
+
+    /// Get contents of RTGS queue (Queue 2)
+    ///
+    /// Returns a list of transaction IDs currently in the central RTGS queue,
+    /// preserving queue order. This is the system-wide queue managed by the
+    /// central bank, not individual agent queues.
+    ///
+    /// # Returns
+    ///
+    /// List of transaction IDs (strings) in queue order.
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// queue2_contents = orch.get_queue2_contents()
+    /// print(f"RTGS Queue 2 has {len(queue2_contents)} transactions:")
+    /// for tx_id in queue2_contents:
+    ///     details = orch.get_transaction_details(tx_id)
+    ///     print(f"  - {tx_id}: priority={details['priority']}")
+    /// ```
+    fn get_queue2_contents(&self) -> Vec<String> {
+        self.inner.get_queue2_contents()
     }
 
     /// Get contents of agent's internal queue (Queue 1)

@@ -100,6 +100,21 @@ pub enum Event {
         new_priority: u8,
     },
 
+    /// Priority escalated due to approaching deadline (Phase 5: Priority Escalation)
+    ///
+    /// Emitted when a transaction's effective priority is boosted because
+    /// its deadline is approaching. This helps prevent low-priority transactions
+    /// from being starved when they become urgent.
+    PriorityEscalated {
+        tick: usize,
+        tx_id: String,
+        sender_id: String,
+        original_priority: u8,
+        escalated_priority: u8,
+        ticks_until_deadline: usize,
+        boost_applied: u8,
+    },
+
     /// Agent posted collateral to increase available liquidity
     CollateralPost {
         tick: usize,
@@ -317,6 +332,7 @@ impl Event {
             Event::PolicyDrop { tick, .. } => *tick,
             Event::PolicySplit { tick, .. } => *tick,
             Event::TransactionReprioritized { tick, .. } => *tick,
+            Event::PriorityEscalated { tick, .. } => *tick,
             Event::CollateralPost { tick, .. } => *tick,
             Event::CollateralWithdraw { tick, .. } => *tick,
             Event::CollateralTimerWithdrawn { tick, .. } => *tick,
@@ -347,6 +363,7 @@ impl Event {
             Event::PolicyDrop { .. } => "PolicyDrop",
             Event::PolicySplit { .. } => "PolicySplit",
             Event::TransactionReprioritized { .. } => "TransactionReprioritized",
+            Event::PriorityEscalated { .. } => "PriorityEscalated",
             Event::CollateralPost { .. } => "CollateralPost",
             Event::CollateralWithdraw { .. } => "CollateralWithdraw",
             Event::CollateralTimerWithdrawn { .. } => "CollateralTimerWithdrawn",
@@ -377,6 +394,7 @@ impl Event {
             Event::PolicyDrop { tx_id, .. } => Some(tx_id),
             Event::PolicySplit { tx_id, .. } => Some(tx_id),
             Event::TransactionReprioritized { tx_id, .. } => Some(tx_id),
+            Event::PriorityEscalated { tx_id, .. } => Some(tx_id),
             Event::RtgsImmediateSettlement { tx_id, .. } => Some(tx_id),
             Event::QueuedRtgs { tx_id, .. } => Some(tx_id),
             Event::TransactionWentOverdue { tx_id, .. } => Some(tx_id),
@@ -397,6 +415,7 @@ impl Event {
             Event::PolicyDrop { agent_id, .. } => Some(agent_id),
             Event::PolicySplit { agent_id, .. } => Some(agent_id),
             Event::TransactionReprioritized { agent_id, .. } => Some(agent_id),
+            Event::PriorityEscalated { sender_id, .. } => Some(sender_id),
             Event::CollateralPost { agent_id, .. } => Some(agent_id),
             Event::CollateralWithdraw { agent_id, .. } => Some(agent_id),
             Event::RtgsImmediateSettlement { sender, .. } => Some(sender),

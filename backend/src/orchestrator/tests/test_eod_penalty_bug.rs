@@ -3,7 +3,7 @@
 // EOD penalties should ONLY apply to transactions that are overdue at end of day,
 // not all unsettled transactions.
 
-use crate::orchestrator::engine::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig};
+use crate::orchestrator::engine::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering};
 use crate::settlement::lsm::LsmConfig;
 
 #[test]
@@ -41,6 +41,9 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
         },
         lsm_config: LsmConfig::default(),
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -145,6 +148,9 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
         },
         lsm_config: LsmConfig::default(),
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -216,6 +222,9 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
         },
         lsm_config: LsmConfig::default(),
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut engine = Orchestrator::new(config).unwrap();

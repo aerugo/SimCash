@@ -4,8 +4,8 @@
 //! through settlement and LSM coordination.
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
     Transaction,
 };
@@ -43,6 +43,9 @@ fn create_two_agent_config() -> OrchestratorConfig {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     }
 }
 
@@ -338,6 +341,9 @@ fn test_orchestrator_lsm_bilateral_offset() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -531,7 +537,7 @@ fn test_orchestrator_automatic_arrivals() {
         },
         counterparty_weights: HashMap::new(), // Uniform selection
         deadline_range: (5, 15),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -562,6 +568,9 @@ fn test_orchestrator_automatic_arrivals() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -590,7 +599,7 @@ fn test_orchestrator_arrival_determinism() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 20),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -621,6 +630,9 @@ fn test_orchestrator_arrival_determinism() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     // Run two simulations with same seed
@@ -660,7 +672,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
         },
         counterparty_weights: weights,
         deadline_range: (5, 15),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -700,6 +712,9 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -756,7 +771,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 15),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -787,6 +802,9 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

@@ -10,8 +10,7 @@
 //! 3. Refactor if needed (REFACTOR)
 
 use payment_simulator_core_rs::orchestrator::{
-    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
-};
+    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering};
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 use payment_simulator_core_rs::Transaction;
 
@@ -45,6 +44,9 @@ fn create_test_config() -> OrchestratorConfig {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     }
 }
 

@@ -4,8 +4,8 @@
 //! FIFO is the simplest baseline policy that submits all queued transactions immediately.
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
 };
 use std::collections::HashMap;
@@ -22,7 +22,7 @@ fn test_fifo_preserves_arrival_order() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 50),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -53,6 +53,9 @@ fn test_fifo_preserves_arrival_order() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -93,7 +96,7 @@ fn test_fifo_partial_submission() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 30),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -124,6 +127,9 @@ fn test_fifo_partial_submission() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -176,7 +182,7 @@ fn test_fifo_vs_deadline_under_pressure() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 12), // Tight deadlines
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -221,6 +227,9 @@ fn test_fifo_vs_deadline_under_pressure() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
