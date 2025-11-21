@@ -4,7 +4,7 @@
 // Uses TDD principles - these tests define what Phase 3 should accomplish.
 
 use payment_simulator_core_rs::orchestrator::{
-    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
+    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering,
 };
 use payment_simulator_core_rs::settlement::LsmConfig;
 
@@ -27,6 +27,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     // Should successfully create orchestrator with JSON-loaded policy
@@ -65,6 +66,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -106,6 +108,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -148,6 +151,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -228,6 +232,7 @@ fn test_multi_agent_different_json_policies() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     // Should successfully create orchestrator with all three JSON policies
@@ -263,6 +268,7 @@ fn test_determinism_with_json_policies() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     // Run simulation 1

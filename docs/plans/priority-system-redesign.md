@@ -445,11 +445,11 @@ rtgs_config:
   - `backend/src/ffi/types.rs`
   - All Rust test files updated
 
-### Phase 2: Queue 1 Priority Ordering 🔄 IN PROGRESS
+### Phase 2: Queue 1 Priority Ordering ✅ COMPLETE
 
-**TDD Tests Written 2024-11-21**
+**Completed 2025-11-21**
 
-- 8 integration tests written (`api/tests/integration/test_queue1_priority_ordering.py`)
+- 8 integration tests written and passing (`api/tests/integration/test_queue1_priority_ordering.py`)
 - Tests verify:
   - Default FIFO behavior preserved
   - `queue1_ordering: "priority_deadline"` config accepted
@@ -457,10 +457,20 @@ rtgs_config:
   - Deadline tiebreaker (soonest deadline first within same priority)
   - Policy evaluation respects queue order
 
-**Next Steps**:
-1. Add `queue1_ordering` to `OrchestratorConfig` (Rust)
-2. Parse in FFI (`backend/src/ffi/types.rs`)
-3. Modify queue iteration to sort when `priority_deadline` enabled
+**Implementation Details**:
+1. Added `Queue1Ordering` enum to `backend/src/orchestrator/engine.rs`
+2. Added `queue1_ordering` field to `OrchestratorConfig` with `#[serde(default)]`
+3. Added FFI parsing in `backend/src/ffi/types.rs` (supports "fifo", "priority_deadline")
+4. Added `sort_agent_queue()` method in Orchestrator that sorts by priority (desc), deadline (asc)
+5. Added `replace_outgoing_queue()` method to Agent for in-place queue replacement
+6. Queue sorting happens during tick(), before policy evaluation
+
+**Files Modified**:
+- `backend/src/orchestrator/engine.rs` (Queue1Ordering enum, sorting logic)
+- `backend/src/orchestrator/mod.rs` (exports)
+- `backend/src/ffi/types.rs` (FFI parsing)
+- `backend/src/models/agent.rs` (replace_outgoing_queue method)
+- All Rust test files updated for new config field
 
 ### Phase 3-6: Pending
 

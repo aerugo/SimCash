@@ -5,7 +5,7 @@
 
 use payment_simulator_core_rs::{
     events::{EventSchedule, ScenarioEvent, ScheduledEvent},
-    orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig},
+    orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     Orchestrator,
 };
 use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
@@ -44,6 +44,7 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+        queue1_ordering: Queue1Ordering::default(),
         scenario_events: Some(events),
     }
 }
@@ -96,6 +97,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+        queue1_ordering: Queue1Ordering::default(),
         scenario_events: Some(events),
     }
 }

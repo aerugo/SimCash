@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
-use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, TickResult};
+use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, Queue1Ordering, TickResult};
 use crate::settlement::lsm::LsmConfig;
 
 // ========================================================================
@@ -160,6 +160,26 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         None
     };
 
+    // Parse queue1_ordering (default: Fifo for backward compatibility)
+    let queue1_ordering: Queue1Ordering =
+        if let Some(ordering_str) = py_config.get_item("queue1_ordering")? {
+            let ordering: String = ordering_str.extract()?;
+            match ordering.as_str() {
+                "fifo" | "Fifo" | "FIFO" => Queue1Ordering::Fifo,
+                "priority_deadline" | "PriorityDeadline" | "priority-deadline" => {
+                    Queue1Ordering::PriorityDeadline
+                }
+                _ => {
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Invalid queue1_ordering: '{}'. Must be 'fifo' or 'priority_deadline'",
+                        ordering
+                    )));
+                }
+            }
+        } else {
+            Queue1Ordering::Fifo
+        };
+
     Ok(OrchestratorConfig {
         ticks_per_day,
         eod_rush_threshold,
@@ -169,6 +189,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         cost_rates,
         lsm_config,
         scenario_events,
+        queue1_ordering,
     })
 }
 

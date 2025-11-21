@@ -8,7 +8,7 @@
 
 use payment_simulator_core_rs::{
     arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
 };
 use std::collections::HashMap;
@@ -109,6 +109,7 @@ fn test_deadline_policy_submits_urgent_arrivals() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -189,6 +190,7 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -281,6 +283,7 @@ fn test_deadline_policy_vs_fifo_comparison() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -366,6 +369,7 @@ fn test_deadline_policy_all_urgent_scenario() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -439,6 +443,7 @@ fn test_deadline_policy_deadline_cascade() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

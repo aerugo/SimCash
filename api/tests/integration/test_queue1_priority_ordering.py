@@ -145,9 +145,10 @@ class TestQueue1PriorityOrderingBehavior:
             "agent_configs": [
                 {
                     "id": "BANK_A",
-                    "opening_balance": 100,  # Very low - can't settle anything
+                    "opening_balance": 10_000_000,
                     "unsecured_cap": 0,
-                    "policy": {"type": "Fifo"},
+                    # DeadlinePolicy holds non-urgent transactions (deadline > urgency_threshold)
+                    "policy": {"type": "Deadline", "urgency_threshold": 1},  # Very low - holds most
                 },
                 {
                     "id": "BANK_B",
@@ -161,15 +162,19 @@ class TestQueue1PriorityOrderingBehavior:
         orch = Orchestrator.new(config)
 
         # Submit transactions with different priorities (in "wrong" order)
+        # All have deadline=50, urgency_threshold=1 means ticks_remaining=50 > 1, so held
         orch.submit_transaction("BANK_A", "BANK_B", 10000, deadline_tick=50, priority=3, divisible=False)
         orch.submit_transaction("BANK_A", "BANK_B", 10000, deadline_tick=50, priority=9, divisible=False)
         orch.submit_transaction("BANK_A", "BANK_B", 10000, deadline_tick=50, priority=1, divisible=False)
         orch.submit_transaction("BANK_A", "BANK_B", 10000, deadline_tick=50, priority=7, divisible=False)
 
+        # Run tick to apply queue sorting (sorting happens before policy evaluation)
+        orch.tick()
+
         # Get queue contents - should be sorted by priority (descending)
         queue_tx_ids = orch.get_agent_queue1_contents("BANK_A")
 
-        assert len(queue_tx_ids) >= 4
+        assert len(queue_tx_ids) >= 4, f"Expected 4 transactions in queue, got {len(queue_tx_ids)}"
         priorities = [orch.get_transaction_details(tx_id)["priority"] for tx_id in queue_tx_ids[:4]]
 
         # Priority-deadline ordering: high priority first
@@ -187,9 +192,10 @@ class TestQueue1PriorityOrderingBehavior:
             "agent_configs": [
                 {
                     "id": "BANK_A",
-                    "opening_balance": 100,  # Very low
+                    "opening_balance": 10_000_000,
                     "unsecured_cap": 0,
-                    "policy": {"type": "Fifo"},
+                    # DeadlinePolicy holds non-urgent transactions (deadline > urgency_threshold)
+                    "policy": {"type": "Deadline", "urgency_threshold": 1},  # Very low - holds most
                 },
                 {
                     "id": "BANK_B",
@@ -203,13 +209,17 @@ class TestQueue1PriorityOrderingBehavior:
         orch = Orchestrator.new(config)
 
         # All same priority, different deadlines
+        # With urgency_threshold=1, these will be held since ticks_remaining > 1
         orch.submit_transaction("BANK_A", "BANK_B", 10000, deadline_tick=50, priority=5, divisible=False)
         orch.submit_transaction("BANK_A", "BANK_B", 10000, deadline_tick=20, priority=5, divisible=False)  # Soonest
         orch.submit_transaction("BANK_A", "BANK_B", 10000, deadline_tick=35, priority=5, divisible=False)
 
+        # Run tick to apply queue sorting (sorting happens before policy evaluation)
+        orch.tick()
+
         queue_tx_ids = orch.get_agent_queue1_contents("BANK_A")
 
-        assert len(queue_tx_ids) >= 3
+        assert len(queue_tx_ids) >= 3, f"Expected 3 transactions in queue, got {len(queue_tx_ids)}"
         deadlines = [orch.get_transaction_details(tx_id)["deadline_tick"] for tx_id in queue_tx_ids[:3]]
 
         # Same priority, order by deadline (soonest first)
