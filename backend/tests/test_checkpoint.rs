@@ -55,6 +55,7 @@ fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     Orchestrator::new(config).expect("Failed to create test orchestrator")
@@ -118,6 +119,7 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     Orchestrator::new(config).expect("Failed to create orchestrator with arrivals")
@@ -237,6 +239,7 @@ fn test_load_state_restores_exact_state() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
     let state_json = original.save_state().unwrap();
 
@@ -319,6 +322,7 @@ fn test_determinism_after_restore() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
     let state_json = sim1.save_state().unwrap();
 
@@ -420,6 +424,7 @@ fn test_balance_conservation_preserved() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
     let state_json = orchestrator.save_state().unwrap();
     let restored = Orchestrator::load_state(config, &state_json).unwrap();
@@ -476,6 +481,7 @@ fn test_config_mismatch_rejected() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     // Should fail to load with config mismatch error
@@ -513,6 +519,7 @@ fn test_corrupted_state_json_rejected() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     // Invalid JSON
@@ -567,6 +574,7 @@ fn test_save_load_roundtrip_preserves_state_multiple_seeds() {
             lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
         };
         let state_json = original.save_state().unwrap();
         let mut restored = Orchestrator::load_state(config, &state_json).unwrap();

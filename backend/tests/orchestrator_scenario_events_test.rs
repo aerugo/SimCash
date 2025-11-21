@@ -45,6 +45,7 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
         scenario_events: Some(events),
     }
 }
@@ -98,6 +99,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
         scenario_events: Some(events),
     }
 }

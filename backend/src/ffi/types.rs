@@ -180,6 +180,13 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
             Queue1Ordering::Fifo
         };
 
+    // Parse priority_mode (default: false for backward compatibility)
+    let priority_mode: bool = py_config
+        .get_item("priority_mode")?
+        .map(|item| item.extract())
+        .transpose()?
+        .unwrap_or(false);
+
     Ok(OrchestratorConfig {
         ticks_per_day,
         eod_rush_threshold,
@@ -190,6 +197,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         lsm_config,
         scenario_events,
         queue1_ordering,
+        priority_mode,
     })
 }
 

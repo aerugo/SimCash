@@ -67,6 +67,7 @@ fn create_test_config() -> OrchestratorConfig {
         lsm_config: LsmConfig::default(),
         scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     }
 }
 
@@ -720,6 +721,7 @@ fn test_lsm_cycle_settlement_event() {
         },
         scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

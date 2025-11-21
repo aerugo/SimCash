@@ -44,6 +44,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     }
 }
 
@@ -340,6 +341,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -565,6 +567,7 @@ fn test_orchestrator_automatic_arrivals() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -625,6 +628,7 @@ fn test_orchestrator_arrival_determinism() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     // Run two simulations with same seed
@@ -705,6 +709,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -793,6 +798,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
         lsm_config: LsmConfig::default(),
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
