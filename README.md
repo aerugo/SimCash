@@ -31,6 +31,14 @@ A hybrid Rust-Python simulator for modeling Real-Time Gross Settlement (RTGS) sy
 - **Extensible**: Add custom policies via Rust or JSON
 - **LLM-Ready**: Structured format for AI-driven policy evolution
 
+### Priority System ✨ **NEW**
+
+- **Priority Distributions**: Transaction-level priority variation (Fixed, Categorical, Uniform)
+- **Queue 1 Priority Ordering**: Sort by priority then deadline (`queue1_ordering: "priority_deadline"`)
+- **T2 Priority Mode**: RTGS priority bands (Urgent 8-10, Normal 4-7, Low 0-3)
+- **Dynamic Escalation**: Auto-boost priority as deadlines approach (configurable curves)
+- **Priority Events**: `PriorityEscalated` events tracked and visible in verbose output
+
 ### Integration & Deployment
 
 - **REST API**: FastAPI with OpenAPI docs at `/docs`
@@ -1147,8 +1155,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Status**: Phase 7 (Integration) + Phase 10 (Persistence) + Phase 3.5 (T2 LSM) Complete | Ready for Phase 11 (LLM Manager)
-**Version**: 0.10.1 | **Tests**: 188+ passing | **Performance**: 1000+ ticks/s
+**Status**: Phase 7 (Integration) + Phase 10 (Persistence) + Phase 3.5 (T2 LSM) + Priority System Complete | Ready for Phase 11 (LLM Manager)
+**Version**: 0.11.0 | **Tests**: 220+ passing | **Performance**: 1000+ ticks/s
 **Next Milestone**: LLM-driven policy optimization with shadow replay validation (Phase 11)
 
 **Phase 10 Achievement**: Full database persistence with DuckDB + Polars (71 tests passing)

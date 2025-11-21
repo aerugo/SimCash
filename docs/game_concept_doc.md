@@ -74,6 +74,8 @@
 * `priority` — Urgency level (range: 0-10, default: 5, higher = more urgent)
   - Used by policies to order Queue 1 release decisions
   - Can optionally affect Queue 2 (RTGS) processing order if T2 priority mode enabled
+  - **Priority Distributions** ✨ NEW: Priority can vary per-transaction via distributions (Fixed, Categorical, Uniform)
+  - **Dynamic Escalation** ✨ NEW: Priority automatically boosts as deadline approaches (configurable)
 * `delay_penalty_slope p_k` — Cost per tick of delay in Queue 1
 * `split_friction f_s` — Cost per split when transaction is divided (see below)
 
@@ -85,6 +87,43 @@
 * `stagger_policy`: Whether all N children are submitted to RTGS immediately or staggered over ticks
 
 > **Note:** T2 offers priority and timed transaction features; simulator flags turn these on/off. ([European Central Bank][2])
+
+**Priority System Configuration** ✨ NEW:
+
+The simulator now supports T2-style priority handling through four complementary features:
+
+1. **Priority Distributions** — Transaction priorities vary via distributions:
+   ```yaml
+   arrival_config:
+     priority_distribution:
+       type: Categorical
+       values: [3, 5, 7, 9]
+       weights: [0.25, 0.50, 0.15, 0.10]
+   ```
+
+2. **Queue 1 Priority Ordering** — Internal bank queue sorted by priority:
+   ```yaml
+   queue_config:
+     queue1_ordering: "priority_deadline"  # or "fifo" (default)
+   ```
+   Sorting: priority (desc) → deadline (asc) → arrival (FIFO tiebreaker)
+
+3. **T2 Priority Mode** — RTGS Queue 2 priority bands:
+   ```yaml
+   rtgs_config:
+     priority_mode: true  # Default: false
+   ```
+   Priority Bands: Urgent (8-10) → Normal (4-7) → Low (0-3)
+
+4. **Dynamic Escalation** — Priority increases as deadline approaches:
+   ```yaml
+   priority_escalation:
+     enabled: true
+     curve: "linear"
+     start_escalating_at_ticks: 20
+     max_boost: 3
+   ```
+   Formula: `boost = max_boost × (1 - ticks_remaining / start_at_ticks)`
 
 **Transaction Lifecycle:**
 

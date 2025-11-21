@@ -1,9 +1,9 @@
 # Payment Simulator: Grand Plan 2.0
 ## From Foundation to Full Vision
 
-**Document Version**: 2.4
-**Date**: October 29, 2025
-**Status**: Foundation + Integration + Policy DSL Complete → Cost Model, Persistence & LLM Integration
+**Document Version**: 2.5
+**Date**: November 21, 2025
+**Status**: Foundation + Integration + Policy DSL + Priority System Complete → LLM Integration
 
 ---
 
@@ -29,7 +29,7 @@ The Rust core backend is **complete and battle-tested**:
 - ✅ **Phase 7**: Integration layer complete (PyO3 FFI, FastAPI, CLI tool)
 - ✅ **Phase 9 (DSL)**: Complete policy DSL infrastructure (~4,880 lines) with expression evaluator, JSON decision trees, validation pipeline, and 50+ field accessors
 
-**Test Coverage**: 117+ passing tests with zero failures (70+ Rust core + 24 FFI + 23 API integration), including critical invariants (determinism, balance conservation, gridlock resolution, T2-compliant LSM). Policy DSL has 940+ lines of tests.
+**Test Coverage**: 220+ passing tests with zero failures (102 Rust core + 24 FFI + 23 API integration + 38 priority system + 71 persistence), including critical invariants (determinism, balance conservation, gridlock resolution, T2-compliant LSM, priority ordering). Policy DSL has 940+ lines of tests.
 
 ### Where We're Going: Feature Expansion 🎯
 
@@ -59,6 +59,14 @@ The Rust core backend is **complete and battle-tested**:
   - ✅ Verbose output display for both live and replay modes
   - ✅ Pydantic validation schemas with FFI integration
   - ✅ 29 scenario event tests (all passing)
+- **Priority System**: ✅ **100% complete** (2025-11-21)
+  - ✅ Priority Distributions: Transaction-level priority variation (Fixed, Categorical, Uniform)
+  - ✅ Queue 1 Priority Ordering: Sort by priority (desc), deadline (asc), arrival (FIFO)
+  - ✅ T2 Priority Mode for Queue 2: Priority bands (Urgent 8-10, Normal 4-7, Low 0-3)
+  - ✅ Dynamic Priority Escalation: Auto-boost priority as deadlines approach (linear curve)
+  - ✅ PriorityEscalated events with CLI verbose output
+  - ✅ 38+ priority-related integration tests (all passing)
+  - ✅ Backward compatible: Existing configs work unchanged
 
 **Next Steps** (8-12 weeks):
 1. ❌ Phase 11: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
