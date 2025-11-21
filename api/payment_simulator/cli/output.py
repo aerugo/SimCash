@@ -1954,6 +1954,62 @@ def log_priority_escalation_events(events, quiet=False):
         )
 
 
+def log_transaction_reprioritized_events(events, quiet=False):
+    """Log transaction reprioritization events (Phase 4: Overdue Handling).
+
+    Displays when policy explicitly changes a transaction's priority.
+    This is different from PriorityEscalated - this is policy-driven,
+    while escalation is automatic deadline-based.
+
+    Args:
+        events: List of events from get_tick_events()
+        quiet: Suppress output if True
+
+    Example Output:
+        🔄 Policy Reprioritizations (2):
+           BANK_A:
+           • TX a1b2c3d4: 3 → 8 (overdue escalation)
+           • TX e5f6g7h8: 5 → 9 (urgent payment)
+    """
+    if quiet:
+        return
+
+    reprioritize_events = [e for e in events if e.get("event_type") == "TransactionReprioritized"]
+    if not reprioritize_events:
+        return
+
+    console.print()
+    console.print(f"🔄 [magenta]Policy Reprioritizations ({len(reprioritize_events)}):[/magenta]")
+
+    # Group by agent
+    by_agent = {}
+    for event in reprioritize_events:
+        agent_id = event.get("agent_id", "unknown")
+        if agent_id not in by_agent:
+            by_agent[agent_id] = []
+        by_agent[agent_id].append(event)
+
+    for agent_id, agent_events in by_agent.items():
+        console.print(f"   [bold]{agent_id}:[/bold]")
+        for event in agent_events:
+            tx_id = event.get("tx_id", "unknown")[:8]
+            old_priority = event.get("old_priority", 0)
+            new_priority = event.get("new_priority", 0)
+
+            # Color code based on direction of change
+            if new_priority > old_priority:
+                direction_str = f"[green]↑[/green]"
+            elif new_priority < old_priority:
+                direction_str = f"[red]↓[/red]"
+            else:
+                direction_str = "→"
+
+            console.print(
+                f"   • TX {tx_id}: {old_priority} {direction_str} {new_priority}"
+            )
+        console.print()
+
+
 def log_state_register_events(events, quiet=False):
     """Log state register update events (Phase 4.5: Policy micro-memory).
 

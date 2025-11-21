@@ -80,6 +80,7 @@ def display_tick_verbose_output(
         log_state_register_events,
         log_tick_summary,
         log_transaction_arrivals,
+        log_transaction_reprioritized_events,
         log_transaction_went_overdue_event,
         log_transactions_near_deadline,
     )
@@ -122,6 +123,11 @@ def display_tick_verbose_output(
     # SECTION 2.7: PRIORITY ESCALATION (Phase 5: Dynamic Priority)
     # ═══════════════════════════════════════════════════════════
     log_priority_escalation_events(display_events)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 2.8: POLICY REPRIORITIZATIONS (Phase 4: Overdue Handling)
+    # ═══════════════════════════════════════════════════════════
+    log_transaction_reprioritized_events(display_events)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 3: SETTLEMENTS (detailed with mechanisms)
