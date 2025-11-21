@@ -550,6 +550,41 @@ Example with start=20, max_boost=3:
 - `backend/src/ffi/types.rs` (FFI parsing)
 - All Rust test files updated for new config field
 
-### Phase 6: Priority Metrics - Pending
+### Phase 6: Priority Metrics ✅ COMPLETE
 
-Priority metrics and analysis not yet started.
+**Completed 2025-11-21**
+
+- 4 integration tests written and passing (`api/tests/integration/test_priority_metrics.py`)
+- Tests verify:
+  - Settlements can be queried by priority level
+  - Transactions include queue wait time information
+  - Escalation events are tracked
+  - Existing transaction structure preserved
+
+**Notes**:
+Priority metrics are available through existing transaction query APIs:
+- `get_transactions_for_day()` returns priority, arrival_tick, status
+- Settlements by priority can be computed from transaction list
+- Wait time computed as settlement_tick - arrival_tick
+- Escalation is implicitly tracked via priority changes
+
+No additional implementation was needed - the existing APIs provide
+sufficient data for priority analysis.
+
+---
+
+## Summary
+
+All priority system redesign phases are now complete:
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Priority Distributions | ✅ Complete |
+| 2 | Queue 1 Priority Ordering | ✅ Complete |
+| 3 | Payment Types | ⏭ Skipped (optional) |
+| 4 | T2 Priority Mode for Queue 2 | ✅ Complete |
+| 5 | Dynamic Priority Escalation | ✅ Complete |
+| 6 | Priority Metrics | ✅ Complete |
+
+**Total Tests**: 38 integration tests across 5 test files
+**All Tests Passing**: Yes
