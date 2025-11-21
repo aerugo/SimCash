@@ -425,3 +425,43 @@ rtgs_config:
 - [T2 Priority and Timed Transactions](docs/game_concept_doc.md:87)
 - Current implementation: `backend/src/models/transaction.rs:104-106`
 - Policy variables: `docs/policy_overview.md:40`
+
+---
+
+## Implementation Status
+
+### Phase 1: Priority Distributions ✅ COMPLETE
+
+**Implemented 2024-11-21**
+
+- Added `PriorityDistribution` types to Python schema (Fixed, Categorical, Uniform)
+- Added `priority_distribution` field to `ArrivalConfig` (backward compatible)
+- Implemented Rust `PriorityDistribution` enum with sampling logic
+- Updated FFI parsing to handle new format
+- **Tests**: 12 unit tests + 7 integration tests (all passing)
+- **Files changed**:
+  - `api/payment_simulator/config/schemas.py`
+  - `backend/src/arrivals/mod.rs`
+  - `backend/src/ffi/types.rs`
+  - All Rust test files updated
+
+### Phase 2: Queue 1 Priority Ordering 🔄 IN PROGRESS
+
+**TDD Tests Written 2024-11-21**
+
+- 8 integration tests written (`api/tests/integration/test_queue1_priority_ordering.py`)
+- Tests verify:
+  - Default FIFO behavior preserved
+  - `queue1_ordering: "priority_deadline"` config accepted
+  - Priority sorting (high priority first)
+  - Deadline tiebreaker (soonest deadline first within same priority)
+  - Policy evaluation respects queue order
+
+**Next Steps**:
+1. Add `queue1_ordering` to `OrchestratorConfig` (Rust)
+2. Parse in FFI (`backend/src/ffi/types.rs`)
+3. Modify queue iteration to sort when `priority_deadline` enabled
+
+### Phase 3-6: Pending
+
+Payment Types, T2 Priority Mode, Dynamic Escalation, and Metrics not yet started.
