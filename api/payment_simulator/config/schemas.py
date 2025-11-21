@@ -54,6 +54,72 @@ AmountDistribution = Union[
 
 
 # ============================================================================
+# Priority Distribution Schemas
+# ============================================================================
+
+class FixedPriorityDistribution(BaseModel):
+    """Fixed priority (all transactions get same value)."""
+    type: Literal["Fixed"] = "Fixed"
+    value: int = Field(..., description="Fixed priority value (0-10)", ge=0, le=10)
+
+
+class CategoricalPriorityDistribution(BaseModel):
+    """Categorical priority distribution (discrete values with weights)."""
+    type: Literal["Categorical"] = "Categorical"
+    values: List[int] = Field(..., description="Priority values to sample from")
+    weights: List[float] = Field(..., description="Weights for each value")
+
+    @field_validator("values")
+    @classmethod
+    def validate_values_range(cls, v):
+        """Validate all values are in range 0-10."""
+        for val in v:
+            if not 0 <= val <= 10:
+                raise ValueError(f"Priority value must be between 0 and 10, got {val}")
+        return v
+
+    @field_validator("weights")
+    @classmethod
+    def validate_weights_positive_sum(cls, v):
+        """Validate weights sum to positive value."""
+        if sum(v) <= 0:
+            raise ValueError("Weights must sum to positive value")
+        return v
+
+    @model_validator(mode="after")
+    def validate_lengths_match(self):
+        """Validate values and weights have same length."""
+        if len(self.values) != len(self.weights):
+            raise ValueError(
+                f"Values and weights must have same length: "
+                f"values={len(self.values)}, weights={len(self.weights)}"
+            )
+        return self
+
+
+class UniformPriorityDistribution(BaseModel):
+    """Uniform priority distribution (random integer in range)."""
+    type: Literal["Uniform"] = "Uniform"
+    min: int = Field(..., description="Minimum priority (inclusive)", ge=0, le=10)
+    max: int = Field(..., description="Maximum priority (inclusive)", ge=0, le=10)
+
+    @model_validator(mode="after")
+    def validate_min_max(self):
+        """Validate min <= max."""
+        if self.min > self.max:
+            raise ValueError(f"Max must be greater than or equal to min: min={self.min}, max={self.max}")
+        return self
+
+
+# Union type for priority distributions
+PriorityDistribution = Union[
+    FixedPriorityDistribution,
+    CategoricalPriorityDistribution,
+    UniformPriorityDistribution,
+]
+
+
+# ============================================================================
 # Arrival Configuration
 # ============================================================================
 
@@ -68,7 +134,12 @@ class ArrivalConfig(BaseModel):
     deadline_range: List[int] = Field(
         ..., description="[min_ticks, max_ticks] until deadline", min_length=2, max_length=2
     )
+    # Legacy single priority value (backward compatible)
     priority: int = Field(5, description="Transaction priority (0-10)", ge=0, le=10)
+    # New priority distribution (takes precedence over single priority)
+    priority_distribution: Optional[PriorityDistribution] = Field(
+        None, description="Priority distribution for generated transactions"
+    )
     divisible: bool = Field(False, description="Whether transactions can be split")
 
     @field_validator("deadline_range")
@@ -94,6 +165,37 @@ class ArrivalConfig(BaseModel):
         if total <= 0:
             raise ValueError("counterparty_weights must sum to positive value")
         return v
+
+    def get_effective_priority_config(self) -> dict:
+        """Get the effective priority configuration as FFI-compatible dict.
+
+        If priority_distribution is set, use it.
+        Otherwise, convert legacy priority to Fixed distribution.
+        """
+        if self.priority_distribution is not None:
+            return self._priority_distribution_to_dict(self.priority_distribution)
+        else:
+            # Convert legacy single priority to Fixed distribution
+            return {"type": "Fixed", "value": self.priority}
+
+    def _priority_distribution_to_dict(self, dist: PriorityDistribution) -> dict:
+        """Convert priority distribution to FFI dict format."""
+        if isinstance(dist, FixedPriorityDistribution):
+            return {"type": "Fixed", "value": dist.value}
+        elif isinstance(dist, CategoricalPriorityDistribution):
+            return {
+                "type": "Categorical",
+                "values": dist.values,
+                "weights": dist.weights,
+            }
+        elif isinstance(dist, UniformPriorityDistribution):
+            return {
+                "type": "Uniform",
+                "min": dist.min,
+                "max": dist.max,
+            }
+        else:
+            raise ValueError(f"Unknown priority distribution type: {type(dist)}")
 
 
 # ============================================================================
@@ -443,7 +545,7 @@ class SimulationConfig(BaseModel):
                 ),
                 "counterparty_weights": agent.arrival_config.counterparty_weights,
                 "deadline_range": agent.arrival_config.deadline_range,
-                "priority": agent.arrival_config.priority,
+                "priority_distribution": agent.arrival_config.get_effective_priority_config(),
                 "divisible": agent.arrival_config.divisible,
             }
 

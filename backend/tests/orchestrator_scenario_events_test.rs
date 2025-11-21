@@ -8,7 +8,7 @@ use payment_simulator_core_rs::{
     orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig},
     Orchestrator,
 };
-use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig};
+use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 use std::collections::HashMap;
 
@@ -68,7 +68,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                     },
                     counterparty_weights: HashMap::new(),
                     deadline_range: (10, 50),
-                    priority: 0,
+                    priority_distribution: PriorityDistribution::Fixed { value: 0 },
                     divisible: false,
                 }),
                 posted_collateral: None,
@@ -87,7 +87,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                     },
                     counterparty_weights: HashMap::new(),
                     deadline_range: (10, 50),
-                    priority: 0,
+                    priority_distribution: PriorityDistribution::Fixed { value: 0 },
                     divisible: false,
                 }),
                 posted_collateral: None,

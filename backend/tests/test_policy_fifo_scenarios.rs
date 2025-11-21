@@ -4,7 +4,7 @@
 //! FIFO is the simplest baseline policy that submits all queued transactions immediately.
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
 };
@@ -22,7 +22,7 @@ fn test_fifo_preserves_arrival_order() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 50),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -93,7 +93,7 @@ fn test_fifo_partial_submission() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 30),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -176,7 +176,7 @@ fn test_fifo_vs_deadline_under_pressure() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 12), // Tight deadlines
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 

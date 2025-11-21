@@ -7,7 +7,7 @@
 //! - Outperforms FIFO in deadline violation prevention
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
 };
@@ -76,7 +76,7 @@ fn test_deadline_policy_submits_urgent_arrivals() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (2, 20), // Mix of urgent and non-urgent
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -156,7 +156,7 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (3, 30), // Mix of very urgent and non-urgent
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -236,7 +236,7 @@ fn test_deadline_policy_vs_fifo_comparison() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 15), // Short deadlines to create pressure
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -333,7 +333,7 @@ fn test_deadline_policy_all_urgent_scenario() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (1, 3), // All very urgent (1-3 ticks)
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -406,7 +406,7 @@ fn test_deadline_policy_deadline_cascade() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 15), // Moderate deadlines
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 

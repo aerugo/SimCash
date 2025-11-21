@@ -4,7 +4,7 @@
 //! through settlement and LSM coordination.
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
     orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
     settlement::lsm::LsmConfig,
     Transaction,
@@ -531,7 +531,7 @@ fn test_orchestrator_automatic_arrivals() {
         },
         counterparty_weights: HashMap::new(), // Uniform selection
         deadline_range: (5, 15),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -590,7 +590,7 @@ fn test_orchestrator_arrival_determinism() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 20),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -660,7 +660,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
         },
         counterparty_weights: weights,
         deadline_range: (5, 15),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -756,7 +756,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 15),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 

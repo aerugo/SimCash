@@ -9,7 +9,7 @@
 //! - Queue integrity: No orphaned or duplicate transactions
 //! - Config matching: Reject state from different config
 
-use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig};
+use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use payment_simulator_core_rs::orchestrator::{
     AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
 };
@@ -83,7 +83,7 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
                         weights
                     },
                     deadline_range: (10, 50),
-                    priority: 5,
+                    priority_distribution: PriorityDistribution::Fixed { value: 5 },
                     divisible: false,
                 }),
                 posted_collateral: None,
@@ -106,7 +106,7 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
                         weights
                     },
                     deadline_range: (10, 50),
-                    priority: 5,
+                    priority_distribution: PriorityDistribution::Fixed { value: 5 },
                     divisible: false,
                 }),
                 posted_collateral: None,
@@ -282,7 +282,7 @@ fn test_determinism_after_restore() {
                         weights
                     },
                     deadline_range: (10, 50),
-                    priority: 5,
+                    priority_distribution: PriorityDistribution::Fixed { value: 5 },
                     divisible: false,
                 }),
                 posted_collateral: None,
@@ -305,7 +305,7 @@ fn test_determinism_after_restore() {
                         weights
                     },
                     deadline_range: (10, 50),
-                    priority: 5,
+                    priority_distribution: PriorityDistribution::Fixed { value: 5 },
                     divisible: false,
                 }),
                 posted_collateral: None,
@@ -382,7 +382,7 @@ fn test_balance_conservation_preserved() {
                         weights
                     },
                     deadline_range: (10, 50),
-                    priority: 5,
+                    priority_distribution: PriorityDistribution::Fixed { value: 5 },
                     divisible: false,
                 }),
                 posted_collateral: None,
@@ -405,7 +405,7 @@ fn test_balance_conservation_preserved() {
                         weights
                     },
                     deadline_range: (10, 50),
-                    priority: 5,
+                    priority_distribution: PriorityDistribution::Fixed { value: 5 },
                     divisible: false,
                 }),
                 posted_collateral: None,
