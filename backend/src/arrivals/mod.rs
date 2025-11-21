@@ -77,8 +77,11 @@ pub enum AmountDistribution {
 
 /// Generator for transaction arrivals across all agents.
 pub struct ArrivalGenerator {
-    /// Per-agent arrival configurations
+    /// Per-agent arrival configurations (modified by scenario events)
     configs: HashMap<String, ArrivalConfig>,
+
+    /// Base configurations (original rates, never modified)
+    base_configs: HashMap<String, ArrivalConfig>,
 
     /// All agent IDs (for counterparty selection)
     all_agent_ids: Vec<String>,
@@ -104,6 +107,7 @@ impl ArrivalGenerator {
         episode_end_tick: usize,
     ) -> Self {
         Self {
+            base_configs: configs.clone(), // Store original configs
             configs,
             all_agent_ids,
             next_tx_id: 0,
@@ -285,16 +289,28 @@ impl ArrivalGenerator {
     // ========================================================================
 
     /// Set arrival rate for a specific agent
+    ///
+    /// This sets both the current rate AND the base rate, so future
+    /// multipliers will be applied relative to this new rate.
     pub fn set_rate(&mut self, agent_id: &str, new_rate: f64) {
         if let Some(config) = self.configs.get_mut(agent_id) {
             config.rate_per_tick = new_rate;
         }
+        // Also update base rate so future multipliers use this as baseline
+        if let Some(base_config) = self.base_configs.get_mut(agent_id) {
+            base_config.rate_per_tick = new_rate;
+        }
     }
 
-    /// Multiply all arrival rates by a factor
+    /// Multiply all arrival rates by a factor (relative to base rates)
+    ///
+    /// Sets each agent's rate to: base_rate * multiplier
+    /// This ensures multipliers don't compound over time.
     pub fn multiply_all_rates(&mut self, multiplier: f64) {
-        for config in self.configs.values_mut() {
-            config.rate_per_tick *= multiplier;
+        for (agent_id, config) in self.configs.iter_mut() {
+            if let Some(base_config) = self.base_configs.get(agent_id) {
+                config.rate_per_tick = base_config.rate_per_tick * multiplier;
+            }
         }
     }
 
