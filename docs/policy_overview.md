@@ -122,3 +122,105 @@ The ultimate outcome of a policy tree evaluation is an **action**. The set of av
 *   **Collateral Tree Actions:** These determine the agent's collateral posture. `PostCollateral` and `WithdrawCollateral` actions can have their `amount` determined dynamically by evaluating expressions, allowing an agent to, for example, post exactly enough collateral to cover its `queue1_liquidity_gap`.
 
 By combining the rich set of available fields with configurable parameters and dynamic action properties, the policy system provides a vast and expressive framework for designing and testing sophisticated, autonomous agent behaviors in a complex payment ecosystem.
+
+---
+
+### 5. Priority System Configuration **✨ NEW**
+
+The priority system enables realistic transaction prioritization through four complementary features that work together to model T2-style payment handling.
+
+#### 5.1. Priority Distributions
+
+Instead of fixed per-agent priorities, transactions can have varying priorities via distributions:
+
+| Distribution Type | Configuration Example | Use Case |
+| :--- | :--- | :--- |
+| **Fixed** | `priority: 5` | Backward compatible, all transactions same priority |
+| **Categorical** | `priority_distribution: {type: Categorical, values: [3, 5, 7, 9], weights: [0.2, 0.5, 0.2, 0.1]}` | Realistic mix of urgent/normal/low priority |
+| **Uniform** | `priority_distribution: {type: Uniform, min: 2, max: 8}` | Random priority within range |
+
+**Key benefit:** Transactions from the same agent now have naturally different priorities, enabling meaningful intra-agent ordering decisions.
+
+#### 5.2. Queue 1 Priority Ordering
+
+Enable priority-based ordering for the internal bank queue:
+
+```yaml
+queue_config:
+  queue1_ordering: "priority_deadline"  # or "fifo" (default)
+```
+
+When enabled, Queue 1 is sorted by:
+1. **Priority** (descending) - higher priority first
+2. **Deadline** (ascending) - sooner deadline first
+3. **Arrival tick** (FIFO tiebreaker)
+
+**Impact on policy:** The `payment_tree` evaluates transactions in sorted order, so high-priority transactions are considered for release first.
+
+#### 5.3. T2 Priority Mode for Queue 2
+
+Enable T2-style priority band processing at the RTGS level:
+
+```yaml
+rtgs_config:
+  priority_mode: true  # Default: false
+```
+
+**Priority Bands:**
+| Band | Priority Range | Description |
+| :--- | :--- | :--- |
+| Urgent | 8-10 | Central bank operations, securities settlement, CLS |
+| Normal | 4-7 | Standard interbank payments |
+| Low | 0-3 | Discretionary payments |
+
+Queue 2 processes all Urgent transactions before Normal before Low, with FIFO preserved within each band.
+
+#### 5.4. Dynamic Priority Escalation
+
+Automatically boost priority as deadlines approach (prevents priority starvation):
+
+```yaml
+priority_escalation:
+  enabled: true
+  curve: "linear"
+  start_escalating_at_ticks: 20
+  max_boost: 3
+```
+
+**Escalation formula:** `boost = max_boost × (1 - ticks_remaining / start_at_ticks)`
+
+Example with start=20, max_boost=3:
+- 20 ticks remaining: +0 boost
+- 10 ticks remaining: +1.5 boost
+- 1 tick remaining: +3 boost (capped)
+
+**Events:** `PriorityEscalated` events are logged and visible in verbose CLI output.
+
+#### 5.5. Priority Fields in Policy Trees
+
+The following priority-related fields are available in policy expressions:
+
+| Field | Description | Available In |
+| :--- | :--- | :--- |
+| `priority` | Current transaction priority (0-10, may be escalated) | `payment_tree` |
+| `original_priority` | Initial priority before escalation | `payment_tree` |
+
+**Example policy pattern - Priority-based release:**
+```json
+{
+  "type": "condition",
+  "condition": {
+    "op": ">=",
+    "left": {"field": "priority"},
+    "right": {"value": 8.0}
+  },
+  "on_true": {
+    "type": "action",
+    "action": "Release"
+  },
+  "on_false": {
+    "type": "action",
+    "action": "Hold"
+  }
+}
+```
