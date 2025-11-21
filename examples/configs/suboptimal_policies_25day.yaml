@@ -154,16 +154,28 @@ scenario_events:
   # Day 17: Additional collateral to Big Bank B to stabilize
   - { type: CollateralAdjustment, agent: BIG_BANK_B, delta: 4000000, schedule: { type: OneTime, tick: 1580 } }
 
-  # Day 19: Large, urgent payment from the most cautious agent
-  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: BIG_BANK_A, amount: 9500000, deadline: 20, priority: 9, schedule: { type: OneTime, tick: 1820 } }
+  # Day 18: Proactive collateral before day 19 shock (PREVENTION)
+  - { type: CollateralAdjustment, agent: BIG_BANK_B, delta: 3000000, schedule: { type: OneTime, tick: 1750 } }
+  - { type: CollateralAdjustment, agent: BIG_BANK_A, delta: 3000000, schedule: { type: OneTime, tick: 1752 } }
 
-  # Day 22: Muted morning, followed by a sudden afternoon rush
+  # Day 19: Large, urgent payment from the most cautious agent (reduced from 9.5M to 6.5M)
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: BIG_BANK_A, amount: 6500000, deadline: 20, priority: 9, schedule: { type: OneTime, tick: 1820 } }
+
+  # Day 20: Mid-crisis collateral to prevent gridlock buildup
+  - { type: CollateralAdjustment, agent: BIG_BANK_B, delta: 4000000, schedule: { type: OneTime, tick: 1950 } }
+  - { type: CollateralAdjustment, agent: SMALL_BANK_A, delta: 3000000, schedule: { type: OneTime, tick: 1952 } }
+
+  # Day 21: Additional support to break any remaining gridlock
+  - { type: CollateralAdjustment, agent: BIG_BANK_A, delta: 2000000, schedule: { type: OneTime, tick: 2050 } }
+  - { type: CollateralAdjustment, agent: SMALL_BANK_B, delta: 2000000, schedule: { type: OneTime, tick: 2052 } }
+
+  # Day 22: Muted morning, followed by a moderate afternoon rush (reduced from 2.0x to 1.3x)
   - { type: GlobalArrivalRateChange, multiplier: 0.5, schedule: { type: OneTime, tick: 2110 } }
-  - { type: GlobalArrivalRateChange, multiplier: 2.0, schedule: { type: OneTime, tick: 2150 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.3, schedule: { type: OneTime, tick: 2150 } }
   - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 2180 } }
 
-  # Day 24: Targeted large payment causing stress
-  - { type: CustomTransactionArrival, from_agent: SMALL_BANK_A, to_agent: SMALL_BANK_B, amount: 8000000, deadline: 25, priority: 8, schedule: { type: OneTime, tick: 2410 } }
+  # Day 24: Targeted large payment causing stress (reduced from 8M to 6.5M)
+  - { type: CustomTransactionArrival, from_agent: SMALL_BANK_A, to_agent: SMALL_BANK_B, amount: 6500000, deadline: 25, priority: 8, schedule: { type: OneTime, tick: 2410 } }
   
   # *** RECOVERY MECHANISM 2 ***
   # Day 24 (Post-Shock): Additional collateral injections to help manage the liquidity crunch.
@@ -187,7 +199,7 @@ lsm_config:
   enable_bilateral: true
   enable_cycles: true
   max_cycle_length: 4
-  max_cycles_per_tick: 10
+  max_cycles_per_tick: 20  # Increased from 10 to help resolve gridlock during high stress
 
 cost_rates:
   # The high delay cost is the primary driver of the massive cost spikes for the cautious agents.
