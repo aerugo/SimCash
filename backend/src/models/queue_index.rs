@@ -39,16 +39,27 @@
 use std::collections::HashMap;
 
 /// Cached metrics for an agent's Queue 2 transactions
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AgentQueue2Metrics {
     /// Number of this agent's transactions in Queue 2
     pub count: usize,
 
     /// Nearest deadline among this agent's Queue 2 transactions
+    /// Default is usize::MAX (sentinel for "no deadline")
     pub nearest_deadline: usize,
 
     /// Total value of this agent's Queue 2 transactions
     pub total_value: i64,
+}
+
+impl Default for AgentQueue2Metrics {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            nearest_deadline: usize::MAX, // Sentinel: no transactions = no deadline
+            total_value: 0,
+        }
+    }
 }
 
 /// Agent-indexed view of RTGS queue for fast lookups
@@ -118,10 +129,7 @@ impl AgentQueueIndex {
                 metrics.count += 1;
                 metrics.total_value += tx.remaining_amount();
 
-                // Update nearest deadline (initialize to max first)
-                if metrics.nearest_deadline == 0 {
-                    metrics.nearest_deadline = usize::MAX;
-                }
+                // Update nearest deadline (default is usize::MAX, so min() will pick first tx deadline)
                 metrics.nearest_deadline = metrics.nearest_deadline.min(tx.deadline_tick());
             }
         }
@@ -204,7 +212,7 @@ mod tests {
         let metrics = index.get_metrics("BANK_A");
 
         assert_eq!(metrics.count, 0);
-        assert_eq!(metrics.nearest_deadline, 0);
+        assert_eq!(metrics.nearest_deadline, usize::MAX); // Sentinel for "no deadline"
         assert_eq!(metrics.total_value, 0);
     }
 
