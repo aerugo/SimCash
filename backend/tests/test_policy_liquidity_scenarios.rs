@@ -7,8 +7,8 @@
 //! - Urgency threshold tuning
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
 };
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 40), // Mix of urgent and non-urgent
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -60,6 +60,9 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -111,7 +114,7 @@ fn test_liquidity_aware_buffer_recovery() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (20, 50), // Non-urgent
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -145,6 +148,9 @@ fn test_liquidity_aware_buffer_recovery() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -219,7 +225,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 30),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -253,6 +259,9 @@ fn test_liquidity_aware_credit_limit_interaction() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -320,7 +329,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (3, 15), // Mix of deadlines
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -355,6 +364,9 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     // Aggressive (high urgency threshold = more overrides)
@@ -388,6 +400,9 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orch_conservative = Orchestrator::new(config_conservative).unwrap();

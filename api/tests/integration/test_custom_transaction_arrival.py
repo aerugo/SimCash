@@ -69,12 +69,13 @@ def test_custom_transaction_arrival_creates_pending_transaction():
     # Verify transaction settled immediately (BANK_A has sufficient liquidity)
     # BANK_A has 1M balance and transaction is only 50k, so it settles immediately
     all_events = orch.get_all_events()
-    settlement_events = [e for e in all_events if e.get("event_type") == "Settlement"]
+    # Use RtgsImmediateSettlement event type (Settlement was deprecated and removed)
+    settlement_events = [e for e in all_events if e.get("event_type") == "RtgsImmediateSettlement"]
     assert len(settlement_events) == 1, "Transaction should settle immediately at tick 5"
 
     settlement = settlement_events[0]
-    assert settlement["sender_id"] == "BANK_A"
-    assert settlement["receiver_id"] == "BANK_B"
+    assert settlement["sender"] == "BANK_A"
+    assert settlement["receiver"] == "BANK_B"
     assert settlement["amount"] == 50000
 
     # Verify balances changed immediately

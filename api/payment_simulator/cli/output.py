@@ -674,15 +674,32 @@ def log_settlement_details(provider, events, tick, num_settlements=None, quiet=F
     if rtgs_immediate:
         console.print(f"   [green]RTGS Immediate ({len(rtgs_immediate)}):[/green]")
         for event in rtgs_immediate:
-            tx_id = event.get("tx_id", "unknown")[:8]
+            full_tx_id = event.get("tx_id", "unknown")
+            tx_id = full_tx_id[:8]
             sender = event.get("sender", "unknown")
             receiver = event.get("receiver", "unknown")
             amount = event.get("amount", 0)
             balance_before = event.get("sender_balance_before")
             balance_after = event.get("sender_balance_after")
 
-            # Show basic settlement info
-            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f}")
+            # Get priority from transaction details
+            priority = event.get("priority")
+            if priority is None and provider:
+                tx_details = provider.get_transaction_details(full_tx_id)
+                if tx_details:
+                    priority = tx_details.get("priority", 5)
+            priority = priority if priority is not None else 5
+
+            # Color code priority
+            if priority >= 7:
+                priority_str = f"P:{priority} [red]HIGH[/red]"
+            elif priority >= 4:
+                priority_str = f"P:{priority} MED"
+            else:
+                priority_str = f"P:{priority} LOW"
+
+            # Show basic settlement info with priority
+            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f} | {priority_str}")
 
             # Show balance audit trail if available
             if balance_before is not None and balance_after is not None:
@@ -693,14 +710,31 @@ def log_settlement_details(provider, events, tick, num_settlements=None, quiet=F
     if queue_releases:
         console.print(f"   [yellow]Queue 2 Releases ({len(queue_releases)}):[/yellow]")
         for event in queue_releases:
-            tx_id = event.get("tx_id", "unknown")[:8]
+            full_tx_id = event.get("tx_id", "unknown")
+            tx_id = full_tx_id[:8]
             sender = event.get("sender", "unknown")
             receiver = event.get("receiver", "unknown")
             amount = event.get("amount", 0)
             wait_ticks = event.get("queue_wait_ticks", 0)
             reason = event.get("release_reason", "unknown")
 
-            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f}")
+            # Get priority from transaction details
+            priority = event.get("priority")
+            if priority is None and provider:
+                tx_details = provider.get_transaction_details(full_tx_id)
+                if tx_details:
+                    priority = tx_details.get("priority", 5)
+            priority = priority if priority is not None else 5
+
+            # Color code priority
+            if priority >= 7:
+                priority_str = f"P:{priority} [red]HIGH[/red]"
+            elif priority >= 4:
+                priority_str = f"P:{priority} MED"
+            else:
+                priority_str = f"P:{priority} LOW"
+
+            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f} | {priority_str}")
             console.print(f"     [dim]Queued for {wait_ticks} tick(s) | Released: {reason}[/dim]")
         console.print()
 
@@ -1872,6 +1906,52 @@ def log_overdue_transaction_settled_event(event: dict, quiet: bool = False) -> N
         f"Delay ${event['estimated_delay_cost'] / 100:,.2f} = "
         f"[bold red]${total_cost / 100:,.2f}[/bold red]"
     )
+
+
+def log_priority_escalation_events(events, quiet=False):
+    """Log priority escalation events (Phase 5: Dynamic Priority Escalation).
+
+    Displays when transaction priorities are boosted due to approaching deadlines.
+    This helps prevent low-priority transactions from being starved when they
+    become urgent.
+
+    Args:
+        events: List of events from get_tick_events()
+        quiet: Suppress output if True
+
+    Example Output:
+        📈 Priority Escalations (2):
+           • TX a1b2c3d4: 3 → 5 (+2 boost, 5 ticks until deadline)
+           • TX e5f6g7h8: 4 → 7 (+3 boost, 2 ticks until deadline)
+    """
+    if quiet:
+        return
+
+    escalation_events = [e for e in events if e.get("event_type") == "PriorityEscalated"]
+    if not escalation_events:
+        return
+
+    console.print()
+    console.print(f"📈 [cyan]Priority Escalations ({len(escalation_events)}):[/cyan]")
+
+    for event in escalation_events:
+        tx_id = event.get("tx_id", "unknown")[:8]
+        original = event.get("original_priority", 0)
+        escalated = event.get("escalated_priority", 0)
+        boost = event.get("boost_applied", 0)
+        ticks_left = event.get("ticks_until_deadline", 0)
+
+        # Color code based on urgency
+        if ticks_left <= 2:
+            urgency_str = f"[red]{ticks_left} ticks until deadline[/red]"
+        elif ticks_left <= 5:
+            urgency_str = f"[yellow]{ticks_left} ticks until deadline[/yellow]"
+        else:
+            urgency_str = f"{ticks_left} ticks until deadline"
+
+        console.print(
+            f"   • TX {tx_id}: {original} → {escalated} (+{boost} boost, {urgency_str})"
+        )
 
 
 def log_state_register_events(events, quiet=False):

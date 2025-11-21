@@ -105,6 +105,10 @@ pub struct Transaction {
     /// Default: 5, Range: 0-10
     priority: u8,
 
+    /// Original priority level before any escalation
+    /// Used for calculating escalation boost from original value
+    original_priority: u8,
+
     /// Current status
     status: TransactionStatus,
 
@@ -167,6 +171,7 @@ impl Transaction {
             arrival_tick,
             deadline_tick,
             priority: 5, // Default priority
+            original_priority: 5, // Original priority before escalation
             status: TransactionStatus::Pending,
             parent_id: None,
         }
@@ -237,6 +242,7 @@ impl Transaction {
             arrival_tick,
             deadline_tick,
             priority: 5, // Default priority (can be overridden with builder)
+            original_priority: 5, // Original priority before escalation
             status: TransactionStatus::Pending,
             parent_id: Some(parent_id),
         }
@@ -289,6 +295,7 @@ impl Transaction {
         status: TransactionStatus,
         parent_id: Option<String>,
     ) -> Self {
+        let capped_priority = priority.min(10);
         Self {
             id,
             sender_id,
@@ -297,7 +304,8 @@ impl Transaction {
             remaining_amount,
             arrival_tick,
             deadline_tick,
-            priority: priority.min(10),
+            priority: capped_priority,
+            original_priority: capped_priority, // Assume original equals current for snapshots
             status,
             parent_id,
         }
@@ -318,7 +326,9 @@ impl Transaction {
     /// ).with_priority(8);
     /// ```
     pub fn with_priority(mut self, priority: u8) -> Self {
-        self.priority = priority.min(10); // Cap at 10
+        let capped = priority.min(10); // Cap at 10
+        self.priority = capped;
+        self.original_priority = capped; // Set original priority too
         self
     }
 
@@ -365,6 +375,11 @@ impl Transaction {
     /// Get priority level
     pub fn priority(&self) -> u8 {
         self.priority
+    }
+
+    /// Get original priority level (before any escalation)
+    pub fn original_priority(&self) -> u8 {
+        self.original_priority
     }
 
     /// Get current status

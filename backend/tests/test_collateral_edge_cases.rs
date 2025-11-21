@@ -12,7 +12,7 @@
 // - State consistency and isolation
 
 use payment_simulator_core_rs::{
-    orchestrator::{AgentConfig, Orchestrator, OrchestratorConfig, PolicyConfig},
+    orchestrator::{AgentConfig, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::LsmConfig,
     CostRates,
 };
@@ -71,6 +71,9 @@ fn create_test_config_with_haircut(
         },
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     }
 }
 
@@ -631,6 +634,9 @@ fn test_cross_agent_collateral_isolation() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
@@ -761,6 +767,9 @@ fn test_hold_collateral_action_is_noop() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

@@ -8,8 +8,8 @@
 //! These tests verify performance, stability, and reasonable completion times.
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
 };
 use std::collections::HashMap;
@@ -28,7 +28,7 @@ fn test_high_frequency_arrivals_single_agent() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 20),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -62,6 +62,9 @@ fn test_high_frequency_arrivals_single_agent() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -131,7 +134,7 @@ fn test_sustained_high_load_100_ticks() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (10, 40),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -164,6 +167,9 @@ fn test_sustained_high_load_100_ticks() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -238,7 +244,7 @@ fn test_extreme_high_frequency_arrivals() {
         },
         counterparty_weights: HashMap::new(),
         deadline_range: (5, 15),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -269,6 +275,9 @@ fn test_extreme_high_frequency_arrivals() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -332,7 +341,7 @@ fn test_50_agent_high_frequency_simulation() {
         },
         counterparty_weights: HashMap::new(), // Uniform selection across 49 counterparties
         deadline_range: (10, 30),
-        priority: 0,
+        priority_distribution: PriorityDistribution::Fixed { value: 0 },
         divisible: false,
     };
 
@@ -368,6 +377,9 @@ fn test_50_agent_high_frequency_simulation() {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
             scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     println!("Initializing 50-agent simulation...");

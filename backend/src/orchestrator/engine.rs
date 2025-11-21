@@ -129,6 +129,96 @@ pub struct OrchestratorConfig {
     /// Scheduled events that modify simulation state at specific ticks
     #[serde(default)]
     pub scenario_events: Option<Vec<crate::events::ScheduledEvent>>,
+
+    /// Queue 1 ordering strategy (default: FIFO)
+    /// - "fifo": First-In-First-Out (default, backward compatible)
+    /// - "priority_deadline": Sort by priority (descending), then deadline (ascending)
+    #[serde(default)]
+    pub queue1_ordering: Queue1Ordering,
+
+    /// T2-style Queue 2 priority mode (default: false)
+    /// When enabled, Queue 2 processes transactions by priority bands:
+    /// - Urgent (8-10): Processed first
+    /// - Normal (4-7): Processed second
+    /// - Low (0-3): Processed last
+    /// Within each band, FIFO ordering is preserved.
+    #[serde(default)]
+    pub priority_mode: bool,
+
+    /// Dynamic priority escalation configuration (default: disabled)
+    /// When enabled, transaction priorities are boosted as deadlines approach.
+    #[serde(default)]
+    pub priority_escalation: PriorityEscalationConfig,
+}
+
+/// Priority escalation configuration
+///
+/// Automatically boosts transaction priority as the deadline approaches.
+/// This prevents low-priority transactions from being starved when they
+/// become urgent due to time pressure.
+///
+/// # Escalation Formula (linear)
+///
+/// ```text
+/// boost = max_boost * (1 - ticks_remaining / start_escalating_at_ticks)
+/// ```
+///
+/// Example with start_escalating_at_ticks=20, max_boost=3:
+/// - 20 ticks remaining: +0 boost
+/// - 10 ticks remaining: +1.5 boost
+/// - 5 ticks remaining: +2.25 boost
+/// - 1 tick remaining: +3 boost (capped)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PriorityEscalationConfig {
+    /// Whether priority escalation is enabled
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Escalation curve type (currently only "linear" supported)
+    #[serde(default = "default_escalation_curve")]
+    pub curve: String,
+
+    /// Number of ticks before deadline when escalation starts
+    #[serde(default = "default_start_escalating_at_ticks")]
+    pub start_escalating_at_ticks: usize,
+
+    /// Maximum priority boost (capped at this value)
+    #[serde(default = "default_max_boost")]
+    pub max_boost: u8,
+}
+
+impl Default for PriorityEscalationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            curve: "linear".to_string(),
+            start_escalating_at_ticks: 20,
+            max_boost: 3,
+        }
+    }
+}
+
+fn default_escalation_curve() -> String {
+    "linear".to_string()
+}
+
+fn default_start_escalating_at_ticks() -> usize {
+    20
+}
+
+fn default_max_boost() -> u8 {
+    3
+}
+
+/// Queue 1 ordering strategy
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Queue1Ordering {
+    /// First-In-First-Out ordering (default)
+    #[default]
+    Fifo,
+    /// Priority-deadline ordering: high priority first, then soonest deadline
+    PriorityDeadline,
 }
 
 /// Per-agent configuration
@@ -780,6 +870,9 @@ impl Orchestrator {
     ///     cost_rates: Default::default(),
     ///     lsm_config: LsmConfig::default(),
     ///     scenario_events: None,
+    ///     queue1_ordering: Default::default(),
+    ///     priority_mode: false,
+    ///     priority_escalation: Default::default(),
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -1477,6 +1570,18 @@ impl Orchestrator {
     /// central queue for liquidity to become available.
     pub fn get_queue2_size(&self) -> usize {
         self.state.queue_size()
+    }
+
+    /// Get contents of RTGS queue (Queue 2)
+    ///
+    /// Returns a vector of transaction IDs currently in the central RTGS queue,
+    /// preserving queue order.
+    ///
+    /// # Returns
+    ///
+    /// Vector of transaction IDs in queue order.
+    pub fn get_queue2_contents(&self) -> Vec<String> {
+        self.state.rtgs_queue().clone()
     }
 
     /// Get contents of agent's internal queue (Queue 1)
@@ -2712,6 +2817,16 @@ impl Orchestrator {
             .into_iter()
             .collect();
 
+        // Apply priority escalation before queue sorting (Phase 5)
+        // This boosts priorities of transactions approaching their deadline
+        self.apply_priority_escalation(current_tick);
+
+        // Apply queue ordering based on config (Phase 2: Priority Ordering)
+        // When PriorityDeadline: sort by priority (desc), then deadline (asc)
+        for agent_id in &agents_with_queues {
+            self.sort_agent_queue(agent_id);
+        }
+
         for agent_id in agents_with_queues {
             // Get agent and policy
             let agent = self
@@ -3225,6 +3340,10 @@ impl Orchestrator {
 
         // STEP 4: PROCESS RTGS QUEUE (Queue 2)
         // Retry queued transactions
+
+        // Sort Queue 2 by priority bands if priority_mode is enabled
+        self.sort_queue2_by_priority_bands();
+
         let rtgs_queue_start = Instant::now();
         let queue_result = rtgs::process_queue(&mut self.state, current_tick);
         num_settlements += queue_result.settled_count;
@@ -3722,6 +3841,215 @@ impl Orchestrator {
         // Example: 2 bps on $1M = $1M × (2/10,000) = $200
         let cost = collateral_amount * (self.cost_rates.collateral_cost_per_tick_bps / 10_000.0);
         cost.round() as i64
+    }
+
+    /// Sort an agent's Queue 1 based on queue1_ordering configuration
+    ///
+    /// When queue1_ordering is PriorityDeadline:
+    /// - Higher priority transactions come first (descending)
+    /// - For same priority, earlier deadline comes first (ascending)
+    ///
+    /// When queue1_ordering is Fifo (default):
+    /// - No sorting - maintains insertion order
+    ///
+    /// This method mutates the agent's queue in place.
+    fn sort_agent_queue(&mut self, agent_id: &str) {
+        // Only sort if PriorityDeadline ordering is configured
+        if self.config.queue1_ordering != Queue1Ordering::PriorityDeadline {
+            return;
+        }
+
+        // Get agent's current queue
+        let queue = match self.state.get_agent(agent_id) {
+            Some(agent) => agent.outgoing_queue().to_vec(),
+            None => return,
+        };
+
+        if queue.len() <= 1 {
+            return; // Nothing to sort
+        }
+
+        // Collect (tx_id, priority, deadline) for sorting
+        let mut tx_info: Vec<(String, u8, usize)> = queue
+            .iter()
+            .filter_map(|tx_id| {
+                self.state.get_transaction(tx_id).map(|tx| {
+                    (tx_id.clone(), tx.priority(), tx.deadline_tick())
+                })
+            })
+            .collect();
+
+        // Sort by priority (descending), then deadline (ascending)
+        tx_info.sort_by(|a, b| {
+            // Higher priority first
+            match b.1.cmp(&a.1) {
+                std::cmp::Ordering::Equal => {
+                    // Same priority: earlier deadline first
+                    a.2.cmp(&b.2)
+                }
+                other => other,
+            }
+        });
+
+        // Extract sorted tx_ids
+        let sorted_ids: Vec<String> = tx_info.into_iter().map(|(id, _, _)| id).collect();
+
+        // Replace agent's queue with sorted version
+        if let Some(agent) = self.state.get_agent_mut(agent_id) {
+            agent.replace_outgoing_queue(sorted_ids);
+        }
+    }
+
+    /// Apply dynamic priority escalation to all pending transactions
+    ///
+    /// When `priority_escalation.enabled` is true, this method boosts transaction
+    /// priorities as their deadlines approach. This prevents low-priority transactions
+    /// from being starved when they become urgent due to time pressure.
+    ///
+    /// # Escalation Formula (linear)
+    ///
+    /// ```text
+    /// ticks_remaining = deadline - current_tick
+    /// if ticks_remaining <= start_escalating_at_ticks:
+    ///     progress = 1 - (ticks_remaining / start_escalating_at_ticks)
+    ///     boost = max_boost * progress
+    ///     new_priority = min(10, original_priority + boost)
+    /// ```
+    fn apply_priority_escalation(&mut self, current_tick: usize) {
+        if !self.config.priority_escalation.enabled {
+            return;
+        }
+
+        let start_at = self.config.priority_escalation.start_escalating_at_ticks;
+        let max_boost = self.config.priority_escalation.max_boost;
+
+        // Collect all transaction IDs that need escalation, along with their original priority
+        let tx_data: Vec<(String, String, u8, usize)> = self.state.transactions()
+            .iter()
+            .filter(|(_, tx)| !tx.is_fully_settled())
+            .map(|(id, tx)| (id.clone(), tx.sender_id().to_string(), tx.original_priority(), tx.deadline_tick()))
+            .collect();
+
+        for (tx_id, sender_id, original_priority, deadline) in tx_data {
+            let ticks_remaining = if deadline > current_tick {
+                deadline - current_tick
+            } else {
+                0 // Past deadline
+            };
+
+            // Only escalate if within the escalation window
+            if ticks_remaining <= start_at {
+                // Calculate progress through escalation window (0.0 to 1.0)
+                let progress = if start_at > 0 {
+                    1.0 - (ticks_remaining as f64 / start_at as f64)
+                } else {
+                    1.0
+                };
+
+                // Calculate boost (linear curve)
+                let boost = (max_boost as f64 * progress).round() as u8;
+
+                // Apply boost to original priority, capped at 10
+                let escalated_priority = std::cmp::min(10, original_priority.saturating_add(boost));
+
+                // Check current priority and update if needed
+                let should_emit_event = if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                    let current_priority = tx.priority();
+
+                    // Only update and emit event if priority actually increased
+                    if escalated_priority > current_priority {
+                        tx.set_priority(escalated_priority);
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                // Emit event outside of the mutable borrow
+                if should_emit_event {
+                    self.event_log.log(Event::PriorityEscalated {
+                        tick: current_tick,
+                        tx_id: tx_id.clone(),
+                        sender_id,
+                        original_priority,
+                        escalated_priority,
+                        ticks_until_deadline: ticks_remaining,
+                        boost_applied: boost,
+                    });
+                }
+            }
+        }
+    }
+
+    /// Sort Queue 2 (RTGS queue) by T2-style priority bands
+    ///
+    /// When `priority_mode` is enabled, Queue 2 is sorted by priority bands:
+    /// - Urgent (8-10): Processed first
+    /// - Normal (4-7): Processed second
+    /// - Low (0-3): Processed last
+    ///
+    /// Within each band, FIFO ordering is preserved (original insertion order).
+    ///
+    /// # Priority Bands (T2-style)
+    ///
+    /// | Band   | Priority | Description |
+    /// |--------|----------|-------------|
+    /// | Urgent | 8-10     | Time-critical payments, securities settlement |
+    /// | Normal | 4-7      | Standard interbank payments |
+    /// | Low    | 0-3      | Discretionary payments |
+    fn sort_queue2_by_priority_bands(&mut self) {
+        // Only sort if priority_mode is enabled
+        if !self.config.priority_mode {
+            return;
+        }
+
+        let queue = self.state.rtgs_queue().clone();
+        if queue.len() <= 1 {
+            return; // Nothing to sort
+        }
+
+        // Collect (tx_id, priority, original_index) for stable sorting
+        let mut tx_info: Vec<(String, u8, usize)> = queue
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, tx_id)| {
+                self.state.get_transaction(tx_id).map(|tx| {
+                    (tx_id.clone(), tx.priority(), idx)
+                })
+            })
+            .collect();
+
+        // Helper function to get priority band (0=low, 1=normal, 2=urgent)
+        fn priority_band(priority: u8) -> u8 {
+            match priority {
+                8..=10 => 2, // Urgent
+                4..=7 => 1,  // Normal
+                _ => 0,      // Low (0-3)
+            }
+        }
+
+        // Sort by priority band (descending), then by original index (ascending, FIFO)
+        tx_info.sort_by(|a, b| {
+            let band_a = priority_band(a.1);
+            let band_b = priority_band(b.1);
+
+            // Higher band first (urgent before normal before low)
+            match band_b.cmp(&band_a) {
+                std::cmp::Ordering::Equal => {
+                    // Same band: preserve FIFO (original index)
+                    a.2.cmp(&b.2)
+                }
+                other => other,
+            }
+        });
+
+        // Extract sorted tx_ids
+        let sorted_ids: Vec<String> = tx_info.into_iter().map(|(id, _, _)| id).collect();
+
+        // Replace RTGS queue with sorted version
+        *self.state.rtgs_queue_mut() = sorted_ids;
     }
 
     /// Handle end-of-day processing

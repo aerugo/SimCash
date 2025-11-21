@@ -26,8 +26,8 @@
 //! manual injection is for testing, not real simulation arrivals.
 
 use payment_simulator_core_rs::{
-    arrivals::{AmountDistribution, ArrivalConfig},
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig},
+    arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
     Transaction,
 };
@@ -66,6 +66,9 @@ fn create_test_config() -> OrchestratorConfig {
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     }
 }
 
@@ -145,7 +148,7 @@ fn test_arrival_events_for_automatic_transactions() {
             weights
         },
         deadline_range: (10, 50),
-        priority: 5,
+        priority_distribution: PriorityDistribution::Fixed { value: 5 },
         divisible: true,
     });
 
@@ -718,6 +721,9 @@ fn test_lsm_cycle_settlement_event() {
             max_cycles_per_tick: 10,
         },
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

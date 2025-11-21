@@ -5,10 +5,10 @@
 
 use payment_simulator_core_rs::{
     events::{EventSchedule, ScenarioEvent, ScheduledEvent},
-    orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig},
+    orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     Orchestrator,
 };
-use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig};
+use payment_simulator_core_rs::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 use std::collections::HashMap;
 
@@ -44,6 +44,9 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
         scenario_events: Some(events),
     }
 }
@@ -68,7 +71,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                     },
                     counterparty_weights: HashMap::new(),
                     deadline_range: (10, 50),
-                    priority: 0,
+                    priority_distribution: PriorityDistribution::Fixed { value: 0 },
                     divisible: false,
                 }),
                 posted_collateral: None,
@@ -87,7 +90,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                     },
                     counterparty_weights: HashMap::new(),
                     deadline_range: (10, 50),
-                    priority: 0,
+                    priority_distribution: PriorityDistribution::Fixed { value: 0 },
                     divisible: false,
                 }),
                 posted_collateral: None,
@@ -96,6 +99,9 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
         scenario_events: Some(events),
     }
 }

@@ -734,6 +734,32 @@ impl Agent {
         }
     }
 
+    /// Replace the entire outgoing queue with a new sorted list
+    ///
+    /// Used by the orchestrator to apply queue ordering (priority/deadline sorting).
+    /// This replaces the queue contents while preserving any other agent state.
+    ///
+    /// # Arguments
+    /// * `new_queue` - New ordered list of transaction IDs
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.queue_outgoing("tx_001".to_string());
+    /// agent.queue_outgoing("tx_002".to_string());
+    ///
+    /// // Reorder: tx_002 before tx_001
+    /// agent.replace_outgoing_queue(vec!["tx_002".to_string(), "tx_001".to_string()]);
+    ///
+    /// assert_eq!(agent.outgoing_queue()[0], "tx_002");
+    /// assert_eq!(agent.outgoing_queue()[1], "tx_001");
+    /// ```
+    pub fn replace_outgoing_queue(&mut self, new_queue: Vec<String>) {
+        self.outgoing_queue = new_queue;
+    }
+
     /// Add expected incoming transaction (for forecasting)
     ///
     /// When another bank submits a payment to this agent, the TX ID

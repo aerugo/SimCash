@@ -2,8 +2,7 @@
 // Tests multi-day simulations with GNB, ARB, and MIB policies
 
 use payment_simulator_core_rs::orchestrator::{
-    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig,
-};
+    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering};
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 use std::{fs, path::PathBuf};
 
@@ -80,6 +79,9 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
             max_cycles_per_tick: 10,
         },
         scenario_events: None,
+        queue1_ordering: Queue1Ordering::default(),
+        priority_mode: false,
+        priority_escalation: Default::default(),
     }
 }
 
