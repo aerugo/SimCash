@@ -442,9 +442,13 @@ impl EvalContext {
         );
 
         // Derived collateral metrics for policy decisions
+        // Required collateral = credit usage beyond unsecured cap / (1 - haircut)
+        // Cap unsecured_cap at credit_used to prevent negative values when not using credit
         let required_collateral_for_usage = if agent.collateral_haircut() < 1.0 {
             let one_minus_h = (1.0 - agent.collateral_haircut()).max(0.0);
-            let usage_after_unsecured = agent.credit_used().saturating_sub(agent.unsecured_cap());
+            let credit_used = agent.credit_used();
+            let unsecured_contribution = agent.unsecured_cap().min(credit_used);
+            let usage_after_unsecured = credit_used - unsecured_contribution;
             ((usage_after_unsecured as f64) / one_minus_h).ceil()
         } else {
             0.0
@@ -743,9 +747,13 @@ impl EvalContext {
         );
 
         // Derived collateral metrics for end-of-tick decisions
+        // Required collateral = credit usage beyond unsecured cap / (1 - haircut)
+        // Cap unsecured_cap at credit_used to prevent negative values when not using credit
         let required_collateral_for_usage = if agent.collateral_haircut() < 1.0 {
             let one_minus_h = (1.0 - agent.collateral_haircut()).max(0.0);
-            let usage_after_unsecured = agent.credit_used().saturating_sub(agent.unsecured_cap());
+            let credit_used = agent.credit_used();
+            let unsecured_contribution = agent.unsecured_cap().min(credit_used);
+            let usage_after_unsecured = credit_used - unsecured_contribution;
             ((usage_after_unsecured as f64) / one_minus_h).ceil()
         } else {
             0.0
