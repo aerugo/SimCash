@@ -52,7 +52,7 @@ agents:
       type: "FromJson"
       json_path: "backend/policies/cautious_liquidity_preserver.json"
     arrival_config:  # Log-normal distribution to introduce variability in payment sizes.
-      rate_per_tick: 0.13
+      rate_per_tick: 0.78  # Adjusted from 0.13 (6x) to compensate for rate compounding bug fix
       amount_distribution: { type: "LogNormal", mean: 11.51, std_dev: 0.8 } # Mean ~$100,000
       counterparty_weights: { SMALL_BANK_A: 0.32, BIG_BANK_B: 0.35, SMALL_BANK_B: 0.32 }
       deadline_range: [40, 80]
@@ -66,7 +66,7 @@ agents:
       type: "FromJson"
       json_path: "backend/policies/cautious_liquidity_preserver.json"
     arrival_config:
-      rate_per_tick: 0.13
+      rate_per_tick: 0.78  # Adjusted from 0.13 (6x) to compensate for rate compounding bug fix
       amount_distribution: { type: "LogNormal", mean: 11.51, std_dev: 0.8 } # Mean ~$100,000
       counterparty_weights: { BIG_BANK_A: 0.35, SMALL_BANK_A: 0.35, SMALL_BANK_B: 0.35 }
       deadline_range: [30, 70]
@@ -80,7 +80,7 @@ agents:
       type: "FromJson"
       json_path: "backend/policies/efficient_memory_adaptive.json"
     arrival_config:
-      rate_per_tick: 0.11
+      rate_per_tick: 0.66  # Adjusted from 0.11 (6x) to compensate for rate compounding bug fix
       amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
       counterparty_weights: { BIG_BANK_A: 0.35, BIG_BANK_B: 0.30, SMALL_BANK_B: 0.35 }
       deadline_range: [35, 75]
@@ -94,7 +94,7 @@ agents:
       type: "FromJson"
       json_path: "backend/policies/cautious_liquidity_preserver.json"
     arrival_config:
-      rate_per_tick: 0.11
+      rate_per_tick: 0.66  # Adjusted from 0.11 (6x) to compensate for rate compounding bug fix
       amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
       counterparty_weights: { BIG_BANK_A: 0.35, SMALL_BANK_A: 0.35, BIG_BANK_B: 0.30 }
       deadline_range: [35, 75]
