@@ -1512,6 +1512,140 @@ Adapt behavior based on time of day and EOD rush.
 - At 50% of day: require `amount * 1.5x` buffer
 - At 100% of day: require `amount * 1.0x` buffer (no buffer)
 
+### Priority System Features **✨ NEW**
+
+The priority system enables transaction-level priority variation and intelligent queue ordering. These features work together to model T2-style priority handling.
+
+#### Priority Distributions
+
+Instead of fixed per-agent priorities, transactions can have varying priorities via distributions:
+
+**Fixed Priority** (backward compatible):
+```yaml
+arrival_config:
+  priority: 5  # All transactions get priority 5
+```
+
+**Categorical Distribution**:
+```yaml
+arrival_config:
+  priority_distribution:
+    type: Categorical
+    values: [3, 5, 7, 9]
+    weights: [0.25, 0.50, 0.15, 0.10]  # 10% urgent, 15% high, 50% normal, 25% low
+```
+
+**Uniform Distribution**:
+```yaml
+arrival_config:
+  priority_distribution:
+    type: Uniform
+    min: 2
+    max: 8
+```
+
+**Benefits**:
+- Heterogeneous priorities from the same agent (realistic)
+- Priority becomes meaningful for intra-agent transaction ordering
+- Deterministic (same seed produces identical priority sequences)
+
+#### Queue 1 Priority Ordering
+
+Enable priority-based ordering for Queue 1 (internal bank queue):
+
+```yaml
+queue_config:
+  queue1_ordering: "priority_deadline"  # or "fifo" (default)
+```
+
+**Ordering behavior** (when `priority_deadline`):
+1. **Primary**: Priority (descending - higher priority first)
+2. **Secondary**: Deadline (ascending - sooner deadline first)
+3. **Tertiary**: Arrival tick (FIFO tiebreaker)
+
+**Impact on policy evaluation**:
+- Policy evaluates transactions in sorted order
+- High-priority transactions considered first
+- Release budgets (from `bank_tree`) apply to sorted order
+
+#### T2 Priority Mode for Queue 2
+
+Enable T2-style priority band processing at the RTGS level:
+
+```yaml
+rtgs_config:
+  priority_mode: true  # Default: false
+```
+
+**Priority Bands (T2-style)**:
+| Band | Priority | Description |
+|------|----------|-------------|
+| Urgent | 8-10 | Processed first (securities settlement, CLS) |
+| Normal | 4-7 | Processed second (standard interbank) |
+| Low | 0-3 | Processed last (discretionary payments) |
+
+**Behavior**:
+- Queue 2 processes all Urgent transactions before Normal before Low
+- FIFO ordering preserved within each band
+- Useful for modeling T2's actual priority handling
+
+#### Dynamic Priority Escalation
+
+Automatically boost priority as deadlines approach (prevents starvation):
+
+```yaml
+priority_escalation:
+  enabled: true
+  curve: "linear"              # Currently only "linear" supported
+  start_escalating_at_ticks: 20
+  max_boost: 3
+```
+
+**Escalation Formula (linear)**:
+```
+progress = 1 - (ticks_remaining / start_escalating_at_ticks)
+boost = max_boost * progress
+new_priority = min(10, original_priority + boost)
+```
+
+**Example with start=20, max_boost=3**:
+- 20 ticks remaining: +0 boost
+- 10 ticks remaining: +1.5 boost
+- 5 ticks remaining: +2.25 boost
+- 1 tick remaining: +3 boost (max)
+
+**Events**:
+- `PriorityEscalated` events are emitted when priority changes
+- Visible in verbose CLI output with old/new priority values
+- Escalation happens before queue sorting each tick
+
+**Example - Full Priority Configuration**:
+```yaml
+simulation:
+  ticks_per_day: 100
+
+agents:
+  - id: BANK_A
+    arrival_config:
+      priority_distribution:
+        type: Categorical
+        values: [3, 5, 7, 9]
+        weights: [0.2, 0.5, 0.2, 0.1]
+
+queue_config:
+  queue1_ordering: "priority_deadline"
+
+rtgs_config:
+  priority_mode: true
+
+priority_escalation:
+  enabled: true
+  start_escalating_at_ticks: 15
+  max_boost: 2
+```
+
+---
+
 ### Dynamic Action Parameters (Phase 9.5.3)
 
 Compute action parameters based on context instead of using fixed values.
@@ -2305,6 +2439,6 @@ python -m payment_simulator.cli run --config test_config.yaml --ticks 100
 
 ---
 
-*Last updated: 2025-11-01*
+*Last updated: 2025-11-21*
 *DSL Version: 1.0*
-*Phase 9.5 features included*
+*Phase 9.5 + Priority System features included*
