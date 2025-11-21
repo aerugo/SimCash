@@ -78,7 +78,7 @@ agents:
     unsecured_cap: 4500000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/efficient_memory_adaptive.json"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
     arrival_config:
       rate_per_tick: 0.66  # Adjusted from 0.11 (6x) to compensate for rate compounding bug fix
       amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
@@ -92,7 +92,7 @@ agents:
     unsecured_cap: 4500000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "backend/policies/efficient_proactive.json"
     arrival_config:
       rate_per_tick: 0.66  # Adjusted from 0.11 (6x) to compensate for rate compounding bug fix
       amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
