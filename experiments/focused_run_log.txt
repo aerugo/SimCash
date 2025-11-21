@@ -1,0 +1,74 @@
+=========================================
+Running Focused Policy Experiments
+=========================================
+1/6: Baseline (all cautious + 1 efficient_memory)
+Initializing database schema...
+  ✓ Schema initialized
+ℹ   Persisted 38 transactions for day 0
+ℹ   Persisted 4 agent metrics for day 0
+ℹ   Persisted 57 transactions for day 1
+ℹ   Persisted 4 agent metrics for day 1
+ℹ   Persisted 80 transactions for day 2
+ℹ   Persisted 4 agent metrics for day 2
+ℹ   Persisted 60 transactions for day 3
+ℹ   Persisted 4 agent metrics for day 3
+ℹ   Persisted 195 transactions for day 4
+ℹ   Persisted 4 agent metrics for day 4
+ℹ   Persisted 1 queue snapshots for day 4
+ℹ   Persisted 179 transactions for day 5
+ℹ   Persisted 4 agent metrics for day 5
+ℹ   Persisted 4 queue snapshots for day 5
+ℹ   Persisted 165 transactions for day 6
+ℹ   Persisted 4 agent metrics for day 6
+ℹ   Persisted 196 transactions for day 7
+ℹ   Persisted 4 agent metrics for day 7
+ℹ   Persisted 224 transactions for day 8
+ℹ   Persisted 4 agent metrics for day 8
+ℹ   Persisted 11 queue snapshots for day 8
+ℹ   Persisted 210 transactions for day 9
+ℹ   Persisted 4 agent metrics for day 9
+ℹ   Persisted 9 queue snapshots for day 9
+ℹ   Persisted 195 transactions for day 10
+ℹ   Persisted 4 agent metrics for day 10
+ℹ   Persisted 200 transactions for day 11
+ℹ   Persisted 4 agent metrics for day 11
+ℹ   Persisted 1 queue snapshots for day 11
+ℹ   Persisted 189 transactions for day 12
+ℹ   Persisted 4 agent metrics for day 12
+ℹ   Persisted 35 queue snapshots for day 12
+ℹ   Persisted 205 transactions for day 13
+ℹ   Persisted 4 agent metrics for day 13
+ℹ   Persisted 37 queue snapshots for day 13
+ℹ   Persisted 201 transactions for day 14
+ℹ   Persisted 4 agent metrics for day 14
+ℹ   Persisted 45 queue snapshots for day 14
+ℹ   Persisted 297 transactions for day 15
+ℹ   Persisted 4 agent metrics for day 15
+ℹ   Persisted 61 queue snapshots for day 15
+ℹ   Persisted 485 transactions for day 16
+ℹ   Persisted 4 agent metrics for day 16
+ℹ   Persisted 93 queue snapshots for day 16
+ℹ   Persisted 492 transactions for day 17
+ℹ   Persisted 4 agent metrics for day 17
+ℹ   Persisted 114 queue snapshots for day 17
+ℹ   Persisted 501 transactions for day 18
+ℹ   Persisted 4 agent metrics for day 18
+ℹ   Persisted 118 queue snapshots for day 18
+ℹ   Persisted 486 transactions for day 19
+ℹ   Persisted 4 agent metrics for day 19
+ℹ   Persisted 114 queue snapshots for day 19
+ℹ   Persisted 478 transactions for day 20
+ℹ   Persisted 4 agent metrics for day 20
+ℹ   Persisted 126 queue snapshots for day 20
+ℹ   Persisted 415 transactions for day 21
+ℹ   Persisted 4 agent metrics for day 21
+ℹ   Persisted 100 queue snapshots for day 21
+ℹ   Persisted 497 transactions for day 22
+ℹ   Persisted 4 agent metrics for day 22
+ℹ   Persisted 188 queue snapshots for day 22
+ℹ   Persisted 487 transactions for day 23
+ℹ   Persisted 4 agent metrics for day 23
+ℹ   Persisted 87 queue snapshots for day 23
+ℹ   Persisted 589 transactions for day 24
+ℹ   Persisted 4 agent metrics for day 24
+ℹ   Persisted 223 queue snapshots for day 24

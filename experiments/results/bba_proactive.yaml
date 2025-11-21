@@ -1,0 +1,201 @@
+# =============================================================================
+# Suboptimal Policies - 25 Day RESILIENT Scenario
+#
+# NARRATIVE: "The Cost of Inefficiency"
+#
+# GOAL: A resilient 25-day simulation that demonstrates how suboptimal policies
+#       underperform during periods of recoverable market stress.
+#
+# =============================================================================
+#
+# ============================================================================
+# POLICIES - Two distinct strategies.
+# ============================================================================
+# 
+# --- efficient_proactive.json ---
+# This policy embodies a highly conservative "liquidity hoarding" strategy. 
+# It avoids using credit and will only release a payment if its available liquidity 
+# is a significant multiple (e.g., 2.5 times) of the payment's value. 
+# This approach prioritizes maintaining a large cash buffer above all else, 
+# often at the expense of delaying payments. Holding onto liquidity can be a rational 
+# response by banks during times of uncertainty, but it can also be a costly 
+# form of self-insurance that impedes the efficient functioning of the interbank market.
+#
+# --- efficient_proactive.json ---
+# This policy represents a more proactive and efficient approach to liquidity management. 
+# It uses a more modest liquidity buffer (e.g., 1.2 times the payment value) 
+# and employs a strategic_collateral_tree. This allows the agent to anticipate 
+# upcoming liquidity shortfalls and proactively post collateral to cover them. 
+# This strategy aims to minimize both delay and overdraft costs 
+# by intelligently managing its resources.
+
+simulation:
+  ticks_per_day: 100
+  num_days: 25
+  rng_seed: 42
+
+# ============================================================================
+# AGENTS - Calibrated to prevent systemic collapse while preserving character.
+# ============================================================================
+# The agents are set up with substantial, but not unlimited, capital and credit.
+# This ensures that while they can withstand shocks, their policy choices have
+# meaningful financial consequences. Note the mix of policies: three agents
+# run the conservative strategy, while one runs the efficient strategy,
+# creating a clear basis for comparison. This scenario is designed to highlight
+# how the outcome differs when the efficient policy is applied to one of the agents.
+
+agents:
+  - id: "BIG_BANK_A"
+    opening_balance: 12000000
+    unsecured_cap: 4000000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+    arrival_config:  # Log-normal distribution to introduce variability in payment sizes.
+      rate_per_tick: 0.13
+      amount_distribution: { type: "LogNormal", mean: 11.51, std_dev: 0.8 } # Mean ~$100,000
+      counterparty_weights: { SMALL_BANK_A: 0.32, BIG_BANK_B: 0.35, SMALL_BANK_B: 0.32 }
+      deadline_range: [40, 80]
+      priority: 6
+      divisible: false
+
+  - id: "BIG_BANK_B"
+    opening_balance: 13000000
+    unsecured_cap: 4500000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+    arrival_config:
+      rate_per_tick: 0.13
+      amount_distribution: { type: "LogNormal", mean: 11.51, std_dev: 0.8 } # Mean ~$100,000
+      counterparty_weights: { BIG_BANK_A: 0.35, SMALL_BANK_A: 0.35, SMALL_BANK_B: 0.35 }
+      deadline_range: [30, 70]
+      priority: 5
+      divisible: false
+
+  - id: "SMALL_BANK_A"
+    opening_balance: 13000000
+    unsecured_cap: 4500000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/efficient_memory_adaptive.json"
+    arrival_config:
+      rate_per_tick: 0.11
+      amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
+      counterparty_weights: { BIG_BANK_A: 0.35, BIG_BANK_B: 0.30, SMALL_BANK_B: 0.35 }
+      deadline_range: [35, 75]
+      priority: 6
+      divisible: true
+
+  - id: "SMALL_BANK_B"
+    opening_balance: 13000000
+    unsecured_cap: 4500000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/cautious_liquidity_preserver.json"
+    arrival_config:
+      rate_per_tick: 0.11
+      amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
+      counterparty_weights: { BIG_BANK_A: 0.35, SMALL_BANK_A: 0.35, BIG_BANK_B: 0.30 }
+      deadline_range: [35, 75]
+      priority: 6
+      divisible: true
+
+# ============================================================================
+# SCENARIO EVENTS - Extended to 25 days with new shocks and recovery events.
+# ============================================================================
+# The first 10 days establish a baseline of normal activity with minor volatility.
+# The critical stress tests begin around Day 12 and escalate significantly after Day 19.
+
+scenario_events:
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 3300000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 60 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.5, schedule: { type: OneTime, tick: 100 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 150 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 3100000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 159 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: BIG_BANK_A, amount: 800000, priority: 8, deadline: 40, is_divisible: false, schedule: { type: OneTime, tick: 250 } }
+  - { type: CustomTransactionArrival, from_agent: SMALL_BANK_B, to_agent: SMALL_BANK_A, amount: 750000, priority: 8, deadline: 38, is_divisible: true, schedule: { type: OneTime, tick: 250 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 3000000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 259 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_A, to_agent: SMALL_BANK_A, amount: 3500000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 351 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 2800000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 355 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 1000000, priority: 8, deadline: 45, is_divisible: true, schedule: { type: OneTime, tick: 420 } }
+  - { type: GlobalArrivalRateChange, multiplier: 3.0, schedule: { type: OneTime, tick: 400 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 520 } }
+  - { type: GlobalArrivalRateChange, multiplier: 0.7, schedule: { type: OneTime, tick: 520 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 3500000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 459 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 599 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 2500000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 566 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.3, schedule: { type: OneTime, tick: 710 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 750 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 3300000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 641 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_A, to_agent: SMALL_BANK_A, amount: 4500000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 651 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 3500000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 745 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 3000000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 865 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_A, to_agent: SMALL_BANK_A, amount: 4500000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 921 } }
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: SMALL_BANK_B, amount: 2900000, priority: 8, deadline: 25, is_divisible: true, schedule: { type: OneTime, tick: 951 } }
+
+  # Day 12: Major liquidity drain from the optimal agents
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_A, to_agent: BIG_BANK_B, amount: 8000000, deadline: 30, schedule: { type: OneTime, tick: 1150 } }
+  - { type: CustomTransactionArrival, from_agent: SMALL_BANK_A, to_agent: SMALL_BANK_B, amount: 7500000, deadline: 30, schedule: { type: OneTime, tick: 1155 } }
+
+  # *** RECOVERY MECHANISM 1 ***
+  # Day 12 (Post-Shock): Stressed agents gain access to additional collateral to help them manage the sudden outflows.
+  - { type: CollateralAdjustment, agent: SMALL_BANK_A, delta: 8000000, schedule: { type: OneTime, tick: 1190 } } # +$80k headroom
+  - { type: CollateralAdjustment, agent: SMALL_BANK_B, delta: 2500000, schedule: { type: OneTime, tick: 1180 } } # +$25k headroom
+  - { type: CollateralAdjustment, agent: BIG_BANK_A, delta: 2000000, schedule: { type: OneTime, tick: 1182 } } # +$20k headroom
+
+  # ** DELAYED RECOVERY ACTIONS **
+  # Day 15: Small bank B gets more collateral to handle lingering liquidity issues.
+  - { type: CollateralAdjustment, agent: SMALL_BANK_B, delta: 8000000, schedule: { type: OneTime, tick: 1480 } }
+
+  # Day 16: Sharp, short-lived global activity spike
+  - { type: GlobalArrivalRateChange, multiplier: 2.5, schedule: { type: OneTime, tick: 1550 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 1570 } }
+
+  # Day 17: Additional collateral to Big Bank B to stabilize
+  - { type: CollateralAdjustment, agent: BIG_BANK_B, delta: 4000000, schedule: { type: OneTime, tick: 1580 } }
+
+  # Day 19: Large, urgent payment from the most cautious agent
+  - { type: CustomTransactionArrival, from_agent: BIG_BANK_B, to_agent: BIG_BANK_A, amount: 9500000, deadline: 20, priority: 9, schedule: { type: OneTime, tick: 1820 } }
+
+  # Day 22: Muted morning, followed by a sudden afternoon rush
+  - { type: GlobalArrivalRateChange, multiplier: 0.5, schedule: { type: OneTime, tick: 2110 } }
+  - { type: GlobalArrivalRateChange, multiplier: 2.0, schedule: { type: OneTime, tick: 2150 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 2180 } }
+
+  # Day 24: Targeted large payment causing stress
+  - { type: CustomTransactionArrival, from_agent: SMALL_BANK_A, to_agent: SMALL_BANK_B, amount: 8000000, deadline: 25, priority: 8, schedule: { type: OneTime, tick: 2410 } }
+  
+  # *** RECOVERY MECHANISM 2 ***
+  # Day 24 (Post-Shock): Additional collateral injections to help manage the liquidity crunch.
+  # Both banks receive significant collateral boosts.
+  - { type: CollateralAdjustment, agent: SMALL_BANK_B, delta: 12000000, schedule: { type: OneTime, tick: 2330 } }
+  - { type: CollateralAdjustment, agent: SMALL_BANK_A, delta: 12000000, schedule: { type: OneTime, tick: 2332 } }
+  
+  # Day 25: Final liquidity push before EOD
+  - { type: GlobalArrivalRateChange, multiplier: 1.5, schedule: { type: OneTime, tick: 2480 } }
+  - { type: GlobalArrivalRateChange, multiplier: 1.0, schedule: { type: OneTime, tick: 2495 } }
+
+# ============================================================================
+# LSM AND COSTS - Tuned for a balanced trade-off.
+# ============================================================================
+# The cost structure is critical. It is designed to heavily penalize delays,
+# making the "hoarding" strategy of the cautious policy very expensive.
+# Overdraft is also costly, but the efficient policy mitigates this by using
+# cheaper collateral.
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+cost_rates:
+  # The high delay cost is the primary driver of the massive cost spikes for the cautious agents.
+  delay_cost_per_tick_per_cent: 0.00022
+  # Overdraft is expensive, creating a strong incentive to use collateral instead.
+  overdraft_bps_per_tick: 0.5
+  collateral_cost_per_tick_bps: 0.0005 # Relatively cheap, rewarding proactive use.
+  eod_penalty_per_transaction: 0
+  deadline_penalty: 5000 # A sharp penalty that forces action as deadlines approach.
+  overdue_delay_multiplier: 2.5 # Costs escalate significantly once a payment is late.
+  split_friction_cost: 7500 # Penalty for splitting payments, adding some friction.
