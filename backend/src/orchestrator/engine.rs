@@ -3923,43 +3923,61 @@ impl Orchestrator {
         let start_at = self.config.priority_escalation.start_escalating_at_ticks;
         let max_boost = self.config.priority_escalation.max_boost;
 
-        // Collect all transaction IDs that need escalation
-        let tx_ids: Vec<String> = self.state.transactions().keys().cloned().collect();
+        // Collect all transaction IDs that need escalation, along with their original priority
+        let tx_data: Vec<(String, String, u8, usize)> = self.state.transactions()
+            .iter()
+            .filter(|(_, tx)| !tx.is_fully_settled())
+            .map(|(id, tx)| (id.clone(), tx.sender_id().to_string(), tx.original_priority(), tx.deadline_tick()))
+            .collect();
 
-        for tx_id in tx_ids {
-            if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
-                // Skip already settled transactions
-                if tx.is_fully_settled() {
-                    continue;
-                }
+        for (tx_id, sender_id, original_priority, deadline) in tx_data {
+            let ticks_remaining = if deadline > current_tick {
+                deadline - current_tick
+            } else {
+                0 // Past deadline
+            };
 
-                let deadline = tx.deadline_tick();
-                let ticks_remaining = if deadline > current_tick {
-                    deadline - current_tick
+            // Only escalate if within the escalation window
+            if ticks_remaining <= start_at {
+                // Calculate progress through escalation window (0.0 to 1.0)
+                let progress = if start_at > 0 {
+                    1.0 - (ticks_remaining as f64 / start_at as f64)
                 } else {
-                    0 // Past deadline
+                    1.0
                 };
 
-                // Only escalate if within the escalation window
-                if ticks_remaining <= start_at {
-                    // Calculate progress through escalation window (0.0 to 1.0)
-                    let progress = if start_at > 0 {
-                        1.0 - (ticks_remaining as f64 / start_at as f64)
+                // Calculate boost (linear curve)
+                let boost = (max_boost as f64 * progress).round() as u8;
+
+                // Apply boost to original priority, capped at 10
+                let escalated_priority = std::cmp::min(10, original_priority.saturating_add(boost));
+
+                // Check current priority and update if needed
+                let should_emit_event = if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                    let current_priority = tx.priority();
+
+                    // Only update and emit event if priority actually increased
+                    if escalated_priority > current_priority {
+                        tx.set_priority(escalated_priority);
+                        true
                     } else {
-                        1.0
-                    };
-
-                    // Calculate boost (linear curve)
-                    let boost = (max_boost as f64 * progress).round() as u8;
-
-                    // Apply boost, capped at priority 10
-                    let original_priority = tx.priority();
-                    let new_priority = std::cmp::min(10, original_priority.saturating_add(boost));
-
-                    // Update priority if it changed
-                    if new_priority > original_priority {
-                        tx.set_priority(new_priority);
+                        false
                     }
+                } else {
+                    false
+                };
+
+                // Emit event outside of the mutable borrow
+                if should_emit_event {
+                    self.event_log.log(Event::PriorityEscalated {
+                        tick: current_tick,
+                        tx_id: tx_id.clone(),
+                        sender_id,
+                        original_priority,
+                        escalated_priority,
+                        ticks_until_deadline: ticks_remaining,
+                        boost_applied: boost,
+                    });
                 }
             }
         }

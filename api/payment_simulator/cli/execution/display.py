@@ -72,6 +72,7 @@ def display_tick_verbose_output(
         log_overdue_transaction_settled_event,
         log_overdue_transactions_summary,
         log_policy_decisions,
+        log_priority_escalation_events,
         log_queued_rtgs,
         log_scenario_events,
         log_section_separator,
@@ -116,6 +117,11 @@ def display_tick_verbose_output(
     # SECTION 2.6: BUDGET OPERATIONS (Phase 3.3: Bank-Level Budgets)
     # ═══════════════════════════════════════════════════════════
     log_budget_operations(display_events)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 2.7: PRIORITY ESCALATION (Phase 5: Dynamic Priority)
+    # ═══════════════════════════════════════════════════════════
+    log_priority_escalation_events(display_events)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 3: SETTLEMENTS (detailed with mechanisms)

@@ -109,6 +109,14 @@ fn event_to_py_dict<'py>(
             dict.set_item("old_priority", old_priority)?;
             dict.set_item("new_priority", new_priority)?;
         }
+        crate::models::event::Event::PriorityEscalated { tx_id, sender_id, original_priority, escalated_priority, ticks_until_deadline, boost_applied, .. } => {
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("sender_id", sender_id)?;
+            dict.set_item("original_priority", original_priority)?;
+            dict.set_item("escalated_priority", escalated_priority)?;
+            dict.set_item("ticks_until_deadline", ticks_until_deadline)?;
+            dict.set_item("boost_applied", boost_applied)?;
+        }
         crate::models::event::Event::CollateralPost { agent_id, amount, reason, new_total, .. } => {
             dict.set_item("agent_id", agent_id)?;
             dict.set_item("amount", amount)?;
