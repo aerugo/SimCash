@@ -43,6 +43,7 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
         scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -149,6 +150,7 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
         scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -222,6 +224,7 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
         scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut engine = Orchestrator::new(config).unwrap();

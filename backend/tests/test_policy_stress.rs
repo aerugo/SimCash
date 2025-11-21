@@ -64,6 +64,7 @@ fn test_high_frequency_arrivals_single_agent() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -168,6 +169,7 @@ fn test_sustained_high_load_100_ticks() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -275,6 +277,7 @@ fn test_extreme_high_frequency_arrivals() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -376,6 +379,7 @@ fn test_50_agent_high_frequency_simulation() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     println!("Initializing 50-agent simulation...");

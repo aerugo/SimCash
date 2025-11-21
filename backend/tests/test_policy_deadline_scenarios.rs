@@ -111,6 +111,7 @@ fn test_deadline_policy_submits_urgent_arrivals() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -193,6 +194,7 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -287,6 +289,7 @@ fn test_deadline_policy_vs_fifo_comparison() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -374,6 +377,7 @@ fn test_deadline_policy_all_urgent_scenario() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -449,6 +453,7 @@ fn test_deadline_policy_deadline_cascade() {
             scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
+        priority_escalation: Default::default(),
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
