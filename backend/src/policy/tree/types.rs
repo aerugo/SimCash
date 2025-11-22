@@ -329,6 +329,21 @@ pub enum ActionType {
 
     /// Take no action on collateral (keep current level)
     HoldCollateral,
+
+    // Phase 0.8: RTGS Queue 2 Management Actions (TARGET2 Dual Priority)
+    /// Withdraw transaction from RTGS Queue 2
+    ///
+    /// Removes transaction from central RTGS queue and clears its RTGS priority.
+    /// Transaction returns to policy control in Queue 1.
+    /// Enables policies to reconsider submissions based on changing conditions.
+    WithdrawFromRtgs,
+
+    /// Resubmit transaction to RTGS with new priority
+    ///
+    /// Changes the RTGS priority of a transaction in Queue 2.
+    /// Requires `rtgs_priority` parameter: "HighlyUrgent", "Urgent", or "Normal".
+    /// Transaction loses FIFO position (moves to back of its priority class).
+    ResubmitToRtgs,
 }
 
 // ============================================================================

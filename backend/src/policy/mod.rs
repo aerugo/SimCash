@@ -251,6 +251,47 @@ pub enum ReleaseDecision {
         stagger_gap_ticks: usize,
         priority_boost_children: u8,
     },
+
+    /// Withdraw transaction from RTGS Queue 2 (Phase 0.8: TARGET2 Dual Priority)
+    ///
+    /// Removes the transaction from the central RTGS queue and clears its RTGS
+    /// priority. The transaction returns to Queue 1 under policy control.
+    ///
+    /// This enables policies to:
+    /// - Reconsider a submission based on changing market conditions
+    /// - Free up queue space for more urgent payments
+    /// - Re-evaluate priority before resubmission
+    ///
+    /// # Constraints
+    ///
+    /// * Transaction must be in Queue 2 (have non-None rtgs_priority)
+    /// * Withdrawal is instantaneous (no settlement impact)
+    WithdrawFromRtgs { tx_id: String },
+
+    /// Resubmit transaction to RTGS with new priority (Phase 0.8: TARGET2 Dual Priority)
+    ///
+    /// Changes the RTGS priority of a transaction currently in Queue 2.
+    /// The transaction loses its FIFO position and moves to the back of the
+    /// new priority class.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_id` - Transaction to resubmit
+    /// * `new_rtgs_priority` - New RTGS priority: "HighlyUrgent", "Urgent", or "Normal"
+    ///
+    /// # Use Cases
+    ///
+    /// * Escalate priority as deadline approaches
+    /// * Downgrade priority to save fees when deadline is far
+    /// * Respond to market-wide liquidity changes
+    ///
+    /// # Constraints
+    ///
+    /// * Transaction must be in Queue 2 (have non-None rtgs_priority)
+    ResubmitToRtgs {
+        tx_id: String,
+        new_rtgs_priority: String,
+    },
 }
 
 /// Reason for holding a transaction in Queue 1
@@ -550,6 +591,45 @@ pub trait CashManagerPolicy: Send + Sync {
         ticks_per_day: usize,
         eod_rush_threshold: f64,
     ) -> Vec<ReleaseDecision>;
+
+    /// Evaluate policy for a single transaction (Phase 0.8: Queue 2 management)
+    ///
+    /// This method allows evaluating the payment tree for a transaction that is
+    /// already in Queue 2, enabling WithdrawFromRtgs and ResubmitToRtgs decisions.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - Transaction to evaluate
+    /// * `agent` - Agent that owns the transaction
+    /// * `state` - Current simulation state
+    /// * `tick` - Current simulation tick
+    /// * `cost_rates` - Cost configuration
+    /// * `ticks_per_day` - Ticks per day
+    /// * `eod_rush_threshold` - End-of-day rush threshold
+    ///
+    /// # Returns
+    ///
+    /// Decision for the transaction (typically Hold, WithdrawFromRtgs, or ResubmitToRtgs)
+    ///
+    /// # Default Implementation
+    ///
+    /// Returns Hold decision, making Queue 2 management optional.
+    fn evaluate_single(
+        &mut self,
+        tx: &crate::models::Transaction,
+        _agent: &Agent,
+        _state: &SimulationState,
+        _tick: usize,
+        _cost_rates: &CostRates,
+        _ticks_per_day: usize,
+        _eod_rush_threshold: f64,
+    ) -> ReleaseDecision {
+        // Default: hold (no action on Queue 2 transactions)
+        ReleaseDecision::Hold {
+            tx_id: tx.id().to_string(),
+            reason: HoldReason::Custom("Default Queue 2 hold".to_string()),
+        }
+    }
 
     /// Evaluate collateral management decision
     ///

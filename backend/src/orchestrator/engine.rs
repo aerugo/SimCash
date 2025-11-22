@@ -3529,7 +3529,191 @@ impl Orchestrator {
                             child_ids,
                         });
                     }
+                    ReleaseDecision::WithdrawFromRtgs { tx_id } => {
+                        // Phase 0.8: Withdraw transaction from RTGS Queue 2
+                        // Uses existing withdraw_from_rtgs method
+                        match self.withdraw_from_rtgs(&tx_id) {
+                            Ok(()) => {
+                                // Event already logged by withdraw_from_rtgs
+                            }
+                            Err(e) => {
+                                // Log failure but don't fail the tick
+                                self.log_event(Event::PolicyHold {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                    reason: format!("WithdrawFromRtgs failed: {}", e),
+                                });
+                            }
+                        }
+                    }
+                    ReleaseDecision::ResubmitToRtgs { tx_id, new_rtgs_priority } => {
+                        // Phase 0.8: Resubmit transaction to RTGS with new priority
+                        use crate::models::transaction::RtgsPriority;
+
+                        // Parse RTGS priority
+                        let priority = match new_rtgs_priority.as_str() {
+                            "HighlyUrgent" => RtgsPriority::HighlyUrgent,
+                            "Urgent" => RtgsPriority::Urgent,
+                            "Normal" => RtgsPriority::Normal,
+                            _ => {
+                                // Invalid priority - hold instead
+                                self.log_event(Event::PolicyHold {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                    reason: format!("Invalid RTGS priority: {}", new_rtgs_priority),
+                                });
+                                continue;
+                            }
+                        };
+
+                        // Uses existing resubmit_to_rtgs method
+                        match self.resubmit_to_rtgs(&tx_id, priority) {
+                            Ok(()) => {
+                                // Event already logged by resubmit_to_rtgs
+                            }
+                            Err(e) => {
+                                // Log failure but don't fail the tick
+                                self.log_event(Event::PolicyHold {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                    reason: format!("ResubmitToRtgs failed: {}", e),
+                                });
+                            }
+                        }
+                    }
                 }
+            }
+        }
+
+        // STEP 2b: QUEUE 2 POLICY EVALUATION (Phase 0.8: TARGET2 Dual Priority)
+        // Evaluate policies for transactions already in Queue 2, allowing
+        // withdraw/resubmit decisions.
+        //
+        // Collect decisions first, then process them (to avoid borrow conflicts).
+        let queue2_decisions: Vec<(String, crate::policy::ReleaseDecision)> = {
+            let all_agents: Vec<String> = self.state.agents().keys().cloned().collect();
+            let mut decisions = Vec::new();
+
+            for agent_id in all_agents {
+                // Get Queue 2 transactions for this agent (by sender)
+                let queue2_tx_ids: Vec<String> = self
+                    .state
+                    .queue2_index()
+                    .get_agent_transactions(&agent_id)
+                    .to_vec();
+
+                if queue2_tx_ids.is_empty() {
+                    continue;
+                }
+
+                let agent = match self.state.get_agent(&agent_id) {
+                    Some(a) => a.clone(),
+                    None => continue,
+                };
+
+                let policy = match self.policies.get_mut(&agent_id) {
+                    Some(p) => p,
+                    None => continue,
+                };
+
+                // Evaluate policy for each Queue 2 transaction
+                for tx_id in queue2_tx_ids {
+                    let tx = match self.state.get_transaction(&tx_id) {
+                        Some(t) => t.clone(),
+                        None => continue,
+                    };
+
+                    // Only evaluate if we're the sender (we own this transaction)
+                    if tx.sender_id() != agent_id {
+                        continue;
+                    }
+
+                    // Evaluate the policy tree for this Queue 2 transaction
+                    let decision = policy.evaluate_single(
+                        &tx,
+                        &agent,
+                        &self.state,
+                        current_tick,
+                        &self.cost_rates,
+                        self.config.ticks_per_day,
+                        self.config.eod_rush_threshold,
+                    );
+
+                    decisions.push((agent_id.clone(), decision));
+                }
+            }
+            decisions
+        };
+
+        // Process Queue 2 decisions
+        for (agent_id, decision) in queue2_decisions {
+            use crate::policy::ReleaseDecision;
+            match decision {
+                ReleaseDecision::WithdrawFromRtgs { tx_id } => {
+                    match self.withdraw_from_rtgs(&tx_id) {
+                        Ok(()) => {}
+                        Err(e) => {
+                            self.log_event(Event::PolicyHold {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                tx_id: tx_id.clone(),
+                                reason: format!("WithdrawFromRtgs failed: {}", e),
+                            });
+                        }
+                    }
+                }
+                ReleaseDecision::ResubmitToRtgs { tx_id, new_rtgs_priority } => {
+                    // Phase 0.8: Compound action - withdraw then resubmit
+                    // This is atomic from policy perspective: withdraw from Queue 2,
+                    // then resubmit to Queue 1 with new declared priority.
+                    use crate::models::transaction::RtgsPriority;
+
+                    let priority = match new_rtgs_priority.as_str() {
+                        "HighlyUrgent" => RtgsPriority::HighlyUrgent,
+                        "Urgent" => RtgsPriority::Urgent,
+                        "Normal" => RtgsPriority::Normal,
+                        _ => {
+                            self.log_event(Event::PolicyHold {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                tx_id: tx_id.clone(),
+                                reason: format!("Invalid RTGS priority: {}", new_rtgs_priority),
+                            });
+                            continue;
+                        }
+                    };
+
+                    // Step 1: Withdraw from Queue 2
+                    match self.withdraw_from_rtgs(&tx_id) {
+                        Ok(()) => {
+                            // Step 2: Resubmit with new priority
+                            match self.resubmit_to_rtgs(&tx_id, priority) {
+                                Ok(()) => {}
+                                Err(e) => {
+                                    self.log_event(Event::PolicyHold {
+                                        tick: current_tick,
+                                        agent_id: agent_id.clone(),
+                                        tx_id: tx_id.clone(),
+                                        reason: format!("ResubmitToRtgs resubmit step failed: {}", e),
+                                    });
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.log_event(Event::PolicyHold {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                tx_id: tx_id.clone(),
+                                reason: format!("ResubmitToRtgs withdraw step failed: {}", e),
+                            });
+                        }
+                    }
+                }
+                // Other decisions are ignored for Queue 2 transactions
+                _ => {}
             }
         }
 
