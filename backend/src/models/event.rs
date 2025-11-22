@@ -385,6 +385,22 @@ pub enum Event {
         settled_value: i64,      // Total value settled in cents
     },
 
+    /// Entry disposition bilateral offset (TARGET2 Phase 3)
+    ///
+    /// Emitted when an incoming payment triggers immediate bilateral offset
+    /// with a queued payment in the opposite direction. This happens at
+    /// transaction entry time, before regular LSM processing.
+    EntryDispositionOffset {
+        tick: usize,
+        incoming_tx_id: String,    // The new transaction that triggered offset
+        queued_tx_id: String,      // The transaction that was in queue
+        agent_a: String,           // First agent in the pair
+        agent_b: String,           // Second agent in the pair
+        offset_amount: i64,        // Amount that was offset (settled)
+        incoming_amount: i64,      // Original incoming transaction amount
+        queued_amount: i64,        // Original queued transaction amount
+    },
+
     /// DEPRECATED: Old name for Queue2LiquidityRelease
     ///
     /// Kept for backward compatibility. Use Queue2LiquidityRelease instead.
@@ -432,6 +448,7 @@ impl Event {
             Event::BilateralLimitExceeded { tick, .. } => *tick,
             Event::MultilateralLimitExceeded { tick, .. } => *tick,
             Event::AlgorithmExecution { tick, .. } => *tick,
+            Event::EntryDispositionOffset { tick, .. } => *tick,
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { tick, .. } => *tick,
         }
@@ -469,6 +486,7 @@ impl Event {
             Event::BilateralLimitExceeded { .. } => "BilateralLimitExceeded",
             Event::MultilateralLimitExceeded { .. } => "MultilateralLimitExceeded",
             Event::AlgorithmExecution { .. } => "AlgorithmExecution",
+            Event::EntryDispositionOffset { .. } => "EntryDispositionOffset",
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { .. } => "RtgsQueue2Settle",
         }

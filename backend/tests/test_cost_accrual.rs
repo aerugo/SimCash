@@ -49,6 +49,7 @@ fn create_test_config() -> OrchestratorConfig {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     }
 }
 

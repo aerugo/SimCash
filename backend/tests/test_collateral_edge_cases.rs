@@ -77,6 +77,7 @@ fn create_test_config_with_haircut(
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     }
 }
 
@@ -643,6 +644,7 @@ fn test_cross_agent_collateral_isolation() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
@@ -779,6 +781,7 @@ fn test_hold_collateral_action_is_noop() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

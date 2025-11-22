@@ -43,6 +43,7 @@ fn create_test_config() -> OrchestratorConfig {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     }
 }
 
@@ -155,6 +156,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

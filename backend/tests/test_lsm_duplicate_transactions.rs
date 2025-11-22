@@ -82,7 +82,7 @@ fn test_bilateral_offset_no_duplicate_transactions() {
         max_cycles_per_tick: 10,
     };
 
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     // ASSERTION 1: Only ONE bilateral pair should be created for AGENT_A ⇄ AGENT_B
     assert_eq!(
@@ -183,7 +183,7 @@ fn test_lsm_multiple_iterations_no_duplicate_processing() {
     state.rtgs_queue_mut().push(tx2_id);
 
     let config = LsmConfig::default();
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     // Track all transactions across all cycle events
     let mut all_transactions = Vec::new();
@@ -258,7 +258,7 @@ fn test_lsm_no_duplicate_cycle_events_across_iterations() {
 
     // Run LSM with default config (allows multiple iterations)
     let config = LsmConfig::default();
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     println!("DEBUG: LSM ran {} iterations", result.iterations_run);
     println!("DEBUG: Found {} bilateral offsets", result.bilateral_offsets);
@@ -365,7 +365,7 @@ fn test_no_duplicate_between_bilateral_and_multilateral() {
         max_cycle_length: 5,
         max_cycles_per_tick: 10,
     };
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     println!("DEBUG: bilateral_offsets={}, cycles_settled={}",
         result.bilateral_offsets, result.cycles_settled);
@@ -458,7 +458,7 @@ fn test_complex_scenario_no_duplicates() {
         max_cycle_length: 5,
         max_cycles_per_tick: 10,
     };
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     println!("DEBUG: bilateral_offsets={}, cycles_settled={}",
         result.bilateral_offsets, result.cycles_settled);
