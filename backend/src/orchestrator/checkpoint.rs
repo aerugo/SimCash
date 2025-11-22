@@ -93,23 +93,24 @@ impl From<&Agent> for AgentSnapshot {
 
 impl From<AgentSnapshot> for Agent {
     fn from(snapshot: AgentSnapshot) -> Self {
-        Agent::from_snapshot(
-            snapshot.id,
-            snapshot.balance,
-            snapshot.unsecured_cap,
-            snapshot.outgoing_queue,
-            snapshot.incoming_expected,
-            snapshot.last_decision_tick,
-            snapshot.liquidity_buffer,
-            snapshot.posted_collateral,
-            snapshot.collateral_haircut,
-            snapshot.collateral_posted_at_tick,
-            // TARGET2 LSM: Bilateral and Multilateral Limits
-            snapshot.bilateral_limits,
-            snapshot.multilateral_limit,
-            snapshot.bilateral_outflows,
-            snapshot.total_outflow,
-        )
+        use crate::models::agent::AgentRestoreData;
+
+        Agent::restore(AgentRestoreData {
+            id: snapshot.id,
+            balance: snapshot.balance,
+            unsecured_cap: snapshot.unsecured_cap,
+            outgoing_queue: snapshot.outgoing_queue,
+            incoming_expected: snapshot.incoming_expected,
+            last_decision_tick: snapshot.last_decision_tick,
+            liquidity_buffer: snapshot.liquidity_buffer,
+            posted_collateral: snapshot.posted_collateral,
+            collateral_haircut: snapshot.collateral_haircut,
+            collateral_posted_at_tick: snapshot.collateral_posted_at_tick,
+            bilateral_limits: snapshot.bilateral_limits,
+            multilateral_limit: snapshot.multilateral_limit,
+            bilateral_outflows: snapshot.bilateral_outflows,
+            total_outflow: snapshot.total_outflow,
+        })
     }
 }
 
