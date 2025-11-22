@@ -106,7 +106,7 @@ agents:
     multilateral_limit: 8500000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_conservative_offsetter.json"
+      json_path: "backend/policies/target2_limit_aware.json"  # Balanced policy - respects limits but doesn't hoard
     arrival_config:
       rate_per_tick: 0.55
       amount_distribution: { type: "Uniform", min: 80000, max: 350000 }
@@ -708,10 +708,10 @@ lsm_config:
 # The overdue_delay_multiplier creates exponential pain once deadlines pass.
 
 cost_rates:
-  delay_cost_per_tick_per_cent: 0.00020     # High delay cost
-  overdraft_bps_per_tick: 0.45              # Expensive overdraft
-  collateral_cost_per_tick_bps: 0.0004      # Relatively cheap collateral
-  eod_penalty_per_transaction: 15000        # Significant EOD penalty
-  deadline_penalty: 6000                    # Sharp deadline miss penalty
-  overdue_delay_multiplier: 3.5             # Aggressive escalation when overdue
-  split_friction_cost: 6000                 # Splitting has friction
+  delay_cost_per_tick_per_cent: 0.00035     # Very high delay cost - makes hoarding expensive
+  overdraft_bps_per_tick: 0.50              # Expensive overdraft
+  collateral_cost_per_tick_bps: 0.0003      # Cheap collateral - rewards proactive posting
+  eod_penalty_per_transaction: 25000        # Heavy EOD penalty
+  deadline_penalty: 12000                   # Sharp deadline miss penalty
+  overdue_delay_multiplier: 5.0             # Severe escalation when overdue
+  split_friction_cost: 8000                 # Splitting has friction
