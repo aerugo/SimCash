@@ -1783,6 +1783,13 @@ impl PyOrchestrator {
                 dict.set_item("rtgs_priority", py.None())?;
             }
 
+            // Declared RTGS Priority (Phase 0.8: Priority for next submission)
+            if let Some(declared_priority) = tx.declared_rtgs_priority() {
+                dict.set_item("declared_rtgs_priority", declared_priority.to_string())?;
+            } else {
+                dict.set_item("declared_rtgs_priority", py.None())?;
+            }
+
             // RTGS Submission Tick
             if let Some(submission_tick) = tx.rtgs_submission_tick() {
                 dict.set_item("rtgs_submission_tick", submission_tick)?;
