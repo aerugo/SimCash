@@ -62,6 +62,11 @@ pub struct AgentSnapshot {
     pub posted_collateral: i64,
     pub collateral_haircut: f64,
     pub collateral_posted_at_tick: Option<usize>,
+    // TARGET2 LSM: Bilateral and Multilateral Limits
+    pub bilateral_limits: HashMap<String, i64>,
+    pub multilateral_limit: Option<i64>,
+    pub bilateral_outflows: HashMap<String, i64>,
+    pub total_outflow: i64,
 }
 
 impl From<&Agent> for AgentSnapshot {
@@ -77,6 +82,11 @@ impl From<&Agent> for AgentSnapshot {
             posted_collateral: agent.posted_collateral(),
             collateral_haircut: agent.collateral_haircut(),
             collateral_posted_at_tick: agent.collateral_posted_at_tick(),
+            // TARGET2 LSM: Bilateral and Multilateral Limits
+            bilateral_limits: agent.bilateral_limits().clone(),
+            multilateral_limit: agent.multilateral_limit(),
+            bilateral_outflows: agent.bilateral_outflows().clone(),
+            total_outflow: agent.total_outflow(),
         }
     }
 }
@@ -94,6 +104,11 @@ impl From<AgentSnapshot> for Agent {
             snapshot.posted_collateral,
             snapshot.collateral_haircut,
             snapshot.collateral_posted_at_tick,
+            // TARGET2 LSM: Bilateral and Multilateral Limits
+            snapshot.bilateral_limits,
+            snapshot.multilateral_limit,
+            snapshot.bilateral_outflows,
+            snapshot.total_outflow,
         )
     }
 }
@@ -318,5 +333,65 @@ mod tests {
             hash1, hash2,
             "Different configs should produce different hashes"
         );
+    }
+
+    #[test]
+    fn test_agent_snapshot_round_trip_with_target2_limits() {
+        // Create an agent with TARGET2 LSM limits configured
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(500_000);
+
+        // Set bilateral limits
+        let mut bilateral_limits = HashMap::new();
+        bilateral_limits.insert("BANK_B".to_string(), 500_000);
+        bilateral_limits.insert("BANK_C".to_string(), 300_000);
+        agent.set_bilateral_limits(bilateral_limits);
+
+        // Set multilateral limit
+        agent.set_multilateral_limit(Some(1_000_000));
+
+        // Record some outflows (simulating mid-day state)
+        agent.record_outflow("BANK_B", 100_000);
+        agent.record_outflow("BANK_C", 50_000);
+
+        // Convert to snapshot
+        let snapshot: AgentSnapshot = (&agent).into();
+
+        // Verify snapshot has correct values
+        assert_eq!(snapshot.bilateral_limits.get("BANK_B"), Some(&500_000));
+        assert_eq!(snapshot.bilateral_limits.get("BANK_C"), Some(&300_000));
+        assert_eq!(snapshot.multilateral_limit, Some(1_000_000));
+        assert_eq!(snapshot.bilateral_outflows.get("BANK_B"), Some(&100_000));
+        assert_eq!(snapshot.bilateral_outflows.get("BANK_C"), Some(&50_000));
+        assert_eq!(snapshot.total_outflow, 150_000);
+
+        // Convert back to agent
+        let restored_agent: Agent = snapshot.into();
+
+        // Verify restored agent has correct TARGET2 state
+        assert_eq!(restored_agent.bilateral_limits().get("BANK_B"), Some(&500_000));
+        assert_eq!(restored_agent.bilateral_limits().get("BANK_C"), Some(&300_000));
+        assert_eq!(restored_agent.multilateral_limit(), Some(1_000_000));
+        assert_eq!(restored_agent.bilateral_outflows().get("BANK_B"), Some(&100_000));
+        assert_eq!(restored_agent.bilateral_outflows().get("BANK_C"), Some(&50_000));
+        assert_eq!(restored_agent.total_outflow(), 150_000);
+
+        // Verify limit checking still works correctly after restore
+        let (within_bilateral, current, limit) = restored_agent.check_bilateral_limit("BANK_B", 300_000);
+        assert!(within_bilateral, "Should be within bilateral limit");
+        assert_eq!(current, 100_000);
+        assert_eq!(limit, Some(500_000));
+
+        let (within_multilateral, total, ml_limit) = restored_agent.check_multilateral_limit(800_000);
+        assert!(within_multilateral, "Should be within multilateral limit");
+        assert_eq!(total, 150_000);
+        assert_eq!(ml_limit, Some(1_000_000));
+
+        // Verify exceeding limits is detected
+        let (exceeds_bilateral, _, _) = restored_agent.check_bilateral_limit("BANK_B", 500_000);
+        assert!(!exceeds_bilateral, "Should exceed bilateral limit (100k + 500k > 500k)");
+
+        let (exceeds_multilateral, _, _) = restored_agent.check_multilateral_limit(900_000);
+        assert!(!exceeds_multilateral, "Should exceed multilateral limit (150k + 900k > 1M)");
     }
 }
