@@ -373,6 +373,18 @@ pub enum Event {
         multilateral_limit: i64,      // Configured total limit
     },
 
+    /// Algorithm execution event - records which settlement algorithm ran
+    ///
+    /// Emitted when a settlement algorithm (1-FIFO, 2-Bilateral, 3-Multilateral)
+    /// completes execution. Part of TARGET2 LSM Phase 2 (Algorithm Sequencing).
+    AlgorithmExecution {
+        tick: usize,
+        algorithm: u8,           // 1=FIFO, 2=Bilateral, 3=Multilateral
+        result: String,          // "Success", "NoProgress", "Failure"
+        settlements: usize,      // Number of transactions settled
+        settled_value: i64,      // Total value settled in cents
+    },
+
     /// DEPRECATED: Old name for Queue2LiquidityRelease
     ///
     /// Kept for backward compatibility. Use Queue2LiquidityRelease instead.
@@ -419,6 +431,7 @@ impl Event {
             Event::Queue2LiquidityRelease { tick, .. } => *tick,
             Event::BilateralLimitExceeded { tick, .. } => *tick,
             Event::MultilateralLimitExceeded { tick, .. } => *tick,
+            Event::AlgorithmExecution { tick, .. } => *tick,
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { tick, .. } => *tick,
         }
@@ -455,6 +468,7 @@ impl Event {
             Event::Queue2LiquidityRelease { .. } => "Queue2LiquidityRelease",
             Event::BilateralLimitExceeded { .. } => "BilateralLimitExceeded",
             Event::MultilateralLimitExceeded { .. } => "MultilateralLimitExceeded",
+            Event::AlgorithmExecution { .. } => "AlgorithmExecution",
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { .. } => "RtgsQueue2Settle",
         }

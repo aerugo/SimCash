@@ -31,6 +31,7 @@ fn create_test_config() -> OrchestratorConfig {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     }
 }
 
@@ -79,6 +80,7 @@ fn test_collateral_events_filter_by_day() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

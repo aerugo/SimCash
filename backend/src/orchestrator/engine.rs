@@ -149,6 +149,14 @@ pub struct OrchestratorConfig {
     /// When enabled, transaction priorities are boosted as deadlines approach.
     #[serde(default)]
     pub priority_escalation: PriorityEscalationConfig,
+
+    /// Algorithm sequencing mode (default: false)
+    /// When enabled, emits AlgorithmExecution events for each settlement algorithm:
+    /// - Algorithm 1: FIFO settlement (RTGS immediate + Queue 2)
+    /// - Algorithm 2: Bilateral offsetting (LSM)
+    /// - Algorithm 3: Multilateral cycle settlement (LSM)
+    #[serde(default)]
+    pub algorithm_sequencing: bool,
 }
 
 /// Priority escalation configuration
@@ -897,6 +905,7 @@ impl Orchestrator {
     ///     queue1_ordering: Default::default(),
     ///     priority_mode: false,
     ///     priority_escalation: Default::default(),
+    ///     algorithm_sequencing: false,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -3663,6 +3672,20 @@ impl Orchestrator {
         // Capture timing for RTGS queue processing phase
         timing.rtgs_queue_micros = rtgs_queue_start.elapsed().as_micros() as u64;
 
+        // Emit Algorithm 1 (FIFO) execution event if algorithm_sequencing is enabled
+        if self.config.algorithm_sequencing {
+            let alg1_settlements = queue_result.settled_count;
+            let alg1_value: i64 = queue_result.settled_transactions.iter().map(|t| t.amount).sum();
+            let alg1_result = if alg1_settlements > 0 { "Success" } else { "NoProgress" };
+            self.log_event(Event::AlgorithmExecution {
+                tick: current_tick,
+                algorithm: 1,
+                result: alg1_result.to_string(),
+                settlements: alg1_settlements,
+                settled_value: alg1_value,
+            });
+        }
+
         // STEP 5: LSM COORDINATOR
         // Find and release offsetting transactions
         let lsm_start = Instant::now();
@@ -3729,6 +3752,46 @@ impl Orchestrator {
                 eprintln!("[LSM DEBUG] Logging enriched event: {:?}", event.event_type());
             }
             self.log_event(event.clone());
+        }
+
+        // Emit Algorithm 2 (Bilateral) and Algorithm 3 (Multilateral) events if algorithm_sequencing is enabled
+        if self.config.algorithm_sequencing {
+            // Algorithm 2: Bilateral offsetting
+            let alg2_settlements = lsm_result.bilateral_offsets;
+            // Count bilateral events in replay events to get settled value
+            // Each bilateral offset has amount_a and amount_b - we sum the smaller (net settlement)
+            let alg2_value: i64 = lsm_result.replay_events.iter()
+                .filter_map(|e| match e {
+                    Event::LsmBilateralOffset { amount_a, amount_b, .. } => Some(std::cmp::min(*amount_a, *amount_b)),
+                    _ => None,
+                })
+                .sum();
+            let alg2_result = if alg2_settlements > 0 { "Success" } else { "NoProgress" };
+            self.log_event(Event::AlgorithmExecution {
+                tick: current_tick,
+                algorithm: 2,
+                result: alg2_result.to_string(),
+                settlements: alg2_settlements,
+                settled_value: alg2_value,
+            });
+
+            // Algorithm 3: Multilateral cycle settlement
+            let alg3_settlements = lsm_result.cycles_settled;
+            // Count cycle events in replay events to get settled value
+            let alg3_value: i64 = lsm_result.replay_events.iter()
+                .filter_map(|e| match e {
+                    Event::LsmCycleSettlement { total_value, .. } => Some(*total_value),
+                    _ => None,
+                })
+                .sum();
+            let alg3_result = if alg3_settlements > 0 { "Success" } else { "NoProgress" };
+            self.log_event(Event::AlgorithmExecution {
+                tick: current_tick,
+                algorithm: 3,
+                result: alg3_result.to_string(),
+                settlements: alg3_settlements,
+                settled_value: alg3_value,
+            });
         }
 
         // STEP 5.5: END-OF-TICK COLLATERAL MANAGEMENT (Layer 2)
@@ -4805,6 +4868,10 @@ mod tests {
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
             scenario_events: None,
+            queue1_ordering: Queue1Ordering::default(),
+            priority_mode: false,
+            priority_escalation: Default::default(),
+            algorithm_sequencing: false,
         }
     }
 
@@ -4854,6 +4921,10 @@ mod tests {
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
             scenario_events: None,
+            queue1_ordering: Queue1Ordering::default(),
+            priority_mode: false,
+            priority_escalation: Default::default(),
+            algorithm_sequencing: false,
         };
 
         let result = Orchestrator::new(config);
@@ -4905,6 +4976,10 @@ mod tests {
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
             scenario_events: None,
+            queue1_ordering: Queue1Ordering::default(),
+            priority_mode: false,
+            priority_escalation: Default::default(),
+            algorithm_sequencing: false,
         };
 
         let result = Orchestrator::new(config);
