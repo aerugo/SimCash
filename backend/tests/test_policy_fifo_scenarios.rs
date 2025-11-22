@@ -58,6 +58,7 @@ fn test_fifo_preserves_arrival_order() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -134,6 +135,7 @@ fn test_fifo_partial_submission() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -237,6 +239,7 @@ fn test_fifo_vs_deadline_under_pressure() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

@@ -709,6 +709,7 @@ fn create_basic_config() -> OrchestratorConfig {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     }
 }
 

@@ -188,6 +188,12 @@ fn event_to_py_dict<'py>(
             dict.set_item("current_total_outflow", current_total_outflow)?;
             dict.set_item("multilateral_limit", multilateral_limit)?;
         }
+        crate::models::event::Event::AlgorithmExecution { algorithm, result, settlements, settled_value, .. } => {
+            dict.set_item("algorithm", algorithm)?;
+            dict.set_item("result", result)?;
+            dict.set_item("settlements", settlements)?;
+            dict.set_item("settled_value", settled_value)?;
+        }
         crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
             dict.set_item("tx_id", tx_id)?;
             dict.set_item("sender_id", sender_id)?;

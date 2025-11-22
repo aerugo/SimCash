@@ -76,6 +76,7 @@ fn create_test_config_with_haircut(
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     }
 }
 
@@ -641,6 +642,7 @@ fn test_cross_agent_collateral_isolation() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
@@ -776,6 +778,7 @@ fn test_hold_collateral_action_is_noop() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
