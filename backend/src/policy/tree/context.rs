@@ -183,6 +183,14 @@ impl EvalContext {
             if tx.is_overdue() { 1.0 } else { 0.0 },
         );
 
+        // Phase 0.8: Queue 2 status field (TARGET2 Dual Priority)
+        // Allows policies to check if transaction is in RTGS Queue 2
+        // Transaction is in Queue 2 if it has a non-None RTGS priority
+        fields.insert(
+            "is_in_queue2".to_string(),
+            if tx.rtgs_priority().is_some() { 1.0 } else { 0.0 },
+        );
+
         // Calculate overdue duration (0 if not overdue)
         let overdue_duration = if let Some(overdue_since) = tx.overdue_since_tick() {
             tick.saturating_sub(overdue_since)

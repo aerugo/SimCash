@@ -1,0 +1,100 @@
+{
+  "version": "1.0",
+  "policy_id": "target2_priority_escalator_v1",
+  "description": "A policy that demonstrates RTGS Queue 2 priority escalation. Monitors transactions in Queue 2 and escalates them to higher priority classes as deadlines approach. Uses ResubmitToRtgs compound action (withdraw + resubmit).",
+  "parameters": {
+    "escalate_to_urgent_threshold": 30,
+    "escalate_to_highly_urgent_threshold": 10,
+    "release_buffer": 0.8
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "PES-N1-IsInQueue2",
+    "description": "Is this transaction in RTGS Queue 2?",
+    "condition": {
+      "op": "==",
+      "left": {"field": "is_in_queue2"},
+      "right": {"value": 1.0}
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "PES-N2-CriticalDeadline",
+      "description": "Is deadline critically close? (< 10 ticks)",
+      "condition": {
+        "op": "<=",
+        "left": {"field": "ticks_to_deadline"},
+        "right": {"param": "escalate_to_highly_urgent_threshold"}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "PES-A1-EscalateHighlyUrgent",
+        "action": "ResubmitToRtgs",
+        "description": "Critical deadline - escalate to HighlyUrgent",
+        "parameters": {
+          "rtgs_priority": {"value": "HighlyUrgent"}
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "PES-N3-ApproachingDeadline",
+        "description": "Is deadline approaching? (< 30 ticks)",
+        "condition": {
+          "op": "<=",
+          "left": {"field": "ticks_to_deadline"},
+          "right": {"param": "escalate_to_urgent_threshold"}
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "PES-A2-EscalateUrgent",
+          "action": "ResubmitToRtgs",
+          "description": "Approaching deadline - escalate to Urgent",
+          "parameters": {
+            "rtgs_priority": {"value": "Urgent"}
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "PES-A3-HoldQueue2",
+          "action": "Hold",
+          "description": "Deadline not critical - keep current priority",
+          "parameters": {"reason": {"value": "MaintainingPriority"}}
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "PES-N4-CanAfford",
+      "description": "Can we afford to release?",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "effective_liquidity"},
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "remaining_amount"},
+            "right": {"param": "release_buffer"}
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "PES-A4-Release",
+        "action": "Release",
+        "description": "Sufficient liquidity - release to RTGS"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "PES-A5-Hold",
+        "action": "Hold",
+        "description": "Insufficient liquidity - hold in Queue 1",
+        "parameters": {"reason": {"value": "InsufficientLiquidity"}}
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "PES-SC1-NoPost",
+    "action": "HoldCollateral",
+    "description": "No proactive collateral posting"
+  }
+}

@@ -211,6 +211,44 @@ pub enum Event {
         sender_id: String,
     },
 
+    /// Transaction submitted to RTGS Queue 2 (Phase 0: Dual Priority System)
+    ///
+    /// Emitted when a transaction is released from Queue 1 (internal bank queue)
+    /// to Queue 2 (RTGS central queue). Records both internal priority and
+    /// declared RTGS priority for replay identity.
+    RtgsSubmission {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        receiver: String,
+        amount: i64,
+        internal_priority: u8,      // Bank's internal priority (0-10)
+        rtgs_priority: String,       // Declared RTGS priority: "HighlyUrgent", "Urgent", "Normal"
+    },
+
+    /// Transaction withdrawn from RTGS Queue 2 (Phase 0: Dual Priority System)
+    ///
+    /// Emitted when a bank withdraws a transaction from Queue 2 to change its
+    /// priority. The transaction can then be resubmitted with a different priority.
+    RtgsWithdrawal {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        original_rtgs_priority: String,  // Priority it had before withdrawal
+    },
+
+    /// Transaction resubmitted to RTGS Queue 2 with new priority (Phase 0: Dual Priority System)
+    ///
+    /// Emitted when a previously withdrawn transaction is resubmitted to Queue 2.
+    /// The transaction gets a new submission tick (loses FIFO position).
+    RtgsResubmission {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        old_rtgs_priority: String,  // Previous priority
+        new_rtgs_priority: String,  // New priority after resubmission
+    },
+
     /// Transaction settled via LSM bilateral offset
     LsmBilateralOffset {
         tick: usize,
@@ -308,6 +346,61 @@ pub enum Event {
         release_reason: String,       // "NewLiquidity", "IncomingPayment", "CollateralPosted", etc.
     },
 
+    /// Bilateral limit exceeded - payment blocked due to counterparty-specific limit
+    ///
+    /// Emitted when a payment cannot settle because it would exceed the sender's
+    /// bilateral limit for the specific receiver. Part of TARGET2 LSM Phase 1.
+    BilateralLimitExceeded {
+        tick: usize,
+        sender: String,
+        receiver: String,
+        tx_id: String,
+        amount: i64,
+        current_bilateral_outflow: i64,  // Current outflow to this counterparty today
+        bilateral_limit: i64,             // Configured limit for this counterparty
+    },
+
+    /// Multilateral limit exceeded - payment blocked due to total outflow limit
+    ///
+    /// Emitted when a payment cannot settle because it would exceed the sender's
+    /// multilateral (total) outflow limit. Part of TARGET2 LSM Phase 1.
+    MultilateralLimitExceeded {
+        tick: usize,
+        sender: String,
+        tx_id: String,
+        amount: i64,
+        current_total_outflow: i64,  // Current total outflow today
+        multilateral_limit: i64,      // Configured total limit
+    },
+
+    /// Algorithm execution event - records which settlement algorithm ran
+    ///
+    /// Emitted when a settlement algorithm (1-FIFO, 2-Bilateral, 3-Multilateral)
+    /// completes execution. Part of TARGET2 LSM Phase 2 (Algorithm Sequencing).
+    AlgorithmExecution {
+        tick: usize,
+        algorithm: u8,           // 1=FIFO, 2=Bilateral, 3=Multilateral
+        result: String,          // "Success", "NoProgress", "Failure"
+        settlements: usize,      // Number of transactions settled
+        settled_value: i64,      // Total value settled in cents
+    },
+
+    /// Entry disposition bilateral offset (TARGET2 Phase 3)
+    ///
+    /// Emitted when an incoming payment triggers immediate bilateral offset
+    /// with a queued payment in the opposite direction. This happens at
+    /// transaction entry time, before regular LSM processing.
+    EntryDispositionOffset {
+        tick: usize,
+        incoming_tx_id: String,    // The new transaction that triggered offset
+        queued_tx_id: String,      // The transaction that was in queue
+        agent_a: String,           // First agent in the pair
+        agent_b: String,           // Second agent in the pair
+        offset_amount: i64,        // Amount that was offset (settled)
+        incoming_amount: i64,      // Original incoming transaction amount
+        queued_amount: i64,        // Original queued transaction amount
+    },
+
     /// DEPRECATED: Old name for Queue2LiquidityRelease
     ///
     /// Kept for backward compatibility. Use Queue2LiquidityRelease instead.
@@ -341,6 +434,9 @@ impl Event {
             Event::BankBudgetSet { tick, .. } => *tick,
             Event::RtgsImmediateSettlement { tick, .. } => *tick,
             Event::QueuedRtgs { tick, .. } => *tick,
+            Event::RtgsSubmission { tick, .. } => *tick,
+            Event::RtgsWithdrawal { tick, .. } => *tick,
+            Event::RtgsResubmission { tick, .. } => *tick,
             Event::LsmBilateralOffset { tick, .. } => *tick,
             Event::LsmCycleSettlement { tick, .. } => *tick,
             Event::CostAccrual { tick, .. } => *tick,
@@ -349,6 +445,10 @@ impl Event {
             Event::OverdueTransactionSettled { tick, .. } => *tick,
             Event::ScenarioEventExecuted { tick, .. } => *tick,
             Event::Queue2LiquidityRelease { tick, .. } => *tick,
+            Event::BilateralLimitExceeded { tick, .. } => *tick,
+            Event::MultilateralLimitExceeded { tick, .. } => *tick,
+            Event::AlgorithmExecution { tick, .. } => *tick,
+            Event::EntryDispositionOffset { tick, .. } => *tick,
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { tick, .. } => *tick,
         }
@@ -372,6 +472,9 @@ impl Event {
             Event::BankBudgetSet { .. } => "BankBudgetSet",
             Event::RtgsImmediateSettlement { .. } => "RtgsImmediateSettlement",
             Event::QueuedRtgs { .. } => "QueuedRtgs",
+            Event::RtgsSubmission { .. } => "RtgsSubmission",
+            Event::RtgsWithdrawal { .. } => "RtgsWithdrawal",
+            Event::RtgsResubmission { .. } => "RtgsResubmission",
             Event::LsmBilateralOffset { .. } => "LsmBilateralOffset",
             Event::LsmCycleSettlement { .. } => "LsmCycleSettlement",
             Event::CostAccrual { .. } => "CostAccrual",
@@ -380,6 +483,10 @@ impl Event {
             Event::OverdueTransactionSettled { .. } => "OverdueTransactionSettled",
             Event::ScenarioEventExecuted { .. } => "ScenarioEventExecuted",
             Event::Queue2LiquidityRelease { .. } => "Queue2LiquidityRelease",
+            Event::BilateralLimitExceeded { .. } => "BilateralLimitExceeded",
+            Event::MultilateralLimitExceeded { .. } => "MultilateralLimitExceeded",
+            Event::AlgorithmExecution { .. } => "AlgorithmExecution",
+            Event::EntryDispositionOffset { .. } => "EntryDispositionOffset",
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { .. } => "RtgsQueue2Settle",
         }
@@ -400,6 +507,8 @@ impl Event {
             Event::TransactionWentOverdue { tx_id, .. } => Some(tx_id),
             Event::OverdueTransactionSettled { tx_id, .. } => Some(tx_id),
             Event::Queue2LiquidityRelease { tx_id, .. } => Some(tx_id),
+            Event::BilateralLimitExceeded { tx_id, .. } => Some(tx_id),
+            Event::MultilateralLimitExceeded { tx_id, .. } => Some(tx_id),
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { tx_id, .. } => Some(tx_id),
             _ => None,
@@ -424,6 +533,8 @@ impl Event {
             Event::TransactionWentOverdue { sender_id, .. } => Some(sender_id),
             Event::OverdueTransactionSettled { sender_id, .. } => Some(sender_id),
             Event::Queue2LiquidityRelease { sender, .. } => Some(sender),
+            Event::BilateralLimitExceeded { sender, .. } => Some(sender),
+            Event::MultilateralLimitExceeded { sender, .. } => Some(sender),
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { sender, .. } => Some(sender),
             _ => None,

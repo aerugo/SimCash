@@ -39,6 +39,7 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "ARB".to_string(),
@@ -50,6 +51,7 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "MIB".to_string(),
@@ -61,6 +63,7 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates {
@@ -82,6 +85,8 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     }
 }
 

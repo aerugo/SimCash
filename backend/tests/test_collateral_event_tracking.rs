@@ -23,6 +23,7 @@ fn create_test_config() -> OrchestratorConfig {
             arrival_config: None,
             posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -30,6 +31,8 @@ fn create_test_config() -> OrchestratorConfig {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     }
 }
 
@@ -70,6 +73,7 @@ fn test_collateral_events_filter_by_day() {
             arrival_config: None,
             posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -77,6 +81,8 @@ fn test_collateral_events_filter_by_day() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

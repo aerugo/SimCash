@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
-use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, TickResult};
+use crate::orchestrator::{AgentConfig, AgentLimitsConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, TickResult};
 use crate::settlement::lsm::LsmConfig;
 
 // ========================================================================
@@ -187,6 +187,20 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         .transpose()?
         .unwrap_or(false);
 
+    // Parse algorithm_sequencing (default: false for backward compatibility)
+    let algorithm_sequencing: bool = py_config
+        .get_item("algorithm_sequencing")?
+        .map(|item| item.extract())
+        .transpose()?
+        .unwrap_or(false);
+
+    // Parse entry_disposition_offsetting (default: false for backward compatibility)
+    let entry_disposition_offsetting: bool = py_config
+        .get_item("entry_disposition_offsetting")?
+        .map(|item| item.extract())
+        .transpose()?
+        .unwrap_or(false);
+
     // Parse priority_escalation (default: disabled for backward compatibility)
     let priority_escalation = if let Some(py_escalation) = py_config.get_item("priority_escalation")? {
         let escalation_dict: Bound<'_, PyDict> = py_escalation.downcast_into()?;
@@ -237,6 +251,8 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         queue1_ordering,
         priority_mode,
         priority_escalation,
+        algorithm_sequencing,
+        entry_disposition_offsetting,
     })
 }
 
@@ -270,6 +286,14 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
     // Parse optional posted_collateral using helper
     let posted_collateral: Option<i64> = extract_optional(py_agent, "posted_collateral")?;
 
+    // Parse optional limits (bilateral/multilateral) using helper
+    let limits: Option<AgentLimitsConfig> = if let Ok(Some(py_limits)) = py_agent.get_item("limits") {
+        let limits_dict: Bound<'_, PyDict> = py_limits.downcast_into()?;
+        Some(parse_agent_limits_config(&limits_dict)?)
+    } else {
+        None
+    };
+
     Ok(AgentConfig {
         id,
         opening_balance,
@@ -278,6 +302,32 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         arrival_config,
         posted_collateral,
         collateral_haircut,
+        limits,
+    })
+}
+
+/// Convert Python dict to AgentLimitsConfig (bilateral/multilateral limits)
+fn parse_agent_limits_config(py_limits: &Bound<'_, PyDict>) -> PyResult<AgentLimitsConfig> {
+    // Parse optional bilateral_limits (dict of counterparty -> max_amount)
+    let bilateral_limits: HashMap<String, i64> = if let Ok(Some(py_bilateral)) = py_limits.get_item("bilateral_limits") {
+        let bilateral_dict: Bound<'_, PyDict> = py_bilateral.downcast_into()?;
+        let mut limits = HashMap::new();
+        for (key, value) in bilateral_dict.iter() {
+            let counterparty: String = key.extract()?;
+            let max_amount: i64 = value.extract()?;
+            limits.insert(counterparty, max_amount);
+        }
+        limits
+    } else {
+        HashMap::new()
+    };
+
+    // Parse optional multilateral_limit
+    let multilateral_limit: Option<i64> = extract_optional(py_limits, "multilateral_limit")?;
+
+    Ok(AgentLimitsConfig {
+        bilateral_limits,
+        multilateral_limit,
     })
 }
 
@@ -811,6 +861,30 @@ pub fn transaction_to_py(
         dict.set_item("parent_tx_id", py.None())?;
     }
     dict.set_item("split_index", py.None())?; // TODO: Track split index in Transaction
+
+    // RTGS Priority (Phase 0: Dual Priority System)
+    // rtgs_priority is None until transaction is submitted to RTGS Queue 2
+    if let Some(rtgs_priority) = tx.rtgs_priority() {
+        dict.set_item("rtgs_priority", rtgs_priority.to_string())?;
+    } else {
+        dict.set_item("rtgs_priority", py.None())?;
+    }
+
+    // RTGS Submission Tick (Phase 0: Dual Priority System)
+    // Used for FIFO ordering within the same RTGS priority band
+    if let Some(submission_tick) = tx.rtgs_submission_tick() {
+        dict.set_item("rtgs_submission_tick", submission_tick)?;
+    } else {
+        dict.set_item("rtgs_submission_tick", py.None())?;
+    }
+
+    // Declared RTGS Priority (Phase 0: Dual Priority System)
+    // Bank's preferred RTGS priority when submitting the transaction
+    if let Some(declared_priority) = tx.declared_rtgs_priority() {
+        dict.set_item("declared_rtgs_priority", declared_priority.to_string())?;
+    } else {
+        dict.set_item("declared_rtgs_priority", py.None())?;
+    }
 
     Ok(dict.into())
 }

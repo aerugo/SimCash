@@ -23,6 +23,7 @@ fn create_test_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -32,6 +33,7 @@ fn create_test_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -40,6 +42,8 @@ fn create_test_config() -> OrchestratorConfig {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     }
 }
 
@@ -132,6 +136,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -141,6 +146,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -149,6 +155,8 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

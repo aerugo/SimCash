@@ -510,6 +510,74 @@ impl CashManagerPolicy for TreePolicy {
         decisions
     }
 
+    /// Evaluate policy for a single transaction (Phase 0.8: Queue 2 management)
+    ///
+    /// This method allows evaluating the payment tree for a transaction that is
+    /// already in Queue 2, enabling WithdrawFromRtgs and ResubmitToRtgs decisions.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - Transaction to evaluate
+    /// * `agent` - Agent that owns the transaction
+    /// * `state` - Current simulation state
+    /// * `tick` - Current simulation tick
+    /// * `cost_rates` - Cost configuration
+    /// * `ticks_per_day` - Ticks per day
+    /// * `eod_rush_threshold` - End-of-day rush threshold
+    ///
+    /// # Returns
+    ///
+    /// Decision for the transaction
+    fn evaluate_single(
+        &mut self,
+        tx: &crate::models::Transaction,
+        agent: &Agent,
+        state: &SimulationState,
+        tick: usize,
+        cost_rates: &CostRates,
+        ticks_per_day: usize,
+        eod_rush_threshold: f64,
+    ) -> ReleaseDecision {
+        // Build evaluation context
+        let context = EvalContext::build(tx, agent, state, tick, cost_rates, ticks_per_day, eod_rush_threshold);
+
+        // Validate tree on first use
+        if !self.validated {
+            if let Err(e) = self.validate_if_needed(&context) {
+                panic!("Tree validation failed: {:?}", e);
+            }
+        }
+
+        // Traverse tree to find action
+        let action_node = match traverse_tree(&self.tree, &context) {
+            Ok(node) => node,
+            Err(e) => {
+                // Return Hold on error (safe default)
+                return ReleaseDecision::Hold {
+                    tx_id: tx.id().to_string(),
+                    reason: crate::policy::HoldReason::Custom(format!("Tree traversal error: {:?}", e)),
+                };
+            }
+        };
+
+        // Build decision from action node
+        match build_decision(
+            action_node,
+            tx.id().to_string(),
+            &context,
+            &self.tree.parameters,
+        ) {
+            Ok(decision) => decision,
+            Err(e) => {
+                // Return Hold on error (safe default)
+                ReleaseDecision::Hold {
+                    tx_id: tx.id().to_string(),
+                    reason: crate::policy::HoldReason::Custom(format!("Action building error: {:?}", e)),
+                }
+            }
+        }
+    }
+
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }

@@ -39,6 +39,7 @@ fn test_fifo_preserves_arrival_order() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -48,6 +49,7 @@ fn test_fifo_preserves_arrival_order() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -56,6 +58,8 @@ fn test_fifo_preserves_arrival_order() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -113,6 +117,7 @@ fn test_fifo_partial_submission() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -122,6 +127,7 @@ fn test_fifo_partial_submission() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -130,6 +136,8 @@ fn test_fifo_partial_submission() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -200,6 +208,7 @@ fn test_fifo_vs_deadline_under_pressure() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             // Deadline agent (for comparison)
             AgentConfig {
@@ -212,6 +221,7 @@ fn test_fifo_vs_deadline_under_pressure() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             // Receiver
             AgentConfig {
@@ -222,6 +232,7 @@ fn test_fifo_vs_deadline_under_pressure() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -230,6 +241,8 @@ fn test_fifo_vs_deadline_under_pressure() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

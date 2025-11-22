@@ -427,6 +427,37 @@ fn settle_bilateral_pair(
         }
     }
 
+    // Phase 1 (TARGET2 LSM): Check bilateral and multilateral limits for A→B
+    // For each direction, check if the total outflow in that direction would exceed limits
+    if !txs_ab.is_empty() {
+        if let Some(tx_sample) = state.get_transaction(&txs_ab[0]) {
+            let sender_id = tx_sample.sender_id().to_string();
+            let receiver_id = tx_sample.receiver_id().to_string();
+            if let Some(sender) = state.get_agent(&sender_id) {
+                let (bilateral_ok, _, _) = sender.check_bilateral_limit(&receiver_id, sum_ab);
+                let (multilateral_ok, _, _) = sender.check_multilateral_limit(sum_ab);
+                if !bilateral_ok || !multilateral_ok {
+                    return 0; // Limit exceeded, don't settle this pair
+                }
+            }
+        }
+    }
+
+    // Phase 1 (TARGET2 LSM): Check bilateral and multilateral limits for B→A
+    if !txs_ba.is_empty() {
+        if let Some(tx_sample) = state.get_transaction(&txs_ba[0]) {
+            let sender_id = tx_sample.sender_id().to_string();
+            let receiver_id = tx_sample.receiver_id().to_string();
+            if let Some(sender) = state.get_agent(&sender_id) {
+                let (bilateral_ok, _, _) = sender.check_bilateral_limit(&receiver_id, sum_ba);
+                let (multilateral_ok, _, _) = sender.check_multilateral_limit(sum_ba);
+                if !bilateral_ok || !multilateral_ok {
+                    return 0; // Limit exceeded, don't settle this pair
+                }
+            }
+        }
+    }
+
     // Settle ALL transactions in A→B direction
     for tx_id in txs_ab {
         if let Some(tx) = state.get_transaction(tx_id) {
@@ -434,10 +465,12 @@ fn settle_bilateral_pair(
             let sender_id = tx.sender_id().to_string();
             let receiver_id = tx.receiver_id().to_string();
 
-            state
-                .get_agent_mut(&sender_id)
-                .unwrap()
-                .adjust_balance(-(amount as i64));
+            {
+                let sender = state.get_agent_mut(&sender_id).unwrap();
+                sender.adjust_balance(-(amount as i64));
+                // Record outflow for bilateral/multilateral limit tracking
+                sender.record_outflow(&receiver_id, amount);
+            }
             state
                 .get_agent_mut(&receiver_id)
                 .unwrap()
@@ -466,10 +499,12 @@ fn settle_bilateral_pair(
             let sender_id = tx.sender_id().to_string();
             let receiver_id = tx.receiver_id().to_string();
 
-            state
-                .get_agent_mut(&sender_id)
-                .unwrap()
-                .adjust_balance(-(amount as i64));
+            {
+                let sender = state.get_agent_mut(&sender_id).unwrap();
+                sender.adjust_balance(-(amount as i64));
+                // Record outflow for bilateral/multilateral limit tracking
+                sender.record_outflow(&receiver_id, amount);
+            }
             state
                 .get_agent_mut(&receiver_id)
                 .unwrap()
@@ -916,6 +951,41 @@ pub fn settle_cycle(
         }
     }
 
+    // ========== PHASE 1.6: BILATERAL/MULTILATERAL LIMIT VERIFICATION ==========
+    // Check each transaction in the cycle against sender's limits
+    // If any transaction would exceed a limit, the entire cycle fails
+    for tx_id in &cycle.transactions {
+        if let Some(tx) = state.get_transaction(tx_id) {
+            let sender_id = tx.sender_id().to_string();
+            let receiver_id = tx.receiver_id().to_string();
+            let amount = tx.remaining_amount();
+
+            if let Some(sender) = state.get_agent(&sender_id) {
+                // Check bilateral limit
+                let (bilateral_ok, _, _) = sender.check_bilateral_limit(&receiver_id, amount);
+                if !bilateral_ok {
+                    return Err(SettlementError::AgentError(
+                        crate::models::agent::AgentError::InsufficientLiquidity {
+                            required: amount,
+                            available: 0, // Limit exceeded
+                        },
+                    ));
+                }
+
+                // Check multilateral limit
+                let (multilateral_ok, _, _) = sender.check_multilateral_limit(amount);
+                if !multilateral_ok {
+                    return Err(SettlementError::AgentError(
+                        crate::models::agent::AgentError::InsufficientLiquidity {
+                            required: amount,
+                            available: 0, // Limit exceeded
+                        },
+                    ));
+                }
+            }
+        }
+    }
+
     // ========== PHASE 2: ATOMIC SETTLEMENT (All or Nothing) ==========
 
     let mut transactions_affected = 0;
@@ -930,10 +1000,12 @@ pub fn settle_cycle(
 
         // Settle full transaction amount
         // Use adjust_balance to bypass liquidity checks (net positions already verified)
-        state
-            .get_agent_mut(&sender_id)
-            .unwrap()
-            .adjust_balance(-(amount as i64));
+        {
+            let sender = state.get_agent_mut(&sender_id).unwrap();
+            sender.adjust_balance(-(amount as i64));
+            // Record outflow for bilateral/multilateral limit tracking
+            sender.record_outflow(&receiver_id, amount);
+        }
         state
             .get_agent_mut(&receiver_id)
             .unwrap()
@@ -984,7 +1056,7 @@ pub fn settle_cycle(
 /// # let current_tick = 5;
 /// # let ticks_per_day = 100;
 /// let config = LsmConfig::default();
-/// let result = run_lsm_pass(&mut state, &config, current_tick, ticks_per_day);
+/// let result = run_lsm_pass(&mut state, &config, current_tick, ticks_per_day, false);
 ///
 /// println!("LSM settled {}k, {} iterations", result.total_settled_value / 1000, result.iterations_run);
 /// ```
@@ -993,6 +1065,7 @@ pub fn run_lsm_pass(
     config: &LsmConfig,
     tick: usize,
     ticks_per_day: usize,
+    entry_disposition_offsetting: bool,
 ) -> LsmPassResult {
     let mut total_settled_value = 0i64;
     let mut iterations = 0;
@@ -1088,16 +1161,37 @@ pub fn run_lsm_pass(
                     (net_b.abs(), pair.agent_b.clone())
                 };
 
-                // Collect Event::LsmBilateralOffset for replay with ALL enriched fields
-                // This enables replay to reconstruct LSM activity from persisted events
-                replay_events.push(Event::LsmBilateralOffset {
-                    tick,
-                    agent_a: pair.agent_a.clone(),
-                    agent_b: pair.agent_b.clone(),
-                    amount_a: pair.amount_a_to_b,
-                    amount_b: pair.amount_b_to_a,
-                    tx_ids: transactions.clone(),  // Use full transaction list
-                });
+                // Collect event for replay with ALL enriched fields
+                // When entry_disposition_offsetting is enabled, emit EntryDispositionOffset
+                // Otherwise emit LsmBilateralOffset
+                if entry_disposition_offsetting {
+                    // For entry disposition, we treat one transaction as "incoming" (triggered offset)
+                    // and the other as "queued" (was already waiting)
+                    let (incoming_tx_id, queued_tx_id) = if transactions.len() >= 2 {
+                        (transactions[0].clone(), transactions[1].clone())
+                    } else {
+                        (transactions.get(0).cloned().unwrap_or_default(), String::new())
+                    };
+                    replay_events.push(Event::EntryDispositionOffset {
+                        tick,
+                        incoming_tx_id,
+                        queued_tx_id,
+                        agent_a: pair.agent_a.clone(),
+                        agent_b: pair.agent_b.clone(),
+                        offset_amount,
+                        incoming_amount: pair.amount_a_to_b,
+                        queued_amount: pair.amount_b_to_a,
+                    });
+                } else {
+                    replay_events.push(Event::LsmBilateralOffset {
+                        tick,
+                        agent_a: pair.agent_a.clone(),
+                        agent_b: pair.agent_b.clone(),
+                        amount_a: pair.amount_a_to_b,
+                        amount_b: pair.amount_b_to_a,
+                        tx_ids: transactions.clone(),
+                    });
+                }
 
                 cycle_events.push(LsmCycleEvent {
                     tick,
@@ -1265,11 +1359,11 @@ pub fn run_lsm_pass(
     replay_events.sort_by(|a, b| {
         use Event::*;
         let tick_a = match a {
-            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } => tick,
+            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } | EntryDispositionOffset { tick, .. } => tick,
             _ => &0,
         };
         let tick_b = match b {
-            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } => tick,
+            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } | EntryDispositionOffset { tick, .. } => tick,
             _ => &0,
         };
         tick_a.cmp(tick_b)

@@ -46,6 +46,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -55,6 +56,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -63,6 +65,8 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -134,6 +138,7 @@ fn test_liquidity_aware_buffer_recovery() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -143,6 +148,7 @@ fn test_liquidity_aware_buffer_recovery() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -151,6 +157,8 @@ fn test_liquidity_aware_buffer_recovery() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -245,6 +253,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -254,6 +263,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -262,6 +272,8 @@ fn test_liquidity_aware_credit_limit_interaction() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -350,6 +362,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -359,6 +372,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -367,6 +381,8 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     // Aggressive (high urgency threshold = more overrides)
@@ -386,6 +402,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -395,6 +412,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -403,6 +421,8 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orch_conservative = Orchestrator::new(config_conservative).unwrap();

@@ -78,6 +78,7 @@ def display_tick_verbose_output(
         log_section_separator,
         log_settlement_details,
         log_state_register_events,
+        log_target2_events,
         log_tick_summary,
         log_transaction_arrivals,
         log_transaction_reprioritized_events,
@@ -128,6 +129,11 @@ def display_tick_verbose_output(
     # SECTION 2.8: POLICY REPRIORITIZATIONS (Phase 4: Overdue Handling)
     # ═══════════════════════════════════════════════════════════
     log_transaction_reprioritized_events(display_events)
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 2.9: TARGET2 LSM EVENTS (Phase 0-3: TARGET2 Alignment)
+    # ═══════════════════════════════════════════════════════════
+    log_target2_events(display_events)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 3: SETTLEMENTS (detailed with mechanisms)

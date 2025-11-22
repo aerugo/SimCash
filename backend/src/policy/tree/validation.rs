@@ -336,6 +336,7 @@ fn is_transaction_only_field(field: &str) -> bool {
             | "is_split"
             | "is_past_deadline"
             | "is_overdue"
+            | "is_in_queue2"
             | "overdue_duration"
             | "ticks_to_deadline"
             | "queue_age"

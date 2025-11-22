@@ -26,6 +26,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -38,6 +39,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -46,6 +48,8 @@ fn create_two_agent_config() -> OrchestratorConfig {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     }
 }
 
@@ -327,6 +331,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -336,6 +341,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -344,6 +350,8 @@ fn test_orchestrator_lsm_bilateral_offset() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -554,6 +562,7 @@ fn test_orchestrator_automatic_arrivals() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -563,6 +572,7 @@ fn test_orchestrator_automatic_arrivals() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -571,6 +581,8 @@ fn test_orchestrator_automatic_arrivals() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -616,6 +628,7 @@ fn test_orchestrator_arrival_determinism() {
                 arrival_config: Some(arrival_config.clone()),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -625,6 +638,7 @@ fn test_orchestrator_arrival_determinism() {
                 arrival_config: None, // No arrivals for BANK_B
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -633,6 +647,8 @@ fn test_orchestrator_arrival_determinism() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     // Run two simulations with same seed
@@ -689,6 +705,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -698,6 +715,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -707,6 +725,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -715,6 +734,8 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -788,6 +809,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -797,6 +819,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -805,6 +828,8 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

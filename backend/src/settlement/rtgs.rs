@@ -252,17 +252,27 @@ pub fn submit_transaction(
         ));
     }
 
-    // Check if sender can pay
+    // Check if sender can pay (liquidity)
     let can_pay = {
         let sender = state.get_agent(&sender_id).unwrap();
         sender.can_pay(amount)
     };
 
-    if can_pay {
+    // Check bilateral and multilateral limits (Phase 1 TARGET2 LSM)
+    let (bilateral_ok, multilateral_ok) = {
+        let sender = state.get_agent(&sender_id).unwrap();
+        let (bilateral_ok, _, _) = sender.check_bilateral_limit(&receiver_id, amount);
+        let (multilateral_ok, _, _) = sender.check_multilateral_limit(amount);
+        (bilateral_ok, multilateral_ok)
+    };
+
+    if can_pay && bilateral_ok && multilateral_ok {
         // Perform settlement
         {
             let sender = state.get_agent_mut(&sender_id).unwrap();
             sender.debit(amount)?;
+            // Record outflow for bilateral/multilateral limit tracking
+            sender.record_outflow(&receiver_id, amount);
         }
         {
             let receiver = state.get_agent_mut(&receiver_id).unwrap();
@@ -382,17 +392,27 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
         let receiver_id = transaction.receiver_id().to_string();
         let amount = transaction.remaining_amount();
 
-        // Check if sender can pay
-        let can_settle = {
+        // Check if sender can pay (liquidity)
+        let can_pay = {
             let sender = state.get_agent(&sender_id).unwrap();
             sender.can_pay(amount)
         };
 
-        if can_settle {
+        // Check bilateral and multilateral limits (Phase 1 TARGET2 LSM)
+        let (bilateral_ok, multilateral_ok) = {
+            let sender = state.get_agent(&sender_id).unwrap();
+            let (bilateral_ok, _, _) = sender.check_bilateral_limit(&receiver_id, amount);
+            let (multilateral_ok, _, _) = sender.check_multilateral_limit(amount);
+            (bilateral_ok, multilateral_ok)
+        };
+
+        if can_pay && bilateral_ok && multilateral_ok {
             // Perform settlement
             {
                 let sender = state.get_agent_mut(&sender_id).unwrap();
                 sender.debit(amount).unwrap();
+                // Record outflow for bilateral/multilateral limit tracking
+                sender.record_outflow(&receiver_id, amount);
             }
             {
                 let receiver = state.get_agent_mut(&receiver_id).unwrap();

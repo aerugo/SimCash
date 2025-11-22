@@ -2227,3 +2227,223 @@ def log_performance_diagnostics_compact(timing: dict, tick: int) -> None:
     phase_info = ", ".join(phase_strs) if phase_strs else "balanced"
 
     console.print(f"[dim]⏱️  Tick {tick}: {millis_total:.2f}ms ({phase_info})[/dim]")
+
+
+# ============================================================================
+# TARGET2 LSM Alignment Event Display Functions
+# These functions display events from the TARGET2 LSM alignment implementation
+# ============================================================================
+
+
+def log_target2_events(events: list[dict], quiet: bool = False) -> None:
+    """Display all TARGET2 LSM alignment events.
+
+    This is the single entry point for displaying TARGET2-specific events.
+    Ensures replay identity by displaying events consistently.
+
+    Args:
+        events: List of event dicts from the tick
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    for event in events:
+        event_type = event.get("event_type", "")
+
+        if event_type == "RtgsSubmission":
+            log_rtgs_submission_event(event)
+        elif event_type == "RtgsWithdrawal":
+            log_rtgs_withdrawal_event(event)
+        elif event_type == "RtgsResubmission":
+            log_rtgs_resubmission_event(event)
+        elif event_type == "BilateralLimitExceeded":
+            log_bilateral_limit_exceeded_event(event)
+        elif event_type == "MultilateralLimitExceeded":
+            log_multilateral_limit_exceeded_event(event)
+        elif event_type == "AlgorithmExecution":
+            log_algorithm_execution_event(event)
+        elif event_type == "EntryDispositionOffset":
+            log_entry_disposition_offset_event(event)
+
+
+def log_rtgs_submission_event(event: dict, quiet: bool = False) -> None:
+    """Display RtgsSubmission event (Phase 0: Dual Priority System).
+
+    Args:
+        event: Event dict with rtgs_priority, internal_priority, etc.
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    tx_id = event.get("tx_id", "unknown")
+    sender = event.get("sender", "unknown")
+    receiver = event.get("receiver", "unknown")
+    amount = event.get("amount", 0)
+    rtgs_priority = event.get("rtgs_priority", "Normal")
+    internal_priority = event.get("internal_priority", 5)
+
+    amount_str = f"${amount / 100:,.2f}"
+    priority_color = "red" if rtgs_priority == "Urgent" else "yellow" if rtgs_priority == "HighlyUrgent" else "green"
+
+    console.print(f"  [cyan]RTGS Submission:[/cyan] {tx_id[:12]}...")
+    console.print(f"    {sender} → {receiver}: {amount_str}")
+    console.print(f"    RTGS Priority: [{priority_color}]{rtgs_priority}[/{priority_color}] (internal: {internal_priority})")
+
+
+def log_rtgs_withdrawal_event(event: dict, quiet: bool = False) -> None:
+    """Display RtgsWithdrawal event (Phase 0: Dual Priority System).
+
+    Args:
+        event: Event dict with tx_id, original_rtgs_priority, etc.
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    tx_id = event.get("tx_id", "unknown")
+    sender = event.get("sender", "unknown")
+    original_priority = event.get("original_rtgs_priority", "Normal")
+    ticks_in_queue = event.get("ticks_in_queue", 0)
+    reason = event.get("reason", "Unknown")
+
+    console.print(f"  [yellow]RTGS Withdrawal:[/yellow] {tx_id[:12]}...")
+    console.print(f"    Sender: {sender}")
+    console.print(f"    Original Priority: {original_priority}, Ticks in Queue: {ticks_in_queue}")
+    console.print(f"    Reason: {reason}")
+
+
+def log_rtgs_resubmission_event(event: dict, quiet: bool = False) -> None:
+    """Display RtgsResubmission event (Phase 0: Dual Priority System).
+
+    Args:
+        event: Event dict with old/new rtgs_priority
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    tx_id = event.get("tx_id", "unknown")
+    sender = event.get("sender", "unknown")
+    old_priority = event.get("old_rtgs_priority", "Normal")
+    new_priority = event.get("new_rtgs_priority", "Normal")
+
+    old_color = "red" if old_priority == "Urgent" else "green"
+    new_color = "red" if new_priority == "Urgent" else "green"
+
+    console.print(f"  [magenta]RTGS Resubmission:[/magenta] {tx_id[:12]}...")
+    console.print(f"    Sender: {sender}")
+    console.print(f"    Priority: [{old_color}]{old_priority}[/{old_color}] → [{new_color}]{new_priority}[/{new_color}]")
+
+
+def log_bilateral_limit_exceeded_event(event: dict, quiet: bool = False) -> None:
+    """Display BilateralLimitExceeded event (Phase 1: Limits).
+
+    Args:
+        event: Event dict with sender, receiver, limit, attempted, etc.
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    sender = event.get("sender", "unknown")
+    receiver = event.get("receiver", "unknown")
+    limit = event.get("bilateral_limit", event.get("limit", 0))
+    current = event.get("current_bilateral_outflow", event.get("current_outflow", 0))
+    attempted = event.get("amount", event.get("attempted", 0))
+
+    limit_str = f"${limit / 100:,.2f}"
+    current_str = f"${current / 100:,.2f}"
+    attempted_str = f"${attempted / 100:,.2f}"
+
+    console.print(f"  [red]⚠ Bilateral Limit Exceeded:[/red]")
+    console.print(f"    {sender} → {receiver}")
+    console.print(f"    Limit: {limit_str}, Current Outflow: {current_str}")
+    console.print(f"    Attempted: {attempted_str} (would exceed by ${(current + attempted - limit) / 100:,.2f})")
+
+
+def log_multilateral_limit_exceeded_event(event: dict, quiet: bool = False) -> None:
+    """Display MultilateralLimitExceeded event (Phase 1: Limits).
+
+    Args:
+        event: Event dict with sender, limit, current_total_outflow, etc.
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    sender = event.get("sender", "unknown")
+    limit = event.get("multilateral_limit", event.get("limit", 0))
+    current = event.get("current_total_outflow", event.get("current_outflow", 0))
+    attempted = event.get("amount", event.get("attempted", 0))
+
+    limit_str = f"${limit / 100:,.2f}"
+    current_str = f"${current / 100:,.2f}"
+    attempted_str = f"${attempted / 100:,.2f}"
+
+    console.print(f"  [red]⚠ Multilateral Limit Exceeded:[/red]")
+    console.print(f"    Sender: {sender}")
+    console.print(f"    Total Limit: {limit_str}, Current Total Outflow: {current_str}")
+    console.print(f"    Attempted: {attempted_str} (would exceed by ${(current + attempted - limit) / 100:,.2f})")
+
+
+def log_algorithm_execution_event(event: dict, quiet: bool = False) -> None:
+    """Display AlgorithmExecution event (Phase 2: Algorithm Sequencing).
+
+    Args:
+        event: Event dict with algorithm number, result, settlements, etc.
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    algorithm = event.get("algorithm", 0)
+    result = event.get("result", "Unknown")
+    settlements = event.get("settlements", 0)
+    settled_value = event.get("settled_value", 0)
+
+    # Algorithm names per TARGET2 spec
+    alg_names = {
+        1: "FIFO Queue Processing",
+        2: "Bilateral Offsetting",
+        3: "Multilateral Cycle Detection",
+    }
+    alg_name = alg_names.get(algorithm, f"Algorithm {algorithm}")
+
+    result_color = "green" if result == "Success" else "yellow" if result == "NoProgress" else "red"
+    value_str = f"${settled_value / 100:,.2f}" if settled_value > 0 else "$0.00"
+
+    console.print(f"  [blue]Algorithm {algorithm}:[/blue] {alg_name}")
+    console.print(f"    Result: [{result_color}]{result}[/{result_color}]")
+    if settlements > 0 or settled_value > 0:
+        console.print(f"    Settlements: {settlements}, Value: {value_str}")
+
+
+def log_entry_disposition_offset_event(event: dict, quiet: bool = False) -> None:
+    """Display EntryDispositionOffset event (Phase 3: Entry Disposition).
+
+    Args:
+        event: Event dict with incoming/queued tx, agents, offset_amount, etc.
+        quiet: Suppress output if True
+    """
+    if quiet:
+        return
+
+    incoming_tx = event.get("incoming_tx_id", "unknown")
+    queued_tx = event.get("queued_tx_id", "unknown")
+    agent_a = event.get("agent_a", "unknown")
+    agent_b = event.get("agent_b", "unknown")
+    offset_amount = event.get("offset_amount", 0)
+    incoming_amount = event.get("incoming_amount", 0)
+    queued_amount = event.get("queued_amount", 0)
+
+    offset_str = f"${offset_amount / 100:,.2f}"
+    incoming_str = f"${incoming_amount / 100:,.2f}"
+    queued_str = f"${queued_amount / 100:,.2f}"
+
+    console.print(f"  [green]Entry Disposition Offset:[/green]")
+    console.print(f"    {agent_a} ↔ {agent_b}")
+    console.print(f"    Incoming: {incoming_tx[:12]}... ({incoming_str})")
+    console.print(f"    Queued: {queued_tx[:12]}... ({queued_str})")
+    console.print(f"    Offset Amount: {offset_str}")

@@ -256,14 +256,15 @@ class TestEventPersistenceDuringSimulation:
         )
 
         # Query for specific event types
+        # Note: Settlement events are now typed (RtgsImmediateSettlement, Queue2LiquidityRelease, etc.)
         cursor = manager.conn.cursor()
         cursor.execute("""
             SELECT COUNT(*) FROM simulation_events
-            WHERE event_type IN ('PolicySubmit', 'Settlement')
+            WHERE event_type IN ('PolicySubmit', 'RtgsImmediateSettlement', 'Queue2LiquidityRelease')
         """)
         count = cursor.fetchone()[0]
 
-        assert count >= 2, "Should have at least PolicySubmit and Settlement events"
+        assert count >= 2, "Should have at least PolicySubmit and a Settlement event"
 
         manager.close()
 

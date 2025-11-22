@@ -48,6 +48,7 @@ fn test_high_frequency_arrivals_single_agent() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -57,6 +58,7 @@ fn test_high_frequency_arrivals_single_agent() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -65,6 +67,8 @@ fn test_high_frequency_arrivals_single_agent() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -153,6 +157,7 @@ fn test_sustained_high_load_100_ticks() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -162,6 +167,7 @@ fn test_sustained_high_load_100_ticks() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -170,6 +176,8 @@ fn test_sustained_high_load_100_ticks() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -261,6 +269,7 @@ fn test_extreme_high_frequency_arrivals() {
                 arrival_config: Some(arrival_config),
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -270,6 +279,7 @@ fn test_extreme_high_frequency_arrivals() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -278,6 +288,8 @@ fn test_extreme_high_frequency_arrivals() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -366,6 +378,7 @@ fn test_50_agent_high_frequency_simulation() {
             arrival_config: Some(arrival_config.clone()),
             posted_collateral: None,
             collateral_haircut: None,
+                limits: None,
         });
     }
 
@@ -380,6 +393,8 @@ fn test_50_agent_high_frequency_simulation() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     println!("Initializing 50-agent simulation...");

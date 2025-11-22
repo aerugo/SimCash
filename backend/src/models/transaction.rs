@@ -5,14 +5,95 @@
 //! - Sender and receiver agent IDs
 //! - Amount (i64 cents) - original and remaining
 //! - Arrival and deadline ticks
-//! - Priority level
+//! - Priority level (internal bank priority, 0-10)
+//! - RTGS priority (declared to central system: Urgent/Normal)
 //! - Divisibility flag (can be split into parts)
 //! - Status (Pending, PartiallySettled, Settled, Overdue)
+//!
+//! # Dual Priority System (TARGET2-style)
+//!
+//! This module implements a dual priority system:
+//!
+//! - **Internal Priority** (0-10): Bank's internal view of payment importance.
+//!   Used for Queue 1 ordering. Can be modified by policies.
+//!
+//! - **RTGS Priority** (Urgent/Normal): Declared to RTGS at submission time.
+//!   Used for Queue 2 ordering. Can only be changed via withdraw/resubmit.
 //!
 //! CRITICAL: All money values are i64 (cents)
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::str::FromStr;
 use thiserror::Error;
+
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+
+/// RTGS priority levels (TARGET2-style)
+///
+/// In TARGET2 and similar RTGS systems, payments are assigned a priority
+/// at submission time that determines their processing order in the central
+/// queue (Queue 2 in SimCash).
+///
+/// # Priority Levels
+///
+/// - **HighlyUrgent (0)**: Reserved for central bank operations and CLS.
+///   Not available to regular participants.
+/// - **Urgent (1)**: Time-critical payments. Banks can use this level but
+///   may incur higher fees.
+/// - **Normal (2)**: Standard payments. Default for most transactions.
+///
+/// # Ordering
+///
+/// Lower numeric value = higher priority. HighlyUrgent (0) is processed
+/// before Urgent (1), which is processed before Normal (2).
+///
+/// Within the same priority band, FIFO ordering by submission tick is used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
+pub enum RtgsPriority {
+    /// Highly Urgent (0) - Restricted to system/central bank operations
+    HighlyUrgent = 0,
+
+    /// Urgent (1) - Time-critical payments, may incur higher fees
+    Urgent = 1,
+
+    /// Normal (2) - Standard payments (default)
+    Normal = 2,
+}
+
+impl Default for RtgsPriority {
+    fn default() -> Self {
+        RtgsPriority::Normal
+    }
+}
+
+impl fmt::Display for RtgsPriority {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RtgsPriority::HighlyUrgent => write!(f, "HighlyUrgent"),
+            RtgsPriority::Urgent => write!(f, "Urgent"),
+            RtgsPriority::Normal => write!(f, "Normal"),
+        }
+    }
+}
+
+impl FromStr for RtgsPriority {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "highlyurgent" | "highly_urgent" | "0" => Ok(RtgsPriority::HighlyUrgent),
+            "urgent" | "1" => Ok(RtgsPriority::Urgent),
+            "normal" | "2" => Ok(RtgsPriority::Normal),
+            _ => Err(format!(
+                "Invalid RTGS priority: '{}'. Valid values: HighlyUrgent, Urgent, Normal",
+                s
+            )),
+        }
+    }
+}
 
 /// Transaction status
 ///
@@ -122,6 +203,39 @@ pub struct Transaction {
     /// - `None`: This is a regular (non-split) transaction
     /// - `Some(parent_id)`: This is a child of a split transaction
     parent_id: Option<String>,
+
+    /// RTGS declared priority - set when submitted to Queue 2
+    ///
+    /// This is the priority declared to the RTGS system when the transaction
+    /// is submitted from the bank's internal queue (Queue 1) to the central
+    /// settlement queue (Queue 2).
+    ///
+    /// - `None`: Transaction not yet submitted to RTGS (still in Queue 1)
+    /// - `Some(priority)`: Transaction submitted with this priority
+    ///
+    /// Unlike internal priority, this can only be changed by withdrawing
+    /// from Queue 2 and resubmitting (which loses FIFO position).
+    rtgs_priority: Option<RtgsPriority>,
+
+    /// Tick when submitted to RTGS Queue 2
+    ///
+    /// Used for FIFO ordering within the same RTGS priority band.
+    /// Transactions with the same RTGS priority are processed in order
+    /// of their submission tick (earlier tick = processed first).
+    ///
+    /// - `None`: Transaction not yet submitted to RTGS
+    /// - `Some(tick)`: Transaction was submitted at this tick
+    rtgs_submission_tick: Option<usize>,
+
+    /// Bank's declared RTGS priority to use when submitted
+    ///
+    /// This is set when the transaction is created via submit_transaction_with_rtgs_priority.
+    /// When the transaction is released to RTGS (enters Queue 2), this priority is used
+    /// instead of the default Normal priority.
+    ///
+    /// - `None`: Use default Normal priority when submitted to RTGS
+    /// - `Some(priority)`: Use this priority when submitted to RTGS
+    declared_rtgs_priority: Option<RtgsPriority>,
 }
 
 impl Transaction {
@@ -174,6 +288,9 @@ impl Transaction {
             original_priority: 5, // Original priority before escalation
             status: TransactionStatus::Pending,
             parent_id: None,
+            rtgs_priority: None, // Set when submitted to RTGS
+            rtgs_submission_tick: None,
+            declared_rtgs_priority: None, // Set via submit_transaction_with_rtgs_priority
         }
     }
 
@@ -245,6 +362,9 @@ impl Transaction {
             original_priority: 5, // Original priority before escalation
             status: TransactionStatus::Pending,
             parent_id: Some(parent_id),
+            rtgs_priority: None, // Set when submitted to RTGS
+            rtgs_submission_tick: None,
+            declared_rtgs_priority: None, // Children inherit parent's declared priority
         }
     }
 
@@ -308,6 +428,47 @@ impl Transaction {
             original_priority: capped_priority, // Assume original equals current for snapshots
             status,
             parent_id,
+            rtgs_priority: None, // Not set for legacy snapshots
+            rtgs_submission_tick: None,
+            declared_rtgs_priority: None, // Not set for legacy snapshots
+        }
+    }
+
+    /// Create transaction from snapshot with RTGS priority fields
+    ///
+    /// Extended version of `from_snapshot` that includes RTGS priority fields.
+    /// Used for snapshots that include the dual priority system.
+    pub fn from_snapshot_with_rtgs(
+        id: String,
+        sender_id: String,
+        receiver_id: String,
+        amount: i64,
+        remaining_amount: i64,
+        arrival_tick: usize,
+        deadline_tick: usize,
+        priority: u8,
+        status: TransactionStatus,
+        parent_id: Option<String>,
+        rtgs_priority: Option<RtgsPriority>,
+        rtgs_submission_tick: Option<usize>,
+        declared_rtgs_priority: Option<RtgsPriority>,
+    ) -> Self {
+        let capped_priority = priority.min(10);
+        Self {
+            id,
+            sender_id,
+            receiver_id,
+            amount,
+            remaining_amount,
+            arrival_tick,
+            deadline_tick,
+            priority: capped_priority,
+            original_priority: capped_priority,
+            status,
+            parent_id,
+            rtgs_priority,
+            rtgs_submission_tick,
+            declared_rtgs_priority,
         }
     }
 
@@ -437,6 +598,63 @@ impl Transaction {
     /// ```
     pub fn is_split(&self) -> bool {
         self.parent_id.is_some()
+    }
+
+    /// Get RTGS priority (if submitted to RTGS)
+    ///
+    /// Returns `None` if transaction has not yet been submitted to RTGS Queue 2.
+    /// Returns `Some(priority)` with the declared RTGS priority otherwise.
+    pub fn rtgs_priority(&self) -> Option<RtgsPriority> {
+        self.rtgs_priority
+    }
+
+    /// Get RTGS submission tick (if submitted to RTGS)
+    ///
+    /// Returns `None` if transaction has not yet been submitted to RTGS Queue 2.
+    /// Returns `Some(tick)` with the tick when it was submitted otherwise.
+    ///
+    /// Used for FIFO ordering within the same RTGS priority band.
+    pub fn rtgs_submission_tick(&self) -> Option<usize> {
+        self.rtgs_submission_tick
+    }
+
+    /// Set RTGS priority and submission tick
+    ///
+    /// Called when transaction is submitted to RTGS Queue 2 from the bank's
+    /// internal Queue 1.
+    ///
+    /// # Arguments
+    /// * `priority` - The RTGS priority to declare
+    /// * `tick` - The current tick (becomes the submission tick for FIFO ordering)
+    pub fn set_rtgs_priority(&mut self, priority: RtgsPriority, tick: usize) {
+        self.rtgs_priority = Some(priority);
+        self.rtgs_submission_tick = Some(tick);
+    }
+
+    /// Clear RTGS priority and submission tick
+    ///
+    /// Called when transaction is withdrawn from RTGS Queue 2 back to Queue 1.
+    /// This allows the transaction to be resubmitted with a different priority.
+    pub fn clear_rtgs_priority(&mut self) {
+        self.rtgs_priority = None;
+        self.rtgs_submission_tick = None;
+    }
+
+    /// Get the declared RTGS priority (bank's preference for when submitted)
+    ///
+    /// Returns the priority the bank wants to use when this transaction is
+    /// submitted to RTGS. If `None`, the default Normal priority will be used.
+    pub fn declared_rtgs_priority(&self) -> Option<RtgsPriority> {
+        self.declared_rtgs_priority
+    }
+
+    /// Set the declared RTGS priority
+    ///
+    /// Called when a transaction is submitted via submit_transaction_with_rtgs_priority.
+    /// This stores the bank's preferred priority to use when the transaction
+    /// enters RTGS Queue 2.
+    pub fn set_declared_rtgs_priority(&mut self, priority: RtgsPriority) {
+        self.declared_rtgs_priority = Some(priority);
     }
 
     /// Check if transaction is pending

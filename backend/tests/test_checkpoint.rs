@@ -40,6 +40,7 @@ fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -49,6 +50,7 @@ fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -57,6 +59,8 @@ fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     Orchestrator::new(config).expect("Failed to create test orchestrator")
@@ -91,6 +95,7 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
                 }),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -114,6 +119,7 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
                 }),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -122,6 +128,8 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     Orchestrator::new(config).expect("Failed to create orchestrator with arrivals")
@@ -226,6 +234,7 @@ fn test_load_state_restores_exact_state() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -235,6 +244,7 @@ fn test_load_state_restores_exact_state() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -243,6 +253,8 @@ fn test_load_state_restores_exact_state() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
     let state_json = original.save_state().unwrap();
 
@@ -296,6 +308,7 @@ fn test_determinism_after_restore() {
                 }),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -319,6 +332,7 @@ fn test_determinism_after_restore() {
                 }),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -327,6 +341,8 @@ fn test_determinism_after_restore() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
     let state_json = sim1.save_state().unwrap();
 
@@ -399,6 +415,7 @@ fn test_balance_conservation_preserved() {
                 }),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -422,6 +439,7 @@ fn test_balance_conservation_preserved() {
                 }),
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -430,6 +448,8 @@ fn test_balance_conservation_preserved() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
     let state_json = orchestrator.save_state().unwrap();
     let restored = Orchestrator::load_state(config, &state_json).unwrap();
@@ -471,6 +491,7 @@ fn test_config_mismatch_rejected() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -480,6 +501,7 @@ fn test_config_mismatch_rejected() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -488,6 +510,8 @@ fn test_config_mismatch_rejected() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     // Should fail to load with config mismatch error
@@ -520,6 +544,7 @@ fn test_corrupted_state_json_rejected() {
             arrival_config: None,
             posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -527,6 +552,8 @@ fn test_corrupted_state_json_rejected() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     // Invalid JSON
@@ -566,6 +593,7 @@ fn test_save_load_roundtrip_preserves_state_multiple_seeds() {
                     arrival_config: None,
                     posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
                 },
                 AgentConfig {
                     id: "BANK_B".to_string(),
@@ -575,6 +603,7 @@ fn test_save_load_roundtrip_preserves_state_multiple_seeds() {
                     arrival_config: None,
                     posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
                 },
             ],
             cost_rates: CostRates::default(),
@@ -583,6 +612,8 @@ fn test_save_load_roundtrip_preserves_state_multiple_seeds() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
         };
         let state_json = original.save_state().unwrap();
         let mut restored = Orchestrator::load_state(config, &state_json).unwrap();

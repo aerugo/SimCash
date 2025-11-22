@@ -173,9 +173,58 @@ fn event_to_py_dict<'py>(
             dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
             dict.set_item("release_reason", release_reason)?;
         }
+        crate::models::event::Event::BilateralLimitExceeded { sender, receiver, tx_id, amount, current_bilateral_outflow, bilateral_limit, .. } => {
+            dict.set_item("sender", sender)?;
+            dict.set_item("receiver", receiver)?;
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("current_bilateral_outflow", current_bilateral_outflow)?;
+            dict.set_item("bilateral_limit", bilateral_limit)?;
+        }
+        crate::models::event::Event::MultilateralLimitExceeded { sender, tx_id, amount, current_total_outflow, multilateral_limit, .. } => {
+            dict.set_item("sender", sender)?;
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("current_total_outflow", current_total_outflow)?;
+            dict.set_item("multilateral_limit", multilateral_limit)?;
+        }
+        crate::models::event::Event::AlgorithmExecution { algorithm, result, settlements, settled_value, .. } => {
+            dict.set_item("algorithm", algorithm)?;
+            dict.set_item("result", result)?;
+            dict.set_item("settlements", settlements)?;
+            dict.set_item("settled_value", settled_value)?;
+        }
+        crate::models::event::Event::EntryDispositionOffset { incoming_tx_id, queued_tx_id, agent_a, agent_b, offset_amount, incoming_amount, queued_amount, .. } => {
+            dict.set_item("incoming_tx_id", incoming_tx_id)?;
+            dict.set_item("queued_tx_id", queued_tx_id)?;
+            dict.set_item("agent_a", agent_a)?;
+            dict.set_item("agent_b", agent_b)?;
+            dict.set_item("offset_amount", offset_amount)?;
+            dict.set_item("incoming_amount", incoming_amount)?;
+            dict.set_item("queued_amount", queued_amount)?;
+        }
         crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
             dict.set_item("tx_id", tx_id)?;
             dict.set_item("sender_id", sender_id)?;
+        }
+        crate::models::event::Event::RtgsSubmission { tx_id, sender, receiver, amount, internal_priority, rtgs_priority, .. } => {
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("sender", sender)?;
+            dict.set_item("receiver", receiver)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("internal_priority", internal_priority)?;
+            dict.set_item("rtgs_priority", rtgs_priority)?;
+        }
+        crate::models::event::Event::RtgsWithdrawal { tx_id, sender, original_rtgs_priority, .. } => {
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("sender", sender)?;
+            dict.set_item("original_rtgs_priority", original_rtgs_priority)?;
+        }
+        crate::models::event::Event::RtgsResubmission { tx_id, sender, old_rtgs_priority, new_rtgs_priority, .. } => {
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("sender", sender)?;
+            dict.set_item("old_rtgs_priority", old_rtgs_priority)?;
+            dict.set_item("new_rtgs_priority", new_rtgs_priority)?;
         }
         crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_ids, amount_a, amount_b, .. } => {
             dict.set_item("agent_a", agent_a)?;
@@ -465,6 +514,89 @@ impl PyOrchestrator {
         dict.set_item("allowed_overdraft_limit", agent.allowed_overdraft_limit())?;
         dict.set_item("overdraft_headroom", agent.headroom())?;
         dict.set_item("max_withdrawable_collateral", agent.max_withdrawable_collateral(0))?;
+
+        Ok(dict.into())
+    }
+
+    /// Get agent's payment limits configuration (Phase 1: TARGET2 LSM)
+    ///
+    /// Returns bilateral and multilateral limits for the agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    ///
+    /// # Returns
+    /// Dictionary with:
+    /// - bilateral_limits: Dict[str, int] (counterparty_id -> max_outflow in cents)
+    /// - multilateral_limit: Optional[int] (max total outflow in cents)
+    ///
+    /// # Example (from Python)
+    /// ```python
+    /// limits = orch.get_agent_limits("BANK_A")
+    /// print(f"Bilateral to B: {limits['bilateral_limits'].get('BANK_B', 'no limit')}")
+    /// print(f"Multilateral: {limits['multilateral_limit']}")
+    /// ```
+    fn get_agent_limits(&self, py: Python, agent_id: &str) -> PyResult<Py<PyDict>> {
+        let state = self.inner.state();
+        let agent = state.get_agent(agent_id)
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Agent '{}' not found", agent_id)
+            ))?;
+
+        let dict = PyDict::new(py);
+
+        // Bilateral limits dict
+        let bilateral_dict = PyDict::new(py);
+        for (counterparty, limit) in agent.bilateral_limits() {
+            bilateral_dict.set_item(counterparty, *limit)?;
+        }
+        dict.set_item("bilateral_limits", bilateral_dict)?;
+
+        // Multilateral limit (None if not configured)
+        match agent.multilateral_limit() {
+            Some(limit) => dict.set_item("multilateral_limit", limit)?,
+            None => dict.set_item("multilateral_limit", py.None())?,
+        }
+
+        Ok(dict.into())
+    }
+
+    /// Get agent's current outflow tracking (Phase 1: TARGET2 LSM)
+    ///
+    /// Returns current day's bilateral outflows and total outflow for limit enforcement.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    ///
+    /// # Returns
+    /// Dictionary with:
+    /// - bilateral_outflows: Dict[str, int] (counterparty_id -> amount sent today)
+    /// - total_outflow: int (total amount sent today)
+    ///
+    /// # Example (from Python)
+    /// ```python
+    /// outflows = orch.get_agent_current_outflows("BANK_A")
+    /// print(f"Sent to B today: {outflows['bilateral_outflows'].get('BANK_B', 0)}")
+    /// print(f"Total sent today: {outflows['total_outflow']}")
+    /// ```
+    fn get_agent_current_outflows(&self, py: Python, agent_id: &str) -> PyResult<Py<PyDict>> {
+        let state = self.inner.state();
+        let agent = state.get_agent(agent_id)
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Agent '{}' not found", agent_id)
+            ))?;
+
+        let dict = PyDict::new(py);
+
+        // Bilateral outflows dict
+        let bilateral_dict = PyDict::new(py);
+        for (counterparty, amount) in agent.bilateral_outflows() {
+            bilateral_dict.set_item(counterparty, *amount)?;
+        }
+        dict.set_item("bilateral_outflows", bilateral_dict)?;
+
+        // Total outflow
+        dict.set_item("total_outflow", agent.total_outflow())?;
 
         Ok(dict.into())
     }
@@ -876,6 +1008,137 @@ impl PyOrchestrator {
                     e
                 ))
             })
+    }
+
+    /// Submit a transaction with an explicit RTGS priority (Phase 0: Dual Priority System)
+    ///
+    /// Similar to `submit_transaction`, but allows specifying the RTGS priority
+    /// that will be used when the transaction is submitted to Queue 2.
+    ///
+    /// # Arguments
+    ///
+    /// * `sender` - Sending agent ID
+    /// * `receiver` - Receiving agent ID
+    /// * `amount` - Transaction amount in cents
+    /// * `deadline_tick` - Tick by which transaction must settle
+    /// * `priority` - Internal priority (0-10)
+    /// * `divisible` - Whether transaction can be split
+    /// * `rtgs_priority` - RTGS priority: "HighlyUrgent", "Urgent", or "Normal"
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// tx_id = orch.submit_transaction_with_rtgs_priority(
+    ///     sender="BANK_A",
+    ///     receiver="BANK_B",
+    ///     amount=100_000,
+    ///     deadline_tick=50,
+    ///     priority=5,
+    ///     divisible=False,
+    ///     rtgs_priority="Urgent",
+    /// )
+    /// ```
+    fn submit_transaction_with_rtgs_priority(
+        &mut self,
+        sender: &str,
+        receiver: &str,
+        amount: i64,
+        deadline_tick: usize,
+        priority: u8,
+        divisible: bool,
+        rtgs_priority: &str,
+    ) -> PyResult<String> {
+        // Parse RTGS priority string
+        use crate::models::transaction::RtgsPriority;
+        let rtgs_priority = match rtgs_priority {
+            "HighlyUrgent" => RtgsPriority::HighlyUrgent,
+            "Urgent" => RtgsPriority::Urgent,
+            "Normal" => RtgsPriority::Normal,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Invalid RTGS priority '{}'. Must be 'HighlyUrgent', 'Urgent', or 'Normal'",
+                    rtgs_priority
+                )))
+            }
+        };
+
+        self.inner
+            .submit_transaction_with_rtgs_priority(
+                sender,
+                receiver,
+                amount,
+                deadline_tick,
+                priority,
+                divisible,
+                rtgs_priority,
+            )
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to submit transaction with RTGS priority: {}",
+                    e
+                ))
+            })
+    }
+
+    /// Withdraw a transaction from RTGS Queue 2 (Phase 0: Dual Priority System)
+    ///
+    /// Removes the transaction from Queue 2 and clears its RTGS priority.
+    /// Returns a dict with 'success' field.
+    fn withdraw_from_rtgs(&mut self, py: Python, tx_id: &str) -> PyResult<Py<PyDict>> {
+        let result = PyDict::new(py);
+
+        match self.inner.withdraw_from_rtgs(tx_id) {
+            Ok(()) => {
+                result.set_item("success", true)?;
+            }
+            Err(e) => {
+                result.set_item("success", false)?;
+                result.set_item("error", e.to_string())?;
+            }
+        }
+
+        Ok(result.into())
+    }
+
+    /// Resubmit a transaction to RTGS with a new priority (Phase 0: Dual Priority System)
+    ///
+    /// Sets a new RTGS priority for the transaction. The transaction will be
+    /// resubmitted on the next tick.
+    fn resubmit_to_rtgs(&mut self, py: Python, tx_id: &str, rtgs_priority: &str) -> PyResult<Py<PyDict>> {
+        use crate::models::transaction::RtgsPriority;
+
+        let result = PyDict::new(py);
+
+        // Parse RTGS priority
+        let priority = match rtgs_priority {
+            "HighlyUrgent" => RtgsPriority::HighlyUrgent,
+            "Urgent" => RtgsPriority::Urgent,
+            "Normal" => RtgsPriority::Normal,
+            _ => {
+                result.set_item("success", false)?;
+                result.set_item("error", format!("Invalid RTGS priority: {}", rtgs_priority))?;
+                return Ok(result.into());
+            }
+        };
+
+        match self.inner.resubmit_to_rtgs(tx_id, priority) {
+            Ok(()) => {
+                result.set_item("success", true)?;
+            }
+            Err(e) => {
+                result.set_item("success", false)?;
+                result.set_item("error", e.to_string())?;
+            }
+        }
+
+        Ok(result.into())
+    }
+
+    /// Get the size of Queue 2 (RTGS queue)
+    ///
+    /// Alias for get_queue2_size() for convenience.
+    fn queue_size(&self) -> usize {
+        self.inner.get_queue2_size()
     }
 
     // ========================================================================
@@ -1512,6 +1775,27 @@ impl PyOrchestrator {
             dict.set_item("arrival_tick", tx.arrival_tick())?;
             dict.set_item("deadline_tick", tx.deadline_tick())?;
             dict.set_item("priority", tx.priority())?;
+
+            // RTGS Priority (Phase 0: Dual Priority System)
+            if let Some(rtgs_priority) = tx.rtgs_priority() {
+                dict.set_item("rtgs_priority", rtgs_priority.to_string())?;
+            } else {
+                dict.set_item("rtgs_priority", py.None())?;
+            }
+
+            // Declared RTGS Priority (Phase 0.8: Priority for next submission)
+            if let Some(declared_priority) = tx.declared_rtgs_priority() {
+                dict.set_item("declared_rtgs_priority", declared_priority.to_string())?;
+            } else {
+                dict.set_item("declared_rtgs_priority", py.None())?;
+            }
+
+            // RTGS Submission Tick
+            if let Some(submission_tick) = tx.rtgs_submission_tick() {
+                dict.set_item("rtgs_submission_tick", submission_tick)?;
+            } else {
+                dict.set_item("rtgs_submission_tick", py.None())?;
+            }
 
             // Convert status to string
             let status_str = match tx.status() {
