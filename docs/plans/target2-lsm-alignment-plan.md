@@ -1,6 +1,7 @@
 # TARGET2 LSM Alignment Implementation Plan
 
 **Created:** 2025-11-22
+**Updated:** 2025-11-22
 **Status:** Draft
 **Author:** Claude Code Review
 
@@ -12,12 +13,14 @@ This plan addresses the remaining gaps between SimCash's LSM (Liquidity-Saving M
 
 | Priority | Feature | Status |
 |----------|---------|--------|
-| High | Priority-based queuing | ✅ Already implemented (Phase 4 of priority-system-redesign) |
+| **Critical** | **Dual Priority System (Internal vs RTGS)** | ❌ **Not implemented** |
 | **High** | **Bilateral/multilateral limits** | ❌ **Not implemented** |
 | Medium | Algorithm sequencing | ❌ Not implemented |
 | Medium | Entry disposition offsetting | ❌ Not implemented |
 
-This plan focuses on the **remaining unimplemented features**.
+**Important Design Decision:** The existing priority system conflates internal bank priority with RTGS declared priority. This must be fixed before other T2 alignment work proceeds.
+
+This plan focuses on the **remaining unimplemented features**, starting with the critical priority system refactor.
 
 ---
 
@@ -98,11 +101,806 @@ TARGET2 performs offsetting checks **before** queuing:
 4. **Two-phase commit** - Atomic all-or-nothing execution
 5. **Conservation invariant** - Sum of net positions = 0
 6. **Determinism** - Sorted collections throughout
-7. **Priority-based queuing** - T2-style 3-level priority (implemented in priority-system-redesign)
+
+#### 4. Priority System Design Flaw (NEW - CRITICAL)
+
+The current implementation has a fundamental design flaw: **internal bank priority and RTGS declared priority are conflated into a single field**.
+
+**Real-World Model:**
+
+| Concept | Queue 1 (Internal) | Queue 2 (RTGS) |
+|---------|-------------------|----------------|
+| **Purpose** | Bank's internal prioritization | Central system queue order |
+| **Who decides** | Bank treasury/policy | Bank declares at submission |
+| **Factors** | Client tier, SLAs, strategy | Payment type, fees, regulatory |
+| **Mutable** | Yes (policy can change) | Only via withdraw/resubmit |
+
+**TARGET2 RTGS Priority:**
+
+| T2 Priority | Code | Access | Description |
+|-------------|------|--------|-------------|
+| Highly Urgent | 0 | Restricted | Central bank, CLS only |
+| Urgent | 1 | Banks | Higher fees, faster processing |
+| Normal | 2 | Banks | Standard (default) |
+
+**Current SimCash Problem:**
+```
+Transaction.priority = 7  ← Used for BOTH Queue 1 AND Queue 2
+```
+
+This is unrealistic because:
+- A bank might internally prioritize a payment HIGH but submit as Normal (save fees)
+- A payment might be LOW internal priority but MUST be Urgent (regulatory)
+- The bank should DECIDE what RTGS priority to declare at submission time
 
 ---
 
 ## Implementation Plan
+
+### Phase 0: Dual Priority System (CRITICAL - MUST DO FIRST)
+
+**Rationale:** The existing priority system conflates internal bank priority with RTGS declared priority. This architectural issue must be resolved before implementing other T2 features, as bilateral/multilateral limits and algorithm sequencing depend on correct RTGS priority semantics.
+
+#### 0.1 Design: Separate Priority Concepts
+
+**Internal Priority** (Queue 1):
+- Purpose: Bank's internal decision-making
+- Range: 0-10 (existing)
+- Used by: Policy evaluation, Queue 1 ordering
+- Mutable: Yes (escalation, policy changes)
+
+**RTGS Priority** (Queue 2):
+- Purpose: Declared priority for RTGS processing
+- Values: `Urgent` (1) or `Normal` (2)
+- Used by: Queue 2 band ordering, settlement algorithms
+- Set at: Submission to Queue 2
+- Mutable: Only via withdraw and resubmit (loses FIFO position)
+
+#### 0.2 Data Model Changes
+
+**File:** `backend/src/models/transaction.rs`
+
+```rust
+/// RTGS priority levels (TARGET2-style)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub enum RtgsPriority {
+    /// Highly Urgent (0) - Restricted to system/central bank
+    /// Not available to regular participants
+    HighlyUrgent = 0,
+
+    /// Urgent (1) - Time-critical payments
+    /// Banks can use this, may incur higher fees
+    Urgent = 1,
+
+    /// Normal (2) - Standard payments (default)
+    Normal = 2,
+}
+
+impl Default for RtgsPriority {
+    fn default() -> Self {
+        RtgsPriority::Normal
+    }
+}
+
+pub struct Transaction {
+    // ... existing fields ...
+
+    /// Internal priority (0-10) - used by bank policies in Queue 1
+    /// This is the bank's internal view of payment importance
+    priority: u8,
+
+    /// RTGS declared priority - used by Queue 2 (RTGS central queue)
+    /// Set when transaction is submitted to RTGS, not at arrival
+    /// None = not yet submitted to RTGS (still in Queue 1)
+    rtgs_priority: Option<RtgsPriority>,
+
+    /// Tick when transaction was submitted to RTGS Queue 2
+    /// Used for FIFO ordering within priority bands
+    rtgs_submission_tick: Option<usize>,
+}
+```
+
+#### 0.3 Submission to RTGS (Queue 1 → Queue 2)
+
+When a bank submits a transaction to the RTGS, it declares the RTGS priority:
+
+**File:** `backend/src/models/agent.rs`
+
+```rust
+/// Result of submitting a transaction to RTGS
+pub enum RtgsSubmissionResult {
+    /// Successfully submitted with declared priority
+    Submitted { rtgs_priority: RtgsPriority },
+
+    /// Transaction not found in Queue 1
+    NotInQueue1,
+
+    /// Agent not authorized for this priority level
+    PriorityNotAuthorized,
+}
+
+impl Agent {
+    /// Submit transaction from Queue 1 to RTGS Queue 2 with declared priority
+    pub fn submit_to_rtgs(
+        &mut self,
+        tx_id: &str,
+        declared_priority: RtgsPriority,
+    ) -> RtgsSubmissionResult {
+        // Remove from Queue 1
+        // Mark transaction with RTGS priority
+        // Return result
+    }
+}
+```
+
+**File:** `backend/src/policy/actions.rs`
+
+```rust
+/// Policy action: Submit transaction to RTGS with declared priority
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SubmitAction {
+    /// RTGS priority to declare (default: Normal)
+    #[serde(default)]
+    pub rtgs_priority: RtgsPriorityChoice,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(untagged)]
+pub enum RtgsPriorityChoice {
+    /// Fixed priority value
+    Fixed(RtgsPriority),
+
+    /// Computed based on transaction attributes
+    Computed {
+        /// If internal priority >= threshold, use Urgent
+        urgent_if_priority_gte: u8,
+    },
+}
+
+impl Default for RtgsPriorityChoice {
+    fn default() -> Self {
+        RtgsPriorityChoice::Fixed(RtgsPriority::Normal)
+    }
+}
+```
+
+#### 0.4 Withdrawal and Resubmission (Queue 2 Priority Change)
+
+In TARGET2, to change a payment's priority, a bank must **withdraw and resubmit**. This has a cost: the transaction loses its FIFO position and goes to the back of the new priority band.
+
+**File:** `backend/src/models/state.rs`
+
+```rust
+impl SimulationState {
+    /// Withdraw a transaction from RTGS Queue 2
+    /// Returns the transaction to the submitting agent's Queue 1
+    /// The transaction's rtgs_priority and rtgs_submission_tick are cleared
+    pub fn withdraw_from_rtgs(
+        &mut self,
+        tx_id: &str,
+        tick: usize,
+    ) -> Result<WithdrawalResult, WithdrawalError> {
+        // 1. Find transaction in Queue 2
+        // 2. Verify requesting agent is the sender
+        // 3. Remove from Queue 2
+        // 4. Clear rtgs_priority and rtgs_submission_tick
+        // 5. Add back to sender's Queue 1
+        // 6. Emit WithdrawalFromRtgs event
+    }
+}
+
+pub struct WithdrawalResult {
+    pub tx_id: String,
+    pub original_rtgs_priority: RtgsPriority,
+    pub original_submission_tick: usize,
+    pub ticks_in_queue2: usize,
+}
+
+#[derive(Debug)]
+pub enum WithdrawalError {
+    TransactionNotFound,
+    NotInQueue2,
+    NotAuthorized,  // Only sender can withdraw
+    AlreadySettled,
+}
+```
+
+**File:** `backend/src/policy/actions.rs`
+
+```rust
+/// Policy action: Withdraw transaction from RTGS and resubmit with new priority
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ResubmitAction {
+    /// New RTGS priority for resubmission
+    pub new_rtgs_priority: RtgsPriority,
+}
+```
+
+#### 0.5 Queue 2 Ordering Update
+
+**File:** `backend/src/orchestrator/engine.rs`
+
+Update `sort_queue2_by_priority_bands()` to use `rtgs_priority`:
+
+```rust
+fn sort_queue2_by_priority_bands(&mut self) {
+    if !self.config.priority_mode {
+        return;
+    }
+
+    let queue = self.state.rtgs_queue().clone();
+    if queue.len() <= 1 {
+        return;
+    }
+
+    // Collect (tx_id, rtgs_priority, rtgs_submission_tick) for stable sorting
+    let mut tx_info: Vec<(String, RtgsPriority, usize)> = queue
+        .iter()
+        .filter_map(|tx_id| {
+            self.state.get_transaction(tx_id).and_then(|tx| {
+                // Use RTGS priority (must be set for Queue 2 transactions)
+                let rtgs_priority = tx.rtgs_priority()?;
+                let submission_tick = tx.rtgs_submission_tick()?;
+                Some((tx_id.clone(), rtgs_priority, submission_tick))
+            })
+        })
+        .collect();
+
+    // Sort by RTGS priority (ascending: 0=HighlyUrgent first), then submission tick (FIFO)
+    tx_info.sort_by(|a, b| {
+        // Lower RTGS priority value = higher precedence (HighlyUrgent=0 first)
+        (a.1 as u8).cmp(&(b.1 as u8))
+            .then(a.2.cmp(&b.2))  // FIFO within priority band
+    });
+
+    let sorted_ids: Vec<String> = tx_info.into_iter().map(|(id, _, _)| id).collect();
+    *self.state.rtgs_queue_mut() = sorted_ids;
+}
+```
+
+#### 0.6 Events
+
+**File:** `backend/src/models/event.rs`
+
+```rust
+pub enum Event {
+    // ... existing variants ...
+
+    /// Transaction submitted to RTGS Queue 2 with declared priority
+    RtgsSubmission {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        receiver: String,
+        amount: i64,
+        internal_priority: u8,
+        rtgs_priority: RtgsPriority,
+    },
+
+    /// Transaction withdrawn from RTGS Queue 2
+    RtgsWithdrawal {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        original_rtgs_priority: RtgsPriority,
+        ticks_in_queue: usize,
+        reason: WithdrawalReason,
+    },
+
+    /// Transaction resubmitted to RTGS with new priority
+    RtgsResubmission {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        old_rtgs_priority: RtgsPriority,
+        new_rtgs_priority: RtgsPriority,
+    },
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum WithdrawalReason {
+    PriorityChange,
+    AgentRequest,
+    Cancellation,
+}
+```
+
+#### 0.7 Configuration Updates
+
+**File:** `api/payment_simulator/config/schemas.py`
+
+```python
+class RtgsPriority(str, Enum):
+    """RTGS priority levels (TARGET2-style)."""
+    HIGHLY_URGENT = "HighlyUrgent"  # Restricted
+    URGENT = "Urgent"
+    NORMAL = "Normal"
+
+class SubmitActionConfig(BaseModel):
+    """Configuration for Submit action in policies."""
+    type: Literal["Submit"] = "Submit"
+    rtgs_priority: RtgsPriority = RtgsPriority.NORMAL
+
+    # Or computed priority
+    urgent_if_priority_gte: Optional[int] = Field(
+        default=None,
+        description="Use Urgent if internal priority >= this value"
+    )
+```
+
+#### 0.8 Backward Compatibility
+
+To maintain backward compatibility with existing configs:
+
+1. **Default RTGS priority**: If not specified, default to `Normal`
+2. **Legacy `priority_mode`**: Continue to work, but use `rtgs_priority` for sorting
+3. **Existing policies**: `Submit` action without `rtgs_priority` defaults to `Normal`
+
+```yaml
+# Old config (still works)
+policy:
+  type: Fifo
+
+# New config (explicit RTGS priority)
+policy:
+  type: Json
+  rules:
+    - condition: {field: "priority", op: ">=", value: 8}
+      action:
+        type: Submit
+        rtgs_priority: Urgent
+    - condition: {op: "default"}
+      action:
+        type: Submit
+        rtgs_priority: Normal
+```
+
+#### 0.9 TDD Test Specifications
+
+**File:** `api/tests/integration/test_dual_priority_system.py`
+
+```python
+"""
+TDD Tests for Dual Priority System (Internal vs RTGS Priority)
+
+This separates the bank's internal prioritization from the RTGS declared priority.
+"""
+
+import pytest
+from payment_simulator._core import Orchestrator
+
+class TestRtgsPriorityConfig:
+    """Test RTGS priority configuration."""
+
+    def test_rtgs_priority_enum_values(self):
+        """RtgsPriority enum has correct values."""
+        # HighlyUrgent=0, Urgent=1, Normal=2
+        pass  # Implementation will verify
+
+    def test_default_rtgs_priority_is_normal(self):
+        """Default RTGS priority should be Normal."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1_000_000, "policy": {"type": "Fifo"}},
+                {"id": "BANK_B", "opening_balance": 1_000_000, "policy": {"type": "Fifo"}},
+            ]
+        }
+        orch = Orchestrator.new(config)
+        orch.submit_transaction("BANK_A", "BANK_B", 100_000)
+        orch.tick()
+
+        # Transaction should have rtgs_priority = Normal (default)
+        tx_details = orch.get_transaction_details(...)  # Get the transaction
+        assert tx_details["rtgs_priority"] == "Normal"
+
+
+class TestInternalVsRtgsPriority:
+    """Test that internal and RTGS priorities are independent."""
+
+    def test_internal_priority_used_in_queue1(self):
+        """Internal priority (0-10) is used for Queue 1 ordering."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "queue1_ordering": "priority_deadline",
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 1_000_000,
+                    "policy": {"type": "Hold"},  # Don't submit automatically
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Submit with different internal priorities
+        orch.submit_transaction("BANK_A", "BANK_B", 1000, priority=3)
+        orch.submit_transaction("BANK_A", "BANK_B", 1000, priority=9)
+        orch.submit_transaction("BANK_A", "BANK_B", 1000, priority=5)
+
+        # Queue 1 should be ordered by internal priority
+        queue1 = orch.get_agent_queue1_contents("BANK_A")
+        priorities = [orch.get_transaction_details(tx)["priority"] for tx in queue1]
+        assert priorities == [9, 5, 3]  # High internal priority first
+
+    def test_rtgs_priority_used_in_queue2(self):
+        """RTGS priority (Urgent/Normal) is used for Queue 2 ordering."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "priority_mode": True,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100},  # Low balance forces Queue 2
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Submit transactions with SAME internal priority but DIFFERENT RTGS priority
+        orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, priority=5, rtgs_priority="Normal"
+        )
+        orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, priority=5, rtgs_priority="Urgent"
+        )
+
+        orch.tick()
+
+        # Queue 2 should order by RTGS priority (Urgent before Normal)
+        queue2 = orch.get_queue2_contents()
+        rtgs_priorities = [orch.get_transaction_details(tx)["rtgs_priority"] for tx in queue2]
+        assert rtgs_priorities == ["Urgent", "Normal"]
+
+    def test_high_internal_low_rtgs(self):
+        """High internal priority but Normal RTGS priority."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "priority_mode": True,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100},
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # High internal (9), Normal RTGS
+        orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, priority=9, rtgs_priority="Normal"
+        )
+        # Low internal (2), Urgent RTGS
+        orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, priority=2, rtgs_priority="Urgent"
+        )
+
+        orch.tick()
+
+        # In Queue 2: Urgent (low internal) should be BEFORE Normal (high internal)
+        queue2 = orch.get_queue2_contents()
+        rtgs_priorities = [orch.get_transaction_details(tx)["rtgs_priority"] for tx in queue2]
+        assert rtgs_priorities == ["Urgent", "Normal"]
+
+
+class TestRtgsWithdrawalAndResubmission:
+    """Test withdrawal and resubmission from RTGS Queue 2."""
+
+    def test_withdraw_from_rtgs(self):
+        """Withdrawal removes transaction from Queue 2."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100},  # Forces Queue 2
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        tx_id = orch.submit_transaction("BANK_A", "BANK_B", 1000)
+        orch.tick()
+        assert orch.queue_size() == 1
+
+        # Withdraw
+        orch.withdraw_from_rtgs(tx_id)
+
+        # Should be removed from Queue 2
+        assert orch.queue_size() == 0
+
+        # Should be back in Queue 1
+        queue1 = orch.get_agent_queue1_contents("BANK_A")
+        assert tx_id in queue1
+
+    def test_resubmit_with_different_priority(self):
+        """Resubmission allows changing RTGS priority."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "priority_mode": True,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100},
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Submit as Normal
+        tx_id = orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, rtgs_priority="Normal"
+        )
+        orch.tick()
+
+        details = orch.get_transaction_details(tx_id)
+        assert details["rtgs_priority"] == "Normal"
+
+        # Withdraw and resubmit as Urgent
+        orch.withdraw_from_rtgs(tx_id)
+        orch.resubmit_to_rtgs(tx_id, rtgs_priority="Urgent")
+        orch.tick()
+
+        details = orch.get_transaction_details(tx_id)
+        assert details["rtgs_priority"] == "Urgent"
+
+    def test_resubmit_loses_fifo_position(self):
+        """Resubmission moves transaction to back of priority band."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "priority_mode": True,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100},
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Submit three Normal priority transactions
+        tx1 = orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, rtgs_priority="Normal"
+        )
+        tx2 = orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, rtgs_priority="Normal"
+        )
+        tx3 = orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, rtgs_priority="Normal"
+        )
+        orch.tick()
+
+        # Queue 2 order: tx1, tx2, tx3 (FIFO)
+        queue2 = orch.get_queue2_contents()
+        assert queue2 == [tx1, tx2, tx3]
+
+        # Withdraw tx1 and resubmit (still Normal)
+        orch.withdraw_from_rtgs(tx1)
+        orch.resubmit_to_rtgs(tx1, rtgs_priority="Normal")
+        orch.tick()
+
+        # tx1 should now be LAST (lost FIFO position)
+        queue2 = orch.get_queue2_contents()
+        assert queue2 == [tx2, tx3, tx1]
+
+    def test_resubmit_as_urgent_moves_to_front(self):
+        """Resubmitting as Urgent moves to front (but back of Urgent band)."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "priority_mode": True,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100},
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Submit: Normal, Normal, Urgent
+        tx1 = orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, rtgs_priority="Normal"
+        )
+        tx2 = orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, rtgs_priority="Normal"
+        )
+        tx3 = orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, rtgs_priority="Urgent"
+        )
+        orch.tick()
+
+        # Order: tx3 (Urgent), tx1, tx2 (Normal FIFO)
+        queue2 = orch.get_queue2_contents()
+        assert queue2 == [tx3, tx1, tx2]
+
+        # Withdraw tx2 and resubmit as Urgent
+        orch.withdraw_from_rtgs(tx2)
+        orch.resubmit_to_rtgs(tx2, rtgs_priority="Urgent")
+        orch.tick()
+
+        # Order: tx3 (Urgent, first), tx2 (Urgent, second), tx1 (Normal)
+        queue2 = orch.get_queue2_contents()
+        assert queue2 == [tx3, tx2, tx1]
+
+
+class TestRtgsPriorityEvents:
+    """Test events related to RTGS priority changes."""
+
+    def test_rtgs_submission_event(self):
+        """RtgsSubmission event includes declared priority."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1_000_000},
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 100_000, priority=7, rtgs_priority="Urgent"
+        )
+        orch.tick()
+
+        events = orch.get_tick_events(0)
+        submission_events = [e for e in events if e.get("event_type") == "RtgsSubmission"]
+
+        assert len(submission_events) >= 1
+        event = submission_events[0]
+        assert event["internal_priority"] == 7
+        assert event["rtgs_priority"] == "Urgent"
+
+    def test_withdrawal_event(self):
+        """RtgsWithdrawal event is emitted."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100},
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        tx_id = orch.submit_transaction("BANK_A", "BANK_B", 1000)
+        orch.tick()
+        orch.withdraw_from_rtgs(tx_id)
+        orch.tick()
+
+        events = orch.get_tick_events(1)
+        withdrawal_events = [e for e in events if e.get("event_type") == "RtgsWithdrawal"]
+
+        assert len(withdrawal_events) == 1
+        assert withdrawal_events[0]["tx_id"] == tx_id
+
+    def test_resubmission_event(self):
+        """RtgsResubmission event captures priority change."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100},
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        tx_id = orch.submit_transaction_with_rtgs_priority(
+            "BANK_A", "BANK_B", 1000, rtgs_priority="Normal"
+        )
+        orch.tick()
+        orch.withdraw_from_rtgs(tx_id)
+        orch.resubmit_to_rtgs(tx_id, rtgs_priority="Urgent")
+        orch.tick()
+
+        events = orch.get_tick_events(1)
+        resubmit_events = [e for e in events if e.get("event_type") == "RtgsResubmission"]
+
+        assert len(resubmit_events) == 1
+        assert resubmit_events[0]["old_rtgs_priority"] == "Normal"
+        assert resubmit_events[0]["new_rtgs_priority"] == "Urgent"
+
+
+class TestPolicyRtgsPriorityDecision:
+    """Test that policies can decide RTGS priority at submission."""
+
+    def test_policy_sets_rtgs_priority(self):
+        """Policy can specify RTGS priority in Submit action."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "priority_mode": True,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 100,
+                    "policy": {
+                        "type": "Json",
+                        "rules": [
+                            {
+                                "condition": {"field": "priority", "op": ">=", "value": 8},
+                                "action": {"type": "Submit", "rtgs_priority": "Urgent"}
+                            },
+                            {
+                                "condition": {"op": "default"},
+                                "action": {"type": "Submit", "rtgs_priority": "Normal"}
+                            }
+                        ]
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # High internal priority -> Urgent RTGS
+        orch.submit_transaction("BANK_A", "BANK_B", 1000, priority=9)
+        # Low internal priority -> Normal RTGS
+        orch.submit_transaction("BANK_A", "BANK_B", 1000, priority=3)
+
+        orch.tick()
+
+        queue2 = orch.get_queue2_contents()
+        rtgs_priorities = [orch.get_transaction_details(tx)["rtgs_priority"] for tx in queue2]
+
+        # High internal (9) -> Urgent, Low internal (3) -> Normal
+        # Queue 2 ordered: Urgent first
+        assert rtgs_priorities == ["Urgent", "Normal"]
+
+
+class TestBackwardCompatibility:
+    """Test backward compatibility with existing configs."""
+
+    def test_existing_config_defaults_to_normal_rtgs(self):
+        """Existing configs without rtgs_priority should default to Normal."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 1_000_000,
+                    "policy": {"type": "Fifo"},
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        tx_id = orch.submit_transaction("BANK_A", "BANK_B", 100_000, priority=9)
+        orch.tick()
+
+        details = orch.get_transaction_details(tx_id)
+        assert details["rtgs_priority"] == "Normal"  # Default
+
+    def test_priority_mode_uses_rtgs_priority(self):
+        """priority_mode=true should use rtgs_priority for Queue 2 ordering."""
+        config = {
+            "ticks_per_day": 100,
+            "rng_seed": 42,
+            "priority_mode": True,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 100, "policy": {"type": "Fifo"}},
+                {"id": "BANK_B", "opening_balance": 1_000_000},
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # All default to Normal RTGS priority
+        orch.submit_transaction("BANK_A", "BANK_B", 1000, priority=9)
+        orch.submit_transaction("BANK_A", "BANK_B", 1000, priority=3)
+        orch.submit_transaction("BANK_A", "BANK_B", 1000, priority=5)
+
+        orch.tick()
+
+        # All Normal RTGS priority -> FIFO order preserved
+        queue2 = orch.get_queue2_contents()
+        internal_priorities = [orch.get_transaction_details(tx)["priority"] for tx in queue2]
+
+        # Should be FIFO (9, 3, 5) since all are Normal RTGS band
+        assert internal_priorities == [9, 3, 5]
+```
+
+---
 
 ### Phase 1: Bilateral/Multilateral Limits (HIGH PRIORITY)
 
@@ -1213,7 +2011,19 @@ class TestEntryDispositionEvents:
 ## Implementation Order and Dependencies
 
 ```
-Phase 1: Bilateral/Multilateral Limits
+Phase 0: Dual Priority System (CRITICAL - MUST DO FIRST)
+    │
+    ├─► 0.1 RtgsPriority enum in Transaction (Rust)
+    ├─► 0.2 rtgs_priority and rtgs_submission_tick fields
+    ├─► 0.3 Submit action with rtgs_priority parameter
+    ├─► 0.4 Withdrawal from Queue 2 mechanism
+    ├─► 0.5 Resubmission with new priority
+    ├─► 0.6 Update sort_queue2_by_priority_bands() to use rtgs_priority
+    ├─► 0.7 Events (RtgsSubmission, RtgsWithdrawal, RtgsResubmission)
+    ├─► 0.8 FFI and config schema updates
+    └─► 0.9 Tests (20+ integration tests)
+
+Phase 1: Bilateral/Multilateral Limits (depends on Phase 0)
     │
     ├─► 1.1 AgentLimits data model (Rust)
     ├─► 1.2 Config schema (Python)
@@ -1237,9 +2047,26 @@ Phase 3: Entry Disposition Offsetting (can parallel with Phase 2)
     └─► 3.4 Tests (8 integration tests)
 ```
 
+**Key Dependency:** Phase 0 MUST be completed before Phase 1, as bilateral/multilateral limits need correct RTGS priority semantics for proper algorithm behavior.
+
 ---
 
 ## Files to Modify/Create
+
+### Phase 0: Dual Priority System
+
+| File | Change |
+|------|--------|
+| `backend/src/models/transaction.rs` | Add `RtgsPriority` enum, `rtgs_priority`, `rtgs_submission_tick` fields |
+| `backend/src/models/agent.rs` | Add `submit_to_rtgs()` method |
+| `backend/src/models/state.rs` | Add `withdraw_from_rtgs()` method |
+| `backend/src/policy/actions.rs` | Extend `Submit` action with `rtgs_priority` |
+| `backend/src/orchestrator/engine.rs` | Update `sort_queue2_by_priority_bands()` |
+| `backend/src/models/event.rs` | Add `RtgsSubmission`, `RtgsWithdrawal`, `RtgsResubmission` events |
+| `backend/src/ffi/types.rs` | Add `RtgsPriority` parsing |
+| `backend/src/ffi/orchestrator.rs` | Add `withdraw_from_rtgs()`, `resubmit_to_rtgs()` FFI methods |
+| `api/payment_simulator/config/schemas.py` | Add `RtgsPriority` enum, update `SubmitActionConfig` |
+| `api/tests/integration/test_dual_priority_system.py` | **NEW** - 20+ tests |
 
 ### Phase 1: Bilateral/Multilateral Limits
 
@@ -1334,6 +2161,17 @@ uv sync --extra dev --reinstall-package payment-simulator
 
 ## Success Criteria
 
+### Phase 0: Dual Priority System
+- [ ] All 20+ integration tests pass
+- [ ] Internal priority (0-10) used for Queue 1 ordering
+- [ ] RTGS priority (Urgent/Normal) used for Queue 2 ordering
+- [ ] `Submit` action supports `rtgs_priority` parameter
+- [ ] Withdrawal from Queue 2 works correctly
+- [ ] Resubmission loses FIFO position (goes to back of band)
+- [ ] RtgsSubmission, RtgsWithdrawal, RtgsResubmission events emitted
+- [ ] Backward compatible (existing configs default to Normal RTGS priority)
+- [ ] Policy can decide RTGS priority based on internal priority
+
 ### Phase 1: Bilateral/Multilateral Limits
 - [ ] All 14 integration tests pass
 - [ ] Config with limits is accepted
@@ -1361,10 +2199,11 @@ uv sync --extra dev --reinstall-package payment-simulator
 
 | Risk | Mitigation |
 |------|------------|
-| Breaking existing behavior | All features are opt-in via config flags |
+| Breaking existing behavior | All features are opt-in via config flags; RTGS priority defaults to Normal |
 | Performance impact | Limit checks are O(1); sequencing adds minimal overhead |
 | Complexity for users | Sensible defaults; comprehensive documentation |
-| Determinism issues | Use BTreeMap for all limit tracking |
+| Determinism issues | Use BTreeMap for all limit tracking; rtgs_submission_tick for FIFO |
+| Dual priority confusion | Clear naming (internal_priority vs rtgs_priority); good docs |
 
 ---
 
