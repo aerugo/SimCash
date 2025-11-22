@@ -124,6 +124,11 @@ class TransactionRecord(BaseModel):
     parent_tx_id: Optional[str] = Field(None, description="Parent transaction if split")
     split_index: Optional[int] = Field(None, description="Split index (1, 2, ...)")
 
+    # RTGS Priority (Phase 0 - Dual Priority System)
+    rtgs_priority: Optional[str] = Field(None, description="RTGS priority (HighlyUrgent, Urgent, Normal)")
+    rtgs_submission_tick: Optional[int] = Field(None, description="Tick when submitted to RTGS Queue 2")
+    declared_rtgs_priority: Optional[str] = Field(None, description="Bank's declared RTGS priority preference")
+
 
 # ============================================================================
 # Simulation Metadata Record (Phase 5: Query Interface)

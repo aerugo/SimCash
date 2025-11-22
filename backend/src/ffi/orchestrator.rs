@@ -177,6 +177,25 @@ fn event_to_py_dict<'py>(
             dict.set_item("tx_id", tx_id)?;
             dict.set_item("sender_id", sender_id)?;
         }
+        crate::models::event::Event::RtgsSubmission { tx_id, sender, receiver, amount, internal_priority, rtgs_priority, .. } => {
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("sender", sender)?;
+            dict.set_item("receiver", receiver)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("internal_priority", internal_priority)?;
+            dict.set_item("rtgs_priority", rtgs_priority)?;
+        }
+        crate::models::event::Event::RtgsWithdrawal { tx_id, sender, original_rtgs_priority, .. } => {
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("sender", sender)?;
+            dict.set_item("original_rtgs_priority", original_rtgs_priority)?;
+        }
+        crate::models::event::Event::RtgsResubmission { tx_id, sender, old_rtgs_priority, new_rtgs_priority, .. } => {
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("sender", sender)?;
+            dict.set_item("old_rtgs_priority", old_rtgs_priority)?;
+            dict.set_item("new_rtgs_priority", new_rtgs_priority)?;
+        }
         crate::models::event::Event::LsmBilateralOffset { agent_a, agent_b, tx_ids, amount_a, amount_b, .. } => {
             dict.set_item("agent_a", agent_a)?;
             dict.set_item("agent_b", agent_b)?;
@@ -878,6 +897,137 @@ impl PyOrchestrator {
             })
     }
 
+    /// Submit a transaction with an explicit RTGS priority (Phase 0: Dual Priority System)
+    ///
+    /// Similar to `submit_transaction`, but allows specifying the RTGS priority
+    /// that will be used when the transaction is submitted to Queue 2.
+    ///
+    /// # Arguments
+    ///
+    /// * `sender` - Sending agent ID
+    /// * `receiver` - Receiving agent ID
+    /// * `amount` - Transaction amount in cents
+    /// * `deadline_tick` - Tick by which transaction must settle
+    /// * `priority` - Internal priority (0-10)
+    /// * `divisible` - Whether transaction can be split
+    /// * `rtgs_priority` - RTGS priority: "HighlyUrgent", "Urgent", or "Normal"
+    ///
+    /// # Example (from Python)
+    ///
+    /// ```python
+    /// tx_id = orch.submit_transaction_with_rtgs_priority(
+    ///     sender="BANK_A",
+    ///     receiver="BANK_B",
+    ///     amount=100_000,
+    ///     deadline_tick=50,
+    ///     priority=5,
+    ///     divisible=False,
+    ///     rtgs_priority="Urgent",
+    /// )
+    /// ```
+    fn submit_transaction_with_rtgs_priority(
+        &mut self,
+        sender: &str,
+        receiver: &str,
+        amount: i64,
+        deadline_tick: usize,
+        priority: u8,
+        divisible: bool,
+        rtgs_priority: &str,
+    ) -> PyResult<String> {
+        // Parse RTGS priority string
+        use crate::models::transaction::RtgsPriority;
+        let rtgs_priority = match rtgs_priority {
+            "HighlyUrgent" => RtgsPriority::HighlyUrgent,
+            "Urgent" => RtgsPriority::Urgent,
+            "Normal" => RtgsPriority::Normal,
+            _ => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Invalid RTGS priority '{}'. Must be 'HighlyUrgent', 'Urgent', or 'Normal'",
+                    rtgs_priority
+                )))
+            }
+        };
+
+        self.inner
+            .submit_transaction_with_rtgs_priority(
+                sender,
+                receiver,
+                amount,
+                deadline_tick,
+                priority,
+                divisible,
+                rtgs_priority,
+            )
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to submit transaction with RTGS priority: {}",
+                    e
+                ))
+            })
+    }
+
+    /// Withdraw a transaction from RTGS Queue 2 (Phase 0: Dual Priority System)
+    ///
+    /// Removes the transaction from Queue 2 and clears its RTGS priority.
+    /// Returns a dict with 'success' field.
+    fn withdraw_from_rtgs(&mut self, py: Python, tx_id: &str) -> PyResult<Py<PyDict>> {
+        let result = PyDict::new(py);
+
+        match self.inner.withdraw_from_rtgs(tx_id) {
+            Ok(()) => {
+                result.set_item("success", true)?;
+            }
+            Err(e) => {
+                result.set_item("success", false)?;
+                result.set_item("error", e.to_string())?;
+            }
+        }
+
+        Ok(result.into())
+    }
+
+    /// Resubmit a transaction to RTGS with a new priority (Phase 0: Dual Priority System)
+    ///
+    /// Sets a new RTGS priority for the transaction. The transaction will be
+    /// resubmitted on the next tick.
+    fn resubmit_to_rtgs(&mut self, py: Python, tx_id: &str, rtgs_priority: &str) -> PyResult<Py<PyDict>> {
+        use crate::models::transaction::RtgsPriority;
+
+        let result = PyDict::new(py);
+
+        // Parse RTGS priority
+        let priority = match rtgs_priority {
+            "HighlyUrgent" => RtgsPriority::HighlyUrgent,
+            "Urgent" => RtgsPriority::Urgent,
+            "Normal" => RtgsPriority::Normal,
+            _ => {
+                result.set_item("success", false)?;
+                result.set_item("error", format!("Invalid RTGS priority: {}", rtgs_priority))?;
+                return Ok(result.into());
+            }
+        };
+
+        match self.inner.resubmit_to_rtgs(tx_id, priority) {
+            Ok(()) => {
+                result.set_item("success", true)?;
+            }
+            Err(e) => {
+                result.set_item("success", false)?;
+                result.set_item("error", e.to_string())?;
+            }
+        }
+
+        Ok(result.into())
+    }
+
+    /// Get the size of Queue 2 (RTGS queue)
+    ///
+    /// Alias for get_queue2_size() for convenience.
+    fn queue_size(&self) -> usize {
+        self.inner.get_queue2_size()
+    }
+
     // ========================================================================
     // Persistence Methods (Phase 10)
     // ========================================================================
@@ -1512,6 +1662,20 @@ impl PyOrchestrator {
             dict.set_item("arrival_tick", tx.arrival_tick())?;
             dict.set_item("deadline_tick", tx.deadline_tick())?;
             dict.set_item("priority", tx.priority())?;
+
+            // RTGS Priority (Phase 0: Dual Priority System)
+            if let Some(rtgs_priority) = tx.rtgs_priority() {
+                dict.set_item("rtgs_priority", rtgs_priority.to_string())?;
+            } else {
+                dict.set_item("rtgs_priority", py.None())?;
+            }
+
+            // RTGS Submission Tick
+            if let Some(submission_tick) = tx.rtgs_submission_tick() {
+                dict.set_item("rtgs_submission_tick", submission_tick)?;
+            } else {
+                dict.set_item("rtgs_submission_tick", py.None())?;
+            }
 
             // Convert status to string
             let status_str = match tx.status() {

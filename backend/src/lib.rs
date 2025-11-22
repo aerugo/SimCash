@@ -34,7 +34,7 @@ pub use models::{
     agent::{Agent, AgentError, WithdrawError},
     event::{Event, EventLog},
     state::SimulationState,
-    transaction::{Transaction, TransactionError, TransactionStatus},
+    transaction::{RtgsPriority, Transaction, TransactionError, TransactionStatus},
 };
 pub use orchestrator::{
     AgentConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator, OrchestratorConfig,
@@ -55,5 +55,6 @@ use pyo3::prelude::*;
 #[pymodule]
 fn payment_simulator_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ffi::orchestrator::PyOrchestrator>()?;
+    m.add_class::<models::transaction::RtgsPriority>()?;
     Ok(())
 }
