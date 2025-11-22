@@ -48,6 +48,69 @@ pub enum WithdrawError {
     },
 }
 
+/// Data structure for restoring an agent from a checkpoint snapshot.
+///
+/// This groups all the fields needed to reconstruct an agent's state,
+/// making checkpoint restoration cleaner than passing 14+ individual parameters.
+///
+/// # Usage
+///
+/// ```
+/// use payment_simulator_core_rs::models::agent::AgentRestoreData;
+/// use payment_simulator_core_rs::Agent;
+/// use std::collections::HashMap;
+///
+/// let data = AgentRestoreData {
+///     id: "BANK_A".to_string(),
+///     balance: 1_000_000,
+///     unsecured_cap: 500_000,
+///     outgoing_queue: vec![],
+///     incoming_expected: vec![],
+///     last_decision_tick: None,
+///     liquidity_buffer: 0,
+///     posted_collateral: 0,
+///     collateral_haircut: 0.02,
+///     collateral_posted_at_tick: None,
+///     bilateral_limits: HashMap::new(),
+///     multilateral_limit: None,
+///     bilateral_outflows: HashMap::new(),
+///     total_outflow: 0,
+/// };
+///
+/// let agent = Agent::restore(data);
+/// ```
+#[derive(Debug, Clone)]
+pub struct AgentRestoreData {
+    /// Unique agent identifier (e.g., "BANK_A")
+    pub id: String,
+    /// Current balance in settlement account (i64 cents)
+    pub balance: i64,
+    /// Unsecured daylight overdraft cap (i64 cents)
+    pub unsecured_cap: i64,
+    /// Transaction IDs in Queue 1 (internal queue)
+    pub outgoing_queue: Vec<String>,
+    /// Expected incoming transaction IDs
+    pub incoming_expected: Vec<String>,
+    /// Last tick when cash manager made a policy decision
+    pub last_decision_tick: Option<usize>,
+    /// Target minimum balance to maintain
+    pub liquidity_buffer: i64,
+    /// Posted collateral amount (i64 cents)
+    pub posted_collateral: i64,
+    /// Collateral haircut (discount rate)
+    pub collateral_haircut: f64,
+    /// Tick when collateral was last posted
+    pub collateral_posted_at_tick: Option<usize>,
+    /// TARGET2 LSM: Maximum outflow per counterparty per day
+    pub bilateral_limits: std::collections::HashMap<String, i64>,
+    /// TARGET2 LSM: Maximum total outflow per day
+    pub multilateral_limit: Option<i64>,
+    /// TARGET2 LSM: Current day's bilateral outflows tracking
+    pub bilateral_outflows: std::collections::HashMap<String, i64>,
+    /// TARGET2 LSM: Current day's total outflow counter
+    pub total_outflow: i64,
+}
+
 /// Represents a bank (agent) in the payment system
 ///
 /// # Interpretation (Phase 4)
@@ -294,50 +357,77 @@ impl Agent {
         }
     }
 
-    /// Create agent from snapshot (for checkpoint restoration)
+    /// Restore an agent from checkpoint data.
     ///
-    /// This constructor allows restoring an agent with all fields
-    /// preserved, including queues and state. Used when loading from
-    /// a saved checkpoint.
+    /// This is the preferred method for checkpoint restoration as it uses
+    /// a structured data type instead of 14+ individual parameters.
     ///
     /// # Arguments
-    /// * `id` - Agent ID
-    /// * `balance` - Current balance
-    /// * `unsecured_cap` - Unsecured overdraft capacity
-    /// * `outgoing_queue` - Queue 1 (internal queue) transaction IDs
-    /// * `incoming_expected` - Expected incoming transaction IDs
-    /// * `last_decision_tick` - Last tick policy was evaluated
-    /// * `liquidity_buffer` - Target minimum balance
-    /// * `posted_collateral` - Amount of collateral posted
-    /// * `collateral_haircut` - Collateral discount factor (0.0 to 1.0)
-    /// * `collateral_posted_at_tick` - Tick when collateral was last posted
-    /// * `bilateral_limits` - TARGET2 LSM: Maximum outflow per counterparty per day
-    /// * `multilateral_limit` - TARGET2 LSM: Maximum total outflow per day
-    /// * `bilateral_outflows` - TARGET2 LSM: Current day's bilateral outflows
-    /// * `total_outflow` - TARGET2 LSM: Current day's total outflow
+    /// * `data` - `AgentRestoreData` containing all fields to restore
     ///
     /// # Example
     /// ```
+    /// use payment_simulator_core_rs::models::agent::AgentRestoreData;
     /// use payment_simulator_core_rs::Agent;
     /// use std::collections::HashMap;
     ///
-    /// let agent = Agent::from_snapshot(
-    ///     "BANK_A".to_string(),
-    ///     1_000_000,
-    ///     500_000,
-    ///     vec!["tx_1".to_string()],
-    ///     vec![],
-    ///     Some(42),
-    ///     100_000,
-    ///     0,
-    ///     0.02,
-    ///     None,
-    ///     HashMap::new(),
-    ///     None,
-    ///     HashMap::new(),
-    ///     0,
-    /// );
+    /// let data = AgentRestoreData {
+    ///     id: "BANK_A".to_string(),
+    ///     balance: 1_000_000,
+    ///     unsecured_cap: 500_000,
+    ///     outgoing_queue: vec![],
+    ///     incoming_expected: vec![],
+    ///     last_decision_tick: None,
+    ///     liquidity_buffer: 0,
+    ///     posted_collateral: 0,
+    ///     collateral_haircut: 0.02,
+    ///     collateral_posted_at_tick: None,
+    ///     bilateral_limits: HashMap::new(),
+    ///     multilateral_limit: None,
+    ///     bilateral_outflows: HashMap::new(),
+    ///     total_outflow: 0,
+    /// };
+    ///
+    /// let agent = Agent::restore(data);
+    /// assert_eq!(agent.id(), "BANK_A");
     /// ```
+    pub fn restore(data: AgentRestoreData) -> Self {
+        Self {
+            id: data.id,
+            balance: data.balance,
+            outgoing_queue: data.outgoing_queue,
+            incoming_expected: data.incoming_expected,
+            last_decision_tick: data.last_decision_tick,
+            liquidity_buffer: data.liquidity_buffer,
+            posted_collateral: data.posted_collateral,
+            collateral_haircut: data.collateral_haircut,
+            unsecured_cap: data.unsecured_cap,
+            collateral_posted_at_tick: data.collateral_posted_at_tick,
+            // Phase 3.3: Budget state (unlimited by default - not checkpointed)
+            release_budget_max: None,
+            release_budget_remaining: i64::MAX,
+            release_budget_focus_counterparties: None,
+            release_budget_per_counterparty_limit: None,
+            release_budget_per_counterparty_usage: std::collections::HashMap::new(),
+            // Phase 3.4: Collateral timers (none by default - not checkpointed)
+            collateral_withdrawal_timers: std::collections::HashMap::new(),
+            // Phase 4.5: State registers (none by default - not checkpointed)
+            state_registers: std::collections::HashMap::new(),
+            // Phase 1 (TARGET2 LSM): Limits (restored from snapshot)
+            bilateral_limits: data.bilateral_limits,
+            multilateral_limit: data.multilateral_limit,
+            bilateral_outflows: data.bilateral_outflows,
+            total_outflow: data.total_outflow,
+        }
+    }
+
+    /// Create agent from snapshot (for checkpoint restoration)
+    ///
+    /// **Deprecated**: Use [`Agent::restore`] with [`AgentRestoreData`] instead
+    /// for better maintainability.
+    ///
+    /// This method is kept for backward compatibility but delegates to `restore()`.
+    #[deprecated(since = "0.2.0", note = "Use Agent::restore(AgentRestoreData) instead")]
     pub fn from_snapshot(
         id: String,
         balance: i64,
@@ -354,33 +444,22 @@ impl Agent {
         bilateral_outflows: std::collections::HashMap<String, i64>,
         total_outflow: i64,
     ) -> Self {
-        Self {
+        Self::restore(AgentRestoreData {
             id,
             balance,
+            unsecured_cap,
             outgoing_queue,
             incoming_expected,
             last_decision_tick,
             liquidity_buffer,
             posted_collateral,
             collateral_haircut,
-            unsecured_cap,
             collateral_posted_at_tick,
-            // Phase 3.3: Budget state (unlimited by default)
-            release_budget_max: None,
-            release_budget_remaining: i64::MAX,
-            release_budget_focus_counterparties: None,
-            release_budget_per_counterparty_limit: None,
-            release_budget_per_counterparty_usage: std::collections::HashMap::new(),
-            // Phase 3.4: Collateral timers (none by default)
-            collateral_withdrawal_timers: std::collections::HashMap::new(),
-            // Phase 4.5: State registers (none by default)
-            state_registers: std::collections::HashMap::new(),
-            // Phase 1 (TARGET2 LSM): Limits (restored from snapshot)
             bilateral_limits,
             multilateral_limit,
             bilateral_outflows,
             total_outflow,
-        }
+        })
     }
 
     /// Get agent ID
