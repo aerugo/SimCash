@@ -15,6 +15,9 @@ A hybrid Rust-Python simulator for modeling Real-Time Gross Settlement (RTGS) sy
 
 - **RTGS Engine**: Real-time gross settlement with immediate finality
 - **T2-Compliant LSM**: Bilateral offsetting and multilateral cycle settlement with unequal payment values
+- **Algorithm Sequencing** ✨ **NEW**: Formal 3-algorithm sequence (FIFO → Bilateral → Multilateral) per TARGET2 spec
+- **Entry Disposition Offsetting** ✨ **NEW**: Pre-queue bilateral offset detection at payment entry
+- **Bilateral/Multilateral Limits** ✨ **NEW**: Per-counterparty and total outflow caps with LSM awareness
 - **Net Position Settlement**: Settles full transaction values when participants can cover net positions
 - **Transaction Splitting**: Voluntary payment pacing for large transactions
 - **Gridlock Resolution**: Automatic detection and resolution via LSM
@@ -31,13 +34,15 @@ A hybrid Rust-Python simulator for modeling Real-Time Gross Settlement (RTGS) sy
 - **Extensible**: Add custom policies via Rust or JSON
 - **LLM-Ready**: Structured format for AI-driven policy evolution
 
-### Priority System ✨ **NEW**
+### Priority System ✨ **Enhanced**
 
+- **Dual Priority System** ✨ **NEW**: Separate internal priority (0-10) from RTGS declared priority (HighlyUrgent/Urgent/Normal)
+- **RTGS Priority Bands**: Queue 2 orders by declared priority, then FIFO within band
+- **Withdraw/Resubmit**: Change RTGS priority mid-queue (loses FIFO position)
 - **Priority Distributions**: Transaction-level priority variation (Fixed, Categorical, Uniform)
-- **Queue 1 Priority Ordering**: Sort by priority then deadline (`queue1_ordering: "priority_deadline"`)
-- **T2 Priority Mode**: RTGS priority bands (Urgent 8-10, Normal 4-7, Low 0-3)
+- **Queue 1 Priority Ordering**: Sort by internal priority then deadline (`queue1_ordering: "priority_deadline"`)
 - **Dynamic Escalation**: Auto-boost priority as deadlines approach (configurable curves)
-- **Priority Events**: `PriorityEscalated` events tracked and visible in verbose output
+- **Priority Events**: `RtgsSubmission`, `RtgsWithdrawal`, `RtgsResubmission`, `PriorityEscalated` events tracked
 
 ### Integration & Deployment
 
@@ -531,20 +536,36 @@ This ensures:
 
 ### Liquidity-Saving Mechanisms (LSM)
 
-**T2-Compliant Implementation**: Our LSM follows TARGET2 RTGS specifications for realistic settlement behavior.
+**T2-Compliant Implementation**: Our LSM follows TARGET2 RTGS specifications with full algorithm sequencing.
+
+**Algorithm Sequence** ✨ **NEW**:
+1. **Algorithm 1 (FIFO)**: Settle queued payments in submission order by RTGS priority
+2. **Algorithm 2 (Bilateral)**: Find offsetting pairs between two banks
+3. **Algorithm 3 (Multilateral)**: Detect and settle payment cycles (3+ banks)
+- Algorithms run in sequence; success returns to Algorithm 1
+- Process repeats until no further progress
+
+**Entry Disposition Offsetting** ✨ **NEW**:
+- Before queuing, check if receiver has queued payment back to sender
+- If offset possible, settle both immediately at entry time
+- Reduces queue depth and accelerates naturally offsetting flows
+
+**Bilateral/Multilateral Limits** ✨ **NEW**:
+- Per-counterparty outflow limits (bilateral)
+- Total outflow limits across all counterparties (multilateral)
+- LSM algorithms respect configured limits
 
 **Bilateral Offsetting with Unequal Amounts**:
 - Example: Bank A owes B $500k, B owes A $300k → both settle in full if A can cover net $200k outflow
 - Settles BOTH transactions at full value (not partial amounts)
-- Net sender must have liquidity to cover difference
 
 **Multilateral Cycle Detection with Unequal Amounts**:
 - Example: A→B ($500k), B→C ($800k), C→A ($700k)
 - Net positions: A: +$200k, B: -$300k, C: +$100k
 - If B has $300k liquidity → all three transactions settle at full value
-- All-or-nothing: If any participant lacks liquidity for net position, entire cycle fails atomically
+- All-or-nothing: If any participant lacks liquidity, entire cycle fails atomically
 
-**Key T2 Principle**: Individual payments settle in full or not at all (no transaction splitting by LSM). Liquidity savings achieved through smart grouping of whole payments based on net positions.
+**Key T2 Principle**: Individual payments settle in full or not at all. Liquidity savings achieved through smart grouping based on net positions.
 
 ### Determinism
 
@@ -862,6 +883,12 @@ See [CLAUDE.md](CLAUDE.md) for comprehensive development guidelines.
 - [x] Arrival generation (Poisson, normal, lognormal, uniform)
 - [x] Cost modeling (overdraft, delay, split friction, deadline penalties)
 
+**TARGET2 LSM Alignment** ✨ **NEW** (60 tests passing):
+- [x] Phase 0: Dual Priority System (internal 0-10 vs RTGS HighlyUrgent/Urgent/Normal)
+- [x] Phase 1: Bilateral/Multilateral Limits (per-counterparty and total outflow caps)
+- [x] Phase 2: Algorithm Sequencing (FIFO → Bilateral → Multilateral)
+- [x] Phase 3: Entry Disposition Offsetting (pre-queue bilateral offset detection)
+
 **Integration Layer**:
 - [x] PyO3 FFI bindings (24 tests passing)
 - [x] Python API with FastAPI (23 integration tests)
@@ -1155,9 +1182,15 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Status**: Phase 7 (Integration) + Phase 10 (Persistence) + Phase 3.5 (T2 LSM) + Priority System Complete | Ready for Phase 11 (LLM Manager)
-**Version**: 0.11.0 | **Tests**: 220+ passing | **Performance**: 1000+ ticks/s
+**Status**: Phase 7 (Integration) + Phase 10 (Persistence) + TARGET2 LSM Alignment Complete | Ready for Phase 11 (LLM Manager)
+**Version**: 0.12.0 | **Tests**: 280+ passing | **Performance**: 1000+ ticks/s
 **Next Milestone**: LLM-driven policy optimization with shadow replay validation (Phase 11)
+
+**TARGET2 LSM Alignment** ✨ **NEW** (60 tests):
+- ✅ Dual Priority System (internal vs RTGS priorities)
+- ✅ Bilateral/Multilateral Limits with LSM awareness
+- ✅ Algorithm Sequencing (FIFO → Bilateral → Multilateral)
+- ✅ Entry Disposition Offsetting (pre-queue offset detection)
 
 **Phase 10 Achievement**: Full database persistence with DuckDB + Polars (71 tests passing)
 - ✅ Mandatory daily persistence of all transactions and agent metrics
