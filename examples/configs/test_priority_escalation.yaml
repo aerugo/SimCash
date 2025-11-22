@@ -1,0 +1,72 @@
+# =============================================================================
+# Test Configuration: Priority Escalation via Queue 2 Resubmission
+#
+# PURPOSE: Test that the target2_priority_escalator policy correctly:
+#          1. Monitors transactions in RTGS Queue 2
+#          2. Escalates to Urgent when deadline < 30 ticks
+#          3. Escalates to HighlyUrgent when deadline < 10 ticks
+#          4. Uses ResubmitToRtgs compound action (withdraw + resubmit)
+#
+# EXPECTED EVENTS:
+#   - RtgsWithdrawal: Transaction withdrawn from Queue 2
+#   - RtgsResubmission: Transaction resubmitted with new priority
+# =============================================================================
+
+simulation:
+  ticks_per_day: 100
+  num_days: 1
+  rng_seed: 12345
+
+# Enable algorithm sequencing for TARGET2-like behavior
+algorithm_sequencing: true
+entry_disposition_offsetting: false
+
+agents:
+  # BANK_A: Uses the priority escalator policy
+  - id: "BANK_A"
+    opening_balance: 100000     # $1000 - enough to release, but tx amount > balance
+    unsecured_cap: 0            # No credit - will need to wait for settlement
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_priority_escalator.json"
+    # No automatic arrivals - we'll use scenario events
+
+  # BANK_B: Simple counterparty with high liquidity
+  - id: "BANK_B"
+    opening_balance: 10000000   # $100,000 - plenty of liquidity
+    unsecured_cap: 0
+    policy:
+      type: "Fifo"
+
+# Scenario events to trigger priority escalation
+scenario_events:
+  # Transaction 1: Submit at tick 5 with deadline 55 (50 ticks away)
+  # Amount > BANK_A's balance, so it goes to Queue 2 and waits for liquidity
+  # Policy release_buffer is 0.8: 100000 >= 120000 * 0.8 = 96000 ✓ RELEASE
+  # But RTGS needs full amount: 100000 >= 120000? NO, so it waits in Queue 2
+  # Should submit as Normal, then:
+  #   - At tick 26 (29 ticks to deadline), escalate to Urgent
+  #   - At tick 46 (9 ticks to deadline), escalate to HighlyUrgent
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 120000              # $1200 - BANK_A has $1000, can release but not settle
+    priority: 3                 # Low internal priority
+    deadline: 55                # Deadline at tick 55
+    is_divisible: false
+    schedule: { type: OneTime, tick: 5 }
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.0001
+  overdraft_bps_per_tick: 0.3
+  collateral_cost_per_tick_bps: 0.0003
+  eod_penalty_per_transaction: 5000
+  deadline_penalty: 3000
+  overdue_delay_multiplier: 3.0
+  split_friction_cost: 1000

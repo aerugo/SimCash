@@ -457,7 +457,9 @@ mod tests {
                 | ReleaseDecision::Drop { tx_id }
                 | ReleaseDecision::SubmitPartial { tx_id, .. }
                 | ReleaseDecision::StaggerSplit { tx_id, .. }
-                | ReleaseDecision::Reprioritize { tx_id, .. } => tx_id == &urgent_id,
+                | ReleaseDecision::Reprioritize { tx_id, .. }
+                | ReleaseDecision::WithdrawFromRtgs { tx_id }
+                | ReleaseDecision::ResubmitToRtgs { tx_id, .. } => tx_id == &urgent_id,
             })
             .unwrap();
 
@@ -469,7 +471,9 @@ mod tests {
                 | ReleaseDecision::Drop { tx_id }
                 | ReleaseDecision::SubmitPartial { tx_id, .. }
                 | ReleaseDecision::StaggerSplit { tx_id, .. }
-                | ReleaseDecision::Reprioritize { tx_id, .. } => tx_id == &normal_id,
+                | ReleaseDecision::Reprioritize { tx_id, .. }
+                | ReleaseDecision::WithdrawFromRtgs { tx_id }
+                | ReleaseDecision::ResubmitToRtgs { tx_id, .. } => tx_id == &normal_id,
             })
             .unwrap();
 

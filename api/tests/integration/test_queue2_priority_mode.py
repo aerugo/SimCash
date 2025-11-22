@@ -1,15 +1,18 @@
 """Integration tests for Queue 2 Priority Mode (T2-style).
 
 TDD tests for Phase 4 of priority system redesign.
-Tests that Queue 2 can optionally process transactions by priority bands.
+Tests that Queue 2 can optionally process transactions by RTGS priority.
 
-Priority Bands (T2-style):
-- Urgent: priority 8-10
-- Normal: priority 4-7
-- Low: priority 0-3
+RTGS Priority Levels:
+- HighlyUrgent: Highest priority (processed first)
+- Urgent: Medium priority
+- Normal: Lowest priority (processed last)
 
-When priority_mode is enabled, Queue 2 processes all urgent transactions
-before normal, and all normal before low. Within each band, FIFO is preserved.
+When priority_mode is enabled, Queue 2 processes transactions by RTGS priority.
+Within each RTGS priority level, FIFO by submission_tick is preserved.
+
+NOTE: As of Phase 0 (Dual Priority System), queue ordering uses RTGS priority,
+not internal priority bands. Internal priority (0-10) is used for Queue 1 ordering.
 """
 
 import pytest
@@ -143,13 +146,15 @@ class TestQueue2PriorityModeBehavior:
         assert priorities == [1, 9, 5], f"Expected FIFO order [1, 9, 5], got {priorities}"
 
     def test_priority_mode_reorders_queue2_by_priority_bands(self):
-        """With priority_mode enabled, Queue 2 should reorder by priority bands.
+        """With priority_mode enabled, Queue 2 should reorder by RTGS priority.
 
         This is the KEY test for priority mode - Queue 2 should be reordered so that:
-        - Urgent (8-10) transactions come first
-        - Normal (4-7) transactions come second
-        - Low (0-3) transactions come last
-        Within each band, FIFO is preserved.
+        - Urgent RTGS transactions come first
+        - Normal RTGS transactions come second
+        Within each RTGS priority level, FIFO is preserved.
+
+        NOTE: As of Phase 0 (Dual Priority System), ordering is by RTGS priority,
+        not internal priority. Transactions must explicitly declare RTGS priority.
         """
         config = {
             "ticks_per_day": 100,
@@ -174,23 +179,23 @@ class TestQueue2PriorityModeBehavior:
 
         orch = Orchestrator.new(config)
 
-        # Submit in reverse priority band order: low, normal, urgent
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=2, divisible=False)   # Low (first submitted)
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=5, divisible=False)   # Normal (second)
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=9, divisible=False)   # Urgent (third)
+        # Submit in reverse RTGS priority order: Normal, Urgent
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=2, divisible=False, rtgs_priority="Normal")  # First submitted
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=5, divisible=False, rtgs_priority="Normal")  # Second
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=9, divisible=False, rtgs_priority="Urgent")  # Third
 
-        # Run tick to process into Queue 2 - priority_mode should reorder
+        # Run tick to process into Queue 2 - priority_mode should reorder by RTGS priority
         orch.tick()
 
-        # Check Queue 2 contents - should be reordered by priority bands
+        # Check Queue 2 contents - should be reordered by RTGS priority
         queue2_tx_ids = orch.get_queue2_contents()
 
         assert len(queue2_tx_ids) >= 3, f"Expected 3 transactions in Queue 2, got {len(queue2_tx_ids)}"
-        priorities = [orch.get_transaction_details(tx_id)["priority"] for tx_id in queue2_tx_ids[:3]]
+        rtgs_priorities = [orch.get_transaction_details(tx_id)["rtgs_priority"] for tx_id in queue2_tx_ids[:3]]
 
-        # With priority_mode=True, should be reordered: urgent(9) first, then normal(5), then low(2)
-        assert priorities == [9, 5, 2], \
-            f"Expected priority-band order [9, 5, 2] (urgent, normal, low), got {priorities}"
+        # With priority_mode=True, Urgent RTGS should be first, then Normal
+        assert rtgs_priorities == ["Urgent", "Normal", "Normal"], \
+            f"Expected RTGS priority order ['Urgent', 'Normal', 'Normal'], got {rtgs_priorities}"
 
     def test_priority_mode_preserves_fifo_within_same_band(self):
         """Within the same priority band, FIFO should be preserved."""
@@ -236,7 +241,11 @@ class TestQueue2PriorityModeBehavior:
             f"Expected FIFO within band [6, 4, 7], got {priorities}"
 
     def test_priority_mode_complex_ordering(self):
-        """Test complex scenario with multiple transactions in each band."""
+        """Test complex scenario with multiple transactions at different RTGS priorities.
+
+        NOTE: As of Phase 0 (Dual Priority System), ordering is by RTGS priority,
+        not internal priority. Transactions must explicitly declare RTGS priority.
+        """
         config = {
             "ticks_per_day": 100,
             "num_days": 1,
@@ -260,13 +269,13 @@ class TestQueue2PriorityModeBehavior:
 
         orch = Orchestrator.new(config)
 
-        # Submit in mixed order
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=3, divisible=False)   # Low (first)
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=8, divisible=False)   # Urgent (second)
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=5, divisible=False)   # Normal (third)
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=1, divisible=False)   # Low (fourth)
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=9, divisible=False)   # Urgent (fifth)
-        orch.submit_transaction("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=6, divisible=False)   # Normal (sixth)
+        # Submit in mixed RTGS priority order
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=3, divisible=False, rtgs_priority="Normal")   # Normal (first)
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=8, divisible=False, rtgs_priority="Urgent")   # Urgent (second)
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=5, divisible=False, rtgs_priority="Normal")   # Normal (third)
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=1, divisible=False, rtgs_priority="Normal")   # Normal (fourth)
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=9, divisible=False, rtgs_priority="Urgent")   # Urgent (fifth)
+        orch.submit_transaction_with_rtgs_priority("BANK_A", "BANK_B", 1000, deadline_tick=50, priority=6, divisible=False, rtgs_priority="Normal")   # Normal (sixth)
 
         # Run tick
         orch.tick()
@@ -274,15 +283,14 @@ class TestQueue2PriorityModeBehavior:
         queue2_tx_ids = orch.get_queue2_contents()
 
         assert len(queue2_tx_ids) >= 6, f"Expected 6 transactions in Queue 2, got {len(queue2_tx_ids)}"
-        priorities = [orch.get_transaction_details(tx_id)["priority"] for tx_id in queue2_tx_ids[:6]]
+        rtgs_priorities = [orch.get_transaction_details(tx_id)["rtgs_priority"] for tx_id in queue2_tx_ids[:6]]
 
-        # Expected order:
-        # - Urgent band (8-10), FIFO: [8, 9] (8 was submitted before 9)
-        # - Normal band (4-7), FIFO: [5, 6] (5 was submitted before 6)
-        # - Low band (0-3), FIFO: [3, 1] (3 was submitted before 1)
-        expected = [8, 9, 5, 6, 3, 1]
-        assert priorities == expected, \
-            f"Expected priority-band order {expected}, got {priorities}"
+        # Expected order by RTGS priority:
+        # - Urgent RTGS (submitted 2nd and 5th), FIFO: ["Urgent", "Urgent"]
+        # - Normal RTGS (submitted 1st, 3rd, 4th, 6th), FIFO: ["Normal", "Normal", "Normal", "Normal"]
+        expected = ["Urgent", "Urgent", "Normal", "Normal", "Normal", "Normal"]
+        assert rtgs_priorities == expected, \
+            f"Expected RTGS priority order {expected}, got {rtgs_priorities}"
 
 
 class TestQueue2PriorityModeWithQueue1Ordering:

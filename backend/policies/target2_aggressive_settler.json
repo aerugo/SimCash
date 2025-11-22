@@ -1,0 +1,103 @@
+{
+  "version": "1.0",
+  "policy_id": "target2_aggressive_settler_v1",
+  "description": "An aggressive settlement policy that releases payments quickly to maximize throughput. Relies on LSM bilateral and multilateral offsets to manage liquidity. Designed to work well with entry disposition offsetting.",
+  "parameters": {
+    "minimal_buffer": 1.1,
+    "aggressive_threshold_ticks": 25
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "T2AS-N1-CanAfford",
+    "description": "Can we afford this payment with minimal buffer?",
+    "condition": {
+      "op": ">=",
+      "left": { "field": "effective_liquidity" },
+      "right": {
+        "compute": {
+          "op": "*",
+          "left": { "field": "remaining_amount" },
+          "right": { "param": "minimal_buffer" }
+        }
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "T2AS-A1-Release",
+      "action": "Release",
+      "description": "Sufficient liquidity - release immediately to benefit from LSM"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "T2AS-N2-Deadline",
+      "description": "Is deadline within aggressive threshold?",
+      "condition": {
+        "op": "<=",
+        "left": { "field": "ticks_to_deadline" },
+        "right": { "param": "aggressive_threshold_ticks" }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "T2AS-N3-HasCredit",
+        "description": "Is credit available?",
+        "condition": {
+          "op": ">",
+          "left": { "field": "credit_headroom" },
+          "right": { "value": 0.0 }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "T2AS-A2-UseCredit",
+          "action": "ReleaseWithCredit",
+          "description": "Deadline approaching - use credit to release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "T2AS-A3-Hold",
+          "action": "Hold",
+          "parameters": { "reason": { "value": "InsufficientLiquidity" } }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "T2AS-A4-Hold",
+        "action": "Hold",
+        "description": "Not urgent yet, wait for incoming payments",
+        "parameters": { "reason": { "value": "AwaitingInflows" } }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "T2AS-SC1-LargeGap",
+    "description": "Is the liquidity gap significant?",
+    "condition": {
+      "op": ">",
+      "left": { "field": "queue1_liquidity_gap" },
+      "right": { "value": 100000.0 }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "T2AS-SCA1-Post",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "min",
+            "values": [
+              { "field": "queue1_liquidity_gap" },
+              { "field": "remaining_collateral_capacity" }
+            ]
+          }
+        },
+        "reason": { "value": "PreemptivePosting" },
+        "auto_withdraw_after_ticks": { "value": 15 }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "T2AS-SCA2-Hold",
+      "action": "HoldCollateral"
+    }
+  }
+}

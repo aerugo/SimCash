@@ -179,6 +179,25 @@ pub struct Agent {
     /// Values are f64 for flexibility
     /// Reset at EOD for daily scope (not multi-day strategies)
     state_registers: std::collections::HashMap<String, f64>,
+
+    // Phase 1 (TARGET2 LSM): Bilateral and Multilateral Limits
+    /// Bilateral limits: maximum outflow per counterparty per day (i64 cents)
+    /// Maps counterparty_id -> max_outflow_amount
+    /// Empty means no bilateral limits configured
+    bilateral_limits: std::collections::HashMap<String, i64>,
+
+    /// Multilateral limit: maximum total outflow per day (i64 cents)
+    /// None means no multilateral limit configured
+    multilateral_limit: Option<i64>,
+
+    /// Current day's bilateral outflows tracking
+    /// Maps counterparty_id -> amount_sent_today
+    /// Reset at start of each day
+    bilateral_outflows: std::collections::HashMap<String, i64>,
+
+    /// Current day's total outflow (for multilateral limit)
+    /// Reset at start of each day
+    total_outflow: i64,
 }
 
 impl Agent {
@@ -218,6 +237,11 @@ impl Agent {
             collateral_withdrawal_timers: std::collections::HashMap::new(),
             // Phase 4.5: State registers (none by default)
             state_registers: std::collections::HashMap::new(),
+            // Phase 1 (TARGET2 LSM): Limits (none by default)
+            bilateral_limits: std::collections::HashMap::new(),
+            multilateral_limit: None,
+            bilateral_outflows: std::collections::HashMap::new(),
+            total_outflow: 0,
         }
     }
 
@@ -262,6 +286,11 @@ impl Agent {
             collateral_withdrawal_timers: std::collections::HashMap::new(),
             // Phase 4.5: State registers (none by default)
             state_registers: std::collections::HashMap::new(),
+            // Phase 1 (TARGET2 LSM): Limits (none by default)
+            bilateral_limits: std::collections::HashMap::new(),
+            multilateral_limit: None,
+            bilateral_outflows: std::collections::HashMap::new(),
+            total_outflow: 0,
         }
     }
 
@@ -333,6 +362,11 @@ impl Agent {
             collateral_withdrawal_timers: std::collections::HashMap::new(),
             // Phase 4.5: State registers (none by default)
             state_registers: std::collections::HashMap::new(),
+            // Phase 1 (TARGET2 LSM): Limits (none by default for snapshots)
+            bilateral_limits: std::collections::HashMap::new(),
+            multilateral_limit: None,
+            bilateral_outflows: std::collections::HashMap::new(),
+            total_outflow: 0,
         }
     }
 
@@ -1494,6 +1528,76 @@ impl Agent {
     /// Get reference to all state registers (for context building)
     pub fn state_registers(&self) -> &std::collections::HashMap<String, f64> {
         &self.state_registers
+    }
+
+    // =========================================================================
+    // Phase 1 (TARGET2 LSM): Bilateral and Multilateral Limits
+    // =========================================================================
+
+    /// Get bilateral limits (counterparty_id -> max_outflow_amount)
+    pub fn bilateral_limits(&self) -> &std::collections::HashMap<String, i64> {
+        &self.bilateral_limits
+    }
+
+    /// Set bilateral limits from config
+    pub fn set_bilateral_limits(&mut self, limits: std::collections::HashMap<String, i64>) {
+        self.bilateral_limits = limits;
+    }
+
+    /// Get multilateral limit (max total outflow per day)
+    pub fn multilateral_limit(&self) -> Option<i64> {
+        self.multilateral_limit
+    }
+
+    /// Set multilateral limit
+    pub fn set_multilateral_limit(&mut self, limit: Option<i64>) {
+        self.multilateral_limit = limit;
+    }
+
+    /// Get current bilateral outflows (counterparty_id -> amount_sent_today)
+    pub fn bilateral_outflows(&self) -> &std::collections::HashMap<String, i64> {
+        &self.bilateral_outflows
+    }
+
+    /// Get current total outflow (for multilateral limit)
+    pub fn total_outflow(&self) -> i64 {
+        self.total_outflow
+    }
+
+    /// Record a payment outflow (called when settlement occurs)
+    /// Returns true if within limits, false if exceeds limits
+    pub fn record_outflow(&mut self, receiver_id: &str, amount: i64) {
+        // Update bilateral outflow for this counterparty
+        *self.bilateral_outflows.entry(receiver_id.to_string()).or_insert(0) += amount;
+        // Update total outflow for multilateral limit
+        self.total_outflow += amount;
+    }
+
+    /// Check if a payment is within bilateral limit
+    /// Returns (is_within_limit, current_outflow, limit)
+    pub fn check_bilateral_limit(&self, receiver_id: &str, amount: i64) -> (bool, i64, Option<i64>) {
+        let limit = self.bilateral_limits.get(receiver_id).copied();
+        let current = self.bilateral_outflows.get(receiver_id).copied().unwrap_or(0);
+
+        match limit {
+            Some(max) => (current + amount <= max, current, limit),
+            None => (true, current, None), // No limit configured
+        }
+    }
+
+    /// Check if a payment is within multilateral limit
+    /// Returns (is_within_limit, current_outflow, limit)
+    pub fn check_multilateral_limit(&self, amount: i64) -> (bool, i64, Option<i64>) {
+        match self.multilateral_limit {
+            Some(max) => (self.total_outflow + amount <= max, self.total_outflow, self.multilateral_limit),
+            None => (true, self.total_outflow, None), // No limit configured
+        }
+    }
+
+    /// Reset outflow tracking (called at start of each day)
+    pub fn reset_daily_outflows(&mut self) {
+        self.bilateral_outflows.clear();
+        self.total_outflow = 0;
     }
 }
 

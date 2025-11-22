@@ -71,7 +71,7 @@ use crate::core::time::TimeManager;
 use crate::models::agent::Agent;
 use crate::models::event::{Event, EventLog};
 use crate::models::state::SimulationState;
-use crate::models::transaction::Transaction;
+use crate::models::transaction::{RtgsPriority, Transaction};
 use crate::policy::CashManagerPolicy;
 use crate::rng::RngManager;
 use crate::settlement::lsm::LsmConfig;
@@ -149,6 +149,22 @@ pub struct OrchestratorConfig {
     /// When enabled, transaction priorities are boosted as deadlines approach.
     #[serde(default)]
     pub priority_escalation: PriorityEscalationConfig,
+
+    /// Algorithm sequencing mode (default: false)
+    /// When enabled, emits AlgorithmExecution events for each settlement algorithm:
+    /// - Algorithm 1: FIFO settlement (RTGS immediate + Queue 2)
+    /// - Algorithm 2: Bilateral offsetting (LSM)
+    /// - Algorithm 3: Multilateral cycle settlement (LSM)
+    #[serde(default)]
+    pub algorithm_sequencing: bool,
+
+    /// Entry disposition offsetting mode (default: false)
+    /// When enabled, checks for bilateral offset opportunities at transaction entry time
+    /// (before regular LSM processing). TARGET2 Phase 3 feature.
+    /// When a new transaction arrives, if there's an opposite payment queued,
+    /// they can be immediately offset without waiting for periodic LSM runs.
+    #[serde(default)]
+    pub entry_disposition_offsetting: bool,
 }
 
 /// Priority escalation configuration
@@ -253,6 +269,29 @@ pub struct AgentConfig {
     /// Example: 0.02 means 2% haircut → 98% of collateral value is available.
     /// T2/CLM typical range: 0.00-0.10 (0%-10% haircut)
     pub collateral_haircut: Option<f64>,
+
+    /// Payment limits configuration (Phase 1: TARGET2 LSM alignment)
+    /// Controls bilateral (per-counterparty) and multilateral (total) outflow limits
+    #[serde(default)]
+    pub limits: Option<AgentLimitsConfig>,
+}
+
+/// Bilateral and multilateral limits configuration for an agent
+///
+/// TARGET2-style limits that restrict payment outflows:
+/// - Bilateral limits: Maximum outflow to each specific counterparty per day
+/// - Multilateral limit: Maximum total outflow to all participants per day
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct AgentLimitsConfig {
+    /// Per-counterparty limits (counterparty_id -> max_outflow_amount in cents)
+    /// Empty means no bilateral limits
+    #[serde(default)]
+    pub bilateral_limits: std::collections::HashMap<String, i64>,
+
+    /// Maximum total outflow per day (cents)
+    /// None means no multilateral limit
+    #[serde(default)]
+    pub multilateral_limit: Option<i64>,
 }
 
 /// Policy selection for an agent
@@ -865,6 +904,7 @@ impl Orchestrator {
     ///             arrival_config: None,
     ///             posted_collateral: None,
     ///             collateral_haircut: None,
+    ///             limits: None,
     ///         },
     ///     ],
     ///     cost_rates: Default::default(),
@@ -873,6 +913,8 @@ impl Orchestrator {
     ///     queue1_ordering: Default::default(),
     ///     priority_mode: false,
     ///     priority_escalation: Default::default(),
+    ///     algorithm_sequencing: false,
+    ///     entry_disposition_offsetting: false,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -896,6 +938,11 @@ impl Orchestrator {
                 // Set collateral haircut if specified (defaults to 0.02)
                 if let Some(haircut) = ac.collateral_haircut {
                     agent.set_collateral_haircut(haircut);
+                }
+                // Set payment limits if specified (Phase 1: TARGET2 LSM)
+                if let Some(limits) = &ac.limits {
+                    agent.set_bilateral_limits(limits.bilateral_limits.clone());
+                    agent.set_multilateral_limit(limits.multilateral_limit);
                 }
                 agent
             })
@@ -1935,6 +1982,222 @@ impl Orchestrator {
         Ok(tx_id_clone)
     }
 
+    /// Submit a transaction with an explicit RTGS priority
+    ///
+    /// Similar to `submit_transaction`, but allows specifying the RTGS priority
+    /// that will be used when the transaction is submitted to Queue 2.
+    ///
+    /// # Arguments
+    ///
+    /// * `sender_id` - ID of the sending agent (must exist)
+    /// * `receiver_id` - ID of the receiving agent (must exist)
+    /// * `amount` - Transaction amount in cents (must be positive)
+    /// * `deadline_tick` - Tick by which transaction must be settled
+    /// * `priority` - Internal priority (0-10, higher = more urgent)
+    /// * `divisible` - Whether transaction can be split
+    /// * `rtgs_priority` - RTGS priority to use when submitted to Queue 2
+    ///
+    /// # Returns
+    ///
+    /// The unique transaction ID on success, or an error if validation fails.
+    pub fn submit_transaction_with_rtgs_priority(
+        &mut self,
+        sender_id: &str,
+        receiver_id: &str,
+        amount: i64,
+        deadline_tick: usize,
+        priority: u8,
+        divisible: bool,
+        rtgs_priority: RtgsPriority,
+    ) -> Result<String, SimulationError> {
+        // Validate sender exists
+        if !self.state.agents().contains_key(sender_id) {
+            return Err(SimulationError::AgentNotFound(sender_id.to_string()));
+        }
+
+        // Validate receiver exists
+        if !self.state.agents().contains_key(receiver_id) {
+            return Err(SimulationError::AgentNotFound(receiver_id.to_string()));
+        }
+
+        // Validate amount
+        if amount <= 0 {
+            return Err(SimulationError::InvalidConfig(format!(
+                "Transaction amount must be positive, got {}",
+                amount
+            )));
+        }
+
+        // Validate deadline is not in the past
+        let current_tick = self.current_tick();
+        if deadline_tick <= current_tick {
+            return Err(SimulationError::InvalidConfig(format!(
+                "Transaction deadline {} is in the past (current tick: {})",
+                deadline_tick, current_tick
+            )));
+        }
+
+        // Create transaction (Transaction::new() generates its own UUID)
+        let mut tx = crate::models::Transaction::new(
+            sender_id.to_string(),
+            receiver_id.to_string(),
+            amount,
+            current_tick, // Arrival tick = current tick
+            deadline_tick,
+        );
+
+        // Set priority
+        tx = tx.with_priority(priority);
+
+        // Set declared RTGS priority (Phase 0: Dual Priority System)
+        tx.set_declared_rtgs_priority(rtgs_priority);
+
+        // TODO(Phase 7): Store divisibility flag on Transaction
+        let _ = divisible;
+
+        // Add transaction to state
+        let tx_id_clone = tx.id().to_string();
+        self.state.add_transaction(tx);
+
+        // Queue in sender's outgoing queue (Queue 1)
+        if let Some(agent) = self.state.get_agent_mut(sender_id) {
+            agent.queue_outgoing(tx_id_clone.clone());
+        }
+
+        // Log submission event
+        self.log_event(Event::Arrival {
+            tick: current_tick,
+            tx_id: tx_id_clone.clone(),
+            sender_id: sender_id.to_string(),
+            receiver_id: receiver_id.to_string(),
+            amount,
+            deadline: deadline_tick,
+            priority,
+            is_divisible: divisible,
+        });
+
+        Ok(tx_id_clone)
+    }
+
+    /// Withdraw a transaction from RTGS Queue 2 (Phase 0: Dual Priority System)
+    ///
+    /// Removes the transaction from Queue 2 and clears its RTGS priority/submission tick.
+    /// The transaction can then be resubmitted with a different priority.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_id` - Transaction ID to withdraw
+    ///
+    /// # Returns
+    ///
+    /// Result with success status and optional error message.
+    pub fn withdraw_from_rtgs(&mut self, tx_id: &str) -> Result<(), SimulationError> {
+        let current_tick = self.current_tick();
+
+        // Get transaction details before modification
+        let tx = self.state.get_transaction(tx_id).ok_or_else(|| {
+            SimulationError::SettlementError(format!("Transaction {} not found", tx_id))
+        })?;
+
+        // Get the original RTGS priority for the event
+        let original_priority = tx
+            .rtgs_priority()
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "None".to_string());
+        let sender = tx.sender_id().to_string();
+
+        // Remove from RTGS queue
+        let queue = self.state.rtgs_queue_mut();
+        let initial_len = queue.len();
+        queue.retain(|id| id != tx_id);
+
+        if queue.len() == initial_len {
+            return Err(SimulationError::SettlementError(format!(
+                "Transaction {} not found in RTGS Queue 2",
+                tx_id
+            )));
+        }
+
+        // Clear RTGS priority on the transaction
+        if let Some(tx) = self.state.get_transaction_mut(tx_id) {
+            tx.clear_rtgs_priority();
+        }
+
+        // Emit withdrawal event
+        self.log_event(Event::RtgsWithdrawal {
+            tick: current_tick,
+            tx_id: tx_id.to_string(),
+            sender,
+            original_rtgs_priority: original_priority,
+        });
+
+        Ok(())
+    }
+
+    /// Resubmit a transaction to RTGS Queue 2 with a new priority (Phase 0: Dual Priority System)
+    ///
+    /// Sets a new declared RTGS priority for the transaction. The transaction will be
+    /// resubmitted on the next tick when the policy releases it.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_id` - Transaction ID to resubmit
+    /// * `rtgs_priority` - New RTGS priority
+    ///
+    /// # Returns
+    ///
+    /// Result with success status and optional error message.
+    pub fn resubmit_to_rtgs(
+        &mut self,
+        tx_id: &str,
+        rtgs_priority: RtgsPriority,
+    ) -> Result<(), SimulationError> {
+        let current_tick = self.current_tick();
+
+        // Get transaction details
+        let tx = self.state.get_transaction(tx_id).ok_or_else(|| {
+            SimulationError::SettlementError(format!("Transaction {} not found", tx_id))
+        })?;
+
+        // Must have been withdrawn (rtgs_priority should be None)
+        if tx.rtgs_priority().is_some() {
+            return Err(SimulationError::SettlementError(format!(
+                "Transaction {} is still in RTGS Queue 2. Withdraw first.",
+                tx_id
+            )));
+        }
+
+        let sender = tx.sender_id().to_string();
+        let old_priority = tx
+            .declared_rtgs_priority()
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "None".to_string());
+        let new_priority_str = rtgs_priority.to_string();
+
+        // Set new declared RTGS priority
+        if let Some(tx) = self.state.get_transaction_mut(tx_id) {
+            tx.set_declared_rtgs_priority(rtgs_priority);
+        }
+
+        // Add back to sender's Queue 1 so it can be released again
+        let tx = self.state.get_transaction(tx_id).unwrap();
+        let sender_id = tx.sender_id().to_string();
+        if let Some(agent) = self.state.get_agent_mut(&sender_id) {
+            agent.queue_outgoing(tx_id.to_string());
+        }
+
+        // Emit resubmission event
+        self.log_event(Event::RtgsResubmission {
+            tick: current_tick,
+            tx_id: tx_id.to_string(),
+            sender,
+            old_rtgs_priority: old_priority,
+            new_rtgs_priority: new_priority_str,
+        });
+
+        Ok(())
+    }
+
     // ========================================================================
     // Transaction Query Methods (Phase 10 - Persistence)
     // ========================================================================
@@ -2900,7 +3163,28 @@ impl Orchestrator {
                                     // Track budget usage
                                     agent.track_release(&counterparty_id, tx_amount);
                                 }
+
+                                // Set RTGS priority and get event data (Phase 0: Dual Priority System)
+                                let (rtgs_priority_str, internal_priority, receiver_id) = if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                                    let priority = tx.declared_rtgs_priority().unwrap_or(RtgsPriority::Normal);
+                                    tx.set_rtgs_priority(priority, current_tick);
+                                    (priority.to_string(), tx.priority(), tx.receiver_id().to_string())
+                                } else {
+                                    ("Normal".to_string(), 5, counterparty_id.clone())
+                                };
+
                                 self.pending_settlements.push(tx_id.clone());
+
+                                // Log RTGS submission event (Phase 0: Dual Priority System)
+                                self.log_event(Event::RtgsSubmission {
+                                    tick: current_tick,
+                                    tx_id: tx_id.clone(),
+                                    sender: agent_id.clone(),
+                                    receiver: receiver_id,
+                                    amount: tx_amount,
+                                    internal_priority,
+                                    rtgs_priority: rtgs_priority_str,
+                                });
 
                                 // Log policy submit event
                                 self.log_event(Event::PolicySubmit {
@@ -2996,7 +3280,29 @@ impl Orchestrator {
                             });
 
                             // Add child to state and pending settlements
+                            let sender = child.sender_id().to_string();
+                            let receiver = child.receiver_id().to_string();
+                            let child_priority = child.priority();
                             self.state.add_transaction(child);
+
+                            // Set RTGS priority for child (Phase 0: Dual Priority System)
+                            // Children inherit parent's declared priority, or default to Normal
+                            let rtgs_priority = parent_tx.declared_rtgs_priority().unwrap_or(RtgsPriority::Normal);
+                            if let Some(tx) = self.state.get_transaction_mut(&child_id) {
+                                tx.set_rtgs_priority(rtgs_priority, current_tick);
+                            }
+
+                            // Log RTGS submission event for child (Phase 0: Dual Priority System)
+                            self.log_event(Event::RtgsSubmission {
+                                tick: current_tick,
+                                tx_id: child_id.clone(),
+                                sender: sender.clone(),
+                                receiver: receiver.clone(),
+                                amount: child_amount,
+                                internal_priority: child_priority,
+                                rtgs_priority: rtgs_priority.to_string(),
+                            });
+
                             self.pending_settlements.push(child_id);
                         }
 
@@ -3223,7 +3529,191 @@ impl Orchestrator {
                             child_ids,
                         });
                     }
+                    ReleaseDecision::WithdrawFromRtgs { tx_id } => {
+                        // Phase 0.8: Withdraw transaction from RTGS Queue 2
+                        // Uses existing withdraw_from_rtgs method
+                        match self.withdraw_from_rtgs(&tx_id) {
+                            Ok(()) => {
+                                // Event already logged by withdraw_from_rtgs
+                            }
+                            Err(e) => {
+                                // Log failure but don't fail the tick
+                                self.log_event(Event::PolicyHold {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                    reason: format!("WithdrawFromRtgs failed: {}", e),
+                                });
+                            }
+                        }
+                    }
+                    ReleaseDecision::ResubmitToRtgs { tx_id, new_rtgs_priority } => {
+                        // Phase 0.8: Resubmit transaction to RTGS with new priority
+                        use crate::models::transaction::RtgsPriority;
+
+                        // Parse RTGS priority
+                        let priority = match new_rtgs_priority.as_str() {
+                            "HighlyUrgent" => RtgsPriority::HighlyUrgent,
+                            "Urgent" => RtgsPriority::Urgent,
+                            "Normal" => RtgsPriority::Normal,
+                            _ => {
+                                // Invalid priority - hold instead
+                                self.log_event(Event::PolicyHold {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                    reason: format!("Invalid RTGS priority: {}", new_rtgs_priority),
+                                });
+                                continue;
+                            }
+                        };
+
+                        // Uses existing resubmit_to_rtgs method
+                        match self.resubmit_to_rtgs(&tx_id, priority) {
+                            Ok(()) => {
+                                // Event already logged by resubmit_to_rtgs
+                            }
+                            Err(e) => {
+                                // Log failure but don't fail the tick
+                                self.log_event(Event::PolicyHold {
+                                    tick: current_tick,
+                                    agent_id: agent_id.clone(),
+                                    tx_id,
+                                    reason: format!("ResubmitToRtgs failed: {}", e),
+                                });
+                            }
+                        }
+                    }
                 }
+            }
+        }
+
+        // STEP 2b: QUEUE 2 POLICY EVALUATION (Phase 0.8: TARGET2 Dual Priority)
+        // Evaluate policies for transactions already in Queue 2, allowing
+        // withdraw/resubmit decisions.
+        //
+        // Collect decisions first, then process them (to avoid borrow conflicts).
+        let queue2_decisions: Vec<(String, crate::policy::ReleaseDecision)> = {
+            let all_agents: Vec<String> = self.state.agents().keys().cloned().collect();
+            let mut decisions = Vec::new();
+
+            for agent_id in all_agents {
+                // Get Queue 2 transactions for this agent (by sender)
+                let queue2_tx_ids: Vec<String> = self
+                    .state
+                    .queue2_index()
+                    .get_agent_transactions(&agent_id)
+                    .to_vec();
+
+                if queue2_tx_ids.is_empty() {
+                    continue;
+                }
+
+                let agent = match self.state.get_agent(&agent_id) {
+                    Some(a) => a.clone(),
+                    None => continue,
+                };
+
+                let policy = match self.policies.get_mut(&agent_id) {
+                    Some(p) => p,
+                    None => continue,
+                };
+
+                // Evaluate policy for each Queue 2 transaction
+                for tx_id in queue2_tx_ids {
+                    let tx = match self.state.get_transaction(&tx_id) {
+                        Some(t) => t.clone(),
+                        None => continue,
+                    };
+
+                    // Only evaluate if we're the sender (we own this transaction)
+                    if tx.sender_id() != agent_id {
+                        continue;
+                    }
+
+                    // Evaluate the policy tree for this Queue 2 transaction
+                    let decision = policy.evaluate_single(
+                        &tx,
+                        &agent,
+                        &self.state,
+                        current_tick,
+                        &self.cost_rates,
+                        self.config.ticks_per_day,
+                        self.config.eod_rush_threshold,
+                    );
+
+                    decisions.push((agent_id.clone(), decision));
+                }
+            }
+            decisions
+        };
+
+        // Process Queue 2 decisions
+        for (agent_id, decision) in queue2_decisions {
+            use crate::policy::ReleaseDecision;
+            match decision {
+                ReleaseDecision::WithdrawFromRtgs { tx_id } => {
+                    match self.withdraw_from_rtgs(&tx_id) {
+                        Ok(()) => {}
+                        Err(e) => {
+                            self.log_event(Event::PolicyHold {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                tx_id: tx_id.clone(),
+                                reason: format!("WithdrawFromRtgs failed: {}", e),
+                            });
+                        }
+                    }
+                }
+                ReleaseDecision::ResubmitToRtgs { tx_id, new_rtgs_priority } => {
+                    // Phase 0.8: Compound action - withdraw then resubmit
+                    // This is atomic from policy perspective: withdraw from Queue 2,
+                    // then resubmit to Queue 1 with new declared priority.
+                    use crate::models::transaction::RtgsPriority;
+
+                    let priority = match new_rtgs_priority.as_str() {
+                        "HighlyUrgent" => RtgsPriority::HighlyUrgent,
+                        "Urgent" => RtgsPriority::Urgent,
+                        "Normal" => RtgsPriority::Normal,
+                        _ => {
+                            self.log_event(Event::PolicyHold {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                tx_id: tx_id.clone(),
+                                reason: format!("Invalid RTGS priority: {}", new_rtgs_priority),
+                            });
+                            continue;
+                        }
+                    };
+
+                    // Step 1: Withdraw from Queue 2
+                    match self.withdraw_from_rtgs(&tx_id) {
+                        Ok(()) => {
+                            // Step 2: Resubmit with new priority
+                            match self.resubmit_to_rtgs(&tx_id, priority) {
+                                Ok(()) => {}
+                                Err(e) => {
+                                    self.log_event(Event::PolicyHold {
+                                        tick: current_tick,
+                                        agent_id: agent_id.clone(),
+                                        tx_id: tx_id.clone(),
+                                        reason: format!("ResubmitToRtgs resubmit step failed: {}", e),
+                                    });
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.log_event(Event::PolicyHold {
+                                tick: current_tick,
+                                agent_id: agent_id.clone(),
+                                tx_id: tx_id.clone(),
+                                reason: format!("ResubmitToRtgs withdraw step failed: {}", e),
+                            });
+                        }
+                    }
+                }
+                // Other decisions are ignored for Queue 2 transactions
+                _ => {}
             }
         }
 
@@ -3375,6 +3865,20 @@ impl Orchestrator {
         // Capture timing for RTGS queue processing phase
         timing.rtgs_queue_micros = rtgs_queue_start.elapsed().as_micros() as u64;
 
+        // Emit Algorithm 1 (FIFO) execution event if algorithm_sequencing is enabled
+        if self.config.algorithm_sequencing {
+            let alg1_settlements = queue_result.settled_count;
+            let alg1_value: i64 = queue_result.settled_transactions.iter().map(|t| t.amount).sum();
+            let alg1_result = if alg1_settlements > 0 { "Success" } else { "NoProgress" };
+            self.log_event(Event::AlgorithmExecution {
+                tick: current_tick,
+                algorithm: 1,
+                result: alg1_result.to_string(),
+                settlements: alg1_settlements,
+                settled_value: alg1_value,
+            });
+        }
+
         // STEP 5: LSM COORDINATOR
         // Find and release offsetting transactions
         let lsm_start = Instant::now();
@@ -3397,6 +3901,7 @@ impl Orchestrator {
             &self.lsm_config,
             current_tick,
             self.time_manager.ticks_per_day(),
+            self.config.entry_disposition_offsetting,
         );
         let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
@@ -3441,6 +3946,46 @@ impl Orchestrator {
                 eprintln!("[LSM DEBUG] Logging enriched event: {:?}", event.event_type());
             }
             self.log_event(event.clone());
+        }
+
+        // Emit Algorithm 2 (Bilateral) and Algorithm 3 (Multilateral) events if algorithm_sequencing is enabled
+        if self.config.algorithm_sequencing {
+            // Algorithm 2: Bilateral offsetting
+            let alg2_settlements = lsm_result.bilateral_offsets;
+            // Count bilateral events in replay events to get settled value
+            // Each bilateral offset has amount_a and amount_b - we sum the smaller (net settlement)
+            let alg2_value: i64 = lsm_result.replay_events.iter()
+                .filter_map(|e| match e {
+                    Event::LsmBilateralOffset { amount_a, amount_b, .. } => Some(std::cmp::min(*amount_a, *amount_b)),
+                    _ => None,
+                })
+                .sum();
+            let alg2_result = if alg2_settlements > 0 { "Success" } else { "NoProgress" };
+            self.log_event(Event::AlgorithmExecution {
+                tick: current_tick,
+                algorithm: 2,
+                result: alg2_result.to_string(),
+                settlements: alg2_settlements,
+                settled_value: alg2_value,
+            });
+
+            // Algorithm 3: Multilateral cycle settlement
+            let alg3_settlements = lsm_result.cycles_settled;
+            // Count cycle events in replay events to get settled value
+            let alg3_value: i64 = lsm_result.replay_events.iter()
+                .filter_map(|e| match e {
+                    Event::LsmCycleSettlement { total_value, .. } => Some(*total_value),
+                    _ => None,
+                })
+                .sum();
+            let alg3_result = if alg3_settlements > 0 { "Success" } else { "NoProgress" };
+            self.log_event(Event::AlgorithmExecution {
+                tick: current_tick,
+                algorithm: 3,
+                result: alg3_result.to_string(),
+                settlements: alg3_settlements,
+                settled_value: alg3_value,
+            });
         }
 
         // STEP 5.5: END-OF-TICK COLLATERAL MANAGEMENT (Layer 2)
@@ -4010,35 +4555,30 @@ impl Orchestrator {
             return; // Nothing to sort
         }
 
-        // Collect (tx_id, priority, original_index) for stable sorting
+        // Collect (tx_id, rtgs_priority_order, rtgs_submission_tick) for stable sorting
+        // Phase 0: Dual Priority System - Sort by RTGS priority, not internal priority
         let mut tx_info: Vec<(String, u8, usize)> = queue
             .iter()
-            .enumerate()
-            .filter_map(|(idx, tx_id)| {
+            .filter_map(|tx_id| {
                 self.state.get_transaction(tx_id).map(|tx| {
-                    (tx_id.clone(), tx.priority(), idx)
+                    // RtgsPriority enum order: HighlyUrgent=0, Urgent=1, Normal=2
+                    // Lower value = higher priority
+                    let rtgs_priority_order = tx.rtgs_priority()
+                        .map(|p| p as u8)
+                        .unwrap_or(2); // Default to Normal (lowest)
+                    let submission_tick = tx.rtgs_submission_tick().unwrap_or(usize::MAX);
+                    (tx_id.clone(), rtgs_priority_order, submission_tick)
                 })
             })
             .collect();
 
-        // Helper function to get priority band (0=low, 1=normal, 2=urgent)
-        fn priority_band(priority: u8) -> u8 {
-            match priority {
-                8..=10 => 2, // Urgent
-                4..=7 => 1,  // Normal
-                _ => 0,      // Low (0-3)
-            }
-        }
-
-        // Sort by priority band (descending), then by original index (ascending, FIFO)
+        // Sort by RTGS priority (ascending - lower value = higher priority),
+        // then by submission_tick (ascending, FIFO)
         tx_info.sort_by(|a, b| {
-            let band_a = priority_band(a.1);
-            let band_b = priority_band(b.1);
-
-            // Higher band first (urgent before normal before low)
-            match band_b.cmp(&band_a) {
+            // Lower rtgs_priority_order = higher priority (HighlyUrgent=0 before Urgent=1 before Normal=2)
+            match a.1.cmp(&b.1) {
                 std::cmp::Ordering::Equal => {
-                    // Same band: preserve FIFO (original index)
+                    // Same RTGS priority: FIFO by submission tick
                     a.2.cmp(&b.2)
                 }
                 other => other,
@@ -4145,6 +4685,12 @@ impl Orchestrator {
             }
         }
 
+        // Phase 1 (TARGET2 LSM): Reset daily outflows for all agents
+        for agent_id in self.state.agents().keys().cloned().collect::<Vec<_>>() {
+            let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+            agent_mut.reset_daily_outflows();
+        }
+
         // Count total unsettled transactions across all queues
         let unsettled_count = self.state.queue_size() + self.state.total_internal_queue_size();
 
@@ -4240,20 +4786,65 @@ impl Orchestrator {
             )
         };
 
-        // Check if sender can pay
+        // Check if sender can pay (liquidity)
         let can_pay = self
             .state
             .get_agent(&sender_id)
             .ok_or_else(|| SimulationError::AgentNotFound(sender_id.clone()))?
             .can_pay(amount);
 
-        if can_pay {
+        // Check bilateral and multilateral limits (Phase 1 TARGET2 LSM)
+        let (bilateral_ok, bilateral_current, bilateral_limit) = {
+            let sender = self
+                .state
+                .get_agent(&sender_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(sender_id.clone()))?;
+            sender.check_bilateral_limit(&receiver_id, amount)
+        };
+        let (multilateral_ok, multilateral_current, multilateral_limit) = {
+            let sender = self
+                .state
+                .get_agent(&sender_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(sender_id.clone()))?;
+            sender.check_multilateral_limit(amount)
+        };
+
+        // Emit limit exceeded events if applicable
+        if !bilateral_ok {
+            if let Some(limit) = bilateral_limit {
+                self.log_event(Event::BilateralLimitExceeded {
+                    tick,
+                    sender: sender_id.clone(),
+                    receiver: receiver_id.clone(),
+                    tx_id: tx_id.to_string(),
+                    amount,
+                    current_bilateral_outflow: bilateral_current,
+                    bilateral_limit: limit,
+                });
+            }
+        }
+        if !multilateral_ok {
+            if let Some(limit) = multilateral_limit {
+                self.log_event(Event::MultilateralLimitExceeded {
+                    tick,
+                    sender: sender_id.clone(),
+                    tx_id: tx_id.to_string(),
+                    amount,
+                    current_total_outflow: multilateral_current,
+                    multilateral_limit: limit,
+                });
+            }
+        }
+
+        if can_pay && bilateral_ok && multilateral_ok {
             // Settle the transaction
             {
                 let sender = self.state.get_agent_mut(&sender_id).unwrap();
                 sender.debit(amount).map_err(|e| {
                     SimulationError::SettlementError(format!("Debit failed: {}", e))
                 })?;
+                // Record outflow for bilateral/multilateral limit tracking (Phase 1 TARGET2 LSM)
+                sender.record_outflow(&receiver_id, amount);
             }
             {
                 let receiver = self.state.get_agent_mut(&receiver_id).unwrap();
@@ -4447,16 +5038,17 @@ mod tests {
                 AgentConfig {
                     id: "BANK_A".to_string(),
                     opening_balance: 1_000_000,
-                    credit_limit: 500_000,
+                    unsecured_cap: 500_000,
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
                     posted_collateral: None,
                     collateral_haircut: None,
+                    limits: None,
                 },
                 AgentConfig {
                     id: "BANK_B".to_string(),
                     opening_balance: 2_000_000,
-                    credit_limit: 0,
+                    unsecured_cap: 0,
                     policy: PolicyConfig::LiquidityAware {
                         target_buffer: 500_000,
                         urgency_threshold: 5,
@@ -4464,11 +5056,17 @@ mod tests {
                     arrival_config: None,
                     posted_collateral: None,
                     collateral_haircut: None,
+                    limits: None,
                 },
             ],
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
             scenario_events: None,
+            queue1_ordering: Queue1Ordering::default(),
+            priority_mode: false,
+            priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
         }
     }
 
@@ -4518,6 +5116,11 @@ mod tests {
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
             scenario_events: None,
+            queue1_ordering: Queue1Ordering::default(),
+            priority_mode: false,
+            priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
         };
 
         let result = Orchestrator::new(config);
@@ -4548,25 +5151,32 @@ mod tests {
                 AgentConfig {
                     id: "BANK_A".to_string(),
                     opening_balance: 1_000_000,
-                    credit_limit: 0,
+                    unsecured_cap: 0,
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
                     posted_collateral: None,
                     collateral_haircut: None,
+                    limits: None,
                 },
                 AgentConfig {
                     id: "BANK_A".to_string(), // Duplicate!
                     opening_balance: 2_000_000,
-                    credit_limit: 0,
+                    unsecured_cap: 0,
                     policy: PolicyConfig::Fifo,
                     arrival_config: None,
                     posted_collateral: None,
                     collateral_haircut: None,
+                    limits: None,
                 },
             ],
             cost_rates: CostRates::default(),
             lsm_config: LsmConfig::default(),
             scenario_events: None,
+            queue1_ordering: Queue1Ordering::default(),
+            priority_mode: false,
+            priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
         };
 
         let result = Orchestrator::new(config);

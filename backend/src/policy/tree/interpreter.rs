@@ -885,6 +885,50 @@ pub fn build_decision(
              Collateral actions require separate tree evaluation.",
             action
         ))),
+
+        // Phase 0.8: RTGS Queue 2 Management Actions (TARGET2 Dual Priority)
+        ActionType::WithdrawFromRtgs => {
+            Ok(ReleaseDecision::WithdrawFromRtgs { tx_id })
+        }
+
+        ActionType::ResubmitToRtgs => {
+            use crate::policy::tree::types::ValueOrCompute;
+
+            // Parse rtgs_priority parameter (required)
+            let rtgs_priority = if let Some(priority_value) = action_params.get("rtgs_priority") {
+                match priority_value {
+                    ValueOrCompute::Direct { value } => {
+                        if let Some(priority_str) = value.as_str() {
+                            priority_str.to_string()
+                        } else {
+                            return Err(EvalError::InvalidActionParameter(
+                                "rtgs_priority must be a string".to_string(),
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(EvalError::InvalidActionParameter(
+                            "rtgs_priority must be a direct string value".to_string(),
+                        ));
+                    }
+                }
+            } else {
+                return Err(EvalError::MissingActionParameter("rtgs_priority".to_string()));
+            };
+
+            // Validate RTGS priority
+            if !["HighlyUrgent", "Urgent", "Normal"].contains(&rtgs_priority.as_str()) {
+                return Err(EvalError::InvalidActionParameter(format!(
+                    "rtgs_priority must be 'HighlyUrgent', 'Urgent', or 'Normal', got '{}'",
+                    rtgs_priority
+                )));
+            }
+
+            Ok(ReleaseDecision::ResubmitToRtgs {
+                tx_id,
+                new_rtgs_priority: rtgs_priority,
+            })
+        }
     }
 }
 
@@ -989,7 +1033,9 @@ pub fn build_collateral_decision(
         | ActionType::Reprioritize
         | ActionType::SetReleaseBudget
         | ActionType::SetState
-        | ActionType::AddState => Err(EvalError::InvalidActionType(format!(
+        | ActionType::AddState
+        | ActionType::WithdrawFromRtgs
+        | ActionType::ResubmitToRtgs => Err(EvalError::InvalidActionType(format!(
             "Payment/bank action {:?} cannot be used in collateral decision tree. \
              These actions require separate tree evaluation.",
             action

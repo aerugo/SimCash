@@ -23,6 +23,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
             arrival_config: None,
             posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -30,6 +31,8 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     // Should successfully create orchestrator with JSON-loaded policy
@@ -64,6 +67,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
             arrival_config: None,
             posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -71,6 +75,8 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -108,6 +114,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
             arrival_config: None,
             posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -115,6 +122,8 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -153,6 +162,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
             arrival_config: None,
             posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -160,6 +170,8 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -212,6 +224,7 @@ fn test_multi_agent_different_json_policies() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -223,6 +236,7 @@ fn test_multi_agent_different_json_policies() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_C".to_string(),
@@ -235,6 +249,7 @@ fn test_multi_agent_different_json_policies() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -243,6 +258,8 @@ fn test_multi_agent_different_json_policies() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     // Should successfully create orchestrator with all three JSON policies
@@ -274,6 +291,7 @@ fn test_determinism_with_json_policies() {
             arrival_config: None,
             posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
         }],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
@@ -281,6 +299,8 @@ fn test_determinism_with_json_policies() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     // Run simulation 1

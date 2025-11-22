@@ -94,6 +94,9 @@ class TestSchemaMigration:
                     "delay_cost": 0,
                     "parent_tx_id": None,
                     "split_index": None,
+                    "rtgs_priority": None,
+                    "rtgs_submission_tick": None,
+                    "declared_rtgs_priority": None,
                 }
             ]
 
@@ -104,7 +107,7 @@ class TestSchemaMigration:
                 write_transactions(manager.conn, "sim-12345", transactions)
 
             # Verify it's the column mismatch error we expect
-            assert "21 columns but 22 values" in str(exc_info.value)
+            assert "21 columns but 25 values" in str(exc_info.value)
 
             manager.close()
 
@@ -235,6 +238,9 @@ class TestSchemaMigration:
                     "delay_cost": 0,
                     "parent_tx_id": None,
                     "split_index": None,
+                    "rtgs_priority": None,
+                    "rtgs_submission_tick": None,
+                    "declared_rtgs_priority": None,
                 }
             ]
 

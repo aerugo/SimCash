@@ -46,6 +46,7 @@ fn create_test_config_with_haircut(
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -55,6 +56,7 @@ fn create_test_config_with_haircut(
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         ticks_per_day: 100,
@@ -74,6 +76,8 @@ fn create_test_config_with_haircut(
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     }
 }
 
@@ -617,6 +621,7 @@ fn test_cross_agent_collateral_isolation() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -626,6 +631,7 @@ fn test_cross_agent_collateral_isolation() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         ticks_per_day: 100,
@@ -637,6 +643,8 @@ fn test_cross_agent_collateral_isolation() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
@@ -750,6 +758,7 @@ fn test_hold_collateral_action_is_noop() {
                 arrival_config: None,
                 posted_collateral: Some(20_000), // Start with some posted
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -759,6 +768,7 @@ fn test_hold_collateral_action_is_noop() {
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         ticks_per_day: 100,
@@ -770,6 +780,8 @@ fn test_hold_collateral_action_is_noop() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

@@ -12,7 +12,7 @@ mod tests;
 
 // Re-export main types for convenience
 pub use engine::{
-    AgentConfig, CostAccumulator, CostBreakdown, CostRates, DailyMetrics, Orchestrator,
+    AgentConfig, AgentLimitsConfig, CostAccumulator, CostBreakdown, CostRates, DailyMetrics, Orchestrator,
     OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, SimulationError, TickResult,
 };
 

@@ -23,6 +23,7 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "RECEIVER".to_string(),
@@ -32,6 +33,7 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates {
@@ -44,6 +46,8 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -130,6 +134,7 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "RECEIVER".to_string(),
@@ -139,6 +144,7 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates {
@@ -151,6 +157,8 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -204,6 +212,7 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             AgentConfig {
                 id: "RECEIVER".to_string(),
@@ -213,6 +222,7 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates {
@@ -225,6 +235,8 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
+            algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();

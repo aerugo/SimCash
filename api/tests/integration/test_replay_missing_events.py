@@ -302,8 +302,9 @@ def test_replay_shows_cost_accrual_summary(test_config, temp_db):
     )
 
     # ASSERT: Replay must show cost summary - verbose output is in stderr
-    assert "Costs Accrued This Tick" in replay_stderr, (
-        f"Replay output for tick {cost_tick} does not contain 'Costs Accrued This Tick' summary. "
+    # Note: Header format changed to "Cost Accruals" with emoji and count
+    assert "Cost Accruals" in replay_stderr, (
+        f"Replay output for tick {cost_tick} does not contain 'Cost Accruals' summary. "
         "Expected to see per-tick cost breakdown."
     )
 
@@ -351,8 +352,9 @@ def test_replay_shows_all_event_types_that_run_shows(test_config, temp_db):
             missing_in_replay.append("QueuedRtgs events")
 
     # Check 3: CostAccrual summary
-    if "Costs Accrued This Tick" in run_stderr:
-        if "Costs Accrued This Tick" not in replay_stderr:
+    # Note: Header format changed to "Cost Accruals" with emoji and count
+    if "Cost Accruals" in run_stderr:
+        if "Cost Accruals" not in replay_stderr:
             missing_in_replay.append("CostAccrual summary")
 
     # ASSERT: All event types must be present
