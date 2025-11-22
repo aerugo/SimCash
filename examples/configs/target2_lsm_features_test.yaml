@@ -1,0 +1,374 @@
+# =============================================================================
+# TARGET2 LSM Features Test - Comprehensive Feature Validation
+#
+# NARRATIVE: "Testing TARGET2 Alignment"
+#
+# GOAL: A 5-day simulation that exercises all new TARGET2 LSM features:
+#       - Dual Priority System (internal vs RTGS priorities)
+#       - Bilateral/Multilateral Limits with LSM awareness
+#       - Algorithm Sequencing (FIFO → Bilateral → Multilateral)
+#       - Entry Disposition Offsetting (pre-queue offset detection)
+#       - Priority Escalation (auto-boost as deadlines approach)
+#
+# =============================================================================
+
+simulation:
+  ticks_per_day: 100
+  num_days: 5
+  rng_seed: 42
+
+# ============================================================================
+# TARGET2 LSM ALIGNMENT SETTINGS (NEW FEATURES)
+# ============================================================================
+# These settings enable the new TARGET2-aligned LSM behavior:
+# - algorithm_sequencing: Runs FIFO → Bilateral → Multilateral in sequence
+# - entry_disposition_offsetting: Checks for bilateral offsets at payment entry
+
+algorithm_sequencing: true
+entry_disposition_offsetting: true
+
+# ============================================================================
+# PRIORITY ESCALATION SETTINGS
+# ============================================================================
+# Automatically boost payment priority as deadlines approach.
+# This creates dynamic priority changes visible in verbose output.
+
+priority_escalation:
+  enabled: true
+  curve: "linear"           # linear, exponential, step
+  threshold_ticks: 20       # Start escalating when <= 20 ticks to deadline
+  max_boost: 3              # Maximum priority increase
+
+# ============================================================================
+# AGENTS - With bilateral and multilateral limits
+# ============================================================================
+# Each agent has:
+# - bilateral_limits: Maximum outflow to specific counterparties
+# - multilateral_limit: Maximum total outflow to all counterparties
+# These limits are respected by the LSM algorithms.
+
+agents:
+  - id: "ALPHA_BANK"
+    opening_balance: 5000000      # $50,000 in cents
+    unsecured_cap: 2000000        # $20,000 credit limit
+    # Bilateral limits: Restrict outflow to each counterparty
+    bilateral_limits:
+      BETA_BANK: 3000000          # Max $30,000 to Beta
+      GAMMA_BANK: 2500000         # Max $25,000 to Gamma
+      DELTA_BANK: 2000000         # Max $20,000 to Delta
+    # Multilateral limit: Cap total daily outflow
+    multilateral_limit: 8000000   # Max $80,000 total outflow
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_priority_aware.json"
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution: { type: "Uniform", min: 100000, max: 500000 }
+      counterparty_weights: { BETA_BANK: 0.35, GAMMA_BANK: 0.35, DELTA_BANK: 0.30 }
+      deadline_range: [30, 60]
+      priority: 5                  # Internal priority
+      divisible: true
+
+  - id: "BETA_BANK"
+    opening_balance: 4000000      # $40,000 - lower liquidity to force queueing
+    unsecured_cap: 1500000
+    bilateral_limits:
+      ALPHA_BANK: 2500000
+      GAMMA_BANK: 2000000
+      DELTA_BANK: 1500000
+    multilateral_limit: 6000000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_aggressive_settler.json"
+    arrival_config:
+      rate_per_tick: 0.5
+      amount_distribution: { type: "Uniform", min: 100000, max: 500000 }
+      counterparty_weights: { ALPHA_BANK: 0.40, GAMMA_BANK: 0.30, DELTA_BANK: 0.30 }
+      deadline_range: [25, 50]
+      priority: 6
+      divisible: true
+
+  - id: "GAMMA_BANK"
+    opening_balance: 3500000      # $35,000 - even lower to encourage LSM
+    unsecured_cap: 1000000
+    bilateral_limits:
+      ALPHA_BANK: 2000000
+      BETA_BANK: 2000000
+      DELTA_BANK: 1500000
+    multilateral_limit: 5000000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_conservative_offsetter.json"
+    arrival_config:
+      rate_per_tick: 0.4
+      amount_distribution: { type: "Uniform", min: 80000, max: 400000 }
+      counterparty_weights: { ALPHA_BANK: 0.35, BETA_BANK: 0.35, DELTA_BANK: 0.30 }
+      deadline_range: [35, 70]
+      priority: 4
+      divisible: false
+
+  - id: "DELTA_BANK"
+    opening_balance: 3000000      # $30,000 - lowest to maximize offset opportunities
+    unsecured_cap: 800000
+    bilateral_limits:
+      ALPHA_BANK: 1800000
+      BETA_BANK: 1500000
+      GAMMA_BANK: 1200000
+    multilateral_limit: 4000000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_limit_aware.json"
+    arrival_config:
+      rate_per_tick: 0.35
+      amount_distribution: { type: "Uniform", min: 50000, max: 300000 }
+      counterparty_weights: { ALPHA_BANK: 0.40, BETA_BANK: 0.30, GAMMA_BANK: 0.30 }
+      deadline_range: [40, 80]
+      priority: 5
+      divisible: true
+
+# ============================================================================
+# SCENARIO EVENTS - Testing all TARGET2 features
+# ============================================================================
+# Events designed to trigger:
+# 1. Bilateral limit exceeded events
+# 2. Multilateral limit exceeded events
+# 3. Entry disposition offsets
+# 4. Algorithm sequencing (all 3 algorithms)
+# 5. Priority escalation
+
+scenario_events:
+  # Day 1: Create offsetting transactions to test entry disposition
+  # ALPHA → BETA and BETA → ALPHA should offset at entry
+  - type: CustomTransactionArrival
+    from_agent: ALPHA_BANK
+    to_agent: BETA_BANK
+    amount: 800000
+    priority: 7
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 10 }
+
+  - type: CustomTransactionArrival
+    from_agent: BETA_BANK
+    to_agent: ALPHA_BANK
+    amount: 750000
+    priority: 7
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 11 }  # Should trigger entry disposition offset
+
+  # Day 1: Create a 3-way cycle for multilateral offset
+  # ALPHA → GAMMA → DELTA → ALPHA
+  - type: CustomTransactionArrival
+    from_agent: ALPHA_BANK
+    to_agent: GAMMA_BANK
+    amount: 600000
+    priority: 6
+    deadline: 40
+    is_divisible: false
+    schedule: { type: OneTime, tick: 15 }
+
+  - type: CustomTransactionArrival
+    from_agent: GAMMA_BANK
+    to_agent: DELTA_BANK
+    amount: 550000
+    priority: 6
+    deadline: 40
+    is_divisible: false
+    schedule: { type: OneTime, tick: 16 }
+
+  - type: CustomTransactionArrival
+    from_agent: DELTA_BANK
+    to_agent: ALPHA_BANK
+    amount: 500000
+    priority: 6
+    deadline: 40
+    is_divisible: false
+    schedule: { type: OneTime, tick: 17 }
+
+  # Day 1: Large transaction to test bilateral limit (ALPHA → BETA)
+  # This should hit ALPHA's bilateral limit to BETA ($30,000)
+  - type: CustomTransactionArrival
+    from_agent: ALPHA_BANK
+    to_agent: BETA_BANK
+    amount: 2500000
+    priority: 8
+    deadline: 50
+    is_divisible: true
+    schedule: { type: OneTime, tick: 50 }
+
+  # Day 2: Test priority escalation with tight deadline
+  - type: CustomTransactionArrival
+    from_agent: BETA_BANK
+    to_agent: GAMMA_BANK
+    amount: 400000
+    priority: 3           # Low priority, will escalate as deadline approaches
+    deadline: 15          # Very tight deadline - should trigger escalation
+    is_divisible: false
+    schedule: { type: OneTime, tick: 110 }
+
+  # Day 2: More offsetting pairs for entry disposition
+  - type: CustomTransactionArrival
+    from_agent: GAMMA_BANK
+    to_agent: DELTA_BANK
+    amount: 350000
+    priority: 5
+    deadline: 25
+    is_divisible: false
+    schedule: { type: OneTime, tick: 130 }
+
+  - type: CustomTransactionArrival
+    from_agent: DELTA_BANK
+    to_agent: GAMMA_BANK
+    amount: 300000
+    priority: 5
+    deadline: 25
+    is_divisible: false
+    schedule: { type: OneTime, tick: 131 }
+
+  # Day 2: Test multilateral limit exceeded
+  # Multiple payments to push DELTA over multilateral limit ($40,000)
+  - type: CustomTransactionArrival
+    from_agent: DELTA_BANK
+    to_agent: ALPHA_BANK
+    amount: 1500000
+    priority: 7
+    deadline: 35
+    is_divisible: true
+    schedule: { type: OneTime, tick: 150 }
+
+  - type: CustomTransactionArrival
+    from_agent: DELTA_BANK
+    to_agent: BETA_BANK
+    amount: 1200000
+    priority: 7
+    deadline: 35
+    is_divisible: true
+    schedule: { type: OneTime, tick: 151 }
+
+  - type: CustomTransactionArrival
+    from_agent: DELTA_BANK
+    to_agent: GAMMA_BANK
+    amount: 1000000
+    priority: 7
+    deadline: 35
+    is_divisible: true
+    schedule: { type: OneTime, tick: 152 }
+
+  # Day 3: Global activity spike to stress LSM
+  - type: GlobalArrivalRateChange
+    multiplier: 2.0
+    schedule: { type: OneTime, tick: 220 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 280 }
+
+  # Day 3: Create complex 4-way cycle
+  - type: CustomTransactionArrival
+    from_agent: ALPHA_BANK
+    to_agent: BETA_BANK
+    amount: 450000
+    priority: 5
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 250 }
+
+  - type: CustomTransactionArrival
+    from_agent: BETA_BANK
+    to_agent: GAMMA_BANK
+    amount: 400000
+    priority: 5
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 251 }
+
+  - type: CustomTransactionArrival
+    from_agent: GAMMA_BANK
+    to_agent: DELTA_BANK
+    amount: 350000
+    priority: 5
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 252 }
+
+  - type: CustomTransactionArrival
+    from_agent: DELTA_BANK
+    to_agent: ALPHA_BANK
+    amount: 300000
+    priority: 5
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 253 }
+
+  # Day 4: Collateral adjustments to test headroom changes
+  - type: CollateralAdjustment
+    agent: GAMMA_BANK
+    delta: 2000000
+    schedule: { type: OneTime, tick: 320 }
+
+  - type: CollateralAdjustment
+    agent: DELTA_BANK
+    delta: 1500000
+    schedule: { type: OneTime, tick: 325 }
+
+  # Day 4: High-priority urgent transactions
+  - type: CustomTransactionArrival
+    from_agent: ALPHA_BANK
+    to_agent: DELTA_BANK
+    amount: 1800000
+    priority: 9           # Very high internal priority
+    deadline: 20
+    is_divisible: false
+    schedule: { type: OneTime, tick: 350 }
+
+  # Day 5: Final stress test with mixed priorities
+  - type: GlobalArrivalRateChange
+    multiplier: 1.8
+    schedule: { type: OneTime, tick: 420 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 480 }
+
+  # Day 5: More bilateral offset opportunities
+  - type: CustomTransactionArrival
+    from_agent: BETA_BANK
+    to_agent: ALPHA_BANK
+    amount: 500000
+    priority: 6
+    deadline: 40
+    is_divisible: false
+    schedule: { type: OneTime, tick: 450 }
+
+  - type: CustomTransactionArrival
+    from_agent: ALPHA_BANK
+    to_agent: BETA_BANK
+    amount: 480000
+    priority: 6
+    deadline: 40
+    is_divisible: false
+    schedule: { type: OneTime, tick: 451 }
+
+# ============================================================================
+# LSM CONFIGURATION - Algorithm sequencing enabled
+# ============================================================================
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 15
+
+# ============================================================================
+# COST RATES - Balanced to encourage efficient settlement
+# ============================================================================
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.00015
+  overdraft_bps_per_tick: 0.4
+  collateral_cost_per_tick_bps: 0.0004
+  eod_penalty_per_transaction: 10000
+  deadline_penalty: 5000
+  overdue_delay_multiplier: 3.0
+  split_friction_cost: 5000
