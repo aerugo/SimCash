@@ -1,0 +1,270 @@
+{
+  "version": "1.0",
+  "policy_id": "target2_crisis_risk_denier_v1",
+  "description": "A myopic policy that ignores systemic risk signals and bilateral/multilateral limits. Hoards liquidity aggressively, refuses to post collateral proactively, and only acts when forced by imminent deadlines. This policy optimizes for individual short-term safety while inadvertently causing systemic gridlock during stress periods. Designed to demonstrate how poor coordination can cascade into system-wide failure.",
+  "parameters": {
+    "extreme_buffer_multiplier": 3.0,
+    "panic_threshold_ticks": 3,
+    "ignore_priority_below": 9,
+    "late_day_threshold": 0.9
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "T2CRD-N1-PanicMode",
+    "description": "Are we in panic mode (deadline imminent)?",
+    "condition": {
+      "op": "<=",
+      "left": { "field": "ticks_to_deadline" },
+      "right": { "param": "panic_threshold_ticks" }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "T2CRD-N2-Panic-CanAfford",
+      "description": "Can barely afford it?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "effective_liquidity" },
+        "right": { "field": "remaining_amount" }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2CRD-A1-Panic-Release",
+        "action": "Release",
+        "description": "Panic mode - forced to release"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "T2CRD-N3-Panic-HasCredit",
+        "description": "Is credit available?",
+        "condition": {
+          "op": ">",
+          "left": { "field": "credit_headroom" },
+          "right": { "value": 0.0 }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "T2CRD-A2-Panic-Credit",
+          "action": "ReleaseWithCredit",
+          "description": "Forced to use credit at last moment"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "T2CRD-A3-Panic-FailHold",
+          "action": "Hold",
+          "parameters": { "reason": { "value": "NoOptions" } },
+          "description": "No liquidity, no credit - trapped"
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "T2CRD-N4-UltraHighPriority",
+      "description": "Is this priority 9+ (can't ignore)?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "priority" },
+        "right": { "param": "ignore_priority_below" }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "T2CRD-N5-UHP-ExtremeBuffer",
+        "description": "Have extreme buffer for ultra-high priority?",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "effective_liquidity" },
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": { "field": "remaining_amount" },
+              "right": { "param": "extreme_buffer_multiplier" }
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "T2CRD-A4-UHP-SafeRelease",
+          "action": "Release",
+          "description": "Ultra-high priority with extreme buffer - reluctantly release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "T2CRD-A5-UHP-Hold",
+          "action": "Hold",
+          "parameters": { "reason": { "value": "HoardingLiquidity" } },
+          "description": "Even ultra-high priority held unless buffer is extreme"
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "T2CRD-N6-EOD",
+        "description": "Is it end of day?",
+        "condition": {
+          "op": "==",
+          "left": { "field": "is_eod_rush" },
+          "right": { "value": 1.0 }
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "T2CRD-N7-EOD-Overdue",
+          "description": "Is payment already overdue?",
+          "condition": {
+            "op": "<=",
+            "left": { "field": "ticks_to_deadline" },
+            "right": { "value": 0.0 }
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "T2CRD-N8-EOD-Overdue-Afford",
+            "condition": {
+              "op": ">=",
+              "left": { "field": "effective_liquidity" },
+              "right": { "field": "remaining_amount" }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "T2CRD-A6-EOD-Overdue-Release",
+              "action": "Release"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "T2CRD-A7-EOD-Overdue-Hold",
+              "action": "Hold",
+              "parameters": { "reason": { "value": "EOD-NoLiquidity" } }
+            }
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "T2CRD-A8-EOD-NotOverdue-Hold",
+            "action": "Hold",
+            "parameters": { "reason": { "value": "EOD-WaitUntilOverdue" } },
+            "description": "Even at EOD, wait until overdue - delays release to last moment"
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "T2CRD-N9-LateDay",
+          "description": "Are we late in the day?",
+          "condition": {
+            "op": ">",
+            "left": { "field": "day_progress_fraction" },
+            "right": { "param": "late_day_threshold" }
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "T2CRD-N10-LateDay-ExtremeBuffer",
+            "condition": {
+              "op": ">=",
+              "left": { "field": "effective_liquidity" },
+              "right": {
+                "compute": {
+                  "op": "*",
+                  "left": { "field": "remaining_amount" },
+                  "right": { "param": "extreme_buffer_multiplier" }
+                }
+              }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "T2CRD-A9-LateDay-Release",
+              "action": "Release"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "T2CRD-A10-LateDay-Hold",
+              "action": "Hold",
+              "parameters": { "reason": { "value": "PreservingCash" } }
+            }
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "T2CRD-A11-Default-Hold",
+            "action": "Hold",
+            "description": "Default behavior: hoard liquidity, ignore deadlines until panic",
+            "parameters": { "reason": { "value": "AggressiveHoarding" } }
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "T2CRD-SC1-NeverPost",
+    "action": "HoldCollateral",
+    "description": "NEVER proactively post collateral - deny the need until crisis"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "T2CRD-EC1-HasPosted",
+    "description": "Is any collateral posted?",
+    "condition": {
+      "op": ">",
+      "left": { "field": "posted_collateral" },
+      "right": { "value": 0.0 }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "T2CRD-ECA1-WithdrawImmediately",
+      "action": "WithdrawCollateral",
+      "description": "Withdraw any posted collateral immediately - minimize costs, ignore consequences",
+      "parameters": {
+        "amount": { "field": "posted_collateral" },
+        "reason": { "value": "CostMinimization" }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "T2CRD-EC2-DesperateGap",
+      "description": "Is there a desperate gap with credit in use?",
+      "condition": {
+        "op": "and",
+        "conditions": [
+          {
+            "op": ">",
+            "left": { "field": "queue1_liquidity_gap" },
+            "right": { "value": 500000.0 }
+          },
+          {
+            "op": ">",
+            "left": { "field": "credit_used" },
+            "right": { "value": 0.0 }
+          },
+          {
+            "op": ">",
+            "left": { "field": "day_progress_fraction" },
+            "right": { "value": 0.95 }
+          }
+        ]
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2CRD-ECA2-EmergencyPost",
+        "action": "PostCollateral",
+        "description": "Only post collateral when absolutely desperate at day end",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "min",
+              "values": [
+                {
+                  "compute": {
+                    "op": "*",
+                    "left": { "field": "queue1_liquidity_gap" },
+                    "right": { "value": 0.5 }
+                  }
+                },
+                { "field": "remaining_collateral_capacity" }
+              ]
+            }
+          },
+          "reason": { "value": "EmergencyOnly" }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "T2CRD-ECA3-NoPost",
+        "action": "HoldCollateral",
+        "description": "Refuse to post collateral"
+      }
+    }
+  }
+}
