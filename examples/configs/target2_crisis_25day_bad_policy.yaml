@@ -1,0 +1,717 @@
+# =============================================================================
+# TARGET2 Crisis Scenario - 25 Day Systemic Risk Test
+#
+# NARRATIVE: "The Limit Cascade"
+#
+# GOAL: A 25-day simulation demonstrating how bilateral and multilateral limits
+#       can amplify small shocks into systemic crises when agents don't
+#       coordinate effectively. Tests all TARGET2 LSM features:
+#       - Dual Priority System
+#       - Bilateral/Multilateral Limits with LSM awareness
+#       - Algorithm Sequencing (FIFO -> Bilateral -> Multilateral)
+#       - Entry Disposition Offsetting
+#       - Priority Escalation
+#
+# OUTCOME:
+#   - With bad policy (Small Bank B): System enters acceleration/gridlock cascade
+#     in the final days as limits are breached and offsets fail
+#   - With good policy (Small Bank B): Crisis averted with manageable cost spikes;
+#     proactive limit management and strategic collateral use prevent gridlock
+#
+# =============================================================================
+
+simulation:
+  ticks_per_day: 100
+  num_days: 25
+  rng_seed: 42
+
+# ============================================================================
+# TARGET2 LSM ALIGNMENT SETTINGS
+# ============================================================================
+# These settings enable TARGET2-aligned LSM behavior critical for this scenario:
+# - algorithm_sequencing: Runs FIFO -> Bilateral -> Multilateral in sequence
+# - entry_disposition_offsetting: Checks for bilateral offsets at payment entry
+
+algorithm_sequencing: true
+entry_disposition_offsetting: true
+
+# ============================================================================
+# PRIORITY ESCALATION SETTINGS
+# ============================================================================
+# Automatically boost payment priority as deadlines approach.
+# This is crucial for the crisis - poor limit management causes deadlines
+# to bunch up and priorities to escalate simultaneously.
+
+priority_escalation:
+  enabled: true
+  curve: "exponential"        # exponential curve makes late-stage more dramatic
+  threshold_ticks: 25         # Start escalating when <= 25 ticks to deadline
+  max_boost: 4                # Higher boost creates more dramatic priority shifts
+
+# ============================================================================
+# AGENTS - With bilateral and multilateral limits
+# ============================================================================
+# The network is designed so Small Bank B is a critical liquidity conduit.
+# Payments flow: BIG_BANK_A <-> SMALL_BANK_B <-> BIG_BANK_B
+#                SMALL_BANK_A <-> SMALL_BANK_B
+#
+# If SMALL_BANK_B mismanages limits, it becomes a bottleneck that cascades.
+
+agents:
+  - id: "BIG_BANK_A"
+    opening_balance: 15000000     # $150,000 - comfortable
+    unsecured_cap: 5000000        # $50,000 credit limit
+    bilateral_limits:
+      SMALL_BANK_A: 4000000       # $40k to SBA
+      BIG_BANK_B: 6000000         # $60k to BBB
+      SMALL_BANK_B: 5000000       # $50k to SBB - key corridor
+    multilateral_limit: 12000000  # $120k total daily outflow
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_priority_aware.json"
+    arrival_config:
+      rate_per_tick: 0.65
+      amount_distribution: { type: "LogNormal", mean: 11.51, std_dev: 0.9 }
+      counterparty_weights: { SMALL_BANK_A: 0.25, BIG_BANK_B: 0.35, SMALL_BANK_B: 0.40 }
+      deadline_range: [35, 70]
+      priority: 5
+      divisible: true
+
+  - id: "BIG_BANK_B"
+    opening_balance: 14000000     # $140,000
+    unsecured_cap: 4500000
+    bilateral_limits:
+      BIG_BANK_A: 5000000
+      SMALL_BANK_A: 3500000
+      SMALL_BANK_B: 5500000       # Higher limit to SBB - feeds the conduit
+    multilateral_limit: 11000000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_limit_aware.json"
+    arrival_config:
+      rate_per_tick: 0.60
+      amount_distribution: { type: "LogNormal", mean: 11.51, std_dev: 0.85 }
+      counterparty_weights: { BIG_BANK_A: 0.30, SMALL_BANK_A: 0.25, SMALL_BANK_B: 0.45 }
+      deadline_range: [30, 65]
+      priority: 6
+      divisible: true
+
+  - id: "SMALL_BANK_A"
+    opening_balance: 12000000     # $120,000
+    unsecured_cap: 4000000
+    bilateral_limits:
+      BIG_BANK_A: 3000000
+      BIG_BANK_B: 2500000
+      SMALL_BANK_B: 4000000       # Strong connection to SBB
+    multilateral_limit: 8500000
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_conservative_offsetter.json"
+    arrival_config:
+      rate_per_tick: 0.55
+      amount_distribution: { type: "Uniform", min: 80000, max: 350000 }
+      counterparty_weights: { BIG_BANK_A: 0.30, BIG_BANK_B: 0.25, SMALL_BANK_B: 0.45 }
+      deadline_range: [30, 70]
+      priority: 5
+      divisible: true
+
+  - id: "SMALL_BANK_B"
+    opening_balance: 10000000     # $100,000 - constrained, needs good policy
+    unsecured_cap: 3000000        # Reduced credit
+    bilateral_limits:
+      BIG_BANK_A: 3000000         # Tighter limit
+      BIG_BANK_B: 3500000         # Tighter limit
+      SMALL_BANK_A: 2500000       # Tighter limit
+    multilateral_limit: 7500000   # Tight constraint - must be managed carefully
+    # POLICY IS THE VARIABLE - switch between good/bad policy to see difference
+    policy:
+      type: "FromJson"
+      json_path: "backend/policies/target2_crisis_risk_denier.json"  # BAD POLICY
+      # json_path: "backend/policies/target2_crisis_risk_denier.json"      # BAD POLICY
+    arrival_config:
+      rate_per_tick: 0.58
+      amount_distribution: { type: "Uniform", min: 100000, max: 400000 }
+      counterparty_weights: { BIG_BANK_A: 0.35, BIG_BANK_B: 0.35, SMALL_BANK_A: 0.30 }
+      deadline_range: [35, 75]
+      priority: 6
+      divisible: true
+
+# ============================================================================
+# SCENARIO EVENTS - Building toward limit cascade
+# ============================================================================
+# Phase 1 (Days 1-8): Normal operations with offset opportunities
+# Phase 2 (Days 9-15): Building pressure - large payments test limits
+# Phase 3 (Days 16-20): Crisis phase - rapid shocks strain the system
+# Phase 4 (Days 21-25): Resolution or collapse depending on SBB policy
+
+scenario_events:
+  # ========== PHASE 1: Normal Operations (Days 1-8) ==========
+  # Create offset opportunities to test entry disposition offsetting
+
+  # Day 1: Bilateral offset opportunity through SBB
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 900000
+    priority: 7
+    deadline: 35
+    is_divisible: false
+    schedule: { type: OneTime, tick: 15 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 850000
+    priority: 7
+    deadline: 35
+    is_divisible: false
+    schedule: { type: OneTime, tick: 16 }  # Should trigger entry disposition offset
+
+  # Day 2: 3-way cycle opportunity
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 700000
+    priority: 6
+    deadline: 45
+    is_divisible: true
+    schedule: { type: OneTime, tick: 120 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: SMALL_BANK_A
+    amount: 650000
+    priority: 6
+    deadline: 45
+    is_divisible: true
+    schedule: { type: OneTime, tick: 121 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_A
+    to_agent: BIG_BANK_A
+    amount: 600000
+    priority: 6
+    deadline: 45
+    is_divisible: true
+    schedule: { type: OneTime, tick: 122 }
+
+  # Day 3: Minor activity spike
+  - type: GlobalArrivalRateChange
+    multiplier: 1.4
+    schedule: { type: OneTime, tick: 200 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 260 }
+
+  # Day 5: First pressure on SBB's bilateral limits
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 2200000
+    priority: 7
+    deadline: 40
+    is_divisible: true
+    schedule: { type: OneTime, tick: 450 }
+
+  # Day 6: Collateral boost for established agents
+  - type: CollateralAdjustment
+    agent: BIG_BANK_A
+    delta: 2000000
+    schedule: { type: OneTime, tick: 550 }
+
+  - type: CollateralAdjustment
+    agent: BIG_BANK_B
+    delta: 1800000
+    schedule: { type: OneTime, tick: 555 }
+
+  # Day 8: Large payment from BBB to SBB - tests SBB's ability to handle inflows
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_B
+    to_agent: SMALL_BANK_B
+    amount: 3500000
+    priority: 8
+    deadline: 30
+    is_divisible: true
+    schedule: { type: OneTime, tick: 760 }
+
+  # ========== PHASE 2: Building Pressure (Days 9-15) ==========
+  # Start stressing bilateral limits - payments begin bunching
+
+  # Day 9: Multiple payments that push limits
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 2800000
+    priority: 7
+    deadline: 35
+    is_divisible: true
+    schedule: { type: OneTime, tick: 850 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 2500000
+    priority: 7
+    deadline: 38
+    is_divisible: true
+    schedule: { type: OneTime, tick: 855 }
+
+  # Day 10: Sudden activity surge
+  - type: GlobalArrivalRateChange
+    multiplier: 2.0
+    schedule: { type: OneTime, tick: 920 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 980 }
+
+  # Day 10: Counter-flow to SBB - provides offset opportunity if managed well
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 3000000
+    priority: 8
+    deadline: 30
+    is_divisible: true
+    schedule: { type: OneTime, tick: 950 }
+
+  # Day 11: Recovery collateral
+  - type: CollateralAdjustment
+    agent: SMALL_BANK_B
+    delta: 2500000
+    schedule: { type: OneTime, tick: 1080 }
+
+  - type: CollateralAdjustment
+    agent: SMALL_BANK_A
+    delta: 2000000
+    schedule: { type: OneTime, tick: 1085 }
+
+  # Day 12: Major liquidity drain - key stress point
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 4000000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1150 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: SMALL_BANK_A
+    amount: 3500000
+    priority: 8
+    deadline: 28
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1158 }
+
+  # Day 13: Counter-flow provides relief IF SBB is managing limits
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_B
+    to_agent: SMALL_BANK_B
+    amount: 4500000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1260 }
+
+  - type: CollateralAdjustment
+    agent: SMALL_BANK_B
+    delta: 3000000
+    schedule: { type: OneTime, tick: 1290 }
+
+  # Day 14: Moderate activity
+  - type: GlobalArrivalRateChange
+    multiplier: 1.3
+    schedule: { type: OneTime, tick: 1350 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 1400 }
+
+  # Day 15: Pre-crisis buildup - payments start piling up
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 3200000
+    priority: 7
+    deadline: 35
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1450 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 2800000
+    priority: 7
+    deadline: 35
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1460 }
+
+  # ========== PHASE 3: Crisis Phase (Days 16-20) ==========
+  # Rapid shocks strain the system - SBB policy determines outcome
+
+  # Day 16: Sharp activity spike
+  - type: GlobalArrivalRateChange
+    multiplier: 2.5
+    schedule: { type: OneTime, tick: 1520 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 1580 }
+
+  # Day 16: Emergency collateral to big banks
+  - type: CollateralAdjustment
+    agent: BIG_BANK_A
+    delta: 4000000
+    schedule: { type: OneTime, tick: 1560 }
+
+  - type: CollateralAdjustment
+    agent: BIG_BANK_B
+    delta: 3500000
+    schedule: { type: OneTime, tick: 1565 }
+
+  # Day 17: CRITICAL - Large urgent payment through SBB
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_B
+    to_agent: SMALL_BANK_B
+    amount: 5000000
+    priority: 9
+    deadline: 20
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1650 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 4800000
+    priority: 9
+    deadline: 22
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1655 }
+
+  # Day 18: Multiple offsetting opportunities - good policy exploits these
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 2200000
+    priority: 7
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 1750 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 2000000
+    priority: 7
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 1752 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 1800000
+    priority: 7
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 1755 }
+
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_B
+    to_agent: SMALL_BANK_B
+    amount: 1900000
+    priority: 7
+    deadline: 30
+    is_divisible: false
+    schedule: { type: OneTime, tick: 1758 }
+
+  # Day 18: Collateral support
+  - type: CollateralAdjustment
+    agent: SMALL_BANK_B
+    delta: 4000000
+    schedule: { type: OneTime, tick: 1780 }
+
+  # Day 19: DECISIVE MOMENT - Concentrated pressure on SBB
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 3500000
+    priority: 9
+    deadline: 18
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1850 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 3200000
+    priority: 9
+    deadline: 18
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1855 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: SMALL_BANK_A
+    amount: 2800000
+    priority: 8
+    deadline: 20
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1860 }
+
+  # Day 19: Counter-flows arrive
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 4000000
+    priority: 8
+    deadline: 22
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1870 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 3000000
+    priority: 8
+    deadline: 22
+    is_divisible: true
+    schedule: { type: OneTime, tick: 1875 }
+
+  # Day 20: Relief or collapse
+  - type: GlobalArrivalRateChange
+    multiplier: 0.6
+    schedule: { type: OneTime, tick: 1920 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 1970 }
+
+  - type: CollateralAdjustment
+    agent: SMALL_BANK_B
+    delta: 5000000
+    schedule: { type: OneTime, tick: 1950 }
+
+  - type: CollateralAdjustment
+    agent: SMALL_BANK_A
+    delta: 3000000
+    schedule: { type: OneTime, tick: 1955 }
+
+  # ========== PHASE 4: Resolution or Collapse (Days 21-25) ==========
+  # With good policy: System stabilizes with some cost spikes
+  # With bad policy: Accumulated gridlock cascades into accelerating failure
+
+  # Day 21: Activity increases - pressure returns
+  - type: GlobalArrivalRateChange
+    multiplier: 1.5
+    schedule: { type: OneTime, tick: 2020 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 2080 }
+
+  # Day 21: Large outflows from SBB that will stress limits
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 2500000
+    priority: 8
+    deadline: 25
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2050 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 2800000
+    priority: 8
+    deadline: 28
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2055 }
+
+  # Day 22: Limited collateral (only big banks get help - SBB must manage on its own)
+  - type: CollateralAdjustment
+    agent: BIG_BANK_A
+    delta: 2500000
+    schedule: { type: OneTime, tick: 2150 }
+
+  - type: CollateralAdjustment
+    agent: BIG_BANK_B
+    delta: 2000000
+    schedule: { type: OneTime, tick: 2155 }
+
+  # Day 22: More pressure on SBB - cascading outflows
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: SMALL_BANK_A
+    amount: 2200000
+    priority: 7
+    deadline: 30
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2180 }
+
+  # Day 23: ACCELERATION TRIGGER - Multiple large urgent outflows from SBB
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 3500000
+    priority: 9
+    deadline: 18
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2250 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 3800000
+    priority: 9
+    deadline: 18
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2255 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: SMALL_BANK_A
+    amount: 2500000
+    priority: 8
+    deadline: 20
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2260 }
+
+  # Day 23: Counter-flow arrives LATE - good policy can exploit, bad policy misses
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 4000000
+    priority: 8
+    deadline: 22
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2290 }
+
+  # Day 24: PEAK CRISIS - Massive activity spike
+  - type: GlobalArrivalRateChange
+    multiplier: 2.5
+    schedule: { type: OneTime, tick: 2350 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 2420 }
+
+  # Day 24: Concentrated pressure - multiple urgent payments through SBB
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 4500000
+    priority: 9
+    deadline: 15
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2370 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 4000000
+    priority: 9
+    deadline: 15
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2375 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: SMALL_BANK_A
+    amount: 3500000
+    priority: 8
+    deadline: 18
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2380 }
+
+  # Day 24: Counter-flow opportunity - only useful if SBB has managed limits well
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_B
+    to_agent: SMALL_BANK_B
+    amount: 5000000
+    priority: 8
+    deadline: 20
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2395 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 3000000
+    priority: 8
+    deadline: 22
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2400 }
+
+  # Day 25: FINAL RECKONING - High activity
+  - type: GlobalArrivalRateChange
+    multiplier: 2.0
+    schedule: { type: OneTime, tick: 2450 }
+
+  - type: GlobalArrivalRateChange
+    multiplier: 1.0
+    schedule: { type: OneTime, tick: 2490 }
+
+  # Day 25: Last wave of urgent payments
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_A
+    amount: 3000000
+    priority: 9
+    deadline: 12
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2460 }
+
+  - type: CustomTransactionArrival
+    from_agent: SMALL_BANK_B
+    to_agent: BIG_BANK_B
+    amount: 2800000
+    priority: 9
+    deadline: 12
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2465 }
+
+  # Day 25: Late counter-flow - can only help if system isn't already gridlocked
+  - type: CustomTransactionArrival
+    from_agent: BIG_BANK_A
+    to_agent: SMALL_BANK_B
+    amount: 3500000
+    priority: 8
+    deadline: 20
+    is_divisible: true
+    schedule: { type: OneTime, tick: 2480 }
+
+  # Day 25: Minimal last-minute collateral (too little, too late for bad policy)
+  - type: CollateralAdjustment
+    agent: SMALL_BANK_B
+    delta: 2000000
+    schedule: { type: OneTime, tick: 2470 }
+
+# ============================================================================
+# LSM CONFIGURATION - Full algorithm sequencing
+# ============================================================================
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 20
+
+# ============================================================================
+# COST RATES - Calibrated for dramatic policy differences
+# ============================================================================
+# High delay costs make limit mismanagement very expensive.
+# The overdue_delay_multiplier creates exponential pain once deadlines pass.
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.00020     # High delay cost
+  overdraft_bps_per_tick: 0.45              # Expensive overdraft
+  collateral_cost_per_tick_bps: 0.0004      # Relatively cheap collateral
+  eod_penalty_per_transaction: 15000        # Significant EOD penalty
+  deadline_penalty: 6000                    # Sharp deadline miss penalty
+  overdue_delay_multiplier: 3.5             # Aggressive escalation when overdue
+  split_friction_cost: 6000                 # Splitting has friction
