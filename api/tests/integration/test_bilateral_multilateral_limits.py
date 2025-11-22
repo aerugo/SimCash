@@ -636,7 +636,6 @@ class TestCombinedLimits:
 class TestLimitsInLsm:
     """TDD Step 1.6: LSM respects limits in cycle settlement."""
 
-    @pytest.mark.xfail(reason="Phase 1.5: LSM limit checks not yet implemented")
     def test_lsm_bilateral_offset_respects_limits(self):
         """LSM bilateral offset should check limits before settling."""
         config = {
@@ -677,7 +676,6 @@ class TestLimitsInLsm:
         # Should NOT offset
         assert orch.queue_size() == 2
 
-    @pytest.mark.xfail(reason="Phase 1.5: LSM limit checks not yet implemented")
     def test_lsm_cycle_respects_limits(self):
         """LSM cycle settlement should check limits for each leg."""
         config = {
