@@ -1,0 +1,105 @@
+{
+  "version": "1.0",
+  "policy_id": "target2_conservative_offsetter_v1",
+  "description": "A conservative policy that prefers to wait for offsetting payments. Holds payments longer hoping for bilateral or multilateral offsets via LSM. Avoids credit usage unless absolutely necessary.",
+  "parameters": {
+    "conservative_buffer": 2.0,
+    "critical_deadline_ticks": 10,
+    "prefer_hold_threshold": 0.6
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "T2CO-N1-Critical",
+    "description": "Is the deadline critical?",
+    "condition": {
+      "op": "<=",
+      "left": { "field": "ticks_to_deadline" },
+      "right": { "param": "critical_deadline_ticks" }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "T2CO-N2-CriticalAfford",
+      "description": "Can we afford critical payment?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "effective_liquidity" },
+        "right": { "field": "remaining_amount" }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2CO-A1-Critical-Release",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "T2CO-A2-Critical-Credit",
+        "action": "ReleaseWithCredit",
+        "description": "Critical deadline - must use credit"
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "T2CO-N3-Buffer",
+      "description": "Is our conservative buffer satisfied?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "effective_liquidity" },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": { "field": "remaining_amount" },
+            "right": { "param": "conservative_buffer" }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2CO-A3-Buffer-Release",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "T2CO-N4-HighPriority",
+        "description": "Is this a high priority payment?",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "priority" },
+          "right": { "value": 8.0 }
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "T2CO-N5-HighPri-CanAfford",
+          "condition": {
+            "op": ">=",
+            "left": { "field": "effective_liquidity" },
+            "right": { "field": "remaining_amount" }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "T2CO-A4-HighPri-Release",
+            "action": "Release"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "T2CO-A5-HighPri-Hold",
+            "action": "Hold",
+            "parameters": { "reason": { "value": "AwaitingOffsets" } }
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "T2CO-A6-Hold",
+          "action": "Hold",
+          "description": "Wait for LSM offsets",
+          "parameters": { "reason": { "value": "AwaitingOffsets" } }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "node_id": "T2CO-SCA1-NoPost",
+    "action": "HoldCollateral",
+    "description": "Conservative - avoid collateral costs, rely on offsets"
+  }
+}

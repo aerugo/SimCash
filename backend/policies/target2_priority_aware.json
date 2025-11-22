@@ -1,0 +1,132 @@
+{
+  "version": "1.0",
+  "policy_id": "target2_priority_aware_v1",
+  "description": "A TARGET2-aligned policy that understands dual priorities. Uses internal priority for queue ordering but considers RTGS priority for settlement strategy. Releases high-priority payments aggressively while managing limits.",
+  "parameters": {
+    "high_priority_threshold": 7,
+    "liquidity_buffer_multiplier": 1.3,
+    "urgent_deadline_ticks": 15
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "T2PA-N1-HighPriority",
+    "description": "Is this a high-priority payment?",
+    "condition": {
+      "op": ">=",
+      "left": { "field": "priority" },
+      "right": { "param": "high_priority_threshold" }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "T2PA-N2-HighPri-CanAfford",
+      "description": "Can we afford high-priority payment?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "effective_liquidity" },
+        "right": { "field": "remaining_amount" }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2PA-A1-HighPri-Release",
+        "action": "Release",
+        "description": "High priority - release immediately"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "T2PA-A2-HighPri-UseCredit",
+        "action": "ReleaseWithCredit",
+        "description": "High priority - use credit to release"
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "T2PA-N3-UrgentDeadline",
+      "description": "Is the deadline approaching urgently?",
+      "condition": {
+        "op": "<=",
+        "left": { "field": "ticks_to_deadline" },
+        "right": { "param": "urgent_deadline_ticks" }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "T2PA-N4-Urgent-Buffer",
+        "description": "Do we have enough liquidity with buffer?",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "effective_liquidity" },
+          "right": { "field": "remaining_amount" }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "T2PA-A3-Urgent-Release",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "T2PA-A4-Urgent-Credit",
+          "action": "ReleaseWithCredit"
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "T2PA-N5-BufferCheck",
+        "description": "Is our liquidity buffer satisfied?",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "effective_liquidity" },
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": { "field": "remaining_amount" },
+              "right": { "param": "liquidity_buffer_multiplier" }
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "T2PA-A5-Buffer-Release",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "T2PA-A6-Hold",
+          "action": "Hold",
+          "parameters": { "reason": { "value": "AwaitingInflows" } }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "T2PA-SC1-Gap",
+    "description": "Is there a liquidity gap?",
+    "condition": {
+      "op": ">",
+      "left": { "field": "queue1_liquidity_gap" },
+      "right": { "value": 0.0 }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "T2PA-SCA1-Post",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "min",
+            "values": [
+              { "field": "queue1_liquidity_gap" },
+              { "field": "remaining_collateral_capacity" }
+            ]
+          }
+        },
+        "reason": { "value": "PreemptivePosting" },
+        "auto_withdraw_after_ticks": { "value": 25 }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "T2PA-SCA2-Hold",
+      "action": "HoldCollateral"
+    }
+  }
+}

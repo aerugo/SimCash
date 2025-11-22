@@ -1,0 +1,138 @@
+{
+  "version": "1.0",
+  "policy_id": "target2_limit_aware_v1",
+  "description": "A policy designed to work within bilateral and multilateral limits. Prioritizes payments that are unlikely to hit limits and holds larger payments hoping for incoming flows that free up limit capacity.",
+  "parameters": {
+    "limit_safety_margin": 0.8,
+    "moderate_buffer": 1.5,
+    "urgent_threshold_ticks": 20
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "T2LA-N1-Urgent",
+    "description": "Is deadline urgent?",
+    "condition": {
+      "op": "<=",
+      "left": { "field": "ticks_to_deadline" },
+      "right": { "param": "urgent_threshold_ticks" }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "T2LA-N2-UrgentAfford",
+      "description": "Can afford urgent payment?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "effective_liquidity" },
+        "right": { "field": "remaining_amount" }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2LA-A1-Urgent-Release",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "T2LA-A2-Urgent-Credit",
+        "action": "ReleaseWithCredit"
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "T2LA-N3-SmallPayment",
+      "description": "Is this a smaller payment (less likely to hit limits)?",
+      "condition": {
+        "op": "<",
+        "left": { "field": "remaining_amount" },
+        "right": { "value": 200000.0 }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "T2LA-N4-SmallAfford",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "effective_liquidity" },
+          "right": { "field": "remaining_amount" }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "T2LA-A3-Small-Release",
+          "action": "Release",
+          "description": "Small payment - release quickly, less limit impact"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "T2LA-A4-Small-Hold",
+          "action": "Hold",
+          "parameters": { "reason": { "value": "InsufficientLiquidity" } }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "T2LA-N5-LargeBuffer",
+        "description": "Have sufficient buffer for larger payment?",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "effective_liquidity" },
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": { "field": "remaining_amount" },
+              "right": { "param": "moderate_buffer" }
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "T2LA-A5-Large-Release",
+          "action": "Release"
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "T2LA-A6-Large-Hold",
+          "action": "Hold",
+          "description": "Large payment without buffer - wait for limit capacity",
+          "parameters": { "reason": { "value": "AwaitingLimitCapacity" } }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "T2LA-SC1-GapCheck",
+    "description": "Is there a moderate liquidity gap?",
+    "condition": {
+      "op": ">",
+      "left": { "field": "queue1_liquidity_gap" },
+      "right": { "value": 50000.0 }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "T2LA-SCA1-Post",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "min",
+            "values": [
+              {
+                "compute": {
+                  "op": "*",
+                  "left": { "field": "queue1_liquidity_gap" },
+                  "right": { "param": "limit_safety_margin" }
+                }
+              },
+              { "field": "remaining_collateral_capacity" }
+            ]
+          }
+        },
+        "reason": { "value": "PreemptivePosting" },
+        "auto_withdraw_after_ticks": { "value": 30 }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "T2LA-SCA2-Hold",
+      "action": "HoldCollateral"
+    }
+  }
+}
