@@ -524,23 +524,8 @@ impl SimulationState {
     pub fn set_credit_limit(&mut self, agent_id: &str, new_limit: i64) {
         assert!(new_limit >= 0, "Credit limit must be non-negative");
 
-        // We need to modify the agent's credit_limit field directly
-        // Since Agent doesn't have a setter, we'll need to work around this
         if let Some(agent) = self.agents.get_mut(agent_id) {
-            // Create a new agent with updated credit limit
-            let new_agent = Agent::from_snapshot(
-                agent_id.to_string(),
-                agent.balance(),
-                new_limit,  // New credit limit
-                agent.outgoing_queue().to_vec(),
-                agent.incoming_expected().to_vec(),
-                agent.last_decision_tick(),
-                agent.liquidity_buffer(),
-                agent.posted_collateral(),
-                agent.collateral_haircut(),
-                agent.collateral_posted_at_tick(),
-            );
-            *agent = new_agent;
+            agent.set_unsecured_cap(new_limit);
         } else {
             panic!("Agent not found: {}", agent_id);
         }
