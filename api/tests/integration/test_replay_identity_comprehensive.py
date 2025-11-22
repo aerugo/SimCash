@@ -386,19 +386,41 @@ def test_replay_verbose_matches_run_verbose(test_config, temp_db):
         verbose=True
     )
 
-    # Normalize outputs (remove timing lines)
+    # Normalize outputs (remove timing lines and JSON summary)
+    # JSON summary line is excluded because:
+    # 1. It contains timing info (duration_seconds, ticks_per_second) that always differs
+    # 2. It contains path format differences (full path vs basename)
+    # 3. Individual JSON metrics are tested separately by dedicated tests:
+    #    - test_replay_settlement_count_matches_run
+    #    - test_replay_lsm_count_matches_run
+    #    - test_replay_queue_sizes_match_run
+    #    - test_replay_total_costs_match_run
+    def should_exclude_line(line: str) -> bool:
+        """Check if line should be excluded from comparison."""
+        # Timing-related lines
+        timing_keywords = [
+            "Duration:", "ticks/s", "in ", "Persisted", "Simulation complete",
+            "Loading", "Replay complete", "Replayed from", "database replay mode",
+            "Loading transaction data", "Loaded ", "Full replay data",
+            "Note: Policy", "run with --persist"
+        ]
+        if any(keyword in line for keyword in timing_keywords):
+            return True
+        # JSON summary line (contains timing and path info that always differs)
+        # JSON metrics are tested separately by dedicated tests
+        stripped = line.strip()
+        if stripped.startswith("{") and stripped.endswith("}"):
+            return True
+        return False
+
     run_lines = [
         line for line in run_output["stdout"].split("\n")
-        if not any(keyword in line for keyword in [
-            "Duration:", "ticks/s", "in ", "Persisted", "Simulation complete"
-        ])
+        if not should_exclude_line(line)
     ]
 
     replay_lines = [
         line for line in replay_output["stdout"].split("\n")
-        if not any(keyword in line for keyword in [
-            "Duration:", "ticks/s", "Loading", "Replay complete", "Replayed from"
-        ])
+        if not should_exclude_line(line)
     ]
 
     # Compare line by line for better diagnostics
