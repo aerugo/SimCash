@@ -346,6 +346,33 @@ pub enum Event {
         release_reason: String,       // "NewLiquidity", "IncomingPayment", "CollateralPosted", etc.
     },
 
+    /// Bilateral limit exceeded - payment blocked due to counterparty-specific limit
+    ///
+    /// Emitted when a payment cannot settle because it would exceed the sender's
+    /// bilateral limit for the specific receiver. Part of TARGET2 LSM Phase 1.
+    BilateralLimitExceeded {
+        tick: usize,
+        sender: String,
+        receiver: String,
+        tx_id: String,
+        amount: i64,
+        current_bilateral_outflow: i64,  // Current outflow to this counterparty today
+        bilateral_limit: i64,             // Configured limit for this counterparty
+    },
+
+    /// Multilateral limit exceeded - payment blocked due to total outflow limit
+    ///
+    /// Emitted when a payment cannot settle because it would exceed the sender's
+    /// multilateral (total) outflow limit. Part of TARGET2 LSM Phase 1.
+    MultilateralLimitExceeded {
+        tick: usize,
+        sender: String,
+        tx_id: String,
+        amount: i64,
+        current_total_outflow: i64,  // Current total outflow today
+        multilateral_limit: i64,      // Configured total limit
+    },
+
     /// DEPRECATED: Old name for Queue2LiquidityRelease
     ///
     /// Kept for backward compatibility. Use Queue2LiquidityRelease instead.
@@ -390,6 +417,8 @@ impl Event {
             Event::OverdueTransactionSettled { tick, .. } => *tick,
             Event::ScenarioEventExecuted { tick, .. } => *tick,
             Event::Queue2LiquidityRelease { tick, .. } => *tick,
+            Event::BilateralLimitExceeded { tick, .. } => *tick,
+            Event::MultilateralLimitExceeded { tick, .. } => *tick,
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { tick, .. } => *tick,
         }
@@ -424,6 +453,8 @@ impl Event {
             Event::OverdueTransactionSettled { .. } => "OverdueTransactionSettled",
             Event::ScenarioEventExecuted { .. } => "ScenarioEventExecuted",
             Event::Queue2LiquidityRelease { .. } => "Queue2LiquidityRelease",
+            Event::BilateralLimitExceeded { .. } => "BilateralLimitExceeded",
+            Event::MultilateralLimitExceeded { .. } => "MultilateralLimitExceeded",
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { .. } => "RtgsQueue2Settle",
         }
@@ -444,6 +475,8 @@ impl Event {
             Event::TransactionWentOverdue { tx_id, .. } => Some(tx_id),
             Event::OverdueTransactionSettled { tx_id, .. } => Some(tx_id),
             Event::Queue2LiquidityRelease { tx_id, .. } => Some(tx_id),
+            Event::BilateralLimitExceeded { tx_id, .. } => Some(tx_id),
+            Event::MultilateralLimitExceeded { tx_id, .. } => Some(tx_id),
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { tx_id, .. } => Some(tx_id),
             _ => None,
@@ -468,6 +501,8 @@ impl Event {
             Event::TransactionWentOverdue { sender_id, .. } => Some(sender_id),
             Event::OverdueTransactionSettled { sender_id, .. } => Some(sender_id),
             Event::Queue2LiquidityRelease { sender, .. } => Some(sender),
+            Event::BilateralLimitExceeded { sender, .. } => Some(sender),
+            Event::MultilateralLimitExceeded { sender, .. } => Some(sender),
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { sender, .. } => Some(sender),
             _ => None,
