@@ -12,4 +12,4 @@ pub use agent::{Agent, AgentError};
 pub use collateral_event::{CollateralAction, CollateralEvent, CollateralLayer};
 pub use event::{Event, EventLog};
 pub use queue_index::{AgentQueue2Metrics, AgentQueueIndex};
-pub use transaction::{Transaction, TransactionError, TransactionStatus};
+pub use transaction::{RtgsPriority, Transaction, TransactionError, TransactionStatus};

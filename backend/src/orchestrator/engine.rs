@@ -71,7 +71,7 @@ use crate::core::time::TimeManager;
 use crate::models::agent::Agent;
 use crate::models::event::{Event, EventLog};
 use crate::models::state::SimulationState;
-use crate::models::transaction::Transaction;
+use crate::models::transaction::{RtgsPriority, Transaction};
 use crate::policy::CashManagerPolicy;
 use crate::rng::RngManager;
 use crate::settlement::lsm::LsmConfig;
@@ -1935,6 +1935,222 @@ impl Orchestrator {
         Ok(tx_id_clone)
     }
 
+    /// Submit a transaction with an explicit RTGS priority
+    ///
+    /// Similar to `submit_transaction`, but allows specifying the RTGS priority
+    /// that will be used when the transaction is submitted to Queue 2.
+    ///
+    /// # Arguments
+    ///
+    /// * `sender_id` - ID of the sending agent (must exist)
+    /// * `receiver_id` - ID of the receiving agent (must exist)
+    /// * `amount` - Transaction amount in cents (must be positive)
+    /// * `deadline_tick` - Tick by which transaction must be settled
+    /// * `priority` - Internal priority (0-10, higher = more urgent)
+    /// * `divisible` - Whether transaction can be split
+    /// * `rtgs_priority` - RTGS priority to use when submitted to Queue 2
+    ///
+    /// # Returns
+    ///
+    /// The unique transaction ID on success, or an error if validation fails.
+    pub fn submit_transaction_with_rtgs_priority(
+        &mut self,
+        sender_id: &str,
+        receiver_id: &str,
+        amount: i64,
+        deadline_tick: usize,
+        priority: u8,
+        divisible: bool,
+        rtgs_priority: RtgsPriority,
+    ) -> Result<String, SimulationError> {
+        // Validate sender exists
+        if !self.state.agents().contains_key(sender_id) {
+            return Err(SimulationError::AgentNotFound(sender_id.to_string()));
+        }
+
+        // Validate receiver exists
+        if !self.state.agents().contains_key(receiver_id) {
+            return Err(SimulationError::AgentNotFound(receiver_id.to_string()));
+        }
+
+        // Validate amount
+        if amount <= 0 {
+            return Err(SimulationError::InvalidConfig(format!(
+                "Transaction amount must be positive, got {}",
+                amount
+            )));
+        }
+
+        // Validate deadline is not in the past
+        let current_tick = self.current_tick();
+        if deadline_tick <= current_tick {
+            return Err(SimulationError::InvalidConfig(format!(
+                "Transaction deadline {} is in the past (current tick: {})",
+                deadline_tick, current_tick
+            )));
+        }
+
+        // Create transaction (Transaction::new() generates its own UUID)
+        let mut tx = crate::models::Transaction::new(
+            sender_id.to_string(),
+            receiver_id.to_string(),
+            amount,
+            current_tick, // Arrival tick = current tick
+            deadline_tick,
+        );
+
+        // Set priority
+        tx = tx.with_priority(priority);
+
+        // Set declared RTGS priority (Phase 0: Dual Priority System)
+        tx.set_declared_rtgs_priority(rtgs_priority);
+
+        // TODO(Phase 7): Store divisibility flag on Transaction
+        let _ = divisible;
+
+        // Add transaction to state
+        let tx_id_clone = tx.id().to_string();
+        self.state.add_transaction(tx);
+
+        // Queue in sender's outgoing queue (Queue 1)
+        if let Some(agent) = self.state.get_agent_mut(sender_id) {
+            agent.queue_outgoing(tx_id_clone.clone());
+        }
+
+        // Log submission event
+        self.log_event(Event::Arrival {
+            tick: current_tick,
+            tx_id: tx_id_clone.clone(),
+            sender_id: sender_id.to_string(),
+            receiver_id: receiver_id.to_string(),
+            amount,
+            deadline: deadline_tick,
+            priority,
+            is_divisible: divisible,
+        });
+
+        Ok(tx_id_clone)
+    }
+
+    /// Withdraw a transaction from RTGS Queue 2 (Phase 0: Dual Priority System)
+    ///
+    /// Removes the transaction from Queue 2 and clears its RTGS priority/submission tick.
+    /// The transaction can then be resubmitted with a different priority.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_id` - Transaction ID to withdraw
+    ///
+    /// # Returns
+    ///
+    /// Result with success status and optional error message.
+    pub fn withdraw_from_rtgs(&mut self, tx_id: &str) -> Result<(), SimulationError> {
+        let current_tick = self.current_tick();
+
+        // Get transaction details before modification
+        let tx = self.state.get_transaction(tx_id).ok_or_else(|| {
+            SimulationError::SettlementError(format!("Transaction {} not found", tx_id))
+        })?;
+
+        // Get the original RTGS priority for the event
+        let original_priority = tx
+            .rtgs_priority()
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "None".to_string());
+        let sender = tx.sender_id().to_string();
+
+        // Remove from RTGS queue
+        let queue = self.state.rtgs_queue_mut();
+        let initial_len = queue.len();
+        queue.retain(|id| id != tx_id);
+
+        if queue.len() == initial_len {
+            return Err(SimulationError::SettlementError(format!(
+                "Transaction {} not found in RTGS Queue 2",
+                tx_id
+            )));
+        }
+
+        // Clear RTGS priority on the transaction
+        if let Some(tx) = self.state.get_transaction_mut(tx_id) {
+            tx.clear_rtgs_priority();
+        }
+
+        // Emit withdrawal event
+        self.log_event(Event::RtgsWithdrawal {
+            tick: current_tick,
+            tx_id: tx_id.to_string(),
+            sender,
+            original_rtgs_priority: original_priority,
+        });
+
+        Ok(())
+    }
+
+    /// Resubmit a transaction to RTGS Queue 2 with a new priority (Phase 0: Dual Priority System)
+    ///
+    /// Sets a new declared RTGS priority for the transaction. The transaction will be
+    /// resubmitted on the next tick when the policy releases it.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_id` - Transaction ID to resubmit
+    /// * `rtgs_priority` - New RTGS priority
+    ///
+    /// # Returns
+    ///
+    /// Result with success status and optional error message.
+    pub fn resubmit_to_rtgs(
+        &mut self,
+        tx_id: &str,
+        rtgs_priority: RtgsPriority,
+    ) -> Result<(), SimulationError> {
+        let current_tick = self.current_tick();
+
+        // Get transaction details
+        let tx = self.state.get_transaction(tx_id).ok_or_else(|| {
+            SimulationError::SettlementError(format!("Transaction {} not found", tx_id))
+        })?;
+
+        // Must have been withdrawn (rtgs_priority should be None)
+        if tx.rtgs_priority().is_some() {
+            return Err(SimulationError::SettlementError(format!(
+                "Transaction {} is still in RTGS Queue 2. Withdraw first.",
+                tx_id
+            )));
+        }
+
+        let sender = tx.sender_id().to_string();
+        let old_priority = tx
+            .declared_rtgs_priority()
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "None".to_string());
+        let new_priority_str = rtgs_priority.to_string();
+
+        // Set new declared RTGS priority
+        if let Some(tx) = self.state.get_transaction_mut(tx_id) {
+            tx.set_declared_rtgs_priority(rtgs_priority);
+        }
+
+        // Add back to sender's Queue 1 so it can be released again
+        let tx = self.state.get_transaction(tx_id).unwrap();
+        let sender_id = tx.sender_id().to_string();
+        if let Some(agent) = self.state.get_agent_mut(&sender_id) {
+            agent.queue_outgoing(tx_id.to_string());
+        }
+
+        // Emit resubmission event
+        self.log_event(Event::RtgsResubmission {
+            tick: current_tick,
+            tx_id: tx_id.to_string(),
+            sender,
+            old_rtgs_priority: old_priority,
+            new_rtgs_priority: new_priority_str,
+        });
+
+        Ok(())
+    }
+
     // ========================================================================
     // Transaction Query Methods (Phase 10 - Persistence)
     // ========================================================================
@@ -2900,7 +3116,28 @@ impl Orchestrator {
                                     // Track budget usage
                                     agent.track_release(&counterparty_id, tx_amount);
                                 }
+
+                                // Set RTGS priority and get event data (Phase 0: Dual Priority System)
+                                let (rtgs_priority_str, internal_priority, receiver_id) = if let Some(tx) = self.state.get_transaction_mut(&tx_id) {
+                                    let priority = tx.declared_rtgs_priority().unwrap_or(RtgsPriority::Normal);
+                                    tx.set_rtgs_priority(priority, current_tick);
+                                    (priority.to_string(), tx.priority(), tx.receiver_id().to_string())
+                                } else {
+                                    ("Normal".to_string(), 5, counterparty_id.clone())
+                                };
+
                                 self.pending_settlements.push(tx_id.clone());
+
+                                // Log RTGS submission event (Phase 0: Dual Priority System)
+                                self.log_event(Event::RtgsSubmission {
+                                    tick: current_tick,
+                                    tx_id: tx_id.clone(),
+                                    sender: agent_id.clone(),
+                                    receiver: receiver_id,
+                                    amount: tx_amount,
+                                    internal_priority,
+                                    rtgs_priority: rtgs_priority_str,
+                                });
 
                                 // Log policy submit event
                                 self.log_event(Event::PolicySubmit {
@@ -2996,7 +3233,29 @@ impl Orchestrator {
                             });
 
                             // Add child to state and pending settlements
+                            let sender = child.sender_id().to_string();
+                            let receiver = child.receiver_id().to_string();
+                            let child_priority = child.priority();
                             self.state.add_transaction(child);
+
+                            // Set RTGS priority for child (Phase 0: Dual Priority System)
+                            // Children inherit parent's declared priority, or default to Normal
+                            let rtgs_priority = parent_tx.declared_rtgs_priority().unwrap_or(RtgsPriority::Normal);
+                            if let Some(tx) = self.state.get_transaction_mut(&child_id) {
+                                tx.set_rtgs_priority(rtgs_priority, current_tick);
+                            }
+
+                            // Log RTGS submission event for child (Phase 0: Dual Priority System)
+                            self.log_event(Event::RtgsSubmission {
+                                tick: current_tick,
+                                tx_id: child_id.clone(),
+                                sender: sender.clone(),
+                                receiver: receiver.clone(),
+                                amount: child_amount,
+                                internal_priority: child_priority,
+                                rtgs_priority: rtgs_priority.to_string(),
+                            });
+
                             self.pending_settlements.push(child_id);
                         }
 
@@ -4010,35 +4269,30 @@ impl Orchestrator {
             return; // Nothing to sort
         }
 
-        // Collect (tx_id, priority, original_index) for stable sorting
+        // Collect (tx_id, rtgs_priority_order, rtgs_submission_tick) for stable sorting
+        // Phase 0: Dual Priority System - Sort by RTGS priority, not internal priority
         let mut tx_info: Vec<(String, u8, usize)> = queue
             .iter()
-            .enumerate()
-            .filter_map(|(idx, tx_id)| {
+            .filter_map(|tx_id| {
                 self.state.get_transaction(tx_id).map(|tx| {
-                    (tx_id.clone(), tx.priority(), idx)
+                    // RtgsPriority enum order: HighlyUrgent=0, Urgent=1, Normal=2
+                    // Lower value = higher priority
+                    let rtgs_priority_order = tx.rtgs_priority()
+                        .map(|p| p as u8)
+                        .unwrap_or(2); // Default to Normal (lowest)
+                    let submission_tick = tx.rtgs_submission_tick().unwrap_or(usize::MAX);
+                    (tx_id.clone(), rtgs_priority_order, submission_tick)
                 })
             })
             .collect();
 
-        // Helper function to get priority band (0=low, 1=normal, 2=urgent)
-        fn priority_band(priority: u8) -> u8 {
-            match priority {
-                8..=10 => 2, // Urgent
-                4..=7 => 1,  // Normal
-                _ => 0,      // Low (0-3)
-            }
-        }
-
-        // Sort by priority band (descending), then by original index (ascending, FIFO)
+        // Sort by RTGS priority (ascending - lower value = higher priority),
+        // then by submission_tick (ascending, FIFO)
         tx_info.sort_by(|a, b| {
-            let band_a = priority_band(a.1);
-            let band_b = priority_band(b.1);
-
-            // Higher band first (urgent before normal before low)
-            match band_b.cmp(&band_a) {
+            // Lower rtgs_priority_order = higher priority (HighlyUrgent=0 before Urgent=1 before Normal=2)
+            match a.1.cmp(&b.1) {
                 std::cmp::Ordering::Equal => {
-                    // Same band: preserve FIFO (original index)
+                    // Same RTGS priority: FIFO by submission tick
                     a.2.cmp(&b.2)
                 }
                 other => other,

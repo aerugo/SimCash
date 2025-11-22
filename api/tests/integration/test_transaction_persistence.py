@@ -355,6 +355,9 @@ class TestDuckDBBatchWrite:
                 "delay_cost": 0,
                 "parent_tx_id": None,
                 "split_index": None,
+                "rtgs_priority": None,
+                "rtgs_submission_tick": None,
+                "declared_rtgs_priority": None,
             }
         ]
 
@@ -411,6 +414,9 @@ class TestDuckDBBatchWrite:
                 "delay_cost": 0,
                 "parent_tx_id": None,
                 "split_index": None,
+                "rtgs_priority": None,
+                "rtgs_submission_tick": None,
+                "declared_rtgs_priority": None,
             }
             transactions.append(tx)
 

@@ -211,6 +211,44 @@ pub enum Event {
         sender_id: String,
     },
 
+    /// Transaction submitted to RTGS Queue 2 (Phase 0: Dual Priority System)
+    ///
+    /// Emitted when a transaction is released from Queue 1 (internal bank queue)
+    /// to Queue 2 (RTGS central queue). Records both internal priority and
+    /// declared RTGS priority for replay identity.
+    RtgsSubmission {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        receiver: String,
+        amount: i64,
+        internal_priority: u8,      // Bank's internal priority (0-10)
+        rtgs_priority: String,       // Declared RTGS priority: "HighlyUrgent", "Urgent", "Normal"
+    },
+
+    /// Transaction withdrawn from RTGS Queue 2 (Phase 0: Dual Priority System)
+    ///
+    /// Emitted when a bank withdraws a transaction from Queue 2 to change its
+    /// priority. The transaction can then be resubmitted with a different priority.
+    RtgsWithdrawal {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        original_rtgs_priority: String,  // Priority it had before withdrawal
+    },
+
+    /// Transaction resubmitted to RTGS Queue 2 with new priority (Phase 0: Dual Priority System)
+    ///
+    /// Emitted when a previously withdrawn transaction is resubmitted to Queue 2.
+    /// The transaction gets a new submission tick (loses FIFO position).
+    RtgsResubmission {
+        tick: usize,
+        tx_id: String,
+        sender: String,
+        old_rtgs_priority: String,  // Previous priority
+        new_rtgs_priority: String,  // New priority after resubmission
+    },
+
     /// Transaction settled via LSM bilateral offset
     LsmBilateralOffset {
         tick: usize,
@@ -341,6 +379,9 @@ impl Event {
             Event::BankBudgetSet { tick, .. } => *tick,
             Event::RtgsImmediateSettlement { tick, .. } => *tick,
             Event::QueuedRtgs { tick, .. } => *tick,
+            Event::RtgsSubmission { tick, .. } => *tick,
+            Event::RtgsWithdrawal { tick, .. } => *tick,
+            Event::RtgsResubmission { tick, .. } => *tick,
             Event::LsmBilateralOffset { tick, .. } => *tick,
             Event::LsmCycleSettlement { tick, .. } => *tick,
             Event::CostAccrual { tick, .. } => *tick,
@@ -372,6 +413,9 @@ impl Event {
             Event::BankBudgetSet { .. } => "BankBudgetSet",
             Event::RtgsImmediateSettlement { .. } => "RtgsImmediateSettlement",
             Event::QueuedRtgs { .. } => "QueuedRtgs",
+            Event::RtgsSubmission { .. } => "RtgsSubmission",
+            Event::RtgsWithdrawal { .. } => "RtgsWithdrawal",
+            Event::RtgsResubmission { .. } => "RtgsResubmission",
             Event::LsmBilateralOffset { .. } => "LsmBilateralOffset",
             Event::LsmCycleSettlement { .. } => "LsmCycleSettlement",
             Event::CostAccrual { .. } => "CostAccrual",

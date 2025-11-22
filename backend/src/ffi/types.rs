@@ -812,6 +812,30 @@ pub fn transaction_to_py(
     }
     dict.set_item("split_index", py.None())?; // TODO: Track split index in Transaction
 
+    // RTGS Priority (Phase 0: Dual Priority System)
+    // rtgs_priority is None until transaction is submitted to RTGS Queue 2
+    if let Some(rtgs_priority) = tx.rtgs_priority() {
+        dict.set_item("rtgs_priority", rtgs_priority.to_string())?;
+    } else {
+        dict.set_item("rtgs_priority", py.None())?;
+    }
+
+    // RTGS Submission Tick (Phase 0: Dual Priority System)
+    // Used for FIFO ordering within the same RTGS priority band
+    if let Some(submission_tick) = tx.rtgs_submission_tick() {
+        dict.set_item("rtgs_submission_tick", submission_tick)?;
+    } else {
+        dict.set_item("rtgs_submission_tick", py.None())?;
+    }
+
+    // Declared RTGS Priority (Phase 0: Dual Priority System)
+    // Bank's preferred RTGS priority when submitting the transaction
+    if let Some(declared_priority) = tx.declared_rtgs_priority() {
+        dict.set_item("declared_rtgs_priority", declared_priority.to_string())?;
+    } else {
+        dict.set_item("declared_rtgs_priority", py.None())?;
+    }
+
     Ok(dict.into())
 }
 
