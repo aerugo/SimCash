@@ -44,6 +44,7 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
                 arrival_config: None,
                 posted_collateral: None,
                 collateral_haircut: None,
+                limits: None,
             },
             // Add BANK_B as receiver with simple FIFO policy
             AgentConfig {
@@ -56,6 +57,7 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
                 arrival_config: None,
                 posted_collateral: None,
                     collateral_haircut: None,
+                limits: None,
             },
         ],
         cost_rates: CostRates {
