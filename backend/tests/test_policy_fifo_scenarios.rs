@@ -59,6 +59,7 @@ fn test_fifo_preserves_arrival_order() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -136,6 +137,7 @@ fn test_fifo_partial_submission() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -240,6 +242,7 @@ fn test_fifo_vs_deadline_under_pressure() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

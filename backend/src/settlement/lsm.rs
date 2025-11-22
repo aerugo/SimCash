@@ -1056,7 +1056,7 @@ pub fn settle_cycle(
 /// # let current_tick = 5;
 /// # let ticks_per_day = 100;
 /// let config = LsmConfig::default();
-/// let result = run_lsm_pass(&mut state, &config, current_tick, ticks_per_day);
+/// let result = run_lsm_pass(&mut state, &config, current_tick, ticks_per_day, false);
 ///
 /// println!("LSM settled {}k, {} iterations", result.total_settled_value / 1000, result.iterations_run);
 /// ```
@@ -1065,6 +1065,7 @@ pub fn run_lsm_pass(
     config: &LsmConfig,
     tick: usize,
     ticks_per_day: usize,
+    entry_disposition_offsetting: bool,
 ) -> LsmPassResult {
     let mut total_settled_value = 0i64;
     let mut iterations = 0;
@@ -1160,16 +1161,37 @@ pub fn run_lsm_pass(
                     (net_b.abs(), pair.agent_b.clone())
                 };
 
-                // Collect Event::LsmBilateralOffset for replay with ALL enriched fields
-                // This enables replay to reconstruct LSM activity from persisted events
-                replay_events.push(Event::LsmBilateralOffset {
-                    tick,
-                    agent_a: pair.agent_a.clone(),
-                    agent_b: pair.agent_b.clone(),
-                    amount_a: pair.amount_a_to_b,
-                    amount_b: pair.amount_b_to_a,
-                    tx_ids: transactions.clone(),  // Use full transaction list
-                });
+                // Collect event for replay with ALL enriched fields
+                // When entry_disposition_offsetting is enabled, emit EntryDispositionOffset
+                // Otherwise emit LsmBilateralOffset
+                if entry_disposition_offsetting {
+                    // For entry disposition, we treat one transaction as "incoming" (triggered offset)
+                    // and the other as "queued" (was already waiting)
+                    let (incoming_tx_id, queued_tx_id) = if transactions.len() >= 2 {
+                        (transactions[0].clone(), transactions[1].clone())
+                    } else {
+                        (transactions.get(0).cloned().unwrap_or_default(), String::new())
+                    };
+                    replay_events.push(Event::EntryDispositionOffset {
+                        tick,
+                        incoming_tx_id,
+                        queued_tx_id,
+                        agent_a: pair.agent_a.clone(),
+                        agent_b: pair.agent_b.clone(),
+                        offset_amount,
+                        incoming_amount: pair.amount_a_to_b,
+                        queued_amount: pair.amount_b_to_a,
+                    });
+                } else {
+                    replay_events.push(Event::LsmBilateralOffset {
+                        tick,
+                        agent_a: pair.agent_a.clone(),
+                        agent_b: pair.agent_b.clone(),
+                        amount_a: pair.amount_a_to_b,
+                        amount_b: pair.amount_b_to_a,
+                        tx_ids: transactions.clone(),
+                    });
+                }
 
                 cycle_events.push(LsmCycleEvent {
                     tick,
@@ -1337,11 +1359,11 @@ pub fn run_lsm_pass(
     replay_events.sort_by(|a, b| {
         use Event::*;
         let tick_a = match a {
-            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } => tick,
+            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } | EntryDispositionOffset { tick, .. } => tick,
             _ => &0,
         };
         let tick_b = match b {
-            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } => tick,
+            LsmBilateralOffset { tick, .. } | LsmCycleSettlement { tick, .. } | EntryDispositionOffset { tick, .. } => tick,
             _ => &0,
         };
         tick_a.cmp(tick_b)

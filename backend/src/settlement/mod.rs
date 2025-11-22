@@ -57,7 +57,7 @@
 //! # let ticks_per_day = 100;
 //! // After queue processing, run LSM to resolve gridlock
 //! let lsm_config = LsmConfig::default();
-//! let result = run_lsm_pass(&mut state, &lsm_config, tick, ticks_per_day);
+//! let result = run_lsm_pass(&mut state, &lsm_config, tick, ticks_per_day, false);
 //! println!("LSM settled {} transactions", result.total_settled_value);
 //! ```
 

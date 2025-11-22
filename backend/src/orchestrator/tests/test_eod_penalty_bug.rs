@@ -47,6 +47,7 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -157,6 +158,7 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -234,6 +236,7 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
         priority_mode: false,
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();

@@ -157,6 +157,14 @@ pub struct OrchestratorConfig {
     /// - Algorithm 3: Multilateral cycle settlement (LSM)
     #[serde(default)]
     pub algorithm_sequencing: bool,
+
+    /// Entry disposition offsetting mode (default: false)
+    /// When enabled, checks for bilateral offset opportunities at transaction entry time
+    /// (before regular LSM processing). TARGET2 Phase 3 feature.
+    /// When a new transaction arrives, if there's an opposite payment queued,
+    /// they can be immediately offset without waiting for periodic LSM runs.
+    #[serde(default)]
+    pub entry_disposition_offsetting: bool,
 }
 
 /// Priority escalation configuration
@@ -906,6 +914,7 @@ impl Orchestrator {
     ///     priority_mode: false,
     ///     priority_escalation: Default::default(),
     ///     algorithm_sequencing: false,
+    ///     entry_disposition_offsetting: false,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -3708,6 +3717,7 @@ impl Orchestrator {
             &self.lsm_config,
             current_tick,
             self.time_manager.ticks_per_day(),
+            self.config.entry_disposition_offsetting,
         );
         let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
@@ -4872,6 +4882,7 @@ mod tests {
             priority_mode: false,
             priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
         }
     }
 
@@ -4925,6 +4936,7 @@ mod tests {
             priority_mode: false,
             priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
         };
 
         let result = Orchestrator::new(config);
@@ -4980,6 +4992,7 @@ mod tests {
             priority_mode: false,
             priority_escalation: Default::default(),
             algorithm_sequencing: false,
+            entry_disposition_offsetting: false,
         };
 
         let result = Orchestrator::new(config);

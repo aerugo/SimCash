@@ -194,6 +194,15 @@ fn event_to_py_dict<'py>(
             dict.set_item("settlements", settlements)?;
             dict.set_item("settled_value", settled_value)?;
         }
+        crate::models::event::Event::EntryDispositionOffset { incoming_tx_id, queued_tx_id, agent_a, agent_b, offset_amount, incoming_amount, queued_amount, .. } => {
+            dict.set_item("incoming_tx_id", incoming_tx_id)?;
+            dict.set_item("queued_tx_id", queued_tx_id)?;
+            dict.set_item("agent_a", agent_a)?;
+            dict.set_item("agent_b", agent_b)?;
+            dict.set_item("offset_amount", offset_amount)?;
+            dict.set_item("incoming_amount", incoming_amount)?;
+            dict.set_item("queued_amount", queued_amount)?;
+        }
         crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
             dict.set_item("tx_id", tx_id)?;
             dict.set_item("sender_id", sender_id)?;

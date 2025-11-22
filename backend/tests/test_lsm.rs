@@ -443,7 +443,7 @@ fn test_lsm_pass_bilateral_only() {
         ..Default::default()
     };
 
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     assert!(result.iterations_run >= 1);
     assert!(result.total_settled_value > 0);
@@ -475,7 +475,7 @@ fn test_lsm_pass_cycles_only() {
         ..Default::default()
     };
 
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     assert!(result.iterations_run >= 1);
     assert!(result.total_settled_value > 0);
@@ -507,7 +507,7 @@ fn test_lsm_pass_full_optimization() {
 
     let config = LsmConfig::default(); // Both enabled
 
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     assert!(result.iterations_run >= 1);
     assert!(result.total_settled_value > 0);
@@ -529,7 +529,7 @@ fn test_lsm_pass_max_iterations() {
     submit_transaction(&mut state, tx_ab, 1).unwrap();
 
     let config = LsmConfig::default();
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     // Should stop early due to no progress
     assert!(result.iterations_run <= 3, "Should stop at max iterations");
@@ -582,7 +582,7 @@ fn test_four_bank_ring_lsm_resolves_gridlock() {
 
     // Run LSM pass - should detect and settle 4-cycle
     let config = LsmConfig::default();
-    let result = run_lsm_pass(&mut state, &config, 5, 100);
+    let result = run_lsm_pass(&mut state, &config, 5, 100, false);
 
     // Verify LSM resolved the gridlock
     assert!(result.cycles_settled >= 1, "LSM should detect 4-cycle");
@@ -690,7 +690,7 @@ fn test_lsm_bilateral_activates_in_gridlock() {
 
     // Run LSM pass - this should detect and settle the bilateral pair
     let lsm_config = LsmConfig::default();
-    let result = run_lsm_pass(&mut state, &lsm_config, 5, 100);
+    let result = run_lsm_pass(&mut state, &lsm_config, 5, 100, false);
 
     // CRITICAL ASSERTIONS - these verify LSM activates correctly
     assert!(
@@ -788,7 +788,7 @@ fn test_lsm_cycle_activates_in_ring() {
 
     // Run LSM - should detect and settle the cycle
     let lsm_config = LsmConfig::default();
-    let result = run_lsm_pass(&mut state, &lsm_config, 5, 100);
+    let result = run_lsm_pass(&mut state, &lsm_config, 5, 100, false);
 
     // CRITICAL ASSERTIONS - verify cycle detection works
     assert!(
