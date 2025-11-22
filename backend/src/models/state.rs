@@ -539,6 +539,11 @@ impl SimulationState {
                 agent.posted_collateral(),
                 agent.collateral_haircut(),
                 agent.collateral_posted_at_tick(),
+                // TARGET2 LSM: Preserve limit state
+                agent.bilateral_limits().clone(),
+                agent.multilateral_limit(),
+                agent.bilateral_outflows().clone(),
+                agent.total_outflow(),
             );
             *agent = new_agent;
         } else {

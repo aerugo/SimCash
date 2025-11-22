@@ -311,10 +311,15 @@ impl Agent {
     /// * `posted_collateral` - Amount of collateral posted
     /// * `collateral_haircut` - Collateral discount factor (0.0 to 1.0)
     /// * `collateral_posted_at_tick` - Tick when collateral was last posted
+    /// * `bilateral_limits` - TARGET2 LSM: Maximum outflow per counterparty per day
+    /// * `multilateral_limit` - TARGET2 LSM: Maximum total outflow per day
+    /// * `bilateral_outflows` - TARGET2 LSM: Current day's bilateral outflows
+    /// * `total_outflow` - TARGET2 LSM: Current day's total outflow
     ///
     /// # Example
     /// ```
     /// use payment_simulator_core_rs::Agent;
+    /// use std::collections::HashMap;
     ///
     /// let agent = Agent::from_snapshot(
     ///     "BANK_A".to_string(),
@@ -327,6 +332,10 @@ impl Agent {
     ///     0,
     ///     0.02,
     ///     None,
+    ///     HashMap::new(),
+    ///     None,
+    ///     HashMap::new(),
+    ///     0,
     /// );
     /// ```
     pub fn from_snapshot(
@@ -340,6 +349,10 @@ impl Agent {
         posted_collateral: i64,
         collateral_haircut: f64,
         collateral_posted_at_tick: Option<usize>,
+        bilateral_limits: std::collections::HashMap<String, i64>,
+        multilateral_limit: Option<i64>,
+        bilateral_outflows: std::collections::HashMap<String, i64>,
+        total_outflow: i64,
     ) -> Self {
         Self {
             id,
@@ -362,11 +375,11 @@ impl Agent {
             collateral_withdrawal_timers: std::collections::HashMap::new(),
             // Phase 4.5: State registers (none by default)
             state_registers: std::collections::HashMap::new(),
-            // Phase 1 (TARGET2 LSM): Limits (none by default for snapshots)
-            bilateral_limits: std::collections::HashMap::new(),
-            multilateral_limit: None,
-            bilateral_outflows: std::collections::HashMap::new(),
-            total_outflow: 0,
+            // Phase 1 (TARGET2 LSM): Limits (restored from snapshot)
+            bilateral_limits,
+            multilateral_limit,
+            bilateral_outflows,
+            total_outflow,
         }
     }
 
