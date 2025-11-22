@@ -173,6 +173,21 @@ fn event_to_py_dict<'py>(
             dict.set_item("queue_wait_ticks", queue_wait_ticks)?;
             dict.set_item("release_reason", release_reason)?;
         }
+        crate::models::event::Event::BilateralLimitExceeded { sender, receiver, tx_id, amount, current_bilateral_outflow, bilateral_limit, .. } => {
+            dict.set_item("sender", sender)?;
+            dict.set_item("receiver", receiver)?;
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("current_bilateral_outflow", current_bilateral_outflow)?;
+            dict.set_item("bilateral_limit", bilateral_limit)?;
+        }
+        crate::models::event::Event::MultilateralLimitExceeded { sender, tx_id, amount, current_total_outflow, multilateral_limit, .. } => {
+            dict.set_item("sender", sender)?;
+            dict.set_item("tx_id", tx_id)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("current_total_outflow", current_total_outflow)?;
+            dict.set_item("multilateral_limit", multilateral_limit)?;
+        }
         crate::models::event::Event::QueuedRtgs { tx_id, sender_id, .. } => {
             dict.set_item("tx_id", tx_id)?;
             dict.set_item("sender_id", sender_id)?;
@@ -484,6 +499,89 @@ impl PyOrchestrator {
         dict.set_item("allowed_overdraft_limit", agent.allowed_overdraft_limit())?;
         dict.set_item("overdraft_headroom", agent.headroom())?;
         dict.set_item("max_withdrawable_collateral", agent.max_withdrawable_collateral(0))?;
+
+        Ok(dict.into())
+    }
+
+    /// Get agent's payment limits configuration (Phase 1: TARGET2 LSM)
+    ///
+    /// Returns bilateral and multilateral limits for the agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    ///
+    /// # Returns
+    /// Dictionary with:
+    /// - bilateral_limits: Dict[str, int] (counterparty_id -> max_outflow in cents)
+    /// - multilateral_limit: Optional[int] (max total outflow in cents)
+    ///
+    /// # Example (from Python)
+    /// ```python
+    /// limits = orch.get_agent_limits("BANK_A")
+    /// print(f"Bilateral to B: {limits['bilateral_limits'].get('BANK_B', 'no limit')}")
+    /// print(f"Multilateral: {limits['multilateral_limit']}")
+    /// ```
+    fn get_agent_limits(&self, py: Python, agent_id: &str) -> PyResult<Py<PyDict>> {
+        let state = self.inner.state();
+        let agent = state.get_agent(agent_id)
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Agent '{}' not found", agent_id)
+            ))?;
+
+        let dict = PyDict::new(py);
+
+        // Bilateral limits dict
+        let bilateral_dict = PyDict::new(py);
+        for (counterparty, limit) in agent.bilateral_limits() {
+            bilateral_dict.set_item(counterparty, *limit)?;
+        }
+        dict.set_item("bilateral_limits", bilateral_dict)?;
+
+        // Multilateral limit (None if not configured)
+        match agent.multilateral_limit() {
+            Some(limit) => dict.set_item("multilateral_limit", limit)?,
+            None => dict.set_item("multilateral_limit", py.None())?,
+        }
+
+        Ok(dict.into())
+    }
+
+    /// Get agent's current outflow tracking (Phase 1: TARGET2 LSM)
+    ///
+    /// Returns current day's bilateral outflows and total outflow for limit enforcement.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    ///
+    /// # Returns
+    /// Dictionary with:
+    /// - bilateral_outflows: Dict[str, int] (counterparty_id -> amount sent today)
+    /// - total_outflow: int (total amount sent today)
+    ///
+    /// # Example (from Python)
+    /// ```python
+    /// outflows = orch.get_agent_current_outflows("BANK_A")
+    /// print(f"Sent to B today: {outflows['bilateral_outflows'].get('BANK_B', 0)}")
+    /// print(f"Total sent today: {outflows['total_outflow']}")
+    /// ```
+    fn get_agent_current_outflows(&self, py: Python, agent_id: &str) -> PyResult<Py<PyDict>> {
+        let state = self.inner.state();
+        let agent = state.get_agent(agent_id)
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Agent '{}' not found", agent_id)
+            ))?;
+
+        let dict = PyDict::new(py);
+
+        // Bilateral outflows dict
+        let bilateral_dict = PyDict::new(py);
+        for (counterparty, amount) in agent.bilateral_outflows() {
+            bilateral_dict.set_item(counterparty, *amount)?;
+        }
+        dict.set_item("bilateral_outflows", bilateral_dict)?;
+
+        // Total outflow
+        dict.set_item("total_outflow", agent.total_outflow())?;
 
         Ok(dict.into())
     }

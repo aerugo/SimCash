@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
-use crate::orchestrator::{AgentConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, TickResult};
+use crate::orchestrator::{AgentConfig, AgentLimitsConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, TickResult};
 use crate::settlement::lsm::LsmConfig;
 
 // ========================================================================
@@ -270,6 +270,14 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
     // Parse optional posted_collateral using helper
     let posted_collateral: Option<i64> = extract_optional(py_agent, "posted_collateral")?;
 
+    // Parse optional limits (bilateral/multilateral) using helper
+    let limits: Option<AgentLimitsConfig> = if let Ok(Some(py_limits)) = py_agent.get_item("limits") {
+        let limits_dict: Bound<'_, PyDict> = py_limits.downcast_into()?;
+        Some(parse_agent_limits_config(&limits_dict)?)
+    } else {
+        None
+    };
+
     Ok(AgentConfig {
         id,
         opening_balance,
@@ -278,6 +286,32 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         arrival_config,
         posted_collateral,
         collateral_haircut,
+        limits,
+    })
+}
+
+/// Convert Python dict to AgentLimitsConfig (bilateral/multilateral limits)
+fn parse_agent_limits_config(py_limits: &Bound<'_, PyDict>) -> PyResult<AgentLimitsConfig> {
+    // Parse optional bilateral_limits (dict of counterparty -> max_amount)
+    let bilateral_limits: HashMap<String, i64> = if let Ok(Some(py_bilateral)) = py_limits.get_item("bilateral_limits") {
+        let bilateral_dict: Bound<'_, PyDict> = py_bilateral.downcast_into()?;
+        let mut limits = HashMap::new();
+        for (key, value) in bilateral_dict.iter() {
+            let counterparty: String = key.extract()?;
+            let max_amount: i64 = value.extract()?;
+            limits.insert(counterparty, max_amount);
+        }
+        limits
+    } else {
+        HashMap::new()
+    };
+
+    // Parse optional multilateral_limit
+    let multilateral_limit: Option<i64> = extract_optional(py_limits, "multilateral_limit")?;
+
+    Ok(AgentLimitsConfig {
+        bilateral_limits,
+        multilateral_limit,
     })
 }
 

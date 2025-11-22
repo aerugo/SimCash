@@ -253,6 +253,29 @@ pub struct AgentConfig {
     /// Example: 0.02 means 2% haircut → 98% of collateral value is available.
     /// T2/CLM typical range: 0.00-0.10 (0%-10% haircut)
     pub collateral_haircut: Option<f64>,
+
+    /// Payment limits configuration (Phase 1: TARGET2 LSM alignment)
+    /// Controls bilateral (per-counterparty) and multilateral (total) outflow limits
+    #[serde(default)]
+    pub limits: Option<AgentLimitsConfig>,
+}
+
+/// Bilateral and multilateral limits configuration for an agent
+///
+/// TARGET2-style limits that restrict payment outflows:
+/// - Bilateral limits: Maximum outflow to each specific counterparty per day
+/// - Multilateral limit: Maximum total outflow to all participants per day
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct AgentLimitsConfig {
+    /// Per-counterparty limits (counterparty_id -> max_outflow_amount in cents)
+    /// Empty means no bilateral limits
+    #[serde(default)]
+    pub bilateral_limits: std::collections::HashMap<String, i64>,
+
+    /// Maximum total outflow per day (cents)
+    /// None means no multilateral limit
+    #[serde(default)]
+    pub multilateral_limit: Option<i64>,
 }
 
 /// Policy selection for an agent
@@ -896,6 +919,11 @@ impl Orchestrator {
                 // Set collateral haircut if specified (defaults to 0.02)
                 if let Some(haircut) = ac.collateral_haircut {
                     agent.set_collateral_haircut(haircut);
+                }
+                // Set payment limits if specified (Phase 1: TARGET2 LSM)
+                if let Some(limits) = &ac.limits {
+                    agent.set_bilateral_limits(limits.bilateral_limits.clone());
+                    agent.set_multilateral_limit(limits.multilateral_limit);
                 }
                 agent
             })
@@ -4399,6 +4427,12 @@ impl Orchestrator {
             }
         }
 
+        // Phase 1 (TARGET2 LSM): Reset daily outflows for all agents
+        for agent_id in self.state.agents().keys().cloned().collect::<Vec<_>>() {
+            let agent_mut = self.state.get_agent_mut(&agent_id).unwrap();
+            agent_mut.reset_daily_outflows();
+        }
+
         // Count total unsettled transactions across all queues
         let unsettled_count = self.state.queue_size() + self.state.total_internal_queue_size();
 
@@ -4494,20 +4528,65 @@ impl Orchestrator {
             )
         };
 
-        // Check if sender can pay
+        // Check if sender can pay (liquidity)
         let can_pay = self
             .state
             .get_agent(&sender_id)
             .ok_or_else(|| SimulationError::AgentNotFound(sender_id.clone()))?
             .can_pay(amount);
 
-        if can_pay {
+        // Check bilateral and multilateral limits (Phase 1 TARGET2 LSM)
+        let (bilateral_ok, bilateral_current, bilateral_limit) = {
+            let sender = self
+                .state
+                .get_agent(&sender_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(sender_id.clone()))?;
+            sender.check_bilateral_limit(&receiver_id, amount)
+        };
+        let (multilateral_ok, multilateral_current, multilateral_limit) = {
+            let sender = self
+                .state
+                .get_agent(&sender_id)
+                .ok_or_else(|| SimulationError::AgentNotFound(sender_id.clone()))?;
+            sender.check_multilateral_limit(amount)
+        };
+
+        // Emit limit exceeded events if applicable
+        if !bilateral_ok {
+            if let Some(limit) = bilateral_limit {
+                self.log_event(Event::BilateralLimitExceeded {
+                    tick,
+                    sender: sender_id.clone(),
+                    receiver: receiver_id.clone(),
+                    tx_id: tx_id.to_string(),
+                    amount,
+                    current_bilateral_outflow: bilateral_current,
+                    bilateral_limit: limit,
+                });
+            }
+        }
+        if !multilateral_ok {
+            if let Some(limit) = multilateral_limit {
+                self.log_event(Event::MultilateralLimitExceeded {
+                    tick,
+                    sender: sender_id.clone(),
+                    tx_id: tx_id.to_string(),
+                    amount,
+                    current_total_outflow: multilateral_current,
+                    multilateral_limit: limit,
+                });
+            }
+        }
+
+        if can_pay && bilateral_ok && multilateral_ok {
             // Settle the transaction
             {
                 let sender = self.state.get_agent_mut(&sender_id).unwrap();
                 sender.debit(amount).map_err(|e| {
                     SimulationError::SettlementError(format!("Debit failed: {}", e))
                 })?;
+                // Record outflow for bilateral/multilateral limit tracking (Phase 1 TARGET2 LSM)
+                sender.record_outflow(&receiver_id, amount);
             }
             {
                 let receiver = self.state.get_agent_mut(&receiver_id).unwrap();
