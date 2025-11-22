@@ -1,0 +1,342 @@
+{
+  "version": "1.0",
+  "policy_id": "target2_crisis_proactive_manager_v1",
+  "description": "A proactive crisis management policy optimized for TARGET2 environments with bilateral/multilateral limits. Actively monitors limit utilization, strategically times payments to maximize offset opportunities, and proactively posts collateral to prevent gridlock. Designed to thrive during systemic stress by coordinating effectively with LSM mechanisms.",
+  "parameters": {
+    "priority_threshold_high": 8,
+    "priority_threshold_medium": 6,
+    "modest_buffer": 1.15,
+    "comfortable_buffer": 1.4,
+    "urgent_deadline_ticks": 15,
+    "critical_deadline_ticks": 8,
+    "proactive_collateral_threshold": 100000,
+    "limit_safety_margin": 0.85
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "T2CPM-N1-Critical",
+    "description": "Is this a critical deadline situation?",
+    "condition": {
+      "op": "<=",
+      "left": { "field": "ticks_to_deadline" },
+      "right": { "param": "critical_deadline_ticks" }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "T2CPM-N2-Critical-CanAfford",
+      "description": "Can we afford this critical payment?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "effective_liquidity" },
+        "right": { "field": "remaining_amount" }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2CPM-A1-Critical-Release",
+        "action": "Release",
+        "description": "Critical deadline - release immediately"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "T2CPM-A2-Critical-UseCredit",
+        "action": "ReleaseWithCredit",
+        "description": "Critical deadline - must use credit"
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "T2CPM-N3-HighPriority",
+      "description": "Is this a high-priority payment (priority >= 8)?",
+      "condition": {
+        "op": ">=",
+        "left": { "field": "priority" },
+        "right": { "param": "priority_threshold_high" }
+      },
+      "on_true": {
+        "type": "condition",
+        "node_id": "T2CPM-N4-HighPri-ModestBuffer",
+        "description": "Have modest buffer for high-priority?",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "effective_liquidity" },
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": { "field": "remaining_amount" },
+              "right": { "param": "modest_buffer" }
+            }
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "node_id": "T2CPM-A3-HighPri-Release",
+          "action": "Release",
+          "description": "High priority with buffer - release to enable LSM offsets"
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "T2CPM-N5-HighPri-Urgent",
+          "description": "Is deadline urgent for high-priority?",
+          "condition": {
+            "op": "<=",
+            "left": { "field": "ticks_to_deadline" },
+            "right": { "param": "urgent_deadline_ticks" }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "T2CPM-A4-HighPri-Urgent-Credit",
+            "action": "ReleaseWithCredit",
+            "description": "High priority urgent - use credit"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "T2CPM-A5-HighPri-Hold",
+            "action": "Hold",
+            "parameters": { "reason": { "value": "AwaitingOffsets" } },
+            "description": "High priority but time available - wait for offsets"
+          }
+        }
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "T2CPM-N6-MediumPriority",
+        "description": "Is this medium priority (>= 6)?",
+        "condition": {
+          "op": ">=",
+          "left": { "field": "priority" },
+          "right": { "param": "priority_threshold_medium" }
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "T2CPM-N7-MedPri-Urgent",
+          "description": "Is medium priority payment urgent?",
+          "condition": {
+            "op": "<=",
+            "left": { "field": "ticks_to_deadline" },
+            "right": { "param": "urgent_deadline_ticks" }
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "T2CPM-N8-MedPri-Urgent-Afford",
+            "description": "Can afford urgent medium priority?",
+            "condition": {
+              "op": ">=",
+              "left": { "field": "effective_liquidity" },
+              "right": { "field": "remaining_amount" }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "T2CPM-A6-MedPri-Urgent-Release",
+              "action": "Release"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "T2CPM-A7-MedPri-Urgent-Credit",
+              "action": "ReleaseWithCredit"
+            }
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "T2CPM-N9-MedPri-ComfortBuffer",
+            "description": "Have comfortable buffer?",
+            "condition": {
+              "op": ">=",
+              "left": { "field": "effective_liquidity" },
+              "right": {
+                "compute": {
+                  "op": "*",
+                  "left": { "field": "remaining_amount" },
+                  "right": { "param": "comfortable_buffer" }
+                }
+              }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "T2CPM-A8-MedPri-Comfortable-Release",
+              "action": "Release"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "T2CPM-A9-MedPri-Hold",
+              "action": "Hold",
+              "parameters": { "reason": { "value": "AwaitingInflows" } }
+            }
+          }
+        },
+        "on_false": {
+          "type": "condition",
+          "node_id": "T2CPM-N10-LowPri-Deadline",
+          "description": "Is low-priority payment approaching deadline?",
+          "condition": {
+            "op": "<=",
+            "left": { "field": "ticks_to_deadline" },
+            "right": { "param": "urgent_deadline_ticks" }
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "T2CPM-N11-LowPri-CanAfford",
+            "condition": {
+              "op": ">=",
+              "left": { "field": "effective_liquidity" },
+              "right": { "field": "remaining_amount" }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "T2CPM-A10-LowPri-Urgent-Release",
+              "action": "Release"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "T2CPM-A11-LowPri-Urgent-Credit",
+              "action": "ReleaseWithCredit"
+            }
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "T2CPM-N12-LowPri-StrongBuffer",
+            "description": "Have very strong buffer for low priority?",
+            "condition": {
+              "op": ">=",
+              "left": { "field": "effective_liquidity" },
+              "right": {
+                "compute": {
+                  "op": "*",
+                  "left": { "field": "remaining_amount" },
+                  "right": { "value": 1.6 }
+                }
+              }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "T2CPM-A12-LowPri-SafeRelease",
+              "action": "Release"
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "T2CPM-A13-LowPri-Hold",
+              "action": "Hold",
+              "parameters": { "reason": { "value": "PreservingLiquidity" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "T2CPM-SC1-SignificantGap",
+    "description": "Is there a significant liquidity gap?",
+    "condition": {
+      "op": ">",
+      "left": { "field": "queue1_liquidity_gap" },
+      "right": { "param": "proactive_collateral_threshold" }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "T2CPM-SCA1-ProactivePost",
+      "action": "PostCollateral",
+      "description": "Proactively post collateral to enable settlements and LSM offsets",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "min",
+            "values": [
+              {
+                "compute": {
+                  "op": "*",
+                  "left": { "field": "queue1_liquidity_gap" },
+                  "right": { "value": 1.1 }
+                }
+              },
+              { "field": "remaining_collateral_capacity" }
+            ]
+          }
+        },
+        "reason": { "value": "PreemptivePosting" },
+        "auto_withdraw_after_ticks": { "value": 25 }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "T2CPM-SC2-MinorGap",
+      "description": "Is there a minor gap we should address?",
+      "condition": {
+        "op": ">",
+        "left": { "field": "queue1_liquidity_gap" },
+        "right": { "value": 0.0 }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2CPM-SCA2-MinorPost",
+        "action": "PostCollateral",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "min",
+              "values": [
+                { "field": "queue1_liquidity_gap" },
+                { "field": "remaining_collateral_capacity" }
+              ]
+            }
+          },
+          "reason": { "value": "PreemptivePosting" },
+          "auto_withdraw_after_ticks": { "value": 20 }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "T2CPM-SCA3-NoGap-Hold",
+        "action": "HoldCollateral"
+      }
+    }
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "node_id": "T2CPM-EC1-HasPosted",
+    "description": "Do we have collateral posted?",
+    "condition": {
+      "op": ">",
+      "left": { "field": "posted_collateral" },
+      "right": { "value": 0.0 }
+    },
+    "on_true": {
+      "type": "condition",
+      "node_id": "T2CPM-EC2-NoLongerNeeded",
+      "description": "Is collateral no longer needed and not in use?",
+      "condition": {
+        "op": "and",
+        "conditions": [
+          {
+            "op": "<=",
+            "left": { "field": "queue1_liquidity_gap" },
+            "right": { "value": 0.0 }
+          },
+          {
+            "op": "==",
+            "left": { "field": "credit_used" },
+            "right": { "value": 0.0 }
+          }
+        ]
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "T2CPM-ECA1-Withdraw",
+        "action": "WithdrawCollateral",
+        "parameters": {
+          "amount": { "field": "posted_collateral" },
+          "reason": { "value": "GapClosed" }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "T2CPM-ECA2-KeepPosted",
+        "action": "HoldCollateral"
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "T2CPM-ECA3-NoPosted",
+      "action": "HoldCollateral"
+    }
+  }
+}
