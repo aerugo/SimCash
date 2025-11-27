@@ -373,6 +373,103 @@ pub enum PolicyConfig {
 
 // ArrivalConfig is now imported from crate::arrivals module
 
+/// Priority bands for delay cost differentiation (BIS model support)
+///
+/// Transactions are classified into three priority bands that can have
+/// different delay cost multipliers:
+/// - Urgent (8-10): Time-critical payments like CLS, margin calls
+/// - Normal (4-7): Standard interbank payments
+/// - Low (0-3): Batch payments, internal transfers
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum PriorityBand {
+    /// Priority 8-10: Time-critical payments
+    Urgent,
+    /// Priority 4-7: Standard payments
+    Normal,
+    /// Priority 0-3: Low priority/batch payments
+    Low,
+}
+
+/// Get the priority band for a given priority level
+///
+/// # Arguments
+/// * `priority` - Priority level (0-10)
+///
+/// # Returns
+/// The corresponding priority band
+///
+/// # Examples
+/// ```
+/// use payment_simulator_core_rs::orchestrator::{get_priority_band, PriorityBand};
+///
+/// assert_eq!(get_priority_band(9), PriorityBand::Urgent);
+/// assert_eq!(get_priority_band(5), PriorityBand::Normal);
+/// assert_eq!(get_priority_band(2), PriorityBand::Low);
+/// ```
+pub fn get_priority_band(priority: u8) -> PriorityBand {
+    match priority {
+        8..=10 => PriorityBand::Urgent,
+        4..=7 => PriorityBand::Normal,
+        _ => PriorityBand::Low, // 0-3 and any out-of-range values
+    }
+}
+
+/// Priority-based delay cost multipliers (BIS model support)
+///
+/// Allows different delay costs for different priority bands.
+/// This enables modeling BIS scenarios where urgent payments
+/// have higher delay costs than normal payments.
+///
+/// # Example
+/// ```
+/// use payment_simulator_core_rs::orchestrator::PriorityDelayMultipliers;
+///
+/// let multipliers = PriorityDelayMultipliers {
+///     urgent_multiplier: 1.5,  // Urgent pays 1.5x
+///     normal_multiplier: 1.0,  // Normal pays base
+///     low_multiplier: 0.5,     // Low pays 0.5x
+/// };
+///
+/// assert_eq!(multipliers.get_multiplier_for_priority(9), 1.5);
+/// assert_eq!(multipliers.get_multiplier_for_priority(5), 1.0);
+/// ```
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PriorityDelayMultipliers {
+    /// Multiplier for urgent priority (8-10). Default: 1.0
+    pub urgent_multiplier: f64,
+    /// Multiplier for normal priority (4-7). Default: 1.0
+    pub normal_multiplier: f64,
+    /// Multiplier for low priority (0-3). Default: 1.0
+    pub low_multiplier: f64,
+}
+
+impl Default for PriorityDelayMultipliers {
+    fn default() -> Self {
+        Self {
+            urgent_multiplier: 1.0,
+            normal_multiplier: 1.0,
+            low_multiplier: 1.0,
+        }
+    }
+}
+
+impl PriorityDelayMultipliers {
+    /// Get the delay cost multiplier for a given priority level
+    ///
+    /// # Arguments
+    /// * `priority` - Priority level (0-10)
+    ///
+    /// # Returns
+    /// The multiplier for the corresponding priority band
+    pub fn get_multiplier_for_priority(&self, priority: u8) -> f64 {
+        match get_priority_band(priority) {
+            PriorityBand::Urgent => self.urgent_multiplier,
+            PriorityBand::Normal => self.normal_multiplier,
+            PriorityBand::Low => self.low_multiplier,
+        }
+    }
+}
+
 /// Cost calculation rates
 ///
 /// Defines rates for various costs accrued during simulation.
@@ -414,6 +511,18 @@ pub struct CostRates {
     /// Example: If delay_cost_per_tick_per_cent = 0.0001 and overdue_delay_multiplier = 5.0,
     /// then an overdue $1M transaction costs $5/tick instead of $1/tick.
     pub overdue_delay_multiplier: f64,
+
+    /// Priority-based delay cost multipliers (BIS model support)
+    ///
+    /// When configured, applies different multipliers to delay costs based on
+    /// transaction priority bands:
+    /// - Urgent (8-10): urgent_multiplier
+    /// - Normal (4-7): normal_multiplier
+    /// - Low (0-3): low_multiplier
+    ///
+    /// If None, all priorities use the same base delay cost rate.
+    #[serde(default)]
+    pub priority_delay_multipliers: Option<PriorityDelayMultipliers>,
 }
 
 impl Default for CostRates {
@@ -426,6 +535,7 @@ impl Default for CostRates {
             deadline_penalty: 50_000,             // $500 per missed deadline
             split_friction_cost: 1000,            // $10 per split
             overdue_delay_multiplier: 5.0,        // 5x multiplier for overdue
+            priority_delay_multipliers: None,     // No priority differentiation by default
         }
     }
 }
@@ -4315,10 +4425,12 @@ impl Orchestrator {
 
     /// Calculate delay cost for queued transactions
     ///
-    /// Delay cost = sum of (queued transaction values × multiplier) * delay_cost_per_tick_per_cent
+    /// Delay cost = sum of (queued transaction values × multipliers) * delay_cost_per_tick_per_cent
     ///
-    /// Overdue transactions have their value multiplied by overdue_delay_multiplier
-    /// to represent escalating urgency.
+    /// Multipliers applied:
+    /// - Overdue multiplier: transactions past deadline have cost multiplied by overdue_delay_multiplier
+    /// - Priority multiplier (Enhancement 11.1): if configured, transactions have cost multiplied
+    ///   by their priority band's multiplier (urgent/normal/low)
     ///
     /// Counts transactions in both Queue 1 (agent's internal queue) and Queue 2 (RTGS queue).
     /// All unsettled transactions accrue delay cost, as they represent unsettled obligations.
@@ -4336,13 +4448,19 @@ impl Orchestrator {
                 let amount = tx.remaining_amount() as f64;
 
                 // Apply multiplier for overdue transactions
-                let multiplier = if tx.is_overdue() {
+                let overdue_multiplier = if tx.is_overdue() {
                     self.cost_rates.overdue_delay_multiplier
                 } else {
                     1.0
                 };
 
-                total_weighted_value += amount * multiplier;
+                // Apply priority-based multiplier if configured (Enhancement 11.1)
+                let priority_multiplier = self.cost_rates.priority_delay_multipliers
+                    .as_ref()
+                    .map(|m| m.get_multiplier_for_priority(tx.priority()))
+                    .unwrap_or(1.0);
+
+                total_weighted_value += amount * overdue_multiplier * priority_multiplier;
             }
         }
 
@@ -4354,13 +4472,19 @@ impl Orchestrator {
                 let amount = tx.remaining_amount() as f64;
 
                 // Apply multiplier for overdue transactions
-                let multiplier = if tx.is_overdue() {
+                let overdue_multiplier = if tx.is_overdue() {
                     self.cost_rates.overdue_delay_multiplier
                 } else {
                     1.0
                 };
 
-                total_weighted_value += amount * multiplier;
+                // Apply priority-based multiplier if configured (Enhancement 11.1)
+                let priority_multiplier = self.cost_rates.priority_delay_multipliers
+                    .as_ref()
+                    .map(|m| m.get_multiplier_for_priority(tx.priority()))
+                    .unwrap_or(1.0);
+
+                total_weighted_value += amount * overdue_multiplier * priority_multiplier;
             }
         }
 

@@ -74,6 +74,7 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
             deadline_penalty: 1000_00,
             eod_penalty_per_transaction: 5000_00,
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
+            priority_delay_multipliers: None, // Enhancement 11.1
         },
         lsm_config: LsmConfig {
             enable_bilateral: true,
