@@ -3,10 +3,9 @@
 **Date:** November 2025
 **Status:** Planning Phase
 **Related Documents:**
-- `bis-ai-cash-management-rtgs-model.md`
-- `simcash-rtgs-model.md`
-- `bis-simcash-model-comparison.md`
 - `../plans/bis-model-enhancements-tdd-implementation.md`
+
+**Source:** BIS Working Paper No. 1310, "AI agents for cash management in payment systems" (Aldasoro & Desai, November 2025)
 
 ---
 
