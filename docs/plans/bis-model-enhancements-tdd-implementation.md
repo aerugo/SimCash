@@ -15,9 +15,8 @@ This document provides **detailed TDD implementation plans** for enhancing SimCa
 | # | Enhancement | Existing Similar Feature | Status |
 |---|-------------|-------------------------|--------|
 | 1 | Priority-Based Delay Cost Multipliers | `overdue_delay_multiplier` (different purpose) | **New Feature** |
-| 2 | Liquidity Allocation Decision | None | **New Feature** |
-| 3 | Probabilistic Policy Reasoning | `incoming_expected_count` (count only) | **Enhancement** |
-| 4 | Probabilistic Scenario Events | `EventSchedule::OneTime/Repeating` | **Enhancement** |
+| 2 | Liquidity Pool and Allocation | None | **New Feature** |
+| 3 | Probabilistic Scenario Events | `EventSchedule::OneTime/Repeating` | **Enhancement** |
 
 ---
 
@@ -50,24 +49,7 @@ The BIS model has agents decide how much of available liquidity to bring into th
 
 **Verdict:** ✅ **New Feature Required**
 
-### 3. Probabilistic Policy Reasoning
-
-**Searched:** `incoming_expected`, `probability`, `probabilistic`
-
-**Existing Features Found:**
-- `incoming_expected_count`: Exposed in `EvalContext` (policy context), provides COUNT of expected incoming payments (not value)
-- Located in `policy/tree/context.rs:241-243`: `agent.incoming_expected().len() as f64`
-- Agent tracks `incoming_expected: Vec<String>` (transaction IDs)
-
-**Gap Analysis:**
-The BIS model requires reasoning about expected MONETARY VALUE of inflows (e.g., "there's a 50% chance I'll receive $500"). Current implementation only provides a count of expected incoming transactions, not:
-1. Expected total value of inflows
-2. Probability distribution of inflows
-3. Expected value (probability × amount) for decision-making
-
-**Verdict:** ✅ **Enhancement Required** - Build on existing `incoming_expected` infrastructure
-
-### 4. Probabilistic Scenario Events
+### 3. Probabilistic Scenario Events
 
 **Searched:** `EventSchedule`, `ScenarioEvent`, `probability`
 
@@ -2083,141 +2065,7 @@ Update `docs/policy_dsl_guide.md` with new fields:
 
 ---
 
-## Enhancement 3: Probabilistic Policy Reasoning
-
-### Purpose
-Enable policies to reason about expected monetary value of incoming payments, matching BIS model probabilistic inflow expectations.
-
-### Design
-
-**Build on existing infrastructure:**
-- Agent already tracks `incoming_expected: Vec<String>` (transaction IDs)
-- Policy context already has `incoming_expected_count`
-
-**New fields to add:**
-- `incoming_expected_total_value`: Sum of expected incoming payment amounts
-- `incoming_expected_avg_value`: Average value of expected inflows
-- `incoming_probability_weight`: Probability weight for expected inflows (configurable)
-
-### TDD Test Cases
-
-#### Phase 3.1: Policy Context Fields
-
-**File:** `api/tests/integration/test_probabilistic_policy.py`
-
-```python
-# TEST 1: incoming_expected_total_value calculation
-def test_incoming_expected_total_value():
-    """Policy context should include total value of expected inflows."""
-    config = create_config(
-        agent_configs=[
-            {"id": "BANK_A", "opening_balance": 1000000},
-            {"id": "BANK_B", "opening_balance": 1000000},
-        ]
-    )
-    orch = Orchestrator.new(config)
-
-    # Create pending transactions where BANK_A is receiver
-    tx1_id = orch.inject_transaction("BANK_B", "BANK_A", 100000)
-    tx2_id = orch.inject_transaction("BANK_B", "BANK_A", 200000)
-
-    # BANK_A should see expected inflows
-    context = orch.get_policy_context("BANK_A", tx1_id)
-
-    assert context["incoming_expected_count"] == 2
-    assert context["incoming_expected_total_value"] == 300000
-
-# TEST 2: Policy using expected value in decision
-def test_policy_uses_expected_inflow_value():
-    """Policy can compare expected inflows to payment amount."""
-    policy_yaml = """
-    queue_tree:
-      - if: "incoming_expected_total_value >= amount"
-        then: "wait"  # Expect inflows to cover this payment
-      - else: "release"
-    """
-
-    config = create_config(
-        policy=policy_yaml,
-        agent_configs=[
-            {"id": "BANK_A", "opening_balance": 100000},  # Low balance
-            {"id": "BANK_B", "opening_balance": 1000000},
-        ]
-    )
-    orch = Orchestrator.new(config)
-
-    # Create expected inflow larger than pending payment
-    orch.inject_transaction("BANK_B", "BANK_A", 500000)  # Expected inflow
-
-    # Create outgoing payment from BANK_A
-    tx_id = orch.inject_transaction("BANK_A", "BANK_B", 300000)
-
-    # Policy should decide to wait (expected inflow > payment amount)
-    decision = orch.evaluate_policy("BANK_A", tx_id)
-    assert decision == "wait"
-```
-
-#### Phase 3.2: Rust Implementation Tests
-
-**File:** `backend/tests/policy_expected_inflows.rs`
-
-```rust
-#[test]
-fn test_incoming_expected_total_value_in_context() {
-    // Setup: Agent BANK_A with two expected incoming transactions
-    let mut state = SimulationState::new(vec![
-        Agent::new("BANK_A".to_string(), 1_000_000),
-        Agent::new("BANK_B".to_string(), 1_000_000),
-    ]);
-
-    // Create transactions where BANK_A is receiver
-    let tx1 = Transaction::new("BANK_B", "BANK_A", 100_000, 0, 50);
-    let tx2 = Transaction::new("BANK_B", "BANK_A", 200_000, 0, 50);
-
-    state.add_transaction(tx1.clone());
-    state.add_transaction(tx2.clone());
-
-    // Mark as expected by BANK_A
-    let agent_a = state.get_agent_mut("BANK_A").unwrap();
-    agent_a.add_expected_inflow(tx1.id().to_string());
-    agent_a.add_expected_inflow(tx2.id().to_string());
-
-    // Build context
-    let tx_out = Transaction::new("BANK_A", "BANK_B", 50_000, 0, 50);
-    let agent = state.get_agent("BANK_A").unwrap();
-    let context = EvalContext::build(&tx_out, agent, &state, 10, &CostRates::default(), 100, 0.8);
-
-    // Verify new fields
-    assert_eq!(context.get_field("incoming_expected_count").unwrap(), 2.0);
-    assert_eq!(context.get_field("incoming_expected_total_value").unwrap(), 300_000.0);
-    assert_eq!(context.get_field("incoming_expected_avg_value").unwrap(), 150_000.0);
-}
-```
-
-### Implementation Steps
-
-1. **Policy Context Fields** (`backend/src/policy/tree/context.rs`)
-   ```rust
-   // In EvalContext::build()
-   let mut incoming_total_value = 0i64;
-   for tx_id in agent.incoming_expected() {
-       if let Some(tx) = state.get_transaction(tx_id) {
-           incoming_total_value += tx.remaining_amount();
-       }
-   }
-   fields.insert("incoming_expected_total_value".to_string(), incoming_total_value as f64);
-
-   let count = agent.incoming_expected().len();
-   let avg_value = if count > 0 { incoming_total_value / count as i64 } else { 0 };
-   fields.insert("incoming_expected_avg_value".to_string(), avg_value as f64);
-   ```
-
-2. **Documentation** (`docs/policy_dsl_guide.md`)
-   - Document new fields in Agent Queue Fields section
-
----
-
-## Enhancement 4: Probabilistic Scenario Events
+## Enhancement 3: Probabilistic Scenario Events
 
 ### Purpose
 Enable scenario events to trigger with specified probability rather than deterministically, matching BIS model stochastic payment arrivals.
@@ -2475,22 +2323,17 @@ fn test_probabilistic_event_determinism() {
 
 ### Recommended Sequence
 
-1. **Enhancement 1: Priority-Based Delay Costs** (2-3 days)
+1. **Enhancement 1: Priority-Based Delay Costs**
    - Lowest risk, cleanest addition to existing cost system
    - No changes to tick loop or event system
    - Enables BIS Scenario 2 immediately
 
-2. **Enhancement 3: Probabilistic Policy Reasoning** (1-2 days)
-   - Builds on existing `incoming_expected` infrastructure
-   - Pure addition to EvalContext
-   - Enables better agent decision-making
-
-3. **Enhancement 4: Probabilistic Scenario Events** (2-3 days)
-   - Requires careful RNG handling
+2. **Enhancement 3: Probabilistic Scenario Events**
+   - Requires careful RNG handling for determinism
    - Enables BIS Scenario 3 immediately
    - Foundation for more complex stochastic scenarios
 
-4. **Enhancement 2: Liquidity Allocation Decision** (3-4 days)
+3. **Enhancement 2: Liquidity Pool and Allocation**
    - Most complex, touches tick lifecycle
    - Enables BIS Scenario 1 fully
    - Could be simplified to fixed allocation first
@@ -2500,9 +2343,7 @@ fn test_probabilistic_event_determinism() {
 ```
 Enhancement 1 ─────────────────────────────────► BIS Scenario 2
 
-Enhancement 3 ─────┬───────────────────────────► Better Policies
-                   │
-Enhancement 4 ─────┴───────────────────────────► BIS Scenario 3
+Enhancement 3 ─────────────────────────────────► BIS Scenario 3
 
 Enhancement 2 ─────────────────────────────────► BIS Scenario 1
 ```
