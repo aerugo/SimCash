@@ -1,9 +1,9 @@
 # Payment Simulator: Grand Plan 2.0
 ## From Foundation to Full Vision
 
-**Document Version**: 2.6
-**Date**: November 22, 2025
-**Status**: Foundation + Integration + Policy DSL + Priority System + TARGET2 LSM Alignment Complete → LLM Integration
+**Document Version**: 2.7
+**Date**: November 27, 2025
+**Status**: Foundation + Integration + Policy DSL + Priority System + TARGET2 LSM Alignment Complete → LLM Integration + BIS Compatibility
 
 ---
 
@@ -82,6 +82,7 @@ The Rust core backend is **complete and battle-tested**:
 2. ❌ Phase 12: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
 3. ❌ Phase 13: Enhanced shock scenarios (outages, liquidity squeezes, counterparty stress) (1 week)
 4. ❌ Phase 16: Production readiness (WebSocket streaming, frontend, observability) (3 weeks)
+5. ❌ Phase 17: BIS AI Cash Management compatibility (priority-based delay costs, liquidity allocation, per-band arrivals) (2 weeks)
 
 ---
 
@@ -1752,7 +1753,276 @@ This is **not optional** - persistence is required for research reproducibility 
 
 **Estimated Effort**: 1 week
 
-### 4.9 Phase 14: Production Readiness (Weeks 14-16) ❌ **NOT STARTED**
+### 4.9 Phase 17: BIS AI Cash Management Compatibility (Weeks 14-15) ❌ **NOT STARTED**
+
+**Goal**: Enable SimCash to run experiments matching BIS Working Paper 1310 ("AI agents for cash management in payment systems") by adding priority-differentiated delay costs, explicit liquidity allocation decisions, and per-band arrival functions.
+
+**Background**: BIS Working Paper 1310 presents a simplified RTGS model for testing AI agent cash management decisions. SimCash's sophisticated TARGET2-aligned model requires specific enhancements to support the BIS experimental framework while maintaining backwards compatibility.
+
+**Research Documentation**: See `docs/research/bis/` for:
+- `bis-simcash-research-briefing.md` - Full comparison and configuration guide
+- `bis-model-enhancements-tdd-implementation.md` - Detailed TDD implementation plan
+
+#### Enhancement 17.1: Priority-Based Delay Cost Multipliers
+
+**Purpose**: Different delay costs for urgent vs. normal payments (BIS uses 1.5% for urgent, 1.0% for normal)
+
+**Current Limitation**: Single `delay_cost_per_tick_per_cent` applies uniformly to all transactions regardless of priority.
+
+**Design**:
+```rust
+pub struct PriorityDelayMultipliers {
+    /// Multiplier for urgent priority (8-10). Default: 1.5
+    pub urgent_multiplier: f64,
+    /// Multiplier for normal priority (4-7). Default: 1.0
+    pub normal_multiplier: f64,
+    /// Multiplier for low priority (0-3). Default: 1.0
+    pub low_multiplier: f64,
+}
+```
+
+**Configuration**:
+```yaml
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.01     # Base rate
+  priority_delay_multipliers:             # NEW
+    urgent_multiplier: 1.5               # Urgent: 1.5% per tick
+    normal_multiplier: 1.0               # Normal: 1.0% per tick
+    low_multiplier: 0.5                  # Low: 0.5% per tick (optional)
+```
+
+**Implementation**:
+1. Add `PriorityDelayMultipliers` struct to `CostRates` (backend/src/orchestrator/engine.rs)
+2. Add `PriorityBand` enum with `get_priority_band(priority: u8)` helper
+3. Modify delay cost calculation to apply priority multiplier
+4. Add `priority_delay_multiplier_for_this_tx` to policy EvalContext
+5. Parse from config in FFI layer
+6. Persist multipliers in cost events for replay identity
+
+**Critical Invariants**:
+- Money remains i64 (multiplier applied, result cast to i64)
+- Backwards compatible: No multipliers configured = uniform delay cost
+- Deterministic: Same priority always gets same multiplier
+
+**Testing**:
+- Unit tests: Priority band classification, multiplier application
+- Integration tests: Urgent vs. normal cost difference in simulation
+- Replay identity: Events contain applied multiplier for reconstruction
+
+#### Enhancement 17.2: Liquidity Pool and Allocation
+
+**Purpose**: Agents decide how much liquidity to allocate from an external pool at day start (BIS Period 0 decision)
+
+**Current Limitation**: Agents have fixed `opening_balance`; no allocation decision with opportunity cost.
+
+**Conceptual Distinction**:
+| Aspect | Liquidity Allocation (NEW) | Collateral Posting (Existing) |
+|--------|---------------------------|------------------------------|
+| **Provides** | Positive cash balance | Credit capacity (overdraft) |
+| **Effect** | `balance += allocated` | `credit_limit += posted * (1-haircut)` |
+| **Timing** | Day start (Step 0) | Step 1.5 (before settlements) |
+| **Cost** | `liquidity_cost_per_tick_bps` | `collateral_cost_per_tick_bps` |
+
+**Configuration**:
+```yaml
+agent_configs:
+  - id: BANK_A
+    liquidity_pool: 2_000_000              # Total available external liquidity
+    liquidity_allocation_fraction: 0.5     # Fixed: Allocate 50% at day start
+    # OR policy-driven:
+    liquidity_allocation_tree: {...}       # Policy tree for dynamic allocation
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 15          # Opportunity cost of allocated liquidity
+```
+
+**Lifecycle Flow**:
+```
+Day Start (Tick 0):
+  Step 0 (NEW): Liquidity Allocation
+    For each agent with liquidity_pool:
+      1. Evaluate liquidity_allocation_tree (or use fixed fraction)
+      2. Calculate: allocated = pool × fraction
+      3. Add to opening_balance: balance += allocated
+      4. Track for cost accrual: allocated_liquidity = allocated
+
+  Step 1: Normal tick processing begins...
+
+Throughout Day:
+  Accrue liquidity cost: cost += allocated_liquidity × liquidity_cost_per_tick_bps
+```
+
+**Implementation**:
+1. Add `LiquidityPoolConfig` struct (pool, fraction or tree)
+2. Add `liquidity_allocation_tree` policy evaluation (new tree type)
+3. Add `Step0_LiquidityAllocation` to tick loop (before arrivals)
+4. Add `LiquidityAllocation` event type with all fields
+5. Track `allocated_liquidity` in agent state for cost accrual
+6. Add `liquidity_cost_per_tick_bps` to CostRates
+7. Persist allocation decision for replay identity
+
+**Critical Invariants**:
+- Allocation happens once at day start (not repeatable mid-day)
+- Cannot allocate more than pool amount
+- Liquidity cost distinct from collateral cost
+- Balance changes are i64 (no floats)
+
+**Testing**:
+- Allocation fractions: 0%, 50%, 100%
+- Policy-driven allocation with different tree conditions
+- Cost accrual: Verify liquidity cost separate from collateral cost
+- Multi-day: Fresh allocation each day
+- Replay identity: Allocation events reconstruct correctly
+
+#### Enhancement 17.3: Per-Band Arrival Functions
+
+**Purpose**: Different arrival characteristics (rate, amount, deadline) per priority band
+
+**Current Limitation**: Single `arrival_config` with one `rate_per_tick` and `amount_distribution` for all priorities.
+
+**BIS Model Insight**: Urgent payments are rare but large; normal payments are common and smaller.
+
+**Configuration**:
+```yaml
+agent_configs:
+  - id: BANK_A
+    # NEW: Per-band arrival configuration
+    arrival_bands:
+      urgent:                              # Priority 8-10
+        rate_per_tick: 0.1                 # Rare
+        amount_distribution:
+          type: log_normal
+          mean: 1_000_000                  # Large ($10k average)
+          std_dev: 0.5
+        deadline_offset:
+          min_ticks: 5
+          max_ticks: 15                    # Tight deadlines
+
+      normal:                              # Priority 4-7
+        rate_per_tick: 3.0                 # Common
+        amount_distribution:
+          type: log_normal
+          mean: 50_000                     # Medium ($500 average)
+          std_dev: 0.8
+        deadline_offset:
+          min_ticks: 20
+          max_ticks: 50
+
+      low:                                 # Priority 0-3
+        rate_per_tick: 5.0                 # Frequent
+        amount_distribution:
+          type: log_normal
+          mean: 10_000                     # Small ($100 average)
+          std_dev: 0.6
+        deadline_offset:
+          min_ticks: 40
+          max_ticks: 80                    # Relaxed deadlines
+```
+
+**Implementation**:
+1. Add `ArrivalBandConfig` struct (rate, amount_distribution, deadline_offset, priority_range)
+2. Add `ArrivalBandsConfig` with urgent/normal/low bands
+3. Modify arrival generator to sample from each band independently
+4. Use Poisson sampling per band with band-specific rate
+5. Assign priority within band range (uniform or configurable)
+6. Backwards compatible: `arrival_config` still works, `arrival_bands` is alternative
+
+**Backwards Compatibility**:
+```yaml
+# EXISTING (still works)
+arrival_config:
+  rate_per_tick: 5.0
+  amount_distribution: {...}
+  priority_distribution: {...}
+
+# NEW ALTERNATIVE
+arrival_bands:
+  urgent: {...}
+  normal: {...}
+  low: {...}
+```
+
+**Critical Invariants**:
+- RNG seed must be persisted after EACH band's Poisson sample
+- Amount distributions must produce i64 cents
+- Priority assigned within band range (8-10 for urgent, 4-7 for normal, 0-3 for low)
+- Deterministic: Same seed → same arrivals across all bands
+
+**Testing**:
+- Single band enabled: Only urgent arrivals
+- All bands enabled: Mixed arrival stream
+- Rate verification: Average arrivals match configured rates
+- Amount verification: Distribution matches configured parameters
+- Determinism: 10 runs with same seed produce identical arrivals
+- Replay identity: Arrival events contain band metadata
+
+#### BIS Compatibility Mode
+
+When running BIS-style experiments, disable SimCash features not present in the BIS model:
+
+```yaml
+# BIS Compatibility Template
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+
+algorithm_sequencing: false
+entry_disposition_offsetting: false
+
+priority_escalation:
+  enabled: false
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.01
+  priority_delay_multipliers:
+    urgent_multiplier: 1.5
+    normal_multiplier: 1.0
+  eod_penalty_per_transaction: 0
+  deadline_penalty: 0
+  collateral_cost_per_tick_bps: 0
+  overdue_delay_multiplier: 1.0
+
+agent_configs:
+  - id: BANK_A
+    credit_limit: 0
+    max_collateral_capacity: 0
+    liquidity_pool: 2_000_000
+    arrival_bands:
+      urgent: {...}
+      normal: {...}
+```
+
+See `docs/research/bis/bis-simcash-research-briefing.md` Part 6 for complete BIS compatibility checklist.
+
+#### Success Criteria
+
+| Metric | Target | Rationale |
+|--------|--------|-----------|
+| Priority multiplier accuracy | ±0.01% | Integer arithmetic precision |
+| Liquidity allocation at day start | 100% reliable | Must happen before tick 1 |
+| Per-band arrival rates | ±5% of configured | Poisson variance acceptable |
+| Backwards compatibility | 100% | Existing configs unchanged |
+| Replay identity | Byte-for-byte | All events self-contained |
+| BIS Scenario 1 runnable | ✓ | Precautionary liquidity decision |
+| BIS Scenario 2 runnable | ✓ | Priority-based delay costs |
+| Monte Carlo support | ✓ | Different seeds, same config |
+
+#### Testing Strategy
+
+**TDD Implementation Procedure**: Follow strict Red-Green-Refactor cycle as documented in `docs/research/bis/bis-model-enhancements-tdd-implementation.md`.
+
+**Test Categories** (per enhancement):
+1. Configuration parsing tests (7 scenarios each)
+2. Rust unit tests (boundary values, precision, determinism)
+3. Python integration tests (FFI round-trip, multi-tick, multi-agent)
+4. Replay identity tests (event fields, database persistence)
+5. BIS scenario tests (runnable experiments)
+
+**Estimated Test Count**: ~50 new tests across all three enhancements
+
+**Estimated Effort**: 2 weeks (1 week for Enhancements 17.1-17.2, 1 week for 17.3 + integration)
+
+### 4.10 Phase 14: Production Readiness (Weeks 16-18) ❌ **NOT STARTED**
 
 **Goal**: Observability, performance, and user experience
 
