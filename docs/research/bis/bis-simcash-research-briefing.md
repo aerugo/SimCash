@@ -582,6 +582,230 @@ print(f"Expected cost: ${optimal['mean_cost']/100:.2f}")
 
 ---
 
+## Part 6: BIS Compatibility Mode - Features to Disable
+
+To accurately mimic the simplified BIS model, several SimCash features must be disabled or set to neutral values. The BIS model is intentionally stylized—it does **not** include LSM, collateral posting, priority escalation, bilateral/multilateral limits, or complex end-of-day processing.
+
+### Feature Disable Matrix
+
+| Feature | BIS Model | SimCash Default | BIS-Compatible Setting |
+|---------|-----------|-----------------|------------------------|
+| **LSM (Bilateral)** | ❌ Not present | `true` | `enable_bilateral: false` |
+| **LSM (Cycles)** | ❌ Not present | `true` | `enable_cycles: false` |
+| **Collateral Posting** | ❌ Not present | Available | Omit `strategic_collateral_tree`, set `max_collateral_capacity: 0` |
+| **Credit Limits** | ❌ Not present | Configurable | `credit_limit: 0` or `unsecured_cap: 0` |
+| **Priority Escalation** | ❌ Not present | Configurable | `priority_escalation.enabled: false` |
+| **Bilateral Limits** | ❌ Not present | Configurable | Omit `bilateral_limits` |
+| **Multilateral Limits** | ❌ Not present | Configurable | Omit `multilateral_limit` |
+| **Algorithm Sequencing** | ❌ Not present | Configurable | `algorithm_sequencing: false` |
+| **Entry Disposition Offsetting** | ❌ Not present | Configurable | `entry_disposition_offsetting: false` |
+| **EOD Penalty** | ❌ Not present | `> 0` | `eod_penalty_per_transaction: 0` |
+| **Deadline Penalty** | ❌ Not present | `> 0` | `deadline_penalty: 0` |
+| **Split Friction** | ❌ Not present | `> 0` | `split_friction_cost: 0` |
+| **Overdue Multiplier** | ❌ Not present | `5.0` | `overdue_delay_multiplier: 1.0` |
+| **Collateral Cost** | ❌ Not present | `> 0` | `collateral_cost_per_tick_bps: 0` |
+
+### Settings to Disable
+
+#### 1. LSM Configuration (Required)
+
+The BIS model uses pure RTGS—payments settle immediately if liquidity is available, otherwise they queue. There is no bilateral offsetting or multilateral cycle detection.
+
+```yaml
+lsm_config:
+  enable_bilateral: false    # Disable bilateral netting
+  enable_cycles: false       # Disable multilateral cycle detection
+  max_cycle_length: 0        # Not used when disabled
+  max_cycles_per_tick: 0     # Not used when disabled
+```
+
+#### 2. Priority Escalation (Required)
+
+The BIS model has fixed priorities—payments don't automatically escalate in priority as deadlines approach.
+
+```yaml
+priority_escalation:
+  enabled: false             # Disable automatic priority boosting
+```
+
+Or simply omit the `priority_escalation` section entirely.
+
+#### 3. Algorithm Sequencing (Required)
+
+The TARGET2-style algorithm sequencing (FIFO → Bilateral → Multilateral) is not part of the BIS model.
+
+```yaml
+algorithm_sequencing: false
+entry_disposition_offsetting: false
+```
+
+#### 4. Cost Rates (Simplify to BIS Model)
+
+The BIS model has only two cost types: delay cost (per period) and liquidity allocation cost (opportunity cost). Set all other costs to zero.
+
+```yaml
+cost_rates:
+  # KEEP: These are used in BIS model
+  delay_cost_per_tick_per_cent: 0.01    # BIS: 1% delay cost per period
+  overdraft_bps_per_tick: 0             # BIS uses liquidity allocation, not overdraft
+
+  # DISABLE: Set to zero for BIS compatibility
+  collateral_cost_per_tick_bps: 0       # No collateral mechanism in BIS
+  eod_penalty_per_transaction: 0        # No EOD penalty in BIS
+  deadline_penalty: 0                   # No separate deadline penalty in BIS
+  split_friction_cost: 0                # No split mechanism in BIS
+  overdue_delay_multiplier: 1.0         # No overdue escalation in BIS (set to 1.0, not 0)
+```
+
+**Note on `overdue_delay_multiplier`**: Set to `1.0` (not `0`) so delay costs continue accruing at the base rate after deadlines, rather than being multiplied.
+
+#### 5. Agent Configuration (Simplify)
+
+Remove or neutralize features not present in BIS model:
+
+```yaml
+agent_configs:
+  - id: BANK_A
+    opening_balance: 1_000_000          # Or use liquidity_pool with enhancement
+
+    # DISABLE: Credit and limits
+    credit_limit: 0                     # No credit in BIS (or unsecured_cap: 0)
+    # bilateral_limits: <OMIT>          # Don't include bilateral limits
+    # multilateral_limit: <OMIT>        # Don't include multilateral limit
+
+    # DISABLE: Collateral
+    max_collateral_capacity: 0          # No collateral mechanism
+    # strategic_collateral_tree: <OMIT> # Don't include collateral policy
+
+    # SIMPLIFY: Policy
+    policy:
+      type: "Simple"                    # Or minimal policy tree
+      # Don't use complex policies that reference disabled features
+```
+
+### Policy Configurations to Omit
+
+The following policy tree types reference features not present in the BIS model and should **not** be used:
+
+| Policy Tree | Purpose | Why Incompatible |
+|-------------|---------|------------------|
+| `strategic_collateral_tree` | Decides when to post collateral | BIS has no collateral mechanism |
+| Policies referencing `bilateral_limit_*` | Limit-aware decisions | BIS has no bilateral limits |
+| Policies referencing `multilateral_limit_*` | Limit-aware decisions | BIS has no multilateral limits |
+| Policies referencing `can_offset_*` | LSM-aware decisions | BIS has no LSM |
+| Policies referencing `lsm_*` | LSM coordination | BIS has no LSM |
+| Policies referencing `collateral_*` | Collateral management | BIS has no collateral |
+
+**Recommended**: Use simple policies or the policy DSL with only these context fields:
+- `balance` - Agent's current balance
+- `queue_total` - Total queued outgoing payments
+- `pending_incoming` - Expected incoming payments
+- `transaction.amount` - Payment amount
+- `transaction.priority` - Payment priority (urgent/normal)
+- `transaction.ticks_to_deadline` - Time remaining
+
+### Complete BIS Compatibility Template
+
+```yaml
+# bis-compatible-template.yaml
+# Template for running BIS-style experiments in SimCash
+# All non-BIS features disabled
+
+simulation:
+  ticks_per_day: 2               # BIS uses 2-3 discrete periods
+  num_days: 1                    # Single-day experiments typical
+  rng_seed: 12345                # Deterministic for reproducibility
+
+# DISABLED: LSM features
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+  max_cycle_length: 0
+  max_cycles_per_tick: 0
+
+# DISABLED: TARGET2 features
+algorithm_sequencing: false
+entry_disposition_offsetting: false
+
+# DISABLED: Priority escalation
+priority_escalation:
+  enabled: false
+
+# SIMPLIFIED: Cost rates (BIS-only costs)
+cost_rates:
+  # Active BIS costs
+  delay_cost_per_tick_per_cent: 0.01     # Base delay cost (1%)
+  # priority_delay_multipliers:           # Enhancement 1 (when implemented)
+  #   urgent_multiplier: 1.5
+  #   normal_multiplier: 1.0
+
+  # Disabled costs (set to 0 or neutral)
+  overdraft_bps_per_tick: 0              # Use liquidity allocation instead
+  collateral_cost_per_tick_bps: 0        # No collateral in BIS
+  eod_penalty_per_transaction: 0         # No EOD penalty in BIS
+  deadline_penalty: 0                    # No separate deadline penalty
+  split_friction_cost: 0                 # No splitting in BIS
+  overdue_delay_multiplier: 1.0          # Neutral (no escalation)
+
+# Agent configuration (minimal)
+agent_configs:
+  - id: FOCAL_BANK
+    opening_balance: 1_000_000           # Starting liquidity
+    # liquidity_pool: 2_000_000          # Enhancement 2 (when implemented)
+    # liquidity_allocation_fraction: 0.5 # Enhancement 2 (when implemented)
+    credit_limit: 0                      # No credit
+    max_collateral_capacity: 0           # No collateral
+    policy:
+      type: "Simple"                     # Basic policy
+    # arrival_config: <use scenario_events instead for deterministic BIS scenarios>
+
+  - id: COUNTERPARTY
+    opening_balance: 1_000_000
+    credit_limit: 0
+    max_collateral_capacity: 0
+    policy:
+      type: "Simple"
+
+# Use scenario_events for deterministic BIS-style payment arrivals
+scenario_events:
+  - event:
+      type: custom_transaction_arrival
+      from_agent: FOCAL_BANK
+      to_agent: COUNTERPARTY
+      amount: 100_000
+      priority: 5                        # Normal priority
+      deadline_tick: 2
+    schedule:
+      tick: 0
+
+  # Add more deterministic events as needed for specific BIS scenarios
+```
+
+### Verification Checklist
+
+Before running a BIS-compatible simulation, verify:
+
+```
+□ lsm_config.enable_bilateral = false
+□ lsm_config.enable_cycles = false
+□ algorithm_sequencing = false (or omitted)
+□ entry_disposition_offsetting = false (or omitted)
+□ priority_escalation.enabled = false (or section omitted)
+□ cost_rates.eod_penalty_per_transaction = 0
+□ cost_rates.deadline_penalty = 0
+□ cost_rates.collateral_cost_per_tick_bps = 0
+□ cost_rates.split_friction_cost = 0
+□ cost_rates.overdue_delay_multiplier = 1.0
+□ All agents have credit_limit = 0 (or unsecured_cap = 0)
+□ All agents have max_collateral_capacity = 0
+□ No bilateral_limits defined
+□ No multilateral_limit defined
+□ No strategic_collateral_tree defined
+□ Policy trees don't reference disabled features
+```
+
+---
+
 ## Summary
 
 ### What SimCash Can Do Today
@@ -615,8 +839,7 @@ print(f"Expected cost: ${optimal['mean_cost']/100:.2f}")
 
 - Aldasoro, I. & Desai, A. (2025). "AI agents for cash management in payment systems." BIS Working Papers No. 1310.
 - Bech, M.L. & Garratt, R. (2003). "The intraday liquidity management game." Journal of Economic Theory 109(2), 198-219.
-- SimCash Documentation: `/docs/research/simcash-rtgs-model.md`
-- Implementation Plan: `/docs/plans/bis-model-enhancements-tdd-implementation.md`
+- Implementation Plan: `bis-model-enhancements-tdd-implementation.md`
 
 ---
 
