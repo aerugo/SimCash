@@ -2,7 +2,7 @@
 
 **Created:** 2025-11-27
 **Status:** Planning
-**Parent Document:** `../research/bis-simcash-model-comparison.md`
+**Parent Document:** `../research/bis-simcash-research-briefing.md`
 
 ---
 
