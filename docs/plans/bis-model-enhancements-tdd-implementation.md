@@ -16,7 +16,6 @@ This document provides **detailed TDD implementation plans** for enhancing SimCa
 |---|-------------|-------------------------|--------|
 | 1 | Priority-Based Delay Cost Multipliers | `overdue_delay_multiplier` (different purpose) | **New Feature** |
 | 2 | Liquidity Pool and Allocation | None | **New Feature** |
-| 3 | Probabilistic Scenario Events | `EventSchedule::OneTime/Repeating` | **Enhancement** |
 
 ---
 
@@ -49,20 +48,6 @@ The BIS model has agents decide how much of available liquidity to bring into th
 
 **Verdict:** ✅ **New Feature Required**
 
-### 3. Probabilistic Scenario Events
-
-**Searched:** `EventSchedule`, `ScenarioEvent`, `probability`
-
-**Existing Features Found:**
-- `EventSchedule::OneTime { tick }`: Execute once at specific tick
-- `EventSchedule::Repeating { start_tick, interval }`: Execute at regular intervals
-- Both are **deterministic** - no randomness in triggering
-
-**Gap Analysis:**
-The BIS model includes stochastic payment arrivals (50% chance of receiving a payment). Current scenario events are deterministic (always trigger at scheduled time). Need to add probability field for random triggering.
-
-**Verdict:** ✅ **Enhancement Required** - Add probability field to `EventSchedule`
-
 ---
 
 ## Critical Invariants (Apply to ALL Phases)
@@ -85,12 +70,9 @@ let delay_cost: f64 = 15.5;  // Never use float for money
 All random operations MUST use seeded RNG and persist the new seed:
 
 ```rust
-// ✅ CORRECT - For probabilistic events
+// ✅ CORRECT - Seeded RNG with persisted seed
 let (random_value, new_seed) = rng_manager.next_f64(state.rng_seed);
 state.rng_seed = new_seed;  // CRITICAL: Always persist new seed
-if random_value < event_probability {
-    execute_event();
-}
 ```
 
 ### Event Persistence Pattern
@@ -2065,260 +2047,6 @@ Update `docs/policy_dsl_guide.md` with new fields:
 
 ---
 
-## Enhancement 3: Probabilistic Scenario Events
-
-### Purpose
-Enable scenario events to trigger with specified probability rather than deterministically, matching BIS model stochastic payment arrivals.
-
-### Design
-
-**Extend EventSchedule:**
-
-```rust
-pub enum EventSchedule {
-    OneTime { tick: usize },
-    Repeating { start_tick: usize, interval: usize },
-
-    // NEW: Probabilistic variants
-    ProbabilisticOneTime {
-        tick: usize,
-        probability: f64,  // 0.0 to 1.0
-    },
-    ProbabilisticRepeating {
-        start_tick: usize,
-        interval: usize,
-        probability: f64,
-    },
-}
-```
-
-**Configuration YAML:**
-```yaml
-scenario_events:
-  - event:
-      type: custom_transaction_arrival
-      from_agent: BANK_B
-      to_agent: BANK_A
-      amount: 500000
-    schedule:
-      tick: 5
-      probability: 0.5  # 50% chance of occurring
-```
-
-### TDD Test Cases
-
-#### Phase 4.1: Configuration Parsing
-
-**File:** `api/tests/integration/test_probabilistic_events.py`
-
-```python
-# TEST 1: Deterministic events unchanged
-def test_deterministic_events_unchanged():
-    """Events without probability should always trigger."""
-    config = create_config(
-        scenario_events=[
-            {
-                "event": {"type": "direct_transfer", "from_agent": "BANK_A", "to_agent": "BANK_B", "amount": 100000},
-                "schedule": {"tick": 5}
-            }
-        ]
-    )
-
-    # Run multiple times - should always trigger
-    for _ in range(10):
-        orch = Orchestrator.new(config)
-        for _ in range(10):
-            orch.tick()
-
-        events = orch.get_all_events()
-        transfers = [e for e in events if e["event_type"] == "DirectTransfer"]
-        assert len(transfers) == 1
-
-# TEST 2: Probabilistic events respect probability
-def test_probabilistic_event_respects_probability():
-    """Events with probability should trigger approximately that fraction."""
-    config_template = lambda seed: create_config(
-        seed=seed,
-        scenario_events=[
-            {
-                "event": {"type": "direct_transfer", "from_agent": "BANK_A", "to_agent": "BANK_B", "amount": 100000},
-                "schedule": {"tick": 5, "probability": 0.5}
-            }
-        ]
-    )
-
-    # Run 100 times with different seeds
-    trigger_count = 0
-    for seed in range(100):
-        orch = Orchestrator.new(config_template(seed))
-        for _ in range(10):
-            orch.tick()
-
-        events = orch.get_all_events()
-        transfers = [e for e in events if e["event_type"] == "DirectTransfer"]
-        if len(transfers) > 0:
-            trigger_count += 1
-
-    # Should trigger approximately 50% of the time (with some variance)
-    assert 35 <= trigger_count <= 65  # Allow for statistical variance
-
-# TEST 3: Determinism with same seed
-def test_probabilistic_event_determinism():
-    """Same seed should produce same probabilistic outcome."""
-    config = create_config(
-        seed=42,
-        scenario_events=[
-            {
-                "event": {"type": "direct_transfer", "from_agent": "BANK_A", "to_agent": "BANK_B", "amount": 100000},
-                "schedule": {"tick": 5, "probability": 0.5}
-            }
-        ]
-    )
-
-    results = []
-    for _ in range(3):
-        orch = Orchestrator.new(config)
-        for _ in range(10):
-            orch.tick()
-
-        events = orch.get_all_events()
-        transfers = [e for e in events if e["event_type"] == "DirectTransfer"]
-        results.append(len(transfers))
-
-    # All runs with same seed should have same outcome
-    assert results[0] == results[1] == results[2]
-
-# TEST 4: Event records whether it triggered
-def test_probabilistic_event_logs_outcome():
-    """ScenarioEventEvaluated event should log trigger decision."""
-    config = create_config(
-        seed=42,
-        scenario_events=[
-            {
-                "event": {"type": "direct_transfer", "from_agent": "BANK_A", "to_agent": "BANK_B", "amount": 100000},
-                "schedule": {"tick": 5, "probability": 0.5}
-            }
-        ]
-    )
-    orch = Orchestrator.new(config)
-    for _ in range(10):
-        orch.tick()
-
-    events = orch.get_all_events()
-    eval_events = [e for e in events if e["event_type"] == "ScenarioEventEvaluated"]
-
-    assert len(eval_events) == 1
-    assert eval_events[0]["tick"] == 5
-    assert eval_events[0]["probability"] == 0.5
-    assert "triggered" in eval_events[0]  # Boolean
-    assert "random_value" in eval_events[0]  # For debugging
-```
-
-#### Phase 4.2: Rust Implementation Tests
-
-**File:** `backend/tests/probabilistic_events.rs`
-
-```rust
-#[test]
-fn test_probabilistic_schedule_parsing() {
-    let schedule = EventSchedule::ProbabilisticOneTime {
-        tick: 10,
-        probability: 0.5,
-    };
-
-    assert!(schedule.should_evaluate(10));
-    assert!(!schedule.should_evaluate(9));
-    assert!(!schedule.should_evaluate(11));
-}
-
-#[test]
-fn test_probabilistic_event_execution_with_rng() {
-    let mut state = create_test_state();
-    state.rng_seed = 12345;
-
-    let event = ScheduledEvent {
-        event: ScenarioEvent::DirectTransfer {
-            from_agent: "A".to_string(),
-            to_agent: "B".to_string(),
-            amount: 100_000,
-        },
-        schedule: EventSchedule::ProbabilisticOneTime {
-            tick: 5,
-            probability: 0.5,
-        },
-    };
-
-    // Execute and verify RNG consumed
-    let (triggered, new_seed) = evaluate_probabilistic_event(&event, state.rng_seed, 5);
-
-    assert_ne!(new_seed, state.rng_seed);  // Seed should change
-    // triggered will be true or false based on RNG
-}
-
-#[test]
-fn test_probabilistic_event_determinism() {
-    let seed = 42u64;
-
-    let event = ScheduledEvent {
-        event: ScenarioEvent::DirectTransfer {
-            from_agent: "A".to_string(),
-            to_agent: "B".to_string(),
-            amount: 100_000,
-        },
-        schedule: EventSchedule::ProbabilisticOneTime {
-            tick: 5,
-            probability: 0.5,
-        },
-    };
-
-    // Same seed should give same result
-    let (result1, _) = evaluate_probabilistic_event(&event, seed, 5);
-    let (result2, _) = evaluate_probabilistic_event(&event, seed, 5);
-
-    assert_eq!(result1, result2);
-}
-```
-
-### Implementation Steps
-
-1. **Extend EventSchedule** (`backend/src/events/types.rs`)
-   ```rust
-   pub enum EventSchedule {
-       OneTime { tick: usize },
-       Repeating { start_tick: usize, interval: usize },
-       ProbabilisticOneTime { tick: usize, probability: f64 },
-       ProbabilisticRepeating { start_tick: usize, interval: usize, probability: f64 },
-   }
-
-   impl EventSchedule {
-       pub fn is_probabilistic(&self) -> bool { ... }
-       pub fn probability(&self) -> Option<f64> { ... }
-   }
-   ```
-
-2. **New Event Type** (`backend/src/models/event.rs`)
-   ```rust
-   Event::ScenarioEventEvaluated {
-       tick: usize,
-       event_type: String,  // "DirectTransfer", etc.
-       probability: f64,
-       random_value: f64,   // The RNG output
-       triggered: bool,
-   }
-   ```
-
-3. **RNG Integration** (`backend/src/orchestrator/engine.rs`)
-   - In event processing loop, consume RNG for probabilistic events
-   - Always emit `ScenarioEventEvaluated` event
-
-4. **FFI Parsing** (`backend/src/ffi/types.rs`)
-   - Parse `probability` field in schedule
-
-5. **Display** (`api/payment_simulator/cli/execution/display.py`)
-   - Add `log_scenario_event_evaluated()` function
-
----
-
 ## Implementation Order
 
 ### Recommended Sequence
@@ -2328,13 +2056,8 @@ fn test_probabilistic_event_determinism() {
    - No changes to tick loop or event system
    - Enables BIS Scenario 2 immediately
 
-2. **Enhancement 3: Probabilistic Scenario Events**
-   - Requires careful RNG handling for determinism
-   - Enables BIS Scenario 3 immediately
-   - Foundation for more complex stochastic scenarios
-
-3. **Enhancement 2: Liquidity Pool and Allocation**
-   - Most complex, touches tick lifecycle
+2. **Enhancement 2: Liquidity Pool and Allocation**
+   - More complex, touches tick lifecycle
    - Enables BIS Scenario 1 fully
    - Could be simplified to fixed allocation first
 
@@ -2342,8 +2065,6 @@ fn test_probabilistic_event_determinism() {
 
 ```
 Enhancement 1 ─────────────────────────────────► BIS Scenario 2
-
-Enhancement 3 ─────────────────────────────────► BIS Scenario 3
 
 Enhancement 2 ─────────────────────────────────► BIS Scenario 1
 ```
@@ -2373,7 +2094,6 @@ For each enhancement:
 
 - [ ] BIS Scenario 1 runnable with liquidity allocation
 - [ ] BIS Scenario 2 runnable with priority delay costs
-- [ ] BIS Scenario 3 runnable with probabilistic events
 - [ ] Monte Carlo analysis possible (deterministic with different seeds)
 
 ---
@@ -2452,46 +2172,6 @@ scenario_events:
       priority: 5  # Normal
     schedule:
       tick: 0
-```
-
-### Scenario 3: Probabilistic Payment Arrival
-
-```yaml
-# bis-scenario-3.yaml
-ticks_per_day: 2
-num_days: 1
-seed: 12345
-
-cost_rates:
-  delay_cost_per_tick_per_cent: 0.01
-
-agent_configs:
-  - id: BANK_A
-    opening_balance: 500000
-    credit_limit: 0
-  - id: BANK_B
-    opening_balance: 500000
-    credit_limit: 0
-
-scenario_events:
-  # Outgoing payment (deterministic)
-  - event:
-      type: custom_transaction_arrival
-      from_agent: BANK_A
-      to_agent: BANK_B
-      amount: 500000
-    schedule:
-      tick: 0
-
-  # Expected incoming payment (probabilistic)
-  - event:
-      type: custom_transaction_arrival
-      from_agent: BANK_B
-      to_agent: BANK_A
-      amount: 500000
-    schedule:
-      tick: 1
-      probability: 0.5  # 50% chance
 ```
 
 ---
