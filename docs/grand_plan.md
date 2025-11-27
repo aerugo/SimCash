@@ -78,11 +78,11 @@ The Rust core backend is **complete and battle-tested**:
   - ✅ 60 TARGET2 alignment tests (all passing)
 
 **Next Steps** (8-12 weeks):
-1. ❌ Phase 17: BIS AI Cash Management compatibility (priority-based delay costs, liquidity allocation, per-band arrivals) (2 weeks) ← **NEXT**
-2. ❌ Phase 11: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
-3. ❌ Phase 12: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
-4. ❌ Phase 13: Enhanced shock scenarios (outages, liquidity squeezes, counterparty stress) (1 week)
-5. ❌ Phase 16: Production readiness (WebSocket streaming, frontend, observability) (3 weeks)
+1. ❌ Phase 11: BIS AI Cash Management compatibility (priority-based delay costs, liquidity allocation, per-band arrivals) (2 weeks) ← **NEXT**
+2. ❌ Phase 12: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
+3. ❌ Phase 13: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
+4. ❌ Phase 14: Enhanced shock scenarios (outages, liquidity squeezes, counterparty stress) (1 week)
+5. ❌ Phase 15: Production readiness (WebSocket streaming, frontend, observability) (3 weeks)
 
 ---
 
@@ -1526,11 +1526,11 @@ This is **not optional** - persistence is required for research reproducibility 
 
 ---
 
-> **Execution Order Note**: Phase 17 (BIS AI Cash Management, section 4.6 below) is the **immediate next priority**. Sections 4.7-4.10 follow after Phase 17 completion.
+> **Execution Order Note**: Phase 11 (BIS AI Cash Management) is the **immediate next priority**. Phases are now numbered 11-15 in execution order.
 
 ---
 
-### 4.7 Phase 11: LLM Manager Integration (Weeks 10-12) ❌ **NOT STARTED**
+### 4.7 Phase 12: LLM Manager Integration (Weeks 10-12) ❌ **NOT STARTED**
 
 **Goal**: Asynchronous policy evolution via LLM
 
@@ -1640,7 +1640,7 @@ This is **not optional** - persistence is required for research reproducibility 
 
 **Estimated Effort**: 3 weeks
 
-### 4.8 Phase 12: Multi-Rail & Cross-Border (Weeks 13-14) ❌ **NOT STARTED**
+### 4.8 Phase 13: Multi-Rail & Cross-Border (Weeks 13-14) ❌ **NOT STARTED**
 
 **Status**: 0% complete - All work is future
 
@@ -1711,7 +1711,7 @@ This is **not optional** - persistence is required for research reproducibility 
 
 **Estimated Effort**: 2 weeks (as originally planned)
 
-### 4.9 Phase 13: Shock Scenarios & Resilience (Week 15) ❌ **NOT STARTED**
+### 4.9 Phase 14: Shock Scenarios & Resilience (Week 15) ❌ **NOT STARTED**
 
 **Goal**: Test system under stress conditions
 
@@ -1759,7 +1759,7 @@ This is **not optional** - persistence is required for research reproducibility 
 
 **Estimated Effort**: 1 week
 
-### 4.6 Phase 17: BIS AI Cash Management Compatibility (Weeks 8-9) ❌ **NOT STARTED** ← **NEXT**
+### 4.6 Phase 11: BIS AI Cash Management Compatibility (Weeks 8-9) ❌ **NOT STARTED** ← **NEXT**
 
 **Goal**: Enable SimCash to run experiments matching BIS Working Paper 1310 ("AI agents for cash management in payment systems") by adding priority-differentiated delay costs, explicit liquidity allocation decisions, and per-band arrival functions.
 
@@ -1769,7 +1769,7 @@ This is **not optional** - persistence is required for research reproducibility 
 - `bis-simcash-research-briefing.md` - Full comparison and configuration guide
 - `bis-model-enhancements-tdd-implementation.md` - Detailed TDD implementation plan
 
-#### Enhancement 17.1: Priority-Based Delay Cost Multipliers
+#### Enhancement 11.1: Priority-Based Delay Cost Multipliers
 
 **Purpose**: Different delay costs for urgent vs. normal payments (BIS uses 1.5% for urgent, 1.0% for normal)
 
@@ -1815,7 +1815,7 @@ cost_rates:
 - Integration tests: Urgent vs. normal cost difference in simulation
 - Replay identity: Events contain applied multiplier for reconstruction
 
-#### Enhancement 17.2: Liquidity Pool and Allocation
+#### Enhancement 11.2: Liquidity Pool and Allocation
 
 **Purpose**: Agents decide how much liquidity to allocate from an external pool at day start (BIS Period 0 decision)
 
@@ -1880,7 +1880,7 @@ Throughout Day:
 - Multi-day: Fresh allocation each day
 - Replay identity: Allocation events reconstruct correctly
 
-#### Enhancement 17.3: Per-Band Arrival Functions
+#### Enhancement 11.3: Per-Band Arrival Functions
 
 **Purpose**: Different arrival characteristics (rate, amount, deadline) per priority band
 
@@ -2026,9 +2026,9 @@ See `docs/research/bis/bis-simcash-research-briefing.md` Part 6 for complete BIS
 
 **Estimated Test Count**: ~50 new tests across all three enhancements
 
-**Estimated Effort**: 2 weeks (1 week for Enhancements 17.1-17.2, 1 week for 17.3 + integration)
+**Estimated Effort**: 2 weeks (1 week for Enhancements 11.1-11.2, 1 week for 11.3 + integration)
 
-### 4.10 Phase 14: Production Readiness (Weeks 16-18) ❌ **NOT STARTED**
+### 4.10 Phase 15: Production Readiness (Weeks 16-18) ❌ **NOT STARTED**
 
 **Goal**: Observability, performance, and user experience
 
