@@ -301,169 +301,1785 @@ fn test_priority_band_classification() {
 
 ---
 
-## Enhancement 2: Liquidity Allocation Decision
+## Enhancement 2: Liquidity Pool and Allocation
 
 ### Purpose
-Enable agents to decide how much liquidity to allocate to the payment system at the start of each day, matching BIS model Period 0 decision.
+
+Enable agents to allocate liquidity from an external pool into the payment system, distinct from collateral-based credit. This models the BIS Period 0 decision where agents choose how much actual cash to bring into the settlement system.
+
+### Conceptual Distinction: Liquidity vs Collateral
+
+| Aspect | Liquidity Allocation | Collateral Posting |
+|--------|---------------------|-------------------|
+| **Source** | External liquidity pool | Pledged assets |
+| **Provides** | Positive cash balance | Credit capacity (overdraft) |
+| **Balance effect** | `balance += allocated` | `credit_limit += posted * (1-haircut)` |
+| **Policy tree** | `liquidity_allocation_tree` (new) | `strategic_collateral_tree` |
+| **Timing** | Day start (Step 0) | Step 1.5 (before settlements) |
+| **Cost field** | `liquidity_cost_per_tick_bps` | `collateral_cost_per_tick_bps` |
 
 ### Design
 
-**Approach:** New lifecycle hook + policy evaluation point
+**New Configuration Fields:**
 
 ```yaml
-# Configuration
 agent_configs:
   - id: BANK_A
-    # Instead of fixed opening_balance, specify pool
-    liquidity_pool: 2000000  # Total available liquidity
-    liquidity_allocation_policy: "aggressive"  # or use policy DSL
+    # Traditional (unchanged)
+    opening_balance: 500000           # Initial balance (still supported)
+
+    # New: Liquidity Pool
+    liquidity_pool: 2000000           # Total available external liquidity
+    liquidity_allocation_fraction: 0.5 # Fixed fraction to allocate (simple mode)
+
+    # OR: Policy-driven allocation
+    liquidity_allocation_tree: {...}   # Policy tree for dynamic allocation
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 15     # Opportunity cost of allocated liquidity
 ```
 
 **Lifecycle Flow:**
+
 ```
-Day Start → liquidity_allocation_policy evaluated → opening_balance set → normal tick processing
+┌─────────────────────────────────────────────────────────────────────┐
+│                         DAY START (Tick 0)                          │
+├─────────────────────────────────────────────────────────────────────┤
+│ Step 0: Liquidity Allocation                                        │
+│   For each agent with liquidity_pool:                               │
+│     1. Evaluate liquidity_allocation_tree (or use fixed fraction)   │
+│     2. Calculate: allocated = pool × fraction                       │
+│     3. Set: agent.balance += allocated                              │
+│     4. Emit: LiquidityAllocation event                              │
+├─────────────────────────────────────────────────────────────────────┤
+│ Step 1.5: Strategic Collateral (existing)                           │
+│ Step 1.75: Bank Tree (existing)                                     │
+│ Step 2: Payment Processing (existing)                               │
+│ ...                                                                 │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### TDD Test Cases
+**Interaction with Opening Balance:**
 
-#### Phase 2.1: Configuration and Setup
+- If both `opening_balance` and `liquidity_pool` specified: `balance = opening_balance + allocated`
+- If only `liquidity_pool` specified: `balance = allocated`
+- If only `opening_balance` specified: `balance = opening_balance` (backwards compatible)
 
-**File:** `api/tests/integration/test_liquidity_allocation.py`
+---
+
+### TDD Test Cases - Comprehensive Coverage
+
+#### Category 1: Configuration Parsing and Validation
+
+**File:** `api/tests/integration/test_liquidity_allocation_config.py`
 
 ```python
-# TEST 1: Fixed allocation (backwards compatible)
-def test_fixed_liquidity_allocation():
-    """When liquidity_pool not specified, use opening_balance directly."""
-    config = create_config(
-        agent_configs=[
-            {"id": "BANK_A", "opening_balance": 1000000}
-        ]
-    )
-    orch = Orchestrator.new(config)
+"""
+Configuration parsing and validation tests for liquidity pool feature.
+Tests FFI boundary, validation rules, and backwards compatibility.
+"""
 
-    assert orch.get_agent_balance("BANK_A") == 1000000
+import pytest
+from payment_simulator.backends.rust import Orchestrator
 
-# TEST 2: Pool-based allocation with policy
-def test_pool_based_liquidity_allocation():
-    """Agent should allocate portion of liquidity_pool based on policy."""
-    config = create_config(
-        agent_configs=[
-            {
-                "id": "BANK_A",
-                "liquidity_pool": 2000000,
-                "liquidity_allocation_fraction": 0.5,  # Allocate 50%
-            }
-        ]
-    )
-    orch = Orchestrator.new(config)
 
-    # Agent should start with 50% of pool
-    assert orch.get_agent_balance("BANK_A") == 1000000
+class TestLiquidityPoolConfigParsing:
+    """Tests for parsing liquidity_pool configuration from Python to Rust."""
 
-# TEST 3: Policy-based allocation using DSL
-def test_policy_based_liquidity_allocation():
-    """Allocation should be determined by policy expression."""
-    config = create_config(
-        agent_configs=[
-            {
-                "id": "BANK_A",
-                "liquidity_pool": 2000000,
-                "allocation_policy": {
-                    "type": "expression",
-                    "expr": "0.3 + 0.4 * system_pressure"  # 30-70% based on pressure
+    def test_parse_liquidity_pool_basic(self):
+        """Liquidity pool value should be parsed correctly."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "liquidity_pool": 2_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Verify pool was parsed (via new FFI method)
+        assert orch.get_agent_liquidity_pool("BANK_A") == 2_000_000
+
+    def test_parse_liquidity_allocation_fraction(self):
+        """Allocation fraction should be parsed correctly."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.75
                 }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_liquidity_allocation_fraction("BANK_A") == 0.75
+
+    def test_parse_liquidity_pool_as_integer_cents(self):
+        """Liquidity pool must be integer cents (i64), not float."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "liquidity_pool": 1_500_000}  # $15,000.00
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Should be exact integer, no float conversion
+        pool = orch.get_agent_liquidity_pool("BANK_A")
+        assert pool == 1_500_000
+        assert isinstance(pool, int)
+
+
+class TestLiquidityPoolValidation:
+    """Tests for validation rules on liquidity pool configuration."""
+
+    def test_reject_negative_liquidity_pool(self):
+        """Negative liquidity pool should be rejected."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "liquidity_pool": -1_000_000}
+            ]
+        }
+
+        with pytest.raises(ValueError, match="liquidity_pool.*negative"):
+            Orchestrator.new(config)
+
+    def test_reject_allocation_fraction_below_zero(self):
+        """Allocation fraction < 0 should be rejected."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": -0.1
+                }
+            ]
+        }
+
+        with pytest.raises(ValueError, match="allocation_fraction.*0"):
+            Orchestrator.new(config)
+
+    def test_reject_allocation_fraction_above_one(self):
+        """Allocation fraction > 1.0 should be rejected."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 1.5
+                }
+            ]
+        }
+
+        with pytest.raises(ValueError, match="allocation_fraction.*1"):
+            Orchestrator.new(config)
+
+    def test_allow_allocation_fraction_exactly_zero(self):
+        """Allocation fraction of exactly 0 should be valid (allocate nothing)."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.0
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_balance("BANK_A") == 0
+
+    def test_allow_allocation_fraction_exactly_one(self):
+        """Allocation fraction of exactly 1.0 should be valid (allocate all)."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 1.0
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_balance("BANK_A") == 2_000_000
+
+    def test_liquidity_pool_zero_is_valid(self):
+        """Liquidity pool of 0 should be valid (no external liquidity)."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 0,
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_balance("BANK_A") == 0
+
+    def test_default_allocation_fraction_when_pool_specified(self):
+        """When liquidity_pool specified without fraction, default to 1.0."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "liquidity_pool": 1_000_000}
+                # No liquidity_allocation_fraction specified
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Should allocate full pool by default
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
+
+
+class TestBackwardsCompatibility:
+    """Tests ensuring existing configurations continue to work."""
+
+    def test_opening_balance_only_unchanged(self):
+        """Config with only opening_balance should work as before."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
+        assert orch.get_agent_liquidity_pool("BANK_A") is None
+
+    def test_opening_balance_with_zero_pool(self):
+        """Opening balance with explicit zero pool should use opening_balance."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 500_000,
+                    "liquidity_pool": 0
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Should have opening_balance only (no allocation from empty pool)
+        assert orch.get_agent_balance("BANK_A") == 500_000
+
+    def test_opening_balance_plus_liquidity_pool(self):
+        """Both opening_balance and liquidity_pool should be additive."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 500_000,      # Base balance
+                    "liquidity_pool": 1_000_000,    # Additional pool
+                    "liquidity_allocation_fraction": 0.5  # Allocate 50% of pool
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # balance = opening_balance + (pool * fraction)
+        # balance = 500,000 + (1,000,000 * 0.5) = 1,000,000
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
+
+    def test_existing_simulations_unaffected(self):
+        """Existing config files without liquidity_pool should work unchanged."""
+        # This is a typical existing config
+        config = {
+            "ticks_per_day": 100,
+            "num_days": 1,
+            "seed": 42,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1_000_000, "credit_limit": 500_000},
+                {"id": "BANK_B", "opening_balance": 800_000, "credit_limit": 400_000},
+            ],
+            "cost_rates": {
+                "delay_cost_per_tick_per_cent": 0.001,
+                "overdraft_bps_per_tick": 5,
             }
-        ]
-    )
-    orch = Orchestrator.new(config)
+        }
+        orch = Orchestrator.new(config)
 
-    # Low pressure → allocate ~30%
-    low_pressure_balance = orch.get_agent_balance("BANK_A")
-    assert 500000 <= low_pressure_balance <= 800000
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
+        assert orch.get_agent_balance("BANK_B") == 800_000
+```
 
-# TEST 4: Multi-day allocation changes
-def test_daily_reallocation():
-    """Agent should reallocate liquidity at start of each day."""
-    config = create_config(
-        ticks_per_day=10,
-        num_days=3,
-        agent_configs=[
-            {
-                "id": "BANK_A",
-                "liquidity_pool": 2000000,
-                "liquidity_allocation_fraction": 0.5,
+#### Category 2: Basic Allocation Mechanics
+
+**File:** `api/tests/integration/test_liquidity_allocation_basic.py`
+
+```python
+"""
+Basic liquidity allocation mechanics tests.
+Tests the core allocation logic and balance calculations.
+"""
+
+import pytest
+from payment_simulator.backends.rust import Orchestrator
+
+
+class TestBasicAllocation:
+    """Tests for basic allocation from liquidity pool to balance."""
+
+    def test_full_pool_allocation(self):
+        """Allocating 100% of pool should set balance to pool amount."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 1.0
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_balance("BANK_A") == 2_000_000
+
+    def test_half_pool_allocation(self):
+        """Allocating 50% of pool should set balance to half pool amount."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
+
+    def test_zero_allocation(self):
+        """Allocating 0% should leave balance at zero (or opening_balance)."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.0
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_balance("BANK_A") == 0
+
+    def test_fractional_allocation_rounds_down(self):
+        """Fractional cents should round down (floor) to maintain i64."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_001,  # Odd number
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # 1,000,001 * 0.5 = 500,000.5 → should floor to 500,000
+        assert orch.get_agent_balance("BANK_A") == 500_000
+
+    def test_very_small_fraction_allocation(self):
+        """Very small fraction should allocate small amount."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 10_000_000,  # $100,000
+                    "liquidity_allocation_fraction": 0.001  # 0.1%
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # 10,000,000 * 0.001 = 10,000 cents = $100
+        assert orch.get_agent_balance("BANK_A") == 10_000
+
+    def test_allocation_across_multiple_agents(self):
+        """Each agent should have independent allocation."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.8
+                },
+                {
+                    "id": "BANK_B",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                },
+                {
+                    "id": "BANK_C",
+                    "opening_balance": 500_000  # Traditional config
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_balance("BANK_A") == 1_600_000  # 2M * 0.8
+        assert orch.get_agent_balance("BANK_B") == 500_000   # 1M * 0.5
+        assert orch.get_agent_balance("BANK_C") == 500_000   # Direct balance
+
+
+class TestReservedLiquidity:
+    """Tests for tracking unallocated (reserved) liquidity."""
+
+    def test_reserved_liquidity_calculated(self):
+        """Reserved = pool - allocated."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.6
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Allocated: 2M * 0.6 = 1.2M
+        # Reserved: 2M - 1.2M = 0.8M
+        assert orch.get_agent_reserved_liquidity("BANK_A") == 800_000
+
+    def test_reserved_liquidity_zero_when_full_allocation(self):
+        """Reserved should be 0 when allocating 100%."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 1.0
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_reserved_liquidity("BANK_A") == 0
+
+    def test_reserved_liquidity_full_when_zero_allocation(self):
+        """Reserved should equal pool when allocating 0%."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.0
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_reserved_liquidity("BANK_A") == 2_000_000
+
+    def test_reserved_liquidity_none_without_pool(self):
+        """Reserved liquidity should be None when no pool configured."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        assert orch.get_agent_reserved_liquidity("BANK_A") is None
+
+
+class TestLiquidityCostCalculation:
+    """Tests for opportunity cost of allocated liquidity."""
+
+    def test_liquidity_cost_on_allocated_amount(self):
+        """Cost should be calculated on allocated amount only."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ],
+            "cost_rates": {
+                "liquidity_cost_per_tick_bps": 10  # 0.1% per tick
             }
-        ]
-    )
-    orch = Orchestrator.new(config)
+        }
+        orch = Orchestrator.new(config)
 
-    # Day 0
-    assert orch.get_agent_balance("BANK_A") == 1000000
-
-    # Advance to day 1 (tick 10)
-    for _ in range(10):
+        # Run one tick
         orch.tick()
 
-    # Balance should be reset to allocation
-    # (or carried forward - document expected behavior)
+        # Cost = allocated * rate = 1,000,000 * 0.001 = 1,000 cents
+        metrics = orch.get_metrics()
+        assert metrics["total_liquidity_cost"] == 1_000
+
+    def test_liquidity_cost_accumulates_over_ticks(self):
+        """Cost should accumulate each tick."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 1.0
+                }
+            ],
+            "cost_rates": {
+                "liquidity_cost_per_tick_bps": 10
+            }
+        }
+        orch = Orchestrator.new(config)
+
+        # Run 5 ticks
+        for _ in range(5):
+            orch.tick()
+
+        # Cost = 1,000,000 * 0.001 * 5 = 5,000 cents
+        metrics = orch.get_metrics()
+        assert metrics["total_liquidity_cost"] == 5_000
+
+    def test_no_liquidity_cost_when_no_pool(self):
+        """No liquidity cost when using traditional opening_balance."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1_000_000}
+            ],
+            "cost_rates": {
+                "liquidity_cost_per_tick_bps": 10
+            }
+        }
+        orch = Orchestrator.new(config)
+
+        for _ in range(5):
+            orch.tick()
+
+        metrics = orch.get_metrics()
+        assert metrics.get("total_liquidity_cost", 0) == 0
+
+    def test_liquidity_cost_separate_from_collateral_cost(self):
+        """Liquidity cost and collateral cost should be tracked separately."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 1.0,
+                    "max_collateral_capacity": 500_000
+                }
+            ],
+            "cost_rates": {
+                "liquidity_cost_per_tick_bps": 10,
+                "collateral_cost_per_tick_bps": 20
+            }
+        }
+        orch = Orchestrator.new(config)
+
+        # Post some collateral
+        orch.post_collateral("BANK_A", 200_000)
+
+        for _ in range(5):
+            orch.tick()
+
+        metrics = orch.get_metrics()
+        # Liquidity cost: 1,000,000 * 0.001 * 5 = 5,000
+        # Collateral cost: 200,000 * 0.002 * 5 = 2,000
+        assert metrics["total_liquidity_cost"] == 5_000
+        assert metrics["total_collateral_cost"] == 2_000
 ```
 
-#### Phase 2.2: Events and Replay
+#### Category 3: Multi-Day Behavior
+
+**File:** `api/tests/integration/test_liquidity_allocation_multiday.py`
 
 ```python
-# TEST 5: LiquidityAllocation event generation
-def test_liquidity_allocation_event():
-    """LiquidityAllocation event should be generated at day start."""
-    config = create_config(
-        agent_configs=[
-            {
-                "id": "BANK_A",
-                "liquidity_pool": 2000000,
-                "liquidity_allocation_fraction": 0.5,
-            }
-        ]
-    )
-    orch = Orchestrator.new(config)
+"""
+Multi-day liquidity allocation tests.
+Tests reallocation at day boundaries and balance carryover behavior.
+"""
 
-    events = orch.get_tick_events(0)
-    alloc_events = [e for e in events if e["event_type"] == "LiquidityAllocation"]
+import pytest
+from payment_simulator.backends.rust import Orchestrator
 
-    assert len(alloc_events) == 1
-    assert alloc_events[0]["agent_id"] == "BANK_A"
-    assert alloc_events[0]["liquidity_pool"] == 2000000
-    assert alloc_events[0]["allocated_amount"] == 1000000
-    assert alloc_events[0]["allocation_fraction"] == 0.5
+
+class TestDailyReallocation:
+    """Tests for liquidity reallocation at day boundaries."""
+
+    def test_reallocation_at_day_start(self):
+        """Liquidity should be reallocated at start of each day."""
+        config = {
+            "ticks_per_day": 5,
+            "num_days": 3,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Day 0: Should have initial allocation
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
+
+        # Simulate spending during day 0
+        # (would need transaction to actually change balance)
+
+        # Advance to Day 1 (tick 5)
+        for _ in range(5):
+            orch.tick()
+
+        # Day 1: Should have fresh allocation
+        # Note: behavior depends on design - reset or additive?
+        # This test assumes RESET behavior (BIS model style)
+        day1_balance = orch.get_agent_balance("BANK_A")
+        assert day1_balance == 1_000_000  # Reset to allocation
+
+    def test_allocation_event_each_day(self):
+        """LiquidityAllocation event should be emitted at start of each day."""
+        config = {
+            "ticks_per_day": 3,
+            "num_days": 3,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Run full simulation
+        for _ in range(9):  # 3 days * 3 ticks
+            orch.tick()
+
+        all_events = orch.get_all_events()
+        alloc_events = [e for e in all_events if e["event_type"] == "LiquidityAllocation"]
+
+        # Should have allocation event at tick 0, 3, 6 (start of each day)
+        assert len(alloc_events) == 3
+        assert alloc_events[0]["tick"] == 0
+        assert alloc_events[1]["tick"] == 3
+        assert alloc_events[2]["tick"] == 6
+
+    def test_end_of_day_balance_before_reallocation(self):
+        """Balance at end of day should reflect activity before reallocation."""
+        config = {
+            "ticks_per_day": 3,
+            "num_days": 2,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 1.0
+                },
+                {
+                    "id": "BANK_B",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 1.0
+                }
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "custom_transaction_arrival",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 300_000
+                    },
+                    "schedule": {"tick": 0}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Run through day 0
+        for _ in range(3):
+            orch.tick()
+
+        # At end of day 0, after transaction:
+        # BANK_A: 1,000,000 - 300,000 = 700,000
+        # BANK_B: 1,000,000 + 300,000 = 1,300,000
+
+        # But at start of day 1, should reset:
+        # BANK_A: 1,000,000 (fresh allocation)
+        # BANK_B: 1,000,000 (fresh allocation)
+
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
+        assert orch.get_agent_balance("BANK_B") == 1_000_000
+
+
+class TestCarryoverBehavior:
+    """Tests for different balance carryover modes."""
+
+    def test_reset_mode_clears_balance(self):
+        """In reset mode, balance returns to pool for reallocation."""
+        config = {
+            "ticks_per_day": 3,
+            "num_days": 2,
+            "liquidity_carryover_mode": "reset",  # Explicit reset
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Run day 0
+        for _ in range(3):
+            orch.tick()
+
+        # Day 1 should start fresh
+        assert orch.get_agent_balance("BANK_A") == 500_000
+
+    def test_accumulate_mode_adds_to_balance(self):
+        """In accumulate mode, allocation adds to existing balance."""
+        config = {
+            "ticks_per_day": 3,
+            "num_days": 2,
+            "liquidity_carryover_mode": "accumulate",
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Day 0: balance = 500,000
+        assert orch.get_agent_balance("BANK_A") == 500_000
+
+        # Run day 0
+        for _ in range(3):
+            orch.tick()
+
+        # Day 1: balance = 500,000 (carryover) + 500,000 (new allocation)
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
 ```
+
+#### Category 4: Event Generation and Replay Identity
+
+**File:** `api/tests/integration/test_liquidity_allocation_events.py`
+
+```python
+"""
+Event generation and replay identity tests for liquidity allocation.
+Ensures events contain all required fields for replay.
+"""
+
+import pytest
+from payment_simulator.backends.rust import Orchestrator
+
+
+class TestLiquidityAllocationEvent:
+    """Tests for LiquidityAllocation event structure and content."""
+
+    def test_event_contains_all_required_fields(self):
+        """LiquidityAllocation event must have all fields for replay."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.6
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        events = orch.get_tick_events(0)
+        alloc_events = [e for e in events if e["event_type"] == "LiquidityAllocation"]
+
+        assert len(alloc_events) == 1
+        event = alloc_events[0]
+
+        # All required fields for replay
+        assert event["event_type"] == "LiquidityAllocation"
+        assert event["tick"] == 0
+        assert event["agent_id"] == "BANK_A"
+        assert event["liquidity_pool"] == 2_000_000
+        assert event["allocated_amount"] == 1_200_000
+        assert event["allocation_fraction"] == 0.6
+        assert event["reserved_amount"] == 800_000
+        assert event["balance_before"] == 0
+        assert event["balance_after"] == 1_200_000
+
+    def test_event_for_each_agent_with_pool(self):
+        """Each agent with liquidity_pool should have an event."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                },
+                {
+                    "id": "BANK_B",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.8
+                },
+                {
+                    "id": "BANK_C",
+                    "opening_balance": 500_000  # No pool - no event
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        events = orch.get_tick_events(0)
+        alloc_events = [e for e in events if e["event_type"] == "LiquidityAllocation"]
+
+        # Only BANK_A and BANK_B have pools
+        assert len(alloc_events) == 2
+        agent_ids = {e["agent_id"] for e in alloc_events}
+        assert agent_ids == {"BANK_A", "BANK_B"}
+
+    def test_no_event_when_no_pool(self):
+        """No LiquidityAllocation event for agents without liquidity_pool."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        events = orch.get_tick_events(0)
+        alloc_events = [e for e in events if e["event_type"] == "LiquidityAllocation"]
+
+        assert len(alloc_events) == 0
+
+
+class TestReplayIdentity:
+    """Tests ensuring replay produces identical output."""
+
+    def test_replay_matches_run_output(self, tmp_path):
+        """Replay of persisted simulation should match original run."""
+        db_path = tmp_path / "sim.db"
+
+        config = {
+            "ticks_per_day": 5,
+            "num_days": 2,
+            "seed": 42,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.7
+                },
+                {
+                    "id": "BANK_B",
+                    "liquidity_pool": 800_000,
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+
+        # Run and persist
+        orch = Orchestrator.new(config)
+        run_events = []
+        for _ in range(10):
+            orch.tick()
+            run_events.extend(orch.get_tick_events(orch.current_tick() - 1))
+
+        # Persist to database
+        orch.persist(str(db_path))
+
+        # Replay from database
+        from payment_simulator.cli.commands.replay import replay_simulation
+        replay_events = replay_simulation(str(db_path))
+
+        # Filter to allocation events
+        run_alloc = [e for e in run_events if e["event_type"] == "LiquidityAllocation"]
+        replay_alloc = [e for e in replay_events if e["event_type"] == "LiquidityAllocation"]
+
+        assert len(run_alloc) == len(replay_alloc)
+        for run_e, replay_e in zip(run_alloc, replay_alloc):
+            assert run_e == replay_e
+
+    def test_allocation_events_deterministic_across_runs(self):
+        """Same config should produce identical allocation events."""
+        config = {
+            "ticks_per_day": 5,
+            "seed": 12345,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.6
+                }
+            ]
+        }
+
+        # Run 1
+        orch1 = Orchestrator.new(config)
+        events1 = orch1.get_tick_events(0)
+
+        # Run 2
+        orch2 = Orchestrator.new(config)
+        events2 = orch2.get_tick_events(0)
+
+        alloc1 = [e for e in events1 if e["event_type"] == "LiquidityAllocation"]
+        alloc2 = [e for e in events2 if e["event_type"] == "LiquidityAllocation"]
+
+        assert alloc1 == alloc2
+```
+
+#### Category 5: Policy Context Integration
+
+**File:** `api/tests/integration/test_liquidity_allocation_policy.py`
+
+```python
+"""
+Policy context integration tests for liquidity allocation.
+Tests that policies can access and use liquidity pool information.
+"""
+
+import pytest
+from payment_simulator.backends.rust import Orchestrator
+
+
+class TestPolicyContextFields:
+    """Tests for liquidity-related fields in policy evaluation context."""
+
+    def test_liquidity_pool_in_context(self):
+        """Policy context should include liquidity_pool field."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.5
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "custom_transaction_arrival",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 100_000
+                    },
+                    "schedule": {"tick": 0}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+        orch.tick()
+
+        # Get policy context for BANK_A
+        tx_id = orch.get_agent_queue("BANK_A")[0]
+        context = orch.get_policy_context("BANK_A", tx_id)
+
+        assert context["liquidity_pool"] == 2_000_000
+
+    def test_allocated_liquidity_in_context(self):
+        """Policy context should include allocated_liquidity field."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.6
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "custom_transaction_arrival",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 100_000
+                    },
+                    "schedule": {"tick": 0}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+        orch.tick()
+
+        tx_id = orch.get_agent_queue("BANK_A")[0]
+        context = orch.get_policy_context("BANK_A", tx_id)
+
+        assert context["allocated_liquidity"] == 1_200_000
+
+    def test_reserved_liquidity_in_context(self):
+        """Policy context should include reserved_liquidity field."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 2_000_000,
+                    "liquidity_allocation_fraction": 0.7
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "custom_transaction_arrival",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 100_000
+                    },
+                    "schedule": {"tick": 0}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+        orch.tick()
+
+        tx_id = orch.get_agent_queue("BANK_A")[0]
+        context = orch.get_policy_context("BANK_A", tx_id)
+
+        # Reserved = 2,000,000 - 1,400,000 = 600,000
+        assert context["reserved_liquidity"] == 600_000
+
+    def test_allocation_fraction_in_context(self):
+        """Policy context should include allocation_fraction field."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.65
+                },
+                {"id": "BANK_B", "opening_balance": 500_000}
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "custom_transaction_arrival",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 100_000
+                    },
+                    "schedule": {"tick": 0}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+        orch.tick()
+
+        tx_id = orch.get_agent_queue("BANK_A")[0]
+        context = orch.get_policy_context("BANK_A", tx_id)
+
+        assert context["allocation_fraction"] == 0.65
+
+    def test_context_fields_zero_when_no_pool(self):
+        """Liquidity fields should be 0/None when no pool configured."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1_000_000},
+                {"id": "BANK_B", "opening_balance": 500_000}
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "custom_transaction_arrival",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 100_000
+                    },
+                    "schedule": {"tick": 0}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+        orch.tick()
+
+        tx_id = orch.get_agent_queue("BANK_A")[0]
+        context = orch.get_policy_context("BANK_A", tx_id)
+
+        assert context["liquidity_pool"] == 0
+        assert context["allocated_liquidity"] == 0
+        assert context["reserved_liquidity"] == 0
+
+
+class TestPolicyDecisionsWithLiquidity:
+    """Tests for policies using liquidity information in decisions."""
+
+    def test_policy_can_compare_amount_to_reserved(self):
+        """Policy should be able to compare transaction amount to reserved liquidity."""
+        policy_json = """
+        {
+            "payment_tree": {
+                "type": "condition",
+                "condition": {
+                    "op": "<=",
+                    "left": "amount",
+                    "right": "reserved_liquidity"
+                },
+                "on_true": {"type": "action", "action": "Hold"},
+                "on_false": {"type": "action", "action": "Release"}
+            }
+        }
+        """
+
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.5,
+                    "policy": policy_json
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "custom_transaction_arrival",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 400_000  # Less than reserved (500,000)
+                    },
+                    "schedule": {"tick": 0}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+        orch.tick()
+
+        # Transaction amount (400K) <= reserved (500K) → Hold
+        # Check that transaction is still in queue (not released)
+        queue = orch.get_agent_queue("BANK_A")
+        assert len(queue) == 1  # Transaction held
+
+    def test_policy_liquidity_utilization_ratio(self):
+        """Policy can calculate liquidity utilization ratio."""
+        policy_json = """
+        {
+            "payment_tree": {
+                "type": "condition",
+                "condition": {
+                    "op": ">",
+                    "left": {
+                        "op": "/",
+                        "left": "allocated_liquidity",
+                        "right": "liquidity_pool"
+                    },
+                    "right": 0.8
+                },
+                "on_true": {"type": "action", "action": "Hold"},
+                "on_false": {"type": "action", "action": "Release"}
+            }
+        }
+        """
+
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.9,  # 90% > 80%
+                    "policy": policy_json
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "custom_transaction_arrival",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 100_000
+                    },
+                    "schedule": {"tick": 0}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+        orch.tick()
+
+        # Utilization (0.9) > threshold (0.8) → Hold
+        queue = orch.get_agent_queue("BANK_A")
+        assert len(queue) == 1
+```
+
+#### Category 6: Edge Cases and Error Handling
+
+**File:** `api/tests/integration/test_liquidity_allocation_edge_cases.py`
+
+```python
+"""
+Edge case and error handling tests for liquidity allocation.
+"""
+
+import pytest
+from payment_simulator.backends.rust import Orchestrator
+
+
+class TestEdgeCases:
+    """Tests for edge cases in liquidity allocation."""
+
+    def test_very_large_liquidity_pool(self):
+        """Should handle very large liquidity pool values."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 9_000_000_000_000_000,  # $90 trillion (i64 max is ~9.2e18)
+                    "liquidity_allocation_fraction": 0.5
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        expected = 4_500_000_000_000_000
+        assert orch.get_agent_balance("BANK_A") == expected
+
+    def test_very_small_allocation_fraction(self):
+        """Should handle very small allocation fractions."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000_000,  # $10M
+                    "liquidity_allocation_fraction": 0.000001  # 0.0001%
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # 1,000,000,000 * 0.000001 = 1,000 cents = $10
+        assert orch.get_agent_balance("BANK_A") == 1_000
+
+    def test_allocation_rounds_to_zero_for_tiny_pool(self):
+        """Very small pool with small fraction may round to zero."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 10,  # 10 cents
+                    "liquidity_allocation_fraction": 0.05  # 5%
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # 10 * 0.05 = 0.5 → floors to 0
+        assert orch.get_agent_balance("BANK_A") == 0
+
+    def test_single_cent_allocation(self):
+        """Should correctly allocate a single cent."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 100,
+                    "liquidity_allocation_fraction": 0.01
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # 100 * 0.01 = 1 cent
+        assert orch.get_agent_balance("BANK_A") == 1
+
+    def test_many_agents_with_different_pools(self):
+        """Should handle many agents with varied configurations."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {"id": f"BANK_{i}", "liquidity_pool": (i + 1) * 100_000, "liquidity_allocation_fraction": 0.1 * (i + 1)}
+                for i in range(10)
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        for i in range(10):
+            pool = (i + 1) * 100_000
+            fraction = 0.1 * (i + 1)
+            expected = int(pool * fraction)
+            assert orch.get_agent_balance(f"BANK_{i}") == expected
+
+
+class TestInteractionWithOtherFeatures:
+    """Tests for interaction between liquidity pool and other features."""
+
+    def test_liquidity_pool_with_credit_limit(self):
+        """Liquidity pool and credit limit should be independent."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.5,
+                    "credit_limit": 500_000
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Balance from allocation
+        assert orch.get_agent_balance("BANK_A") == 500_000
+
+        # Credit limit unchanged
+        assert orch.get_agent_credit_limit("BANK_A") == 500_000
+
+        # Available liquidity = balance + credit_limit
+        assert orch.get_agent_available_liquidity("BANK_A") == 1_000_000
+
+    def test_liquidity_pool_with_collateral(self):
+        """Liquidity pool and collateral should work together."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 0.5,
+                    "max_collateral_capacity": 500_000
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Initial balance from allocation
+        assert orch.get_agent_balance("BANK_A") == 500_000
+
+        # Can still post collateral
+        orch.post_collateral("BANK_A", 200_000)
+        assert orch.get_agent_posted_collateral("BANK_A") == 200_000
+
+    def test_liquidity_with_scenario_events(self):
+        """Scenario events should work correctly with liquidity pool."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "liquidity_pool": 1_000_000,
+                    "liquidity_allocation_fraction": 1.0
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ],
+            "scenario_events": [
+                {
+                    "event": {
+                        "type": "direct_transfer",
+                        "from_agent": "BANK_A",
+                        "to_agent": "BANK_B",
+                        "amount": 200_000
+                    },
+                    "schedule": {"tick": 1}
+                }
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Tick 0: allocation
+        assert orch.get_agent_balance("BANK_A") == 1_000_000
+
+        # Tick 1: direct transfer
+        orch.tick()
+        orch.tick()
+
+        assert orch.get_agent_balance("BANK_A") == 800_000
+        assert orch.get_agent_balance("BANK_B") == 1_200_000
+```
+
+---
+
+### Rust Unit Tests
+
+**File:** `backend/tests/liquidity_allocation.rs`
+
+```rust
+//! Unit tests for liquidity pool and allocation feature.
+
+use payment_simulator_core_rs::orchestrator::{AgentConfig, OrchestratorConfig};
+use payment_simulator_core_rs::models::Agent;
+
+mod config_parsing {
+    use super::*;
+
+    #[test]
+    fn test_parse_liquidity_pool() {
+        let config = AgentConfig {
+            id: "BANK_A".to_string(),
+            liquidity_pool: Some(2_000_000),
+            liquidity_allocation_fraction: Some(0.5),
+            ..Default::default()
+        };
+
+        assert_eq!(config.liquidity_pool, Some(2_000_000));
+        assert_eq!(config.liquidity_allocation_fraction, Some(0.5));
+    }
+
+    #[test]
+    fn test_default_allocation_fraction_is_one() {
+        let config = AgentConfig {
+            id: "BANK_A".to_string(),
+            liquidity_pool: Some(1_000_000),
+            liquidity_allocation_fraction: None,
+            ..Default::default()
+        };
+
+        assert_eq!(config.effective_allocation_fraction(), 1.0);
+    }
+}
+
+mod allocation_calculation {
+    use super::*;
+
+    #[test]
+    fn test_calculate_allocated_amount() {
+        let pool = 2_000_000i64;
+        let fraction = 0.6f64;
+
+        let allocated = calculate_allocation(pool, fraction);
+
+        assert_eq!(allocated, 1_200_000);
+    }
+
+    #[test]
+    fn test_calculate_allocation_rounds_down() {
+        let pool = 1_000_001i64;
+        let fraction = 0.5f64;
+
+        let allocated = calculate_allocation(pool, fraction);
+
+        // 1,000,001 * 0.5 = 500,000.5 → floor to 500,000
+        assert_eq!(allocated, 500_000);
+    }
+
+    #[test]
+    fn test_calculate_reserved_amount() {
+        let pool = 2_000_000i64;
+        let allocated = 1_200_000i64;
+
+        let reserved = pool - allocated;
+
+        assert_eq!(reserved, 800_000);
+    }
+
+    fn calculate_allocation(pool: i64, fraction: f64) -> i64 {
+        ((pool as f64) * fraction).floor() as i64
+    }
+}
+
+mod validation {
+    use super::*;
+
+    #[test]
+    fn test_reject_negative_pool() {
+        let result = validate_liquidity_pool(-1_000_000);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reject_fraction_below_zero() {
+        let result = validate_allocation_fraction(-0.1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reject_fraction_above_one() {
+        let result = validate_allocation_fraction(1.5);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_accept_fraction_exactly_zero() {
+        let result = validate_allocation_fraction(0.0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_accept_fraction_exactly_one() {
+        let result = validate_allocation_fraction(1.0);
+        assert!(result.is_ok());
+    }
+
+    fn validate_liquidity_pool(pool: i64) -> Result<(), String> {
+        if pool < 0 {
+            Err("liquidity_pool cannot be negative".to_string())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn validate_allocation_fraction(fraction: f64) -> Result<(), String> {
+        if fraction < 0.0 || fraction > 1.0 {
+            Err("allocation_fraction must be between 0 and 1".to_string())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+mod event_generation {
+    use super::*;
+    use payment_simulator_core_rs::models::Event;
+
+    #[test]
+    fn test_liquidity_allocation_event_fields() {
+        let event = Event::LiquidityAllocation {
+            tick: 0,
+            agent_id: "BANK_A".to_string(),
+            liquidity_pool: 2_000_000,
+            allocated_amount: 1_200_000,
+            allocation_fraction: 0.6,
+            reserved_amount: 800_000,
+            balance_before: 0,
+            balance_after: 1_200_000,
+        };
+
+        match event {
+            Event::LiquidityAllocation {
+                tick,
+                agent_id,
+                liquidity_pool,
+                allocated_amount,
+                allocation_fraction,
+                reserved_amount,
+                balance_before,
+                balance_after,
+            } => {
+                assert_eq!(tick, 0);
+                assert_eq!(agent_id, "BANK_A");
+                assert_eq!(liquidity_pool, 2_000_000);
+                assert_eq!(allocated_amount, 1_200_000);
+                assert!((allocation_fraction - 0.6).abs() < f64::EPSILON);
+                assert_eq!(reserved_amount, 800_000);
+                assert_eq!(balance_before, 0);
+                assert_eq!(balance_after, 1_200_000);
+            }
+            _ => panic!("Wrong event type"),
+        }
+    }
+}
+
+mod policy_context {
+    use super::*;
+
+    #[test]
+    fn test_liquidity_fields_in_context() {
+        let mut agent = Agent::new("BANK_A".to_string(), 1_200_000);
+        agent.set_liquidity_pool(2_000_000);
+        agent.set_allocated_liquidity(1_200_000);
+
+        assert_eq!(agent.liquidity_pool(), Some(2_000_000));
+        assert_eq!(agent.allocated_liquidity(), Some(1_200_000));
+        assert_eq!(agent.reserved_liquidity(), Some(800_000));
+    }
+
+    #[test]
+    fn test_liquidity_fields_none_without_pool() {
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
+
+        assert_eq!(agent.liquidity_pool(), None);
+        assert_eq!(agent.allocated_liquidity(), None);
+        assert_eq!(agent.reserved_liquidity(), None);
+    }
+}
+```
+
+---
 
 ### Implementation Steps
 
-1. **Event Definition** (`backend/src/models/event.rs`)
-   ```rust
-   Event::LiquidityAllocation {
-       tick: usize,
-       agent_id: String,
-       liquidity_pool: i64,
-       allocated_amount: i64,
-       allocation_fraction: f64,
-       reserved_amount: i64,  // pool - allocated
-   }
-   ```
+#### Step 1: Define Types and Validation
 
-2. **Agent Config Extension** (`backend/src/orchestrator/engine.rs`)
-   - Add `liquidity_pool: Option<i64>` to `AgentConfig`
-   - Add `liquidity_allocation_fraction: Option<f64>` to `AgentConfig`
+**File:** `backend/src/orchestrator/engine.rs`
 
-3. **Day-Start Hook** (`backend/src/orchestrator/engine.rs`)
-   - Add `allocate_liquidity()` method called at day start
-   - Evaluate allocation policy for each agent
-   - Set agent balance and emit event
+```rust
+/// Liquidity pool configuration for an agent
+#[derive(Debug, Clone, Default)]
+pub struct LiquidityPoolConfig {
+    /// Total external liquidity available to the agent
+    pub pool: i64,
+    /// Fraction of pool to allocate (0.0 to 1.0)
+    pub allocation_fraction: f64,
+}
 
-4. **FFI** (`backend/src/ffi/types.rs`)
-   - Parse new config fields
-   - Serialize `LiquidityAllocation` event
+impl LiquidityPoolConfig {
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.pool < 0 {
+            return Err(ConfigError::InvalidValue(
+                "liquidity_pool cannot be negative".to_string()
+            ));
+        }
+        if self.allocation_fraction < 0.0 || self.allocation_fraction > 1.0 {
+            return Err(ConfigError::InvalidValue(
+                "liquidity_allocation_fraction must be between 0 and 1".to_string()
+            ));
+        }
+        Ok(())
+    }
 
-5. **Display** (`api/payment_simulator/cli/execution/display.py`)
-   - Add `log_liquidity_allocation()` function
+    pub fn calculate_allocation(&self) -> i64 {
+        ((self.pool as f64) * self.allocation_fraction).floor() as i64
+    }
+
+    pub fn calculate_reserved(&self) -> i64 {
+        self.pool - self.calculate_allocation()
+    }
+}
+```
+
+#### Step 2: Extend Agent Model
+
+**File:** `backend/src/models/agent.rs`
+
+Add fields:
+```rust
+pub struct Agent {
+    // ... existing fields ...
+
+    /// External liquidity pool (None if not configured)
+    liquidity_pool: Option<i64>,
+    /// Amount allocated from pool to balance
+    allocated_liquidity: Option<i64>,
+}
+```
+
+#### Step 3: Define Event
+
+**File:** `backend/src/models/event.rs`
+
+```rust
+Event::LiquidityAllocation {
+    tick: usize,
+    agent_id: String,
+    liquidity_pool: i64,
+    allocated_amount: i64,
+    allocation_fraction: f64,
+    reserved_amount: i64,
+    balance_before: i64,
+    balance_after: i64,
+}
+```
+
+#### Step 4: Implement Day-Start Allocation
+
+**File:** `backend/src/orchestrator/engine.rs`
+
+Add new step at tick 0 (and start of each day):
+```rust
+fn allocate_liquidity_at_day_start(&mut self) -> Vec<Event> {
+    let mut events = Vec::new();
+
+    for agent_id in self.agent_ids() {
+        if let Some(pool_config) = self.get_liquidity_pool_config(&agent_id) {
+            let balance_before = self.get_agent_balance(&agent_id);
+            let allocated = pool_config.calculate_allocation();
+            let reserved = pool_config.calculate_reserved();
+
+            // Update agent balance
+            self.set_agent_balance(&agent_id, balance_before + allocated);
+
+            // Record allocation
+            self.set_agent_allocated_liquidity(&agent_id, allocated);
+
+            events.push(Event::LiquidityAllocation {
+                tick: self.current_tick,
+                agent_id: agent_id.clone(),
+                liquidity_pool: pool_config.pool,
+                allocated_amount: allocated,
+                allocation_fraction: pool_config.allocation_fraction,
+                reserved_amount: reserved,
+                balance_before,
+                balance_after: balance_before + allocated,
+            });
+        }
+    }
+
+    events
+}
+```
+
+#### Step 5: FFI Serialization
+
+**File:** `backend/src/ffi/types.rs`
+
+Parse config and serialize event.
+
+#### Step 6: Policy Context Fields
+
+**File:** `backend/src/policy/tree/context.rs`
+
+```rust
+// In EvalContext::build()
+fields.insert("liquidity_pool".to_string(),
+    agent.liquidity_pool().unwrap_or(0) as f64);
+fields.insert("allocated_liquidity".to_string(),
+    agent.allocated_liquidity().unwrap_or(0) as f64);
+fields.insert("reserved_liquidity".to_string(),
+    agent.reserved_liquidity().unwrap_or(0) as f64);
+fields.insert("allocation_fraction".to_string(),
+    agent.allocation_fraction().unwrap_or(0.0));
+```
+
+#### Step 7: Display Function
+
+**File:** `api/payment_simulator/cli/execution/display.py`
+
+```python
+def log_liquidity_allocation(event: dict):
+    """Display LiquidityAllocation event."""
+    console.print(f"[blue]💰 Liquidity Allocation:[/blue] {event['agent_id']}")
+    console.print(f"  Pool: ${event['liquidity_pool']/100:,.2f}")
+    console.print(f"  Allocated: ${event['allocated_amount']/100:,.2f} ({event['allocation_fraction']*100:.1f}%)")
+    console.print(f"  Reserved: ${event['reserved_amount']/100:,.2f}")
+    console.print(f"  Balance: ${event['balance_before']/100:,.2f} → ${event['balance_after']/100:,.2f}")
+```
+
+#### Step 8: Documentation
+
+Update `docs/policy_dsl_guide.md` with new fields:
+- `liquidity_pool`
+- `allocated_liquidity`
+- `reserved_liquidity`
+- `allocation_fraction`
 
 ---
 
