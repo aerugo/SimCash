@@ -78,11 +78,11 @@ The Rust core backend is **complete and battle-tested**:
   - ✅ 60 TARGET2 alignment tests (all passing)
 
 **Next Steps** (8-12 weeks):
-1. ❌ Phase 11: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
-2. ❌ Phase 12: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
-3. ❌ Phase 13: Enhanced shock scenarios (outages, liquidity squeezes, counterparty stress) (1 week)
-4. ❌ Phase 16: Production readiness (WebSocket streaming, frontend, observability) (3 weeks)
-5. ❌ Phase 17: BIS AI Cash Management compatibility (priority-based delay costs, liquidity allocation, per-band arrivals) (2 weeks)
+1. ❌ Phase 17: BIS AI Cash Management compatibility (priority-based delay costs, liquidity allocation, per-band arrivals) (2 weeks) ← **NEXT**
+2. ❌ Phase 11: LLM Manager Integration with shadow replay and policy evolution (3 weeks)
+3. ❌ Phase 12: Multi-rail support (RTGS + DNS, cross-border corridors) (2 weeks)
+4. ❌ Phase 13: Enhanced shock scenarios (outages, liquidity squeezes, counterparty stress) (1 week)
+5. ❌ Phase 16: Production readiness (WebSocket streaming, frontend, observability) (3 weeks)
 
 ---
 
@@ -1524,7 +1524,13 @@ This is **not optional** - persistence is required for research reproducibility 
 
 **Estimated Effort**: 8-12 days (as detailed in `persistence_implementation_plan.md`)
 
-### 4.6 Phase 11: LLM Manager Integration (Weeks 8-10) ❌ **NOT STARTED**
+---
+
+> **Execution Order Note**: Phase 17 (BIS AI Cash Management, section 4.6 below) is the **immediate next priority**. Sections 4.7-4.10 follow after Phase 17 completion.
+
+---
+
+### 4.7 Phase 11: LLM Manager Integration (Weeks 10-12) ❌ **NOT STARTED**
 
 **Goal**: Asynchronous policy evolution via LLM
 
@@ -1634,7 +1640,7 @@ This is **not optional** - persistence is required for research reproducibility 
 
 **Estimated Effort**: 3 weeks
 
-### 4.7 Phase 12: Multi-Rail & Cross-Border (Weeks 11-12) ❌ **NOT STARTED**
+### 4.8 Phase 12: Multi-Rail & Cross-Border (Weeks 13-14) ❌ **NOT STARTED**
 
 **Status**: 0% complete - All work is future
 
@@ -1705,7 +1711,7 @@ This is **not optional** - persistence is required for research reproducibility 
 
 **Estimated Effort**: 2 weeks (as originally planned)
 
-### 4.8 Phase 13: Shock Scenarios & Resilience (Week 13) ❌ **NOT STARTED**
+### 4.9 Phase 13: Shock Scenarios & Resilience (Week 15) ❌ **NOT STARTED**
 
 **Goal**: Test system under stress conditions
 
@@ -1753,7 +1759,7 @@ This is **not optional** - persistence is required for research reproducibility 
 
 **Estimated Effort**: 1 week
 
-### 4.9 Phase 17: BIS AI Cash Management Compatibility (Weeks 14-15) ❌ **NOT STARTED**
+### 4.6 Phase 17: BIS AI Cash Management Compatibility (Weeks 8-9) ❌ **NOT STARTED** ← **NEXT**
 
 **Goal**: Enable SimCash to run experiments matching BIS Working Paper 1310 ("AI agents for cash management in payment systems") by adding priority-differentiated delay costs, explicit liquidity allocation decisions, and per-band arrival functions.
 
