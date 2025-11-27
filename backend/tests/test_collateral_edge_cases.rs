@@ -70,6 +70,7 @@ fn create_test_config_with_haircut(
             deadline_penalty: 50_000,
             split_friction_cost: 100,
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
+            priority_delay_multipliers: None, // Enhancement 11.1
         },
         lsm_config: LsmConfig::default(),
             scenario_events: None,

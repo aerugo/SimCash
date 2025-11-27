@@ -698,6 +698,7 @@ fn create_basic_config() -> OrchestratorConfig {
             deadline_penalty: 5000,             // $50 per missed deadline
             split_friction_cost: 0,             // Default to 0, tests override
             overdue_delay_multiplier: 5.0,      // Phase 3: Escalating delay cost for overdue
+            priority_delay_multipliers: None,   // Enhancement 11.1
         },
         lsm_config: LsmConfig {
             enable_bilateral: false, // Disable LSM for simpler tests

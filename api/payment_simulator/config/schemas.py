@@ -383,6 +383,26 @@ class AgentConfig(BaseModel):
 # Cost Rates Configuration
 # ============================================================================
 
+class PriorityDelayMultipliers(BaseModel):
+    """Priority-based delay cost multipliers (Enhancement 11.1).
+
+    Allows differentiated delay costs by transaction priority band:
+    - Urgent (priority 8-10): Higher delay costs
+    - Normal (priority 4-7): Base delay costs
+    - Low (priority 0-3): Lower delay costs
+    """
+
+    urgent_multiplier: float = Field(
+        1.0, description="Delay cost multiplier for urgent priority (8-10)", ge=0
+    )
+    normal_multiplier: float = Field(
+        1.0, description="Delay cost multiplier for normal priority (4-7)", ge=0
+    )
+    low_multiplier: float = Field(
+        1.0, description="Delay cost multiplier for low priority (0-3)", ge=0
+    )
+
+
 class CostRates(BaseModel):
     """Cost calculation rates."""
 
@@ -403,6 +423,12 @@ class CostRates(BaseModel):
     )
     split_friction_cost: int = Field(
         1000, description="Friction cost per split (cents)", ge=0
+    )
+    overdue_delay_multiplier: float = Field(
+        5.0, description="Multiplier for delay cost when transaction is overdue", ge=0
+    )
+    priority_delay_multipliers: Optional[PriorityDelayMultipliers] = Field(
+        None, description="Priority-based delay cost multipliers (Enhancement 11.1)"
     )
 
 

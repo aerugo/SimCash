@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
 use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
-use crate::orchestrator::{AgentConfig, AgentLimitsConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, TickResult};
+use crate::orchestrator::{AgentConfig, AgentLimitsConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityDelayMultipliers, PriorityEscalationConfig, Queue1Ordering, TickResult};
 use crate::settlement::lsm::LsmConfig;
 
 // ========================================================================
@@ -711,6 +711,41 @@ fn parse_cost_rates(py_costs: &Bound<'_, PyDict>) -> PyResult<CostRates> {
             .map(|v| v.extract())
             .transpose()?
             .unwrap_or(5.0), // Default: 5x penalty for overdue transactions
+
+        // Enhancement 11.1: Priority-based delay cost multipliers
+        priority_delay_multipliers: if let Some(py_priority) =
+            py_costs.get_item("priority_delay_multipliers")?
+        {
+            let priority_dict: Bound<'_, PyDict> = py_priority.downcast_into()?;
+            Some(parse_priority_delay_multipliers(&priority_dict)?)
+        } else {
+            None // Default: no priority differentiation
+        },
+    })
+}
+
+/// Convert Python dict to PriorityDelayMultipliers (Enhancement 11.1)
+fn parse_priority_delay_multipliers(
+    py_priority: &Bound<'_, PyDict>,
+) -> PyResult<PriorityDelayMultipliers> {
+    Ok(PriorityDelayMultipliers {
+        urgent_multiplier: py_priority
+            .get_item("urgent_multiplier")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or(1.0), // Default: no adjustment
+
+        normal_multiplier: py_priority
+            .get_item("normal_multiplier")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or(1.0), // Default: no adjustment
+
+        low_multiplier: py_priority
+            .get_item("low_multiplier")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or(1.0), // Default: no adjustment
     })
 }
 

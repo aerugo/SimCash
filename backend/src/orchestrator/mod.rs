@@ -14,6 +14,8 @@ mod tests;
 pub use engine::{
     AgentConfig, AgentLimitsConfig, CostAccumulator, CostBreakdown, CostRates, DailyMetrics, Orchestrator,
     OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, SimulationError, TickResult,
+    // BIS model support (Enhancement 11.1)
+    PriorityBand, PriorityDelayMultipliers, get_priority_band,
 };
 
 // Re-export checkpoint types

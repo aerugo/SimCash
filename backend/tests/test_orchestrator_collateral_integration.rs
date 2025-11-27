@@ -68,6 +68,7 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
             deadline_penalty: 5000,
             split_friction_cost: 1000,
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
+            priority_delay_multipliers: None, // Enhancement 11.1
         },
         lsm_config: LsmConfig::default(),
             scenario_events: None,
