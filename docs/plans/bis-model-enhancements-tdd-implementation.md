@@ -124,6 +124,365 @@ Event::NewEventType { tick, field1, field2, ... }
 
 ---
 
+## TDD Implementation Procedure
+
+This section defines the strict TDD workflow for implementing all enhancements. Every feature MUST follow this procedure to ensure correctness, maintainability, and comprehensive coverage.
+
+### Core Principles
+
+#### 1. Red-Green-Refactor Cycle
+
+Every implementation follows the strict Red-Green-Refactor cycle:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        TDD CYCLE                                  │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│   ┌─────────┐                                                     │
+│   │  RED    │  Write a failing test FIRST                         │
+│   │         │  - Test must fail for the RIGHT reason              │
+│   │         │  - Test must be specific and focused                │
+│   └────┬────┘                                                     │
+│        │                                                          │
+│        ▼                                                          │
+│   ┌─────────┐                                                     │
+│   │  GREEN  │  Write MINIMAL code to make test pass               │
+│   │         │  - No extra features                                │
+│   │         │  - No "while I'm here" additions                    │
+│   └────┬────┘                                                     │
+│        │                                                          │
+│        ▼                                                          │
+│   ┌─────────┐                                                     │
+│   │REFACTOR │  Clean up while keeping tests green                 │
+│   │         │  - Improve names, reduce duplication                │
+│   │         │  - Run ALL tests after refactoring                  │
+│   └────┬────┘                                                     │
+│        │                                                          │
+│        └──────────────────────► Repeat                            │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Rules:**
+- NEVER write implementation code before the test
+- NEVER write more than one failing test at a time
+- NEVER commit with failing tests
+- ALWAYS run the full test suite after each Green phase
+
+#### 2. Test-First Workflow
+
+For each feature increment:
+
+```bash
+# Step 1: Write failing test
+cd api
+.venv/bin/python -m pytest tests/integration/test_new_feature.py::test_specific_case -v
+# Expected: FAIL (test not found or assertion fails)
+
+# Step 2: Implement MINIMAL code
+cd ../backend
+# Edit Rust code...
+cargo test --no-default-features  # Rust unit tests
+
+# Step 3: Rebuild and verify
+cd ../api
+uv sync --extra dev --reinstall-package payment-simulator
+.venv/bin/python -m pytest tests/integration/test_new_feature.py::test_specific_case -v
+# Expected: PASS
+
+# Step 4: Run full suite
+.venv/bin/python -m pytest
+# Expected: ALL PASS
+```
+
+### Test Categories and Coverage Requirements
+
+Each enhancement MUST have tests in ALL of the following categories:
+
+#### Category 1: Configuration Parsing Tests
+
+**Purpose:** Verify that configuration is correctly parsed and validated.
+
+**Location:** `api/tests/integration/test_<feature>_config.py`
+
+**Required Scenarios:**
+
+| Scenario | Description | Example |
+|----------|-------------|---------|
+| Valid minimal | Simplest valid config | Only required fields |
+| Valid complete | All fields specified | All optional fields included |
+| Valid defaults | Defaults applied correctly | Omit optional fields, verify defaults |
+| Invalid type | Wrong type for field | String where int expected |
+| Invalid range | Out-of-bounds value | Negative amount, priority > 10 |
+| Invalid structure | Malformed structure | Missing required nested field |
+| Backwards compatible | Old config still works | Config without new fields |
+
+```python
+# Example test structure
+class TestFeatureConfigParsing:
+    def test_valid_minimal_config(self):
+        """Feature works with only required fields."""
+
+    def test_valid_complete_config(self):
+        """Feature works with all fields specified."""
+
+    def test_defaults_applied_when_omitted(self):
+        """Default values are correctly applied."""
+
+    def test_invalid_type_raises_error(self):
+        """Appropriate error for wrong type."""
+
+    def test_invalid_range_raises_error(self):
+        """Appropriate error for out-of-range values."""
+
+    def test_backwards_compatible_with_old_config(self):
+        """Existing configs without new fields still work."""
+```
+
+#### Category 2: Core Logic Tests (Rust)
+
+**Purpose:** Verify the core algorithm/logic is correct.
+
+**Location:** `backend/tests/<feature>_tests.rs`
+
+**Required Scenarios:**
+
+| Scenario | Description | Example |
+|----------|-------------|---------|
+| Happy path | Normal successful operation | Standard calculation |
+| Boundary values | Edge of valid ranges | Priority 0, 7, 8, 10 |
+| Zero values | Zero amounts/rates | Amount = 0, rate = 0 |
+| Maximum values | Large but valid values | i64::MAX / 1000 |
+| Precision | Integer arithmetic correctness | No floating point errors |
+| Determinism | Same seed = same result | Run 10x with same seed |
+
+```rust
+// Example test structure
+#[cfg(test)]
+mod feature_tests {
+    #[test]
+    fn test_happy_path_calculation() { }
+
+    #[test]
+    fn test_boundary_value_low() { }
+
+    #[test]
+    fn test_boundary_value_high() { }
+
+    #[test]
+    fn test_zero_amount_handled() { }
+
+    #[test]
+    fn test_large_values_no_overflow() { }
+
+    #[test]
+    fn test_integer_precision_maintained() { }
+
+    #[test]
+    fn test_determinism_with_seed() { }
+}
+```
+
+#### Category 3: Integration Tests (Python)
+
+**Purpose:** Verify end-to-end behavior through FFI.
+
+**Location:** `api/tests/integration/test_<feature>.py`
+
+**Required Scenarios:**
+
+| Scenario | Description | Example |
+|----------|-------------|---------|
+| Single tick | Feature works in isolation | One transaction, one tick |
+| Multi-tick | Feature works over time | 100 ticks, accumulating effects |
+| Multi-agent | Feature works with many agents | 5+ agents interacting |
+| High volume | Feature handles load | 1000+ transactions |
+| Combined features | Interacts with existing features | LSM + new feature together |
+| Policy integration | Works with policy trees | Policy references new fields |
+
+```python
+# Example test structure
+class TestFeatureIntegration:
+    def test_single_tick_behavior(self):
+        """Feature operates correctly in one tick."""
+
+    def test_multi_tick_accumulation(self):
+        """Feature effects accumulate correctly over time."""
+
+    def test_multi_agent_interaction(self):
+        """Feature works correctly with multiple agents."""
+
+    def test_high_volume_transactions(self):
+        """Feature handles high transaction volume."""
+
+    def test_combined_with_lsm(self):
+        """Feature interacts correctly with LSM."""
+
+    def test_policy_tree_integration(self):
+        """Policy trees can reference new feature fields."""
+```
+
+#### Category 4: Replay Identity Tests
+
+**Purpose:** Verify run output matches replay output exactly.
+
+**Location:** `api/tests/integration/test_replay_identity_<feature>.py`
+
+**Required Scenarios:**
+
+| Scenario | Description | Example |
+|----------|-------------|---------|
+| Event fields complete | All fields present in event | No missing data |
+| Event round-trips | DB → Python identical | Serialize/deserialize match |
+| Verbose output identical | run --verbose == replay --verbose | Byte-for-byte output |
+| Event ordering | Events in correct order | Timestamp/tick ordering |
+
+```python
+# Example test structure
+class TestFeatureReplayIdentity:
+    def test_event_has_all_required_fields(self):
+        """Event contains all fields needed for replay."""
+        events = orch.get_tick_events(tick)
+        event = [e for e in events if e['event_type'] == 'new_event'][0]
+        assert 'field1' in event
+        assert 'field2' in event
+        # ... all fields
+
+    def test_event_round_trip_through_database(self):
+        """Event survives persistence and retrieval."""
+
+    def test_verbose_output_matches_replay(self):
+        """Run verbose output matches replay verbose output."""
+```
+
+#### Category 5: Edge Cases and Error Handling
+
+**Purpose:** Verify robust behavior in unusual situations.
+
+**Location:** Distributed across test files as `test_edge_*` or `test_error_*`
+
+**Required Scenarios:**
+
+| Scenario | Description | Example |
+|----------|-------------|---------|
+| Empty state | No transactions/agents | Empty queue processing |
+| Single element | Minimum non-empty | One agent, one transaction |
+| All same priority | No differentiation needed | All priority 5 |
+| All different priority | Maximum differentiation | 0, 1, 2, ... 10 |
+| Rapid changes | State changes every tick | Priority changes mid-simulation |
+| Recovery | System recovers from issues | After failed settlement attempt |
+
+### Test Naming Convention
+
+All tests MUST follow this naming pattern:
+
+```
+test_<what>_<condition>_<expected>
+```
+
+**Examples:**
+- `test_delay_cost_with_urgent_priority_returns_multiplied_amount`
+- `test_config_parsing_with_missing_field_raises_validation_error`
+- `test_arrival_generation_with_zero_rate_produces_no_arrivals`
+- `test_replay_output_with_new_event_matches_run_output`
+
+### Scenario Variety Matrix
+
+For each enhancement, create a test matrix covering combinations:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       SCENARIO VARIETY MATRIX                                │
+├─────────────┬──────────────┬──────────────┬──────────────┬──────────────────┤
+│ Dimension   │ Value 1      │ Value 2      │ Value 3      │ Value 4          │
+├─────────────┼──────────────┼──────────────┼──────────────┼──────────────────┤
+│ Agents      │ 1            │ 2            │ 5            │ 20               │
+│ Ticks       │ 1            │ 10           │ 100          │ 1000             │
+│ Transactions│ 0            │ 1            │ 10           │ 100              │
+│ Priority    │ All low (0-3)│ All mid (4-7)│ All high(8-10)│ Mixed           │
+│ Liquidity   │ Zero         │ Scarce       │ Ample        │ Unlimited        │
+│ Config      │ Minimal      │ Typical      │ Complex      │ BIS scenario     │
+└─────────────┴──────────────┴──────────────┴──────────────┴──────────────────┘
+```
+
+Not all combinations are needed, but ensure coverage of:
+- All single-column values (minimum)
+- Key diagonal combinations (typical usage)
+- Stress combinations (high values across multiple dimensions)
+
+### BIS Scenario Coverage
+
+Each enhancement MUST include tests for the relevant BIS scenario:
+
+| Enhancement | Primary BIS Scenario | Test Requirement |
+|-------------|---------------------|------------------|
+| 1: Priority Delay Costs | Scenario 1 (Precautionary) | Verify urgent/normal cost difference affects decisions |
+| 2: Liquidity Allocation | Scenario 3 (Trade-off) | Verify allocation decision at day start |
+| 3: Per-Band Arrivals | All scenarios | Verify rare-large-urgent vs common-small-normal |
+
+### Test Execution Checklist
+
+Before marking any implementation step complete:
+
+```
+□ Rust unit tests pass: cargo test --no-default-features
+□ Python integration tests pass: pytest tests/integration/
+□ Replay identity verified: diff run.txt replay.txt
+□ Full test suite green: pytest
+□ No new warnings introduced
+□ Test coverage maintained/improved
+□ BIS scenario test included
+```
+
+### Debugging Failed Tests
+
+When a test fails:
+
+1. **Read the failure message carefully** - Often indicates exact issue
+2. **Check determinism first** - Run test with explicit seed, run 3x
+3. **Isolate the failure** - Run just that one test in verbose mode
+4. **Add debug output** - Temporary prints/logs to trace execution
+5. **Check FFI boundary** - Verify data crosses correctly
+6. **Check replay** - Compare run vs replay for differences
+
+```bash
+# Isolate failing test
+.venv/bin/python -m pytest tests/integration/test_feature.py::test_specific -v -s
+
+# Run with specific seed
+SIMCASH_SEED=12345 .venv/bin/python -m pytest tests/integration/test_feature.py::test_specific -v
+
+# Compare run vs replay
+payment-sim run --config test.yaml --persist out.db --verbose > run.txt
+payment-sim replay out.db --verbose > replay.txt
+diff run.txt replay.txt
+```
+
+### Test Organization
+
+```
+api/tests/
+├── integration/
+│   ├── test_priority_delay_costs.py         # Enhancement 1
+│   ├── test_priority_delay_costs_config.py  # Enhancement 1 config
+│   ├── test_liquidity_allocation.py         # Enhancement 2
+│   ├── test_liquidity_allocation_config.py  # Enhancement 2 config
+│   ├── test_per_band_arrivals.py            # Enhancement 3
+│   ├── test_per_band_arrivals_config.py     # Enhancement 3 config
+│   ├── test_replay_identity_priority_costs.py    # Enhancement 1 replay
+│   ├── test_replay_identity_liquidity.py         # Enhancement 2 replay
+│   ├── test_replay_identity_per_band.py          # Enhancement 3 replay
+│   └── test_bis_scenarios.py                # All BIS scenarios
+│
+backend/tests/
+├── priority_delay_costs_tests.rs    # Enhancement 1 Rust
+├── liquidity_allocation_tests.rs    # Enhancement 2 Rust
+└── per_band_arrivals_tests.rs       # Enhancement 3 Rust
+```
+
+---
+
 ## Enhancement 1: Priority-Based Delay Cost Multipliers
 
 ### Purpose
