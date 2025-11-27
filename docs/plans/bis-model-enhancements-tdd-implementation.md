@@ -16,6 +16,7 @@ This document provides **detailed TDD implementation plans** for enhancing SimCa
 |---|-------------|-------------------------|--------|
 | 1 | Priority-Based Delay Cost Multipliers | `overdue_delay_multiplier` (different purpose) | **New Feature** |
 | 2 | Liquidity Pool and Allocation | None | **New Feature** |
+| 3 | Per-Band Arrival Functions | Single `arrival_config` with `priority_distribution` | **Enhancement** |
 
 ---
 
@@ -47,6 +48,39 @@ The BIS model requires different delay costs based on priority (urgent=1.5%, nor
 The BIS model has agents decide how much of available liquidity to bring into the payment system (Period 0 decision). SimCash has fixed `opening_balance` per agent with no decision-making component.
 
 **Verdict:** ✅ **New Feature Required**
+
+### 3. Per-Band Arrival Functions
+
+**Searched:** `arrival_config`, `priority_distribution`, `ArrivalConfig`
+
+**Existing Features Found:**
+- `ArrivalConfig`: Per-agent arrival configuration with single `rate_per_tick`
+- `priority_distribution`: Assigns priority to generated arrivals, but all arrivals share the same `amount_distribution`
+- `counterparty_weights`: Controls receiver selection
+
+**Current Configuration:**
+```yaml
+arrival_config:
+  rate_per_tick: 5.0              # Total arrival rate
+  amount_distribution:            # Same for ALL priorities
+    type: log_normal
+    mean: 50000
+  priority_distribution:          # Assigns priority per arrival
+    type: discrete
+    values:
+      - value: 10  # Urgent
+        weight: 0.1
+      - value: 5   # Normal
+        weight: 0.9
+```
+
+**Gap Analysis:**
+The BIS model implies urgent payments are rare AND large, while normal payments are common AND smaller. Current SimCash can make urgent payments rare (via `priority_distribution` weights) but cannot give them different amount distributions. Real-world payment systems have distinct characteristics per urgency band:
+- **Urgent/critical** (CLS, margin calls): Rare but large
+- **Normal**: Common, varied sizes
+- **Low priority** (batch): Numerous, small
+
+**Verdict:** ✅ **Enhancement Required** - Add per-band arrival configurations
 
 ---
 
@@ -2047,6 +2081,676 @@ Update `docs/policy_dsl_guide.md` with new fields:
 
 ---
 
+## Enhancement 3: Per-Band Arrival Functions
+
+### Purpose
+
+Enable different arrival characteristics (rate, amount distribution, deadline) for each priority band, allowing realistic modeling where urgent payments are rare but large, and normal payments are common but smaller.
+
+### Design
+
+**Replace single `arrival_config` with per-band configurations:**
+
+```yaml
+agent_configs:
+  - id: BANK_A
+    # NEW: Per-band arrival functions
+    arrival_bands:
+      urgent:                         # Priority 8-10
+        rate_per_tick: 0.1            # Rare (~1 per 10 ticks)
+        amount_distribution:
+          type: log_normal
+          mean: 1_000_000             # Large ($10k average)
+          std: 500_000
+        deadline_offset:
+          min_ticks: 2                # Tight deadlines
+          max_ticks: 5
+
+      normal:                         # Priority 4-7
+        rate_per_tick: 3.0            # Common (~3 per tick)
+        amount_distribution:
+          type: log_normal
+          mean: 50_000                # Medium ($500 average)
+          std: 30_000
+        deadline_offset:
+          min_ticks: 10
+          max_ticks: 50
+
+      low:                            # Priority 0-3
+        rate_per_tick: 5.0            # Frequent (~5 per tick)
+        amount_distribution:
+          type: log_normal
+          mean: 10_000                # Small ($100 average)
+          std: 8_000
+        deadline_offset:
+          min_ticks: 50
+          max_ticks: 100
+```
+
+**Backwards Compatibility:**
+
+Existing `arrival_config` continues to work unchanged. New `arrival_bands` is an alternative configuration style.
+
+```yaml
+# OLD (still supported): Single config, priority assigned via distribution
+arrival_config:
+  rate_per_tick: 5.0
+  priority_distribution: {...}
+
+# NEW: Per-band configs with implicit priority assignment
+arrival_bands:
+  urgent: {...}   # Generates priority 8-10
+  normal: {...}   # Generates priority 4-7
+  low: {...}      # Generates priority 0-3
+```
+
+### TDD Test Cases
+
+#### Category 1: Configuration Parsing
+
+**File:** `api/tests/integration/test_arrival_bands_config.py`
+
+```python
+"""
+Configuration parsing tests for per-band arrival functions.
+"""
+
+import pytest
+from payment_simulator.backends.rust import Orchestrator
+
+
+class TestArrivalBandsParsing:
+    """Tests for parsing arrival_bands configuration."""
+
+    def test_parse_single_band(self):
+        """Single band configuration should be parsed correctly."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 1_000_000,
+                    "arrival_bands": {
+                        "urgent": {
+                            "rate_per_tick": 0.5,
+                            "amount_distribution": {
+                                "type": "fixed",
+                                "value": 100_000
+                            }
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Should not raise
+        assert orch is not None
+
+    def test_parse_all_three_bands(self):
+        """All three bands should be parseable."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 1_000_000,
+                    "arrival_bands": {
+                        "urgent": {
+                            "rate_per_tick": 0.1,
+                            "amount_distribution": {"type": "fixed", "value": 1_000_000}
+                        },
+                        "normal": {
+                            "rate_per_tick": 2.0,
+                            "amount_distribution": {"type": "fixed", "value": 50_000}
+                        },
+                        "low": {
+                            "rate_per_tick": 5.0,
+                            "amount_distribution": {"type": "fixed", "value": 10_000}
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+        assert orch is not None
+
+    def test_reject_invalid_band_name(self):
+        """Invalid band names should be rejected."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 1_000_000,
+                    "arrival_bands": {
+                        "critical": {  # Invalid - should be "urgent"
+                            "rate_per_tick": 0.1,
+                            "amount_distribution": {"type": "fixed", "value": 100_000}
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ]
+        }
+
+        with pytest.raises(ValueError, match="invalid.*band"):
+            Orchestrator.new(config)
+
+    def test_backwards_compatible_arrival_config(self):
+        """Old arrival_config style should still work."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 1_000_000,
+                    "arrival_config": {  # OLD STYLE
+                        "rate_per_tick": 2.0,
+                        "amount_distribution": {"type": "fixed", "value": 50_000},
+                        "priority_distribution": {
+                            "type": "discrete",
+                            "values": [
+                                {"value": 10, "weight": 0.1},
+                                {"value": 5, "weight": 0.9}
+                            ]
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+        assert orch is not None
+
+    def test_reject_both_arrival_config_and_bands(self):
+        """Cannot specify both arrival_config and arrival_bands."""
+        config = {
+            "ticks_per_day": 10,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 1_000_000,
+                    "arrival_config": {"rate_per_tick": 2.0},
+                    "arrival_bands": {"urgent": {"rate_per_tick": 0.1}}
+                },
+                {"id": "BANK_B", "opening_balance": 1_000_000}
+            ]
+        }
+
+        with pytest.raises(ValueError, match="both.*arrival_config.*arrival_bands"):
+            Orchestrator.new(config)
+```
+
+#### Category 2: Arrival Generation
+
+**File:** `api/tests/integration/test_arrival_bands_generation.py`
+
+```python
+"""
+Arrival generation tests for per-band arrival functions.
+"""
+
+import pytest
+from payment_simulator.backends.rust import Orchestrator
+
+
+class TestArrivalBandGeneration:
+    """Tests for generating arrivals from per-band configs."""
+
+    def test_urgent_band_generates_high_priority(self):
+        """Urgent band should generate priority 8-10 transactions."""
+        config = {
+            "ticks_per_day": 100,
+            "seed": 42,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 10_000_000,
+                    "arrival_bands": {
+                        "urgent": {
+                            "rate_per_tick": 1.0,  # Expect ~1 per tick
+                            "amount_distribution": {"type": "fixed", "value": 100_000}
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 10_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        # Run several ticks
+        for _ in range(10):
+            orch.tick()
+
+        # Check generated transactions
+        events = orch.get_all_events()
+        arrivals = [e for e in events if e["event_type"] == "Arrival"]
+
+        # All arrivals should be priority 8-10
+        for arr in arrivals:
+            assert 8 <= arr["priority"] <= 10, f"Expected urgent priority, got {arr['priority']}"
+
+    def test_normal_band_generates_mid_priority(self):
+        """Normal band should generate priority 4-7 transactions."""
+        config = {
+            "ticks_per_day": 100,
+            "seed": 42,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 10_000_000,
+                    "arrival_bands": {
+                        "normal": {
+                            "rate_per_tick": 2.0,
+                            "amount_distribution": {"type": "fixed", "value": 50_000}
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 10_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        for _ in range(10):
+            orch.tick()
+
+        events = orch.get_all_events()
+        arrivals = [e for e in events if e["event_type"] == "Arrival"]
+
+        for arr in arrivals:
+            assert 4 <= arr["priority"] <= 7, f"Expected normal priority, got {arr['priority']}"
+
+    def test_low_band_generates_low_priority(self):
+        """Low band should generate priority 0-3 transactions."""
+        config = {
+            "ticks_per_day": 100,
+            "seed": 42,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 10_000_000,
+                    "arrival_bands": {
+                        "low": {
+                            "rate_per_tick": 3.0,
+                            "amount_distribution": {"type": "fixed", "value": 10_000}
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 10_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        for _ in range(10):
+            orch.tick()
+
+        events = orch.get_all_events()
+        arrivals = [e for e in events if e["event_type"] == "Arrival"]
+
+        for arr in arrivals:
+            assert 0 <= arr["priority"] <= 3, f"Expected low priority, got {arr['priority']}"
+
+    def test_multiple_bands_generate_mixed_priorities(self):
+        """Multiple bands should generate arrivals with appropriate priorities."""
+        config = {
+            "ticks_per_day": 100,
+            "seed": 42,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 10_000_000,
+                    "arrival_bands": {
+                        "urgent": {
+                            "rate_per_tick": 0.5,
+                            "amount_distribution": {"type": "fixed", "value": 500_000}
+                        },
+                        "normal": {
+                            "rate_per_tick": 2.0,
+                            "amount_distribution": {"type": "fixed", "value": 50_000}
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 10_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        for _ in range(50):
+            orch.tick()
+
+        events = orch.get_all_events()
+        arrivals = [e for e in events if e["event_type"] == "Arrival"]
+
+        urgent_count = sum(1 for a in arrivals if a["priority"] >= 8)
+        normal_count = sum(1 for a in arrivals if 4 <= a["priority"] <= 7)
+
+        # Should have both types
+        assert urgent_count > 0, "Expected some urgent arrivals"
+        assert normal_count > 0, "Expected some normal arrivals"
+
+        # Normal should be more common (rate 2.0 vs 0.5)
+        assert normal_count > urgent_count, "Normal should be more frequent than urgent"
+
+
+class TestArrivalBandAmounts:
+    """Tests for amount distributions per band."""
+
+    def test_urgent_band_uses_its_amount_distribution(self):
+        """Urgent arrivals should use urgent band's amount distribution."""
+        config = {
+            "ticks_per_day": 100,
+            "seed": 42,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 100_000_000,
+                    "arrival_bands": {
+                        "urgent": {
+                            "rate_per_tick": 2.0,
+                            "amount_distribution": {
+                                "type": "fixed",
+                                "value": 1_000_000  # $10,000
+                            }
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 100_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        for _ in range(10):
+            orch.tick()
+
+        events = orch.get_all_events()
+        arrivals = [e for e in events if e["event_type"] == "Arrival"]
+
+        for arr in arrivals:
+            assert arr["amount"] == 1_000_000
+
+    def test_different_bands_have_different_amounts(self):
+        """Each band should use its own amount distribution."""
+        config = {
+            "ticks_per_day": 100,
+            "seed": 42,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 100_000_000,
+                    "arrival_bands": {
+                        "urgent": {
+                            "rate_per_tick": 1.0,
+                            "amount_distribution": {"type": "fixed", "value": 1_000_000}
+                        },
+                        "normal": {
+                            "rate_per_tick": 1.0,
+                            "amount_distribution": {"type": "fixed", "value": 100_000}
+                        },
+                        "low": {
+                            "rate_per_tick": 1.0,
+                            "amount_distribution": {"type": "fixed", "value": 10_000}
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 100_000_000}
+            ]
+        }
+        orch = Orchestrator.new(config)
+
+        for _ in range(20):
+            orch.tick()
+
+        events = orch.get_all_events()
+        arrivals = [e for e in events if e["event_type"] == "Arrival"]
+
+        for arr in arrivals:
+            if arr["priority"] >= 8:
+                assert arr["amount"] == 1_000_000, "Urgent should be $10k"
+            elif arr["priority"] >= 4:
+                assert arr["amount"] == 100_000, "Normal should be $1k"
+            else:
+                assert arr["amount"] == 10_000, "Low should be $100"
+```
+
+#### Category 3: Determinism and Replay
+
+**File:** `api/tests/integration/test_arrival_bands_determinism.py`
+
+```python
+"""
+Determinism and replay tests for per-band arrival functions.
+"""
+
+import pytest
+from payment_simulator.backends.rust import Orchestrator
+
+
+class TestArrivalBandsDeterminism:
+    """Tests for deterministic behavior of per-band arrivals."""
+
+    def test_same_seed_produces_identical_arrivals(self):
+        """Same seed should produce identical arrival sequences."""
+        config = {
+            "ticks_per_day": 50,
+            "seed": 12345,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 10_000_000,
+                    "arrival_bands": {
+                        "urgent": {
+                            "rate_per_tick": 0.5,
+                            "amount_distribution": {"type": "fixed", "value": 500_000}
+                        },
+                        "normal": {
+                            "rate_per_tick": 3.0,
+                            "amount_distribution": {"type": "fixed", "value": 50_000}
+                        }
+                    }
+                },
+                {"id": "BANK_B", "opening_balance": 10_000_000}
+            ]
+        }
+
+        # Run 1
+        orch1 = Orchestrator.new(config)
+        for _ in range(20):
+            orch1.tick()
+        events1 = orch1.get_all_events()
+        arrivals1 = [e for e in events1 if e["event_type"] == "Arrival"]
+
+        # Run 2 (same seed)
+        orch2 = Orchestrator.new(config)
+        for _ in range(20):
+            orch2.tick()
+        events2 = orch2.get_all_events()
+        arrivals2 = [e for e in events2 if e["event_type"] == "Arrival"]
+
+        # Should be identical
+        assert len(arrivals1) == len(arrivals2)
+        for a1, a2 in zip(arrivals1, arrivals2):
+            assert a1["tick"] == a2["tick"]
+            assert a1["amount"] == a2["amount"]
+            assert a1["priority"] == a2["priority"]
+
+    def test_different_seeds_produce_different_arrivals(self):
+        """Different seeds should produce different arrival sequences."""
+        def run_with_seed(seed):
+            config = {
+                "ticks_per_day": 50,
+                "seed": seed,
+                "agent_configs": [
+                    {
+                        "id": "BANK_A",
+                        "opening_balance": 10_000_000,
+                        "arrival_bands": {
+                            "normal": {
+                                "rate_per_tick": 3.0,
+                                "amount_distribution": {"type": "fixed", "value": 50_000}
+                            }
+                        }
+                    },
+                    {"id": "BANK_B", "opening_balance": 10_000_000}
+                ]
+            }
+            orch = Orchestrator.new(config)
+            for _ in range(20):
+                orch.tick()
+            events = orch.get_all_events()
+            return [e for e in events if e["event_type"] == "Arrival"]
+
+        arrivals1 = run_with_seed(42)
+        arrivals2 = run_with_seed(43)
+
+        # Should be different (extremely unlikely to be identical)
+        assert len(arrivals1) != len(arrivals2) or any(
+            a1["tick"] != a2["tick"] for a1, a2 in zip(arrivals1, arrivals2)
+        )
+```
+
+### Implementation Steps
+
+#### Step 1: Define Types
+
+**File:** `backend/src/arrivals/config.rs`
+
+```rust
+/// Per-band arrival configuration
+#[derive(Debug, Clone)]
+pub struct ArrivalBandsConfig {
+    pub urgent: Option<BandArrivalConfig>,   // Priority 8-10
+    pub normal: Option<BandArrivalConfig>,   // Priority 4-7
+    pub low: Option<BandArrivalConfig>,      // Priority 0-3
+}
+
+#[derive(Debug, Clone)]
+pub struct BandArrivalConfig {
+    pub rate_per_tick: f64,
+    pub amount_distribution: Distribution,
+    pub deadline_offset: Option<DeadlineConfig>,
+    pub counterparty_weights: Option<HashMap<String, f64>>,
+}
+
+impl ArrivalBandsConfig {
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        // At least one band must be specified
+        if self.urgent.is_none() && self.normal.is_none() && self.low.is_none() {
+            return Err(ConfigError::InvalidValue(
+                "arrival_bands must specify at least one band".to_string()
+            ));
+        }
+        Ok(())
+    }
+}
+```
+
+#### Step 2: Update Arrival Generator
+
+**File:** `backend/src/arrivals/generator.rs`
+
+```rust
+impl ArrivalGenerator {
+    pub fn generate_arrivals(
+        &self,
+        agent_id: &str,
+        tick: usize,
+        rng_seed: u64,
+    ) -> (Vec<Transaction>, u64) {
+        let mut arrivals = Vec::new();
+        let mut current_seed = rng_seed;
+
+        if let Some(bands) = &self.arrival_bands {
+            // Generate from each configured band
+            if let Some(urgent) = &bands.urgent {
+                let (txs, new_seed) = self.generate_for_band(
+                    agent_id, tick, current_seed, urgent, PriorityBand::Urgent
+                );
+                arrivals.extend(txs);
+                current_seed = new_seed;
+            }
+            if let Some(normal) = &bands.normal {
+                let (txs, new_seed) = self.generate_for_band(
+                    agent_id, tick, current_seed, normal, PriorityBand::Normal
+                );
+                arrivals.extend(txs);
+                current_seed = new_seed;
+            }
+            if let Some(low) = &bands.low {
+                let (txs, new_seed) = self.generate_for_band(
+                    agent_id, tick, current_seed, low, PriorityBand::Low
+                );
+                arrivals.extend(txs);
+                current_seed = new_seed;
+            }
+        } else if let Some(config) = &self.arrival_config {
+            // Legacy single-config path
+            let (txs, new_seed) = self.generate_legacy(agent_id, tick, current_seed, config);
+            arrivals.extend(txs);
+            current_seed = new_seed;
+        }
+
+        (arrivals, current_seed)
+    }
+
+    fn generate_for_band(
+        &self,
+        agent_id: &str,
+        tick: usize,
+        seed: u64,
+        config: &BandArrivalConfig,
+        band: PriorityBand,
+    ) -> (Vec<Transaction>, u64) {
+        let (count, seed1) = sample_poisson(config.rate_per_tick, seed);
+        let mut current_seed = seed1;
+        let mut txs = Vec::new();
+
+        for _ in 0..count {
+            let (amount, seed2) = sample_distribution(&config.amount_distribution, current_seed);
+            let (priority, seed3) = sample_priority_in_band(band, seed2);
+            let (receiver, seed4) = select_counterparty(&config.counterparty_weights, seed3);
+
+            txs.push(Transaction::new(
+                agent_id.to_string(),
+                receiver,
+                amount,
+                priority,
+                tick,
+                calculate_deadline(tick, &config.deadline_offset),
+            ));
+
+            current_seed = seed4;
+        }
+
+        (txs, current_seed)
+    }
+}
+
+fn sample_priority_in_band(band: PriorityBand, seed: u64) -> (u8, u64) {
+    let (value, new_seed) = xorshift64_next(seed);
+    let priority = match band {
+        PriorityBand::Urgent => 8 + (value % 3) as u8,  // 8, 9, or 10
+        PriorityBand::Normal => 4 + (value % 4) as u8,  // 4, 5, 6, or 7
+        PriorityBand::Low => (value % 4) as u8,         // 0, 1, 2, or 3
+    };
+    (priority, new_seed)
+}
+```
+
+#### Step 3: FFI Parsing
+
+**File:** `backend/src/ffi/types.rs`
+
+Add parsing for `arrival_bands` configuration from Python dict.
+
+#### Step 4: Documentation
+
+Update `docs/policy_dsl_guide.md` and configuration examples.
+
+---
+
 ## Implementation Order
 
 ### Recommended Sequence
@@ -2061,12 +2765,19 @@ Update `docs/policy_dsl_guide.md` with new fields:
    - Enables BIS Scenario 1 fully
    - Could be simplified to fixed allocation first
 
+3. **Enhancement 3: Per-Band Arrival Functions**
+   - Extends arrival generator with band-specific configs
+   - Enables realistic Monte Carlo simulations
+   - Backwards compatible with existing `arrival_config`
+
 ### Dependencies
 
 ```
 Enhancement 1 ─────────────────────────────────► BIS Scenario 2
 
 Enhancement 2 ─────────────────────────────────► BIS Scenario 1
+
+Enhancement 3 ─────────────────────────────────► Realistic Monte Carlo
 ```
 
 ### Testing Strategy
@@ -2095,6 +2806,7 @@ For each enhancement:
 - [ ] BIS Scenario 1 runnable with liquidity allocation
 - [ ] BIS Scenario 2 runnable with priority delay costs
 - [ ] Monte Carlo analysis possible (deterministic with different seeds)
+- [ ] Realistic arrival patterns with per-band characteristics
 
 ---
 
@@ -2172,6 +2884,85 @@ scenario_events:
       priority: 5  # Normal
     schedule:
       tick: 0
+```
+
+### Scenario 3: Realistic Monte Carlo with Per-Band Arrivals
+
+```yaml
+# bis-scenario-3-monte-carlo.yaml
+ticks_per_day: 100
+num_days: 5
+seed: 12345  # Vary for Monte Carlo
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.01
+  priority_delay_multipliers:
+    urgent_multiplier: 1.5
+    normal_multiplier: 1.0
+  liquidity_cost_per_tick_bps: 15
+
+agent_configs:
+  - id: BANK_A
+    liquidity_pool: 5000000
+    liquidity_allocation_fraction: 0.5
+    credit_limit: 0
+    # NEW: Per-band arrival functions
+    arrival_bands:
+      urgent:                         # Rare, large, tight deadlines
+        rate_per_tick: 0.1
+        amount_distribution:
+          type: log_normal
+          mean: 1000000               # $10k average
+          std: 500000
+        deadline_offset:
+          min_ticks: 5
+          max_ticks: 15
+      normal:                         # Common, medium amounts
+        rate_per_tick: 2.0
+        amount_distribution:
+          type: log_normal
+          mean: 50000                 # $500 average
+          std: 30000
+        deadline_offset:
+          min_ticks: 20
+          max_ticks: 60
+      low:                            # Frequent, small, flexible deadlines
+        rate_per_tick: 5.0
+        amount_distribution:
+          type: log_normal
+          mean: 10000                 # $100 average
+          std: 8000
+        deadline_offset:
+          min_ticks: 50
+          max_ticks: 100
+
+  - id: BANK_B
+    liquidity_pool: 5000000
+    liquidity_allocation_fraction: 0.5
+    credit_limit: 0
+    arrival_bands:
+      urgent:
+        rate_per_tick: 0.1
+        amount_distribution:
+          type: log_normal
+          mean: 1000000
+          std: 500000
+      normal:
+        rate_per_tick: 2.0
+        amount_distribution:
+          type: log_normal
+          mean: 50000
+          std: 30000
+      low:
+        rate_per_tick: 5.0
+        amount_distribution:
+          type: log_normal
+          mean: 10000
+          std: 8000
+
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
 ```
 
 ---
