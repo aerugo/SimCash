@@ -3,7 +3,7 @@
 **Date:** November 2025
 **Status:** Planning Phase
 **Related Documents:**
-- `../plans/bis-model-enhancements-tdd-implementation.md`
+- `bis-model-enhancements-tdd-implementation.md`
 
 **Source:** BIS Working Paper No. 1310, "AI agents for cash management in payment systems" (Aldasoro & Desai, November 2025)
 
