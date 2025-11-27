@@ -12,11 +12,12 @@
 
 ## Executive Summary
 
-This briefing compares the RTGS model from BIS Working Paper 1310 ("AI agents for cash management in payment systems") with SimCash's payment simulator, identifies key architectural differences, and outlines two enhancements that will enable SimCash to run BIS-style experiments.
+This briefing compares the RTGS model from BIS Working Paper 1310 ("AI agents for cash management in payment systems") with SimCash's payment simulator, identifies key architectural differences, and outlines three enhancements that will enable SimCash to run BIS-style experiments.
 
-**Key Finding:** SimCash already implements most BIS model features but requires two specific enhancements:
+**Key Finding:** SimCash already implements most BIS model features but requires three enhancements:
 1. **Priority-Based Delay Cost Multipliers** - Different delay costs for urgent vs. normal payments
 2. **Liquidity Pool and Allocation** - Explicit pre-day liquidity allocation decisions with opportunity cost
+3. **Per-Band Arrival Functions** - Different arrival characteristics (rate, amount, deadline) per priority band
 
 ---
 
@@ -166,6 +167,16 @@ Each tick executes:
 
 **Impact**: Cannot model the fundamental liquidity allocation vs. delay trade-off.
 
+#### Gap 3: Per-Band Arrival Characteristics
+
+| BIS Model | SimCash Current |
+|-----------|-----------------|
+| Urgent payments: rare but large | Single `arrival_config` with shared `amount_distribution` |
+| Normal payments: common and varied | Priority assigned via `priority_distribution` weights |
+| Implicit different characteristics per urgency | Cannot have different amount/rate per priority band |
+
+**Impact**: Cannot realistically model payment systems where urgent payments have fundamentally different characteristics than normal payments.
+
 ### Features Where SimCash Exceeds BIS
 
 | Feature | BIS Model | SimCash |
@@ -256,6 +267,44 @@ cost_rates:
 - Event generation and replay identity
 - Policy context integration
 - Edge cases and error handling
+
+---
+
+### Enhancement 3: Per-Band Arrival Functions
+
+**Purpose**: Enable different arrival characteristics (rate, amount distribution, deadline) for each priority band, allowing realistic modeling where urgent payments are rare but large, and normal payments are common but smaller.
+
+**Design**:
+
+```yaml
+agent_configs:
+  - id: BANK_A
+    arrival_bands:                        # NEW: Replaces arrival_config
+      urgent:                             # Priority 8-10
+        rate_per_tick: 0.1                # Rare
+        amount_distribution:
+          type: log_normal
+          mean: 1_000_000                 # Large ($10k average)
+        deadline_offset:
+          min_ticks: 5
+          max_ticks: 15
+
+      normal:                             # Priority 4-7
+        rate_per_tick: 3.0                # Common
+        amount_distribution:
+          type: log_normal
+          mean: 50_000                    # Medium ($500 average)
+
+      low:                                # Priority 0-3
+        rate_per_tick: 5.0                # Frequent
+        amount_distribution:
+          type: log_normal
+          mean: 10_000                    # Small ($100 average)
+```
+
+**Backwards Compatibility**: Existing `arrival_config` continues to work. New `arrival_bands` is an alternative.
+
+**Test Coverage**: 3 test categories covering config parsing, generation per band, and determinism.
 
 ---
 
@@ -351,6 +400,75 @@ lsm_config:
 ```
 
 **Expected behavior**: Agent policy should prioritize urgent payment (higher delay cost) over normal payment when liquidity is constrained.
+
+---
+
+### Scenario 3: Realistic Monte Carlo with Per-Band Arrivals
+
+```yaml
+# bis-scenario-3-monte-carlo.yaml
+ticks_per_day: 100
+num_days: 5
+seed: 12345  # Vary for Monte Carlo
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.01
+  priority_delay_multipliers:
+    urgent_multiplier: 1.5
+    normal_multiplier: 1.0
+  liquidity_cost_per_tick_bps: 15
+
+agent_configs:
+  - id: BANK_A
+    liquidity_pool: 5_000_000
+    liquidity_allocation_fraction: 0.5
+    # NEW: Per-band arrival functions
+    arrival_bands:
+      urgent:                             # Rare, large, tight deadlines
+        rate_per_tick: 0.1
+        amount_distribution:
+          type: log_normal
+          mean: 1_000_000
+          std: 500_000
+        deadline_offset:
+          min_ticks: 5
+          max_ticks: 15
+      normal:                             # Common, medium amounts
+        rate_per_tick: 2.0
+        amount_distribution:
+          type: log_normal
+          mean: 50_000
+          std: 30_000
+      low:                                # Frequent, small, flexible
+        rate_per_tick: 5.0
+        amount_distribution:
+          type: log_normal
+          mean: 10_000
+          std: 8_000
+
+  - id: BANK_B
+    liquidity_pool: 5_000_000
+    liquidity_allocation_fraction: 0.5
+    arrival_bands:
+      urgent:
+        rate_per_tick: 0.1
+        amount_distribution: {type: log_normal, mean: 1_000_000, std: 500_000}
+      normal:
+        rate_per_tick: 2.0
+        amount_distribution: {type: log_normal, mean: 50_000, std: 30_000}
+      low:
+        rate_per_tick: 5.0
+        amount_distribution: {type: log_normal, mean: 10_000, std: 8_000}
+
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+```
+
+**Use case**: Run hundreds of simulations with different seeds to analyze:
+- Distribution of total costs across different allocation strategies
+- Frequency of liquidity crunches when urgent payments arrive
+- Optimal allocation fraction under realistic payment patterns
 
 ---
 
@@ -479,15 +597,17 @@ print(f"Expected cost: ${optimal['mean_cost']/100:.2f}")
 ### What Requires Enhancement
 1. **Priority-Based Delay Cost Multipliers**: Different delay rates by priority band
 2. **Liquidity Pool and Allocation**: Pre-simulation allocation with opportunity cost
+3. **Per-Band Arrival Functions**: Different rate/amount distributions per priority band
 
 ### Implementation Timeline
 1. Enhancement 1 (Priority Costs): Lower complexity, no tick loop changes
 2. Enhancement 2 (Liquidity Pool): Higher complexity, adds new tick lifecycle step
+3. Enhancement 3 (Per-Band Arrivals): Extends arrival generator, backwards compatible
 
 ### Success Criteria
 - BIS Scenario 1 runnable with liquidity allocation decisions
 - BIS Scenario 2 runnable with priority-differentiated delay costs
-- Monte Carlo analysis possible with deterministic seeds
+- Realistic Monte Carlo with per-band arrival patterns
 - Replay identity maintained for all new events
 
 ---
