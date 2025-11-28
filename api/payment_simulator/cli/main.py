@@ -42,10 +42,12 @@ from payment_simulator.cli.commands.replay import replay_simulation
 from payment_simulator.cli.commands.checkpoint import checkpoint_app
 from payment_simulator.cli.commands.db import db_app
 from payment_simulator.cli.commands.policy_schema import policy_schema
+from payment_simulator.cli.commands.validate_policy import validate_policy
 
 app.command(name="run", help="Run a simulation from a configuration file")(run_simulation)
 app.command(name="replay", help="Replay a persisted simulation with verbose output for a tick range")(replay_simulation)
 app.command(name="policy-schema", help="Generate policy schema documentation")(policy_schema)
+app.command(name="validate-policy", help="Validate a policy tree JSON file")(validate_policy)
 app.add_typer(checkpoint_app, name="checkpoint")
 app.add_typer(db_app, name="db")
 
