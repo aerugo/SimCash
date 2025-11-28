@@ -10,7 +10,7 @@ Per docs/plans/event-timeline-enhancement.md Phase 2 (API Implementation):
 - Agent filtering with comprehensive search
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import duckdb
 
@@ -18,17 +18,17 @@ import duckdb
 def get_simulation_events(
     conn: duckdb.DuckDBPyConnection,
     simulation_id: str,
-    tick: Optional[int] = None,
-    tick_min: Optional[int] = None,
-    tick_max: Optional[int] = None,
-    day: Optional[int] = None,
-    agent_id: Optional[str] = None,
-    tx_id: Optional[str] = None,
-    event_type: Optional[str] = None,
+    tick: int | None = None,
+    tick_min: int | None = None,
+    tick_max: int | None = None,
+    day: int | None = None,
+    agent_id: str | None = None,
+    tx_id: str | None = None,
+    event_type: str | None = None,
     limit: int = 100,
     offset: int = 0,
     sort: str = "tick_asc",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Query simulation events with comprehensive filtering and pagination.
 
     Args:
@@ -214,7 +214,7 @@ def get_simulation_events(
 def get_simulation_event_summary(
     conn: duckdb.DuckDBPyConnection,
     simulation_id: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get summary statistics for simulation events.
 
     Provides metadata about the simulation's events without returning

@@ -60,7 +60,7 @@ class DatabaseManager:
 
     def __init__(
         self, db_path: str | Path = "simulation_data.db", migrations_dir: Path | None = None
-    ):
+    ) -> None:
         """Initialize database manager.
 
         Args:

@@ -9,8 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import duckdb
-
 
 class MigrationManager:
     """Manages database schema migrations.
@@ -26,7 +24,7 @@ class MigrationManager:
         manager.apply_pending_migrations()
     """
 
-    def __init__(self, conn: Any, migrations_dir: Path):
+    def __init__(self, conn: Any, migrations_dir: Path) -> None:
         """Initialize migration manager.
 
         Args:

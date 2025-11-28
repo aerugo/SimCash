@@ -9,7 +9,6 @@ Phase 8: Includes collateral management fields and CollateralEventRecord.
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -99,15 +98,15 @@ class TransactionRecord(BaseModel):
     arrival_tick: int = Field(..., description="Tick when arrived")
     arrival_day: int = Field(..., description="Day when arrived")
     deadline_tick: int = Field(..., description="Settlement deadline")
-    settlement_tick: Optional[int] = Field(None, description="Tick when settled")
-    settlement_day: Optional[int] = Field(None, description="Day when settled")
+    settlement_tick: int | None = Field(None, description="Tick when settled")
+    settlement_day: int | None = Field(None, description="Day when settled")
 
     # Status
     status: TransactionStatus = Field(..., description="Current status")
-    overdue_since_tick: Optional[int] = Field(
+    overdue_since_tick: int | None = Field(
         None, description="Tick when became overdue (Phase 5)"
     )
-    drop_reason: Optional[str] = Field(None, description="Why dropped (if applicable)")
+    drop_reason: str | None = Field(None, description="Why dropped (if applicable)")
 
     # Settlement tracking
     amount_settled: int = Field(0, description="Amount settled in cents")
@@ -121,13 +120,13 @@ class TransactionRecord(BaseModel):
     delay_cost: int = Field(0, description="Queue 1 delay cost in cents")
 
     # Splitting
-    parent_tx_id: Optional[str] = Field(None, description="Parent transaction if split")
-    split_index: Optional[int] = Field(None, description="Split index (1, 2, ...)")
+    parent_tx_id: str | None = Field(None, description="Parent transaction if split")
+    split_index: int | None = Field(None, description="Split index (1, 2, ...)")
 
     # RTGS Priority (Phase 0 - Dual Priority System)
-    rtgs_priority: Optional[str] = Field(None, description="RTGS priority (HighlyUrgent, Urgent, Normal)")
-    rtgs_submission_tick: Optional[int] = Field(None, description="Tick when submitted to RTGS Queue 2")
-    declared_rtgs_priority: Optional[str] = Field(None, description="Bank's declared RTGS priority preference")
+    rtgs_priority: str | None = Field(None, description="RTGS priority (HighlyUrgent, Urgent, Normal)")
+    rtgs_submission_tick: int | None = Field(None, description="Tick when submitted to RTGS Queue 2")
+    declared_rtgs_priority: str | None = Field(None, description="Bank's declared RTGS priority preference")
 
 
 # ============================================================================
@@ -161,27 +160,27 @@ class SimulationRecord(BaseModel):
     ticks_per_day: int = Field(..., description="Ticks per day")
     num_days: int = Field(..., description="Number of simulated days")
     num_agents: int = Field(..., description="Number of agents")
-    config_json: Optional[str] = Field(
+    config_json: str | None = Field(
         None, description="Complete configuration as JSON (for diagnostic frontend)"
     )
 
     # Status
     status: SimulationStatus = Field(..., description="Simulation status")
-    started_at: Optional[datetime] = Field(None, description="When simulation started")
-    completed_at: Optional[datetime] = Field(
+    started_at: datetime | None = Field(None, description="When simulation started")
+    completed_at: datetime | None = Field(
         None, description="When simulation completed"
     )
 
     # Results (populated at end)
-    total_arrivals: Optional[int] = Field(
+    total_arrivals: int | None = Field(
         None, description="Total transactions arrived"
     )
-    total_settlements: Optional[int] = Field(
+    total_settlements: int | None = Field(
         None, description="Total transactions settled"
     )
-    total_cost_cents: Optional[int] = Field(None, description="Total cost in cents")
-    duration_seconds: Optional[float] = Field(None, description="Wall-clock duration")
-    ticks_per_second: Optional[float] = Field(None, description="Simulation speed")
+    total_cost_cents: int | None = Field(None, description="Total cost in cents")
+    duration_seconds: float | None = Field(None, description="Wall-clock duration")
+    ticks_per_second: float | None = Field(None, description="Simulation speed")
 
 
 # ============================================================================
@@ -205,11 +204,11 @@ class SimulationRunRecord(BaseModel):
     simulation_id: str = Field(..., description="Unique simulation identifier")
     config_name: str = Field(..., description="Configuration file name")
     config_hash: str = Field(..., description="Configuration content hash")
-    description: Optional[str] = Field(None, description="Simulation description")
+    description: str | None = Field(None, description="Simulation description")
 
     # Timing
     start_time: datetime = Field(..., description="When simulation started")
-    end_time: Optional[datetime] = Field(None, description="When simulation ended")
+    end_time: datetime | None = Field(None, description="When simulation ended")
 
     # Configuration
     ticks_per_day: int = Field(..., description="Ticks per simulated day")
@@ -301,7 +300,7 @@ class CollateralEventRecord(BaseModel):
         ],
     )
 
-    id: Optional[int] = None  # Auto-increment
+    id: int | None = None  # Auto-increment
     simulation_id: str
     agent_id: str
     tick: int
@@ -463,7 +462,7 @@ class SimulationCheckpointRecord(BaseModel):
     checkpoint_type: CheckpointType = Field(
         ..., description="Type of checkpoint (manual/auto/eod/final)"
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None, description="Human-readable checkpoint description"
     )
     created_by: str = Field(..., description="User or system that created checkpoint")
@@ -497,7 +496,7 @@ class LsmCycleRecord(BaseModel):
         ],
     )
 
-    id: Optional[int] = Field(None, description="Auto-increment primary key")
+    id: int | None = Field(None, description="Auto-increment primary key")
     simulation_id: str = Field(..., description="Foreign key to simulations table")
     tick: int = Field(..., description="Tick when cycle was settled", ge=0)
     day: int = Field(..., description="Day when cycle was settled", ge=0)
@@ -518,10 +517,10 @@ class LsmCycleRecord(BaseModel):
     total_value: int = Field(..., description="Gross value before netting (cents)")
 
     # Enhanced fields for offset/liquidity analysis
-    tx_amounts: Optional[str] = Field(None, description="JSON array of transaction amounts in cycle order (cents)")
-    net_positions: Optional[str] = Field(None, description="JSON object mapping agent ID to net position (cents)")
-    max_net_outflow: Optional[int] = Field(None, description="Maximum net outflow in cycle (actual liquidity used, cents)")
-    max_net_outflow_agent: Optional[str] = Field(None, description="Agent ID with maximum net outflow")
+    tx_amounts: str | None = Field(None, description="JSON array of transaction amounts in cycle order (cents)")
+    net_positions: str | None = Field(None, description="JSON object mapping agent ID to net position (cents)")
+    max_net_outflow: int | None = Field(None, description="Maximum net outflow in cycle (actual liquidity used, cents)")
+    max_net_outflow_agent: str | None = Field(None, description="Agent ID with maximum net outflow")
 
 
 # ============================================================================
@@ -546,7 +545,7 @@ class PolicyDecisionRecord(BaseModel):
         ],
     )
 
-    id: Optional[int] = Field(None, description="Auto-increment primary key")
+    id: int | None = Field(None, description="Auto-increment primary key")
     simulation_id: str = Field(..., description="Foreign key to simulations table")
     agent_id: str = Field(..., description="Agent who made the decision")
     tick: int = Field(..., description="Tick when decision was made", ge=0)
@@ -556,11 +555,11 @@ class PolicyDecisionRecord(BaseModel):
         ..., description="Decision type: submit, hold, drop, split"
     )
     tx_id: str = Field(..., description="Transaction ID")
-    reason: Optional[str] = Field(None, description="Reason for hold/drop decisions")
-    num_splits: Optional[int] = Field(
+    reason: str | None = Field(None, description="Reason for hold/drop decisions")
+    num_splits: int | None = Field(
         None, description="Number of splits (for split decisions)"
     )
-    child_tx_ids: Optional[str] = Field(
+    child_tx_ids: str | None = Field(
         None, description="JSON array of child TX IDs (for split decisions)"
     )
 
@@ -702,10 +701,10 @@ class SimulationEventRecord(BaseModel):
     )
 
     # Optional filters for efficient querying
-    agent_id: Optional[str] = Field(
+    agent_id: str | None = Field(
         None, description="Agent ID if event relates to specific agent"
     )
-    tx_id: Optional[str] = Field(
+    tx_id: str | None = Field(
         None, description="Transaction ID if event relates to specific transaction"
     )
 

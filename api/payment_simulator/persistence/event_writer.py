@@ -12,12 +12,12 @@ Per docs/plans/event-timeline-enhancement.md Phase 2:
 import json
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 import duckdb
 
 
-def _merge_state_register_updates(records: List[tuple]) -> List[tuple]:
+def _merge_state_register_updates(records: list[tuple]) -> list[tuple]:
     """Merge duplicate state register updates in same tick, keeping only final value.
 
     Fix for Issue #1: When multiple SetState operations occur on same register in same tick
@@ -60,7 +60,7 @@ def _merge_state_register_updates(records: List[tuple]) -> List[tuple]:
 def write_events_batch(
     conn: duckdb.DuckDBPyConnection,
     simulation_id: str,
-    events: List[Dict[str, Any]],
+    events: list[dict[str, Any]],
     ticks_per_day: int,
 ) -> int:
     """Write batch of events to simulation_events table.
@@ -262,7 +262,7 @@ def get_events(
     day: int | None = None,
     limit: int = 1000,
     offset: int = 0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Query events with optional filters.
 
     Args:
