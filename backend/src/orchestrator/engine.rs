@@ -66,7 +66,7 @@
 //! }
 //! ```
 
-use crate::arrivals::{ArrivalConfig, ArrivalGenerator};
+use crate::arrivals::{ArrivalBandsConfig, ArrivalConfig, ArrivalGenerator};
 use crate::core::time::TimeManager;
 use crate::models::agent::Agent;
 use crate::models::event::{Event, EventLog};
@@ -260,6 +260,28 @@ pub struct AgentConfig {
     /// Arrival generation configuration (None = no automatic arrivals)
     pub arrival_config: Option<ArrivalConfig>,
 
+    /// Per-band arrival configuration (Enhancement 11.3)
+    ///
+    /// Alternative to arrival_config that allows different arrival characteristics
+    /// per priority band (urgent, normal, low). Mutually exclusive with arrival_config.
+    ///
+    /// # Example
+    /// ```yaml
+    /// arrival_bands:
+    ///   urgent:
+    ///     rate_per_tick: 0.1
+    ///     amount_distribution: { type: log_normal, mean: 14.0, std_dev: 0.5 }
+    ///     deadline_offset_min: 5
+    ///     deadline_offset_max: 15
+    ///   normal:
+    ///     rate_per_tick: 3.0
+    ///     amount_distribution: { type: log_normal, mean: 11.0, std_dev: 0.8 }
+    ///     deadline_offset_min: 20
+    ///     deadline_offset_max: 50
+    /// ```
+    #[serde(default)]
+    pub arrival_bands: Option<ArrivalBandsConfig>,
+
     /// Posted collateral amount (cents) - Phase 8
     /// If None, defaults to 0 (no collateral)
     pub posted_collateral: Option<i64>,
@@ -274,6 +296,28 @@ pub struct AgentConfig {
     /// Controls bilateral (per-counterparty) and multilateral (total) outflow limits
     #[serde(default)]
     pub limits: Option<AgentLimitsConfig>,
+
+    /// External liquidity pool available for allocation (cents) - Enhancement 11.2
+    ///
+    /// Models the BIS Period 0 decision where agents choose how much external
+    /// liquidity to bring into the settlement system. This is additive with
+    /// opening_balance.
+    ///
+    /// Example: liquidity_pool = 2_000_000 ($20k) represents external reserves
+    /// that can be allocated to settlement.
+    #[serde(default)]
+    pub liquidity_pool: Option<i64>,
+
+    /// Fraction of liquidity_pool to allocate (0.0 to 1.0) - Enhancement 11.2
+    ///
+    /// Determines how much of the available liquidity pool is actually brought
+    /// into settlement. Defaults to 1.0 (100%) if not specified.
+    ///
+    /// Final starting balance = opening_balance + floor(liquidity_pool × allocation_fraction)
+    ///
+    /// Example: pool = 1_000_000, fraction = 0.5 → allocate 500,000 cents
+    #[serde(default)]
+    pub liquidity_allocation_fraction: Option<f64>,
 }
 
 /// Bilateral and multilateral limits configuration for an agent
@@ -373,6 +417,103 @@ pub enum PolicyConfig {
 
 // ArrivalConfig is now imported from crate::arrivals module
 
+/// Priority bands for delay cost differentiation (BIS model support)
+///
+/// Transactions are classified into three priority bands that can have
+/// different delay cost multipliers:
+/// - Urgent (8-10): Time-critical payments like CLS, margin calls
+/// - Normal (4-7): Standard interbank payments
+/// - Low (0-3): Batch payments, internal transfers
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum PriorityBand {
+    /// Priority 8-10: Time-critical payments
+    Urgent,
+    /// Priority 4-7: Standard payments
+    Normal,
+    /// Priority 0-3: Low priority/batch payments
+    Low,
+}
+
+/// Get the priority band for a given priority level
+///
+/// # Arguments
+/// * `priority` - Priority level (0-10)
+///
+/// # Returns
+/// The corresponding priority band
+///
+/// # Examples
+/// ```
+/// use payment_simulator_core_rs::orchestrator::{get_priority_band, PriorityBand};
+///
+/// assert_eq!(get_priority_band(9), PriorityBand::Urgent);
+/// assert_eq!(get_priority_band(5), PriorityBand::Normal);
+/// assert_eq!(get_priority_band(2), PriorityBand::Low);
+/// ```
+pub fn get_priority_band(priority: u8) -> PriorityBand {
+    match priority {
+        8..=10 => PriorityBand::Urgent,
+        4..=7 => PriorityBand::Normal,
+        _ => PriorityBand::Low, // 0-3 and any out-of-range values
+    }
+}
+
+/// Priority-based delay cost multipliers (BIS model support)
+///
+/// Allows different delay costs for different priority bands.
+/// This enables modeling BIS scenarios where urgent payments
+/// have higher delay costs than normal payments.
+///
+/// # Example
+/// ```
+/// use payment_simulator_core_rs::orchestrator::PriorityDelayMultipliers;
+///
+/// let multipliers = PriorityDelayMultipliers {
+///     urgent_multiplier: 1.5,  // Urgent pays 1.5x
+///     normal_multiplier: 1.0,  // Normal pays base
+///     low_multiplier: 0.5,     // Low pays 0.5x
+/// };
+///
+/// assert_eq!(multipliers.get_multiplier_for_priority(9), 1.5);
+/// assert_eq!(multipliers.get_multiplier_for_priority(5), 1.0);
+/// ```
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PriorityDelayMultipliers {
+    /// Multiplier for urgent priority (8-10). Default: 1.0
+    pub urgent_multiplier: f64,
+    /// Multiplier for normal priority (4-7). Default: 1.0
+    pub normal_multiplier: f64,
+    /// Multiplier for low priority (0-3). Default: 1.0
+    pub low_multiplier: f64,
+}
+
+impl Default for PriorityDelayMultipliers {
+    fn default() -> Self {
+        Self {
+            urgent_multiplier: 1.0,
+            normal_multiplier: 1.0,
+            low_multiplier: 1.0,
+        }
+    }
+}
+
+impl PriorityDelayMultipliers {
+    /// Get the delay cost multiplier for a given priority level
+    ///
+    /// # Arguments
+    /// * `priority` - Priority level (0-10)
+    ///
+    /// # Returns
+    /// The multiplier for the corresponding priority band
+    pub fn get_multiplier_for_priority(&self, priority: u8) -> f64 {
+        match get_priority_band(priority) {
+            PriorityBand::Urgent => self.urgent_multiplier,
+            PriorityBand::Normal => self.normal_multiplier,
+            PriorityBand::Low => self.low_multiplier,
+        }
+    }
+}
+
 /// Cost calculation rates
 ///
 /// Defines rates for various costs accrued during simulation.
@@ -414,6 +555,31 @@ pub struct CostRates {
     /// Example: If delay_cost_per_tick_per_cent = 0.0001 and overdue_delay_multiplier = 5.0,
     /// then an overdue $1M transaction costs $5/tick instead of $1/tick.
     pub overdue_delay_multiplier: f64,
+
+    /// Priority-based delay cost multipliers (BIS model support)
+    ///
+    /// When configured, applies different multipliers to delay costs based on
+    /// transaction priority bands:
+    /// - Urgent (8-10): urgent_multiplier
+    /// - Normal (4-7): normal_multiplier
+    /// - Low (0-3): low_multiplier
+    ///
+    /// If None, all priorities use the same base delay cost rate.
+    #[serde(default)]
+    pub priority_delay_multipliers: Option<PriorityDelayMultipliers>,
+
+    /// Liquidity opportunity cost in basis points per tick (Enhancement 11.2)
+    ///
+    /// Applied to allocated liquidity (from liquidity_pool × allocation_fraction)
+    /// to represent the opportunity cost of holding funds in the settlement system
+    /// rather than earning interest elsewhere.
+    ///
+    /// Example: 15 bps per tick for a 1M allocation = 1,000,000 × (15/10,000) = 1,500 cents/tick
+    ///
+    /// Note: This only applies to allocated liquidity, not to opening_balance
+    /// (which is assumed to already be at the central bank).
+    #[serde(default)]
+    pub liquidity_cost_per_tick_bps: f64,
 }
 
 impl Default for CostRates {
@@ -426,6 +592,8 @@ impl Default for CostRates {
             deadline_penalty: 50_000,             // $500 per missed deadline
             split_friction_cost: 1000,            // $10 per split
             overdue_delay_multiplier: 5.0,        // 5x multiplier for overdue
+            priority_delay_multipliers: None,     // No priority differentiation by default
+            liquidity_cost_per_tick_bps: 0.0,     // No liquidity opportunity cost by default
         }
     }
 }
@@ -454,6 +622,12 @@ pub struct CostBreakdown {
     /// This represents the operational overhead of creating and
     /// processing multiple smaller payments instead of one large payment.
     pub split_friction_cost: i64,
+
+    /// Liquidity opportunity cost accrued this tick (cents) - Enhancement 11.2
+    ///
+    /// Applied to allocated liquidity (from liquidity_pool × allocation_fraction)
+    /// to represent the opportunity cost of holding funds in settlement.
+    pub liquidity_opportunity_cost: i64,
 }
 
 impl CostBreakdown {
@@ -464,6 +638,7 @@ impl CostBreakdown {
             + self.collateral_cost
             + self.penalty_cost
             + self.split_friction_cost
+            + self.liquidity_opportunity_cost
     }
 }
 
@@ -487,6 +662,12 @@ pub struct CostAccumulator {
 
     /// Peak net debit observed (most negative balance)
     pub peak_net_debit: i64,
+
+    /// Total liquidity opportunity cost (Enhancement 11.2)
+    ///
+    /// Accumulated opportunity cost from allocated liquidity sitting in
+    /// the settlement system rather than earning interest elsewhere.
+    pub total_liquidity_opportunity_cost: i64,
 }
 
 impl CostAccumulator {
@@ -502,6 +683,7 @@ impl CostAccumulator {
         self.total_collateral_cost += costs.collateral_cost;
         self.total_penalty_cost += costs.penalty_cost;
         self.total_split_friction_cost += costs.split_friction_cost;
+        self.total_liquidity_opportunity_cost += costs.liquidity_opportunity_cost;
     }
 
     /// Update peak net debit if current balance is more negative
@@ -518,6 +700,7 @@ impl CostAccumulator {
             + self.total_collateral_cost
             + self.total_penalty_cost
             + self.total_split_friction_cost
+            + self.total_liquidity_opportunity_cost
     }
 }
 
@@ -902,9 +1085,12 @@ impl Orchestrator {
     ///             unsecured_cap: 0,
     ///             policy: PolicyConfig::Fifo,
     ///             arrival_config: None,
+    ///             arrival_bands: None,
     ///             posted_collateral: None,
     ///             collateral_haircut: None,
     ///             limits: None,
+    ///             liquidity_pool: None,
+    ///             liquidity_allocation_fraction: None,
     ///         },
     ///     ],
     ///     cost_rates: Default::default(),
@@ -928,7 +1114,22 @@ impl Orchestrator {
             .agent_configs
             .iter()
             .map(|ac| {
-                let mut agent = Agent::new(ac.id.clone(), ac.opening_balance);
+                // Calculate initial balance: opening_balance + allocated liquidity (Enhancement 11.2)
+                let allocated_liquidity = if let Some(pool) = ac.liquidity_pool {
+                    // Default allocation fraction is 1.0 (100%)
+                    let fraction = ac.liquidity_allocation_fraction.unwrap_or(1.0);
+                    // Floor to ensure i64 integrity (no fractional cents)
+                    (pool as f64 * fraction).floor() as i64
+                } else {
+                    0
+                };
+                let initial_balance = ac.opening_balance + allocated_liquidity;
+
+                let mut agent = Agent::new(ac.id.clone(), initial_balance);
+
+                // Store allocated liquidity for cost tracking (Enhancement 11.2)
+                agent.set_allocated_liquidity(allocated_liquidity);
+
                 // Set unsecured overdraft capacity
                 agent.set_unsecured_cap(ac.unsecured_cap);
                 // Set posted collateral if specified (Phase 8)
@@ -970,15 +1171,21 @@ impl Orchestrator {
             policies.insert(agent_config.id.clone(), Box::new(tree_policy));
         }
 
-        // Initialize arrival generator (if any agents have arrival configs)
+        // Initialize arrival generator (if any agents have arrival configs or band configs)
         let mut arrival_configs_map = HashMap::new();
+        let mut band_configs_map = HashMap::new();
         for agent_config in &config.agent_configs {
             if let Some(arrival_cfg) = &agent_config.arrival_config {
                 arrival_configs_map.insert(agent_config.id.clone(), arrival_cfg.clone());
             }
+            // Enhancement 11.3: Per-band arrival configs
+            if let Some(band_cfg) = &agent_config.arrival_bands {
+                band_configs_map.insert(agent_config.id.clone(), band_cfg.clone());
+            }
         }
 
-        let arrival_generator = if !arrival_configs_map.is_empty() {
+        let has_any_arrivals = !arrival_configs_map.is_empty() || !band_configs_map.is_empty();
+        let arrival_generator = if has_any_arrivals {
             let all_agent_ids: Vec<String> = config
                 .agent_configs
                 .iter()
@@ -986,7 +1193,9 @@ impl Orchestrator {
                 .collect();
             // Calculate episode end tick for deadline capping (Issue #6 fix)
             let episode_end_tick = config.num_days * config.ticks_per_day;
-            Some(ArrivalGenerator::new(
+            // Use mixed mode to support both legacy and band configs
+            Some(ArrivalGenerator::new_mixed(
+                band_configs_map,
                 arrival_configs_map,
                 all_agent_ids,
                 episode_end_tick,
@@ -1064,6 +1273,34 @@ impl Orchestrator {
             if !ids.insert(&agent_config.id) {
                 return Err(SimulationError::InvalidConfig(format!(
                     "Duplicate agent ID: {}",
+                    agent_config.id
+                )));
+            }
+
+            // Validate liquidity_pool (Enhancement 11.2)
+            if let Some(pool) = agent_config.liquidity_pool {
+                if pool < 0 {
+                    return Err(SimulationError::InvalidConfig(format!(
+                        "Agent {}: liquidity_pool must be non-negative, got {}",
+                        agent_config.id, pool
+                    )));
+                }
+            }
+
+            // Validate liquidity_allocation_fraction (Enhancement 11.2)
+            if let Some(fraction) = agent_config.liquidity_allocation_fraction {
+                if !(0.0..=1.0).contains(&fraction) {
+                    return Err(SimulationError::InvalidConfig(format!(
+                        "Agent {}: liquidity_allocation_fraction must be between 0.0 and 1.0, got {}",
+                        agent_config.id, fraction
+                    )));
+                }
+            }
+
+            // Validate arrival_config and arrival_bands are mutually exclusive (Enhancement 11.3)
+            if agent_config.arrival_config.is_some() && agent_config.arrival_bands.is_some() {
+                return Err(SimulationError::InvalidConfig(format!(
+                    "Agent {}: arrival_config and arrival_bands are mutually exclusive - specify only one",
                     agent_config.id
                 )));
             }
@@ -3325,6 +3562,7 @@ impl Orchestrator {
                                     collateral_cost: 0,
                                     penalty_cost: 0,
                                     split_friction_cost: friction_cost,
+                                    liquidity_opportunity_cost: 0,
                                 },
                             });
                         }
@@ -3515,6 +3753,7 @@ impl Orchestrator {
                                     collateral_cost: 0,
                                     penalty_cost: 0,
                                     split_friction_cost: friction_cost,
+                                    liquidity_opportunity_cost: 0,
                                 },
                             });
                         }
@@ -4196,7 +4435,7 @@ impl Orchestrator {
         for agent_id in agent_ids {
             // First pass: collect data and identify newly overdue transactions
             // Check both Queue 1 (agent's outgoing queue) and Queue 2 (RTGS queue)
-            let (balance, collateral, newly_overdue_txs) = {
+            let (balance, collateral, allocated_liquidity, newly_overdue_txs) = {
                 let agent = self.state.get_agent(&agent_id).unwrap();
                 let mut overdue = Vec::new();
 
@@ -4221,7 +4460,7 @@ impl Orchestrator {
                     }
                 }
 
-                (agent.balance(), agent.posted_collateral(), overdue)
+                (agent.balance(), agent.posted_collateral(), agent.allocated_liquidity(), overdue)
             };
 
             // Mark transactions as overdue and emit events (mutable borrow, agent borrow released)
@@ -4267,12 +4506,18 @@ impl Orchestrator {
             // Split friction cost handled at decision time
             let split_friction_cost = 0;
 
+            // Calculate liquidity opportunity cost (Enhancement 11.2)
+            // This is the opportunity cost of allocated liquidity sitting in settlement
+            // Formula: allocated_liquidity × (liquidity_cost_per_tick_bps / 10,000)
+            let liquidity_opportunity_cost = self.calculate_liquidity_opportunity_cost(allocated_liquidity);
+
             let costs = CostBreakdown {
                 liquidity_cost,
                 delay_cost,
                 collateral_cost,
                 penalty_cost,
                 split_friction_cost,
+                liquidity_opportunity_cost,
             };
 
             // Accumulate costs
@@ -4315,10 +4560,12 @@ impl Orchestrator {
 
     /// Calculate delay cost for queued transactions
     ///
-    /// Delay cost = sum of (queued transaction values × multiplier) * delay_cost_per_tick_per_cent
+    /// Delay cost = sum of (queued transaction values × multipliers) * delay_cost_per_tick_per_cent
     ///
-    /// Overdue transactions have their value multiplied by overdue_delay_multiplier
-    /// to represent escalating urgency.
+    /// Multipliers applied:
+    /// - Overdue multiplier: transactions past deadline have cost multiplied by overdue_delay_multiplier
+    /// - Priority multiplier (Enhancement 11.1): if configured, transactions have cost multiplied
+    ///   by their priority band's multiplier (urgent/normal/low)
     ///
     /// Counts transactions in both Queue 1 (agent's internal queue) and Queue 2 (RTGS queue).
     /// All unsettled transactions accrue delay cost, as they represent unsettled obligations.
@@ -4336,13 +4583,19 @@ impl Orchestrator {
                 let amount = tx.remaining_amount() as f64;
 
                 // Apply multiplier for overdue transactions
-                let multiplier = if tx.is_overdue() {
+                let overdue_multiplier = if tx.is_overdue() {
                     self.cost_rates.overdue_delay_multiplier
                 } else {
                     1.0
                 };
 
-                total_weighted_value += amount * multiplier;
+                // Apply priority-based multiplier if configured (Enhancement 11.1)
+                let priority_multiplier = self.cost_rates.priority_delay_multipliers
+                    .as_ref()
+                    .map(|m| m.get_multiplier_for_priority(tx.priority()))
+                    .unwrap_or(1.0);
+
+                total_weighted_value += amount * overdue_multiplier * priority_multiplier;
             }
         }
 
@@ -4354,13 +4607,19 @@ impl Orchestrator {
                 let amount = tx.remaining_amount() as f64;
 
                 // Apply multiplier for overdue transactions
-                let multiplier = if tx.is_overdue() {
+                let overdue_multiplier = if tx.is_overdue() {
                     self.cost_rates.overdue_delay_multiplier
                 } else {
                     1.0
                 };
 
-                total_weighted_value += amount * multiplier;
+                // Apply priority-based multiplier if configured (Enhancement 11.1)
+                let priority_multiplier = self.cost_rates.priority_delay_multipliers
+                    .as_ref()
+                    .map(|m| m.get_multiplier_for_priority(tx.priority()))
+                    .unwrap_or(1.0);
+
+                total_weighted_value += amount * overdue_multiplier * priority_multiplier;
             }
         }
 
@@ -4385,6 +4644,28 @@ impl Orchestrator {
         // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
         // Example: 2 bps on $1M = $1M × (2/10,000) = $200
         let cost = collateral_amount * (self.cost_rates.collateral_cost_per_tick_bps / 10_000.0);
+        cost.round() as i64
+    }
+
+    /// Calculate liquidity opportunity cost (Enhancement 11.2)
+    ///
+    /// The opportunity cost of holding allocated liquidity in the settlement system
+    /// rather than earning interest elsewhere.
+    ///
+    /// Formula: allocated_liquidity × (liquidity_cost_per_tick_bps / 10,000)
+    ///
+    /// Example: 1M allocated at 15 bps/tick = 1,000,000 × (15/10,000) = 1,500 cents/tick
+    ///
+    /// Note: This only applies to liquidity allocated from liquidity_pool,
+    /// not to opening_balance (which is assumed to already be at the central bank).
+    fn calculate_liquidity_opportunity_cost(&self, allocated_liquidity: i64) -> i64 {
+        if allocated_liquidity <= 0 || self.cost_rates.liquidity_cost_per_tick_bps <= 0.0 {
+            return 0;
+        }
+
+        let liquidity_amount = allocated_liquidity as f64;
+        // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
+        let cost = liquidity_amount * (self.cost_rates.liquidity_cost_per_tick_bps / 10_000.0);
         cost.round() as i64
     }
 
@@ -4658,6 +4939,7 @@ impl Orchestrator {
                         collateral_cost: 0,
                         penalty_cost: penalty,
                         split_friction_cost: 0,
+                        liquidity_opportunity_cost: 0,
                     },
                 });
             }

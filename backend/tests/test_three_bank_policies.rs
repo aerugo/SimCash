@@ -37,9 +37,12 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                     json: load_policy_json("goliath_national_bank.json"),
                 },
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "ARB".to_string(),
@@ -49,9 +52,12 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                     json: load_policy_json("agile_regional_bank.json"),
                 },
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "MIB".to_string(),
@@ -61,9 +67,12 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
                     json: load_policy_json("momentum_investment_bank.json"),
                 },
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates {
@@ -74,6 +83,8 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
             deadline_penalty: 1000_00,
             eod_penalty_per_transaction: 5000_00,
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
+            priority_delay_multipliers: None, // Enhancement 11.1
+            liquidity_cost_per_tick_bps: 0.0, // Enhancement 11.2
         },
         lsm_config: LsmConfig {
             enable_bilateral: true,

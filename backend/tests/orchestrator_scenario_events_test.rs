@@ -29,9 +29,12 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
                 unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,  // Disable arrivals for scenario event tests
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -39,9 +42,12 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
                 unsecured_cap: 500_000,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,  // Disable arrivals for scenario event tests
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -49,8 +55,8 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
-            algorithm_sequencing: false,
-            entry_disposition_offsetting: false,
+        algorithm_sequencing: false,
+        entry_disposition_offsetting: false,
         scenario_events: Some(events),
     }
 }
@@ -78,9 +84,12 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                     priority_distribution: PriorityDistribution::Fixed { value: 0 },
                     divisible: false,
                 }),
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -98,9 +107,12 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
                     priority_distribution: PriorityDistribution::Fixed { value: 0 },
                     divisible: false,
                 }),
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -108,8 +120,8 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
-            algorithm_sequencing: false,
-            entry_disposition_offsetting: false,
+        algorithm_sequencing: false,
+        entry_disposition_offsetting: false,
         scenario_events: Some(events),
     }
 }

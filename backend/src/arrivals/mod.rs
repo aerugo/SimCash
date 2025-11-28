@@ -97,6 +97,86 @@ pub enum AmountDistribution {
     Exponential { rate: f64 },
 }
 
+// ============================================================================
+// Enhancement 11.3: Per-Band Arrival Configuration
+// ============================================================================
+
+/// Configuration for a single priority band's arrivals.
+///
+/// Each band can have independent arrival rate, amount distribution,
+/// and deadline characteristics. Transactions generated from a band
+/// are assigned priority within that band's range.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ArrivalBandConfig {
+    /// Expected number of arrivals per tick for this band (Poisson λ)
+    pub rate_per_tick: f64,
+
+    /// Distribution for transaction amounts in this band
+    pub amount_distribution: AmountDistribution,
+
+    /// Minimum deadline offset from arrival tick
+    pub deadline_offset_min: usize,
+
+    /// Maximum deadline offset from arrival tick
+    pub deadline_offset_max: usize,
+
+    /// Counterparty selection weights for this band
+    #[serde(default)]
+    pub counterparty_weights: HashMap<String, f64>,
+
+    /// Whether transactions in this band are divisible
+    #[serde(default)]
+    pub divisible: bool,
+}
+
+/// Per-band arrival configuration with urgent, normal, and low priority bands.
+///
+/// This provides an alternative to the single `ArrivalConfig` that allows
+/// different arrival characteristics per priority band, matching BIS model
+/// requirements where urgent payments are rare but large, and normal
+/// payments are common and smaller.
+///
+/// # Priority Ranges
+/// - Urgent: Priority 8-10 (rare, large, tight deadlines)
+/// - Normal: Priority 4-7 (common, medium, moderate deadlines)
+/// - Low: Priority 0-3 (frequent, small, relaxed deadlines)
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct ArrivalBandsConfig {
+    /// Urgent priority band (8-10): Rare, large amounts, tight deadlines
+    #[serde(default)]
+    pub urgent: Option<ArrivalBandConfig>,
+
+    /// Normal priority band (4-7): Common, medium amounts, moderate deadlines
+    #[serde(default)]
+    pub normal: Option<ArrivalBandConfig>,
+
+    /// Low priority band (0-3): Frequent, small amounts, relaxed deadlines
+    #[serde(default)]
+    pub low: Option<ArrivalBandConfig>,
+}
+
+/// Priority band classification for arrival generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PriorityBand {
+    /// Priority 8-10
+    Urgent,
+    /// Priority 4-7
+    Normal,
+    /// Priority 0-3
+    Low,
+}
+
+impl PriorityBand {
+    /// Get the priority range for this band (min, max inclusive).
+    pub fn priority_range(&self) -> (u8, u8) {
+        match self {
+            PriorityBand::Urgent => (8, 10),
+            PriorityBand::Normal => (4, 7),
+            PriorityBand::Low => (0, 3),
+        }
+    }
+}
+
 /// Generator for transaction arrivals across all agents.
 pub struct ArrivalGenerator {
     /// Per-agent arrival configurations (modified by scenario events)
@@ -104,6 +184,9 @@ pub struct ArrivalGenerator {
 
     /// Base configurations (original rates, never modified)
     base_configs: HashMap<String, ArrivalConfig>,
+
+    /// Per-agent per-band arrival configurations (Enhancement 11.3)
+    band_configs: HashMap<String, ArrivalBandsConfig>,
 
     /// All agent IDs (for counterparty selection)
     all_agent_ids: Vec<String>,
@@ -131,10 +214,64 @@ impl ArrivalGenerator {
         Self {
             base_configs: configs.clone(), // Store original configs
             configs,
+            band_configs: HashMap::new(), // No band configs in legacy mode
             all_agent_ids,
             next_tx_id: 0,
             episode_end_tick,
         }
+    }
+
+    /// Create a new arrival generator with per-band configurations (Enhancement 11.3).
+    ///
+    /// # Arguments
+    ///
+    /// * `band_configs` - Map of agent ID to per-band arrival configuration
+    /// * `all_agent_ids` - List of all agent IDs in the simulation
+    /// * `episode_end_tick` - Final tick of the simulation (for deadline capping)
+    pub fn new_with_bands(
+        band_configs: HashMap<String, ArrivalBandsConfig>,
+        all_agent_ids: Vec<String>,
+        episode_end_tick: usize,
+    ) -> Self {
+        Self {
+            configs: HashMap::new(),
+            base_configs: HashMap::new(),
+            band_configs,
+            all_agent_ids,
+            next_tx_id: 0,
+            episode_end_tick,
+        }
+    }
+
+    /// Create a new arrival generator with mixed configurations.
+    ///
+    /// Some agents use per-band configs, others use legacy configs.
+    ///
+    /// # Arguments
+    ///
+    /// * `band_configs` - Map of agent ID to per-band arrival configuration
+    /// * `legacy_configs` - Map of agent ID to legacy arrival configuration
+    /// * `all_agent_ids` - List of all agent IDs in the simulation
+    /// * `episode_end_tick` - Final tick of the simulation (for deadline capping)
+    pub fn new_mixed(
+        band_configs: HashMap<String, ArrivalBandsConfig>,
+        legacy_configs: HashMap<String, ArrivalConfig>,
+        all_agent_ids: Vec<String>,
+        episode_end_tick: usize,
+    ) -> Self {
+        Self {
+            base_configs: legacy_configs.clone(),
+            configs: legacy_configs,
+            band_configs,
+            all_agent_ids,
+            next_tx_id: 0,
+            episode_end_tick,
+        }
+    }
+
+    /// Check if an agent has per-band arrival configuration.
+    pub fn has_bands_config(&self, agent_id: &str) -> bool {
+        self.band_configs.contains_key(agent_id)
     }
 
     /// Generate arrivals for a specific agent at the given tick.
@@ -154,6 +291,12 @@ impl ArrivalGenerator {
         tick: usize,
         rng: &mut RngManager,
     ) -> Vec<Transaction> {
+        // Check for per-band configuration first (Enhancement 11.3)
+        if let Some(bands) = self.band_configs.get(agent_id).cloned() {
+            return self.generate_from_bands(agent_id, tick, &bands, rng);
+        }
+
+        // Fall back to legacy configuration
         let config = match self.configs.get(agent_id) {
             Some(c) => c,
             None => return Vec::new(), // No arrivals configured for this agent
@@ -178,7 +321,7 @@ impl ArrivalGenerator {
             let priority = self.sample_priority(&config.priority_distribution, rng);
 
             // Create transaction
-            let tx_id = format!("tx_{:08}", self.next_tx_id);
+            let _tx_id = format!("tx_{:08}", self.next_tx_id);
             self.next_tx_id += 1;
 
             let mut tx = Transaction::new(agent_id.to_string(), receiver, amount, tick, deadline);
@@ -187,6 +330,108 @@ impl ArrivalGenerator {
             if priority > 0 {
                 tx = tx.with_priority(priority);
             }
+
+            transactions.push(tx);
+        }
+
+        transactions
+    }
+
+    /// Generate arrivals from per-band configuration (Enhancement 11.3).
+    ///
+    /// Samples arrivals independently from each enabled band and assigns
+    /// priority within each band's range.
+    fn generate_from_bands(
+        &mut self,
+        agent_id: &str,
+        tick: usize,
+        bands: &ArrivalBandsConfig,
+        rng: &mut RngManager,
+    ) -> Vec<Transaction> {
+        let mut transactions = Vec::new();
+
+        // Generate from urgent band (priority 8-10)
+        if let Some(ref band_config) = bands.urgent {
+            let band_txs = self.generate_from_band(
+                agent_id,
+                tick,
+                band_config,
+                PriorityBand::Urgent,
+                rng,
+            );
+            transactions.extend(band_txs);
+        }
+
+        // Generate from normal band (priority 4-7)
+        if let Some(ref band_config) = bands.normal {
+            let band_txs = self.generate_from_band(
+                agent_id,
+                tick,
+                band_config,
+                PriorityBand::Normal,
+                rng,
+            );
+            transactions.extend(band_txs);
+        }
+
+        // Generate from low band (priority 0-3)
+        if let Some(ref band_config) = bands.low {
+            let band_txs = self.generate_from_band(
+                agent_id,
+                tick,
+                band_config,
+                PriorityBand::Low,
+                rng,
+            );
+            transactions.extend(band_txs);
+        }
+
+        transactions
+    }
+
+    /// Generate arrivals from a single priority band.
+    fn generate_from_band(
+        &mut self,
+        agent_id: &str,
+        tick: usize,
+        band_config: &ArrivalBandConfig,
+        band: PriorityBand,
+        rng: &mut RngManager,
+    ) -> Vec<Transaction> {
+        // Sample arrival count from Poisson distribution
+        let num_arrivals = rng.poisson(band_config.rate_per_tick);
+
+        let mut transactions = Vec::with_capacity(num_arrivals as usize);
+
+        let (priority_min, priority_max) = band.priority_range();
+
+        for _ in 0..num_arrivals {
+            // Sample amount
+            let amount = self.sample_amount(&band_config.amount_distribution, rng);
+
+            // Select receiver
+            let receiver = self.select_counterparty(agent_id, &band_config.counterparty_weights, rng);
+
+            // Generate deadline using band-specific offset range
+            let deadline_range = (band_config.deadline_offset_min, band_config.deadline_offset_max);
+            let deadline = self.generate_deadline(tick, deadline_range, rng);
+
+            // Sample priority uniformly within band range
+            let priority = if priority_min == priority_max {
+                priority_min
+            } else {
+                let range = (priority_max - priority_min + 1) as i64;
+                (rng.range(priority_min as i64, priority_min as i64 + range)) as u8
+            };
+
+            // Create transaction
+            self.next_tx_id += 1;
+
+            let mut tx = Transaction::new(agent_id.to_string(), receiver, amount, tick, deadline);
+            tx = tx.with_priority(priority);
+
+            // Note: divisibility is tracked at the arrival config level but not on individual transactions
+            // The divisible flag in ArrivalBandConfig is reserved for future use
 
             transactions.push(tx);
         }
