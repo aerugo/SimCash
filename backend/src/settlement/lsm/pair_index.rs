@@ -125,6 +125,7 @@ impl PairBucket {
         self.tx_ids.retain(|id| id != tx_id);
     }
 
+    #[allow(dead_code)] // Utility method for future use
     fn clear(&mut self) {
         self.sum = 0;
         self.tx_ids.clear();

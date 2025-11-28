@@ -5,7 +5,7 @@
 //! - Executing events to modify state
 //! - Logging events for replay
 
-use crate::events::types::{EventSchedule, ScenarioEvent, ScheduledEvent};
+use crate::events::types::{ScenarioEvent, ScheduledEvent};
 use crate::models::{state::SimulationState, Event};
 use serde_json::json;
 
@@ -181,7 +181,7 @@ fn log_scenario_event(state: &mut SimulationState, tick: usize, event_type: &str
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Agent;
+    use crate::events::types::EventSchedule;
 
     #[test]
     fn test_event_handler_get_events_for_tick() {
