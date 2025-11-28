@@ -293,9 +293,9 @@ fn test_cycle_net_outflow_covered_by_credit() {
         ("C", 0, 200_000),
     ]);
 
-    let tx_ab = create_queued_transaction(&mut state, "A", "B", 500_000);
-    let tx_bc = create_queued_transaction(&mut state, "B", "C", 800_000);
-    let tx_ca = create_queued_transaction(&mut state, "C", "A", 700_000);
+    let _tx_ab = create_queued_transaction(&mut state, "A", "B", 500_000);
+    let _tx_bc = create_queued_transaction(&mut state, "B", "C", 800_000);
+    let _tx_ca = create_queued_transaction(&mut state, "C", "A", 700_000);
 
     let cycles = detect_cycles(&state, 4);
     let cycle = &cycles[0];
@@ -331,10 +331,10 @@ fn test_four_agent_cycle_unequal() {
         ("D", 100_000, 0),    // Has 100k to cover -100k net
     ]);
 
-    let tx_ab = create_queued_transaction(&mut state, "A", "B", 1_000_000);
-    let tx_bc = create_queued_transaction(&mut state, "B", "C", 1_200_000);
-    let tx_cd = create_queued_transaction(&mut state, "C", "D", 800_000);
-    let tx_da = create_queued_transaction(&mut state, "D", "A", 900_000);
+    let _tx_ab = create_queued_transaction(&mut state, "A", "B", 1_000_000);
+    let _tx_bc = create_queued_transaction(&mut state, "B", "C", 1_200_000);
+    let _tx_cd = create_queued_transaction(&mut state, "C", "D", 800_000);
+    let _tx_da = create_queued_transaction(&mut state, "D", "A", 900_000);
 
     let cycles = detect_cycles(&state, 5); // Allow length 5
     assert!(!cycles.is_empty(), "Should detect 4-agent cycle");
@@ -383,7 +383,7 @@ fn test_net_positions_sum_to_zero() {
     let cycle = &cycles[0];
 
     let mut to_remove = BTreeMap::new();
-    let result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Should settle");
+    let _result = settle_cycle(&mut state, cycle, 5, &mut to_remove).expect("Should settle");
 
     // Sum of all balance changes should be zero
     let balance_changes = state.get_agent("A").unwrap().balance()

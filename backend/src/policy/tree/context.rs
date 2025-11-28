@@ -1144,7 +1144,7 @@ mod tests {
     #[test]
     fn test_collateral_utilization_with_posted_collateral() {
         // Create agent with posted collateral
-        let mut agent = Agent::with_buffer("BANK_A".to_string(), 500_000, 100_000);
+        let agent = Agent::with_buffer("BANK_A".to_string(), 500_000, 100_000);
         // TODO: Need to add posted_collateral to agent for this test
         // For now, test will fail until Agent supports collateral
 

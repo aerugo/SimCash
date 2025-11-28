@@ -518,7 +518,7 @@ fn test_use_case_urgent_deadline_boost_priority() {
 fn test_use_case_lsm_coordination_timed_release() {
     // Use case: Release payment at tick when counterparty's payment expected
 
-    let current_tick = 10;
+    let _current_tick = 10;
     let expected_inbound_tick = 15;
     let target_tick = expected_inbound_tick; // Coordinate for LSM
 

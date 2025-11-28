@@ -11,7 +11,6 @@ use payment_simulator_core_rs::{
     },
     Agent, SimulationState, Transaction,
 };
-use std::collections::{BTreeMap, BTreeSet};
 
 // ============================================================================
 // Test Helpers
@@ -343,7 +342,7 @@ fn test_triangle_finder_no_triangles() {
 
 #[test]
 fn test_triangle_finder_multiple_triangles() {
-    let mut state = create_test_state();
+    let _state = create_test_state();
 
     // Triangle 1: A→B→C→A
     // Triangle 2: A→B→D→A (shares edge A→B)

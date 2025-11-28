@@ -96,7 +96,7 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
     // Advance through day 0 to trigger EOD at tick 99
     // Need to call tick() 100 times to process ticks 0-99
     for _ in 0..100 {
-        engine.tick();
+        let _ = engine.tick();
     }
 
     // At tick 99 (EOD):
@@ -190,7 +190,7 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
     // Advance through day 0 to trigger EOD at tick 99
     // Need to call tick() 100 times to process ticks 0-99
     for _ in 0..100 {
-        engine.tick();
+        let _ = engine.tick();
     }
 
     // All 5 transactions are overdue, so all should incur penalties:
@@ -272,7 +272,7 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
     // Advance through day 0 to trigger EOD at tick 99
     // Need to call tick() 100 times to process ticks 0-99
     for _ in 0..100 {
-        engine.tick();
+        let _ = engine.tick();
     }
 
     // No transactions in queue at EOD, so no EOD penalty
