@@ -11,6 +11,7 @@ Commands for managing the DuckDB persistence layer:
 
 from __future__ import annotations
 
+from collections import defaultdict
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -245,9 +246,10 @@ def db_info(
 
         for table_name in tables:
             try:
-                count = manager.conn.execute(
+                result = manager.conn.execute(
                     f"SELECT COUNT(*) FROM {table_name}"
-                ).fetchone()[0]
+                ).fetchone()
+                count = result[0] if result else 0
                 table.add_row(table_name, f"{count:,}")
             except Exception:
                 # Table might not exist yet
@@ -439,7 +441,9 @@ def _collect_event_based_cost_data(
     """
 
     # Aggregate costs by tick and agent
-    tick_agent_costs = defaultdict(lambda: defaultdict(int))
+    tick_agent_costs: defaultdict[int, defaultdict[str, int]] = defaultdict(
+        lambda: defaultdict(int)
+    )
 
     # Add continuous costs from CostAccrual events
     for row in conn.execute(cost_accrual_query, [simulation_id]).fetchall():
@@ -557,7 +561,7 @@ def _generate_cost_chart_png(
         ax.plot(ticks, costs_usd, label=label, linewidth=2, color=colors[i % len(colors)])
 
     # Format y-axis as currency
-    def currency_formatter(x, p) -> str:
+    def currency_formatter(x: float, p: int) -> str:
         return f'${x:,.0f}'
 
     ax.yaxis.set_major_formatter(FuncFormatter(currency_formatter))
@@ -687,6 +691,8 @@ def generate_cost_charts(
         return
 
     # Generate both charts
+    if output_base_path is None:
+        output_base_path = f"cost_chart_{simulation_id}"
     base_path = Path(output_base_path)
 
     # Accumulated chart
@@ -832,7 +838,9 @@ def db_costs(
         """
 
         # Aggregate costs by tick and agent
-        tick_agent_costs = defaultdict(lambda: defaultdict(int))
+        tick_agent_costs: defaultdict[int, defaultdict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
 
         # Add continuous costs from CostAccrual events
         for row in conn.execute(cost_accrual_query, [simulation_id]).fetchall():
@@ -944,7 +952,7 @@ def db_costs(
                 ax.plot(ticks, costs_usd, label=label, linewidth=2, color=colors[i % len(colors)])
 
             # Format y-axis as currency
-            def currency_formatter(x, p) -> str:
+            def currency_formatter(x: float, p: int) -> str:
                 return f'${x:,.0f}'
 
             ax.yaxis.set_major_formatter(FuncFormatter(currency_formatter))
