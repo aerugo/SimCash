@@ -3,7 +3,7 @@
 //! Tests for Phase 3: Basic RTGS settlement with central queue management.
 //! Following TDD principles - these tests are written BEFORE implementation.
 
-use payment_simulator_core_rs::{Agent, Transaction, TransactionStatus};
+use payment_simulator_core_rs::{Agent, Transaction};
 
 // ============================================================================
 // Test Helpers

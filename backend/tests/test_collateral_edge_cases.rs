@@ -199,7 +199,7 @@ fn test_multiple_posts_respect_capacity() {
     let config = create_test_config("BANK_A", 10_000, 50_000, policy_json);
     let mut orch = Orchestrator::new(config).unwrap();
 
-    let result = orch.tick();
+    let _ = orch.tick();
 
     let final_state = orch.state();
     let agent = final_state.get_agent("BANK_A").unwrap();
@@ -246,7 +246,7 @@ fn test_withdrawing_more_than_posted_fails() {
     let config = create_test_config("BANK_A", 10_000, 50_000, policy_json);
     let mut orch = Orchestrator::new(config).unwrap();
 
-    let result = orch.tick();
+    let _ = orch.tick();
 
     let final_state = orch.state();
     let agent = final_state.get_agent("BANK_A").unwrap();
@@ -326,7 +326,7 @@ fn test_withdrawing_with_no_posted_collateral_is_noop() {
     let config = create_test_config("BANK_A", 10_000, 50_000, policy_json);
     let mut orch = Orchestrator::new(config).unwrap();
 
-    let result = orch.tick();
+    let _ = orch.tick();
 
     let final_state = orch.state();
     let agent = final_state.get_agent("BANK_A").unwrap();

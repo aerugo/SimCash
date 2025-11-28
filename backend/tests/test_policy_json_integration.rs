@@ -42,7 +42,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
 
     // Submit a transaction
-    let tx_id = orchestrator
+    let _tx_id = orchestrator
         .submit_transaction("BANK_A", "BANK_A", 100_000, 50, 5, false)
         .expect("Failed to submit transaction");
 

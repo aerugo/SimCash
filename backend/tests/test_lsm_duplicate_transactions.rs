@@ -4,7 +4,7 @@
 
 use payment_simulator_core_rs::models::agent::Agent;
 use payment_simulator_core_rs::models::state::SimulationState;
-use payment_simulator_core_rs::models::transaction::{Transaction, TransactionStatus};
+use payment_simulator_core_rs::models::transaction::Transaction;
 use payment_simulator_core_rs::settlement::lsm::{run_lsm_pass, LsmConfig};
 use std::collections::HashSet;
 

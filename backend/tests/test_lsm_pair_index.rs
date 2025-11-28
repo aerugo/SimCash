@@ -10,7 +10,6 @@ use payment_simulator_core_rs::{
     settlement::lsm::pair_index::{PairIndex, ReadyKey},
     Agent, SimulationState, Transaction,
 };
-use std::collections::BTreeMap;
 
 // ============================================================================
 // Test Helpers

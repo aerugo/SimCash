@@ -141,7 +141,7 @@ fn test_top_counterparties_empty_history() {
 #[test]
 #[ignore] // TODO: Implement after adding transaction history tracking to Agent
 fn test_top_counterparties_single_counterparty() {
-    let mut agent = create_agent("BANK_A", 1_000_000, 0);
+    let agent = create_agent("BANK_A", 1_000_000, 0);
 
     // Simulate transaction history: 3 transactions to BANK_B (total 100k)
     // TODO: Need Agent.record_transaction_history() method
@@ -158,7 +158,7 @@ fn test_top_counterparties_single_counterparty() {
 #[test]
 #[ignore] // TODO: Implement after adding transaction history tracking to Agent
 fn test_top_counterparties_multiple_sorted_by_volume() {
-    let mut agent = create_agent("BANK_A", 1_000_000, 0);
+    let agent = create_agent("BANK_A", 1_000_000, 0);
 
     // Simulate transaction history:
     // BANK_B: 100k (top)
@@ -177,7 +177,7 @@ fn test_top_counterparties_multiple_sorted_by_volume() {
 #[test]
 #[ignore] // TODO: Implement after adding transaction history tracking to Agent
 fn test_top_counterparties_respects_limit() {
-    let mut agent = create_agent("BANK_A", 1_000_000, 0);
+    let agent = create_agent("BANK_A", 1_000_000, 0);
 
     // Simulate 10 counterparties with different volumes
     // TODO: Need Agent.record_transaction_history() method
@@ -224,7 +224,7 @@ fn test_tx_is_top_counterparty_true_for_top_counterparty() {
     use payment_simulator_core_rs::policy::tree::EvalContext;
     use payment_simulator_core_rs::orchestrator::CostRates;
 
-    let mut agent_a = create_agent("BANK_A", 1_000_000, 0);
+    let agent_a = create_agent("BANK_A", 1_000_000, 0);
 
     // Record BANK_B as top counterparty (high volume)
     // TODO: Need Agent.record_transaction_history() method
@@ -250,7 +250,7 @@ fn test_tx_is_top_counterparty_false_for_non_top_counterparty() {
     use payment_simulator_core_rs::policy::tree::EvalContext;
     use payment_simulator_core_rs::orchestrator::CostRates;
 
-    let mut agent_a = create_agent("BANK_A", 1_000_000, 0);
+    let agent_a = create_agent("BANK_A", 1_000_000, 0);
 
     // Record BANK_B as top counterparty, but transaction is to BANK_C
     // TODO: Need Agent.record_transaction_history() method
@@ -301,7 +301,7 @@ fn test_policy_can_use_counterparty_fields_together() {
     use payment_simulator_core_rs::policy::tree::EvalContext;
     use payment_simulator_core_rs::orchestrator::CostRates;
 
-    let mut agent_a = create_agent("BANK_A", 1_000_000, 0);
+    let agent_a = create_agent("BANK_A", 1_000_000, 0);
 
     // Record BANK_B as top counterparty
     // TODO: Need Agent.record_transaction_history() method

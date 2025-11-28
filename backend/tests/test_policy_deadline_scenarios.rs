@@ -15,6 +15,7 @@ use std::collections::HashMap;
 
 /// Helper struct to track policy outcome metrics
 #[derive(Debug, Default)]
+#[allow(dead_code)] // Some fields used for debugging/future analysis
 struct PolicyMetrics {
     total_arrivals: usize,
     total_settlements: usize,
