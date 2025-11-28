@@ -6,7 +6,7 @@ payment_simulator._core.
 """
 
 # Re-export everything from the Rust module
-from payment_simulator_core_rs import *  # noqa: F401, F403
+from payment_simulator_core_rs import *  # type: ignore[import-untyped]  # noqa: F401, F403
 
 # Preserve module documentation if it exists
 try:

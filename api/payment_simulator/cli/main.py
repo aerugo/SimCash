@@ -11,7 +11,7 @@ app = typer.Typer(
 )
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     """Show version and exit."""
     if value:
         from payment_simulator.cli.output import console
@@ -31,7 +31,7 @@ def main(
             help="Show version and exit",
         ),
     ] = False,
-):
+) -> None:
     """Payment Simulator CLI - Terminal-first interface optimized for AI iteration."""
     pass
 

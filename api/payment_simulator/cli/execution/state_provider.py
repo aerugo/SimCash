@@ -4,8 +4,9 @@ Defines a common interface for accessing simulation state, implemented by
 both live Orchestrator (via FFI) and database replay (via queries).
 """
 
-from typing import Protocol, runtime_checkable
-from payment_simulator._core import Orchestrator
+from typing import Any, Protocol, runtime_checkable
+
+from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 
 
 @runtime_checkable
@@ -19,7 +20,7 @@ class StateProvider(Protocol):
     Enables unified output functions that work identically in both modes.
     """
 
-    def get_transaction_details(self, tx_id: str) -> dict | None:
+    def get_transaction_details(self, tx_id: str) -> dict[str, Any] | None:
         """Get transaction details by ID.
 
         Returns:
@@ -49,7 +50,7 @@ class StateProvider(Protocol):
         """Get collateral posted by agent in cents."""
         ...
 
-    def get_agent_accumulated_costs(self, agent_id: str) -> dict:
+    def get_agent_accumulated_costs(self, agent_id: str) -> dict[str, Any]:
         """Get accumulated costs for agent.
 
         Returns:
@@ -70,7 +71,7 @@ class StateProvider(Protocol):
         """
         ...
 
-    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
+    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict[str, Any]]:
         """Get transactions approaching their deadline.
 
         Args:
@@ -82,7 +83,7 @@ class StateProvider(Protocol):
         """
         ...
 
-    def get_overdue_transactions(self) -> list[dict]:
+    def get_overdue_transactions(self) -> list[dict[str, Any]]:
         """Get all currently overdue transactions with cost data.
 
         Returns:
@@ -107,37 +108,37 @@ class OrchestratorStateProvider:
         """
         self.orch = orch
 
-    def get_transaction_details(self, tx_id: str) -> dict | None:
+    def get_transaction_details(self, tx_id: str) -> dict[str, Any] | None:
         """Delegate to orchestrator."""
-        return self.orch.get_transaction_details(tx_id)
+        return self.orch.get_transaction_details(tx_id)  # type: ignore[no-any-return]
 
     def get_agent_balance(self, agent_id: str) -> int:
         """Delegate to orchestrator."""
-        return self.orch.get_agent_balance(agent_id)
+        return self.orch.get_agent_balance(agent_id)  # type: ignore[no-any-return]
 
     def get_agent_unsecured_cap(self, agent_id: str) -> int:
         """Delegate to orchestrator."""
-        return self.orch.get_agent_unsecured_cap(agent_id)
+        return self.orch.get_agent_unsecured_cap(agent_id)  # type: ignore[no-any-return]
 
     def get_agent_queue1_contents(self, agent_id: str) -> list[str]:
         """Delegate to orchestrator."""
-        return self.orch.get_agent_queue1_contents(agent_id)
+        return self.orch.get_agent_queue1_contents(agent_id)  # type: ignore[no-any-return]
 
     def get_rtgs_queue_contents(self) -> list[str]:
         """Delegate to orchestrator."""
-        return self.orch.get_rtgs_queue_contents()
+        return self.orch.get_rtgs_queue_contents()  # type: ignore[no-any-return]
 
     def get_agent_collateral_posted(self, agent_id: str) -> int:
         """Delegate to orchestrator."""
-        return self.orch.get_agent_collateral_posted(agent_id)
+        return self.orch.get_agent_collateral_posted(agent_id)  # type: ignore[no-any-return]
 
-    def get_agent_accumulated_costs(self, agent_id: str) -> dict:
+    def get_agent_accumulated_costs(self, agent_id: str) -> dict[str, Any]:
         """Delegate to orchestrator."""
-        return self.orch.get_agent_accumulated_costs(agent_id)
+        return self.orch.get_agent_accumulated_costs(agent_id)  # type: ignore[no-any-return]
 
     def get_queue1_size(self, agent_id: str) -> int:
         """Delegate to orchestrator."""
-        return self.orch.get_queue1_size(agent_id)
+        return self.orch.get_queue1_size(agent_id)  # type: ignore[no-any-return]
 
     def get_queue2_size(self, agent_id: str) -> int:
         """Calculate Queue 2 size from RTGS queue contents."""
@@ -149,13 +150,13 @@ class OrchestratorStateProvider:
             and self.orch.get_transaction_details(tx_id).get("sender_id") == agent_id
         )
 
-    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
+    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict[str, Any]]:
         """Delegate to orchestrator."""
-        return self.orch.get_transactions_near_deadline(within_ticks)
+        return self.orch.get_transactions_near_deadline(within_ticks)  # type: ignore[no-any-return]
 
-    def get_overdue_transactions(self) -> list[dict]:
+    def get_overdue_transactions(self) -> list[dict[str, Any]]:
         """Delegate to orchestrator."""
-        return self.orch.get_overdue_transactions()
+        return self.orch.get_overdue_transactions()  # type: ignore[no-any-return]
 
 
 class DatabaseStateProvider:
@@ -167,13 +168,13 @@ class DatabaseStateProvider:
 
     def __init__(
         self,
-        conn,
+        conn: Any,
         simulation_id: str,
         tick: int,
-        tx_cache: dict[str, dict],
-        agent_states: dict[str, dict],
-        queue_snapshots: dict[str, dict],
-    ):
+        tx_cache: dict[str, dict[str, Any]],
+        agent_states: dict[str, dict[str, Any]],
+        queue_snapshots: dict[str, dict[str, Any]],
+    ) -> None:
         """Initialize with database state.
 
         Args:
@@ -191,7 +192,7 @@ class DatabaseStateProvider:
         self._agent_states = agent_states
         self._queue_snapshots = queue_snapshots
 
-    def get_transaction_details(self, tx_id: str) -> dict | None:
+    def get_transaction_details(self, tx_id: str) -> dict[str, Any] | None:
         """Get transaction from cache with tick-aware remaining_amount.
 
         CRITICAL FIX (Issue #3):
@@ -207,7 +208,7 @@ class DatabaseStateProvider:
         settlement_tick = tx.get("settlement_tick")
         if settlement_tick is not None and settlement_tick <= self.tick:
             # Transaction was settled by this tick, so amount_settled counts
-            amount_settled = tx.get("amount_settled", 0)
+            amount_settled = int(tx.get("amount_settled", 0))
         # else: Transaction not yet settled at this tick, amount_settled = 0
 
         # Convert database format to orchestrator format
@@ -216,7 +217,7 @@ class DatabaseStateProvider:
             "sender_id": tx["sender_id"],
             "receiver_id": tx["receiver_id"],
             "amount": tx["amount"],
-            "remaining_amount": tx.get("amount", 0) - amount_settled,
+            "remaining_amount": int(tx.get("amount", 0)) - amount_settled,
             "priority": tx["priority"],
             "deadline_tick": tx["deadline_tick"],
             "status": tx["status"],
@@ -228,14 +229,14 @@ class DatabaseStateProvider:
         # Handle missing agent_id gracefully
         if agent_id not in self._agent_states:
             return 0
-        return self._agent_states[agent_id].get("balance", 0)
+        return int(self._agent_states[agent_id].get("balance", 0))
 
     def get_agent_unsecured_cap(self, agent_id: str) -> int:
         """Get credit limit from agent_states."""
         # Handle missing unsecured_cap gracefully (older databases may not have it)
         if agent_id not in self._agent_states:
             return 0
-        return self._agent_states[agent_id].get("unsecured_cap", 0)
+        return int(self._agent_states[agent_id].get("unsecured_cap", 0))
 
     def get_agent_queue1_contents(self, agent_id: str) -> list[str]:
         """Get queue1 from queue_snapshots."""
@@ -251,16 +252,16 @@ class DatabaseStateProvider:
     def get_agent_collateral_posted(self, agent_id: str) -> int:
         """Get collateral from agent_states."""
         # Database schema uses "posted_collateral" not "collateral_posted"
-        return self._agent_states.get(agent_id, {}).get("posted_collateral", 0)
+        return int(self._agent_states.get(agent_id, {}).get("posted_collateral", 0))
 
-    def get_agent_accumulated_costs(self, agent_id: str) -> dict:
+    def get_agent_accumulated_costs(self, agent_id: str) -> dict[str, Any]:
         """Get costs from agent_states."""
         state = self._agent_states.get(agent_id, {})
-        liquidity_cost = state.get("liquidity_cost", 0)
-        delay_cost = state.get("delay_cost", 0)
-        collateral_cost = state.get("collateral_cost", 0)
-        penalty_cost = state.get("penalty_cost", 0)
-        split_friction_cost = state.get("split_friction_cost", 0)
+        liquidity_cost = int(state.get("liquidity_cost", 0))
+        delay_cost = int(state.get("delay_cost", 0))
+        collateral_cost = int(state.get("collateral_cost", 0))
+        penalty_cost = int(state.get("penalty_cost", 0))
+        split_friction_cost = int(state.get("split_friction_cost", 0))
 
         return {
             "liquidity_cost": liquidity_cost,
@@ -283,14 +284,14 @@ class DatabaseStateProvider:
         Queue 2 consists of transactions in the RTGS queue that belong to this agent.
         """
         rtgs_queue = self.get_rtgs_queue_contents()
-        return sum(
-            1
-            for tx_id in rtgs_queue
-            if self.get_transaction_details(tx_id)
-            and self.get_transaction_details(tx_id).get("sender_id") == agent_id
-        )
+        count = 0
+        for tx_id in rtgs_queue:
+            tx_details = self.get_transaction_details(tx_id)
+            if tx_details and tx_details.get("sender_id") == agent_id:
+                count += 1
+        return count
 
-    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict]:
+    def get_transactions_near_deadline(self, within_ticks: int) -> list[dict[str, Any]]:
         """Get transactions approaching deadline from cache.
 
         CRITICAL FIX (Issue #12):
@@ -343,7 +344,7 @@ class DatabaseStateProvider:
 
         return near_deadline
 
-    def get_overdue_transactions(self) -> list[dict]:
+    def get_overdue_transactions(self) -> list[dict[str, Any]]:
         """Get overdue transactions by querying simulation_events."""
         # Query for TransactionWentOverdue events up to current tick
         # to find which transactions are currently overdue
