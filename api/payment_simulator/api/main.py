@@ -1,14 +1,17 @@
 """FastAPI application for Payment Simulator."""
 
+from __future__ import annotations
+
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
+
 from payment_simulator._core import Orchestrator
 from payment_simulator.config import SimulationConfig, ValidationError
-from pydantic import BaseModel, Field
 
 # ============================================================================
 # Request/Response Models
@@ -39,7 +42,7 @@ class SimulationCreateResponse(BaseModel):
     """Response model for simulation creation."""
 
     simulation_id: str
-    state: Dict[str, Any]
+    state: dict[str, Any]
     message: str = "Simulation created successfully"
 
 
@@ -56,20 +59,20 @@ class TickResponse(BaseModel):
 class MultiTickResponse(BaseModel):
     """Response model for multiple tick execution."""
 
-    results: List[TickResponse]
+    results: list[TickResponse]
     final_tick: int
 
 
 class SimulationListResponse(BaseModel):
     """Response model for listing simulations."""
 
-    simulations: List[Dict[str, Any]]
+    simulations: list[dict[str, Any]]
 
 
 class TransactionListResponse(BaseModel):
     """Response model for listing transactions."""
 
-    transactions: List[Dict[str, Any]]
+    transactions: list[dict[str, Any]]
 
 
 class CheckpointSaveRequest(BaseModel):
@@ -78,7 +81,7 @@ class CheckpointSaveRequest(BaseModel):
     checkpoint_type: str = Field(
         ..., description="Type of checkpoint (manual/auto/eod/final)"
     )
-    description: Optional[str] = Field(None, description="Human-readable description")
+    description: str | None = Field(None, description="Human-readable description")
 
 
 class CheckpointSaveResponse(BaseModel):
@@ -109,7 +112,7 @@ class CheckpointLoadResponse(BaseModel):
 class CheckpointListResponse(BaseModel):
     """Response model for listing checkpoints."""
 
-    checkpoints: List[Dict[str, Any]]
+    checkpoints: list[dict[str, Any]]
 
 
 class AgentCostBreakdown(BaseModel):
@@ -133,7 +136,7 @@ class CostResponse(BaseModel):
     simulation_id: str = Field(..., description="Simulation identifier")
     tick: int = Field(..., description="Current tick number")
     day: int = Field(..., description="Current day number")
-    agents: Dict[str, AgentCostBreakdown] = Field(
+    agents: dict[str, AgentCostBreakdown] = Field(
         ..., description="Per-agent cost breakdowns"
     )
     total_system_cost: int = Field(
@@ -145,15 +148,15 @@ class TickCostDataPoint(BaseModel):
     """Cost data for a single tick."""
 
     tick: int
-    agent_costs: Dict[str, int]  # agent_id -> accumulated cost in cents
+    agent_costs: dict[str, int]  # agent_id -> accumulated cost in cents
 
 
 class CostTimelineResponse(BaseModel):
     """Response model for GET /simulations/{id}/costs/timeline endpoint."""
 
     simulation_id: str
-    agent_ids: List[str]
-    tick_costs: List[TickCostDataPoint]  # Changed from daily_costs to tick_costs
+    agent_ids: list[str]
+    tick_costs: list[TickCostDataPoint]  # Changed from daily_costs to tick_costs
     ticks_per_day: int
 
 
@@ -200,8 +203,8 @@ class SimulationSummary(BaseModel):
     total_transactions: int
     settlement_rate: float
     total_cost_cents: int
-    duration_seconds: Optional[float] = None
-    ticks_per_second: Optional[float] = None
+    duration_seconds: float | None = None
+    ticks_per_second: float | None = None
 
 
 class SimulationMetadataResponse(BaseModel):
@@ -209,7 +212,7 @@ class SimulationMetadataResponse(BaseModel):
 
     simulation_id: str
     created_at: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
     summary: SimulationSummary
 
 
@@ -230,7 +233,7 @@ class AgentSummary(BaseModel):
 class AgentListResponse(BaseModel):
     """Response model for GET /simulations/{id}/agents endpoint."""
 
-    agents: List[AgentSummary]
+    agents: list[AgentSummary]
 
 
 class EventRecord(BaseModel):
@@ -246,28 +249,28 @@ class EventRecord(BaseModel):
     day: int
     event_type: str
     event_timestamp: str
-    details: Dict[str, Any]
-    agent_id: Optional[str] = None
-    tx_id: Optional[str] = None
+    details: dict[str, Any]
+    agent_id: str | None = None
+    tx_id: str | None = None
     created_at: str
 
     # Flattened fields from details for API ergonomics
     # These are populated by event_queries.py for common event types
-    sender_id: Optional[str] = None
-    receiver_id: Optional[str] = None
-    amount: Optional[int] = None
-    deadline: Optional[int] = None
-    priority: Optional[int] = None
+    sender_id: str | None = None
+    receiver_id: str | None = None
+    amount: int | None = None
+    deadline: int | None = None
+    priority: int | None = None
 
 
 class EventListResponse(BaseModel):
     """Response model for paginated events."""
 
-    events: List[EventRecord]
+    events: list[EventRecord]
     total: int
     limit: int
     offset: int
-    filters: Optional[Dict[str, Any]] = None
+    filters: dict[str, Any | None] = None
 
 
 class DailyAgentMetric(BaseModel):
@@ -298,8 +301,8 @@ class AgentTimelineResponse(BaseModel):
     """Response model for agent timeline."""
 
     agent_id: str
-    daily_metrics: List[DailyAgentMetric]
-    collateral_events: List[CollateralEvent]
+    daily_metrics: list[DailyAgentMetric]
+    collateral_events: list[CollateralEvent]
 
 
 class TransactionEvent(BaseModel):
@@ -307,7 +310,7 @@ class TransactionEvent(BaseModel):
 
     tick: int
     event_type: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
 
 
 class RelatedTransaction(BaseModel):
@@ -315,7 +318,7 @@ class RelatedTransaction(BaseModel):
 
     tx_id: str
     relationship: str
-    split_index: Optional[int] = None
+    split_index: int | None = None
 
 
 class TransactionDetail(BaseModel):
@@ -328,7 +331,7 @@ class TransactionDetail(BaseModel):
     priority: int
     arrival_tick: int
     deadline_tick: int
-    settlement_tick: Optional[int]
+    settlement_tick: int | None
     status: str
     delay_cost: int
     amount_settled: int
@@ -338,8 +341,8 @@ class TransactionLifecycleResponse(BaseModel):
     """Response model for transaction lifecycle."""
 
     transaction: TransactionDetail
-    events: List[TransactionEvent]
-    related_transactions: List[RelatedTransaction]
+    events: list[TransactionEvent]
+    related_transactions: list[RelatedTransaction]
 
 
 # ============================================================================
@@ -361,7 +364,7 @@ class QueueContents(BaseModel):
     """Contents of a queue."""
 
     size: int
-    transactions: List[QueueTransaction]
+    transactions: list[QueueTransaction]
     total_value: int
 
 
@@ -395,7 +398,7 @@ class NearDeadlineTransactionsResponse(BaseModel):
     current_tick: int
     within_ticks: int
     threshold_tick: int
-    transactions: List[NearDeadlineTransaction]
+    transactions: list[NearDeadlineTransaction]
     count: int
 
 
@@ -420,7 +423,7 @@ class OverdueTransactionsResponse(BaseModel):
 
     simulation_id: str
     current_tick: int
-    transactions: List[OverdueTransaction]
+    transactions: list[OverdueTransaction]
     count: int
     total_overdue_cost: int
 
@@ -454,7 +457,7 @@ class TickStateResponse(BaseModel):
     simulation_id: str
     tick: int
     day: int
-    agents: Dict[str, AgentStateSnapshot]
+    agents: dict[str, AgentStateSnapshot]
     system: SystemStateSnapshot
 
 
@@ -467,11 +470,11 @@ class SimulationManager:
     """Manages active simulation instances."""
 
     def __init__(self, db_manager=None):
-        self.simulations: Dict[str, Orchestrator] = {}
-        self.configs: Dict[str, Dict] = (
+        self.simulations: dict[str, Orchestrator] = {}
+        self.configs: dict[str, dict[str, Any]] = (
             {}
         )  # Store both original and FFI configs: {"original": dict, "ffi": dict}
-        self.transactions: Dict[str, Dict[str, Dict[str, Any]]] = (
+        self.transactions: dict[str, dict[str, dict[str, Any]]] = (
             {}
         )  # sim_id -> tx_id -> tx_data
         self.db_manager = db_manager  # Optional database manager for checkpoints
@@ -516,7 +519,7 @@ class SimulationManager:
             del self.configs[sim_id]
             del self.transactions[sim_id]
 
-    def list_simulations(self) -> List[Dict[str, Any]]:
+    def list_simulations(self) -> list[dict[str, Any]]:
         """List all active simulations."""
         return [
             {
@@ -527,7 +530,7 @@ class SimulationManager:
             for sim_id, orch in self.simulations.items()
         ]
 
-    def get_state(self, sim_id: str) -> Dict[str, Any]:
+    def get_state(self, sim_id: str) -> dict[str, Any]:
         """Get full simulation state."""
         orch = self.get_simulation(sim_id)
 
@@ -590,7 +593,7 @@ class SimulationManager:
             "sender_balance_at_submission": sender_balance_at_submission,
         }
 
-    def get_transaction(self, sim_id: str, tx_id: str) -> Optional[Dict[str, Any]]:
+    def get_transaction(self, sim_id: str, tx_id: str) -> dict[str, Any | None]:
         """Get transaction by ID with status from orchestrator."""
         if sim_id not in self.transactions:
             return None
@@ -630,9 +633,9 @@ class SimulationManager:
     def list_transactions(
         self,
         sim_id: str,
-        status: Optional[str] = None,
-        agent: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        status: str | None = None,
+        agent: str | None = None,
+    ) -> list[dict[str, Any]]:
         """List transactions with optional filtering."""
         if sim_id not in self.transactions:
             return []
@@ -875,7 +878,6 @@ def get_cost_timeline(sim_id: str):
         # Query actual tick-level cost events
         # 1. CostAccrual events for continuous costs (liquidity, delay, collateral)
         # 2. TransactionWentOverdue events for deadline penalties
-        import json
         from collections import defaultdict
 
         cost_accrual_query = """
@@ -946,7 +948,7 @@ def get_cost_timeline(sim_id: str):
 
         # Build accumulated costs for all ticks
         tick_costs = []
-        accumulated = {agent_id: 0 for agent_id in agent_ids}
+        accumulated = dict.fromkeys(agent_ids, 0)
 
         for tick in range(max_tick + 1):
             # Add costs that occurred at this tick
@@ -1224,8 +1226,8 @@ def get_transaction(sim_id: str, tx_id: str):
 @app.get("/simulations/{sim_id}/transactions", response_model=TransactionListResponse)
 def list_transactions(
     sim_id: str,
-    status: Optional[str] = None,
-    agent: Optional[str] = None,
+    status: str | None = None,
+    agent: str | None = None,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
@@ -1435,7 +1437,6 @@ def load_from_checkpoint(request: CheckpointLoadRequest):
 
         # Convert FFI dict back to original config dict for storage
         # This is for API compatibility (list_simulations needs original format)
-        from payment_simulator.config import SimulationConfig
 
         # We need to reconstruct the original dict from the FFI dict
         # For now, we'll just use the ffi_dict as both (they're similar enough)
@@ -1658,7 +1659,10 @@ def get_simulation_costs(sim_id: str):
                 detail=f"Simulation not found: {sim_id}"
             )
 
-        from payment_simulator.persistence.queries import get_cost_breakdown_by_agent, get_simulation_summary
+        from payment_simulator.persistence.queries import (
+            get_cost_breakdown_by_agent,
+            get_simulation_summary,
+        )
 
         conn = manager.db_manager.get_connection()
 
@@ -2105,13 +2109,13 @@ def get_agent_list(sim_id: str):
 @app.get("/simulations/{sim_id}/events", response_model=EventListResponse)
 def get_events(
     sim_id: str,
-    tick: Optional[int] = Query(None, description="Exact tick filter"),
-    tick_min: Optional[int] = Query(None, description="Minimum tick (inclusive)"),
-    tick_max: Optional[int] = Query(None, description="Maximum tick (inclusive)"),
-    day: Optional[int] = Query(None, description="Filter by specific day"),
-    agent_id: Optional[str] = Query(None, description="Filter by agent ID (comprehensive search)"),
-    tx_id: Optional[str] = Query(None, description="Filter by transaction ID"),
-    event_type: Optional[str] = Query(None, description="Filter by event type (comma-separated for multiple)"),
+    tick: int | None = Query(None, description="Exact tick filter"),
+    tick_min: int | None = Query(None, description="Minimum tick (inclusive)"),
+    tick_max: int | None = Query(None, description="Maximum tick (inclusive)"),
+    day: int | None = Query(None, description="Filter by specific day"),
+    agent_id: str | None = Query(None, description="Filter by agent ID (comprehensive search)"),
+    tx_id: str | None = Query(None, description="Filter by transaction ID"),
+    event_type: str | None = Query(None, description="Filter by event type (comma-separated for multiple)"),
     limit: int = Query(100, ge=1, le=1000, description="Number of events per page"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     sort: str = Query("tick_asc", pattern="^(tick_asc|tick_desc)$", description="Sort order"),
