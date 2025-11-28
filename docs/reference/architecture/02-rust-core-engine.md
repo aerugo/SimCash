@@ -374,7 +374,7 @@ See [11-tick-loop-anatomy.md](./11-tick-loop-anatomy.md) for detailed breakdown.
 
 ```mermaid
 flowchart TB
-    Start([tick() called]) --> AdvanceTime["1. Advance Time"]
+    Start(["tick called"]) --> AdvanceTime["1. Advance Time"]
     AdvanceTime --> CheckEOD{"2. Check EOD?"}
     CheckEOD -->|Yes| ProcessEOD["Process EOD"]
     CheckEOD -->|No| Arrivals
@@ -386,7 +386,7 @@ flowchart TB
 
     subgraph PolicyEval["Policy Evaluation"]
         PolicyLoop --> EvalPolicy["Evaluate Policy"]
-        EvalPolicy --> ExecuteDecisions["Execute Decisions<br/>(Submit/Hold/Split)"]
+        EvalPolicy --> ExecuteDecisions["Execute Decisions<br/>Submit/Hold/Split"]
     end
 
     ExecuteDecisions --> RTGS["6. RTGS Processing"]
@@ -394,7 +394,7 @@ flowchart TB
     LSMOpt --> Costs["8. Cost Accrual"]
     Costs --> Cleanup["9. Drop Expired"]
     Cleanup --> Events["10. Log Events"]
-    Events --> Return([Return TickResult])
+    Events --> Return(["Return TickResult"])
 ```
 
 ---

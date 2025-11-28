@@ -15,7 +15,7 @@ The tick loop is the heart of SimCash, executing a 9-step process each tick to a
 
 ```mermaid
 flowchart TB
-    subgraph TickLoop["tick() - 9 Steps"]
+    subgraph TickLoop["tick - 9 Steps"]
         S1["1. Advance Time"]
         S2["2. Check EOD"]
         S3["3. Generate Arrivals"]
@@ -27,7 +27,7 @@ flowchart TB
         S9["9. Event Logging"]
     end
 
-    Start([tick() called]) --> S1
+    Start(["tick called"]) --> S1
     S1 --> S2
     S2 --> S3
     S3 --> S4
@@ -36,7 +36,7 @@ flowchart TB
     S6 --> S7
     S7 --> S8
     S8 --> S9
-    S9 --> Return([Return TickResult])
+    S9 --> Return(["Return TickResult"])
 ```
 
 ---
