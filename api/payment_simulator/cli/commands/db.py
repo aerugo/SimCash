@@ -885,7 +885,7 @@ def db_costs(
         max_tick = (ticks_per_day * num_days) - 1
 
         # Build accumulated costs for all ticks
-        tick_costs = []
+        tick_costs: list[dict[str, Any]] = []
         accumulated = dict.fromkeys(agent_ids, 0)
 
         for tick in range(max_tick + 1):
@@ -920,9 +920,9 @@ def db_costs(
 
                 writer.writeheader()
                 for data in tick_costs:
-                    row = {'tick': data['tick'], 'day': data['day']}
-                    row.update(data['costs'])
-                    writer.writerow(row)
+                    csv_row: dict[str, Any] = {'tick': data['tick'], 'day': data['day']}
+                    csv_row.update(data['costs'])
+                    writer.writerow(csv_row)
 
             console.print(f"[green]✓ Exported {len(tick_costs)} tick records to {output_csv}[/green]")
             return

@@ -5,16 +5,15 @@ Each strategy implements the OutputStrategy protocol to provide mode-specific
 output behavior while using the same core execution logic.
 """
 
-from io import StringIO
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 
 if TYPE_CHECKING:
     from rich.progress import Progress, TaskID
-from payment_simulator.cli.filters import EventFilter
-from payment_simulator.cli.execution.runner import OutputStrategy, SimulationConfig
+from payment_simulator.cli.execution.runner import SimulationConfig
 from payment_simulator.cli.execution.stats import TickResult
+from payment_simulator.cli.filters import EventFilter
 
 
 class QuietOutputStrategy:
@@ -55,7 +54,7 @@ class VerboseModeOutput:
         orch: Orchestrator,
         agent_ids: list[str],
         ticks_per_day: int,
-        event_filter: Optional[EventFilter] = None,
+        event_filter: EventFilter | None = None,
         show_debug: bool = False
     ):
         """Initialize verbose mode output.
@@ -203,8 +202,8 @@ class NormalModeOutput:
         self.quiet = quiet
         self.total_ticks = total_ticks
         self.show_debug = show_debug
-        self.progress: Optional[Progress] = None
-        self.task: Optional[TaskID] = None
+        self.progress: Progress | None = None
+        self.task: TaskID | None = None
 
     def on_simulation_start(self, config: SimulationConfig) -> None:
         if not self.quiet:
@@ -249,7 +248,7 @@ class NormalModeOutput:
             # Print directly to stderr (bypasses Rich's Live display)
             print(f"⏱️  Tick {result.tick}: {total_ms:.2f}ms ({phase_info})", file=sys.stderr)
 
-        if self.progress:
+        if self.progress and self.task is not None:
             self.progress.update(self.task, advance=1)
 
     def on_day_complete(self, day: int, day_stats: dict[str, Any], orch: Orchestrator) -> None:
@@ -311,7 +310,7 @@ class EventStreamModeOutput:
         pass
 
     def on_simulation_complete(self, final_stats: dict[str, Any]) -> None:
-        from payment_simulator.cli.output import log_success, log_info, output_json
+        from payment_simulator.cli.output import log_success, output_json
 
         ticks_per_second = final_stats.get("ticks_per_second", 0)
         duration = final_stats.get("duration_seconds", 0)

@@ -1,11 +1,12 @@
 """YAML configuration loader."""
-import yaml
 from pathlib import Path
-from typing import Union
+
+import yaml
+
 from .schemas import SimulationConfig
 
 
-def load_config(config_path: Union[str, Path]) -> SimulationConfig:
+def load_config(config_path: str | Path) -> SimulationConfig:
     """
     Load and validate simulation configuration from YAML file.
 
@@ -25,7 +26,7 @@ def load_config(config_path: Union[str, Path]) -> SimulationConfig:
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         config_dict = yaml.safe_load(f)
 
     if config_dict is None:

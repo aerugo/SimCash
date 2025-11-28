@@ -240,7 +240,8 @@ class DatabaseStateProvider:
 
     def get_agent_queue1_contents(self, agent_id: str) -> list[str]:
         """Get queue1 from queue_snapshots."""
-        return self._queue_snapshots.get(agent_id, {}).get("queue1", [])
+        result = self._queue_snapshots.get(agent_id, {}).get("queue1", [])
+        return result if isinstance(result, list) else []
 
     def get_rtgs_queue_contents(self) -> list[str]:
         """Aggregate RTGS queue from all agent snapshots."""
