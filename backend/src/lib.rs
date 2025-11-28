@@ -51,10 +51,24 @@ pub mod ffi;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 
+/// Get the policy schema documentation as a JSON string.
+///
+/// This function generates comprehensive documentation of all policy DSL
+/// elements including expressions, computations, actions, and values.
+///
+/// Returns a JSON string containing the PolicySchemaDoc structure.
+#[cfg(feature = "pyo3")]
+#[pyfunction]
+#[pyo3(name = "get_policy_schema")]
+fn py_get_policy_schema() -> PyResult<String> {
+    Ok(policy::tree::schema_docs::get_policy_schema())
+}
+
 #[cfg(feature = "pyo3")]
 #[pymodule]
 fn payment_simulator_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ffi::orchestrator::PyOrchestrator>()?;
     m.add_class::<models::transaction::RtgsPriority>()?;
+    m.add_function(wrap_pyfunction!(py_get_policy_schema, m)?)?;
     Ok(())
 }
