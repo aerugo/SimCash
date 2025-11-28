@@ -25,6 +25,9 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "httpx>=0.25.0",  # For TestClient
+    "mypy>=1.8.0",
+    "ruff>=0.3.0",
+    "types-PyYAML",  # Type stubs for PyYAML
 ]
 
 [project.scripts]
@@ -36,3 +39,71 @@ manifest-path = "../backend/Cargo.toml"
 features = ["pyo3"]
 bindings = "pyo3"
 python-packages = ["payment_simulator"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_optional = true
+
+# Ignore the Rust FFI module (no type stubs available)
+[[tool.mypy.overrides]]
+module = "payment_simulator_core_rs"
+ignore_missing_imports = true
+
+# Gradual migration: start permissive for modules needing work
+[[tool.mypy.overrides]]
+module = "payment_simulator.cli.commands.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "payment_simulator.api.*"
+disallow_untyped_defs = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "ANN",    # flake8-annotations
+    "S",      # flake8-bandit (security)
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "ANN401",  # Dynamically typed expressions (Any) - temporary during migration
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "S101"]  # Tests: no annotations required, allow assert
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "integration: integration tests",
+    "unit: unit tests",
+]
