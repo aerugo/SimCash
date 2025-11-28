@@ -199,6 +199,89 @@ class ArrivalConfig(BaseModel):
 
 
 # ============================================================================
+# Per-Band Arrival Configuration (Enhancement 11.3)
+# ============================================================================
+
+class ArrivalBandConfig(BaseModel):
+    """Configuration for arrivals in a single priority band.
+
+    This allows different arrival characteristics (rate, amounts, deadlines)
+    for different priority levels (urgent, normal, low).
+    """
+
+    rate_per_tick: float = Field(
+        ...,
+        description="Expected arrivals per tick for this band (Poisson λ)",
+        ge=0
+    )
+    amount_distribution: AmountDistribution = Field(
+        ...,
+        description="Transaction amount distribution for this band"
+    )
+    deadline_offset_min: int = Field(
+        ...,
+        description="Minimum ticks until deadline from arrival",
+        gt=0
+    )
+    deadline_offset_max: int = Field(
+        ...,
+        description="Maximum ticks until deadline from arrival",
+        gt=0
+    )
+    counterparty_weights: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Weights for selecting receiver agents (empty = uniform across all)"
+    )
+    divisible: bool = Field(
+        False,
+        description="Whether transactions in this band can be split"
+    )
+
+    @model_validator(mode="after")
+    def validate_deadline_offsets(self):
+        """Validate deadline_offset_max >= deadline_offset_min."""
+        if self.deadline_offset_max < self.deadline_offset_min:
+            raise ValueError(
+                f"deadline_offset_max ({self.deadline_offset_max}) must be >= "
+                f"deadline_offset_min ({self.deadline_offset_min})"
+            )
+        return self
+
+
+class ArrivalBandsConfig(BaseModel):
+    """Configuration for per-band arrival generation (Enhancement 11.3).
+
+    Allows specifying different arrival characteristics for each priority band:
+    - Urgent (priority 8-10): Critical payments, tight deadlines
+    - Normal (priority 4-7): Standard payments
+    - Low (priority 0-3): Low-priority payments, relaxed deadlines
+
+    At least one band must be configured. Bands can be independently configured
+    with different rates, amounts, and deadline parameters.
+    """
+
+    urgent: Optional[ArrivalBandConfig] = Field(
+        None,
+        description="Arrival config for urgent priority (8-10)"
+    )
+    normal: Optional[ArrivalBandConfig] = Field(
+        None,
+        description="Arrival config for normal priority (4-7)"
+    )
+    low: Optional[ArrivalBandConfig] = Field(
+        None,
+        description="Arrival config for low priority (0-3)"
+    )
+
+    @model_validator(mode="after")
+    def validate_at_least_one_band(self):
+        """At least one band must be configured."""
+        if self.urgent is None and self.normal is None and self.low is None:
+            raise ValueError("At least one arrival band must be configured")
+        return self
+
+
+# ============================================================================
 # Scenario Events Configuration
 # ============================================================================
 
@@ -369,6 +452,11 @@ class AgentConfig(BaseModel):
     unsecured_cap: int = Field(0, description="Unsecured overdraft capacity in cents", ge=0)
     policy: PolicyConfig = Field(..., description="Cash manager policy configuration")
     arrival_config: Optional[ArrivalConfig] = Field(None, description="Arrival generation config (if any)")
+    # Enhancement 11.3: Per-Band Arrival Configuration
+    arrival_bands: Optional[ArrivalBandsConfig] = Field(
+        None,
+        description="Per-band arrival generation config (mutually exclusive with arrival_config)"
+    )
     posted_collateral: Optional[int] = Field(None, description="Posted collateral in cents")
     collateral_haircut: Optional[float] = Field(None, description="Collateral haircut (discount rate)", ge=0, le=1)
     limits: Optional[Dict[str, Union[int, Dict[str, int]]]] = Field(None, description="Payment limits configuration")
@@ -393,6 +481,16 @@ class AgentConfig(BaseModel):
         if not v or not v.strip():
             raise ValueError("Agent ID cannot be empty")
         return v
+
+    @model_validator(mode="after")
+    def validate_arrival_config_exclusivity(self):
+        """Validate arrival_config and arrival_bands are mutually exclusive."""
+        if self.arrival_config is not None and self.arrival_bands is not None:
+            raise ValueError(
+                "arrival_config and arrival_bands are mutually exclusive - "
+                "specify only one"
+            )
+        return self
 
 
 # ============================================================================
