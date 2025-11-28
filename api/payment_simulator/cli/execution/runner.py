@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol
 
-from payment_simulator._core import Orchestrator
+from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 from payment_simulator.cli.filters import EventFilter
 
 from .stats import SimulationStats, TickResult

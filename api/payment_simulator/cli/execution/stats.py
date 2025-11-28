@@ -61,7 +61,7 @@ class SimulationStats:
         output_json(final_stats)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize statistics with all counters at zero."""
         # Total statistics (across all days)
         self.total_arrivals = 0

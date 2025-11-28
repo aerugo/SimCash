@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from payment_simulator._core import Orchestrator
+from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 
 
 # Import existing persistence helpers from run.py module
