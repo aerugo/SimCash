@@ -199,6 +199,89 @@ class ArrivalConfig(BaseModel):
 
 
 # ============================================================================
+# Per-Band Arrival Configuration (Enhancement 11.3)
+# ============================================================================
+
+class ArrivalBandConfig(BaseModel):
+    """Configuration for arrivals in a single priority band.
+
+    This allows different arrival characteristics (rate, amounts, deadlines)
+    for different priority levels (urgent, normal, low).
+    """
+
+    rate_per_tick: float = Field(
+        ...,
+        description="Expected arrivals per tick for this band (Poisson λ)",
+        ge=0
+    )
+    amount_distribution: AmountDistribution = Field(
+        ...,
+        description="Transaction amount distribution for this band"
+    )
+    deadline_offset_min: int = Field(
+        ...,
+        description="Minimum ticks until deadline from arrival",
+        gt=0
+    )
+    deadline_offset_max: int = Field(
+        ...,
+        description="Maximum ticks until deadline from arrival",
+        gt=0
+    )
+    counterparty_weights: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Weights for selecting receiver agents (empty = uniform across all)"
+    )
+    divisible: bool = Field(
+        False,
+        description="Whether transactions in this band can be split"
+    )
+
+    @model_validator(mode="after")
+    def validate_deadline_offsets(self):
+        """Validate deadline_offset_max >= deadline_offset_min."""
+        if self.deadline_offset_max < self.deadline_offset_min:
+            raise ValueError(
+                f"deadline_offset_max ({self.deadline_offset_max}) must be >= "
+                f"deadline_offset_min ({self.deadline_offset_min})"
+            )
+        return self
+
+
+class ArrivalBandsConfig(BaseModel):
+    """Configuration for per-band arrival generation (Enhancement 11.3).
+
+    Allows specifying different arrival characteristics for each priority band:
+    - Urgent (priority 8-10): Critical payments, tight deadlines
+    - Normal (priority 4-7): Standard payments
+    - Low (priority 0-3): Low-priority payments, relaxed deadlines
+
+    At least one band must be configured. Bands can be independently configured
+    with different rates, amounts, and deadline parameters.
+    """
+
+    urgent: Optional[ArrivalBandConfig] = Field(
+        None,
+        description="Arrival config for urgent priority (8-10)"
+    )
+    normal: Optional[ArrivalBandConfig] = Field(
+        None,
+        description="Arrival config for normal priority (4-7)"
+    )
+    low: Optional[ArrivalBandConfig] = Field(
+        None,
+        description="Arrival config for low priority (0-3)"
+    )
+
+    @model_validator(mode="after")
+    def validate_at_least_one_band(self):
+        """At least one band must be configured."""
+        if self.urgent is None and self.normal is None and self.low is None:
+            raise ValueError("At least one arrival band must be configured")
+        return self
+
+
+# ============================================================================
 # Scenario Events Configuration
 # ============================================================================
 
@@ -369,6 +452,27 @@ class AgentConfig(BaseModel):
     unsecured_cap: int = Field(0, description="Unsecured overdraft capacity in cents", ge=0)
     policy: PolicyConfig = Field(..., description="Cash manager policy configuration")
     arrival_config: Optional[ArrivalConfig] = Field(None, description="Arrival generation config (if any)")
+    # Enhancement 11.3: Per-Band Arrival Configuration
+    arrival_bands: Optional[ArrivalBandsConfig] = Field(
+        None,
+        description="Per-band arrival generation config (mutually exclusive with arrival_config)"
+    )
+    posted_collateral: Optional[int] = Field(None, description="Posted collateral in cents")
+    collateral_haircut: Optional[float] = Field(None, description="Collateral haircut (discount rate)", ge=0, le=1)
+    limits: Optional[Dict[str, Union[int, Dict[str, int]]]] = Field(None, description="Payment limits configuration")
+
+    # Enhancement 11.2: Liquidity Pool Configuration
+    liquidity_pool: Optional[int] = Field(
+        None,
+        description="External liquidity pool available for allocation (cents)",
+        ge=0
+    )
+    liquidity_allocation_fraction: Optional[float] = Field(
+        None,
+        description="Fraction of liquidity_pool to allocate (0.0-1.0, defaults to 1.0)",
+        ge=0.0,
+        le=1.0
+    )
 
     @field_validator("id")
     @classmethod
@@ -378,10 +482,40 @@ class AgentConfig(BaseModel):
             raise ValueError("Agent ID cannot be empty")
         return v
 
+    @model_validator(mode="after")
+    def validate_arrival_config_exclusivity(self):
+        """Validate arrival_config and arrival_bands are mutually exclusive."""
+        if self.arrival_config is not None and self.arrival_bands is not None:
+            raise ValueError(
+                "arrival_config and arrival_bands are mutually exclusive - "
+                "specify only one"
+            )
+        return self
+
 
 # ============================================================================
 # Cost Rates Configuration
 # ============================================================================
+
+class PriorityDelayMultipliers(BaseModel):
+    """Priority-based delay cost multipliers (Enhancement 11.1).
+
+    Allows differentiated delay costs by transaction priority band:
+    - Urgent (priority 8-10): Higher delay costs
+    - Normal (priority 4-7): Base delay costs
+    - Low (priority 0-3): Lower delay costs
+    """
+
+    urgent_multiplier: float = Field(
+        1.0, description="Delay cost multiplier for urgent priority (8-10)", ge=0
+    )
+    normal_multiplier: float = Field(
+        1.0, description="Delay cost multiplier for normal priority (4-7)", ge=0
+    )
+    low_multiplier: float = Field(
+        1.0, description="Delay cost multiplier for low priority (0-3)", ge=0
+    )
+
 
 class CostRates(BaseModel):
     """Cost calculation rates."""
@@ -403,6 +537,15 @@ class CostRates(BaseModel):
     )
     split_friction_cost: int = Field(
         1000, description="Friction cost per split (cents)", ge=0
+    )
+    overdue_delay_multiplier: float = Field(
+        5.0, description="Multiplier for delay cost when transaction is overdue", ge=0
+    )
+    priority_delay_multipliers: Optional[PriorityDelayMultipliers] = Field(
+        None, description="Priority-based delay cost multipliers (Enhancement 11.1)"
+    )
+    liquidity_cost_per_tick_bps: float = Field(
+        0.0, description="Liquidity opportunity cost in basis points per tick (Enhancement 11.2)", ge=0
     )
 
 

@@ -100,9 +100,12 @@ fn test_orchestrator_handles_submit_partial() {
             num_splits: 2, // Split into 2 parts
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -173,9 +176,12 @@ fn test_split_friction_cost_formula() {
         unsecured_cap: 0,
         policy: PolicyConfig::MockSplitting { num_splits: 3 }, // 3-way split
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -216,9 +222,12 @@ fn test_no_split_friction_for_whole_transaction() {
         unsecured_cap: 0,
         policy: PolicyConfig::Fifo, // FIFO submits whole transaction
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -261,9 +270,12 @@ fn test_liquidity_splitting_policy_splits_when_insufficient_balance() {
             min_split_amount: 10_000, // Don't create splits < $100
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -310,9 +322,12 @@ fn test_liquidity_splitting_policy_does_not_split_when_affordable() {
             min_split_amount: 10_000,
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -370,9 +385,12 @@ fn test_liquidity_splitting_respects_min_split_amount() {
             min_split_amount: 20_000, // Don't create splits < $200
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -427,9 +445,12 @@ fn test_liquidity_splitting_respects_max_splits() {
             min_split_amount: 5_000,
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -479,9 +500,12 @@ fn test_liquidity_splitting_urgency_factor() {
             min_split_amount: 10_000,
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -542,9 +566,12 @@ fn test_full_splitting_workflow() {
             min_split_amount: 30_000,
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -617,9 +644,12 @@ fn test_multiple_transactions_with_selective_splitting() {
             min_split_amount: 20_000,
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -685,9 +715,12 @@ fn create_basic_config() -> OrchestratorConfig {
                 unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates {
@@ -698,6 +731,8 @@ fn create_basic_config() -> OrchestratorConfig {
             deadline_penalty: 5000,             // $50 per missed deadline
             split_friction_cost: 0,             // Default to 0, tests override
             overdue_delay_multiplier: 5.0,      // Phase 3: Escalating delay cost for overdue
+            priority_delay_multipliers: None,   // Enhancement 11.1
+            liquidity_cost_per_tick_bps: 0.0,   // Enhancement 11.2
         },
         lsm_config: LsmConfig {
             enable_bilateral: false, // Disable LSM for simpler tests
@@ -745,9 +780,12 @@ fn test_tree_policy_split_decision_with_positive_liquidity() {
             json: policy_json,
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -853,9 +891,12 @@ fn test_tree_policy_split_with_negative_liquidity_reveals_bug() {
             json: policy_json,
         },
         arrival_config: None,
+                arrival_bands: None,
         posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
     });
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

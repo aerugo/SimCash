@@ -1,0 +1,142 @@
+# BIS Working Paper 1310 - Box 3: Mitigating Liquidity-Delay Trade-off
+#
+# This scenario replicates the BIS "liquidity-delay trade-off" experiment
+# using SimCash's two-agent architecture.
+#
+# BIS Scenario Summary:
+# - Pre-period: Allocate liquidity at 1.5% opportunity cost
+# - Period 1: $5k outgoing (1% delay cost), high probability of $5k incoming
+# - Period 2: High probability of $10k urgent (1.5% delay cost), $5k incoming
+# - Period 3: Clear queue, borrow at higher rate if insufficient
+#
+# Key Trade-off: Allocate more upfront (higher opportunity cost, fewer delays)
+#                vs. allocate less (lower cost, rely on incoming payments)
+#
+# BIS Optimal Answer: Allocate $5k (50% of $10k pool)
+
+simulation:
+  ticks_per_day: 3       # 3 periods as in BIS model
+  num_days: 1            # Single-day experiment
+  rng_seed: 42           # Deterministic for reproducibility
+
+# ============================================================================
+# BIS Compatibility: Disable non-BIS features
+# ============================================================================
+lsm_config:
+  enable_bilateral: false    # BIS has no LSM
+  enable_cycles: false       # Pure RTGS behavior
+  max_cycle_length: 3
+  max_cycles_per_tick: 1     # Minimum required by validator
+
+# ============================================================================
+# Cost Rates (BIS Model)
+# ============================================================================
+cost_rates:
+  # Active BIS costs
+  delay_cost_per_tick_per_cent: 0.01    # 1% base delay cost per period
+  priority_delay_multipliers:
+    urgent_multiplier: 1.5              # Urgent (8-10): 1.5% delay
+    normal_multiplier: 1.0              # Normal (4-7): 1.0% delay
+    low_multiplier: 0.5                 # Low (0-3): 0.5% delay
+  liquidity_cost_per_tick_bps: 150      # 1.5% opportunity cost on allocated liquidity
+
+  # Disabled BIS-incompatible costs
+  overdraft_bps_per_tick: 0             # No overdraft (using liquidity allocation)
+  collateral_cost_per_tick_bps: 0       # No collateral mechanism
+  eod_penalty_per_transaction: 0        # No EOD penalty
+  deadline_penalty: 0                   # No separate deadline penalty
+  split_friction_cost: 0                # No splitting
+  overdue_delay_multiplier: 1.0         # Neutral (no escalation)
+
+# ============================================================================
+# Agent Configuration
+# ============================================================================
+agents:
+  # FOCAL_BANK: The agent making liquidity allocation decisions
+  # Mirrors the single-agent perspective in BIS experiments
+  - id: FOCAL_BANK
+    opening_balance: 0                   # Start at zero
+    unsecured_cap: 0                     # No credit
+
+    # BIS Enhancement 11.2: Liquidity Pool Allocation
+    # Pool of $10,000 (1,000,000 cents), allocate 50% = $5,000
+    liquidity_pool: 1000000              # $10,000 available external liquidity
+    liquidity_allocation_fraction: 0.0   # Allocate 0% - rely entirely on incoming
+
+    policy:
+      type: Fifo                         # Simple FIFO policy
+
+    # No automatic arrivals - using scenario_events for deterministic control
+
+  # COUNTERPARTY: Passive agent providing incoming payments
+  # Represents "other participants" in the BIS model
+  - id: COUNTERPARTY
+    opening_balance: 10000000            # $100,000 - large balance for payments
+    unsecured_cap: 0
+    policy:
+      type: Fifo
+
+# ============================================================================
+# Scenario Events - Deterministic Payment Injections
+# ============================================================================
+# These replicate the BIS scenario structure with deterministic payments
+# (representing the "expected case" where high-probability events occur)
+
+scenario_events:
+  # -------------------------------------------------------------------------
+  # Period 1 (Tick 0): $5k outgoing from FOCAL_BANK, $5k incoming
+  # -------------------------------------------------------------------------
+
+  # FOCAL_BANK must send $5,000 (normal priority, 1% delay cost)
+  - type: CustomTransactionArrival
+    from_agent: FOCAL_BANK
+    to_agent: COUNTERPARTY
+    amount: 500000                       # $5,000 in cents
+    priority: 5                          # Normal priority band
+    deadline: 3                          # Deadline at end of day (tick 3)
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # FOCAL_BANK receives $5,000 from COUNTERPARTY (99% probability in BIS)
+  - type: CustomTransactionArrival
+    from_agent: COUNTERPARTY
+    to_agent: FOCAL_BANK
+    amount: 500000                       # $5,000 in cents
+    priority: 5                          # Normal priority
+    deadline: 3
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # -------------------------------------------------------------------------
+  # Period 2 (Tick 1): $10k urgent outgoing, $5k incoming
+  # -------------------------------------------------------------------------
+
+  # FOCAL_BANK must send $10,000 urgent payment (90% probability in BIS)
+  - type: CustomTransactionArrival
+    from_agent: FOCAL_BANK
+    to_agent: COUNTERPARTY
+    amount: 1000000                      # $10,000 in cents
+    priority: 9                          # Urgent priority band (1.5x delay cost)
+    deadline: 3                          # Tight deadline
+    schedule:
+      type: OneTime
+      tick: 1
+
+  # FOCAL_BANK receives another $5,000 (99% probability in BIS)
+  - type: CustomTransactionArrival
+    from_agent: COUNTERPARTY
+    to_agent: FOCAL_BANK
+    amount: 500000                       # $5,000 in cents
+    priority: 5
+    deadline: 3
+    schedule:
+      type: OneTime
+      tick: 1
+
+  # -------------------------------------------------------------------------
+  # Period 3 (Tick 2): End-of-day clearing
+  # -------------------------------------------------------------------------
+  # No new payments - queue must be cleared
+  # If FOCAL_BANK is short, delays occur (and in BIS model, borrowing)

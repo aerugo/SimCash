@@ -18,6 +18,7 @@ from .schemas import (
     ExponentialDistribution,
     CostRates,
     LsmConfig,
+    PriorityDelayMultipliers,
 )
 from pydantic import ValidationError
 
@@ -40,5 +41,6 @@ __all__ = [
     "ExponentialDistribution",
     "CostRates",
     "LsmConfig",
+    "PriorityDelayMultipliers",
     "ValidationError",
 ]
