@@ -9,7 +9,6 @@ Phase 8: Includes collateral management fields and CollateralEventRecord.
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -72,7 +71,7 @@ class TransactionRecord(BaseModel):
     Changes to this model will trigger schema migration warnings.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="transactions",
         primary_key=["simulation_id", "tx_id"],
         indexes=[
@@ -99,15 +98,15 @@ class TransactionRecord(BaseModel):
     arrival_tick: int = Field(..., description="Tick when arrived")
     arrival_day: int = Field(..., description="Day when arrived")
     deadline_tick: int = Field(..., description="Settlement deadline")
-    settlement_tick: Optional[int] = Field(None, description="Tick when settled")
-    settlement_day: Optional[int] = Field(None, description="Day when settled")
+    settlement_tick: int | None = Field(None, description="Tick when settled")
+    settlement_day: int | None = Field(None, description="Day when settled")
 
     # Status
     status: TransactionStatus = Field(..., description="Current status")
-    overdue_since_tick: Optional[int] = Field(
+    overdue_since_tick: int | None = Field(
         None, description="Tick when became overdue (Phase 5)"
     )
-    drop_reason: Optional[str] = Field(None, description="Why dropped (if applicable)")
+    drop_reason: str | None = Field(None, description="Why dropped (if applicable)")
 
     # Settlement tracking
     amount_settled: int = Field(0, description="Amount settled in cents")
@@ -121,13 +120,13 @@ class TransactionRecord(BaseModel):
     delay_cost: int = Field(0, description="Queue 1 delay cost in cents")
 
     # Splitting
-    parent_tx_id: Optional[str] = Field(None, description="Parent transaction if split")
-    split_index: Optional[int] = Field(None, description="Split index (1, 2, ...)")
+    parent_tx_id: str | None = Field(None, description="Parent transaction if split")
+    split_index: int | None = Field(None, description="Split index (1, 2, ...)")
 
     # RTGS Priority (Phase 0 - Dual Priority System)
-    rtgs_priority: Optional[str] = Field(None, description="RTGS priority (HighlyUrgent, Urgent, Normal)")
-    rtgs_submission_tick: Optional[int] = Field(None, description="Tick when submitted to RTGS Queue 2")
-    declared_rtgs_priority: Optional[str] = Field(None, description="Bank's declared RTGS priority preference")
+    rtgs_priority: str | None = Field(None, description="RTGS priority (HighlyUrgent, Urgent, Normal)")
+    rtgs_submission_tick: int | None = Field(None, description="Tick when submitted to RTGS Queue 2")
+    declared_rtgs_priority: str | None = Field(None, description="Bank's declared RTGS priority preference")
 
 
 # ============================================================================
@@ -142,7 +141,7 @@ class SimulationRecord(BaseModel):
     optimized for query and comparison operations in Phase 5.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="simulations",
         primary_key=["simulation_id"],
         indexes=[
@@ -161,27 +160,27 @@ class SimulationRecord(BaseModel):
     ticks_per_day: int = Field(..., description="Ticks per day")
     num_days: int = Field(..., description="Number of simulated days")
     num_agents: int = Field(..., description="Number of agents")
-    config_json: Optional[str] = Field(
+    config_json: str | None = Field(
         None, description="Complete configuration as JSON (for diagnostic frontend)"
     )
 
     # Status
     status: SimulationStatus = Field(..., description="Simulation status")
-    started_at: Optional[datetime] = Field(None, description="When simulation started")
-    completed_at: Optional[datetime] = Field(
+    started_at: datetime | None = Field(None, description="When simulation started")
+    completed_at: datetime | None = Field(
         None, description="When simulation completed"
     )
 
     # Results (populated at end)
-    total_arrivals: Optional[int] = Field(
+    total_arrivals: int | None = Field(
         None, description="Total transactions arrived"
     )
-    total_settlements: Optional[int] = Field(
+    total_settlements: int | None = Field(
         None, description="Total transactions settled"
     )
-    total_cost_cents: Optional[int] = Field(None, description="Total cost in cents")
-    duration_seconds: Optional[float] = Field(None, description="Wall-clock duration")
-    ticks_per_second: Optional[float] = Field(None, description="Simulation speed")
+    total_cost_cents: int | None = Field(None, description="Total cost in cents")
+    duration_seconds: float | None = Field(None, description="Wall-clock duration")
+    ticks_per_second: float | None = Field(None, description="Simulation speed")
 
 
 # ============================================================================
@@ -192,7 +191,7 @@ class SimulationRecord(BaseModel):
 class SimulationRunRecord(BaseModel):
     """Simulation run metadata."""
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="simulation_runs",
         primary_key=["simulation_id"],
         indexes=[
@@ -205,11 +204,11 @@ class SimulationRunRecord(BaseModel):
     simulation_id: str = Field(..., description="Unique simulation identifier")
     config_name: str = Field(..., description="Configuration file name")
     config_hash: str = Field(..., description="Configuration content hash")
-    description: Optional[str] = Field(None, description="Simulation description")
+    description: str | None = Field(None, description="Simulation description")
 
     # Timing
     start_time: datetime = Field(..., description="When simulation started")
-    end_time: Optional[datetime] = Field(None, description="When simulation ended")
+    end_time: datetime | None = Field(None, description="When simulation ended")
 
     # Configuration
     ticks_per_day: int = Field(..., description="Ticks per simulated day")
@@ -229,7 +228,7 @@ class SimulationRunRecord(BaseModel):
 class DailyAgentMetricsRecord(BaseModel):
     """Daily agent metrics for persistence."""
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="daily_agent_metrics",
         primary_key=["simulation_id", "agent_id", "day"],
         indexes=[
@@ -291,7 +290,7 @@ class CollateralEventRecord(BaseModel):
     Added in Phase 8 (two-layer collateral management).
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="collateral_events",
         primary_key=["id"],
         indexes=[
@@ -301,7 +300,7 @@ class CollateralEventRecord(BaseModel):
         ],
     )
 
-    id: Optional[int] = None  # Auto-increment
+    id: int | None = None  # Auto-increment
     simulation_id: str
     agent_id: str
     tick: int
@@ -334,7 +333,7 @@ class AgentQueueSnapshotRecord(BaseModel):
     Added in Phase 3 (Queue Contents Persistence).
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="agent_queue_snapshots",
         primary_key=["simulation_id", "agent_id", "day", "queue_type", "position"],
         indexes=[
@@ -367,7 +366,7 @@ class PolicySnapshotRecord(BaseModel):
     Added in Phase 4 (Policy Snapshot Tracking).
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="policy_snapshots",
         primary_key=["simulation_id", "agent_id", "snapshot_day", "snapshot_tick"],
         indexes=[
@@ -417,7 +416,7 @@ class SimulationCheckpointRecord(BaseModel):
     - Human-readable description
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="simulation_checkpoints",
         primary_key=["checkpoint_id"],
         indexes=[
@@ -463,7 +462,7 @@ class SimulationCheckpointRecord(BaseModel):
     checkpoint_type: CheckpointType = Field(
         ..., description="Type of checkpoint (manual/auto/eod/final)"
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None, description="Human-readable checkpoint description"
     )
     created_by: str = Field(..., description="User or system that created checkpoint")
@@ -488,7 +487,7 @@ class LsmCycleRecord(BaseModel):
     Added in Phase 4 (LSM Cycle Persistence).
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="lsm_cycles",
         primary_key=["id"],
         indexes=[
@@ -497,7 +496,7 @@ class LsmCycleRecord(BaseModel):
         ],
     )
 
-    id: Optional[int] = Field(None, description="Auto-increment primary key")
+    id: int | None = Field(None, description="Auto-increment primary key")
     simulation_id: str = Field(..., description="Foreign key to simulations table")
     tick: int = Field(..., description="Tick when cycle was settled", ge=0)
     day: int = Field(..., description="Day when cycle was settled", ge=0)
@@ -518,10 +517,10 @@ class LsmCycleRecord(BaseModel):
     total_value: int = Field(..., description="Gross value before netting (cents)")
 
     # Enhanced fields for offset/liquidity analysis
-    tx_amounts: Optional[str] = Field(None, description="JSON array of transaction amounts in cycle order (cents)")
-    net_positions: Optional[str] = Field(None, description="JSON object mapping agent ID to net position (cents)")
-    max_net_outflow: Optional[int] = Field(None, description="Maximum net outflow in cycle (actual liquidity used, cents)")
-    max_net_outflow_agent: Optional[str] = Field(None, description="Agent ID with maximum net outflow")
+    tx_amounts: str | None = Field(None, description="JSON array of transaction amounts in cycle order (cents)")
+    net_positions: str | None = Field(None, description="JSON object mapping agent ID to net position (cents)")
+    max_net_outflow: int | None = Field(None, description="Maximum net outflow in cycle (actual liquidity used, cents)")
+    max_net_outflow_agent: str | None = Field(None, description="Agent ID with maximum net outflow")
 
 
 # ============================================================================
@@ -537,7 +536,7 @@ class PolicyDecisionRecord(BaseModel):
     Added for --full-replay mode.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="policy_decisions",
         primary_key=["id"],
         indexes=[
@@ -546,7 +545,7 @@ class PolicyDecisionRecord(BaseModel):
         ],
     )
 
-    id: Optional[int] = Field(None, description="Auto-increment primary key")
+    id: int | None = Field(None, description="Auto-increment primary key")
     simulation_id: str = Field(..., description="Foreign key to simulations table")
     agent_id: str = Field(..., description="Agent who made the decision")
     tick: int = Field(..., description="Tick when decision was made", ge=0)
@@ -556,11 +555,11 @@ class PolicyDecisionRecord(BaseModel):
         ..., description="Decision type: submit, hold, drop, split"
     )
     tx_id: str = Field(..., description="Transaction ID")
-    reason: Optional[str] = Field(None, description="Reason for hold/drop decisions")
-    num_splits: Optional[int] = Field(
+    reason: str | None = Field(None, description="Reason for hold/drop decisions")
+    num_splits: int | None = Field(
         None, description="Number of splits (for split decisions)"
     )
-    child_tx_ids: Optional[str] = Field(
+    child_tx_ids: str | None = Field(
         None, description="JSON array of child TX IDs (for split decisions)"
     )
 
@@ -573,7 +572,7 @@ class TickAgentStateRecord(BaseModel):
     Added for --full-replay mode.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="tick_agent_states",
         primary_key=["simulation_id", "agent_id", "tick"],
         indexes=[
@@ -631,7 +630,7 @@ class TickQueueSnapshotRecord(BaseModel):
     Added for --full-replay mode.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="tick_queue_snapshots",
         primary_key=["simulation_id", "agent_id", "tick", "queue_type", "position"],
         indexes=[
@@ -666,7 +665,7 @@ class SimulationEventRecord(BaseModel):
     - Event details stored as JSON for flexibility
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="simulation_events",
         primary_key=["event_id"],
         indexes=[
@@ -702,10 +701,10 @@ class SimulationEventRecord(BaseModel):
     )
 
     # Optional filters for efficient querying
-    agent_id: Optional[str] = Field(
+    agent_id: str | None = Field(
         None, description="Agent ID if event relates to specific agent"
     )
-    tx_id: Optional[str] = Field(
+    tx_id: str | None = Field(
         None, description="Transaction ID if event relates to specific transaction"
     )
 
@@ -729,7 +728,7 @@ class AgentStateRegisterRecord(BaseModel):
     - Used for replay identity
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="agent_state_registers",
         primary_key=["simulation_id", "tick", "agent_id", "register_key"],
         indexes=[

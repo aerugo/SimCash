@@ -6,13 +6,13 @@ Implements the Template Method pattern to eliminate 4-way code duplication.
 
 import time
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
 from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 from payment_simulator.cli.filters import EventFilter
 
-from .stats import SimulationStats, TickResult
 from .persistence import PersistenceManager
+from .stats import SimulationStats, TickResult
 
 
 @dataclass
@@ -119,7 +119,7 @@ class SimulationRunner:
         orch: Orchestrator,
         config: SimulationConfig,
         output_strategy: OutputStrategy,
-        persistence: Optional[PersistenceManager] = None,
+        persistence: PersistenceManager | None = None,
     ):
         """Initialize simulation runner.
 
@@ -328,9 +328,10 @@ class SimulationRunner:
             if event_type == 'PolicySplit':
                 parent_id = event.get('tx_id')
                 child_ids = event.get('child_ids', [])
-                self.parent_to_children[parent_id] = child_ids
-                for child_id in child_ids:
-                    self.child_to_parent[child_id] = parent_id
+                if parent_id is not None:
+                    self.parent_to_children[parent_id] = child_ids
+                    for child_id in child_ids:
+                        self.child_to_parent[child_id] = parent_id
 
             # Track LSM-settled transactions
             elif event_type in ['LsmBilateralOffset', 'LsmCycleSettlement']:

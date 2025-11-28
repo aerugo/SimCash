@@ -7,10 +7,9 @@ Eliminates duplication of persistence logic across 4 execution modes.
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
-
 
 # Import existing persistence helpers from run.py module
 # These will be moved to persistence package in Phase 5 cleanup
@@ -19,8 +18,8 @@ from payment_simulator.cli.commands.run import (
     _persist_simulation_metadata,
 )
 from payment_simulator.persistence.writers import (
-    write_policy_snapshots,
     write_policy_decisions_batch,
+    write_policy_snapshots,
     write_tick_agent_states_batch,
     write_tick_queue_snapshots_batch,
 )
@@ -144,6 +143,9 @@ class PersistenceManager:
         """
         if not self.full_replay:
             return
+
+        # replay_buffers is guaranteed to be set when full_replay is True
+        assert self.replay_buffers is not None
 
         # Calculate day for this tick
         # Note: ticks_per_day should be passed in initialization for proper calculation

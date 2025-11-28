@@ -8,7 +8,7 @@ import hashlib
 import json
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import polars as pl
 
@@ -27,7 +27,7 @@ class CheckpointManager:
     - Track checkpoint metadata
     """
 
-    def __init__(self, db_manager: DatabaseManager):
+    def __init__(self, db_manager: DatabaseManager) -> None:
         """Initialize checkpoint manager.
 
         Args:
@@ -43,9 +43,9 @@ class CheckpointManager:
         self,
         orchestrator: Any,  # PyOrchestrator instance
         simulation_id: str,
-        config: Dict[str, Any],  # FFI dict used to create the orchestrator
+        config: dict[str, Any],  # FFI dict used to create the orchestrator
         checkpoint_type: str,
-        description: Optional[str],
+        description: str | None,
         created_by: str,
     ) -> str:
         """Save orchestrator state to database as checkpoint.
@@ -122,7 +122,7 @@ class CheckpointManager:
     # Load Checkpoint
     # =========================================================================
 
-    def load_checkpoint(self, checkpoint_id: str) -> tuple[Any, Dict[str, Any]]:
+    def load_checkpoint(self, checkpoint_id: str) -> tuple[Any, dict[str, Any]]:
         """Load orchestrator from checkpoint.
 
         Args:
@@ -173,7 +173,7 @@ class CheckpointManager:
     # Query Checkpoints
     # =========================================================================
 
-    def get_checkpoint(self, checkpoint_id: str) -> Optional[Dict[str, Any]]:
+    def get_checkpoint(self, checkpoint_id: str) -> dict[str, Any] | None:
         """Retrieve checkpoint by ID.
 
         Args:
@@ -201,10 +201,10 @@ class CheckpointManager:
 
     def list_checkpoints(
         self,
-        simulation_id: Optional[str] = None,
-        checkpoint_type: Optional[str] = None,
-        limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        simulation_id: str | None = None,
+        checkpoint_type: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         """List checkpoints with optional filtering.
 
         Args:
@@ -237,7 +237,7 @@ class CheckpointManager:
 
         return checkpoints
 
-    def get_latest_checkpoint(self, simulation_id: str) -> Optional[Dict[str, Any]]:
+    def get_latest_checkpoint(self, simulation_id: str) -> dict[str, Any] | None:
         """Get the most recent checkpoint for a simulation.
 
         Args:

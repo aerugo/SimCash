@@ -1,7 +1,8 @@
 """Payment Simulator CLI - Main entry point."""
 
+from typing import Annotated
+
 import typer
-from typing_extensions import Annotated
 
 app = typer.Typer(
     name="payment-sim",
@@ -37,11 +38,11 @@ def main(
 
 
 # Import commands after app is defined to avoid circular imports
-from payment_simulator.cli.commands.run import run_simulation
-from payment_simulator.cli.commands.replay import replay_simulation
 from payment_simulator.cli.commands.checkpoint import checkpoint_app
 from payment_simulator.cli.commands.db import db_app
 from payment_simulator.cli.commands.policy_schema import policy_schema
+from payment_simulator.cli.commands.replay import replay_simulation
+from payment_simulator.cli.commands.run import run_simulation
 from payment_simulator.cli.commands.validate_policy import validate_policy
 
 app.command(name="run", help="Run a simulation from a configuration file")(run_simulation)

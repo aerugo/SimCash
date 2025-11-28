@@ -116,19 +116,19 @@ def save_checkpoint(
 
         # Create wrapper to adapt state JSON for CheckpointManager
         class StateWrapper:
-            def __init__(self, state_json):
+            def __init__(self, state_json: str) -> None:
                 self._state_json = state_json
 
-            def save_state(self):
+            def save_state(self) -> str:
                 return self._state_json
 
-            def current_tick(self):
+            def current_tick(self) -> int:
                 state = json.loads(self._state_json)
-                return state["current_tick"]
+                return int(state["current_tick"])
 
-            def current_day(self):
+            def current_day(self) -> int:
                 state = json.loads(self._state_json)
-                return state["current_day"]
+                return int(state["current_day"])
 
         wrapper = StateWrapper(state_json)
 

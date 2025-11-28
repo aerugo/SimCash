@@ -1,9 +1,11 @@
 """Pydantic schemas for configuration validation."""
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Literal, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Any, Literal, Union
 
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 # ============================================================================
 # Distribution Schemas
@@ -31,9 +33,9 @@ class UniformDistribution(BaseModel):
 
     @field_validator("max")
     @classmethod
-    def max_must_be_greater_than_min(cls, v, info):
+    def max_must_be_greater_than_min(cls, v: int, info: ValidationInfo) -> int:
         """Validate max > min."""
-        if "min" in info.data and v <= info.data["min"]:
+        if info.data and "min" in info.data and v <= info.data["min"]:
             raise ValueError("max must be greater than min")
         return v
 
@@ -66,12 +68,12 @@ class FixedPriorityDistribution(BaseModel):
 class CategoricalPriorityDistribution(BaseModel):
     """Categorical priority distribution (discrete values with weights)."""
     type: Literal["Categorical"] = "Categorical"
-    values: List[int] = Field(..., description="Priority values to sample from")
-    weights: List[float] = Field(..., description="Weights for each value")
+    values: list[int] = Field(..., description="Priority values to sample from")
+    weights: list[float] = Field(..., description="Weights for each value")
 
     @field_validator("values")
     @classmethod
-    def validate_values_range(cls, v):
+    def validate_values_range(cls, v: list[int]) -> list[int]:
         """Validate all values are in range 0-10."""
         for val in v:
             if not 0 <= val <= 10:
@@ -80,14 +82,14 @@ class CategoricalPriorityDistribution(BaseModel):
 
     @field_validator("weights")
     @classmethod
-    def validate_weights_positive_sum(cls, v):
+    def validate_weights_positive_sum(cls, v: list[float]) -> list[float]:
         """Validate weights sum to positive value."""
         if sum(v) <= 0:
             raise ValueError("Weights must sum to positive value")
         return v
 
     @model_validator(mode="after")
-    def validate_lengths_match(self):
+    def validate_lengths_match(self) -> CategoricalPriorityDistribution:
         """Validate values and weights have same length."""
         if len(self.values) != len(self.weights):
             raise ValueError(
@@ -104,7 +106,7 @@ class UniformPriorityDistribution(BaseModel):
     max: int = Field(..., description="Maximum priority (inclusive)", ge=0, le=10)
 
     @model_validator(mode="after")
-    def validate_min_max(self):
+    def validate_min_max(self) -> UniformPriorityDistribution:
         """Validate min <= max."""
         if self.min > self.max:
             raise ValueError(f"Max must be greater than or equal to min: min={self.min}, max={self.max}")
@@ -128,23 +130,23 @@ class ArrivalConfig(BaseModel):
 
     rate_per_tick: float = Field(..., description="Expected arrivals per tick (Poisson λ)", ge=0)
     amount_distribution: AmountDistribution = Field(..., description="Transaction amount distribution")
-    counterparty_weights: Dict[str, float] = Field(
+    counterparty_weights: dict[str, float] = Field(
         ..., description="Weights for selecting receiver agents"
     )
-    deadline_range: List[int] = Field(
+    deadline_range: list[int] = Field(
         ..., description="[min_ticks, max_ticks] until deadline", min_length=2, max_length=2
     )
     # Legacy single priority value (backward compatible)
     priority: int = Field(5, description="Transaction priority (0-10)", ge=0, le=10)
     # New priority distribution (takes precedence over single priority)
-    priority_distribution: Optional[PriorityDistribution] = Field(
+    priority_distribution: PriorityDistribution | None = Field(
         None, description="Priority distribution for generated transactions"
     )
     divisible: bool = Field(False, description="Whether transactions can be split")
 
     @field_validator("deadline_range")
     @classmethod
-    def validate_deadline_range(cls, v):
+    def validate_deadline_range(cls, v: list[int]) -> list[int]:
         """Validate deadline range [min, max]."""
         if len(v) != 2:
             raise ValueError("deadline_range must have exactly 2 elements [min, max]")
@@ -157,7 +159,7 @@ class ArrivalConfig(BaseModel):
 
     @field_validator("counterparty_weights")
     @classmethod
-    def validate_weights(cls, v):
+    def validate_weights(cls, v: dict[str, float]) -> dict[str, float]:
         """Validate counterparty weights sum to positive value."""
         if not v:
             raise ValueError("counterparty_weights cannot be empty")
@@ -228,7 +230,7 @@ class ArrivalBandConfig(BaseModel):
         description="Maximum ticks until deadline from arrival",
         gt=0
     )
-    counterparty_weights: Dict[str, float] = Field(
+    counterparty_weights: dict[str, float] = Field(
         default_factory=dict,
         description="Weights for selecting receiver agents (empty = uniform across all)"
     )
@@ -238,7 +240,7 @@ class ArrivalBandConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_deadline_offsets(self):
+    def validate_deadline_offsets(self) -> ArrivalBandConfig:
         """Validate deadline_offset_max >= deadline_offset_min."""
         if self.deadline_offset_max < self.deadline_offset_min:
             raise ValueError(
@@ -260,21 +262,21 @@ class ArrivalBandsConfig(BaseModel):
     with different rates, amounts, and deadline parameters.
     """
 
-    urgent: Optional[ArrivalBandConfig] = Field(
+    urgent: ArrivalBandConfig | None = Field(
         None,
         description="Arrival config for urgent priority (8-10)"
     )
-    normal: Optional[ArrivalBandConfig] = Field(
+    normal: ArrivalBandConfig | None = Field(
         None,
         description="Arrival config for normal priority (4-7)"
     )
-    low: Optional[ArrivalBandConfig] = Field(
+    low: ArrivalBandConfig | None = Field(
         None,
         description="Arrival config for low priority (0-3)"
     )
 
     @model_validator(mode="after")
-    def validate_at_least_one_band(self):
+    def validate_at_least_one_band(self) -> ArrivalBandsConfig:
         """At least one band must be configured."""
         if self.urgent is None and self.normal is None and self.low is None:
             raise ValueError("At least one arrival band must be configured")
@@ -316,9 +318,9 @@ class CustomTransactionArrivalEvent(BaseModel):
     from_agent: str = Field(..., description="Source agent ID")
     to_agent: str = Field(..., description="Destination agent ID")
     amount: int = Field(..., description="Amount to transfer (cents)", gt=0)
-    priority: Optional[int] = Field(None, description="Transaction priority (0-10, default 5)", ge=0, le=10)
-    deadline: Optional[int] = Field(None, description="Deadline in ticks from arrival (default: auto)", gt=0)
-    is_divisible: Optional[bool] = Field(None, description="Whether transaction can be split (default: false)")
+    priority: int | None = Field(None, description="Transaction priority (0-10, default 5)", ge=0, le=10)
+    deadline: int | None = Field(None, description="Deadline in ticks from arrival (default: auto)", gt=0)
+    is_divisible: bool | None = Field(None, description="Whether transaction can be split (default: false)")
     schedule: EventSchedule = Field(..., description="When event executes")
 
 
@@ -364,12 +366,12 @@ class DeadlineWindowChangeEvent(BaseModel):
     the min/max of existing deadline ranges by the provided multipliers.
     """
     type: Literal["DeadlineWindowChange"] = "DeadlineWindowChange"
-    min_ticks_multiplier: Optional[float] = Field(None, description="Multiplier for min deadline", gt=0)
-    max_ticks_multiplier: Optional[float] = Field(None, description="Multiplier for max deadline", gt=0)
+    min_ticks_multiplier: float | None = Field(None, description="Multiplier for min deadline", gt=0)
+    max_ticks_multiplier: float | None = Field(None, description="Multiplier for max deadline", gt=0)
     schedule: EventSchedule = Field(..., description="When event executes")
 
     @model_validator(mode="after")
-    def validate_at_least_one_multiplier(self):
+    def validate_at_least_one_multiplier(self) -> DeadlineWindowChangeEvent:
         """At least one multiplier must be provided."""
         if self.min_ticks_multiplier is None and self.max_ticks_multiplier is None:
             raise ValueError("At least one of min_ticks_multiplier or max_ticks_multiplier must be provided")
@@ -451,23 +453,23 @@ class AgentConfig(BaseModel):
     opening_balance: int = Field(..., description="Opening balance in cents")
     unsecured_cap: int = Field(0, description="Unsecured overdraft capacity in cents", ge=0)
     policy: PolicyConfig = Field(..., description="Cash manager policy configuration")
-    arrival_config: Optional[ArrivalConfig] = Field(None, description="Arrival generation config (if any)")
+    arrival_config: ArrivalConfig | None = Field(None, description="Arrival generation config (if any)")
     # Enhancement 11.3: Per-Band Arrival Configuration
-    arrival_bands: Optional[ArrivalBandsConfig] = Field(
+    arrival_bands: ArrivalBandsConfig | None = Field(
         None,
         description="Per-band arrival generation config (mutually exclusive with arrival_config)"
     )
-    posted_collateral: Optional[int] = Field(None, description="Posted collateral in cents")
-    collateral_haircut: Optional[float] = Field(None, description="Collateral haircut (discount rate)", ge=0, le=1)
-    limits: Optional[Dict[str, Union[int, Dict[str, int]]]] = Field(None, description="Payment limits configuration")
+    posted_collateral: int | None = Field(None, description="Posted collateral in cents")
+    collateral_haircut: float | None = Field(None, description="Collateral haircut (discount rate)", ge=0, le=1)
+    limits: dict[str, int | dict[str, int]] | None = Field(None, description="Payment limits configuration")
 
     # Enhancement 11.2: Liquidity Pool Configuration
-    liquidity_pool: Optional[int] = Field(
+    liquidity_pool: int | None = Field(
         None,
         description="External liquidity pool available for allocation (cents)",
         ge=0
     )
-    liquidity_allocation_fraction: Optional[float] = Field(
+    liquidity_allocation_fraction: float | None = Field(
         None,
         description="Fraction of liquidity_pool to allocate (0.0-1.0, defaults to 1.0)",
         ge=0.0,
@@ -476,14 +478,14 @@ class AgentConfig(BaseModel):
 
     @field_validator("id")
     @classmethod
-    def validate_id(cls, v):
+    def validate_id(cls, v: str) -> str:
         """Validate agent ID is not empty."""
         if not v or not v.strip():
             raise ValueError("Agent ID cannot be empty")
         return v
 
     @model_validator(mode="after")
-    def validate_arrival_config_exclusivity(self):
+    def validate_arrival_config_exclusivity(self) -> AgentConfig:
         """Validate arrival_config and arrival_bands are mutually exclusive."""
         if self.arrival_config is not None and self.arrival_bands is not None:
             raise ValueError(
@@ -541,7 +543,7 @@ class CostRates(BaseModel):
     overdue_delay_multiplier: float = Field(
         5.0, description="Multiplier for delay cost when transaction is overdue", ge=0
     )
-    priority_delay_multipliers: Optional[PriorityDelayMultipliers] = Field(
+    priority_delay_multipliers: PriorityDelayMultipliers | None = Field(
         None, description="Priority-based delay cost multipliers (Enhancement 11.1)"
     )
     liquidity_cost_per_tick_bps: float = Field(
@@ -578,16 +580,16 @@ class SimulationConfig(BaseModel):
     """Complete simulation configuration."""
 
     simulation: SimulationSettings = Field(..., description="Core simulation settings")
-    agents: List[AgentConfig] = Field(..., description="Agent configurations", min_length=1)
-    cost_rates: CostRates = Field(default_factory=CostRates, description="Cost calculation rates")
-    lsm_config: LsmConfig = Field(default_factory=LsmConfig, description="LSM configuration")
-    scenario_events: Optional[List[ScenarioEvent]] = Field(
+    agents: list[AgentConfig] = Field(..., description="Agent configurations", min_length=1)
+    cost_rates: CostRates = Field(default_factory=CostRates, description="Cost calculation rates")  # type: ignore[arg-type]
+    lsm_config: LsmConfig = Field(default_factory=LsmConfig, description="LSM configuration")  # type: ignore[arg-type]
+    scenario_events: list[ScenarioEvent] | None = Field(
         None, description="Optional scenario events to execute during simulation"
     )
 
     @field_validator("agents")
     @classmethod
-    def validate_unique_agent_ids(cls, v):
+    def validate_unique_agent_ids(cls, v: list[AgentConfig]) -> list[AgentConfig]:
         """Validate that all agent IDs are unique."""
         ids = [agent.id for agent in v]
         if len(ids) != len(set(ids)):
@@ -596,7 +598,7 @@ class SimulationConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_references(self):
+    def validate_references(self) -> SimulationConfig:
         """Validate that all agent references are valid."""
         agent_ids = {agent.id for agent in self.agents}
 
@@ -729,7 +731,7 @@ class SimulationConfig(BaseModel):
                 if not json_path.exists():
                     raise ValueError(f"Policy JSON file not found: {policy.json_path} (tried {json_path})")
 
-            with open(json_path, 'r') as f:
+            with open(json_path) as f:
                 policy_json = f.read()
 
             # Validate it's valid JSON
@@ -837,9 +839,9 @@ class SimulationConfig(BaseModel):
         else:
             raise ValueError(f"Unknown scenario event type: {type(event)}")
 
-    def _cost_rates_to_ffi_dict(self) -> dict:
+    def _cost_rates_to_ffi_dict(self) -> dict[str, Any]:
         """Convert cost rates config to FFI dict format."""
-        result = {
+        result: dict[str, Any] = {
             "overdraft_bps_per_tick": self.cost_rates.overdraft_bps_per_tick,
             "delay_cost_per_tick_per_cent": self.cost_rates.delay_cost_per_tick_per_cent,
             "collateral_cost_per_tick_bps": self.cost_rates.collateral_cost_per_tick_bps,
@@ -885,6 +887,6 @@ class SimulationConfig(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, config_dict: dict) -> "SimulationConfig":
+    def from_dict(cls, config_dict: dict) -> SimulationConfig:
         """Create config from dictionary."""
         return cls.model_validate(config_dict)

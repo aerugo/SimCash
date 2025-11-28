@@ -15,10 +15,9 @@ import duckdb
 import polars as pl
 
 from .models import (
-    TransactionRecord,
     DailyAgentMetricsRecord,
-    PolicySnapshotRecord,
     PolicyDecisionRecord,
+    PolicySnapshotRecord,
     TickAgentStateRecord,
     TickQueueSnapshotRecord,
 )
