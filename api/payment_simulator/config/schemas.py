@@ -647,14 +647,7 @@ class SimulationConfig(BaseModel):
             "num_days": self.simulation.num_days,
             "rng_seed": self.simulation.rng_seed,
             "agent_configs": [self._agent_to_ffi_dict(agent) for agent in self.agents],
-            "cost_rates": {
-                "overdraft_bps_per_tick": self.cost_rates.overdraft_bps_per_tick,
-                "delay_cost_per_tick_per_cent": self.cost_rates.delay_cost_per_tick_per_cent,
-                "collateral_cost_per_tick_bps": self.cost_rates.collateral_cost_per_tick_bps,
-                "eod_penalty_per_transaction": self.cost_rates.eod_penalty_per_transaction,
-                "deadline_penalty": self.cost_rates.deadline_penalty,
-                "split_friction_cost": self.cost_rates.split_friction_cost,
-            },
+            "cost_rates": self._cost_rates_to_ffi_dict(),
             "lsm_config": {
                 "enable_bilateral": self.lsm_config.enable_bilateral,
                 "enable_cycles": self.lsm_config.enable_cycles,
@@ -691,6 +684,16 @@ class SimulationConfig(BaseModel):
                 "priority_distribution": agent.arrival_config.get_effective_priority_config(),
                 "divisible": agent.arrival_config.divisible,
             }
+
+        # Enhancement 11.3: Per-band arrival configuration
+        if agent.arrival_bands:
+            result["arrival_bands"] = self._arrival_bands_to_ffi_dict(agent.arrival_bands)
+
+        # Enhancement 11.2: Liquidity pool allocation
+        if agent.liquidity_pool is not None:
+            result["liquidity_pool"] = agent.liquidity_pool
+        if agent.liquidity_allocation_fraction is not None:
+            result["liquidity_allocation_fraction"] = agent.liquidity_allocation_fraction
 
         return result
 
@@ -833,6 +836,53 @@ class SimulationConfig(BaseModel):
             return result
         else:
             raise ValueError(f"Unknown scenario event type: {type(event)}")
+
+    def _cost_rates_to_ffi_dict(self) -> dict:
+        """Convert cost rates config to FFI dict format."""
+        result = {
+            "overdraft_bps_per_tick": self.cost_rates.overdraft_bps_per_tick,
+            "delay_cost_per_tick_per_cent": self.cost_rates.delay_cost_per_tick_per_cent,
+            "collateral_cost_per_tick_bps": self.cost_rates.collateral_cost_per_tick_bps,
+            "eod_penalty_per_transaction": self.cost_rates.eod_penalty_per_transaction,
+            "deadline_penalty": self.cost_rates.deadline_penalty,
+            "split_friction_cost": self.cost_rates.split_friction_cost,
+            "overdue_delay_multiplier": self.cost_rates.overdue_delay_multiplier,
+            "liquidity_cost_per_tick_bps": self.cost_rates.liquidity_cost_per_tick_bps,
+        }
+
+        # Enhancement 11.1: Priority-based delay multipliers
+        if self.cost_rates.priority_delay_multipliers:
+            result["priority_delay_multipliers"] = {
+                "urgent_multiplier": self.cost_rates.priority_delay_multipliers.urgent_multiplier,
+                "normal_multiplier": self.cost_rates.priority_delay_multipliers.normal_multiplier,
+                "low_multiplier": self.cost_rates.priority_delay_multipliers.low_multiplier,
+            }
+
+        return result
+
+    def _arrival_bands_to_ffi_dict(self, bands: ArrivalBandsConfig) -> dict:
+        """Convert per-band arrival config to FFI dict format."""
+        result = {}
+
+        if bands.urgent:
+            result["urgent"] = self._arrival_band_to_ffi_dict(bands.urgent)
+        if bands.normal:
+            result["normal"] = self._arrival_band_to_ffi_dict(bands.normal)
+        if bands.low:
+            result["low"] = self._arrival_band_to_ffi_dict(bands.low)
+
+        return result
+
+    def _arrival_band_to_ffi_dict(self, band: ArrivalBandConfig) -> dict:
+        """Convert single arrival band config to FFI dict format."""
+        return {
+            "rate_per_tick": band.rate_per_tick,
+            "amount_distribution": self._distribution_to_ffi_dict(band.amount_distribution),
+            "deadline_offset_min": band.deadline_offset_min,
+            "deadline_offset_max": band.deadline_offset_max,
+            "counterparty_weights": band.counterparty_weights,
+            "divisible": band.divisible,
+        }
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> "SimulationConfig":
