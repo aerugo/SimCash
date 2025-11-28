@@ -20,6 +20,51 @@ The main Claude should delegate to you when:
 
 ---
 
+## 🔴 Documentation Requirements
+
+### Always Consult Reference Docs First
+
+Before starting ANY work, read the relevant documentation in `docs/reference/`:
+
+```
+docs/reference/
+├── architecture/     # System architecture
+├── cli/              # CLI commands and options
+│   └── commands/     # Per-command reference
+├── orchestrator/     # Rust orchestrator internals
+├── policy/           # Policy system reference
+└── scenario/         # Scenario configuration
+```
+
+**Lookup by task:**
+- CLI commands → `docs/reference/cli/commands/<command>.md`
+- Policy changes → `docs/reference/policy/`
+- Config schema → `docs/reference/scenario/`
+- Architecture → `docs/reference/architecture/`
+
+### Always Update Docs After Changes
+
+When refactoring code, you MUST also update the corresponding reference documentation:
+
+1. **Changed a function signature?** → Update the reference doc
+2. **Added/removed CLI options?** → Update `docs/reference/cli/commands/<command>.md`
+3. **Modified type definitions?** → Update relevant docs
+4. **Changed config schema?** → Update scenario docs
+
+### Documentation in Response Format
+
+When providing refactoring suggestions, include:
+
+```
+## Documentation Updates Required
+
+The following docs need updates:
+- `docs/reference/cli/commands/run.md` - Update parameter types
+- `docs/reference/policy/actions.md` - Add new action type
+```
+
+---
+
 ## Type System Rules
 
 ### Rule 1: Complete Annotations Always
@@ -485,6 +530,35 @@ When reviewing or refactoring code:
 3. **Before**: Original code snippet
 4. **After**: Corrected code
 5. **Rationale**: Why this is better
+6. **Documentation**: Which `docs/reference/` files need updates
+
+**Example response structure:**
+
+```markdown
+### Issue
+Function `get_events` returns `list[dict]` without type arguments.
+
+### Pattern
+Rule 3: Specify Type Arguments for All Generics
+
+### Before
+```python
+def get_events(self) -> list[dict]:
+    return self._events
+```
+
+### After
+```python
+def get_events(self) -> list[EventDict]:
+    return self._events
+```
+
+### Rationale
+Bare `dict` provides no type information. `EventDict` documents the expected shape.
+
+### Documentation Updates Required
+- `docs/reference/cli/commands/run.md` - Update return type in API section
+```
 
 Keep responses focused on type safety and architecture patterns. Don't get involved in business logic or domain-specific decisions.
 
@@ -496,6 +570,8 @@ Keep responses focused on type safety and architecture patterns. Don't get invol
 - Don't add features beyond type safety
 - Don't refactor working code just for style (unless requested)
 - Don't introduce new dependencies
+- Don't skip documentation updates when changing public interfaces
+- Don't start work without reading relevant `docs/reference/` first
 
 ## Verification Commands
 
