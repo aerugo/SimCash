@@ -369,6 +369,22 @@ class AgentConfig(BaseModel):
     unsecured_cap: int = Field(0, description="Unsecured overdraft capacity in cents", ge=0)
     policy: PolicyConfig = Field(..., description="Cash manager policy configuration")
     arrival_config: Optional[ArrivalConfig] = Field(None, description="Arrival generation config (if any)")
+    posted_collateral: Optional[int] = Field(None, description="Posted collateral in cents")
+    collateral_haircut: Optional[float] = Field(None, description="Collateral haircut (discount rate)", ge=0, le=1)
+    limits: Optional[Dict[str, Union[int, Dict[str, int]]]] = Field(None, description="Payment limits configuration")
+
+    # Enhancement 11.2: Liquidity Pool Configuration
+    liquidity_pool: Optional[int] = Field(
+        None,
+        description="External liquidity pool available for allocation (cents)",
+        ge=0
+    )
+    liquidity_allocation_fraction: Optional[float] = Field(
+        None,
+        description="Fraction of liquidity_pool to allocate (0.0-1.0, defaults to 1.0)",
+        ge=0.0,
+        le=1.0
+    )
 
     @field_validator("id")
     @classmethod
@@ -429,6 +445,9 @@ class CostRates(BaseModel):
     )
     priority_delay_multipliers: Optional[PriorityDelayMultipliers] = Field(
         None, description="Priority-based delay cost multipliers (Enhancement 11.1)"
+    )
+    liquidity_cost_per_tick_bps: float = Field(
+        0.0, description="Liquidity opportunity cost in basis points per tick (Enhancement 11.2)", ge=0
     )
 
 

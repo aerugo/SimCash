@@ -40,6 +40,8 @@ fn test_fifo_preserves_arrival_order() {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -50,6 +52,8 @@ fn test_fifo_preserves_arrival_order() {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -118,6 +122,8 @@ fn test_fifo_partial_submission() {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -128,6 +134,8 @@ fn test_fifo_partial_submission() {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -209,6 +217,8 @@ fn test_fifo_vs_deadline_under_pressure() {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             // Deadline agent (for comparison)
             AgentConfig {
@@ -222,6 +232,8 @@ fn test_fifo_vs_deadline_under_pressure() {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             // Receiver
             AgentConfig {
@@ -233,6 +245,8 @@ fn test_fifo_vs_deadline_under_pressure() {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),

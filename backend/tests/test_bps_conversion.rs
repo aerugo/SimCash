@@ -31,6 +31,8 @@ fn create_test_config() -> OrchestratorConfig {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -41,6 +43,8 @@ fn create_test_config() -> OrchestratorConfig {
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),
