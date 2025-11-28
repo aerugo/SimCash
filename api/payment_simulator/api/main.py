@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
@@ -270,7 +271,7 @@ class EventListResponse(BaseModel):
     total: int
     limit: int
     offset: int
-    filters: dict[str, Any | None] = None
+    filters: dict[str, Any | None] | None = None
 
 
 class DailyAgentMetric(BaseModel):
@@ -512,7 +513,7 @@ class SimulationManager:
             raise KeyError(f"Simulation not found: {sim_id}")
         return self.simulations[sim_id]
 
-    def delete_simulation(self, sim_id: str):
+    def delete_simulation(self, sim_id: str) -> None:
         """Delete simulation."""
         if sim_id in self.simulations:
             del self.simulations[sim_id]
@@ -570,7 +571,7 @@ class SimulationManager:
         deadline_tick: int,
         priority: int,
         divisible: bool,
-    ):
+    ) -> None:
         """Track a submitted transaction."""
         if sim_id not in self.transactions:
             self.transactions[sim_id] = {}
@@ -593,7 +594,7 @@ class SimulationManager:
             "sender_balance_at_submission": sender_balance_at_submission,
         }
 
-    def get_transaction(self, sim_id: str, tx_id: str) -> dict[str, Any | None]:
+    def get_transaction(self, sim_id: str, tx_id: str) -> dict[str, Any] | None:
         """Get transaction by ID with status from orchestrator."""
         if sim_id not in self.transactions:
             return None
@@ -670,7 +671,7 @@ manager = SimulationManager()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Lifespan context manager for startup/shutdown."""
     # Startup: Configure database if environment variable is set
     import os
@@ -707,7 +708,7 @@ app = FastAPI(
 
 
 @app.post("/simulations", response_model=SimulationCreateResponse, status_code=200)
-def create_simulation(config: dict):
+def create_simulation(config: dict[str, Any]) -> SimulationCreateResponse:
     """
     Create a new simulation from configuration.
 
@@ -808,7 +809,7 @@ def list_simulations():
 
 
 @app.get("/simulations/{sim_id}/state")
-def get_simulation_state(sim_id: str):
+def get_simulation_state(sim_id: str) -> dict[str, Any]:
     """
     Get current simulation state.
 
@@ -830,7 +831,7 @@ def get_simulation_state(sim_id: str):
     "/simulations/{sim_id}/costs/timeline",
     response_model=CostTimelineResponse,
 )
-def get_cost_timeline(sim_id: str):
+def get_cost_timeline(sim_id: str) -> CostTimelineResponse:
     """
     Get cost timeline data for chart visualization.
 
@@ -903,7 +904,9 @@ def get_cost_timeline(sim_id: str):
         """
 
         # Aggregate costs by tick and agent
-        tick_agent_costs = defaultdict(lambda: defaultdict(int))
+        tick_agent_costs: defaultdict[int, defaultdict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
 
         # Add continuous costs from CostAccrual events
         for row in conn.execute(cost_accrual_query, [sim_id]).fetchall():
@@ -975,7 +978,9 @@ def get_cost_timeline(sim_id: str):
 
 
 @app.post("/simulations/{sim_id}/tick")
-def advance_simulation(sim_id: str, count: int = Query(1, ge=1, le=1000)):
+def advance_simulation(
+    sim_id: str, count: int = Query(1, ge=1, le=1000)
+) -> TickResponse | MultiTickResponse:
     """
     Advance simulation by one or more ticks.
 
@@ -1012,7 +1017,7 @@ def advance_simulation(sim_id: str, count: int = Query(1, ge=1, le=1000)):
 
 
 @app.delete("/simulations/{sim_id}")
-def delete_simulation(sim_id: str):
+def delete_simulation(sim_id: str) -> dict[str, str]:
     """Delete a simulation."""
     try:
         manager.delete_simulation(sim_id)
@@ -1031,7 +1036,7 @@ def delete_simulation(sim_id: str):
 
 
 @app.post("/simulations/{sim_id}/transactions", response_model=TransactionResponse)
-def submit_transaction(sim_id: str, tx: TransactionSubmission):
+def submit_transaction(sim_id: str, tx: TransactionSubmission) -> TransactionResponse:
     """
     Submit a new transaction to the simulation.
 
@@ -1080,7 +1085,7 @@ def submit_transaction(sim_id: str, tx: TransactionSubmission):
 )
 def get_near_deadline_transactions(
     sim_id: str, within_ticks: int = Query(2, ge=1, le=100)
-):
+) -> NearDeadlineTransactionsResponse:
     """
     Get transactions approaching their deadline.
 
@@ -1137,7 +1142,7 @@ def get_near_deadline_transactions(
     "/simulations/{sim_id}/transactions/overdue",
     response_model=OverdueTransactionsResponse,
 )
-def get_overdue_transactions(sim_id: str):
+def get_overdue_transactions(sim_id: str) -> OverdueTransactionsResponse:
     """
     Get all currently overdue transactions with cost breakdown.
 
@@ -1192,7 +1197,7 @@ def get_overdue_transactions(sim_id: str):
 
 
 @app.get("/simulations/{sim_id}/transactions/{tx_id}")
-def get_transaction(sim_id: str, tx_id: str):
+def get_transaction(sim_id: str, tx_id: str) -> dict[str, Any]:
     """
     Get transaction details and status.
 
@@ -1230,7 +1235,7 @@ def list_transactions(
     agent: str | None = None,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-):
+) -> TransactionListResponse:
     """
     List all transactions in a simulation.
 
@@ -1262,7 +1267,7 @@ def list_transactions(
 
         # Build query with filters
         where_clauses = ["simulation_id = ?"]
-        params = [sim_id]
+        params: list[Any] = [sim_id]
 
         if status:
             where_clauses.append("status = ?")
@@ -1345,7 +1350,7 @@ def list_transactions(
 
 
 @app.post("/simulations/{sim_id}/checkpoint", response_model=CheckpointSaveResponse)
-def save_checkpoint(sim_id: str, request: CheckpointSaveRequest):
+def save_checkpoint(sim_id: str, request: CheckpointSaveRequest) -> CheckpointSaveResponse:
     """
     Save simulation state as checkpoint to database.
 
@@ -1399,7 +1404,7 @@ def save_checkpoint(sim_id: str, request: CheckpointSaveRequest):
 
 
 @app.post("/simulations/from-checkpoint", response_model=CheckpointLoadResponse)
-def load_from_checkpoint(request: CheckpointLoadRequest):
+def load_from_checkpoint(request: CheckpointLoadRequest) -> CheckpointLoadResponse:
     """
     Create new simulation by restoring from checkpoint.
 
@@ -1463,7 +1468,7 @@ def load_from_checkpoint(request: CheckpointLoadRequest):
 
 
 @app.get("/simulations/{sim_id}/checkpoints", response_model=CheckpointListResponse)
-def list_checkpoints(sim_id: str):
+def list_checkpoints(sim_id: str) -> CheckpointListResponse:
     """
     List all checkpoints for a simulation.
 
@@ -1502,7 +1507,7 @@ def list_checkpoints(sim_id: str):
 
 
 @app.get("/checkpoints/{checkpoint_id}")
-def get_checkpoint_details(checkpoint_id: str):
+def get_checkpoint_details(checkpoint_id: str) -> dict[str, Any]:
     """
     Get checkpoint metadata by ID.
 
@@ -1542,7 +1547,7 @@ def get_checkpoint_details(checkpoint_id: str):
 
 
 @app.delete("/checkpoints/{checkpoint_id}")
-def delete_checkpoint(checkpoint_id: str):
+def delete_checkpoint(checkpoint_id: str) -> dict[str, str]:
     """
     Delete a checkpoint by ID.
 
@@ -1580,7 +1585,7 @@ def delete_checkpoint(checkpoint_id: str):
 
 
 @app.get("/simulations/{sim_id}/costs", response_model=CostResponse)
-def get_simulation_costs(sim_id: str):
+def get_simulation_costs(sim_id: str) -> CostResponse:
     """
     Get accumulated costs for all agents in a simulation.
 
@@ -1717,7 +1722,7 @@ def get_simulation_costs(sim_id: str):
 
 
 @app.get("/simulations/{sim_id}/metrics", response_model=MetricsResponse)
-def get_simulation_metrics(sim_id: str):
+def get_simulation_metrics(sim_id: str) -> MetricsResponse:
     """
     Get comprehensive system-wide metrics for a simulation.
 
@@ -1785,7 +1790,7 @@ def get_simulation_metrics(sim_id: str):
 
 
 @app.get("/simulations/{sim_id}", response_model=SimulationMetadataResponse)
-def get_simulation_metadata(sim_id: str):
+def get_simulation_metadata(sim_id: str) -> SimulationMetadataResponse:
     """
     Get complete simulation metadata including config and summary statistics.
 
@@ -2009,7 +2014,7 @@ def get_simulation_metadata(sim_id: str):
 
 
 @app.get("/simulations/{sim_id}/agents", response_model=AgentListResponse)
-def get_agent_list(sim_id: str):
+def get_agent_list(sim_id: str) -> AgentListResponse:
     """
     Get list of all agents with summary statistics.
 
@@ -2119,7 +2124,7 @@ def get_events(
     limit: int = Query(100, ge=1, le=1000, description="Number of events per page"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     sort: str = Query("tick_asc", pattern="^(tick_asc|tick_desc)$", description="Sort order"),
-):
+) -> EventListResponse:
     """
     Get paginated list of events with comprehensive filtering.
 
@@ -2251,7 +2256,7 @@ def get_events(
     "/simulations/{sim_id}/agents/{agent_id}/timeline",
     response_model=AgentTimelineResponse,
 )
-def get_agent_timeline(sim_id: str, agent_id: str):
+def get_agent_timeline(sim_id: str, agent_id: str) -> AgentTimelineResponse:
     """
     Get complete timeline for a specific agent including daily metrics and collateral events.
 
@@ -2382,7 +2387,7 @@ def get_agent_timeline(sim_id: str, agent_id: str):
     "/simulations/{sim_id}/transactions/{tx_id}/lifecycle",
     response_model=TransactionLifecycleResponse,
 )
-def get_transaction_lifecycle(sim_id: str, tx_id: str):
+def get_transaction_lifecycle(sim_id: str, tx_id: str) -> TransactionLifecycleResponse:
     """
     Get complete lifecycle of a transaction including all events and related transactions.
     """
@@ -2521,7 +2526,7 @@ def get_transaction_lifecycle(sim_id: str, tx_id: str):
     "/simulations/{sim_id}/agents/{agent_id}/queues",
     response_model=AgentQueuesResponse,
 )
-def get_agent_queues(sim_id: str, agent_id: str):
+def get_agent_queues(sim_id: str, agent_id: str) -> AgentQueuesResponse:
     """
     Get queue contents for a specific agent.
 
@@ -2612,7 +2617,7 @@ def get_agent_queues(sim_id: str, agent_id: str):
     "/simulations/{sim_id}/ticks/{tick}/state",
     response_model=TickStateResponse,
 )
-def get_tick_state(sim_id: str, tick: int):
+def get_tick_state(sim_id: str, tick: int) -> TickStateResponse:
     """
     Get complete state snapshot at a specific tick.
 

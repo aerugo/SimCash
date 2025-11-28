@@ -328,9 +328,10 @@ class SimulationRunner:
             if event_type == 'PolicySplit':
                 parent_id = event.get('tx_id')
                 child_ids = event.get('child_ids', [])
-                self.parent_to_children[parent_id] = child_ids
-                for child_id in child_ids:
-                    self.child_to_parent[child_id] = parent_id
+                if parent_id is not None:
+                    self.parent_to_children[parent_id] = child_ids
+                    for child_id in child_ids:
+                        self.child_to_parent[child_id] = parent_id
 
             # Track LSM-settled transactions
             elif event_type in ['LsmBilateralOffset', 'LsmCycleSettlement']:

@@ -98,7 +98,7 @@ def generate_create_table_ddl(model: Type[BaseModel]) -> str:
     if "table_name" not in config:
         raise ValueError(f"Model {model.__name__} missing model_config['table_name']")
 
-    table_name = config["table_name"]
+    table_name = config["table_name"]  # type: ignore[typeddict-item]
     primary_key = config.get("primary_key", [])
 
     # Get field definitions
@@ -126,7 +126,7 @@ def generate_create_table_ddl(model: Type[BaseModel]) -> str:
 
     # Add primary key constraint
     if primary_key:
-        pk_cols = ", ".join(primary_key)
+        pk_cols = ", ".join(primary_key)  # type: ignore[arg-type]
         columns.append(f"    PRIMARY KEY ({pk_cols})")
 
     ddl = f"CREATE TABLE IF NOT EXISTS {table_name} (\n"
@@ -155,11 +155,11 @@ def generate_create_indexes_ddl(model: Type[BaseModel]) -> list[str]:
         return []
 
     config = model.model_config
-    if "indexes" not in config or not config["indexes"]:
+    if "indexes" not in config or not config["indexes"]:  # type: ignore[typeddict-item]
         return []
 
     table_name = config.get("table_name", "unknown")
-    indexes = config["indexes"]
+    indexes = config["indexes"]  # type: ignore[typeddict-item]
 
     ddl_statements = []
     for index_name, columns in indexes:
@@ -224,8 +224,8 @@ def generate_full_schema_ddl() -> str:
         if hasattr(model, "model_config") and "table_name" in model.model_config:
             table_name = model.model_config["table_name"]
             # Check if model has optional id field
-            if "id" in model.model_fields:
-                field_info = model.model_fields["id"]
+            if "id" in model.model_fields:  # type: ignore[attr-defined]
+                field_info = model.model_fields["id"]  # type: ignore[attr-defined]
                 py_type = field_info.annotation
                 if _is_field_optional(py_type, field_info) and _is_int_type(py_type):
                     sequence_name = f"{table_name}_id_seq"
@@ -233,9 +233,9 @@ def generate_full_schema_ddl() -> str:
 
     # Generate CREATE TABLE statements
     for model in models:
-        ddl_parts.append(generate_create_table_ddl(model))
+        ddl_parts.append(generate_create_table_ddl(model))  # type: ignore[arg-type]
         # Add indexes immediately after table
-        indexes = generate_create_indexes_ddl(model)
+        indexes = generate_create_indexes_ddl(model)  # type: ignore[arg-type]
         if indexes:
             ddl_parts.extend(indexes)
 
@@ -339,7 +339,7 @@ def validate_table_schema(conn: Any, model: Type[BaseModel]) -> tuple[bool, list
     if "table_name" not in config:
         return False, [f"Model {model.__name__} missing model_config['table_name']"]
 
-    table_name = config["table_name"]
+    table_name = config["table_name"]  # type: ignore[typeddict-item]
     errors = []
 
     # Try to get table schema from database

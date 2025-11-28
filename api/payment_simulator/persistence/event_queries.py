@@ -79,7 +79,7 @@ def get_simulation_events(
 
     # Build WHERE clause dynamically
     where_clauses = ["simulation_id = ?"]
-    params = [simulation_id]
+    params: list[Any] = [simulation_id]
 
     if tick is not None:
         where_clauses.append("tick = ?")
@@ -129,7 +129,8 @@ def get_simulation_events(
 
     # Get total count (for pagination metadata)
     count_query = f"SELECT COUNT(*) FROM simulation_events WHERE {where_clause}"
-    total = conn.execute(count_query, params).fetchone()[0]
+    count_result = conn.execute(count_query, params).fetchone()
+    total = count_result[0] if count_result else 0
 
     # Build main query with sorting and pagination
     order = "ASC" if sort == "tick_asc" else "DESC"
@@ -237,18 +238,19 @@ def get_simulation_event_summary(
         >>> print(f"Event types: {summary['event_type_counts']}")
     """
     # Get total event count
-    total_events = conn.execute(
+    count_result = conn.execute(
         "SELECT COUNT(*) FROM simulation_events WHERE simulation_id = ?",
         [simulation_id]
-    ).fetchone()[0]
+    ).fetchone()
+    total_events = count_result[0] if count_result else 0
 
     # Get tick/day ranges
     ranges = conn.execute(
         "SELECT MAX(tick), MAX(day) FROM simulation_events WHERE simulation_id = ?",
         [simulation_id]
     ).fetchone()
-    total_ticks = ranges[0] if ranges[0] is not None else 0
-    total_days = ranges[1] if ranges[1] is not None else 0
+    total_ticks = ranges[0] if ranges and ranges[0] is not None else 0
+    total_days = ranges[1] if ranges and ranges[1] is not None else 0
 
     # Get event type counts
     type_counts_rows = conn.execute(

@@ -98,7 +98,7 @@ class DatabaseManager:
         """
         return self.conn
 
-    def initialize_schema(self, force_recreate: bool = False):
+    def initialize_schema(self, force_recreate: bool = False) -> None:
         """Initialize database schema from Pydantic models.
 
         Generates DDL from all Pydantic models and executes it to create tables.
@@ -204,22 +204,22 @@ class DatabaseManager:
 
         all_valid = True
         for model in models:
-            is_valid, errors = validate_table_schema(self.conn, model)
+            is_valid, errors = validate_table_schema(self.conn, model)  # type: ignore[arg-type]
             if not is_valid:
                 all_valid = False
-                table_name = model.model_config.get("table_name", "unknown")
+                table_name = model.model_config.get("table_name", "unknown")  # type: ignore[attr-defined]
                 if not quiet:
                     print(f"  ✗ {table_name}:")
                     for error in errors:
                         print(f"      {error}")
             else:
-                table_name = model.model_config.get("table_name", "unknown")
+                table_name = model.model_config.get("table_name", "unknown")  # type: ignore[attr-defined]
                 if not quiet:
                     print(f"  ✓ {table_name}")
 
         return all_valid
 
-    def apply_migrations(self):
+    def apply_migrations(self) -> None:
         """Apply pending schema migrations.
 
         Uses MigrationManager to scan migrations directory and apply
@@ -241,7 +241,7 @@ class DatabaseManager:
         migration_manager = MigrationManager(self.conn, self.migrations_dir)
         migration_manager.apply_pending_migrations()
 
-    def setup(self):
+    def setup(self) -> None:
         """Complete database setup: initialize + migrate + validate + load templates.
 
         Performs full database setup in correct order:
@@ -287,12 +287,13 @@ class DatabaseManager:
 
         print("Database setup complete")
 
-    def _load_policy_templates_if_needed(self):
+    def _load_policy_templates_if_needed(self) -> None:
         """Load policy templates from disk if not already in database."""
         # Check if templates already loaded
-        existing_count = self.conn.execute(
+        count_result = self.conn.execute(
             "SELECT COUNT(*) FROM policy_snapshots WHERE simulation_id = 'templates'"
-        ).fetchone()[0]
+        ).fetchone()
+        existing_count = count_result[0] if count_result else 0
 
         if existing_count > 0:
             print(f"  ✓ Policy templates already loaded ({existing_count} templates)")
@@ -311,7 +312,7 @@ class DatabaseManager:
         else:
             print("  ⚠ No policy templates found")
 
-    def _drop_all_tables(self):
+    def _drop_all_tables(self) -> None:
         """Drop all tables managed by this system.
 
         This is used when force_recreate=True to ensure old schema is removed
@@ -362,7 +363,7 @@ class DatabaseManager:
                 # Ignore errors if sequence doesn't exist
                 pass
 
-    def close(self):
+    def close(self) -> None:
         """Close database connection.
 
         Examples:
@@ -371,7 +372,7 @@ class DatabaseManager:
         """
         self.conn.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "DatabaseManager":
         """Enter context manager.
 
         Returns:
@@ -383,7 +384,12 @@ class DatabaseManager:
         """
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
         """Exit context manager and close connection.
 
         Args:
