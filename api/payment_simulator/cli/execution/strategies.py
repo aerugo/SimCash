@@ -8,7 +8,7 @@ output behavior while using the same core execution logic.
 from io import StringIO
 from typing import Any, Optional
 
-from payment_simulator._core import Orchestrator
+from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 from payment_simulator.cli.filters import EventFilter
 from payment_simulator.cli.execution.runner import OutputStrategy, SimulationConfig
 from payment_simulator.cli.execution.stats import TickResult

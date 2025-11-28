@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from payment_simulator._core import Orchestrator
+from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 from payment_simulator.config import SimulationConfig, ValidationError
 
 # ============================================================================
