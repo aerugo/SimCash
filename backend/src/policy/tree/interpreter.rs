@@ -952,7 +952,7 @@ pub fn build_collateral_decision(
     params: &HashMap<String, f64>,
 ) -> Result<crate::policy::CollateralDecision, EvalError> {
     use crate::policy::tree::types::ActionType;
-    use crate::policy::{CollateralDecision, CollateralReason};
+    use crate::policy::CollateralDecision;
 
     // Verify this is an action node
     let (action, action_params) = match action_node {
@@ -1364,8 +1364,8 @@ fn evaluate_action_parameter(
 fn evaluate_action_parameter_string(
     action_params: &HashMap<String, ValueOrCompute>,
     param_name: &str,
-    context: &EvalContext,
-    params: &HashMap<String, f64>,
+    _context: &EvalContext,
+    _params: &HashMap<String, f64>,
 ) -> Result<String, EvalError> {
     let value_or_compute = action_params
         .get(param_name)
@@ -1381,7 +1381,7 @@ fn evaluate_action_parameter_string(
             }
         }
 
-        ValueOrCompute::Field { field } => {
+        ValueOrCompute::Field { field: _ } => {
             // Field reference - for state registers, this could be reading another register
             // For now, we don't support string fields, so return error
             Err(EvalError::InvalidActionParameter(format!(
@@ -1390,7 +1390,7 @@ fn evaluate_action_parameter_string(
             )))
         }
 
-        ValueOrCompute::Param { param } => {
+        ValueOrCompute::Param { param: _ } => {
             // Parameter reference - not supported for strings
             Err(EvalError::InvalidActionParameter(format!(
                 "String parameter '{}' does not support param references",
