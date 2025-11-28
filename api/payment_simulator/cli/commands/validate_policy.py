@@ -8,16 +8,17 @@ This command validates policy files in three stages:
 Optionally runs functional tests against a test scenario.
 """
 
+from __future__ import annotations
+
 import json
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from typing_extensions import Annotated
 
 from payment_simulator.backends import validate_policy as rust_validate_policy
 
@@ -49,10 +50,10 @@ def validate_policy(
         typer.Option("--functional-tests", help="Run functional tests against the policy"),
     ] = False,
     scenario: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--scenario", "-s", help="Custom scenario config for functional tests"),
     ] = None,
-):
+) -> None:
     """Validate a policy tree JSON file.
 
     Performs comprehensive validation including:
@@ -134,7 +135,7 @@ def validate_policy(
         raise typer.Exit(code=1)
 
 
-def _output_error(format: OutputFormat, message: str, error_type: str):
+def _output_error(format: OutputFormat, message: str, error_type: str) -> None:
     """Output an error message."""
     if format == OutputFormat.json:
         output = {
@@ -146,7 +147,9 @@ def _output_error(format: OutputFormat, message: str, error_type: str):
         console.print(f"[red]Error:[/red] {message}")
 
 
-def _output_json(result: dict, functional_test_result: Optional[dict] = None):
+def _output_json(
+    result: dict[str, Any], functional_test_result: dict[str, Any] | None = None
+) -> None:
     """Output validation results as JSON."""
     if functional_test_result:
         result["functional_tests"] = functional_test_result
@@ -154,11 +157,11 @@ def _output_json(result: dict, functional_test_result: Optional[dict] = None):
 
 
 def _output_text(
-    result: dict,
+    result: dict[str, Any],
     policy_file: Path,
     verbose: bool,
-    functional_test_result: Optional[dict] = None
-):
+    functional_test_result: dict[str, Any] | None = None,
+) -> None:
     """Output validation results as human-readable text."""
     if result.get("valid"):
         console.print(Panel(
@@ -191,7 +194,7 @@ def _output_text(
         console.print(f"\n[red]Policy validation failed with {len(errors)} error(s)[/red]")
 
 
-def _show_policy_details(result: dict):
+def _show_policy_details(result: dict[str, Any]) -> None:
     """Show detailed policy information."""
     trees = result.get("trees", {})
 
@@ -227,10 +230,10 @@ def _show_policy_details(result: dict):
 def _run_functional_tests(
     policy_file: Path,
     policy_content: str,
-    validation_result: dict,
-    scenario: Optional[Path],
+    validation_result: dict[str, Any],
+    scenario: Path | None,
     verbose: bool,
-) -> dict:
+) -> dict[str, Any]:
     """Run functional tests against the policy.
 
     Tests include:
@@ -238,7 +241,7 @@ def _run_functional_tests(
     2. Policy executes without errors on sample transactions
     3. Policy produces valid decisions
     """
-    from payment_simulator._core import Orchestrator
+    from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 
     tests_run = 0
     tests_passed = 0
@@ -281,7 +284,7 @@ def _run_functional_tests(
         test_results.append({
             "name": "load_policy",
             "passed": False,
-            "message": f"Failed to load policy: {str(e)}"
+            "message": f"Failed to load policy: {e!s}"
         })
         # If we can't load, skip other tests
         return {
@@ -318,7 +321,7 @@ def _run_functional_tests(
         test_results.append({
             "name": "execute_policy",
             "passed": False,
-            "message": f"Policy execution failed: {str(e)}"
+            "message": f"Policy execution failed: {e!s}"
         })
 
     # Test 3: Policy produces valid state
@@ -332,9 +335,9 @@ def _run_functional_tests(
         metrics = orch.get_system_metrics()
         assert metrics is not None, "System metrics should be available"
 
-        # Query queue states
-        queue1_a = orch.get_queue1_size("BANK_A")
-        queue2_size = orch.get_queue2_size()
+        # Query queue states (call to ensure they don't error)
+        _ = orch.get_queue1_size("BANK_A")
+        _ = orch.get_queue2_size()
 
         tests_passed += 1
         test_results.append({
@@ -346,7 +349,7 @@ def _run_functional_tests(
         test_results.append({
             "name": "valid_state",
             "passed": False,
-            "message": f"State validation failed: {str(e)}"
+            "message": f"State validation failed: {e!s}"
         })
 
     all_passed = tests_passed == tests_run
@@ -358,7 +361,7 @@ def _run_functional_tests(
     }
 
 
-def _show_functional_test_results(result: dict):
+def _show_functional_test_results(result: dict[str, Any]) -> None:
     """Display functional test results."""
     table = Table(title="Functional Tests", show_header=True)
     table.add_column("Test")

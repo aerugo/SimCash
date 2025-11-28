@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol
 
-from payment_simulator._core import Orchestrator
+from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 from payment_simulator.cli.filters import EventFilter
 
 from .stats import SimulationStats, TickResult
@@ -140,9 +140,9 @@ class SimulationRunner:
         self.previous_cumulative_settlements = 0
 
         # Track LSM-settled parent transactions
-        self.lsm_settled_parents = set()  # Set of parent tx IDs settled by LSM
-        self.parent_to_children = {}  # Map parent tx ID -> list of child tx IDs
-        self.child_to_parent = {}  # Map child tx ID -> parent tx ID
+        self.lsm_settled_parents: set[str] = set()  # Set of parent tx IDs settled by LSM
+        self.parent_to_children: dict[str, list[str]] = {}  # Map parent tx ID -> list of child tx IDs
+        self.child_to_parent: dict[str, str] = {}  # Map child tx ID -> parent tx ID
 
     def run(self) -> dict[str, Any]:
         """Execute simulation with configured strategy.

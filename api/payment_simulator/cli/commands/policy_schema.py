@@ -1,13 +1,14 @@
 """CLI command for generating policy schema documentation."""
 
+from __future__ import annotations
+
 import json
 import re
-from pathlib import Path
-from typing import Optional, List
 from enum import Enum
+from pathlib import Path
+from typing import Annotated, Any
 
 import typer
-from typing_extensions import Annotated
 
 from payment_simulator.backends import get_policy_schema
 
@@ -77,23 +78,25 @@ def policy_schema(
         typer.Option("--format", "-f", help="Output format"),
     ] = OutputFormat.markdown,
     category: Annotated[
-        Optional[List[SchemaCategory]],
+        list[SchemaCategory] | None,
         typer.Option("--category", "-c", help="Filter to specific categories (can be repeated)"),
     ] = None,
     exclude_category: Annotated[
-        Optional[List[SchemaCategory]],
-        typer.Option("--exclude-category", "-x", help="Exclude specific categories (can be repeated)"),
+        list[SchemaCategory] | None,
+        typer.Option(
+            "--exclude-category", "-x", help="Exclude specific categories (can be repeated)"
+        ),
     ] = None,
     tree: Annotated[
-        Optional[List[TreeType]],
+        list[TreeType] | None,
         typer.Option("--tree", "-t", help="Filter to elements valid in specific trees"),
     ] = None,
     section: Annotated[
-        Optional[List[SchemaSection]],
+        list[SchemaSection] | None,
         typer.Option("--section", "-s", help="Include only specific sections"),
     ] = None,
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--output", "-o", help="Output file (default: stdout)"),
     ] = None,
     no_examples: Annotated[
@@ -104,7 +107,7 @@ def policy_schema(
         bool,
         typer.Option("--compact", help="Compact output (fewer details)"),
     ] = False,
-):
+) -> None:
     """Generate policy schema documentation.
 
     Examples:
@@ -159,12 +162,12 @@ def policy_schema(
 
 
 def filter_schema(
-    schema: dict,
-    include_categories: Optional[set] = None,
-    exclude_categories: Optional[set] = None,
-    include_trees: Optional[set] = None,
-    include_sections: Optional[set] = None,
-) -> dict:
+    schema: dict[str, Any],
+    include_categories: set[str] | None = None,
+    exclude_categories: set[str] | None = None,
+    include_trees: set[str] | None = None,
+    include_sections: set[str] | None = None,
+) -> dict[str, Any]:
     """Filter schema based on options."""
     result = {
         "version": schema["version"],
@@ -211,7 +214,7 @@ def filter_schema(
 
 
 def format_as_markdown(
-    schema: dict,
+    schema: dict[str, Any],
     no_examples: bool = False,
     compact: bool = False,
 ) -> str:
@@ -240,7 +243,7 @@ def format_as_markdown(
         lines.append("")
 
         # Group by category
-        by_category: dict = {}
+        by_category: dict[str, list[dict[str, Any]]] = {}
         for elem in elements:
             cat = elem.get("category", "Other")
             if cat not in by_category:
@@ -257,7 +260,9 @@ def format_as_markdown(
     return "\n".join(lines)
 
 
-def _format_element_markdown(elem: dict, no_examples: bool, compact: bool) -> str:
+def _format_element_markdown(
+    elem: dict[str, Any], no_examples: bool, compact: bool
+) -> str:
     """Format a single schema element as markdown."""
     lines = []
 
