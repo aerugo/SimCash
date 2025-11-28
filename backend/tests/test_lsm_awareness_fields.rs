@@ -329,9 +329,9 @@ fn test_context_exposes_top_counterparty_fields() {
     let top_2_value = context.get_field("my_q2_out_value_top_2");
     let top_3_value = context.get_field("my_q2_out_value_top_3");
 
-    let top_1_id = context.get_field("top_cpty_1_id");
-    let top_2_id = context.get_field("top_cpty_2_id");
-    let top_3_id = context.get_field("top_cpty_3_id");
+    let _top_1_id = context.get_field("top_cpty_1_id");
+    let _top_2_id = context.get_field("top_cpty_2_id");
+    let _top_3_id = context.get_field("top_cpty_3_id");
 
     assert!(top_1_value.is_ok(), "my_q2_out_value_top_1 should exist");
     assert!(top_2_value.is_ok(), "my_q2_out_value_top_2 should exist");

@@ -1809,7 +1809,7 @@ mod tests {
     fn test_queue1_liquidity_gap_no_gap() {
         let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
         agent.set_unsecured_cap(500_000);
-        let mut state = SimulationState::new(vec![agent.clone()]);
+        let state = SimulationState::new(vec![agent.clone()]);
 
         // Agent has 1.5M available liquidity
         // Queue 1 is empty

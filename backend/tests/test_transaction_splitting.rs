@@ -578,7 +578,7 @@ fn test_full_splitting_workflow() {
 
     // Inject 200k transaction (will need to split)
     let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 200_000, 0, 10);
-    let parent_id = tx.id().to_string();
+    let _parent_id = tx.id().to_string();
     let tx_id = tx.id().to_string();
 
     orchestrator.state_mut().add_transaction(tx);
@@ -920,7 +920,7 @@ fn test_tree_policy_split_with_negative_liquidity_reveals_bug() {
         .queue_outgoing(tx1_id.clone());
 
     // Tick 1: First transaction should settle using credit
-    let result1 = orchestrator.tick().unwrap();
+    let _result1 = orchestrator.tick().unwrap();
 
     // Verify agent is now in overdraft
     let balance_after_tx1 = orchestrator.state().get_agent("SMART_SPLITTER").unwrap().balance();
@@ -973,7 +973,7 @@ fn test_tree_policy_split_with_negative_liquidity_reveals_bug() {
         .queue_outgoing(tx2_id);
 
     // Tick 2: Policy evaluates transaction while in overdraft
-    let result2 = orchestrator.tick().unwrap();
+    let _result2 = orchestrator.tick().unwrap();
 
     let events = orchestrator.event_log().events();
 

@@ -74,7 +74,7 @@ fn test_agent_throughput_today_after_settlements() {
 #[test]
 #[ignore] // TODO: Implement after adding day tracking to SimulationState
 fn test_agent_throughput_resets_at_eod() {
-    let mut state = SimulationState::new(vec![
+    let state = SimulationState::new(vec![
         create_agent("BANK_A", 1_000_000, 0),
         create_agent("BANK_B", 1_000_000, 0),
     ]);
@@ -191,7 +191,7 @@ fn test_throughput_fraction_zero_when_no_transactions() {
 
 #[test]
 fn test_throughput_fraction_half_settled() {
-    let mut state = SimulationState::new(vec![
+    let _state = SimulationState::new(vec![
         create_agent("BANK_A", 1_000_000, 0),
         create_agent("BANK_B", 1_000_000, 0),
     ]);
@@ -258,7 +258,7 @@ fn test_context_exposes_my_throughput_fraction_today() {
     use payment_simulator_core_rs::policy::tree::EvalContext;
     use payment_simulator_core_rs::orchestrator::CostRates;
 
-    let mut state = SimulationState::new(vec![
+    let state = SimulationState::new(vec![
         create_agent("BANK_A", 1_000_000, 0),
         create_agent("BANK_B", 1_000_000, 0),
     ]);
@@ -363,7 +363,7 @@ fn test_throughput_gap_positive_when_ahead() {
 #[test]
 #[ignore] // TODO: Implement after adding day tracking to SimulationState
 fn test_throughput_resets_each_day() {
-    let mut state = SimulationState::new(vec![
+    let state = SimulationState::new(vec![
         create_agent("BANK_A", 1_000_000, 0),
         create_agent("BANK_B", 1_000_000, 0),
     ]);
