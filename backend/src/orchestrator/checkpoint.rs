@@ -67,6 +67,9 @@ pub struct AgentSnapshot {
     pub multilateral_limit: Option<i64>,
     pub bilateral_outflows: HashMap<String, i64>,
     pub total_outflow: i64,
+    // Enhancement 11.2: Liquidity pool allocation (optional for backwards compat)
+    #[serde(default)]
+    pub allocated_liquidity: Option<i64>,
 }
 
 impl From<&Agent> for AgentSnapshot {
@@ -87,6 +90,8 @@ impl From<&Agent> for AgentSnapshot {
             multilateral_limit: agent.multilateral_limit(),
             bilateral_outflows: agent.bilateral_outflows().clone(),
             total_outflow: agent.total_outflow(),
+            // Enhancement 11.2: Liquidity pool allocation
+            allocated_liquidity: Some(agent.allocated_liquidity()),
         }
     }
 }
@@ -110,6 +115,7 @@ impl From<AgentSnapshot> for Agent {
             multilateral_limit: snapshot.multilateral_limit,
             bilateral_outflows: snapshot.bilateral_outflows,
             total_outflow: snapshot.total_outflow,
+            allocated_liquidity: snapshot.allocated_liquidity, // Enhancement 11.2
         })
     }
 }

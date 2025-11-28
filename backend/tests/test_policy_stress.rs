@@ -49,6 +49,8 @@ fn test_high_frequency_arrivals_single_agent() {
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -59,6 +61,8 @@ fn test_high_frequency_arrivals_single_agent() {
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -158,6 +162,8 @@ fn test_sustained_high_load_100_ticks() {
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -168,6 +174,8 @@ fn test_sustained_high_load_100_ticks() {
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -270,6 +278,8 @@ fn test_extreme_high_frequency_arrivals() {
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             AgentConfig {
                 id: "BANK_B".to_string(),
@@ -280,6 +290,8 @@ fn test_extreme_high_frequency_arrivals() {
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates::default(),
@@ -379,6 +391,8 @@ fn test_50_agent_high_frequency_simulation() {
             posted_collateral: None,
             collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
         });
     }
 

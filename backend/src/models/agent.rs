@@ -75,6 +75,7 @@ pub enum WithdrawError {
 ///     multilateral_limit: None,
 ///     bilateral_outflows: HashMap::new(),
 ///     total_outflow: 0,
+///     allocated_liquidity: None,
 /// };
 ///
 /// let agent = Agent::restore(data);
@@ -109,6 +110,8 @@ pub struct AgentRestoreData {
     pub bilateral_outflows: std::collections::HashMap<String, i64>,
     /// TARGET2 LSM: Current day's total outflow counter
     pub total_outflow: i64,
+    /// Enhancement 11.2: Allocated liquidity from external pool (optional for backwards compat)
+    pub allocated_liquidity: Option<i64>,
 }
 
 /// Represents a bank (agent) in the payment system
@@ -261,6 +264,17 @@ pub struct Agent {
     /// Current day's total outflow (for multilateral limit)
     /// Reset at start of each day
     total_outflow: i64,
+
+    // Enhancement 11.2: Liquidity Pool Allocation
+    /// Allocated liquidity from external pool (i64 cents)
+    ///
+    /// This tracks how much liquidity was allocated from the agent's
+    /// external liquidity pool at initialization. Used to calculate
+    /// the liquidity opportunity cost per tick.
+    ///
+    /// Note: This is separate from opening_balance (which is assumed
+    /// to already be at the central bank without opportunity cost).
+    allocated_liquidity: i64,
 }
 
 impl Agent {
@@ -305,6 +319,8 @@ impl Agent {
             multilateral_limit: None,
             bilateral_outflows: std::collections::HashMap::new(),
             total_outflow: 0,
+            // Enhancement 11.2: Liquidity pool allocation
+            allocated_liquidity: 0, // Default: no allocated liquidity
         }
     }
 
@@ -354,6 +370,8 @@ impl Agent {
             multilateral_limit: None,
             bilateral_outflows: std::collections::HashMap::new(),
             total_outflow: 0,
+            // Enhancement 11.2: Liquidity pool allocation
+            allocated_liquidity: 0, // Default: no allocated liquidity
         }
     }
 
@@ -386,6 +404,7 @@ impl Agent {
     ///     multilateral_limit: None,
     ///     bilateral_outflows: HashMap::new(),
     ///     total_outflow: 0,
+    ///     allocated_liquidity: None,
     /// };
     ///
     /// let agent = Agent::restore(data);
@@ -418,6 +437,8 @@ impl Agent {
             multilateral_limit: data.multilateral_limit,
             bilateral_outflows: data.bilateral_outflows,
             total_outflow: data.total_outflow,
+            // Enhancement 11.2: Liquidity pool allocation (restored or default 0)
+            allocated_liquidity: data.allocated_liquidity.unwrap_or(0),
         }
     }
 
@@ -459,6 +480,7 @@ impl Agent {
             multilateral_limit,
             bilateral_outflows,
             total_outflow,
+            allocated_liquidity: None, // Not tracked in legacy snapshots
         })
     }
 
@@ -1009,6 +1031,23 @@ impl Agent {
     /// Get unsecured daylight overdraft cap
     pub fn unsecured_cap(&self) -> i64 {
         self.unsecured_cap
+    }
+
+    /// Set allocated liquidity from external pool (Enhancement 11.2)
+    ///
+    /// # Arguments
+    /// * `amount` - Amount of liquidity allocated from external pool (cents)
+    pub fn set_allocated_liquidity(&mut self, amount: i64) {
+        assert!(amount >= 0, "allocated_liquidity must be non-negative");
+        self.allocated_liquidity = amount;
+    }
+
+    /// Get allocated liquidity from external pool (Enhancement 11.2)
+    ///
+    /// Returns the amount of liquidity allocated from the agent's
+    /// external liquidity pool at initialization.
+    pub fn allocated_liquidity(&self) -> i64 {
+        self.allocated_liquidity
     }
 
     /// Set the tick when collateral was posted (for minimum holding period)

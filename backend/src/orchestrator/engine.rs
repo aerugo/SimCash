@@ -274,6 +274,28 @@ pub struct AgentConfig {
     /// Controls bilateral (per-counterparty) and multilateral (total) outflow limits
     #[serde(default)]
     pub limits: Option<AgentLimitsConfig>,
+
+    /// External liquidity pool available for allocation (cents) - Enhancement 11.2
+    ///
+    /// Models the BIS Period 0 decision where agents choose how much external
+    /// liquidity to bring into the settlement system. This is additive with
+    /// opening_balance.
+    ///
+    /// Example: liquidity_pool = 2_000_000 ($20k) represents external reserves
+    /// that can be allocated to settlement.
+    #[serde(default)]
+    pub liquidity_pool: Option<i64>,
+
+    /// Fraction of liquidity_pool to allocate (0.0 to 1.0) - Enhancement 11.2
+    ///
+    /// Determines how much of the available liquidity pool is actually brought
+    /// into settlement. Defaults to 1.0 (100%) if not specified.
+    ///
+    /// Final starting balance = opening_balance + floor(liquidity_pool × allocation_fraction)
+    ///
+    /// Example: pool = 1_000_000, fraction = 0.5 → allocate 500,000 cents
+    #[serde(default)]
+    pub liquidity_allocation_fraction: Option<f64>,
 }
 
 /// Bilateral and multilateral limits configuration for an agent
@@ -523,6 +545,19 @@ pub struct CostRates {
     /// If None, all priorities use the same base delay cost rate.
     #[serde(default)]
     pub priority_delay_multipliers: Option<PriorityDelayMultipliers>,
+
+    /// Liquidity opportunity cost in basis points per tick (Enhancement 11.2)
+    ///
+    /// Applied to allocated liquidity (from liquidity_pool × allocation_fraction)
+    /// to represent the opportunity cost of holding funds in the settlement system
+    /// rather than earning interest elsewhere.
+    ///
+    /// Example: 15 bps per tick for a 1M allocation = 1,000,000 × (15/10,000) = 1,500 cents/tick
+    ///
+    /// Note: This only applies to allocated liquidity, not to opening_balance
+    /// (which is assumed to already be at the central bank).
+    #[serde(default)]
+    pub liquidity_cost_per_tick_bps: f64,
 }
 
 impl Default for CostRates {
@@ -536,6 +571,7 @@ impl Default for CostRates {
             split_friction_cost: 1000,            // $10 per split
             overdue_delay_multiplier: 5.0,        // 5x multiplier for overdue
             priority_delay_multipliers: None,     // No priority differentiation by default
+            liquidity_cost_per_tick_bps: 0.0,     // No liquidity opportunity cost by default
         }
     }
 }
@@ -564,6 +600,12 @@ pub struct CostBreakdown {
     /// This represents the operational overhead of creating and
     /// processing multiple smaller payments instead of one large payment.
     pub split_friction_cost: i64,
+
+    /// Liquidity opportunity cost accrued this tick (cents) - Enhancement 11.2
+    ///
+    /// Applied to allocated liquidity (from liquidity_pool × allocation_fraction)
+    /// to represent the opportunity cost of holding funds in settlement.
+    pub liquidity_opportunity_cost: i64,
 }
 
 impl CostBreakdown {
@@ -574,6 +616,7 @@ impl CostBreakdown {
             + self.collateral_cost
             + self.penalty_cost
             + self.split_friction_cost
+            + self.liquidity_opportunity_cost
     }
 }
 
@@ -597,6 +640,12 @@ pub struct CostAccumulator {
 
     /// Peak net debit observed (most negative balance)
     pub peak_net_debit: i64,
+
+    /// Total liquidity opportunity cost (Enhancement 11.2)
+    ///
+    /// Accumulated opportunity cost from allocated liquidity sitting in
+    /// the settlement system rather than earning interest elsewhere.
+    pub total_liquidity_opportunity_cost: i64,
 }
 
 impl CostAccumulator {
@@ -612,6 +661,7 @@ impl CostAccumulator {
         self.total_collateral_cost += costs.collateral_cost;
         self.total_penalty_cost += costs.penalty_cost;
         self.total_split_friction_cost += costs.split_friction_cost;
+        self.total_liquidity_opportunity_cost += costs.liquidity_opportunity_cost;
     }
 
     /// Update peak net debit if current balance is more negative
@@ -628,6 +678,7 @@ impl CostAccumulator {
             + self.total_collateral_cost
             + self.total_penalty_cost
             + self.total_split_friction_cost
+            + self.total_liquidity_opportunity_cost
     }
 }
 
@@ -1015,6 +1066,8 @@ impl Orchestrator {
     ///             posted_collateral: None,
     ///             collateral_haircut: None,
     ///             limits: None,
+    ///             liquidity_pool: None,
+    ///             liquidity_allocation_fraction: None,
     ///         },
     ///     ],
     ///     cost_rates: Default::default(),
@@ -1038,7 +1091,22 @@ impl Orchestrator {
             .agent_configs
             .iter()
             .map(|ac| {
-                let mut agent = Agent::new(ac.id.clone(), ac.opening_balance);
+                // Calculate initial balance: opening_balance + allocated liquidity (Enhancement 11.2)
+                let allocated_liquidity = if let Some(pool) = ac.liquidity_pool {
+                    // Default allocation fraction is 1.0 (100%)
+                    let fraction = ac.liquidity_allocation_fraction.unwrap_or(1.0);
+                    // Floor to ensure i64 integrity (no fractional cents)
+                    (pool as f64 * fraction).floor() as i64
+                } else {
+                    0
+                };
+                let initial_balance = ac.opening_balance + allocated_liquidity;
+
+                let mut agent = Agent::new(ac.id.clone(), initial_balance);
+
+                // Store allocated liquidity for cost tracking (Enhancement 11.2)
+                agent.set_allocated_liquidity(allocated_liquidity);
+
                 // Set unsecured overdraft capacity
                 agent.set_unsecured_cap(ac.unsecured_cap);
                 // Set posted collateral if specified (Phase 8)
@@ -1176,6 +1244,26 @@ impl Orchestrator {
                     "Duplicate agent ID: {}",
                     agent_config.id
                 )));
+            }
+
+            // Validate liquidity_pool (Enhancement 11.2)
+            if let Some(pool) = agent_config.liquidity_pool {
+                if pool < 0 {
+                    return Err(SimulationError::InvalidConfig(format!(
+                        "Agent {}: liquidity_pool must be non-negative, got {}",
+                        agent_config.id, pool
+                    )));
+                }
+            }
+
+            // Validate liquidity_allocation_fraction (Enhancement 11.2)
+            if let Some(fraction) = agent_config.liquidity_allocation_fraction {
+                if !(0.0..=1.0).contains(&fraction) {
+                    return Err(SimulationError::InvalidConfig(format!(
+                        "Agent {}: liquidity_allocation_fraction must be between 0.0 and 1.0, got {}",
+                        agent_config.id, fraction
+                    )));
+                }
             }
         }
 
@@ -3435,6 +3523,7 @@ impl Orchestrator {
                                     collateral_cost: 0,
                                     penalty_cost: 0,
                                     split_friction_cost: friction_cost,
+                                    liquidity_opportunity_cost: 0,
                                 },
                             });
                         }
@@ -3625,6 +3714,7 @@ impl Orchestrator {
                                     collateral_cost: 0,
                                     penalty_cost: 0,
                                     split_friction_cost: friction_cost,
+                                    liquidity_opportunity_cost: 0,
                                 },
                             });
                         }
@@ -4306,7 +4396,7 @@ impl Orchestrator {
         for agent_id in agent_ids {
             // First pass: collect data and identify newly overdue transactions
             // Check both Queue 1 (agent's outgoing queue) and Queue 2 (RTGS queue)
-            let (balance, collateral, newly_overdue_txs) = {
+            let (balance, collateral, allocated_liquidity, newly_overdue_txs) = {
                 let agent = self.state.get_agent(&agent_id).unwrap();
                 let mut overdue = Vec::new();
 
@@ -4331,7 +4421,7 @@ impl Orchestrator {
                     }
                 }
 
-                (agent.balance(), agent.posted_collateral(), overdue)
+                (agent.balance(), agent.posted_collateral(), agent.allocated_liquidity(), overdue)
             };
 
             // Mark transactions as overdue and emit events (mutable borrow, agent borrow released)
@@ -4377,12 +4467,18 @@ impl Orchestrator {
             // Split friction cost handled at decision time
             let split_friction_cost = 0;
 
+            // Calculate liquidity opportunity cost (Enhancement 11.2)
+            // This is the opportunity cost of allocated liquidity sitting in settlement
+            // Formula: allocated_liquidity × (liquidity_cost_per_tick_bps / 10,000)
+            let liquidity_opportunity_cost = self.calculate_liquidity_opportunity_cost(allocated_liquidity);
+
             let costs = CostBreakdown {
                 liquidity_cost,
                 delay_cost,
                 collateral_cost,
                 penalty_cost,
                 split_friction_cost,
+                liquidity_opportunity_cost,
             };
 
             // Accumulate costs
@@ -4509,6 +4605,28 @@ impl Orchestrator {
         // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
         // Example: 2 bps on $1M = $1M × (2/10,000) = $200
         let cost = collateral_amount * (self.cost_rates.collateral_cost_per_tick_bps / 10_000.0);
+        cost.round() as i64
+    }
+
+    /// Calculate liquidity opportunity cost (Enhancement 11.2)
+    ///
+    /// The opportunity cost of holding allocated liquidity in the settlement system
+    /// rather than earning interest elsewhere.
+    ///
+    /// Formula: allocated_liquidity × (liquidity_cost_per_tick_bps / 10,000)
+    ///
+    /// Example: 1M allocated at 15 bps/tick = 1,000,000 × (15/10,000) = 1,500 cents/tick
+    ///
+    /// Note: This only applies to liquidity allocated from liquidity_pool,
+    /// not to opening_balance (which is assumed to already be at the central bank).
+    fn calculate_liquidity_opportunity_cost(&self, allocated_liquidity: i64) -> i64 {
+        if allocated_liquidity <= 0 || self.cost_rates.liquidity_cost_per_tick_bps <= 0.0 {
+            return 0;
+        }
+
+        let liquidity_amount = allocated_liquidity as f64;
+        // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
+        let cost = liquidity_amount * (self.cost_rates.liquidity_cost_per_tick_bps / 10_000.0);
         cost.round() as i64
     }
 
@@ -4782,6 +4900,7 @@ impl Orchestrator {
                         collateral_cost: 0,
                         penalty_cost: penalty,
                         split_friction_cost: 0,
+                        liquidity_opportunity_cost: 0,
                     },
                 });
             }

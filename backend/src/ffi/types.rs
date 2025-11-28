@@ -294,6 +294,10 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         None
     };
 
+    // Parse optional liquidity pool fields (Enhancement 11.2)
+    let liquidity_pool: Option<i64> = extract_optional(py_agent, "liquidity_pool")?;
+    let liquidity_allocation_fraction: Option<f64> = extract_optional(py_agent, "liquidity_allocation_fraction")?;
+
     Ok(AgentConfig {
         id,
         opening_balance,
@@ -303,6 +307,8 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         posted_collateral,
         collateral_haircut,
         limits,
+        liquidity_pool,
+        liquidity_allocation_fraction,
     })
 }
 
@@ -721,6 +727,13 @@ fn parse_cost_rates(py_costs: &Bound<'_, PyDict>) -> PyResult<CostRates> {
         } else {
             None // Default: no priority differentiation
         },
+
+        // Enhancement 11.2: Liquidity opportunity cost
+        liquidity_cost_per_tick_bps: py_costs
+            .get_item("liquidity_cost_per_tick_bps")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or(0.0), // Default: no liquidity opportunity cost
     })
 }
 

@@ -45,6 +45,8 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
             // Add BANK_B as receiver with simple FIFO policy
             AgentConfig {
@@ -58,6 +60,8 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
+                liquidity_pool: None,
+                liquidity_allocation_fraction: None,
             },
         ],
         cost_rates: CostRates {
@@ -69,6 +73,7 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
             split_friction_cost: 1000,
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
             priority_delay_multipliers: None, // Enhancement 11.1
+            liquidity_cost_per_tick_bps: 0.0, // Enhancement 11.2
         },
         lsm_config: LsmConfig::default(),
             scenario_events: None,
