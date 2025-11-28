@@ -25,7 +25,7 @@ This document outlines a comprehensive plan to create technical architecture doc
 ```
 docs/reference/architecture/
 ├── ARCHITECTURE_DOCUMENTATION_PLAN.md    ← This file (planning)
-├── 00-index.md                           ← Master index with navigation
+├── index.md                              ← Master index with navigation
 ├── 01-system-overview.md                 ← High-level architecture
 ├── 02-rust-core-engine.md                ← Rust backend deep dive
 ├── 03-python-api-layer.md                ← Python layer deep dive
@@ -47,7 +47,7 @@ docs/reference/architecture/
 
 ## Phase 1: Foundation Documents (Priority: High)
 
-### 1.1 Master Index (`00-index.md`)
+### 1.1 Master Index (`index.md`)
 
 **Purpose**: Navigation hub for all architecture documentation
 
@@ -691,7 +691,7 @@ Include code snippets from actual codebase:
 
 | Document | Complexity | Est. Time | Priority |
 |----------|------------|-----------|----------|
-| 00-index.md | Low | 2h | High |
+| index.md | Low | 2h | High |
 | 01-system-overview.md | Medium | 4h | High |
 | 02-rust-core-engine.md | High | 8h | High |
 | 03-python-api-layer.md | High | 6h | High |
@@ -715,7 +715,7 @@ Include code snippets from actual codebase:
 ## Document Creation Order
 
 ### Phase 1 (Foundation) - Start Here
-1. `00-index.md` - Navigation hub
+1. `index.md` - Navigation hub
 2. `01-system-overview.md` - High-level context
 
 ### Phase 2 (Core Components)
