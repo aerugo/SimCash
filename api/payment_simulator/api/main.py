@@ -489,7 +489,7 @@ class SimulationManager:
         try:
             config = SimulationConfig.from_dict(config_dict)
         except ValidationError as e:
-            raise ValueError(f"Invalid configuration: {e}")
+            raise ValueError(f"Invalid configuration: {e}") from e
 
         # Convert to FFI dict
         ffi_dict = config.to_ffi_dict()
@@ -498,7 +498,7 @@ class SimulationManager:
         try:
             orchestrator = Orchestrator.new(ffi_dict)
         except Exception as e:
-            raise RuntimeError(f"Failed to create orchestrator: {e}")
+            raise RuntimeError(f"Failed to create orchestrator: {e}") from e
 
         # Generate unique ID
         sim_id = str(uuid.uuid4())
@@ -728,9 +728,9 @@ def create_simulation(config: dict[str, Any]) -> SimulationCreateResponse:
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get("/simulations", response_model=SimulationListResponse)
@@ -808,7 +808,7 @@ def list_simulations() -> SimulationListResponse:
         return SimulationListResponse(simulations=simulations)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get("/simulations/{sim_id}/state")
@@ -825,9 +825,9 @@ def get_simulation_state(sim_id: str) -> dict[str, Any]:
         state = manager.get_state(sim_id)
         return state
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get(
@@ -858,7 +858,7 @@ def get_cost_timeline(sim_id: str) -> CostTimelineResponse:
             raise HTTPException(
                 status_code=404,
                 detail=f"Simulation not found: {sim_id}"
-            )
+            ) from None
 
         # Get ticks_per_day from simulation config
         ticks_per_day = summary["ticks_per_day"]
@@ -977,7 +977,7 @@ def get_cost_timeline(sim_id: str) -> CostTimelineResponse:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.post("/simulations/{sim_id}/tick")
@@ -1014,9 +1014,9 @@ def advance_simulation(
             )
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Tick execution failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Tick execution failed: {e}") from e
 
 
 @app.delete("/simulations/{sim_id}")
@@ -1074,12 +1074,12 @@ def submit_transaction(sim_id: str, tx: TransactionSubmission) -> TransactionRes
         return TransactionResponse(transaction_id=tx_id)
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except RuntimeError as e:
         # FFI errors (agent not found, invalid amount, etc.)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get(
@@ -1136,9 +1136,9 @@ def get_near_deadline_transactions(
         )
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get(
@@ -1194,9 +1194,9 @@ def get_overdue_transactions(sim_id: str) -> OverdueTransactionsResponse:
         )
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get("/simulations/{sim_id}/transactions/{tx_id}")
@@ -1224,11 +1224,11 @@ def get_transaction(sim_id: str, tx_id: str) -> dict[str, Any]:
         return tx_data
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get("/simulations/{sim_id}/transactions", response_model=TransactionListResponse)
@@ -1344,7 +1344,7 @@ def list_transactions(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 # ============================================================================
@@ -1399,11 +1399,11 @@ def save_checkpoint(sim_id: str, request: CheckpointSaveRequest) -> CheckpointSa
         )
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save checkpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save checkpoint: {e}") from e
 
 
 @app.post("/simulations/from-checkpoint", response_model=CheckpointLoadResponse)
@@ -1465,9 +1465,9 @@ def load_from_checkpoint(request: CheckpointLoadRequest) -> CheckpointLoadRespon
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load checkpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load checkpoint: {e}") from e
 
 
 @app.get("/simulations/{sim_id}/checkpoints", response_model=CheckpointListResponse)
@@ -1506,7 +1506,7 @@ def list_checkpoints(sim_id: str) -> CheckpointListResponse:
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list checkpoints: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list checkpoints: {e}") from e
 
 
 @app.get("/checkpoints/{checkpoint_id}")
@@ -1546,7 +1546,7 @@ def get_checkpoint_details(checkpoint_id: str) -> dict[str, Any]:
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get checkpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get checkpoint: {e}") from e
 
 
 @app.delete("/checkpoints/{checkpoint_id}")
@@ -1579,7 +1579,7 @@ def delete_checkpoint(checkpoint_id: str) -> dict[str, str]:
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete checkpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete checkpoint: {e}") from e
 
 
 # ============================================================================
@@ -1665,7 +1665,7 @@ def get_simulation_costs(sim_id: str) -> CostResponse:
             raise HTTPException(
                 status_code=404,
                 detail=f"Simulation not found: {sim_id}"
-            )
+            ) from None
 
         from payment_simulator.persistence.queries import (
             get_cost_breakdown_by_agent,
@@ -1680,7 +1680,7 @@ def get_simulation_costs(sim_id: str) -> CostResponse:
             raise HTTPException(
                 status_code=404,
                 detail=f"Simulation not found: {sim_id}"
-            )
+            ) from None
 
         # Get cost breakdown from database
         df = get_cost_breakdown_by_agent(conn, sim_id)
@@ -1690,7 +1690,7 @@ def get_simulation_costs(sim_id: str) -> CostResponse:
             raise HTTPException(
                 status_code=404,
                 detail=f"No cost data available for simulation: {sim_id}"
-            )
+            ) from None
 
         # Convert Polars DataFrame to dict
         agent_costs = {}
@@ -1721,7 +1721,7 @@ def get_simulation_costs(sim_id: str) -> CostResponse:
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get("/simulations/{sim_id}/metrics", response_model=MetricsResponse)
@@ -1778,9 +1778,9 @@ def get_simulation_metrics(sim_id: str) -> MetricsResponse:
         )
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 # ============================================================================
@@ -2013,7 +2013,7 @@ def get_simulation_metadata(sim_id: str) -> SimulationMetadataResponse:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get("/simulations/{sim_id}/agents", response_model=AgentListResponse)
@@ -2111,7 +2111,7 @@ def get_agent_list(sim_id: str) -> AgentListResponse:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get("/simulations/{sim_id}/events", response_model=EventListResponse)
@@ -2252,9 +2252,9 @@ def get_events(
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get(
@@ -2385,7 +2385,7 @@ def get_agent_timeline(sim_id: str, agent_id: str) -> AgentTimelineResponse:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get(
@@ -2519,7 +2519,7 @@ def get_transaction_lifecycle(sim_id: str, tx_id: str) -> TransactionLifecycleRe
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 # ============================================================================
@@ -2611,11 +2611,11 @@ def get_agent_queues(sim_id: str, agent_id: str) -> AgentQueuesResponse:
         )
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 @app.get(
@@ -2735,11 +2735,11 @@ def get_tick_state(sim_id: str, tick: int) -> TickStateResponse:
         )
 
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}")
+        raise HTTPException(status_code=404, detail=f"Simulation not found: {sim_id}") from None
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
 
 
 # ============================================================================
