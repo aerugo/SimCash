@@ -18,6 +18,7 @@ pub mod executor;
 pub mod factory; // Phase 3: Policy factory for orchestrator integration
 pub mod interpreter;
 pub mod scenario_tests; // Real-world scenario tests for policy evaluation
+pub mod schema_docs; // Auto-generated schema documentation
 pub mod types;
 pub mod validation;
 
@@ -39,3 +40,6 @@ pub use types::{
     TreeNode, Value, ValueOrCompute,
 };
 pub use validation::{validate_tree, ValidationError, ValidationResult};
+pub use schema_docs::{
+    PolicySchemaDoc, SchemaCategory, SchemaDocumented, SchemaElement, ParameterDoc,
+};
