@@ -1,53 +1,32 @@
 """Run command - Execute simulations from config files."""
 
+from __future__ import annotations
+
 import json
 import time
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Any
 
 import polars as pl
 import typer
 import yaml
+
 from payment_simulator._core import Orchestrator
-from payment_simulator.cli.output import (  # Enhanced verbose mode functions
-    create_progress,
-    log_agent_queues_detailed,
-    log_agent_state,
-    log_arrivals,
-    log_collateral_activity,
-    log_cost_accrual_events,
-    log_cost_breakdown,
-    log_costs,
-    log_end_of_day_event,
-    log_end_of_day_statistics,
-    log_error,
-    log_event_chronological,
-    log_info,
-    log_lsm_activity,
-    log_lsm_cycle_visualization,
-    log_performance_diagnostics,
-    log_performance_diagnostics_compact,
-    log_policy_decisions,
-    log_queued_rtgs,
-    log_settlement_details,
-    log_settlements,
-    log_success,
-    log_tick_start,
-    log_tick_summary,
-    log_transaction_arrivals,
-    output_json,
-    output_jsonl,
-)
 from payment_simulator.cli.filters import EventFilter
+from payment_simulator.cli.output import (  # Enhanced verbose mode functions
+    log_error,
+    log_info,
+    log_success,
+    output_json,
+)
 from payment_simulator.config import SimulationConfig
-from typing_extensions import Annotated
 
 
 def _persist_day_data(
     orch: Orchestrator,
-    db_manager,
+    db_manager: Any,
     sim_id: str,
     day: int,
     quiet: bool = False,
@@ -128,12 +107,12 @@ def _persist_day_data(
 
 
 def _persist_simulation_metadata(
-    db_manager,
+    db_manager: Any,
     sim_id: str,
     config: Path,
-    config_dict: dict,
-    ffi_dict: dict,
-    agent_ids: list,
+    config_dict: dict[str, Any],
+    ffi_dict: dict[str, Any],
+    agent_ids: list[str],
     total_arrivals: int,
     total_settlements: int,
     total_costs: int,
@@ -248,7 +227,7 @@ def _persist_simulation_metadata(
     log_success(f"Simulation metadata persisted (ID: {sim_id})", quiet)
 
 
-def _parse_cost_chart_value(value: str) -> tuple[Optional[int], Optional[int]]:
+def _parse_cost_chart_value(value: str) -> tuple[int | None, int | None]:
     """Parse cost chart value string into per-tick and accumulated max Y values.
 
     Args:
@@ -297,10 +276,10 @@ def _create_output_strategy(
     agent_ids: list[str],
     ticks_per_day: int,
     quiet: bool,
-    event_filter: Optional[EventFilter] = None,
-    total_ticks: Optional[int] = None,
+    event_filter: EventFilter | None = None,
+    total_ticks: int | None = None,
     show_debug: bool = False,
-):
+) -> Any:
     """Factory function for creating mode-specific output strategies.
 
     This function creates the appropriate OutputStrategy implementation
@@ -362,11 +341,11 @@ def run_simulation(
         ),
     ],
     ticks: Annotated[
-        Optional[int],
+        int | None,
         typer.Option("--ticks", "-t", help="Override number of ticks to run"),
     ] = None,
     seed: Annotated[
-        Optional[int],
+        int | None,
         typer.Option("--seed", "-s", help="Override RNG seed"),
     ] = None,
     quiet: Annotated[
@@ -434,48 +413,53 @@ def run_simulation(
         ),
     ] = "simulation_data.db",
     simulation_id: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--simulation-id",
             help="Custom simulation ID (auto-generated if not provided)",
         ),
     ] = None,
     filter_event_type: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--filter-event-type",
             help="Filter events by type (comma-separated, e.g., 'Arrival,Settlement')",
         ),
     ] = None,
     filter_agent: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--filter-agent",
             help="Filter events by agent ID (matches agent_id or sender_id fields)",
         ),
     ] = None,
     filter_tx: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--filter-tx",
             help="Filter events by transaction ID",
         ),
     ] = None,
     filter_tick_range: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--filter-tick-range",
             help="Filter events by tick range (format: 'min-max', 'min-', or '-max')",
         ),
     ] = None,
     cost_chart: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--cost-chart",
-            help="Generate cost chart after simulation (automatically enables --persist). Format: PER_TICK[:ACCUMULATED] in dollars. Examples: --cost-chart 5000 (per-tick=$5k, accumulated=adaptive), --cost-chart 10000:50000 (per-tick=$10k, accumulated=$50k), --cost-chart 0 (both adaptive)",
+            help=(
+                "Generate cost chart after simulation (automatically enables --persist). "
+                "Format: PER_TICK[:ACCUMULATED] in dollars. Examples: --cost-chart 5000 "
+                "(per-tick=$5k, accumulated=adaptive), --cost-chart 10000:50000 "
+                "(per-tick=$10k, accumulated=$50k), --cost-chart 0 (both adaptive)"
+            ),
         ),
     ] = None,
-):
+) -> None:
     """Run a simulation from a configuration file.
 
     Examples:
@@ -601,9 +585,7 @@ def run_simulation(
 
             from payment_simulator.persistence.connection import DatabaseManager
             from payment_simulator.persistence.writers import (
-                write_daily_agent_metrics,
                 write_policy_snapshots,
-                write_transactions,
             )
 
             sim_id = simulation_id or f"sim-{uuid.uuid4().hex[:8]}"
@@ -663,11 +645,13 @@ def run_simulation(
 
         if use_new_runner and verbose:
             # NEW IMPLEMENTATION: Use SimulationRunner with VerboseModeOutput
+            from payment_simulator.cli.execution.persistence import PersistenceManager
             from payment_simulator.cli.execution.runner import (
-                SimulationRunner,
                 SimulationConfig as RunnerConfig,
             )
-            from payment_simulator.cli.execution.persistence import PersistenceManager
+            from payment_simulator.cli.execution.runner import (
+                SimulationRunner,
+            )
 
             # Create output strategy
             agent_ids = orch.get_agent_ids()
@@ -793,11 +777,13 @@ def run_simulation(
 
         elif use_new_runner and event_stream:
             # NEW IMPLEMENTATION: Use SimulationRunner with EventStreamModeOutput
+            from payment_simulator.cli.execution.persistence import PersistenceManager
             from payment_simulator.cli.execution.runner import (
-                SimulationRunner,
                 SimulationConfig as RunnerConfig,
             )
-            from payment_simulator.cli.execution.persistence import PersistenceManager
+            from payment_simulator.cli.execution.runner import (
+                SimulationRunner,
+            )
 
             # Create output strategy
             agent_ids = orch.get_agent_ids()
@@ -882,11 +868,13 @@ def run_simulation(
 
         elif use_new_runner and stream:
             # NEW IMPLEMENTATION: Use SimulationRunner with StreamModeOutput
+            from payment_simulator.cli.execution.persistence import PersistenceManager
             from payment_simulator.cli.execution.runner import (
-                SimulationRunner,
                 SimulationConfig as RunnerConfig,
             )
-            from payment_simulator.cli.execution.persistence import PersistenceManager
+            from payment_simulator.cli.execution.runner import (
+                SimulationRunner,
+            )
 
             # Create output strategy
             agent_ids = orch.get_agent_ids()
@@ -971,11 +959,13 @@ def run_simulation(
 
         elif use_new_runner and not verbose and not stream and not event_stream:
             # NEW IMPLEMENTATION: Use SimulationRunner with NormalModeOutput (normal mode)
+            from payment_simulator.cli.execution.persistence import PersistenceManager
             from payment_simulator.cli.execution.runner import (
-                SimulationRunner,
                 SimulationConfig as RunnerConfig,
             )
-            from payment_simulator.cli.execution.persistence import PersistenceManager
+            from payment_simulator.cli.execution.runner import (
+                SimulationRunner,
+            )
 
             # Create output strategy
             agent_ids = orch.get_agent_ids()

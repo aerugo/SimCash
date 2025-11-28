@@ -9,8 +9,10 @@ Commands for managing the DuckDB persistence layer:
 - list: List all tables
 """
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -26,13 +28,11 @@ console = Console()
 
 @db_app.command("init")
 def db_init(
-    db_path: str = typer.Option(
-        "simulation_data.db",
-        "--db-path",
-        "-d",
-        help="Path to database file",
-    ),
-):
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+) -> None:
     """Initialize database schema from Pydantic models."""
     try:
         console.print(f"[yellow]Initializing database at {db_path}...[/yellow]")
@@ -49,19 +49,15 @@ def db_init(
 
 @db_app.command("migrate")
 def db_migrate(
-    db_path: str = typer.Option(
-        "simulation_data.db",
-        "--db-path",
-        "-d",
-        help="Path to database file",
-    ),
-    migrations_dir: Optional[str] = typer.Option(
-        None,
-        "--migrations-dir",
-        "-m",
-        help="Path to migrations directory",
-    ),
-):
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+    migrations_dir: Annotated[
+        str | None,
+        typer.Option("--migrations-dir", "-m", help="Path to migrations directory"),
+    ] = None,
+) -> None:
     """Apply pending schema migrations."""
     try:
         console.print("[yellow]Checking for pending migrations...[/yellow]")
@@ -100,13 +96,11 @@ def db_migrate(
 
 @db_app.command("validate")
 def db_validate(
-    db_path: str = typer.Option(
-        "simulation_data.db",
-        "--db-path",
-        "-d",
-        help="Path to database file",
-    ),
-):
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+) -> None:
     """Validate database schema against Pydantic models."""
     try:
         console.print("[yellow]Validating database schema...[/yellow]")
@@ -132,22 +126,19 @@ def db_validate(
 
 @db_app.command("create-migration")
 def db_create_migration(
-    description: str = typer.Argument(
-        ..., help="Migration description (e.g., 'add_settlement_type')"
-    ),
-    migrations_dir: Optional[str] = typer.Option(
-        None,
-        "--migrations-dir",
-        "-m",
-        help="Path to migrations directory",
-    ),
-    db_path: str = typer.Option(
-        "simulation_data.db",
-        "--db-path",
-        "-d",
-        help="Path to database file (for version tracking)",
-    ),
-):
+    description: Annotated[
+        str,
+        typer.Argument(help="Migration description (e.g., 'add_settlement_type')"),
+    ],
+    migrations_dir: Annotated[
+        str | None,
+        typer.Option("--migrations-dir", "-m", help="Path to migrations directory"),
+    ] = None,
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file (for version tracking)"),
+    ] = "simulation_data.db",
+) -> None:
     """Create a new migration template file."""
     try:
         manager = DatabaseManager(db_path)
@@ -177,13 +168,11 @@ def db_create_migration(
 
 @db_app.command("list")
 def db_list(
-    db_path: str = typer.Option(
-        "simulation_data.db",
-        "--db-path",
-        "-d",
-        help="Path to database file",
-    ),
-):
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+) -> None:
     """List all tables in the database."""
     try:
         manager = DatabaseManager(db_path)
@@ -220,18 +209,16 @@ def db_list(
 
 @db_app.command("info")
 def db_info(
-    db_path: str = typer.Option(
-        "simulation_data.db",
-        "--db-path",
-        "-d",
-        help="Path to database file",
-    ),
-):
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+) -> None:
     """Show database information and statistics."""
     try:
         manager = DatabaseManager(db_path)
 
-        console.print(f"[bold cyan]Database Information[/bold cyan]")
+        console.print("[bold cyan]Database Information[/bold cyan]")
         console.print(f"  Path: {db_path}")
 
         # Get file size
@@ -275,19 +262,15 @@ def db_info(
 
 @db_app.command("simulations")
 def db_simulations(
-    db_path: str = typer.Option(
-        "simulation_data.db",
-        "--db-path",
-        "-d",
-        help="Path to database file",
-    ),
-    limit: int = typer.Option(
-        20,
-        "--limit",
-        "-n",
-        help="Maximum number of simulations to show",
-    ),
-):
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+    limit: Annotated[
+        int,
+        typer.Option("--limit", "-n", help="Maximum number of simulations to show"),
+    ] = 20,
+) -> None:
     """List simulations in the database."""
     try:
         manager = DatabaseManager(db_path)
@@ -325,7 +308,7 @@ def db_simulations(
         table.add_column("Started", style="white")
 
         for row in results:
-            sim_id, config_name, seed, ticks_per_day, num_days, status, start_time, total_txs = row
+            sim_id, config_name, seed, ticks_per_day, num_days, status, start_time, _total_txs = row
 
             # Format start time
             if start_time:
@@ -348,7 +331,7 @@ def db_simulations(
             )
 
         console.print(table)
-        console.print(f"\n[dim]Use 'payment-sim replay --simulation-id <ID> --config <file>' to replay[/dim]")
+        console.print("\n[dim]Use 'payment-sim replay --simulation-id <ID> --config <file>' to replay[/dim]")
 
     except Exception as e:
         console.print(f"[red]✗ Error listing simulations: {e}[/red]")
@@ -369,13 +352,12 @@ def _extract_policy_names(config_json: str) -> dict[str, str]:
         >>> _extract_policy_names(config)
         {'BANK_A': 'efficient'}
     """
-    import json
-    from pathlib import Path
+    import json as json_module
 
-    policy_names = {}
+    policy_names: dict[str, str] = {}
 
     try:
-        config = json.loads(config_json)
+        config = json_module.loads(config_json)
         agents = config.get("agents", [])
 
         for agent in agents:
@@ -393,7 +375,7 @@ def _extract_policy_names(config_json: str) -> dict[str, str]:
                 # Handle built-in policy types
                 policy_names[agent_id] = policy.get("type", "Unknown")
 
-    except (json.JSONDecodeError, KeyError, TypeError) as e:
+    except (json_module.JSONDecodeError, KeyError, TypeError) as e:
         # If parsing fails, return empty dict (charts will just use agent IDs)
         console.print(f"[yellow]Warning: Could not parse policy names from config: {e}[/yellow]")
         return {}
@@ -401,7 +383,13 @@ def _extract_policy_names(config_json: str) -> dict[str, str]:
     return policy_names
 
 
-def _collect_event_based_cost_data(conn, simulation_id: str, agent_ids: list[str], ticks_per_day: int, num_days: int):
+def _collect_event_based_cost_data(
+    conn: Any,
+    simulation_id: str,
+    agent_ids: list[str],
+    ticks_per_day: int,
+    num_days: int,
+) -> list[dict[str, Any]]:
     """Collect tick-level cost data from simulation events.
 
     This uses the event-based approach that queries actual cost events from the database,
@@ -494,7 +482,7 @@ def _collect_event_based_cost_data(conn, simulation_id: str, agent_ids: list[str
     # Build accumulated costs for all ticks
     max_tick = (ticks_per_day * num_days) - 1
     tick_costs = []
-    accumulated = {agent_id: 0 for agent_id in agent_ids}
+    accumulated = dict.fromkeys(agent_ids, 0)
 
     for tick in range(max_tick + 1):
         # Store previous accumulated for per-tick calculation
@@ -518,16 +506,16 @@ def _collect_event_based_cost_data(conn, simulation_id: str, agent_ids: list[str
 
 
 def _generate_cost_chart_png(
-    tick_costs: list,
+    tick_costs: list[dict[str, Any]],
     agent_ids: list[str],
     simulation_id: str,
     ticks_per_day: int,
     output_path: str,
     show_per_tick: bool = False,
     quiet: bool = False,
-    policy_names: dict[str, str] = None,
-    max_y: Optional[int] = None,
-):
+    policy_names: dict[str, str] | None = None,
+    max_y: int | None = None,
+) -> None:
     """Generate a PNG cost chart from tick-level cost data.
 
     Args:
@@ -543,9 +531,10 @@ def _generate_cost_chart_png(
     """
     import matplotlib
     matplotlib.use('Agg')  # Use non-interactive backend
+    from pathlib import Path
+
     import matplotlib.pyplot as plt
     from matplotlib.ticker import FuncFormatter
-    from pathlib import Path
 
     # Prepare data for plotting
     ticks = [data['tick'] for data in tick_costs]
@@ -568,7 +557,7 @@ def _generate_cost_chart_png(
         ax.plot(ticks, costs_usd, label=label, linewidth=2, color=colors[i % len(colors)])
 
     # Format y-axis as currency
-    def currency_formatter(x, p):
+    def currency_formatter(x, p) -> str:
         return f'${x:,.0f}'
 
     ax.yaxis.set_major_formatter(FuncFormatter(currency_formatter))
@@ -617,11 +606,11 @@ def _generate_cost_chart_png(
 def generate_cost_charts(
     simulation_id: str,
     db_path: str = "simulation_data.db",
-    output_base_path: str = None,
-    agent: Optional[str] = None,
+    output_base_path: str | None = None,
+    agent: str | None = None,
     quiet: bool = False,
-    max_y_per_tick: Optional[int] = None,
-    max_y_accumulated: Optional[int] = None,
+    max_y_per_tick: int | None = None,
+    max_y_accumulated: int | None = None,
 ) -> None:
     """Generate both accumulated and per-tick cost charts for a simulation.
 
@@ -638,9 +627,10 @@ def generate_cost_charts(
         max_y_per_tick: Optional maximum Y-axis value for per-tick chart in dollars (None = adaptive)
         max_y_accumulated: Optional maximum Y-axis value for accumulated chart in dollars (None = adaptive)
     """
+    from pathlib import Path
+
     from payment_simulator.api.main import manager
     from payment_simulator.persistence.queries import get_simulation_summary
-    from pathlib import Path
 
     if not quiet:
         console.print(f"[yellow]Generating cost charts for simulation {simulation_id}...[/yellow]")
@@ -687,7 +677,7 @@ def generate_cost_charts(
             raise typer.Exit(code=1)
         agent_ids = [agent]
     else:
-        agent_ids = sorted(list(all_agents))
+        agent_ids = sorted(all_agents)
 
     # Collect event-based cost data
     tick_costs = _collect_event_based_cost_data(conn, simulation_id, agent_ids, ticks_per_day, num_days)
@@ -730,57 +720,46 @@ def generate_cost_charts(
 
 @db_app.command("costs")
 def db_costs(
-    simulation_id: str = typer.Argument(
-        ...,
-        help="Simulation ID to get costs for",
-    ),
-    db_path: str = typer.Option(
-        "simulation_data.db",
-        "--db-path",
-        "-d",
-        help="Path to database file",
-    ),
-    agent: Optional[str] = typer.Option(
-        None,
-        "--agent",
-        "-a",
-        help="Filter costs for specific agent",
-    ),
-    output_csv: Optional[str] = typer.Option(
-        None,
-        "--output-csv",
-        "-o",
-        help="Export to CSV file",
-    ),
-    chart_output: Optional[str] = typer.Option(
-        None,
-        "--chart-output",
-        "-c",
-        help="Generate PNG chart (e.g., costs.png)",
-    ),
-    show_per_tick: bool = typer.Option(
-        False,
-        "--per-tick",
-        "-p",
-        help="Show per-tick costs instead of accumulated",
-    ),
-    limit: int = typer.Option(
-        50,
-        "--limit",
-        "-n",
-        help="Maximum number of ticks to display (0 = show all)",
-    ),
-):
+    simulation_id: Annotated[
+        str,
+        typer.Argument(help="Simulation ID to get costs for"),
+    ],
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Filter costs for specific agent"),
+    ] = None,
+    output_csv: Annotated[
+        str | None,
+        typer.Option("--output-csv", "-o", help="Export to CSV file"),
+    ] = None,
+    chart_output: Annotated[
+        str | None,
+        typer.Option("--chart-output", "-c", help="Generate PNG chart (e.g., costs.png)"),
+    ] = None,
+    show_per_tick: Annotated[
+        bool,
+        typer.Option("--per-tick", "-p", help="Show per-tick costs instead of accumulated"),
+    ] = False,
+    limit: Annotated[
+        int,
+        typer.Option("--limit", "-n", help="Maximum number of ticks to display (0 = show all)"),
+    ] = 50,
+) -> None:
     """Get tick-by-tick cost data for a simulation.
 
     This command uses the same API endpoint as the diagnostic frontend cost chart.
     Shows accumulated costs per agent per tick with optional filtering and export.
     """
     try:
+        import csv
+        from collections import defaultdict
+
         from payment_simulator.api.main import manager
         from payment_simulator.persistence.queries import get_simulation_summary
-        from collections import defaultdict
-        import csv
 
         console.print(f"[yellow]Loading cost timeline for simulation {simulation_id}...[/yellow]")
 
@@ -825,7 +804,7 @@ def db_costs(
                 raise typer.Exit(code=1)
             agent_ids = [agent]
         else:
-            agent_ids = sorted(list(all_agents))
+            agent_ids = sorted(all_agents)
 
         # Query actual tick-level cost events
         # 1. CostAccrual events for continuous costs (liquidity, delay, collateral)
@@ -899,7 +878,7 @@ def db_costs(
 
         # Build accumulated costs for all ticks
         tick_costs = []
-        accumulated = {agent_id: 0 for agent_id in agent_ids}
+        accumulated = dict.fromkeys(agent_ids, 0)
 
         for tick in range(max_tick + 1):
             # Store previous accumulated for per-tick calculation
@@ -928,7 +907,7 @@ def db_costs(
         # Export to CSV if requested
         if output_csv:
             with open(output_csv, 'w', newline='') as csvfile:
-                fieldnames = ['tick', 'day'] + agent_ids
+                fieldnames = ['tick', 'day', *agent_ids]
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
                 writer.writeheader()
@@ -965,7 +944,7 @@ def db_costs(
                 ax.plot(ticks, costs_usd, label=label, linewidth=2, color=colors[i % len(colors)])
 
             # Format y-axis as currency
-            def currency_formatter(x, p):
+            def currency_formatter(x, p) -> str:
                 return f'${x:,.0f}'
 
             ax.yaxis.set_major_formatter(FuncFormatter(currency_formatter))

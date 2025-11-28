@@ -6,17 +6,20 @@ Provides commands to:
 - List available checkpoints
 - Delete checkpoints
 """
-import typer
-from typing import Optional
-from pathlib import Path
+
+from __future__ import annotations
+
 import json
 import os
+from pathlib import Path
+from typing import Annotated
+
+import typer
 
 from payment_simulator.cli.output import console
-from payment_simulator.persistence.connection import DatabaseManager
-from payment_simulator.persistence.checkpoint import CheckpointManager
-from payment_simulator._core import Orchestrator
 from payment_simulator.config import SimulationConfig
+from payment_simulator.persistence.checkpoint import CheckpointManager
+from payment_simulator.persistence.connection import DatabaseManager
 
 # Checkpoint command group
 checkpoint_app = typer.Typer(
@@ -49,12 +52,27 @@ def get_database_manager() -> DatabaseManager:
 
 @checkpoint_app.command(name="save")
 def save_checkpoint(
-    simulation_id: str = typer.Option(..., "--simulation-id", "-s", help="Simulation ID for this checkpoint"),
-    state_file: Path = typer.Option(..., "--state-file", "-f", help="Path to state JSON file from orchestrator.save_state()"),
-    config_file: Path = typer.Option(..., "--config", "-c", help="Path to simulation config YAML file"),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="Human-readable description"),
-    checkpoint_type: str = typer.Option("manual", "--type", "-t", help="Checkpoint type (manual/auto/eod/final)"),
-):
+    simulation_id: Annotated[
+        str,
+        typer.Option("--simulation-id", "-s", help="Simulation ID for this checkpoint"),
+    ],
+    state_file: Annotated[
+        Path,
+        typer.Option("--state-file", "-f", help="Path to state JSON file from orchestrator.save_state()"),
+    ],
+    config_file: Annotated[
+        Path,
+        typer.Option("--config", "-c", help="Path to simulation config YAML file"),
+    ],
+    description: Annotated[
+        str | None,
+        typer.Option("--description", "-d", help="Human-readable description"),
+    ] = None,
+    checkpoint_type: Annotated[
+        str,
+        typer.Option("--type", "-t", help="Checkpoint type (manual/auto/eod/final)"),
+    ] = "manual",
+) -> None:
     """Save simulation checkpoint to database.
 
     Example:
@@ -67,7 +85,7 @@ def save_checkpoint(
             raise typer.Exit(1)
 
         # Read state JSON
-        with open(state_file, 'r') as f:
+        with open(state_file) as f:
             state_json = f.read()
 
         # Validate JSON
@@ -83,8 +101,9 @@ def save_checkpoint(
             raise typer.Exit(1)
 
         import yaml
+
         from payment_simulator.config import SimulationConfig
-        with open(config_file, 'r') as f:
+        with open(config_file) as f:
             config_dict = yaml.safe_load(f)
         config = SimulationConfig.from_dict(config_dict)
         ffi_dict = config.to_ffi_dict()
@@ -124,7 +143,7 @@ def save_checkpoint(
         )
 
         # Display success
-        console.print(f"[green]✓ Checkpoint saved successfully[/green]")
+        console.print("[green]✓ Checkpoint saved successfully[/green]")
         console.print(f"  Checkpoint ID: [cyan]{checkpoint_id}[/cyan]")
         console.print(f"  Simulation ID: [cyan]{simulation_id}[/cyan]")
         console.print(f"  Tick: [yellow]{state_dict['current_tick']}[/yellow]")
@@ -144,11 +163,23 @@ def save_checkpoint(
 
 @checkpoint_app.command(name="load")
 def load_checkpoint(
-    checkpoint_id: str = typer.Option(None, "--checkpoint-id", "-c", help="Checkpoint ID to load"),
-    simulation_id: str = typer.Option(None, "--simulation-id", "-s", help="Simulation ID (for 'latest' checkpoint)"),
-    config: Path = typer.Option(..., "--config", help="Configuration file (YAML)"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Save restored state to file"),
-):
+    checkpoint_id: Annotated[
+        str | None,
+        typer.Option("--checkpoint-id", "-c", help="Checkpoint ID to load"),
+    ] = None,
+    simulation_id: Annotated[
+        str | None,
+        typer.Option("--simulation-id", "-s", help="Simulation ID (for 'latest' checkpoint)"),
+    ] = None,
+    config: Annotated[
+        Path,
+        typer.Option("--config", help="Configuration file (YAML)"),
+    ] = ...,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Save restored state to file"),
+    ] = None,
+) -> None:
     """Load and restore simulation from checkpoint.
 
     Example:
@@ -172,7 +203,7 @@ def load_checkpoint(
 
         # Load config
         import yaml
-        with open(config, 'r') as f:
+        with open(config) as f:
             config_dict = yaml.safe_load(f)
 
         # Convert to SimulationConfig and get FFI dict
@@ -204,12 +235,12 @@ def load_checkpoint(
         orch, loaded_config = checkpoint_mgr.load_checkpoint(actual_checkpoint_id)
 
         # Display restored state
-        console.print(f"[green]✓ Simulation restored from checkpoint[/green]")
+        console.print("[green]✓ Simulation restored from checkpoint[/green]")
         console.print(f"  Checkpoint ID: [cyan]{actual_checkpoint_id}[/cyan]")
         console.print(f"  Simulation ID: [cyan]{checkpoint_record['simulation_id']}[/cyan]")
         console.print(f"  Tick: [yellow]{orch.current_tick()}[/yellow]")
         console.print(f"  Day: [yellow]{orch.current_day()}[/yellow]")
-        console.print(f"  Config loaded from checkpoint database")
+        console.print("  Config loaded from checkpoint database")
 
         # Save to file if requested
         if output:
@@ -235,10 +266,19 @@ def load_checkpoint(
 
 @checkpoint_app.command(name="list")
 def list_checkpoints(
-    simulation_id: Optional[str] = typer.Option(None, "--simulation-id", "-s", help="Filter by simulation ID"),
-    checkpoint_type: Optional[str] = typer.Option(None, "--type", "-t", help="Filter by checkpoint type"),
-    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Maximum number of results"),
-):
+    simulation_id: Annotated[
+        str | None,
+        typer.Option("--simulation-id", "-s", help="Filter by simulation ID"),
+    ] = None,
+    checkpoint_type: Annotated[
+        str | None,
+        typer.Option("--type", "-t", help="Filter by checkpoint type"),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", "-n", help="Maximum number of results"),
+    ] = None,
+) -> None:
     """List available checkpoints.
 
     Example:
@@ -304,10 +344,19 @@ def list_checkpoints(
 
 @checkpoint_app.command(name="delete")
 def delete_checkpoint(
-    checkpoint_id: Optional[str] = typer.Option(None, "--checkpoint-id", "-c", help="Checkpoint ID to delete"),
-    simulation_id: Optional[str] = typer.Option(None, "--simulation-id", "-s", help="Delete all checkpoints for simulation"),
-    confirm: bool = typer.Option(False, "--confirm", "-y", help="Skip confirmation prompt"),
-):
+    checkpoint_id: Annotated[
+        str | None,
+        typer.Option("--checkpoint-id", "-c", help="Checkpoint ID to delete"),
+    ] = None,
+    simulation_id: Annotated[
+        str | None,
+        typer.Option("--simulation-id", "-s", help="Delete all checkpoints for simulation"),
+    ] = None,
+    confirm: Annotated[
+        bool,
+        typer.Option("--confirm", "-y", help="Skip confirmation prompt"),
+    ] = False,
+) -> None:
     """Delete checkpoint(s) from database.
 
     Example:
