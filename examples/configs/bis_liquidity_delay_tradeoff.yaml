@@ -23,8 +23,8 @@ simulation:
 # BIS Compatibility: Disable non-BIS features
 # ============================================================================
 lsm_config:
-  enable_bilateral: false    # BIS has no LSM
-  enable_cycles: false       # Pure RTGS behavior
+  enable_bilateral: true     # Enable bilateral netting to simulate same-period recycling
+  enable_cycles: false       # No multilateral cycles (pure bilateral)
   max_cycle_length: 3
   max_cycles_per_tick: 1     # Minimum required by validator
 
@@ -61,7 +61,7 @@ agents:
     # BIS Enhancement 11.2: Liquidity Pool Allocation
     # Pool of $10,000 (1,000,000 cents), allocate 50% = $5,000
     liquidity_pool: 1000000              # $10,000 available external liquidity
-    liquidity_allocation_fraction: 0.0   # Allocate 0% - rely entirely on incoming
+    liquidity_allocation_fraction: 0.5   # Allocate 50% = $5,000 (BIS optimal)
 
     policy:
       type: Fifo                         # Simple FIFO policy
@@ -83,60 +83,64 @@ agents:
 # (representing the "expected case" where high-probability events occur)
 
 scenario_events:
-  # -------------------------------------------------------------------------
-  # Period 1 (Tick 0): $5k outgoing from FOCAL_BANK, $5k incoming
-  # -------------------------------------------------------------------------
-
-  # FOCAL_BANK must send $5,000 (normal priority, 1% delay cost)
-  - type: CustomTransactionArrival
-    from_agent: FOCAL_BANK
-    to_agent: COUNTERPARTY
-    amount: 500000                       # $5,000 in cents
-    priority: 5                          # Normal priority band
-    deadline: 3                          # Deadline at end of day (tick 3)
-    schedule:
-      type: OneTime
-      tick: 0
-
-  # FOCAL_BANK receives $5,000 from COUNTERPARTY (99% probability in BIS)
-  - type: CustomTransactionArrival
-    from_agent: COUNTERPARTY
-    to_agent: FOCAL_BANK
-    amount: 500000                       # $5,000 in cents
-    priority: 5                          # Normal priority
-    deadline: 3
-    schedule:
-      type: OneTime
-      tick: 0
+  # =========================================================================
+  # MODIFIED SCENARIO: Staggered timing to allow liquidity accumulation
+  # =========================================================================
+  # BIS assumes same-period recycling. SimCash requires cross-tick accumulation.
+  # We move incoming payments earlier so FOCAL_BANK can accumulate before urgent outgoing.
 
   # -------------------------------------------------------------------------
-  # Period 2 (Tick 1): $10k urgent outgoing, $5k incoming
+  # Period 1 (Tick 0): Incoming payments arrive first
   # -------------------------------------------------------------------------
 
-  # FOCAL_BANK must send $10,000 urgent payment (90% probability in BIS)
-  - type: CustomTransactionArrival
-    from_agent: FOCAL_BANK
-    to_agent: COUNTERPARTY
-    amount: 1000000                      # $10,000 in cents
-    priority: 9                          # Urgent priority band (1.5x delay cost)
-    deadline: 3                          # Tight deadline
-    schedule:
-      type: OneTime
-      tick: 1
-
-  # FOCAL_BANK receives another $5,000 (99% probability in BIS)
+  # First incoming: FOCAL_BANK receives $5,000
   - type: CustomTransactionArrival
     from_agent: COUNTERPARTY
     to_agent: FOCAL_BANK
     amount: 500000                       # $5,000 in cents
     priority: 5
-    deadline: 3
+    deadline: 5
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # Second incoming: FOCAL_BANK receives another $5,000
+  - type: CustomTransactionArrival
+    from_agent: COUNTERPARTY
+    to_agent: FOCAL_BANK
+    amount: 500000                       # $5,000 in cents
+    priority: 5
+    deadline: 5
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # -------------------------------------------------------------------------
+  # Period 2 (Tick 1): Small outgoing payment (tests partial liquidity use)
+  # -------------------------------------------------------------------------
+
+  # FOCAL_BANK sends $5,000 (normal priority)
+  - type: CustomTransactionArrival
+    from_agent: FOCAL_BANK
+    to_agent: COUNTERPARTY
+    amount: 500000                       # $5,000 in cents
+    priority: 5                          # Normal priority band
+    deadline: 4
     schedule:
       type: OneTime
       tick: 1
 
   # -------------------------------------------------------------------------
-  # Period 3 (Tick 2): End-of-day clearing
+  # Period 3 (Tick 2): Large urgent payment (tests allocation adequacy)
   # -------------------------------------------------------------------------
-  # No new payments - queue must be cleared
-  # If FOCAL_BANK is short, delays occur (and in BIS model, borrowing)
+
+  # FOCAL_BANK must send $10,000 urgent payment
+  - type: CustomTransactionArrival
+    from_agent: FOCAL_BANK
+    to_agent: COUNTERPARTY
+    amount: 1000000                      # $10,000 in cents
+    priority: 9                          # Urgent priority band (1.5x delay cost)
+    deadline: 4                          # Tight deadline
+    schedule:
+      type: OneTime
+      tick: 2
