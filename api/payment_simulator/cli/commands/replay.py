@@ -4,52 +4,40 @@ This command enables replaying a specific tick range from a persisted simulation
 producing identical verbose output to the original run.
 """
 
+from __future__ import annotations
+
 import json
 import time
+from typing import Annotated, Any
+
 import typer
-import yaml
-from pathlib import Path
-from typing import Optional
-from typing_extensions import Annotated
 
 from payment_simulator.cli.output import (
-    log_info,
-    log_success,
-    log_error,
-    log_tick_start,
-    log_transaction_arrivals,
-    log_settlement_details,
-    log_agent_queues_detailed,
-    log_policy_decisions,
-    log_collateral_activity,
-    log_cost_breakdown,
-    log_agent_state_from_db,
-    log_cost_breakdown_from_db,
-    log_lsm_cycle_visualization,
     log_end_of_day_event,
     log_end_of_day_statistics,
-    log_tick_summary,
+    log_error,
+    log_info,
+    log_success,
+    log_tick_start,
     output_json,
-    console,
 )
-from payment_simulator.persistence.connection import DatabaseManager
-from payment_simulator.persistence.queries import (
-    get_simulation_summary,
-    get_policy_decisions_by_tick,
-    get_tick_agent_states,
-    get_tick_queue_snapshots,
-)
-from payment_simulator.persistence.event_queries import get_simulation_events
 from payment_simulator.config import SimulationConfig
-from payment_simulator._core import Orchestrator
-
+from payment_simulator.persistence.connection import DatabaseManager
+from payment_simulator.persistence.event_queries import get_simulation_events
+from payment_simulator.persistence.queries import (
+    get_policy_decisions_by_tick,
+    get_simulation_summary,
+    get_tick_agent_states,
+)
 
 # ============================================================================
 # Event Reconstruction Helpers
 # ============================================================================
 
 
-def _reconstruct_arrival_events_from_simulation_events(events: list[dict]) -> list[dict]:
+def _reconstruct_arrival_events_from_simulation_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Reconstruct arrival events from simulation_events table.
 
     Args:
@@ -80,7 +68,9 @@ def _reconstruct_arrival_events_from_simulation_events(events: list[dict]) -> li
     return result
 
 
-def _reconstruct_settlement_events_from_simulation_events(events: list[dict]) -> list[dict]:
+def _reconstruct_settlement_events_from_simulation_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Reconstruct settlement events from simulation_events table.
 
     Args:
@@ -108,7 +98,7 @@ def _reconstruct_settlement_events_from_simulation_events(events: list[dict]) ->
     return result
 
 
-def _reconstruct_arrival_events(arrivals: list[dict]) -> list[dict]:
+def _reconstruct_arrival_events(arrivals: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reconstruct arrival events from database transaction records.
 
     Args:
@@ -137,7 +127,7 @@ def _reconstruct_arrival_events(arrivals: list[dict]) -> list[dict]:
     ]
 
 
-def _reconstruct_settlement_events(settlements: list[dict]) -> list[dict]:
+def _reconstruct_settlement_events(settlements: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reconstruct settlement events from database transaction records.
 
     Args:
@@ -164,7 +154,9 @@ def _reconstruct_settlement_events(settlements: list[dict]) -> list[dict]:
     ]
 
 
-def _reconstruct_lsm_events_from_simulation_events(events: list[dict]) -> list[dict]:
+def _reconstruct_lsm_events_from_simulation_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Reconstruct LSM events from simulation_events table.
 
     Args:
@@ -212,7 +204,9 @@ def _reconstruct_lsm_events_from_simulation_events(events: list[dict]) -> list[d
     return result
 
 
-def _reconstruct_collateral_events_from_simulation_events(events: list[dict]) -> list[dict]:
+def _reconstruct_collateral_events_from_simulation_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Reconstruct collateral events from simulation_events table.
 
     Args:
@@ -243,7 +237,7 @@ def _reconstruct_collateral_events_from_simulation_events(events: list[dict]) ->
     return result
 
 
-def _reconstruct_cost_accrual_events(events: list[dict]) -> list[dict]:
+def _reconstruct_cost_accrual_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reconstruct cost accrual events from simulation_events table.
 
     Args:
@@ -273,7 +267,9 @@ def _reconstruct_cost_accrual_events(events: list[dict]) -> list[dict]:
     return result
 
 
-def _reconstruct_scenario_events_from_simulation_events(events: list[dict]) -> list[dict]:
+def _reconstruct_scenario_events_from_simulation_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Reconstruct scenario events from simulation_events table.
 
     Args:
@@ -311,7 +307,7 @@ def _reconstruct_scenario_events_from_simulation_events(events: list[dict]) -> l
     return result
 
 
-def _reconstruct_state_register_events(events: list[dict]) -> list[dict]:
+def _reconstruct_state_register_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reconstruct state register events from simulation_events table.
 
     Phase 4.6: Decision Path Auditing - state register updates with decision paths.
@@ -339,7 +335,7 @@ def _reconstruct_state_register_events(events: list[dict]) -> list[dict]:
     return result
 
 
-def _reconstruct_budget_events(events: list[dict]) -> list[dict]:
+def _reconstruct_budget_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reconstruct bank budget events from simulation_events table.
 
     Phase 3.3: Bank-Level Budgets - SetReleaseBudget actions.
@@ -365,7 +361,7 @@ def _reconstruct_budget_events(events: list[dict]) -> list[dict]:
     return result
 
 
-def _reconstruct_collateral_timer_events(events: list[dict]) -> list[dict]:
+def _reconstruct_collateral_timer_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reconstruct collateral timer withdrawal events from simulation_events table.
 
     Phase 3.4: Collateral Timers - automatic withdrawal when timer expires.
@@ -391,7 +387,9 @@ def _reconstruct_collateral_timer_events(events: list[dict]) -> list[dict]:
     return result
 
 
-def _reconstruct_transaction_went_overdue_events(events: list[dict]) -> list[dict]:
+def _reconstruct_transaction_went_overdue_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Reconstruct TransactionWentOverdue events from simulation_events table.
 
     Phase 4: Replay Identity - missing event types fix.
@@ -422,7 +420,7 @@ def _reconstruct_transaction_went_overdue_events(events: list[dict]) -> list[dic
     return result
 
 
-def _reconstruct_queued_rtgs_events(events: list[dict]) -> list[dict]:
+def _reconstruct_queued_rtgs_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reconstruct QueuedRtgs events from simulation_events table.
 
     Phase 4: Replay Identity - missing event types fix.
@@ -448,7 +446,7 @@ def _reconstruct_queued_rtgs_events(events: list[dict]) -> list[dict]:
     return result
 
 
-def _reconstruct_end_of_day_events(events: list[dict]) -> list[dict]:
+def _reconstruct_end_of_day_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reconstruct EndOfDay events from simulation_events table.
 
     EOD events mark the end of each simulated day and contain summary statistics.
@@ -474,7 +472,9 @@ def _reconstruct_end_of_day_events(events: list[dict]) -> list[dict]:
     return result
 
 
-def _reconstruct_rtgs_immediate_settlement_events(events: list[dict]) -> list[dict]:
+def _reconstruct_rtgs_immediate_settlement_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Reconstruct RtgsImmediateSettlement events from simulation_events table.
 
     CRITICAL FIX (Discrepancy #3): These events are needed for "RTGS Immediate" display block.
@@ -502,7 +502,9 @@ def _reconstruct_rtgs_immediate_settlement_events(events: list[dict]) -> list[di
     return result
 
 
-def _reconstruct_queue2_liquidity_release_events(events: list[dict]) -> list[dict]:
+def _reconstruct_queue2_liquidity_release_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Reconstruct Queue2LiquidityRelease events from simulation_events table.
 
     CRITICAL FIX (Discrepancy #3): These events are needed for "Queue 2 Releases" display block.
@@ -531,11 +533,11 @@ def _reconstruct_queue2_liquidity_release_events(events: list[dict]) -> list[dic
 
 
 def _reconstruct_queue_snapshots(
-    conn,
+    conn: Any,
     simulation_id: str,
     tick: int,
-    tx_cache: dict[str, dict]
-) -> dict[str, dict]:
+    tx_cache: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
     """Reconstruct queue snapshots from transaction cache and events.
 
     CRITICAL FIX (Discrepancy #1): Near-deadline warnings require knowing which
@@ -628,11 +630,11 @@ def _reconstruct_queue_snapshots(
 
 
 def _calculate_final_queue_sizes(
-    conn,
+    conn: Any,
     simulation_id: str,
     final_tick: int,
-    tx_cache: dict[str, dict],
-    agent_ids: list[str]
+    tx_cache: dict[str, dict[str, Any]],
+    agent_ids: list[str],
 ) -> dict[str, int]:
     """Calculate queue sizes at final tick from events.
 
@@ -652,14 +654,14 @@ def _calculate_final_queue_sizes(
     queue_snapshots = _reconstruct_queue_snapshots(conn, simulation_id, final_tick, tx_cache)
 
     # Count queued transactions per agent
-    queue_sizes = {agent_id: 0 for agent_id in agent_ids}
+    queue_sizes = dict.fromkeys(agent_ids, 0)
     for agent_id, queues in queue_snapshots.items():
         queue_sizes[agent_id] = len(queues.get("queue1", [])) + len(queues.get("rtgs", []))
 
     return queue_sizes
 
 
-def _has_full_replay_data(conn, simulation_id: str) -> bool:
+def _has_full_replay_data(conn: Any, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
     Args:
@@ -687,7 +689,9 @@ def _has_full_replay_data(conn, simulation_id: str) -> bool:
         return False
 
 
-def _get_summary_statistics(conn, simulation_id: str, from_tick: int, to_tick: int) -> dict:
+def _get_summary_statistics(
+    conn: Any, simulation_id: str, from_tick: int, to_tick: int
+) -> dict[str, Any]:
     """DEPRECATED: This function should NOT be used for replay summary statistics.
 
     ⚠️  WARNING: This function recalculates statistics from simulation_events, which can
@@ -801,7 +805,7 @@ class _MockOrchestrator:
     running actual simulation. Transaction details come from database cache.
     """
 
-    def __init__(self, tx_cache: dict[str, dict]):
+    def __init__(self, tx_cache: dict[str, dict[str, Any]]) -> None:
         """Initialize with transaction cache.
 
         Args:
@@ -809,7 +813,7 @@ class _MockOrchestrator:
         """
         self._tx_cache = tx_cache
 
-    def get_transaction_details(self, tx_id: str) -> dict | None:
+    def get_transaction_details(self, tx_id: str) -> dict[str, Any] | None:
         """Get transaction details from cache.
 
         Args:
@@ -853,7 +857,7 @@ def replay_simulation(
         ),
     ] = 0,
     to_tick: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--to-tick",
             help="Ending tick for verbose output (inclusive, defaults to last tick)",
@@ -881,7 +885,7 @@ def replay_simulation(
             help="Output events as JSON lines (one event per line, machine-readable format)",
         ),
     ] = False,
-):
+) -> None:
     """Replay a simulation from the database with verbose logging for a tick range.
 
     This command loads a persisted simulation's configuration and data from the database,
@@ -927,7 +931,7 @@ def replay_simulation(
             result = db_manager.conn.execute(query, [simulation_id]).fetchone()
 
             if result:
-                log_info(f"Found incomplete simulation in database (loading from simulation_runs)", False)
+                log_info("Found incomplete simulation in database (loading from simulation_runs)", False)
                 summary = {
                     "simulation_id": simulation_id,
                     "rng_seed": result[0],
@@ -1081,7 +1085,6 @@ def replay_simulation(
         # Now run replay mode from from_tick to end_tick (DATABASE-DRIVEN)
         if event_stream:
             # Event stream mode: output events as JSON lines
-            import sys
 
             replay_start = time.time()
 
