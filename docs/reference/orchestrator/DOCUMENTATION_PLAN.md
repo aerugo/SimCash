@@ -22,7 +22,7 @@ This document outlines the comprehensive documentation effort to capture **every
 ```
 docs/reference/orchestrator/
 ├── DOCUMENTATION_PLAN.md          ← This file (tracking progress)
-├── INDEX.md                       ← Master index and navigation
+├── index.md                       ← Master index and navigation
 │
 ├── 01-configuration/
 │   ├── orchestrator-config.md     ← OrchestratorConfig fields
@@ -573,7 +573,7 @@ docs/reference/orchestrator/
 | 09-time | [ ] | - | - |
 | 10-ffi | [ ] | - | - |
 | 11-cli | [ ] | - | - |
-| INDEX.md | [ ] | - | - |
+| index.md | [ ] | - | - |
 
 ---
 
@@ -665,7 +665,7 @@ When and why this event is emitted.
 ## Next Steps
 
 1. Create directory structure
-2. Create INDEX.md with navigation
+2. Create index.md with navigation
 3. Document configuration types first (foundation)
 4. Document models (transaction, agent, state)
 5. Document generators and distributions

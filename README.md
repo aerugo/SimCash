@@ -87,7 +87,7 @@ uv run --directory api uvicorn payment_simulator.api.main:app --reload
 |-------|---------------|
 | **CLI** | [docs/reference/cli/](docs/reference/cli/index.md) — Commands, output modes, filtering |
 | **Policy DSL** | [docs/reference/policy/](docs/reference/policy/index.md) — Decision trees, context fields, actions |
-| **Configuration** | [docs/reference/orchestrator/](docs/reference/orchestrator/INDEX.md) — Agent config, cost rates, scenario events |
+| **Configuration** | [docs/reference/orchestrator/](docs/reference/orchestrator/index.md) — Agent config, cost rates, scenario events |
 | **Architecture** | [docs/reference/architecture/](docs/reference/architecture/) — System design, Rust-Python bridge |
 
 ### Developer Guide

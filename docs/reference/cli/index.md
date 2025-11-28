@@ -1,21 +1,22 @@
 # CLI Reference
 
-> **Command**: `payment-sim`
-> **Version**: 0.1.0
-> **Framework**: Typer (Python CLI framework)
+> Command-line interface for running and analyzing payment simulations
 
-The Payment Simulator CLI (`payment-sim`) is the primary interface for running simulations, replaying persisted results, managing databases, and generating documentation.
+The `payment-sim` CLI is the primary interface for running simulations, replaying persisted results, managing databases, and generating documentation.
 
-## Installation
+## Documentation
 
-The CLI is installed automatically when you install the payment-simulator package:
-
-```bash
-cd api
-uv sync --extra dev
-```
-
-After installation, the `payment-sim` command is available in your terminal.
+| Document | Description |
+|----------|-------------|
+| [run](commands/run.md) | Execute a simulation from a configuration file |
+| [replay](commands/replay.md) | Replay a persisted simulation from database |
+| [validate-policy](commands/validate-policy.md) | Validate a policy tree JSON file |
+| [policy-schema](commands/policy-schema.md) | Generate policy schema documentation |
+| [checkpoint](commands/checkpoint.md) | Manage simulation checkpoints |
+| [db](commands/db.md) | Database management commands |
+| [output-modes](output-modes.md) | Understanding different output formats |
+| [filtering](filtering.md) | Filtering events during verbose output |
+| [exit-codes](exit-codes.md) | Exit codes and error handling |
 
 ## Quick Start
 
@@ -36,42 +37,16 @@ payment-sim replay --simulation-id sim-abc123 --verbose
 payment-sim db simulations
 ```
 
-## Command Overview
+## Installation
 
-| Command | Description |
-|---------|-------------|
-| [`run`](commands/run.md) | Execute a simulation from a configuration file |
-| [`replay`](commands/replay.md) | Replay a persisted simulation from database |
-| [`validate-policy`](commands/validate-policy.md) | Validate a policy tree JSON file |
-| [`policy-schema`](commands/policy-schema.md) | Generate policy schema documentation |
-| [`checkpoint`](commands/checkpoint.md) | Manage simulation checkpoints (save/load/list/delete) |
-| [`db`](commands/db.md) | Database management commands |
+The CLI is installed automatically with the payment-simulator package:
 
-## Global Options
+```bash
+cd api
+uv sync --extra dev
+```
 
-These options are available for all commands:
-
-| Option | Description |
-|--------|-------------|
-| `--version` | Show version and exit |
-| `--help` | Show help message and exit |
-
-## Documentation Index
-
-### Commands
-- [run](commands/run.md) - Run simulations with various output modes
-- [replay](commands/replay.md) - Replay persisted simulations
-- [validate-policy](commands/validate-policy.md) - Validate policy tree JSON files
-- [policy-schema](commands/policy-schema.md) - Generate policy documentation
-- [checkpoint](commands/checkpoint.md) - Checkpoint management subcommands
-- [db](commands/db.md) - Database management subcommands
-
-### Concepts
-- [Output Modes](output-modes.md) - Understanding different output formats
-- [Event Filtering](filtering.md) - Filtering events during verbose/event-stream output
-- [Exit Codes](exit-codes.md) - Exit codes and error handling
-
-## Architecture
+## Command Structure
 
 ```
 payment-sim
@@ -95,15 +70,26 @@ payment-sim
     └── costs
 ```
 
+## Global Options
+
+| Option | Description |
+|--------|-------------|
+| `--version` | Show version and exit |
+| `--help` | Show help message and exit |
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PAYMENT_SIM_DB_PATH` | `simulation_data.db` | Default database path for checkpoint commands |
-| `USE_NEW_RUNNER` | `true` | Enable new simulation runner architecture (Phase 5.2) |
+| `PAYMENT_SIM_DB_PATH` | `simulation_data.db` | Default database path |
+| `USE_NEW_RUNNER` | `true` | Enable new simulation runner |
 
 ## Related Documentation
 
 - [Scenario Configuration](../scenario/index.md) - YAML configuration format
 - [Policy Reference](../policy/index.md) - Policy DSL documentation
-- [Architecture](../architecture/10-cli-architecture.md) - CLI architecture details
+- [Architecture](../architecture/index.md) - System architecture
+
+---
+
+*Last updated: 2025-11-28*
