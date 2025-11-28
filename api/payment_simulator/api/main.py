@@ -6,13 +6,16 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 from payment_simulator.config import SimulationConfig, ValidationError
+
+if TYPE_CHECKING:
+    from payment_simulator.persistence.connection import DatabaseManager
 
 # ============================================================================
 # Request/Response Models
@@ -470,7 +473,7 @@ class TickStateResponse(BaseModel):
 class SimulationManager:
     """Manages active simulation instances."""
 
-    def __init__(self, db_manager=None):
+    def __init__(self, db_manager: DatabaseManager | None = None) -> None:
         self.simulations: dict[str, Orchestrator] = {}
         self.configs: dict[str, dict[str, Any]] = (
             {}
@@ -731,7 +734,7 @@ def create_simulation(config: dict[str, Any]) -> SimulationCreateResponse:
 
 
 @app.get("/simulations", response_model=SimulationListResponse)
-def list_simulations():
+def list_simulations() -> SimulationListResponse:
     """List all simulations (both active and database-persisted).
 
     Returns:
@@ -2179,17 +2182,19 @@ def get_events(
         conn = manager.db_manager.get_connection()
 
         # Check if simulation exists in database (by checking if it has any events)
-        exists_check = conn.execute(
+        exists_result = conn.execute(
             "SELECT COUNT(*) FROM simulation_events WHERE simulation_id = ?",
             [sim_id]
-        ).fetchone()[0]
+        ).fetchone()
+        exists_check = exists_result[0] if exists_result else 0
 
         if exists_check == 0:
             # Verify simulation exists in simulations table
-            sim_check = conn.execute(
+            sim_result = conn.execute(
                 "SELECT COUNT(*) FROM simulations WHERE simulation_id = ?",
                 [sim_id]
-            ).fetchone()[0]
+            ).fetchone()
+            sim_check = sim_result[0] if sim_result else 0
 
             if sim_check == 0:
                 raise HTTPException(
@@ -2743,7 +2748,7 @@ def get_tick_state(sim_id: str, tick: int) -> TickStateResponse:
 
 
 @app.get("/health")
-def health_check():
+def health_check() -> dict[str, str | int]:
     """Health check endpoint."""
     return {
         "status": "healthy",
@@ -2757,7 +2762,7 @@ def health_check():
 
 
 @app.get("/")
-def root():
+def root() -> dict[str, str]:
     """API root with basic info."""
     return {
         "name": "Payment Simulator API",

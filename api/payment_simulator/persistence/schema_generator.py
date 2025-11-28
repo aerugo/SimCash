@@ -8,10 +8,9 @@ This ensures the database schema stays in sync with the model definitions.
 import inspect
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional, Type, get_args, get_origin
+from typing import Any, get_args, get_origin
 
 from pydantic import BaseModel
-
 
 # ============================================================================
 # Type Mapping
@@ -72,7 +71,7 @@ def python_type_to_sql_type(py_type: Any) -> str:
 # ============================================================================
 
 
-def generate_create_table_ddl(model: Type[BaseModel]) -> str:
+def generate_create_table_ddl(model: type[BaseModel]) -> str:
     """Generate CREATE TABLE DDL from Pydantic model.
 
     Args:
@@ -136,7 +135,7 @@ def generate_create_table_ddl(model: Type[BaseModel]) -> str:
     return ddl
 
 
-def generate_create_indexes_ddl(model: Type[BaseModel]) -> list[str]:
+def generate_create_indexes_ddl(model: type[BaseModel]) -> list[str]:
     """Generate CREATE INDEX statements from Pydantic model.
 
     Args:
@@ -189,15 +188,15 @@ def generate_full_schema_ddl() -> str:
         CollateralEventRecord,
         DailyAgentMetricsRecord,
         LsmCycleRecord,
+        PolicyDecisionRecord,
         PolicySnapshotRecord,
         SimulationCheckpointRecord,
         SimulationEventRecord,
         SimulationRecord,
         SimulationRunRecord,
-        TransactionRecord,
-        PolicyDecisionRecord,
         TickAgentStateRecord,
         TickQueueSnapshotRecord,
+        TransactionRecord,
     )
 
     models = [
@@ -311,7 +310,7 @@ def _is_int_type(py_type: Any) -> bool:
 # ============================================================================
 
 
-def validate_table_schema(conn: Any, model: Type[BaseModel]) -> tuple[bool, list[str]]:
+def validate_table_schema(conn: Any, model: type[BaseModel]) -> tuple[bool, list[str]]:
     """Validate that database table schema matches Pydantic model.
 
     Args:

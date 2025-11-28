@@ -10,17 +10,22 @@ This separation allows:
 - Redirecting both streams independently as needed
 """
 
-import sys
+from __future__ import annotations
+
 import json
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
+
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
+
+if TYPE_CHECKING:
+    from payment_simulator.cli.execution.state_provider import StateProvider
 
 # stderr console for human logs (preserves colors when redirected)
 console = Console(stderr=True)
 
 
-def output_json(data: Any, indent: Optional[int] = 2):
+def output_json(data: Any, indent: int | None = 2) -> None:
     """Output JSON to stdout (machine-readable).
 
     Args:
@@ -30,7 +35,7 @@ def output_json(data: Any, indent: Optional[int] = 2):
     print(json.dumps(data, indent=indent), flush=True)
 
 
-def output_jsonl(data: Any):
+def output_jsonl(data: Any) -> None:
     """Output JSONL to stdout (streaming, one JSON object per line).
 
     Args:
@@ -39,7 +44,7 @@ def output_jsonl(data: Any):
     print(json.dumps(data), flush=True)
 
 
-def log_info(message: str, quiet: bool = False):
+def log_info(message: str, quiet: bool = False) -> None:
     """Log info message to stderr.
 
     Args:
@@ -50,7 +55,7 @@ def log_info(message: str, quiet: bool = False):
         console.print(f"[blue]ℹ[/blue] {message}")
 
 
-def log_success(message: str, quiet: bool = False):
+def log_success(message: str, quiet: bool = False) -> None:
     """Log success message to stderr.
 
     Args:
@@ -61,7 +66,7 @@ def log_success(message: str, quiet: bool = False):
         console.print(f"[green]✓[/green] {message}")
 
 
-def log_error(message: str):
+def log_error(message: str) -> None:
     """Log error message to stderr (always shown).
 
     Args:
@@ -70,7 +75,7 @@ def log_error(message: str):
     console.print(f"[red]✗[/red] {message}", style="bold red")
 
 
-def log_warning(message: str, quiet: bool = False):
+def log_warning(message: str, quiet: bool = False) -> None:
     """Log warning message to stderr.
 
     Args:
@@ -103,7 +108,7 @@ def create_progress(description: str = "Processing...") -> Progress:
 # Verbose Mode Logging
 # ============================================================================
 
-def log_tick_start(tick: int):
+def log_tick_start(tick: int) -> None:
     """Log start of tick (verbose mode).
 
     Args:
@@ -112,7 +117,7 @@ def log_tick_start(tick: int):
     console.print(f"\n[bold cyan]═══ Tick {tick} ═══[/bold cyan]")
 
 
-def log_section_separator():
+def log_section_separator() -> None:
     """Log a visual separator between major sections within a tick.
 
     Uses a lighter style than tick headers to create visual hierarchy
@@ -121,7 +126,7 @@ def log_section_separator():
     console.print("\n[dim]" + "─" * 70 + "[/dim]\n")
 
 
-def log_arrivals(count: int, details: str = ""):
+def log_arrivals(count: int, details: str = "") -> None:
     """Log transaction arrivals (verbose mode).
 
     Args:
@@ -133,7 +138,7 @@ def log_arrivals(count: int, details: str = ""):
         console.print(f"{emoji} [cyan]{count} transaction(s) arrived[/cyan] {details}")
 
 
-def log_settlements(count: int, details: str = ""):
+def log_settlements(count: int, details: str = "") -> None:
     """Log settlements (verbose mode).
 
     Args:
@@ -145,7 +150,7 @@ def log_settlements(count: int, details: str = ""):
         console.print(f"{emoji} [green]{count} transaction(s) settled[/green] {details}")
 
 
-def log_lsm_activity(bilateral: int = 0, cycles: int = 0):
+def log_lsm_activity(bilateral: int = 0, cycles: int = 0) -> None:
     """Log LSM activity (verbose mode).
 
     Args:
@@ -163,7 +168,9 @@ def log_lsm_activity(bilateral: int = 0, cycles: int = 0):
         console.print(f"{emoji} [magenta]LSM freed {total} transaction(s)[/magenta] ({', '.join(parts)})")
 
 
-def log_agent_state(provider, agent_id: str, balance_change: int = 0, quiet: bool = False):
+def log_agent_state(
+    provider: StateProvider, agent_id: str, balance_change: int = 0, quiet: bool = False
+) -> None:
     """Log agent state with detailed queue contents (UNIFIED for live & replay).
 
     Replaces both old log_agent_state() and log_agent_state_from_db().
@@ -277,7 +284,7 @@ def log_agent_state(provider, agent_id: str, balance_change: int = 0, quiet: boo
         console.print()
 
 
-def log_agent_financial_stats_table(provider, agent_ids: list[str], quiet: bool = False):
+def log_agent_financial_stats_table(provider: StateProvider, agent_ids: list[str], quiet: bool = False) -> None:
     """Display comprehensive financial stats for all agents.
 
     Shows a unified view of all financial metrics for each agent:
@@ -375,7 +382,7 @@ def log_agent_financial_stats_table(provider, agent_ids: list[str], quiet: bool 
         console.print()
 
 
-def log_costs(cost: int):
+def log_costs(cost: int) -> None:
     """Log costs accrued (verbose mode).
 
     Args:
@@ -385,7 +392,7 @@ def log_costs(cost: int):
         console.print(f"💰 [yellow]Costs accrued: ${cost / 100:,.2f}[/yellow]")
 
 
-def log_tick_summary(arrivals: int, settlements: int, lsm: int, queued: int):
+def log_tick_summary(arrivals: int, settlements: int, lsm: int, queued: int) -> None:
     """Log tick summary line (verbose mode).
 
     Args:
@@ -411,7 +418,7 @@ def log_tick_summary(arrivals: int, settlements: int, lsm: int, queued: int):
 # Event Stream Mode - Chronological One-Line Event Display
 # ============================================================================
 
-def log_event_chronological(event: dict, tick: int, quiet: bool = False):
+def log_event_chronological(event: dict[str, Any], tick: int, quiet: bool = False) -> None:
     """Log a single event in compact one-line chronological format.
 
     Designed for --event-stream mode where events are shown in strict chronological
@@ -553,7 +560,7 @@ def log_event_chronological(event: dict, tick: int, quiet: bool = False):
 # Enhanced Verbose Mode - Detailed Transaction/Event Logging
 # ============================================================================
 
-def log_transaction_arrivals(provider, events, quiet=False):
+def log_transaction_arrivals(provider: StateProvider, events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log detailed transaction arrivals (verbose mode).
 
     For each arrival event, shows:
@@ -617,7 +624,7 @@ def log_transaction_arrivals(provider, events, quiet=False):
         console.print(f"     {amount_str} | {priority_str} | ⏰ Tick {deadline}")
 
 
-def log_settlement_details(provider, events, tick, num_settlements=None, quiet=False):
+def log_settlement_details(provider: StateProvider, events: list[dict[str, Any]], tick: int, num_settlements: int | None = None, quiet: bool = False) -> None:
     """Log detailed settlements showing how each transaction settled.
 
     Categorizes settlements by mechanism:
@@ -786,7 +793,7 @@ def log_settlement_details(provider, events, tick, num_settlements=None, quiet=F
         console.print()
 
 
-def log_agent_queues_detailed(orch, agent_id, balance, balance_change, quiet=False):
+def log_agent_queues_detailed(orch: Any, agent_id: str, balance: int, balance_change: int, quiet: bool = False) -> None:
     """Log agent state with detailed queue contents (verbose mode).
 
     Shows:
@@ -896,7 +903,7 @@ def log_agent_queues_detailed(orch, agent_id, balance, balance_change, quiet=Fal
         console.print()
 
 
-def log_policy_decisions(events, quiet=False):
+def log_policy_decisions(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log policy decisions made this tick (verbose mode).
 
     Shows submit/hold/drop/split decisions with reasoning.
@@ -929,7 +936,7 @@ def log_policy_decisions(events, quiet=False):
     console.print(f"🎯 [blue]Policy Decisions ({len(policy_events)}):[/blue]")
 
     # Group by agent
-    by_agent = {}
+    by_agent: dict[str, list[dict[str, Any]]] = {}
     for event in policy_events:
         agent_id = event.get("agent_id", "unknown")
         if agent_id not in by_agent:
@@ -956,7 +963,7 @@ def log_policy_decisions(events, quiet=False):
         console.print()
 
 
-def log_collateral_activity(provider, events, quiet=False):
+def log_collateral_activity(provider: StateProvider, events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log collateral post/withdraw events with financial impact analysis (verbose mode).
 
     Args:
@@ -989,7 +996,7 @@ def log_collateral_activity(provider, events, quiet=False):
     console.print(f"💰 [yellow]Collateral Activity ({len(collateral_events)}):[/yellow]")
 
     # Group by agent
-    by_agent = {}
+    by_agent: dict[str, list[dict[str, Any]]] = {}
     for event in collateral_events:
         agent_id = event.get("agent_id", "unknown")
         if agent_id not in by_agent:
@@ -1061,9 +1068,9 @@ def log_collateral_activity(provider, events, quiet=False):
 
                     if using_collateralized_credit:
                         console.print(f"     ℹ️  Agent is using collateralized credit (${credit_used / 100:,.2f} vs ${unsecured_cap / 100:,.2f} base limit)")
-                        console.print(f"     ✅ Withdrawal permitted per TARGET2 policy: remaining collateral still covers overdraft")
+                        console.print("     ✅ Withdrawal permitted per TARGET2 policy: remaining collateral still covers overdraft")
                     else:
-                        console.print(f"     ✅ Withdrawal safe - agent has positive balance or is within base credit limit")
+                        console.print("     ✅ Withdrawal safe - agent has positive balance or is within base credit limit")
 
             elif event_type == "CollateralTimerBlocked":
                 requested_amount = event.get("requested_amount", 0)
@@ -1076,13 +1083,13 @@ def log_collateral_activity(provider, events, quiet=False):
                 # Financial impact explanation
                 if balance is not None and reason == "NoHeadroom":
                     console.print(f"     💡 Current headroom: ${headroom / 100:,.2f}")
-                    console.print(f"     ℹ️  Withdrawal would violate Invariant I2 (Withdrawal Headroom Protection)")
+                    console.print("     ℹ️  Withdrawal would violate Invariant I2 (Withdrawal Headroom Protection)")
                     console.print(f"     ℹ️  Remaining collateral must still cover current overdraft of ${credit_used / 100:,.2f}")
 
         console.print()
 
 
-def log_scenario_events(events, quiet=False):
+def log_scenario_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log scenario event executions (verbose mode).
 
     Args:
@@ -1171,7 +1178,7 @@ def log_scenario_events(events, quiet=False):
     console.print()
 
 
-def log_cost_breakdown(provider, agent_ids, quiet=False):
+def log_cost_breakdown(provider: StateProvider, agent_ids: list[str], quiet: bool = False) -> None:
     """Log detailed cost breakdown by agent and type (UNIFIED for live & replay).
 
     Replaces both old log_cost_breakdown() and log_cost_breakdown_from_db().
@@ -1248,7 +1255,7 @@ def log_cost_breakdown(provider, agent_ids, quiet=False):
         console.print()
 
 
-def log_queued_rtgs(events, quiet=False):
+def log_queued_rtgs(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log transactions entering Queue 2 (RTGS central queue) (verbose mode).
 
     Shows when transactions are queued in the RTGS system due to insufficient
@@ -1283,7 +1290,7 @@ def log_queued_rtgs(events, quiet=False):
     console.print()
 
 
-def log_cost_accrual_events(events, quiet=False):
+def log_cost_accrual_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log individual cost accrual events (verbose mode).
 
     Shows when costs are accrued by agents in real-time, providing visibility
@@ -1338,7 +1345,7 @@ def log_cost_accrual_events(events, quiet=False):
         console.print()
 
 
-def log_end_of_day_event(events, quiet=False):
+def log_end_of_day_event(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log structured EndOfDay event (verbose mode).
 
     Shows the EndOfDay event as a structured notification before the detailed
@@ -1372,7 +1379,7 @@ def log_end_of_day_event(events, quiet=False):
         console.print()
 
 
-def log_lsm_cycle_visualization(events, quiet=False):
+def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Visualize LSM cycles showing circular payment chains (verbose mode).
 
     Args:
@@ -1530,7 +1537,7 @@ def log_lsm_cycle_visualization(events, quiet=False):
         cycle_num += 1
 
 
-def log_agent_state_from_db(mock_orch, agent_id: str, state_data: dict, queue_data: dict, quiet=False):
+def log_agent_state_from_db(mock_orch: Any, agent_id: str, state_data: dict[str, Any], queue_data: dict[str, Any], quiet: bool = False) -> None:
     """Log agent state from database (full replay mode).
 
     Shows:
@@ -1613,7 +1620,7 @@ def log_agent_state_from_db(mock_orch, agent_id: str, state_data: dict, queue_da
         console.print()
 
 
-def log_cost_breakdown_from_db(agent_states: list[dict], quiet=False):
+def log_cost_breakdown_from_db(agent_states: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log detailed cost breakdown from database (full replay mode).
 
     Shows cumulative costs for each agent (matching original run behavior).
@@ -1673,14 +1680,14 @@ def log_cost_breakdown_from_db(agent_states: list[dict], quiet=False):
 
 
 def log_end_of_day_statistics(
-    day,
-    total_arrivals,
-    total_settlements,
-    total_lsm_releases,
-    total_costs,
-    agent_stats,
-    quiet=False
-):
+    day: int,
+    total_arrivals: int,
+    total_settlements: int,
+    total_lsm_releases: int,
+    total_costs: int,
+    agent_stats: list[dict[str, Any]],
+    quiet: bool = False
+) -> None:
     """Log comprehensive end-of-day statistics (verbose mode).
 
     Args:
@@ -1767,7 +1774,7 @@ def log_end_of_day_statistics(
     console.print()
 
 def log_transactions_near_deadline(
-    provider,
+    provider: StateProvider,
     within_ticks: int,
     current_tick: int,
     quiet: bool = False
@@ -1805,7 +1812,7 @@ def log_transactions_near_deadline(
 
 
 def log_overdue_transactions_summary(
-    provider,
+    provider: StateProvider,
     quiet: bool = False
 ) -> None:
     """Display summary of all overdue transactions with costs.
@@ -1908,7 +1915,7 @@ def log_overdue_transaction_settled_event(event: dict, quiet: bool = False) -> N
     )
 
 
-def log_priority_escalation_events(events, quiet=False):
+def log_priority_escalation_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log priority escalation events (Phase 5: Dynamic Priority Escalation).
 
     Displays when transaction priorities are boosted due to approaching deadlines.
@@ -1954,7 +1961,7 @@ def log_priority_escalation_events(events, quiet=False):
         )
 
 
-def log_transaction_reprioritized_events(events, quiet=False):
+def log_transaction_reprioritized_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log transaction reprioritization events (Phase 4: Overdue Handling).
 
     Displays when policy explicitly changes a transaction's priority.
@@ -1982,7 +1989,7 @@ def log_transaction_reprioritized_events(events, quiet=False):
     console.print(f"🔄 [magenta]Policy Reprioritizations ({len(reprioritize_events)}):[/magenta]")
 
     # Group by agent
-    by_agent = {}
+    by_agent: dict[str, list[dict[str, Any]]] = {}
     for event in reprioritize_events:
         agent_id = event.get("agent_id", "unknown")
         if agent_id not in by_agent:
@@ -1998,9 +2005,9 @@ def log_transaction_reprioritized_events(events, quiet=False):
 
             # Color code based on direction of change
             if new_priority > old_priority:
-                direction_str = f"[green]↑[/green]"
+                direction_str = "[green]↑[/green]"
             elif new_priority < old_priority:
-                direction_str = f"[red]↓[/red]"
+                direction_str = "[red]↓[/red]"
             else:
                 direction_str = "→"
 
@@ -2010,7 +2017,7 @@ def log_transaction_reprioritized_events(events, quiet=False):
         console.print()
 
 
-def log_state_register_events(events, quiet=False):
+def log_state_register_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log state register update events (Phase 4.5: Policy micro-memory).
 
     Displays when agents update their memory registers, showing how policy
@@ -2051,7 +2058,7 @@ def log_state_register_events(events, quiet=False):
     console.print(f"🧠 [cyan]Agent Memory Updates ({len(state_events)}):[/cyan]")
 
     # Group by agent
-    by_agent = {}
+    by_agent: dict[str, list[dict[str, Any]]] = {}
     for event in state_events:
         agent_id = event.get("agent_id", "unknown")
         if agent_id not in by_agent:
@@ -2086,7 +2093,7 @@ def log_state_register_events(events, quiet=False):
         console.print()
 
 
-def log_budget_operations(events, quiet=False):
+def log_budget_operations(events: list[dict[str, Any]], quiet: bool = False) -> None:
     """Log budget operations (Phase 3.3: Bank-Level Budgets).
 
     Displays when agents set their release budgets, showing adaptive
@@ -2357,7 +2364,7 @@ def log_bilateral_limit_exceeded_event(event: dict, quiet: bool = False) -> None
     current_str = f"${current / 100:,.2f}"
     attempted_str = f"${attempted / 100:,.2f}"
 
-    console.print(f"  [red]⚠ Bilateral Limit Exceeded:[/red]")
+    console.print("  [red]⚠ Bilateral Limit Exceeded:[/red]")
     console.print(f"    {sender} → {receiver}")
     console.print(f"    Limit: {limit_str}, Current Outflow: {current_str}")
     console.print(f"    Attempted: {attempted_str} (would exceed by ${(current + attempted - limit) / 100:,.2f})")
@@ -2382,7 +2389,7 @@ def log_multilateral_limit_exceeded_event(event: dict, quiet: bool = False) -> N
     current_str = f"${current / 100:,.2f}"
     attempted_str = f"${attempted / 100:,.2f}"
 
-    console.print(f"  [red]⚠ Multilateral Limit Exceeded:[/red]")
+    console.print("  [red]⚠ Multilateral Limit Exceeded:[/red]")
     console.print(f"    Sender: {sender}")
     console.print(f"    Total Limit: {limit_str}, Current Total Outflow: {current_str}")
     console.print(f"    Attempted: {attempted_str} (would exceed by ${(current + attempted - limit) / 100:,.2f})")
@@ -2442,7 +2449,7 @@ def log_entry_disposition_offset_event(event: dict, quiet: bool = False) -> None
     incoming_str = f"${incoming_amount / 100:,.2f}"
     queued_str = f"${queued_amount / 100:,.2f}"
 
-    console.print(f"  [green]Entry Disposition Offset:[/green]")
+    console.print("  [green]Entry Disposition Offset:[/green]")
     console.print(f"    {agent_a} ↔ {agent_b}")
     console.print(f"    Incoming: {incoming_tx[:12]}... ({incoming_str})")
     console.print(f"    Queued: {queued_tx[:12]}... ({queued_str})")

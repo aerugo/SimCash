@@ -6,13 +6,13 @@ Implements the Template Method pattern to eliminate 4-way code duplication.
 
 import time
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
 from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 from payment_simulator.cli.filters import EventFilter
 
-from .stats import SimulationStats, TickResult
 from .persistence import PersistenceManager
+from .stats import SimulationStats, TickResult
 
 
 @dataclass
@@ -119,7 +119,7 @@ class SimulationRunner:
         orch: Orchestrator,
         config: SimulationConfig,
         output_strategy: OutputStrategy,
-        persistence: Optional[PersistenceManager] = None,
+        persistence: PersistenceManager | None = None,
     ):
         """Initialize simulation runner.
 
