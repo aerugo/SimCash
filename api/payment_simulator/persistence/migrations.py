@@ -39,7 +39,7 @@ class MigrationManager:
         # Ensure schema_migrations table exists
         self._create_migrations_table()
 
-    def _create_migrations_table(self):
+    def _create_migrations_table(self) -> None:
         """Create schema_migrations table if it doesn't exist."""
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -116,7 +116,7 @@ class MigrationManager:
         # Sort by version number
         return sorted(pending, key=lambda x: x[0])
 
-    def apply_migration(self, version: int, description: str, sql_content: str):
+    def apply_migration(self, version: int, description: str, sql_content: str) -> None:
         """Apply a single migration.
 
         Executes the migration SQL and records it in schema_migrations table.
@@ -154,7 +154,7 @@ class MigrationManager:
             self.conn.rollback()
             raise RuntimeError(f"Migration {version} failed: {e}") from e
 
-    def apply_pending_migrations(self):
+    def apply_pending_migrations(self) -> None:
         """Apply all pending migrations in order.
 
         Scans for pending migrations and applies them sequentially.

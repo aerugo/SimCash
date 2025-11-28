@@ -72,7 +72,7 @@ class TransactionRecord(BaseModel):
     Changes to this model will trigger schema migration warnings.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="transactions",
         primary_key=["simulation_id", "tx_id"],
         indexes=[
@@ -142,7 +142,7 @@ class SimulationRecord(BaseModel):
     optimized for query and comparison operations in Phase 5.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="simulations",
         primary_key=["simulation_id"],
         indexes=[
@@ -192,7 +192,7 @@ class SimulationRecord(BaseModel):
 class SimulationRunRecord(BaseModel):
     """Simulation run metadata."""
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="simulation_runs",
         primary_key=["simulation_id"],
         indexes=[
@@ -229,7 +229,7 @@ class SimulationRunRecord(BaseModel):
 class DailyAgentMetricsRecord(BaseModel):
     """Daily agent metrics for persistence."""
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="daily_agent_metrics",
         primary_key=["simulation_id", "agent_id", "day"],
         indexes=[
@@ -291,7 +291,7 @@ class CollateralEventRecord(BaseModel):
     Added in Phase 8 (two-layer collateral management).
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="collateral_events",
         primary_key=["id"],
         indexes=[
@@ -334,7 +334,7 @@ class AgentQueueSnapshotRecord(BaseModel):
     Added in Phase 3 (Queue Contents Persistence).
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="agent_queue_snapshots",
         primary_key=["simulation_id", "agent_id", "day", "queue_type", "position"],
         indexes=[
@@ -367,7 +367,7 @@ class PolicySnapshotRecord(BaseModel):
     Added in Phase 4 (Policy Snapshot Tracking).
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="policy_snapshots",
         primary_key=["simulation_id", "agent_id", "snapshot_day", "snapshot_tick"],
         indexes=[
@@ -417,7 +417,7 @@ class SimulationCheckpointRecord(BaseModel):
     - Human-readable description
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="simulation_checkpoints",
         primary_key=["checkpoint_id"],
         indexes=[
@@ -488,7 +488,7 @@ class LsmCycleRecord(BaseModel):
     Added in Phase 4 (LSM Cycle Persistence).
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="lsm_cycles",
         primary_key=["id"],
         indexes=[
@@ -537,7 +537,7 @@ class PolicyDecisionRecord(BaseModel):
     Added for --full-replay mode.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="policy_decisions",
         primary_key=["id"],
         indexes=[
@@ -573,7 +573,7 @@ class TickAgentStateRecord(BaseModel):
     Added for --full-replay mode.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="tick_agent_states",
         primary_key=["simulation_id", "agent_id", "tick"],
         indexes=[
@@ -631,7 +631,7 @@ class TickQueueSnapshotRecord(BaseModel):
     Added for --full-replay mode.
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="tick_queue_snapshots",
         primary_key=["simulation_id", "agent_id", "tick", "queue_type", "position"],
         indexes=[
@@ -666,7 +666,7 @@ class SimulationEventRecord(BaseModel):
     - Event details stored as JSON for flexibility
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="simulation_events",
         primary_key=["event_id"],
         indexes=[
@@ -729,7 +729,7 @@ class AgentStateRegisterRecord(BaseModel):
     - Used for replay identity
     """
 
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
         table_name="agent_state_registers",
         primary_key=["simulation_id", "tick", "agent_id", "register_key"],
         indexes=[

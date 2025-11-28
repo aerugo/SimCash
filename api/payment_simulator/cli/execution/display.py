@@ -209,9 +209,9 @@ def display_tick_verbose_output(
         queue1_size = provider.get_queue1_size(agent_id)
         rtgs_queue = provider.get_rtgs_queue_contents()
         agent_in_rtgs = any(
-            provider.get_transaction_details(tx_id).get("sender_id") == agent_id
+            (tx := provider.get_transaction_details(tx_id)) is not None
+            and tx.get("sender_id") == agent_id
             for tx_id in rtgs_queue
-            if provider.get_transaction_details(tx_id)
         )
 
         if balance_change != 0 or queue1_size > 0 or agent_in_rtgs:

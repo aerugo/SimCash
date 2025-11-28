@@ -145,6 +145,9 @@ class PersistenceManager:
         if not self.full_replay:
             return
 
+        # replay_buffers is guaranteed to be set when full_replay is True
+        assert self.replay_buffers is not None
+
         # Calculate day for this tick
         # Note: ticks_per_day should be passed in initialization for proper calculation
         # For now, we'll get it from the tick context

@@ -296,7 +296,7 @@ def get_events(
     """
     # Build WHERE clause dynamically
     where_clauses = ["simulation_id = ?"]
-    params = [simulation_id]
+    params: list[Any] = [simulation_id]
 
     if tick is not None:
         where_clauses.append("tick = ?")
@@ -322,7 +322,8 @@ def get_events(
 
     # Get total count
     count_query = f"SELECT COUNT(*) FROM simulation_events WHERE {where_clause}"
-    total_count = conn.execute(count_query, params).fetchone()[0]
+    count_result = conn.execute(count_query, params).fetchone()
+    total_count = count_result[0] if count_result else 0
 
     # Get events with limit/offset
     events_query = f"""

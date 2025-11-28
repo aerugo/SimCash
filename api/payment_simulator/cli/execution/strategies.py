@@ -249,7 +249,7 @@ class NormalModeOutput:
             # Print directly to stderr (bypasses Rich's Live display)
             print(f"⏱️  Tick {result.tick}: {total_ms:.2f}ms ({phase_info})", file=sys.stderr)
 
-        if self.progress:
+        if self.progress and self.task is not None:
             self.progress.update(self.task, advance=1)
 
     def on_day_complete(self, day: int, day_stats: dict[str, Any], orch: Orchestrator) -> None:
