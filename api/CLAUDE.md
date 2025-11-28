@@ -8,6 +8,73 @@ This is the **Python middleware layer** for the payment simulator. It provides C
 
 ---
 
+## 🔴 Documentation Requirements
+
+### Reference Documentation is Mandatory
+
+The `docs/reference/` directory contains the authoritative documentation for this project. **You MUST consult and maintain this documentation.**
+
+**Reference Structure:**
+```
+docs/reference/
+├── architecture/     # System architecture docs
+├── cli/              # CLI command documentation
+│   ├── commands/     # Per-command reference (run, replay, db, etc.)
+│   ├── exit-codes.md
+│   └── output-modes.md
+├── orchestrator/     # Rust orchestrator internals
+├── policy/           # Policy system reference
+│   ├── index.md      # Policy overview
+│   ├── nodes.md      # Node types
+│   ├── actions.md    # Available actions
+│   └── ...
+└── scenario/         # Scenario configuration docs
+```
+
+### Before Starting Any Work
+
+**ALWAYS read the relevant reference docs first:**
+
+1. **Adding/modifying a CLI command?** → Read `docs/reference/cli/commands/<command>.md`
+2. **Working on policies?** → Read `docs/reference/policy/index.md` and related files
+3. **Changing orchestrator behavior?** → Read `docs/reference/orchestrator/`
+4. **Modifying configuration?** → Read `docs/reference/scenario/`
+
+### After Completing Any Work
+
+**ALWAYS update the relevant reference docs:**
+
+1. **Changed function signatures?** → Update the reference doc
+2. **Added new CLI options?** → Update `docs/reference/cli/commands/<command>.md`
+3. **Modified event types?** → Update orchestrator docs
+4. **Changed config schema?** → Update scenario docs
+
+### Documentation Update Workflow
+
+```bash
+# 1. Before starting work, read relevant docs
+cat docs/reference/cli/commands/run.md
+
+# 2. Make your code changes
+# ...
+
+# 3. Update the reference documentation
+# Edit docs/reference/... to reflect your changes
+
+# 4. Commit both code AND docs together
+git add api/payment_simulator/cli/commands/run.py docs/reference/cli/commands/run.md
+git commit -m "feat: Add --foo option to run command"
+```
+
+### Documentation Principles
+
+- **Reference docs are the source of truth** for behavior, not code comments
+- **Keep docs in sync with code** - stale docs are worse than no docs
+- **Document the "what" and "why"**, not implementation details
+- **Include examples** for non-obvious features
+
+---
+
 ## Python Style Guide
 
 ### Type System Philosophy
@@ -588,12 +655,20 @@ balance: int = 100050  # $1,000.50
 
 ## Checklist Before Committing
 
+### Documentation (REQUIRED)
+- [ ] Read relevant `docs/reference/` docs before starting
+- [ ] Updated `docs/reference/` to reflect any changes
+- [ ] Code and docs committed together
+
+### Type Safety
 - [ ] All functions have complete type annotations (params + return)
 - [ ] No bare `list`, `dict`, `set` without type arguments
 - [ ] No `Any` where a specific type is known
 - [ ] Using `str | None` not `Optional[str]`
 - [ ] Using `list[str]` not `List[str]`
 - [ ] Typer commands use `Annotated` pattern
+
+### Verification
 - [ ] mypy passes: `.venv/bin/python -m mypy payment_simulator/`
 - [ ] ruff passes: `.venv/bin/python -m ruff check payment_simulator/`
 - [ ] Tests pass: `.venv/bin/python -m pytest`

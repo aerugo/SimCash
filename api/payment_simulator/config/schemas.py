@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
@@ -47,12 +47,12 @@ class ExponentialDistribution(BaseModel):
 
 
 # Union type for all distributions
-AmountDistribution = Union[
-    NormalDistribution,
-    LogNormalDistribution,
-    UniformDistribution,
-    ExponentialDistribution,
-]
+AmountDistribution = (
+    NormalDistribution
+    | LogNormalDistribution
+    | UniformDistribution
+    | ExponentialDistribution
+)
 
 
 # ============================================================================
@@ -114,11 +114,11 @@ class UniformPriorityDistribution(BaseModel):
 
 
 # Union type for priority distributions
-PriorityDistribution = Union[
-    FixedPriorityDistribution,
-    CategoricalPriorityDistribution,
-    UniformPriorityDistribution,
-]
+PriorityDistribution = (
+    FixedPriorityDistribution
+    | CategoricalPriorityDistribution
+    | UniformPriorityDistribution
+)
 
 
 # ============================================================================
@@ -300,7 +300,7 @@ class RepeatingSchedule(BaseModel):
     interval: int = Field(..., description="Ticks between executions", gt=0)
 
 
-EventSchedule = Union[OneTimeSchedule, RepeatingSchedule]
+EventSchedule = OneTimeSchedule | RepeatingSchedule
 
 
 class DirectTransferEvent(BaseModel):
@@ -379,15 +379,15 @@ class DeadlineWindowChangeEvent(BaseModel):
 
 
 # Union type for all scenario events
-ScenarioEvent = Union[
-    DirectTransferEvent,
-    CustomTransactionArrivalEvent,
-    CollateralAdjustmentEvent,
-    GlobalArrivalRateChangeEvent,
-    AgentArrivalRateChangeEvent,
-    CounterpartyWeightChangeEvent,
-    DeadlineWindowChangeEvent,
-]
+ScenarioEvent = (
+    DirectTransferEvent
+    | CustomTransactionArrivalEvent
+    | CollateralAdjustmentEvent
+    | GlobalArrivalRateChangeEvent
+    | AgentArrivalRateChangeEvent
+    | CounterpartyWeightChangeEvent
+    | DeadlineWindowChangeEvent
+)
 
 
 # ============================================================================
@@ -432,14 +432,14 @@ class FromJsonPolicy(BaseModel):
 
 
 # Union type for all policies
-PolicyConfig = Union[
-    FifoPolicy,
-    DeadlinePolicy,
-    LiquidityAwarePolicy,
-    LiquiditySplittingPolicy,
-    MockSplittingPolicy,
-    FromJsonPolicy,
-]
+PolicyConfig = (
+    FifoPolicy
+    | DeadlinePolicy
+    | LiquidityAwarePolicy
+    | LiquiditySplittingPolicy
+    | MockSplittingPolicy
+    | FromJsonPolicy
+)
 
 
 # ============================================================================
@@ -738,7 +738,7 @@ class SimulationConfig(BaseModel):
             try:
                 json.loads(policy_json)
             except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON in policy file {policy.json_path}: {e}")
+                raise ValueError(f"Invalid JSON in policy file {policy.json_path}: {e}") from e
 
             return {"type": "FromJson", "json": policy_json}
         else:
@@ -757,10 +757,10 @@ class SimulationConfig(BaseModel):
         else:
             raise ValueError(f"Unknown distribution type: {type(dist)}")
 
-    def _scenario_event_to_ffi_dict(self, event: ScenarioEvent) -> dict:
+    def _scenario_event_to_ffi_dict(self, event: ScenarioEvent) -> dict[str, Any]:
         """Convert scenario event config to FFI dict format."""
         # Extract schedule info
-        schedule_dict: dict
+        schedule_dict: dict[str, str | int | float]
         if isinstance(event.schedule, OneTimeSchedule):
             schedule_dict = {"schedule": "OneTime", "tick": event.schedule.tick}
         elif isinstance(event.schedule, RepeatingSchedule):
