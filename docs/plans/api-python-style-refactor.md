@@ -365,8 +365,8 @@ For future consideration (separate ticket):
 - [x] Phase 2.2: Add type arguments to bare dict (1 fix)
 - [x] Final: mypy passes
 - [x] Final: ruff B904/F401 passes (E501 skipped, RUF cosmetic issues remain)
-- [ ] Final: pytest passes (running)
-- [ ] Final: All changes committed and pushed
+- [x] Final: pytest passes (275 passed, 4 skipped)
+- [x] Final: All changes committed and pushed
 
 ---
 
