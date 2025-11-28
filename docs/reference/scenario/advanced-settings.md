@@ -1,0 +1,328 @@
+# Advanced Settings
+
+Advanced settings control **TARGET2 alignment features** and simulation internals. These are top-level configuration options typically used for research scenarios.
+
+---
+
+## Overview
+
+| Setting | Purpose | Default |
+|:--------|:--------|:--------|
+| `algorithm_sequencing` | Sequenced FIFO→Bilateral→Multilateral LSM | `false` |
+| `entry_disposition_offsetting` | Check offsets at payment entry | `false` |
+| `eod_rush_threshold` | When EOD rush behavior begins | `0.8` |
+
+---
+
+## `algorithm_sequencing`
+
+**Type**: `bool`
+**Location**: Top-level config
+**Default**: `false`
+
+Enables TARGET2-style algorithm sequencing where LSM algorithms run in a defined order.
+
+### Schema
+
+```yaml
+algorithm_sequencing: true
+```
+
+### Implementation
+
+**Rust** (`engine.rs:176-177`):
+```rust
+pub algorithm_sequencing: bool,
+```
+
+### Behavior
+
+When enabled, each tick processes in sequence:
+
+```
+1. FIFO Settlement (RTGS)
+   ↓
+2. Bilateral Offset Detection
+   ↓
+3. Multilateral Cycle Detection
+```
+
+When disabled:
+- LSM runs integrated with RTGS
+- May find different offset opportunities
+
+### Use Cases
+
+- TARGET2 model replication
+- Testing algorithm interaction
+- Research on settlement sequencing
+
+### Example
+
+```yaml
+algorithm_sequencing: true
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+```
+
+---
+
+## `entry_disposition_offsetting`
+
+**Type**: `bool`
+**Location**: Top-level config
+**Default**: `false`
+
+Enables bilateral offset checking when payments **enter** Queue 2.
+
+### Schema
+
+```yaml
+entry_disposition_offsetting: true
+```
+
+### Implementation
+
+**Rust** (`engine.rs:178-179`):
+```rust
+pub entry_disposition_offsetting: bool,
+```
+
+### Behavior
+
+When enabled:
+- Each incoming Queue 2 payment checks for bilateral offset
+- Immediate netting if matching payment exists
+- Can settle before tick-end LSM runs
+
+When disabled:
+- Offsets only found during scheduled LSM runs
+- Payments wait in queue until LSM phase
+
+### Use Cases
+
+- TARGET2 entry disposition behavior
+- Real-time bilateral netting
+- Reducing queue depth
+
+### Example
+
+```yaml
+entry_disposition_offsetting: true
+algorithm_sequencing: true    # Often used together
+```
+
+---
+
+## `eod_rush_threshold`
+
+**Type**: `float`
+**Location**: Top-level config (Rust-only)
+**Constraint**: `0.0 <= value <= 1.0`
+**Default**: `0.8`
+
+Fraction of day when EOD rush behavior activates.
+
+### Schema
+
+```yaml
+eod_rush_threshold: 0.8
+```
+
+### Implementation
+
+**Rust** (`engine.rs:116-118`):
+```rust
+#[pyo3(default = "default_eod_rush")]
+pub eod_rush_threshold: f64,
+
+fn default_eod_rush() -> f64 { 0.8 }
+```
+
+### Behavior
+
+EOD rush activates when:
+```
+current_tick_in_day >= ticks_per_day × eod_rush_threshold
+```
+
+For 100 ticks/day with threshold 0.8:
+- Ticks 0-79: Normal operation
+- Ticks 80-99: EOD rush
+
+### Policy Integration
+
+Available in JSON policies as field `is_eod_rush`:
+- `1.0` if in EOD rush period
+- `0.0` otherwise
+
+### Example Values
+
+| Threshold | Rush Starts At | Description |
+|:----------|:---------------|:------------|
+| `0.6` | 60% of day | Early rush |
+| `0.8` | 80% of day | Default |
+| `0.9` | 90% of day | Late rush |
+| `1.0` | Never | No rush |
+
+### Example
+
+```yaml
+eod_rush_threshold: 0.75    # Rush at 75% of day
+```
+
+---
+
+## Complete Configuration Examples
+
+### TARGET2 Full Alignment
+
+```yaml
+simulation:
+  ticks_per_day: 100
+  num_days: 25
+  rng_seed: 42
+
+# TARGET2 alignment
+algorithm_sequencing: true
+entry_disposition_offsetting: true
+
+# T2 priority handling
+queue1_ordering: "priority_deadline"
+priority_mode: true
+
+priority_escalation:
+  enabled: true
+  curve: "linear"
+  start_escalating_at_ticks: 25
+  max_boost: 4
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 20
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.00035
+  overdraft_bps_per_tick: 0.50
+  overdue_delay_multiplier: 5.0
+```
+
+### BIS-Minimal Configuration
+
+```yaml
+simulation:
+  ticks_per_day: 3
+  num_days: 1
+  rng_seed: 42
+
+# Simple model - disable advanced features
+algorithm_sequencing: false
+entry_disposition_offsetting: false
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: false
+```
+
+### Research Scenario
+
+```yaml
+simulation:
+  ticks_per_day: 100
+  num_days: 10
+  rng_seed: 12345
+
+# Experiment with sequencing
+algorithm_sequencing: true
+entry_disposition_offsetting: true
+
+# Earlier EOD rush
+eod_rush_threshold: 0.7
+
+# Full LSM
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 5
+  max_cycles_per_tick: 15
+```
+
+---
+
+## Interaction Matrix
+
+How advanced settings interact with other configurations:
+
+| Setting | Interacts With | Effect |
+|:--------|:---------------|:-------|
+| `algorithm_sequencing` | `lsm_config` | Defines when LSM runs |
+| `algorithm_sequencing` | `priority_mode` | Priority respected in sequence |
+| `entry_disposition_offsetting` | `lsm_config.enable_bilateral` | Entry-time bilateral check |
+| `eod_rush_threshold` | `ticks_per_day` | Determines rush start tick |
+| `eod_rush_threshold` | Policy `is_eod_rush` | Enables time-based policy |
+
+---
+
+## Events Generated
+
+Advanced settings affect event generation:
+
+### Algorithm Sequencing Events
+
+When `algorithm_sequencing: true`:
+- `AlgorithmPhaseStart` events mark each phase
+- Phase: FIFO, Bilateral, Multilateral
+
+### Entry Disposition Events
+
+When `entry_disposition_offsetting: true`:
+- `EntryDispositionOffset` when immediate bilateral found
+- Includes matched transaction details
+
+---
+
+## Performance Considerations
+
+| Setting | Performance Impact |
+|:--------|:-------------------|
+| `algorithm_sequencing` | Slight overhead from phase separation |
+| `entry_disposition_offsetting` | Extra check per Queue 2 entry |
+| `eod_rush_threshold` | No performance impact |
+
+---
+
+## Rust-Only Settings
+
+Some settings exist only in Rust configuration:
+
+### `queue1_ordering`
+
+Already covered in [priority-system.md](priority-system.md).
+
+### `priority_mode`
+
+Already covered in [priority-system.md](priority-system.md).
+
+### `priority_escalation`
+
+Already covered in [priority-system.md](priority-system.md).
+
+---
+
+## Implementation Location
+
+| Component | File | Lines |
+|:----------|:-----|:------|
+| OrchestratorConfig | `backend/src/orchestrator/engine.rs` | 102-168 |
+| FFI Config Parsing | `backend/src/ffi/types.rs` | 112-257 |
+
+---
+
+## Navigation
+
+**Previous**: [Priority System](priority-system.md)
+**Next**: [Examples](examples.md)
