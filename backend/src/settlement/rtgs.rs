@@ -35,7 +35,7 @@
 
 use crate::models::agent::{Agent, AgentError};
 use crate::models::state::SimulationState;
-use crate::models::transaction::{Transaction, TransactionError, TransactionStatus};
+use crate::models::transaction::{Transaction, TransactionError};
 use thiserror::Error;
 
 /// Errors that can occur during RTGS settlement
@@ -460,6 +460,7 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
     // Replace queue with still-pending transactions
     *state.rtgs_queue_mut() = still_pending;
 
+    #[allow(deprecated)] // Still need to populate for API compatibility
     QueueProcessingResult {
         settled_count,
         settled_value,

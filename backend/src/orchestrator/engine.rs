@@ -924,6 +924,7 @@ pub struct Orchestrator {
     pending_settlements: Vec<String>,
 
     /// Counter for generating unique transaction IDs
+    #[allow(dead_code)] // Reserved for future use
     next_tx_id: usize,
 
     /// Daily metrics for current day (Phase 3: Agent Metrics Collection)
