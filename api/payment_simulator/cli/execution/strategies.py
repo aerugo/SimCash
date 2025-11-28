@@ -6,9 +6,12 @@ output behavior while using the same core execution logic.
 """
 
 from io import StringIO
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
+
+if TYPE_CHECKING:
+    from rich.progress import Progress, TaskID
 from payment_simulator.cli.filters import EventFilter
 from payment_simulator.cli.execution.runner import OutputStrategy, SimulationConfig
 from payment_simulator.cli.execution.stats import TickResult
@@ -200,8 +203,8 @@ class NormalModeOutput:
         self.quiet = quiet
         self.total_ticks = total_ticks
         self.show_debug = show_debug
-        self.progress = None
-        self.task = None
+        self.progress: Optional[Progress] = None
+        self.task: Optional[TaskID] = None
 
     def on_simulation_start(self, config: SimulationConfig) -> None:
         if not self.quiet:
