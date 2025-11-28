@@ -42,6 +42,7 @@ payment-sim db simulations
 |---------|-------------|
 | [`run`](commands/run.md) | Execute a simulation from a configuration file |
 | [`replay`](commands/replay.md) | Replay a persisted simulation from database |
+| [`validate-policy`](commands/validate-policy.md) | Validate a policy tree JSON file |
 | [`policy-schema`](commands/policy-schema.md) | Generate policy schema documentation |
 | [`checkpoint`](commands/checkpoint.md) | Manage simulation checkpoints (save/load/list/delete) |
 | [`db`](commands/db.md) | Database management commands |
@@ -60,6 +61,7 @@ These options are available for all commands:
 ### Commands
 - [run](commands/run.md) - Run simulations with various output modes
 - [replay](commands/replay.md) - Replay persisted simulations
+- [validate-policy](commands/validate-policy.md) - Validate policy tree JSON files
 - [policy-schema](commands/policy-schema.md) - Generate policy documentation
 - [checkpoint](commands/checkpoint.md) - Checkpoint management subcommands
 - [db](commands/db.md) - Database management subcommands
@@ -75,6 +77,7 @@ These options are available for all commands:
 payment-sim
 ├── run                    # Main simulation command
 ├── replay                 # Database replay
+├── validate-policy        # Policy validation
 ├── policy-schema          # Schema documentation
 ├── checkpoint             # Checkpoint subcommands
 │   ├── save
