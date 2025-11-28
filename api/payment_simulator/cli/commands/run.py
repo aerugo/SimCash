@@ -13,7 +13,7 @@ import polars as pl
 import typer
 import yaml
 
-from payment_simulator._core import Orchestrator
+from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
 from payment_simulator.cli.filters import EventFilter
 from payment_simulator.cli.output import (  # Enhanced verbose mode functions
     log_error,
@@ -668,6 +668,7 @@ def run_simulation(
             # Create persistence manager if needed
             persistence = None
             if persist and db_manager:
+                assert sim_id is not None  # Set when persist=True
                 persistence = PersistenceManager(db_manager, sim_id, full_replay)
 
             # Create runner config
@@ -692,7 +693,7 @@ def run_simulation(
                 # The tick counters count ALL settlements (including split children)
                 # but get_system_metrics() correctly counts only effectively settled parents
                 corrected_metrics = orch.get_system_metrics()
-
+                assert persistence is not None  # Created when persist=True
                 persistence.persist_final_metadata(
                     config_path=config,
                     config_dict=config_dict,
@@ -743,7 +744,7 @@ def run_simulation(
                     }
                 )
 
-            output_data = {
+            output_data: dict[str, Any] = {
                 "simulation": {
                     "config_file": str(config),
                     "seed": ffi_dict["rng_seed"],
@@ -799,6 +800,7 @@ def run_simulation(
             # Create persistence manager if needed
             persistence = None
             if persist and db_manager:
+                assert sim_id is not None  # Set when persist=True
                 persistence = PersistenceManager(db_manager, sim_id, False)  # event_stream: no full_replay
 
             # Create runner config
@@ -823,7 +825,7 @@ def run_simulation(
                 # The tick counters count ALL settlements (including split children)
                 # but get_system_metrics() correctly counts only effectively settled parents
                 corrected_metrics = orch.get_system_metrics()
-
+                assert persistence is not None  # Created when persist=True
                 persistence.persist_final_metadata(
                     config_path=config,
                     config_dict=config_dict,
@@ -890,6 +892,7 @@ def run_simulation(
             # Create persistence manager if needed
             persistence = None
             if persist and db_manager:
+                assert sim_id is not None  # Set when persist=True
                 persistence = PersistenceManager(db_manager, sim_id, False)  # stream mode: no full_replay
 
             # Create runner config
@@ -914,7 +917,7 @@ def run_simulation(
                 # The tick counters count ALL settlements (including split children)
                 # but get_system_metrics() correctly counts only effectively settled parents
                 corrected_metrics = orch.get_system_metrics()
-
+                assert persistence is not None  # Created when persist=True
                 persistence.persist_final_metadata(
                     config_path=config,
                     config_dict=config_dict,
@@ -983,6 +986,7 @@ def run_simulation(
             # Create persistence manager if needed
             persistence = None
             if persist and db_manager:
+                assert sim_id is not None  # Set when persist=True
                 persistence = PersistenceManager(db_manager, sim_id, False)  # normal mode: no full_replay
 
             # Create runner config
@@ -1007,7 +1011,7 @@ def run_simulation(
                 # The tick counters count ALL settlements (including split children)
                 # but get_system_metrics() correctly counts only effectively settled parents
                 corrected_metrics = orch.get_system_metrics()
-
+                assert persistence is not None  # Created when persist=True
                 persistence.persist_final_metadata(
                     config_path=config,
                     config_dict=config_dict,

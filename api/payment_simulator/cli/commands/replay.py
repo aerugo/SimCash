@@ -537,7 +537,7 @@ def _reconstruct_queue_snapshots(
     simulation_id: str,
     tick: int,
     tx_cache: dict[str, dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, dict[str, list[str]]]:
     """Reconstruct queue snapshots from transaction cache and events.
 
     CRITICAL FIX (Discrepancy #1): Near-deadline warnings require knowing which
@@ -598,7 +598,7 @@ def _reconstruct_queue_snapshots(
                 pass
 
     # Build queue snapshots by agent
-    queue_snapshots = {}
+    queue_snapshots: dict[str, dict[str, list[str]]] = {}
     for tx_id, tx in tx_cache.items():
         # Skip if not arrived yet
         if tx["arrival_tick"] > tick:

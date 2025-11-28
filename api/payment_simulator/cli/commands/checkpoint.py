@@ -174,7 +174,7 @@ def load_checkpoint(
     config: Annotated[
         Path,
         typer.Option("--config", help="Configuration file (YAML)"),
-    ] = ...,
+    ] = ...,  # type: ignore[assignment]  # Typer required Option pattern
     output: Annotated[
         Path | None,
         typer.Option("--output", "-o", help="Save restored state to file"),
@@ -216,12 +216,14 @@ def load_checkpoint(
 
         # Get checkpoint
         if checkpoint_id == "latest":
+            assert simulation_id is not None  # Validated above
             checkpoint_record = checkpoint_mgr.get_latest_checkpoint(simulation_id)
             if checkpoint_record is None:
                 console.print(f"[red]Error: No checkpoints found for simulation {simulation_id}[/red]")
                 raise typer.Exit(1)
             actual_checkpoint_id = checkpoint_record["checkpoint_id"]
         else:
+            assert checkpoint_id is not None  # Validated at start
             actual_checkpoint_id = checkpoint_id
             checkpoint_record = checkpoint_mgr.get_checkpoint(actual_checkpoint_id)
             if checkpoint_record is None:
