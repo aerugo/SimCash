@@ -6,7 +6,7 @@ payment_simulator._core.
 """
 
 # Re-export everything from the Rust module
-from payment_simulator_core_rs import *  # noqa: F403
+from payment_simulator_core_rs import *  # noqa: F401, F403
 
 # Preserve module documentation if it exists
 try:
@@ -18,6 +18,7 @@ except (ImportError, AttributeError):
 
 # Preserve __all__ if defined in Rust module
 try:
-    from payment_simulator_core_rs import __all__
+    from payment_simulator_core_rs import __all__ as _rust_all
+    __all__ = _rust_all
 except (ImportError, AttributeError):
     pass
