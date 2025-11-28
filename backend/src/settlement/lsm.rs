@@ -579,6 +579,7 @@ fn calculate_cycle_net_positions(
 
 /// Error type for cycle feasibility checks
 #[derive(Debug)]
+#[allow(dead_code)] // Fields used for debugging in Debug impl
 enum CycleFeasibilityError {
     /// Sum of net positions doesn't equal zero (conservation violated)
     ConservationViolated { sum: i64 },

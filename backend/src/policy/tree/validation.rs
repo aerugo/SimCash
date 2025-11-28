@@ -12,7 +12,7 @@ use crate::policy::tree::context::EvalContext;
 use crate::policy::tree::types::{
     Computation, DecisionTreeDef, Expression, TreeNode, Value, ValueOrCompute,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use thiserror::Error;
 
 /// Validation errors
@@ -243,7 +243,7 @@ fn compute_tree_depth(node: &TreeNode, current_depth: usize) -> usize {
 /// - collateral trees: bank fields only (no transactions, no state registers)
 fn validate_field_references(
     tree: &DecisionTreeDef,
-    sample_context: &EvalContext,
+    _sample_context: &EvalContext,
 ) -> ValidationResult {
     let mut errors = Vec::new();
 
@@ -921,6 +921,7 @@ mod tests {
     use crate::policy::tree::types::{ActionType, Expression, TreeNode, Value};
     use crate::{Agent, SimulationState, Transaction};
     use serde_json::json;
+    use std::collections::HashMap;
 
     fn create_sample_context() -> EvalContext {
         let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 50);
