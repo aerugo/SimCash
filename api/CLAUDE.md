@@ -2,9 +2,9 @@
 
 ## You Are Here: `/api`
 
-This is the **Python FastAPI middleware** layer that sits between the Rust core and external clients. It provides HTTP/WebSocket endpoints, configuration management, and orchestration.
+This is the **Python FastAPI middleware** layer that sits between the Rust core and external clients. It provides HTTP/WebSocket endpoints, configuration management, CLI tools, and orchestration.
 
-**Your role**: You're an expert Python developer who understands async programming, API design, and how to safely interface with native code via FFI.
+**Your role**: You're an expert Python developer who understands async programming, API design, strict type safety, and how to safely interface with native code via FFI.
 
 ---
 
@@ -15,44 +15,325 @@ This is the **Python FastAPI middleware** layer that sits between the Rust core 
 api/
 ├── payment_simulator/
 │   ├── __init__.py
+│   ├── _core.py                ← Rust FFI re-exports
+│   ├── backends.py             ← Rust backend wrapper
+│   │
 │   ├── api/                    ← FastAPI routes and models
 │   │   ├── __init__.py
-│   │   ├── main.py             ← FastAPI app entry point
-│   │   ├── routes/
-│   │   │   ├── simulations.py  ← Simulation lifecycle endpoints
-│   │   │   ├── websocket.py    ← Real-time updates
-│   │   │   └── health.py       ← Health checks
-│   │   └── models/
-│   │       ├── requests.py     ← Pydantic request models
-│   │       └── responses.py    ← Pydantic response models
-│   ├── backends/               ← FFI wrapper layer
+│   │   └── main.py             ← FastAPI app entry point
+│   │
+│   ├── cli/                    ← CLI tool layer
 │   │   ├── __init__.py
-│   │   ├── protocol.py         ← Abstract interface
-│   │   └── rust_backend.py     ← Rust FFI implementation
+│   │   ├── main.py             ← Typer CLI entry point
+│   │   ├── output.py           ← Rich console output utilities
+│   │   ├── filters.py          ← Event filtering (EventFilter class)
+│   │   │
+│   │   ├── commands/           ← CLI command implementations
+│   │   │   ├── __init__.py
+│   │   │   ├── run.py          ← Run simulation command
+│   │   │   ├── replay.py       ← Replay from database command
+│   │   │   ├── checkpoint.py   ← Save/load checkpoints
+│   │   │   ├── db.py           ← Database management commands
+│   │   │   ├── policy_schema.py      ← Policy schema docs
+│   │   │   └── validate_policy.py    ← Policy validation
+│   │   │
+│   │   └── execution/          ← Simulation execution engine
+│   │       ├── __init__.py
+│   │       ├── runner.py       ← SimulationRunner (template method)
+│   │       ├── strategies.py   ← OutputStrategy implementations
+│   │       ├── persistence.py  ← PersistenceManager
+│   │       ├── stats.py        ← TickResult, SimulationStats
+│   │       ├── state_provider.py  ← StateProvider protocol
+│   │       └── display.py      ← Shared verbose output logic
+│   │
 │   ├── config/                 ← Configuration schemas
 │   │   ├── __init__.py
-│   │   ├── schema.py           ← Pydantic models for YAML
-│   │   └── validator.py        ← Configuration validation
-│   ├── core/                   ← Lifecycle management
-│   │   ├── __init__.py
-│   │   ├── lifecycle.py        ← Simulation state machine
-│   │   └── manager.py          ← Simulation manager
-│   └── metrics/                ← Aggregation and storage
+│   │   ├── schemas.py          ← Pydantic models for YAML
+│   │   └── loader.py           ← Configuration loading
+│   │
+│   └── persistence/            ← Database persistence layer
 │       ├── __init__.py
-│       ├── aggregator.py       ← Metric computation
-│       └── storage.py          ← Metric persistence
+│       ├── models.py           ← Pydantic models (schema source of truth)
+│       ├── connection.py       ← DatabaseManager
+│       ├── writers.py          ← Batch write functions
+│       ├── queries.py          ← Query functions
+│       ├── event_writer.py     ← Event persistence
+│       ├── event_queries.py    ← Event query functions
+│       ├── checkpoint.py       ← CheckpointManager
+│       ├── migrations.py       ← MigrationManager
+│       ├── policy_tracking.py  ← Policy helper functions
+│       └── schema_generator.py ← DDL generation from Pydantic
+│
+├── migrations/                 ← Database schema migrations
+│   └── *.sql
+│
 ├── tests/
-│   ├── unit/                   ← Pure Python unit tests
-│   ├── integration/            ← FFI integration tests
-│   │   ├── test_rust_ffi_determinism.py
-│   │   └── test_rust_ffi_safety.py
-│   └── e2e/                    ← End-to-end API tests
-│       └── test_simulation_lifecycle.py
-├── config/                     ← Example configurations
-│   ├── simple.yaml
-│   └── with-arrivals.yaml
-├── pyproject.toml
-└── pytest.ini
+│   └── integration/            ← FFI and persistence tests
+│       ├── test_replay_identity*.py
+│       ├── test_queries.py
+│       └── ...
+│
+└── pyproject.toml              ← Build config + tool settings
+```
+
+---
+
+## 🔴 CRITICAL: Type Safety Requirements
+
+### Strict Typing is MANDATORY
+
+All Python code in this project MUST have complete type annotations. This is a **company styleguide requirement** and is enforced via static type checking.
+
+### Type Annotation Rules
+
+1. **ALL function signatures must have type hints**:
+   - Every parameter must have a type annotation
+   - Every function must have a return type annotation (use `-> None` for void functions)
+
+2. **Use modern Python type syntax** (Python 3.11+):
+   - Use `list[str]` instead of `List[str]`
+   - Use `dict[str, int]` instead of `Dict[str, int]`
+   - Use `str | None` instead of `Optional[str]`
+   - Use `X | Y` instead of `Union[X, Y]`
+
+3. **Typer commands use `Annotated`**:
+   ```python
+   from typing_extensions import Annotated
+
+   def my_command(
+       path: Annotated[Path, typer.Option("--path", help="File path")],
+       verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
+   ) -> None:
+       ...
+   ```
+
+4. **Protocol for duck typing**:
+   ```python
+   from typing import Protocol, runtime_checkable
+
+   @runtime_checkable
+   class OutputStrategy(Protocol):
+       def on_tick_complete(self, result: TickResult, orch: Orchestrator) -> None:
+           ...
+   ```
+
+### ✅ Good Typing Examples
+
+**From persistence/models.py (EXEMPLARY - follow this pattern):**
+```python
+from datetime import datetime
+from enum import Enum
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class TransactionStatus(str, Enum):
+    """Transaction status enumeration."""
+    PENDING = "pending"
+    SETTLED = "settled"
+    DROPPED = "dropped"
+
+
+class TransactionRecord(BaseModel):
+    """Transaction record for persistence."""
+
+    model_config = ConfigDict(
+        table_name="transactions",
+        primary_key=["simulation_id", "tx_id"],
+    )
+
+    simulation_id: str = Field(..., description="Foreign key")
+    tx_id: str = Field(..., description="Unique identifier")
+    sender_id: str = Field(..., description="Sender agent ID")
+    amount: int = Field(..., description="Amount in cents", ge=0)
+    status: TransactionStatus = Field(..., description="Current status")
+    settlement_tick: int | None = Field(None, description="When settled")
+```
+
+**From cli/execution/runner.py (Protocol + dataclass pattern):**
+```python
+from dataclasses import dataclass
+from typing import Protocol, Any
+
+
+@dataclass
+class SimulationConfig:
+    """Configuration for simulation execution."""
+    total_ticks: int
+    ticks_per_day: int
+    num_days: int
+    persist: bool
+    full_replay: bool
+    db_path: str | None = None
+    event_filter: EventFilter | None = None
+
+
+class OutputStrategy(Protocol):
+    """Protocol for mode-specific output handling."""
+
+    def on_simulation_start(self, config: SimulationConfig) -> None:
+        """Called before simulation starts."""
+        ...
+
+    def on_tick_complete(self, result: TickResult, orch: Orchestrator) -> None:
+        """Called after tick execution."""
+        ...
+```
+
+**From persistence/queries.py (return types + Optional parameters):**
+```python
+import polars as pl
+from typing import Any
+
+
+def get_agent_performance(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    agent_id: str
+) -> pl.DataFrame:
+    """Get agent performance metrics over time."""
+    ...
+
+
+def get_simulation_events(
+    conn: duckdb.DuckDBPyConnection,
+    simulation_id: str,
+    tick: int | None = None,
+    agent_id: str | None = None,
+    event_type: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Query simulation events with filtering."""
+    ...
+```
+
+### ❌ Bad Typing Examples (DO NOT DO THIS)
+
+```python
+# ❌ BAD: Missing parameter types
+def process_data(data, config):
+    return data
+
+# ❌ BAD: Missing return type
+def get_balance(agent_id: str):
+    return self.balances[agent_id]
+
+# ❌ BAD: Using Any when specific type is known
+def tick(self) -> Any:
+    return self._orchestrator.tick()
+
+# ❌ BAD: Not using Annotated for Typer
+def command(db_path: str = typer.Option("db.sqlite")):
+    pass
+
+# ❌ BAD: Old-style typing imports
+from typing import List, Dict, Optional, Union
+def func(items: List[str]) -> Dict[str, Optional[int]]:
+    pass
+```
+
+```python
+# ✅ GOOD: Full type annotations
+def process_data(data: list[dict[str, Any]], config: SimConfig) -> ProcessedResult:
+    return ProcessedResult(data)
+
+# ✅ GOOD: Explicit return type
+def get_balance(self, agent_id: str) -> int:
+    return self.balances[agent_id]
+
+# ✅ GOOD: Specific return type
+def tick(self) -> dict[str, Any]:
+    return self._orchestrator.tick()
+
+# ✅ GOOD: Using Annotated for Typer
+def command(
+    db_path: Annotated[str, typer.Option("--db-path")] = "db.sqlite"
+) -> None:
+    pass
+
+# ✅ GOOD: Modern type syntax
+def func(items: list[str]) -> dict[str, int | None]:
+    pass
+```
+
+---
+
+## 🔴 Linting and Static Type Checking
+
+### Required Tools
+
+The following tools are REQUIRED for all Python code:
+
+1. **mypy** - Static type checker
+2. **ruff** - Fast Python linter (replaces flake8, isort, etc.)
+
+### Running Checks
+
+```bash
+# Type checking (MUST pass before committing)
+.venv/bin/python -m mypy payment_simulator/
+
+# Linting (MUST pass before committing)
+.venv/bin/python -m ruff check payment_simulator/
+
+# Auto-fix linting issues
+.venv/bin/python -m ruff check --fix payment_simulator/
+
+# Format code
+.venv/bin/python -m ruff format payment_simulator/
+```
+
+### Configuration (pyproject.toml)
+
+The project uses the following tool configuration:
+
+```toml
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_optional = true
+
+# Per-module overrides (for gradual migration)
+[[tool.mypy.overrides]]
+module = "payment_simulator.cli.commands.*"
+disallow_untyped_defs = false  # Being migrated
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "ANN",  # flake8-annotations
+]
+ignore = [
+    "ANN101",  # Missing type annotation for self
+    "ANN102",  # Missing type annotation for cls
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN"]  # Tests don't require full annotations
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
 ```
 
 ---
@@ -986,19 +1267,59 @@ The `USE_NEW_RUNNER` flag enables A/B testing. Once fully validated, the old imp
 
 ## Checklist Before Committing
 
+### Type Safety (REQUIRED)
+- [ ] **ALL functions have type annotations** (parameters AND return types)
+- [ ] **mypy passes**: `.venv/bin/python -m mypy payment_simulator/`
+- [ ] **ruff passes**: `.venv/bin/python -m ruff check payment_simulator/`
+- [ ] Using modern type syntax (`str | None`, not `Optional[str]`)
+- [ ] Typer commands use `Annotated` pattern
+- [ ] No `Any` where specific types are known
+
+### Money Safety
 - [ ] All money values are `int` (never `float`)
+- [ ] Amounts in cents, not dollars
+
+### FFI Safety
 - [ ] Pydantic models validate config early
 - [ ] FFI calls wrapped in try/except
 - [ ] Async functions use `run_in_executor` for Rust calls
-- [ ] Tests pass: `pytest`
-- [ ] Type hints correct: `mypy payment_simulator/`
-- [ ] Code formatted: `black payment_simulator/`
 - [ ] No stale state cached from Rust
-- [ ] Logging added for important operations
+
+### Testing
+- [ ] Tests pass: `.venv/bin/python -m pytest`
 - [ ] Integration tests cover FFI boundary
+- [ ] New code has test coverage
+
+### Code Quality
+- [ ] Code formatted: `.venv/bin/python -m ruff format payment_simulator/`
+- [ ] Logging added for important operations
+- [ ] Docstrings present for public functions
 
 ---
 
-*Last updated: 2025-10-27*
+## Typing Migration Status
+
+The following modules have complete type coverage:
+- ✅ `persistence/` - All files fully typed
+- ✅ `config/` - All files fully typed
+- ✅ `cli/execution/` - All files fully typed
+- ✅ `cli/output.py` - Fully typed
+- ✅ `cli/filters.py` - Fully typed
+- ✅ `cli/main.py` - Fully typed
+
+The following modules need typing improvements (in progress):
+- ⚠️ `cli/commands/run.py` - Helper functions need types
+- ⚠️ `cli/commands/replay.py` - Reconstruction functions need types
+- ⚠️ `cli/commands/db.py` - Typer commands need `Annotated`
+- ⚠️ `cli/commands/checkpoint.py` - Typer commands need `Annotated`
+- ⚠️ `cli/commands/policy_schema.py` - Needs typing improvements
+- ⚠️ `cli/commands/validate_policy.py` - Partially typed
+- ⚠️ `api/main.py` - Minimal, needs review
+
+See `docs/plans/api-typing-linting-refactor.md` for the full migration plan.
+
+---
+
+*Last updated: 2025-11-28*
 *For Rust core guidance, see `/backend/CLAUDE.md`*
 *For general patterns, see root `/CLAUDE.md`*

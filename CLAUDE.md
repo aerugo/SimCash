@@ -154,27 +154,32 @@ Each agent has a configuration controlling automatic transaction generation:
 │   ├── src/
 │   │   ├── lib.rs               ← PyO3 FFI exports
 │   │   ├── core/                ← Time management, initialization
-│   │   ├── models/              ← Transaction, Agent, State
+│   │   ├── models/              ← Transaction, Agent, State, Events
 │   │   ├── orchestrator/        ← Main simulation loop
 │   │   ├── settlement/          ← RTGS + LSM engines
 │   │   └── rng/                 ← Deterministic RNG
 │   ├── tests/                   ← Rust integration tests
 │   └── Cargo.toml
 ├── api/
-│   ├── CLAUDE.md                ← Python-specific guidance
+│   ├── CLAUDE.md                ← Python-specific guidance (TYPE SAFETY REQUIRED)
 │   ├── payment_simulator/
 │   │   ├── api/                 ← FastAPI routes
-│   │   ├── backends/            ← FFI wrapper
+│   │   ├── cli/                 ← CLI tool (Typer)
+│   │   │   ├── commands/        ← CLI command implementations
+│   │   │   └── execution/       ← SimulationRunner, persistence
 │   │   ├── config/              ← Pydantic schemas
-│   │   └── core/                ← Lifecycle management
-│   └── tests/                   ← Python tests
+│   │   └── persistence/         ← DuckDB persistence layer
+│   ├── migrations/              ← Database schema migrations
+│   ├── tests/                   ← Python tests
+│   └── pyproject.toml           ← Build config + mypy/ruff settings
 ├── frontend/
 │   ├── CLAUDE.md                ← React-specific guidance (future)
 │   └── src/
 ├── docs/
 │   ├── architecture.md
 │   ├── api.md
-│   └── game-design.md
+│   ├── game-design.md
+│   └── plans/                   ← Feature implementation plans
 └── .claude/
     ├── commands/                ← Custom slash commands
     └── agents/                  ← Specialized subagents
@@ -875,6 +880,38 @@ Red flags:
 
 ---
 
+## 🔴 Python Code Quality Requirements
+
+### Strict Typing is MANDATORY
+
+All Python code in the `/api` directory MUST have complete type annotations. This is a **company styleguide requirement** enforced via static type checking.
+
+**Key Requirements:**
+- Every function parameter MUST have a type annotation
+- Every function MUST have a return type (use `-> None` for void)
+- Use modern syntax: `str | None` not `Optional[str]`, `list[str]` not `List[str]`
+- Typer CLI commands MUST use the `Annotated` pattern
+
+**Enforcement Tools:**
+- **mypy**: Static type checker (MUST pass before committing)
+- **ruff**: Fast linter (MUST pass before committing)
+
+**Running Checks:**
+```bash
+cd api
+.venv/bin/python -m mypy payment_simulator/
+.venv/bin/python -m ruff check payment_simulator/
+```
+
+**Reference Modules (exemplary typing):**
+- `persistence/models.py` - Pydantic models with Field descriptions
+- `cli/execution/runner.py` - Protocol pattern, dataclasses
+- `persistence/queries.py` - Return types, Optional parameters
+
+**See `api/CLAUDE.md` for full typing guidelines and examples.**
+
+---
+
 ## Breaking Changes
 
 ### Removed in 2025-11-16
@@ -909,5 +946,5 @@ See `docs/research/deprecate-settlement-event-compatibility.md` for details.
 
 ---
 
-*Last updated: 2025-11-16*
+*Last updated: 2025-11-28*
 *This is a living document. Update it as the project evolves.*
