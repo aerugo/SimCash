@@ -57,7 +57,7 @@ fn test_calculate_queue2_pressure_index_moderate() {
     ]);
 
     // Add some transactions to Queue 2
-    for i in 0..5 {
+    for _ in 0..5 {
         let tx = create_tx("BANK_A", "BANK_B", 20_000, 0, 100);
         state.add_transaction(tx);
     }
@@ -82,7 +82,7 @@ fn test_calculate_queue2_pressure_index_high() {
     ]);
 
     // Add many transactions to Queue 2
-    for i in 0..50 {
+    for _ in 0..50 {
         let tx = create_tx("BANK_A", "BANK_B", 10_000, 0, 100);
         state.add_transaction(tx);
     }
@@ -106,7 +106,7 @@ fn test_queue2_pressure_index_normalized_to_one() {
     ]);
 
     // Add extreme number of transactions
-    for i in 0..500 {
+    for _ in 0..500 {
         let tx = create_tx("BANK_A", "BANK_B", 1_000, 0, 100);
         state.add_transaction(tx);
     }
@@ -223,7 +223,7 @@ fn test_context_exposes_system_pressure_field() {
     ]);
 
     // Add some transactions to Queue 2
-    for i in 0..10 {
+    for _ in 0..10 {
         let tx = create_tx("BANK_A", "BANK_B", 10_000, 0, 100);
         state.add_transaction(tx);
     }

@@ -563,7 +563,8 @@ fn test_end_of_day_event() {
     {
         assert_eq!(*tick, 4, "EOD event should be at last tick of day");
         assert_eq!(*day, 0, "Should be day 0");
-        assert!(*unsettled_count >= 0, "Unsettled count should be non-negative");
+        // unsettled_count is usize, so always >= 0
+        let _ = unsettled_count; // Verify field is present
         assert!(*total_penalties >= 0, "Penalties should be non-negative");
     }
 }

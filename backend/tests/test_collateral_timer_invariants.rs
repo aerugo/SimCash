@@ -246,7 +246,7 @@ fn test_timer_respects_minimum_holding_period() {
         5,
     );
 
-    let collateral_before = agent.posted_collateral();
+    let _collateral_before = agent.posted_collateral();
 
     // Process timer at tick 8 (too early!)
     // Note: Current mock doesn't check min holding period, but real implementation should

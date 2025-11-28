@@ -124,7 +124,7 @@ fn test_get_rtgs_queue_contents_returns_tx_ids() {
     // RED TEST - This will fail until we implement get_rtgs_queue_contents
 
     // Create orchestrator
-    let mut orch = Orchestrator::new(create_test_config()).unwrap();
+    let _orch = Orchestrator::new(create_test_config()).unwrap();
 
     // Submit a transaction that will be queued (insufficient balance)
     // Give BANK_A very low balance
