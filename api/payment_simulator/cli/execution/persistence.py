@@ -83,6 +83,7 @@ class PersistenceManager:
         self.full_replay = full_replay
 
         # Initialize replay buffers if full replay mode
+        self.replay_buffers: dict[str, list[Any]] | None = None
         if full_replay:
             self.replay_buffers = {
                 "policy_decisions": [],
@@ -92,8 +93,6 @@ class PersistenceManager:
             # Track previous state for delta calculations
             self._prev_balances: dict[str, int] = {}
             self._prev_costs: dict[str, dict[str, int]] = {}
-        else:
-            self.replay_buffers = None
 
     def persist_initial_snapshots(self, orch: Orchestrator) -> None:
         """Persist initial policy snapshots at t=0.
