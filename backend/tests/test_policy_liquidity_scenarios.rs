@@ -44,6 +44,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -56,6 +57,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
                 unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -65,12 +67,12 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
-            scenario_events: None,
+        scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
-            algorithm_sequencing: false,
-            entry_disposition_offsetting: false,
+        algorithm_sequencing: false,
+        entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -140,6 +142,7 @@ fn test_liquidity_aware_buffer_recovery() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -152,6 +155,7 @@ fn test_liquidity_aware_buffer_recovery() {
                 unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -161,12 +165,12 @@ fn test_liquidity_aware_buffer_recovery() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
-            scenario_events: None,
+        scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
-            algorithm_sequencing: false,
-            entry_disposition_offsetting: false,
+        algorithm_sequencing: false,
+        entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -259,6 +263,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
                     urgency_threshold: 5,
                 },
                 arrival_config: Some(arrival_config),
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -271,6 +276,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
                 unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -280,12 +286,12 @@ fn test_liquidity_aware_credit_limit_interaction() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
-            scenario_events: None,
+        scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
-            algorithm_sequencing: false,
-            entry_disposition_offsetting: false,
+        algorithm_sequencing: false,
+        entry_disposition_offsetting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -372,6 +378,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                     urgency_threshold: 2, // Conservative: only very urgent
                 },
                 arrival_config: Some(arrival_config.clone()),
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -384,6 +391,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                 unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -393,12 +401,12 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
-            scenario_events: None,
+        scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
-            algorithm_sequencing: false,
-            entry_disposition_offsetting: false,
+        algorithm_sequencing: false,
+        entry_disposition_offsetting: false,
     };
 
     // Aggressive (high urgency threshold = more overrides)
@@ -416,6 +424,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                     urgency_threshold: 8, // Aggressive: many considered urgent
                 },
                 arrival_config: Some(arrival_config),
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -428,6 +437,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
                 unsecured_cap: 0,
                 policy: PolicyConfig::Fifo,
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                 collateral_haircut: None,
                 limits: None,
@@ -437,12 +447,12 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         ],
         cost_rates: CostRates::default(),
         lsm_config: LsmConfig::default(),
-            scenario_events: None,
+        scenario_events: None,
         queue1_ordering: Queue1Ordering::default(),
         priority_mode: false,
         priority_escalation: Default::default(),
-            algorithm_sequencing: false,
-            entry_disposition_offsetting: false,
+        algorithm_sequencing: false,
+        entry_disposition_offsetting: false,
     };
 
     let mut orch_conservative = Orchestrator::new(config_conservative).unwrap();

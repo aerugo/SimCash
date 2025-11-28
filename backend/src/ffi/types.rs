@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
 
-use crate::arrivals::{AmountDistribution, ArrivalConfig, PriorityDistribution};
+use crate::arrivals::{AmountDistribution, ArrivalBandConfig, ArrivalBandsConfig, ArrivalConfig, PriorityDistribution};
 use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
 use crate::orchestrator::{AgentConfig, AgentLimitsConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityDelayMultipliers, PriorityEscalationConfig, Queue1Ordering, TickResult};
 use crate::settlement::lsm::LsmConfig;
@@ -277,6 +277,14 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         None
     };
 
+    // Parse optional arrival bands config (Enhancement 11.3)
+    let arrival_bands = if let Some(py_bands) = py_agent.get_item("arrival_bands")? {
+        let bands_dict: Bound<'_, PyDict> = py_bands.downcast_into()?;
+        Some(parse_arrival_bands_config(&bands_dict)?)
+    } else {
+        None
+    };
+
     // Parse required unsecured_cap using helper
     let unsecured_cap: i64 = extract_required(py_agent, "unsecured_cap")?;
 
@@ -304,6 +312,7 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         unsecured_cap,
         policy,
         arrival_config,
+        arrival_bands,
         posted_collateral,
         collateral_haircut,
         limits,
@@ -523,6 +532,103 @@ fn parse_arrival_config(py_arrivals: &Bound<'_, PyDict>) -> PyResult<ArrivalConf
         counterparty_weights,
         deadline_range,
         priority_distribution,
+        divisible,
+    })
+}
+
+/// Convert Python dict to ArrivalBandsConfig (Enhancement 11.3)
+///
+/// Expected format:
+/// ```python
+/// {
+///     "urgent": { "rate_per_tick": 0.5, "amount_distribution": {...}, ... },
+///     "normal": { "rate_per_tick": 2.0, ... },
+///     "low": { "rate_per_tick": 1.0, ... }
+/// }
+/// ```
+fn parse_arrival_bands_config(py_bands: &Bound<'_, PyDict>) -> PyResult<ArrivalBandsConfig> {
+    // Parse optional urgent band
+    let urgent = if let Some(py_urgent) = py_bands.get_item("urgent")? {
+        let urgent_dict: Bound<'_, PyDict> = py_urgent.downcast_into()?;
+        Some(parse_arrival_band_config(&urgent_dict)?)
+    } else {
+        None
+    };
+
+    // Parse optional normal band
+    let normal = if let Some(py_normal) = py_bands.get_item("normal")? {
+        let normal_dict: Bound<'_, PyDict> = py_normal.downcast_into()?;
+        Some(parse_arrival_band_config(&normal_dict)?)
+    } else {
+        None
+    };
+
+    // Parse optional low band
+    let low = if let Some(py_low) = py_bands.get_item("low")? {
+        let low_dict: Bound<'_, PyDict> = py_low.downcast_into()?;
+        Some(parse_arrival_band_config(&low_dict)?)
+    } else {
+        None
+    };
+
+    Ok(ArrivalBandsConfig { urgent, normal, low })
+}
+
+/// Convert Python dict to ArrivalBandConfig (Enhancement 11.3)
+///
+/// Expected format:
+/// ```python
+/// {
+///     "rate_per_tick": 1.5,
+///     "amount_distribution": { "type": "Uniform", "min": 1000, "max": 5000 },
+///     "deadline_offset_min": 5,
+///     "deadline_offset_max": 20,
+///     "counterparty_weights": { "BANK_B": 0.5, "BANK_C": 0.5 },  # optional
+///     "divisible": false  # optional
+/// }
+/// ```
+fn parse_arrival_band_config(py_band: &Bound<'_, PyDict>) -> PyResult<ArrivalBandConfig> {
+    // Required: rate_per_tick
+    let rate_per_tick: f64 = extract_required(py_band, "rate_per_tick")?;
+
+    // Required: amount_distribution
+    let py_dist: Bound<'_, PyDict> = py_band
+        .get_item("amount_distribution")?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Missing 'amount_distribution' in arrival band")
+        })?
+        .downcast_into()?;
+    let amount_distribution = parse_amount_distribution(&py_dist)?;
+
+    // Required: deadline_offset_min
+    let deadline_offset_min: usize = extract_required(py_band, "deadline_offset_min")?;
+
+    // Required: deadline_offset_max
+    let deadline_offset_max: usize = extract_required(py_band, "deadline_offset_max")?;
+
+    // Optional: counterparty_weights (default to empty)
+    let counterparty_weights = if let Some(py_weights) = py_band.get_item("counterparty_weights")? {
+        let weights_dict: Bound<'_, PyDict> = py_weights.downcast_into()?;
+        let mut weights = HashMap::new();
+        for (key, value) in weights_dict.iter() {
+            let agent_id: String = key.extract()?;
+            let weight: f64 = value.extract()?;
+            weights.insert(agent_id, weight);
+        }
+        weights
+    } else {
+        HashMap::new()
+    };
+
+    // Optional: divisible (default false)
+    let divisible: bool = extract_with_default(py_band, "divisible", false)?;
+
+    Ok(ArrivalBandConfig {
+        rate_per_tick,
+        amount_distribution,
+        deadline_offset_min,
+        deadline_offset_max,
+        counterparty_weights,
         divisible,
     })
 }

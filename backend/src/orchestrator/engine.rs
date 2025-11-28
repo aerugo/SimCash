@@ -66,7 +66,7 @@
 //! }
 //! ```
 
-use crate::arrivals::{ArrivalConfig, ArrivalGenerator};
+use crate::arrivals::{ArrivalBandsConfig, ArrivalConfig, ArrivalGenerator};
 use crate::core::time::TimeManager;
 use crate::models::agent::Agent;
 use crate::models::event::{Event, EventLog};
@@ -259,6 +259,28 @@ pub struct AgentConfig {
 
     /// Arrival generation configuration (None = no automatic arrivals)
     pub arrival_config: Option<ArrivalConfig>,
+
+    /// Per-band arrival configuration (Enhancement 11.3)
+    ///
+    /// Alternative to arrival_config that allows different arrival characteristics
+    /// per priority band (urgent, normal, low). Mutually exclusive with arrival_config.
+    ///
+    /// # Example
+    /// ```yaml
+    /// arrival_bands:
+    ///   urgent:
+    ///     rate_per_tick: 0.1
+    ///     amount_distribution: { type: log_normal, mean: 14.0, std_dev: 0.5 }
+    ///     deadline_offset_min: 5
+    ///     deadline_offset_max: 15
+    ///   normal:
+    ///     rate_per_tick: 3.0
+    ///     amount_distribution: { type: log_normal, mean: 11.0, std_dev: 0.8 }
+    ///     deadline_offset_min: 20
+    ///     deadline_offset_max: 50
+    /// ```
+    #[serde(default)]
+    pub arrival_bands: Option<ArrivalBandsConfig>,
 
     /// Posted collateral amount (cents) - Phase 8
     /// If None, defaults to 0 (no collateral)
@@ -1063,6 +1085,7 @@ impl Orchestrator {
     ///             unsecured_cap: 0,
     ///             policy: PolicyConfig::Fifo,
     ///             arrival_config: None,
+    ///             arrival_bands: None,
     ///             posted_collateral: None,
     ///             collateral_haircut: None,
     ///             limits: None,
@@ -1148,15 +1171,21 @@ impl Orchestrator {
             policies.insert(agent_config.id.clone(), Box::new(tree_policy));
         }
 
-        // Initialize arrival generator (if any agents have arrival configs)
+        // Initialize arrival generator (if any agents have arrival configs or band configs)
         let mut arrival_configs_map = HashMap::new();
+        let mut band_configs_map = HashMap::new();
         for agent_config in &config.agent_configs {
             if let Some(arrival_cfg) = &agent_config.arrival_config {
                 arrival_configs_map.insert(agent_config.id.clone(), arrival_cfg.clone());
             }
+            // Enhancement 11.3: Per-band arrival configs
+            if let Some(band_cfg) = &agent_config.arrival_bands {
+                band_configs_map.insert(agent_config.id.clone(), band_cfg.clone());
+            }
         }
 
-        let arrival_generator = if !arrival_configs_map.is_empty() {
+        let has_any_arrivals = !arrival_configs_map.is_empty() || !band_configs_map.is_empty();
+        let arrival_generator = if has_any_arrivals {
             let all_agent_ids: Vec<String> = config
                 .agent_configs
                 .iter()
@@ -1164,7 +1193,9 @@ impl Orchestrator {
                 .collect();
             // Calculate episode end tick for deadline capping (Issue #6 fix)
             let episode_end_tick = config.num_days * config.ticks_per_day;
-            Some(ArrivalGenerator::new(
+            // Use mixed mode to support both legacy and band configs
+            Some(ArrivalGenerator::new_mixed(
+                band_configs_map,
                 arrival_configs_map,
                 all_agent_ids,
                 episode_end_tick,
@@ -1264,6 +1295,14 @@ impl Orchestrator {
                         agent_config.id, fraction
                     )));
                 }
+            }
+
+            // Validate arrival_config and arrival_bands are mutually exclusive (Enhancement 11.3)
+            if agent_config.arrival_config.is_some() && agent_config.arrival_bands.is_some() {
+                return Err(SimulationError::InvalidConfig(format!(
+                    "Agent {}: arrival_config and arrival_bands are mutually exclusive - specify only one",
+                    agent_config.id
+                )));
             }
         }
 

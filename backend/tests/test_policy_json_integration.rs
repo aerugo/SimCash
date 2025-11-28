@@ -21,6 +21,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
             unsecured_cap: 0,
             policy: PolicyConfig::Fifo, // Should load from policies/fifo.json
             arrival_config: None,
+                arrival_bands: None,
             posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
@@ -67,6 +68,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
                 urgency_threshold: 5, // Should inject this into JSON tree
             },
             arrival_config: None,
+                arrival_bands: None,
             posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
@@ -116,6 +118,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
                 urgency_threshold: 10, // Custom threshold, should override JSON default
             },
             arrival_config: None,
+                arrival_bands: None,
             posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
@@ -166,6 +169,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
                 urgency_threshold: 5,
             },
             arrival_config: None,
+                arrival_bands: None,
             posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
@@ -230,6 +234,7 @@ fn test_multi_agent_different_json_policies() {
                 unsecured_cap: 0,
                 policy: PolicyConfig::Fifo, // FIFO from JSON
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
@@ -244,6 +249,7 @@ fn test_multi_agent_different_json_policies() {
                     urgency_threshold: 5,
                 }, // Deadline from JSON
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
@@ -259,6 +265,7 @@ fn test_multi_agent_different_json_policies() {
                     urgency_threshold: 5,
                 }, // LiquidityAware from JSON
                 arrival_config: None,
+                arrival_bands: None,
                 posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
@@ -303,6 +310,7 @@ fn test_determinism_with_json_policies() {
                 urgency_threshold: 5,
             },
             arrival_config: None,
+                arrival_bands: None,
             posted_collateral: None,
                     collateral_haircut: None,
                 limits: None,
