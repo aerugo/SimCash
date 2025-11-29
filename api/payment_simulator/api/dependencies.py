@@ -12,6 +12,9 @@ from payment_simulator.api.services import (
     SimulationService,
     TransactionService,
 )
+from payment_simulator.api.services.state_provider_factory import (
+    APIStateProviderFactory,
+)
 
 if TYPE_CHECKING:
     from payment_simulator.persistence.connection import DatabaseManager
@@ -111,3 +114,19 @@ def get_db_manager() -> Any:
         return app.state.db_manager
 
     return None
+
+
+def get_state_provider_factory() -> APIStateProviderFactory:
+    """Dependency that provides the StateProviderFactory.
+
+    Usage in endpoints:
+        @router.get("/simulations/{sim_id}/costs")
+        def get_costs(
+            sim_id: str,
+            factory: APIStateProviderFactory = Depends(get_state_provider_factory),
+            db_manager: Any = Depends(get_db_manager),
+        ):
+            provider = factory.create(sim_id, db_manager)
+            ...
+    """
+    return APIStateProviderFactory()

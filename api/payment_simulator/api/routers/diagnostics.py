@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from payment_simulator.api.dependencies import (
     get_db_manager,
     get_simulation_service,
+    get_state_provider_factory,
     get_transaction_service,
 )
 from payment_simulator.api.models import (
@@ -49,6 +50,11 @@ from payment_simulator.api.services import (
     SimulationService,
     TransactionService,
 )
+from payment_simulator.api.services.data_service import DataService
+from payment_simulator.api.services.state_provider_factory import (
+    APIStateProviderFactory,
+    SimulationNotFoundError as FactorySimulationNotFoundError,
+)
 
 router = APIRouter(tags=["diagnostics"])
 
@@ -61,109 +67,51 @@ router = APIRouter(tags=["diagnostics"])
 @router.get("/simulations/{sim_id}/costs", response_model=CostResponse)
 def get_simulation_costs(
     sim_id: str,
-    service: SimulationService = Depends(get_simulation_service),
+    factory: APIStateProviderFactory = Depends(get_state_provider_factory),
     db_manager: Any = Depends(get_db_manager),
 ) -> CostResponse:
     """Get accumulated costs for all agents in a simulation.
 
     Returns per-agent cost breakdown and total system cost.
     All costs are in cents (i64).
+
+    Uses StateProvider pattern for unified data access across live and persisted
+    simulations.
     """
     try:
-        # Try to get from active simulation first
-        orchestrator = service.get_simulation(sim_id)
+        # Create StateProvider (handles live vs persisted automatically)
+        provider = factory.create(sim_id, db_manager)
 
-        # Get costs for all agents
-        agent_costs = {}
+        # Get agent IDs and simulation state
+        agent_ids = factory.get_agent_ids(sim_id, db_manager)
+        sim_state = factory.get_simulation_state(sim_id, db_manager)
+
+        # Use DataService for consistent data access
+        data_service = DataService(provider)
+        costs_data = data_service.get_costs(agent_ids)
+
+        # Convert to Pydantic models
+        agent_costs: dict[str, AgentCostBreakdown] = {}
         total_system_cost = 0
 
-        # Get agent list from config
-        config = service.get_config(sim_id).get("original", {})
-        agent_configs = config.get("agents", [])
-
-        for agent_config in agent_configs:
-            agent_id = agent_config["id"]
-
-            # Get costs from FFI
-            costs_dict = orchestrator.get_agent_accumulated_costs(agent_id)
-
-            # Convert to Pydantic model
-            breakdown = AgentCostBreakdown(**costs_dict)
+        for agent_id, cost_dict in costs_data.items():
+            breakdown = AgentCostBreakdown(**cost_dict)
             agent_costs[agent_id] = breakdown
             total_system_cost += breakdown.total_cost
 
-        # Get current tick and day
-        current_tick = orchestrator.current_tick()
-        current_day = orchestrator.current_day()
-
         return CostResponse(
             simulation_id=sim_id,
-            tick=current_tick,
-            day=current_day,
+            tick=sim_state["tick"],
+            day=sim_state["day"],
             agents=agent_costs,
             total_system_cost=total_system_cost,
         )
 
-    except SimulationNotFoundError:
-        # Not an active simulation - try database
-        if not db_manager:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Simulation not found: {sim_id}",
-            ) from None
-
-        from payment_simulator.persistence.queries import (
-            get_cost_breakdown_by_agent,
-            get_simulation_summary,
-        )
-
-        conn = db_manager.get_connection()
-
-        # Check if simulation exists in database
-        summary = get_simulation_summary(conn, sim_id)
-        if not summary:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Simulation not found: {sim_id}",
-            ) from None
-
-        # Get cost breakdown from database
-        df = get_cost_breakdown_by_agent(conn, sim_id)
-
-        if df.is_empty():
-            raise HTTPException(
-                status_code=404,
-                detail=f"No cost data available for simulation: {sim_id}",
-            ) from None
-
-        # Convert Polars DataFrame to dict
-        agent_costs = {}
-        total_system_cost = 0
-
-        for row in df.iter_rows(named=True):
-            breakdown = AgentCostBreakdown(
-                liquidity_cost=row["liquidity_cost"],
-                collateral_cost=row["collateral_cost"],
-                delay_cost=row["delay_cost"],
-                split_friction_cost=row["split_friction_cost"],
-                deadline_penalty=row["deadline_penalty_cost"],
-                total_cost=row["total_cost"],
-            )
-            agent_costs[row["agent_id"]] = breakdown
-            total_system_cost += breakdown.total_cost
-
-        # Get final tick/day from summary
-        final_tick = summary["ticks_per_day"] * summary["num_days"]
-        final_day = summary["num_days"]
-
-        return CostResponse(
-            simulation_id=sim_id,
-            tick=final_tick,
-            day=final_day,
-            agents=agent_costs,
-            total_system_cost=total_system_cost,
-        )
-
+    except FactorySimulationNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Simulation not found: {sim_id}",
+        ) from None
     except HTTPException:
         raise
     except Exception as e:

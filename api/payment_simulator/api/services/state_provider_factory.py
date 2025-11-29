@@ -71,6 +71,96 @@ class APIStateProviderFactory:
         # No live sim and no database - not found
         raise SimulationNotFoundError(simulation_id)
 
+    def get_agent_ids(
+        self,
+        simulation_id: str,
+        db_manager: DatabaseManager | None = None,
+    ) -> list[str]:
+        """Get agent IDs for a simulation.
+
+        Args:
+            simulation_id: The simulation ID
+            db_manager: Optional database manager for persisted simulations
+
+        Returns:
+            List of agent IDs
+
+        Raises:
+            SimulationNotFoundError: If simulation not found
+        """
+        if self._is_live_simulation(simulation_id):
+            from payment_simulator.api.dependencies import container
+
+            orch = container.simulation_service.get_simulation(simulation_id)
+            return list(orch.get_agent_ids())
+
+        if db_manager is not None:
+            conn = db_manager.get_connection()
+            rows = conn.execute(
+                """
+                SELECT DISTINCT agent_id
+                FROM tick_agent_states
+                WHERE simulation_id = ?
+                ORDER BY agent_id
+                """,
+                [simulation_id],
+            ).fetchall()
+
+            if rows:
+                return [row[0] for row in rows]
+
+        raise SimulationNotFoundError(simulation_id)
+
+    def get_simulation_state(
+        self,
+        simulation_id: str,
+        db_manager: DatabaseManager | None = None,
+    ) -> dict[str, Any]:
+        """Get simulation state (tick, day) for response building.
+
+        Args:
+            simulation_id: The simulation ID
+            db_manager: Optional database manager for persisted simulations
+
+        Returns:
+            Dict with 'tick' and 'day' keys
+
+        Raises:
+            SimulationNotFoundError: If simulation not found
+        """
+        if self._is_live_simulation(simulation_id):
+            from payment_simulator.api.dependencies import container
+
+            orch = container.simulation_service.get_simulation(simulation_id)
+            return {
+                "tick": orch.current_tick(),
+                "day": orch.current_day(),
+            }
+
+        if db_manager is not None:
+            conn = db_manager.get_connection()
+
+            # Get simulation summary
+            result = conn.execute(
+                """
+                SELECT ticks_per_day, num_days
+                FROM simulations
+                WHERE simulation_id = ?
+                """,
+                [simulation_id],
+            ).fetchone()
+
+            if result:
+                ticks_per_day, num_days = result
+                final_tick = ticks_per_day * num_days if ticks_per_day and num_days else 0
+                final_day = num_days or 0
+                return {
+                    "tick": final_tick,
+                    "day": final_day,
+                }
+
+        raise SimulationNotFoundError(simulation_id)
+
     def _is_live_simulation(self, simulation_id: str) -> bool:
         """Check if simulation is currently live (in-memory).
 
