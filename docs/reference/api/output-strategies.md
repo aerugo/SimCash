@@ -1,29 +1,64 @@
 # API Output Strategies
 
-> Pluggable output handling for API responses and streaming
+**Version**: 1.0
+**Last Updated**: 2025-11-29
 
-The API implements an **OutputStrategy pattern** parallel to the CLI, enabling consistent output handling across different delivery mechanisms.
+---
 
 ## Overview
 
+The API implements an **OutputStrategy pattern** parallel to the CLI, enabling consistent output handling across different delivery mechanisms.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Protocol["APIOutputStrategy Protocol"]
+        Async["Async Lifecycle Methods"]
+    end
+
+    subgraph Strategies["Strategy Implementations"]
+        JSON["JSONOutputStrategy"]
+        WS["WebSocketOutputStrategy"]
+        Null["NullOutputStrategy"]
+        Future["(Future: SSE, etc.)"]
+    end
+
+    Protocol --> JSON
+    Protocol --> WS
+    Protocol --> Null
+    Protocol --> Future
+
+    style Protocol fill:#fff3e0
+    style Strategies fill:#e8f5e9
 ```
-┌─────────────────────────────────────────────────────────┐
-│           APIOutputStrategy Protocol                    │
-│           (Async lifecycle methods)                     │
-└────────────────┬───────────────────────────────────────┘
-                 │
-    ┌────────────┼────────────┬────────────────┐
-    │            │            │                │
-    ▼            ▼            ▼                ▼
-┌────────┐  ┌─────────┐  ┌──────────┐  ┌────────────┐
-│ JSON   │  │ WebSocket│  │ Null     │  │ (Future)   │
-│Strategy│  │ Strategy │  │ Strategy │  │ SSE, etc.  │
-└────────┘  └─────────┘  └──────────┘  └────────────┘
-```
+
+---
 
 ## Protocol Definition
 
 **Source:** `api/payment_simulator/api/strategies/protocol.py`
+
+### Lifecycle Flow
+
+```mermaid
+sequenceDiagram
+    participant Simulation
+    participant Strategy as OutputStrategy
+
+    Simulation->>Strategy: on_simulation_start(config)
+    loop For each tick
+        Simulation->>Strategy: on_tick_complete(tick_data)
+    end
+    loop For each day
+        Simulation->>Strategy: on_day_complete(day, stats)
+    end
+    Simulation->>Strategy: on_simulation_complete(final_stats)
+```
+
+### Protocol Interface
 
 ```python
 from typing import Protocol, runtime_checkable, Any
@@ -53,6 +88,8 @@ class APIOutputStrategy(Protocol):
         ...
 ```
 
+---
+
 ## Key Differences from CLI OutputStrategy
 
 | Aspect | CLI OutputStrategy | API OutputStrategy |
@@ -62,7 +99,27 @@ class APIOutputStrategy(Protocol):
 | Output | Console (Rich) | JSON/WebSocket |
 | Use Case | Terminal display | HTTP responses |
 
+---
+
 ## Strategies
+
+### Strategy Selection
+
+```mermaid
+flowchart LR
+    Request["API Request"] --> Mode{"Output Mode?"}
+    Mode -->|REST| JSON["JSONOutputStrategy"]
+    Mode -->|WebSocket| WS["WebSocketOutputStrategy"]
+    Mode -->|Batch| Null["NullOutputStrategy"]
+
+    JSON --> Collect["Collect Data"]
+    WS --> Stream["Stream Data"]
+    Null --> Discard["Discard Data"]
+
+    style JSON fill:#e8f5e9
+    style WS fill:#e3f2fd
+    style Null fill:#f5f5f5
+```
 
 ### JSONOutputStrategy
 
@@ -124,6 +181,27 @@ response = strategy.get_response()
 Streams tick events in real-time over WebSocket connections.
 
 **Source:** `api/payment_simulator/api/strategies/websocket_strategy.py`
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant WS as WebSocket
+    participant Strategy as WebSocketStrategy
+    participant Sim as Simulation
+
+    Client->>WS: Connect
+    WS->>Strategy: Initialize
+    Strategy->>Client: {"type": "simulation_start"}
+
+    loop Each Tick
+        Sim->>Strategy: on_tick_complete()
+        Strategy->>Client: {"type": "tick_complete", ...}
+    end
+
+    Sim->>Strategy: on_simulation_complete()
+    Strategy->>Client: {"type": "simulation_complete"}
+    WS->>Client: Close
+```
 
 ```python
 from fastapi import WebSocket
@@ -187,7 +265,17 @@ strategy = create_output_strategy(mode="null")
 await strategy.on_tick_complete({"tick": 1})  # Does nothing
 ```
 
+---
+
 ## Factory Function
+
+```mermaid
+flowchart LR
+    Factory["create_output_strategy()"] --> Mode{"mode=?"}
+    Mode -->|"json"| JSON["JSONOutputStrategy()"]
+    Mode -->|"websocket"| WS["WebSocketOutputStrategy(ws)"]
+    Mode -->|"null"| Null["NullOutputStrategy()"]
+```
 
 ```python
 from payment_simulator.api.strategies import create_output_strategy
@@ -201,6 +289,8 @@ ws_strategy = create_output_strategy(mode="websocket", websocket=ws)
 # No-op for batch processing
 null_strategy = create_output_strategy(mode="null")
 ```
+
+---
 
 ## Data Service Integration
 
@@ -278,9 +368,36 @@ Called once after simulation finishes.
 }
 ```
 
+---
+
 ## CLI-API Parity
 
 The API OutputStrategy mirrors CLI's OutputStrategy:
+
+```mermaid
+flowchart TB
+    subgraph CLI["CLI OutputStrategy"]
+        C1["QuietOutputStrategy"]
+        C2["VerboseModeOutput"]
+        C3["StreamModeOutput"]
+        C4["EventStreamOutput"]
+    end
+
+    subgraph API["API OutputStrategy"]
+        A1["NullOutputStrategy"]
+        A2["JSONOutputStrategy"]
+        A3["WebSocketOutputStrategy"]
+        A4["(Future)"]
+    end
+
+    C1 <-.->|"Equivalent"| A1
+    C2 <-.->|"Equivalent"| A2
+    C3 <-.->|"Equivalent"| A3
+    C4 <-.->|"Equivalent"| A4
+
+    style CLI fill:#dea584
+    style API fill:#e3f2fd
+```
 
 | CLI Strategy | API Strategy | Purpose |
 |-------------|--------------|---------|
@@ -289,10 +406,12 @@ The API OutputStrategy mirrors CLI's OutputStrategy:
 | StreamModeOutput | WebSocketOutputStrategy | Real-time streaming |
 | EventStreamOutput | (Future) | Per-event streaming |
 
-Both share:
+**Shared Contracts:**
 - Same lifecycle method signatures
 - Same data structures for tick results
 - Same event type definitions
+
+---
 
 ## Implementation Example
 
@@ -325,6 +444,8 @@ class WebhookOutputStrategy:
         await self._client.post(self._url, json=data)
 ```
 
+---
+
 ## Testing
 
 ```python
@@ -344,13 +465,16 @@ async def test_json_strategy_collects_data():
     assert len(response["ticks"]) == 1
 ```
 
-## Related Documentation
+---
+
+## Related Documents
 
 - [API Index](index.md) - API overview
 - [Endpoints](endpoints.md) - Endpoint reference
+- [State Provider](state-provider.md) - Data access pattern
 - [CLI Output Strategies](../architecture/03-python-api-layer.md#outputstrategy-protocol) - CLI implementation
-- [StateProvider](state-provider.md) - Data access pattern
+- [Event System](../architecture/08-event-system.md) - Event types
 
 ---
 
-*Last updated: 2025-11-29*
+*Previous: [state-provider.md](state-provider.md) - Data access abstraction*
