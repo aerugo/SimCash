@@ -439,3 +439,97 @@ class TestFactoryAPIIntegration:
         assert factory_costs["delay_cost"] == direct_costs["delay_cost"]
         assert factory_costs["deadline_penalty"] == direct_costs["deadline_penalty"]
         assert factory_costs["total_cost"] == direct_costs["total_cost"]
+
+
+# ============================================================================
+# Phase 4.3: Factory get_transaction_stats() for /metrics endpoint
+# ============================================================================
+
+
+class TestFactoryGetTransactionStats:
+    """TDD tests for get_transaction_stats() method."""
+
+    def test_factory_has_get_transaction_stats_method(self) -> None:
+        """Factory should have get_transaction_stats() method."""
+        from payment_simulator.api.services.state_provider_factory import (
+            APIStateProviderFactory,
+        )
+
+        factory = APIStateProviderFactory()
+        assert hasattr(factory, "get_transaction_stats")
+
+    def test_get_transaction_stats_returns_required_fields(
+        self, live_simulation: tuple[str, Orchestrator], db_manager: DatabaseManager
+    ) -> None:
+        """get_transaction_stats() should return dict with required fields."""
+        from payment_simulator.api.services.state_provider_factory import (
+            APIStateProviderFactory,
+        )
+
+        sim_id, _orch = live_simulation
+
+        factory = APIStateProviderFactory()
+        stats = factory.get_transaction_stats(sim_id, db_manager)
+
+        # Should have all fields needed by DataService.get_metrics()
+        assert "total_arrivals" in stats
+        assert "total_settlements" in stats
+        assert "avg_delay_ticks" in stats
+        assert "max_delay_ticks" in stats
+
+    def test_get_transaction_stats_live_returns_integers(
+        self, live_simulation: tuple[str, Orchestrator], db_manager: DatabaseManager
+    ) -> None:
+        """Live simulation stats should have correct types."""
+        from payment_simulator.api.services.state_provider_factory import (
+            APIStateProviderFactory,
+        )
+
+        sim_id, _orch = live_simulation
+
+        factory = APIStateProviderFactory()
+        stats = factory.get_transaction_stats(sim_id, db_manager)
+
+        assert isinstance(stats["total_arrivals"], int)
+        assert isinstance(stats["total_settlements"], int)
+        assert isinstance(stats["max_delay_ticks"], int)
+        assert isinstance(stats["avg_delay_ticks"], (int, float))
+
+    def test_get_transaction_stats_persisted(
+        self, persisted_simulation: str, db_manager: DatabaseManager
+    ) -> None:
+        """Persisted simulation should return transaction stats from database."""
+        from payment_simulator.api.services.state_provider_factory import (
+            APIStateProviderFactory,
+        )
+
+        sim_id = persisted_simulation
+
+        factory = APIStateProviderFactory()
+        stats = factory.get_transaction_stats(sim_id, db_manager)
+
+        # Should have required fields
+        assert "total_arrivals" in stats
+        assert "total_settlements" in stats
+        assert "avg_delay_ticks" in stats
+        assert "max_delay_ticks" in stats
+
+        # Values should be non-negative
+        assert stats["total_arrivals"] >= 0
+        assert stats["total_settlements"] >= 0
+        assert stats["max_delay_ticks"] >= 0
+        assert stats["avg_delay_ticks"] >= 0
+
+    def test_get_transaction_stats_raises_for_nonexistent(
+        self, db_manager: DatabaseManager
+    ) -> None:
+        """get_transaction_stats() should raise for nonexistent simulation."""
+        from payment_simulator.api.services.state_provider_factory import (
+            APIStateProviderFactory,
+            SimulationNotFoundError,
+        )
+
+        factory = APIStateProviderFactory()
+
+        with pytest.raises(SimulationNotFoundError):
+            factory.get_transaction_stats("nonexistent-sim", db_manager)

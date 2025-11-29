@@ -386,3 +386,197 @@ class TestDataServiceWithFactory:
         # Should be a dict, not a Pydantic model
         assert isinstance(costs, dict)
         assert isinstance(costs["BANK_A"], dict)
+
+
+# ============================================================================
+# Phase 4: get_metrics() method for system-wide metrics
+# ============================================================================
+
+
+class TestDataServiceGetMetrics:
+    """TDD tests for DataService.get_metrics() method."""
+
+    def test_get_metrics_exists(self) -> None:
+        """DataService should have get_metrics() method."""
+        try:
+            from payment_simulator.api.services.data_service import DataService
+        except ImportError:
+            pytest.skip("DataService not yet implemented")
+
+        mock_provider = Mock(spec=StateProvider)
+        service = DataService(mock_provider)
+        assert hasattr(service, "get_metrics")
+
+    def test_get_metrics_returns_dict_with_required_fields(self) -> None:
+        """get_metrics() should return dict with all SystemMetrics fields."""
+        try:
+            from payment_simulator.api.services.data_service import DataService
+        except ImportError:
+            pytest.skip("DataService not yet implemented")
+
+        mock_provider = Mock(spec=StateProvider)
+
+        # Set up mock for agents
+        mock_provider.get_agent_balance.side_effect = lambda aid: 100_000_00
+        mock_provider.get_queue1_size.side_effect = lambda aid: 2
+        mock_provider.get_queue2_size.side_effect = lambda aid: 1
+
+        service = DataService(mock_provider)
+
+        # Need to pass transaction data for metrics calculation
+        metrics = service.get_metrics(
+            agent_ids=["BANK_A", "BANK_B"],
+            transaction_stats={
+                "total_arrivals": 100,
+                "total_settlements": 95,
+                "avg_delay_ticks": 3.5,
+                "max_delay_ticks": 12,
+            },
+        )
+
+        # All SystemMetrics fields must be present
+        required_fields = {
+            "total_arrivals",
+            "total_settlements",
+            "settlement_rate",
+            "avg_delay_ticks",
+            "max_delay_ticks",
+            "queue1_total_size",
+            "queue2_total_size",
+            "peak_overdraft",
+            "agents_in_overdraft",
+        }
+
+        missing = required_fields - set(metrics.keys())
+        assert not missing, f"get_metrics() missing fields: {missing}"
+
+    def test_get_metrics_calculates_settlement_rate(self) -> None:
+        """get_metrics() should correctly calculate settlement rate."""
+        try:
+            from payment_simulator.api.services.data_service import DataService
+        except ImportError:
+            pytest.skip("DataService not yet implemented")
+
+        mock_provider = Mock(spec=StateProvider)
+        mock_provider.get_agent_balance.return_value = 100_000_00
+        mock_provider.get_queue1_size.return_value = 0
+        mock_provider.get_queue2_size.return_value = 0
+
+        service = DataService(mock_provider)
+
+        metrics = service.get_metrics(
+            agent_ids=["BANK_A"],
+            transaction_stats={
+                "total_arrivals": 100,
+                "total_settlements": 80,
+                "avg_delay_ticks": 0.0,
+                "max_delay_ticks": 0,
+            },
+        )
+
+        # settlement_rate = total_settlements / total_arrivals = 80/100 = 0.8
+        assert metrics["settlement_rate"] == 0.8
+
+    def test_get_metrics_calculates_queue_totals(self) -> None:
+        """get_metrics() should sum queue sizes across all agents."""
+        try:
+            from payment_simulator.api.services.data_service import DataService
+        except ImportError:
+            pytest.skip("DataService not yet implemented")
+
+        mock_provider = Mock(spec=StateProvider)
+        mock_provider.get_agent_balance.return_value = 100_000_00
+
+        # BANK_A has 3 in queue1, 1 in queue2
+        # BANK_B has 2 in queue1, 2 in queue2
+        def mock_queue1(agent_id: str) -> int:
+            return 3 if agent_id == "BANK_A" else 2
+
+        def mock_queue2(agent_id: str) -> int:
+            return 1 if agent_id == "BANK_A" else 2
+
+        mock_provider.get_queue1_size.side_effect = mock_queue1
+        mock_provider.get_queue2_size.side_effect = mock_queue2
+
+        service = DataService(mock_provider)
+
+        metrics = service.get_metrics(
+            agent_ids=["BANK_A", "BANK_B"],
+            transaction_stats={
+                "total_arrivals": 10,
+                "total_settlements": 10,
+                "avg_delay_ticks": 0.0,
+                "max_delay_ticks": 0,
+            },
+        )
+
+        assert metrics["queue1_total_size"] == 5  # 3 + 2
+        assert metrics["queue2_total_size"] == 3  # 1 + 2
+
+    def test_get_metrics_calculates_overdraft_stats(self) -> None:
+        """get_metrics() should calculate overdraft statistics from balances."""
+        try:
+            from payment_simulator.api.services.data_service import DataService
+        except ImportError:
+            pytest.skip("DataService not yet implemented")
+
+        mock_provider = Mock(spec=StateProvider)
+        mock_provider.get_queue1_size.return_value = 0
+        mock_provider.get_queue2_size.return_value = 0
+
+        # BANK_A: positive balance (no overdraft)
+        # BANK_B: negative balance -50000 (in overdraft)
+        # BANK_C: negative balance -100000 (in overdraft, peak)
+        def mock_balance(agent_id: str) -> int:
+            balances = {
+                "BANK_A": 100_000_00,
+                "BANK_B": -50_000_00,
+                "BANK_C": -100_000_00,
+            }
+            return balances.get(agent_id, 0)
+
+        mock_provider.get_agent_balance.side_effect = mock_balance
+
+        service = DataService(mock_provider)
+
+        metrics = service.get_metrics(
+            agent_ids=["BANK_A", "BANK_B", "BANK_C"],
+            transaction_stats={
+                "total_arrivals": 10,
+                "total_settlements": 10,
+                "avg_delay_ticks": 0.0,
+                "max_delay_ticks": 0,
+            },
+        )
+
+        # peak_overdraft is absolute value of most negative balance
+        assert metrics["peak_overdraft"] == 100_000_00
+        # 2 agents have negative balance
+        assert metrics["agents_in_overdraft"] == 2
+
+    def test_get_metrics_handles_zero_arrivals(self) -> None:
+        """get_metrics() should handle zero arrivals without division by zero."""
+        try:
+            from payment_simulator.api.services.data_service import DataService
+        except ImportError:
+            pytest.skip("DataService not yet implemented")
+
+        mock_provider = Mock(spec=StateProvider)
+        mock_provider.get_agent_balance.return_value = 100_000_00
+        mock_provider.get_queue1_size.return_value = 0
+        mock_provider.get_queue2_size.return_value = 0
+
+        service = DataService(mock_provider)
+
+        metrics = service.get_metrics(
+            agent_ids=["BANK_A"],
+            transaction_stats={
+                "total_arrivals": 0,
+                "total_settlements": 0,
+                "avg_delay_ticks": 0.0,
+                "max_delay_ticks": 0,
+            },
+        )
+
+        # settlement_rate should be 0.0 when no arrivals
+        assert metrics["settlement_rate"] == 0.0

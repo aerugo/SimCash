@@ -126,6 +126,71 @@ class DataService:
         """
         return {agent_id: self.get_agent_state(agent_id) for agent_id in agent_ids}
 
+    def get_metrics(
+        self,
+        agent_ids: list[str],
+        transaction_stats: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Get system-wide metrics.
+
+        Computes metrics by aggregating data from StateProvider for queue/overdraft
+        statistics, combined with pre-computed transaction statistics.
+
+        Args:
+            agent_ids: List of all agent IDs in the simulation
+            transaction_stats: Dict with pre-computed transaction stats:
+                - total_arrivals: Total transactions arrived
+                - total_settlements: Total transactions settled
+                - avg_delay_ticks: Average settlement delay
+                - max_delay_ticks: Maximum delay observed
+
+        Returns:
+            Dict with all SystemMetrics fields:
+                - total_arrivals, total_settlements, settlement_rate
+                - avg_delay_ticks, max_delay_ticks
+                - queue1_total_size, queue2_total_size
+                - peak_overdraft, agents_in_overdraft
+        """
+        # Calculate queue totals from StateProvider
+        queue1_total = 0
+        queue2_total = 0
+        peak_overdraft = 0
+        agents_in_overdraft = 0
+
+        for agent_id in agent_ids:
+            queue1_total += self._provider.get_queue1_size(agent_id)
+            queue2_total += self._provider.get_queue2_size(agent_id)
+
+            balance = self._provider.get_agent_balance(agent_id)
+            if balance < 0:
+                agents_in_overdraft += 1
+                # Track peak (most negative balance)
+                if abs(balance) > peak_overdraft:
+                    peak_overdraft = abs(balance)
+
+        # Extract transaction stats
+        total_arrivals = transaction_stats.get("total_arrivals", 0)
+        total_settlements = transaction_stats.get("total_settlements", 0)
+        avg_delay_ticks = transaction_stats.get("avg_delay_ticks", 0.0)
+        max_delay_ticks = transaction_stats.get("max_delay_ticks", 0)
+
+        # Calculate settlement rate (avoid division by zero)
+        settlement_rate = (
+            total_settlements / total_arrivals if total_arrivals > 0 else 0.0
+        )
+
+        return {
+            "total_arrivals": total_arrivals,
+            "total_settlements": total_settlements,
+            "settlement_rate": settlement_rate,
+            "avg_delay_ticks": avg_delay_ticks,
+            "max_delay_ticks": max_delay_ticks,
+            "queue1_total_size": queue1_total,
+            "queue2_total_size": queue2_total,
+            "peak_overdraft": peak_overdraft,
+            "agents_in_overdraft": agents_in_overdraft,
+        }
+
 
 def get_data_service(provider: StateProvider) -> DataService:
     """Factory function for creating DataService.
