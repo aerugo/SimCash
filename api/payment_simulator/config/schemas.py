@@ -168,7 +168,9 @@ class ArrivalConfig(BaseModel):
             raise ValueError("counterparty_weights must sum to positive value")
         return v
 
-    def get_effective_priority_config(self) -> dict:
+    def get_effective_priority_config(
+        self,
+    ) -> dict[str, str | int | float | list[int] | list[float]]:
         """Get the effective priority configuration as FFI-compatible dict.
 
         If priority_distribution is set, use it.
@@ -180,24 +182,19 @@ class ArrivalConfig(BaseModel):
             # Convert legacy single priority to Fixed distribution
             return {"type": "Fixed", "value": self.priority}
 
-    def _priority_distribution_to_dict(self, dist: PriorityDistribution) -> dict:
+    def _priority_distribution_to_dict(
+        self, dist: PriorityDistribution
+    ) -> dict[str, str | int | float | list[int] | list[float]]:
         """Convert priority distribution to FFI dict format."""
-        if isinstance(dist, FixedPriorityDistribution):
-            return {"type": "Fixed", "value": dist.value}
-        elif isinstance(dist, CategoricalPriorityDistribution):
-            return {
-                "type": "Categorical",
-                "values": dist.values,
-                "weights": dist.weights,
-            }
-        elif isinstance(dist, UniformPriorityDistribution):
-            return {
-                "type": "Uniform",
-                "min": dist.min,
-                "max": dist.max,
-            }
-        else:
-            raise ValueError(f"Unknown priority distribution type: {type(dist)}")
+        match dist:
+            case FixedPriorityDistribution(value=val):
+                return {"type": "Fixed", "value": val}
+            case CategoricalPriorityDistribution(values=vals, weights=wts):
+                return {"type": "Categorical", "values": vals, "weights": wts}
+            case UniformPriorityDistribution(min=min_val, max=max_val):
+                return {"type": "Uniform", "min": min_val, "max": max_val}
+            case _:
+                raise ValueError(f"Unknown priority distribution type: {type(dist)}")
 
 
 # ============================================================================
@@ -642,8 +639,11 @@ class SimulationConfig(BaseModel):
 
         return self
 
-    def to_ffi_dict(self) -> dict:
-        """Convert to dictionary format expected by FFI layer."""
+    def to_ffi_dict(self) -> dict[str, Any]:
+        """Convert to dictionary format expected by FFI layer.
+
+        Returns dict[str, Any] because FFI boundary types are dynamic.
+        """
         result = {
             "ticks_per_day": self.simulation.ticks_per_day,
             "num_days": self.simulation.num_days,
@@ -666,7 +666,7 @@ class SimulationConfig(BaseModel):
 
         return result
 
-    def _agent_to_ffi_dict(self, agent: AgentConfig) -> dict:
+    def _agent_to_ffi_dict(self, agent: AgentConfig) -> dict[str, Any]:
         """Convert agent config to FFI dict format."""
         result = {
             "id": agent.id,
@@ -699,145 +699,165 @@ class SimulationConfig(BaseModel):
 
         return result
 
-    def _policy_to_ffi_dict(self, policy: PolicyConfig) -> dict:
+    def _policy_to_ffi_dict(self, policy: PolicyConfig) -> dict[str, str | int]:
         """Convert policy config to FFI dict format."""
-        if isinstance(policy, FifoPolicy):
-            return {"type": "Fifo"}
-        elif isinstance(policy, DeadlinePolicy):
-            return {"type": "Deadline", "urgency_threshold": policy.urgency_threshold}
-        elif isinstance(policy, LiquidityAwarePolicy):
-            return {
-                "type": "LiquidityAware",
-                "target_buffer": policy.target_buffer,
-                "urgency_threshold": policy.urgency_threshold,
-            }
-        elif isinstance(policy, LiquiditySplittingPolicy):
-            return {
-                "type": "LiquiditySplitting",
-                "max_splits": policy.max_splits,
-                "min_split_amount": policy.min_split_amount,
-            }
-        elif isinstance(policy, MockSplittingPolicy):
-            return {"type": "MockSplitting", "num_splits": policy.num_splits}
-        elif isinstance(policy, FromJsonPolicy):
-            # Load JSON policy from file
-            # Try the path as-is first, then try relative to project root
-            json_path = Path(policy.json_path)
+        match policy:
+            case FifoPolicy():
+                return {"type": "Fifo"}
+            case DeadlinePolicy(urgency_threshold=threshold):
+                return {"type": "Deadline", "urgency_threshold": threshold}
+            case LiquidityAwarePolicy(target_buffer=buffer, urgency_threshold=threshold):
+                return {
+                    "type": "LiquidityAware",
+                    "target_buffer": buffer,
+                    "urgency_threshold": threshold,
+                }
+            case LiquiditySplittingPolicy(max_splits=max_s, min_split_amount=min_amt):
+                return {
+                    "type": "LiquiditySplitting",
+                    "max_splits": max_s,
+                    "min_split_amount": min_amt,
+                }
+            case MockSplittingPolicy(num_splits=num):
+                return {"type": "MockSplitting", "num_splits": num}
+            case FromJsonPolicy(json_path=path_str):
+                return self._load_json_policy(path_str)
+            case _:
+                raise ValueError(f"Unknown policy type: {type(policy)}")
+
+    def _load_json_policy(self, path_str: str) -> dict[str, str | int]:
+        """Load and validate a JSON policy file."""
+        json_path = Path(path_str)
+        if not json_path.exists():
+            # Try relative to project root
+            # schemas.py is at api/payment_simulator/config/schemas.py, so go up 4 levels
+            project_root = Path(__file__).resolve().parent.parent.parent.parent
+            json_path = project_root / path_str
             if not json_path.exists():
-                # Try relative to project root
-                # schemas.py is at api/payment_simulator/config/schemas.py, so go up 4 levels
-                project_root = Path(__file__).resolve().parent.parent.parent.parent
-                json_path = project_root / policy.json_path
-                if not json_path.exists():
-                    raise ValueError(f"Policy JSON file not found: {policy.json_path} (tried {json_path})")
+                raise ValueError(f"Policy JSON file not found: {path_str} (tried {json_path})")
 
-            with open(json_path) as f:
-                policy_json = f.read()
+        with open(json_path) as f:
+            policy_json = f.read()
 
-            # Validate it's valid JSON
-            try:
-                json.loads(policy_json)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON in policy file {policy.json_path}: {e}") from e
+        # Validate it's valid JSON
+        try:
+            json.loads(policy_json)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in policy file {path_str}: {e}") from e
 
-            return {"type": "FromJson", "json": policy_json}
-        else:
-            raise ValueError(f"Unknown policy type: {type(policy)}")
+        return {"type": "FromJson", "json": policy_json}
 
-    def _distribution_to_ffi_dict(self, dist: AmountDistribution) -> dict:
+    def _distribution_to_ffi_dict(self, dist: AmountDistribution) -> dict[str, str | int | float]:
         """Convert distribution config to FFI dict format."""
-        if isinstance(dist, NormalDistribution):
-            return {"type": "Normal", "mean": dist.mean, "std_dev": dist.std_dev}
-        elif isinstance(dist, LogNormalDistribution):
-            return {"type": "LogNormal", "mean": dist.mean, "std_dev": dist.std_dev}
-        elif isinstance(dist, UniformDistribution):
-            return {"type": "Uniform", "min": dist.min, "max": dist.max}
-        elif isinstance(dist, ExponentialDistribution):
-            return {"type": "Exponential", "lambda": dist.lambda_}
-        else:
-            raise ValueError(f"Unknown distribution type: {type(dist)}")
+        match dist:
+            case NormalDistribution(mean=mean, std_dev=std_dev):
+                return {"type": "Normal", "mean": mean, "std_dev": std_dev}
+            case LogNormalDistribution(mean=mean, std_dev=std_dev):
+                return {"type": "LogNormal", "mean": mean, "std_dev": std_dev}
+            case UniformDistribution(min=min_val, max=max_val):
+                return {"type": "Uniform", "min": min_val, "max": max_val}
+            case ExponentialDistribution(lambda_=lambda_val):
+                return {"type": "Exponential", "lambda": lambda_val}
+            case _:
+                raise ValueError(f"Unknown distribution type: {type(dist)}")
 
     def _scenario_event_to_ffi_dict(self, event: ScenarioEvent) -> dict[str, Any]:
         """Convert scenario event config to FFI dict format."""
         # Extract schedule info
-        schedule_dict: dict[str, str | int | float]
-        if isinstance(event.schedule, OneTimeSchedule):
-            schedule_dict = {"schedule": "OneTime", "tick": event.schedule.tick}
-        elif isinstance(event.schedule, RepeatingSchedule):
-            schedule_dict = {
-                "schedule": "Repeating",
-                "start_tick": event.schedule.start_tick,
-                "interval": event.schedule.interval,
-            }
-        else:
-            raise ValueError(f"Unknown schedule type: {type(event.schedule)}")
+        schedule_dict = self._schedule_to_ffi_dict(event.schedule)
 
         # Build event dict based on type
-        if isinstance(event, DirectTransferEvent):
-            return {
-                "type": "DirectTransfer",
-                "from_agent": event.from_agent,
-                "to_agent": event.to_agent,
-                "amount": event.amount,
-                **schedule_dict,
-            }
-        elif isinstance(event, CustomTransactionArrivalEvent):
-            result = {
-                "type": "CustomTransactionArrival",
-                "from_agent": event.from_agent,
-                "to_agent": event.to_agent,
-                "amount": event.amount,
-                **schedule_dict,
-            }
-            # Add optional fields if present
-            if event.priority is not None:
-                result["priority"] = event.priority
-            if event.deadline is not None:
-                result["deadline"] = event.deadline
-            if event.is_divisible is not None:
-                result["is_divisible"] = event.is_divisible
-            return result
-        elif isinstance(event, CollateralAdjustmentEvent):
-            return {
-                "type": "CollateralAdjustment",
-                "agent": event.agent,
-                "delta": event.delta,
-                **schedule_dict,
-            }
-        elif isinstance(event, GlobalArrivalRateChangeEvent):
-            return {
-                "type": "GlobalArrivalRateChange",
-                "multiplier": event.multiplier,
-                **schedule_dict,
-            }
-        elif isinstance(event, AgentArrivalRateChangeEvent):
-            return {
-                "type": "AgentArrivalRateChange",
-                "agent": event.agent,
-                "multiplier": event.multiplier,
-                **schedule_dict,
-            }
-        elif isinstance(event, CounterpartyWeightChangeEvent):
-            return {
-                "type": "CounterpartyWeightChange",
-                "agent": event.agent,
-                "counterparty": event.counterparty,
-                "new_weight": event.new_weight,
-                "auto_balance_others": event.auto_balance_others,
-                **schedule_dict,
-            }
-        elif isinstance(event, DeadlineWindowChangeEvent):
-            result = {
-                "type": "DeadlineWindowChange",
-                **schedule_dict,
-            }
-            if event.min_ticks_multiplier is not None:
-                result["min_ticks_multiplier"] = event.min_ticks_multiplier
-            if event.max_ticks_multiplier is not None:
-                result["max_ticks_multiplier"] = event.max_ticks_multiplier
-            return result
-        else:
-            raise ValueError(f"Unknown scenario event type: {type(event)}")
+        match event:
+            case DirectTransferEvent(
+                from_agent=from_ag, to_agent=to_ag, amount=amt
+            ):
+                return {
+                    "type": "DirectTransfer",
+                    "from_agent": from_ag,
+                    "to_agent": to_ag,
+                    "amount": amt,
+                    **schedule_dict,
+                }
+            case CustomTransactionArrivalEvent(
+                from_agent=from_ag,
+                to_agent=to_ag,
+                amount=amt,
+                priority=prio,
+                deadline=dl,
+                is_divisible=div,
+            ):
+                result: dict[str, Any] = {
+                    "type": "CustomTransactionArrival",
+                    "from_agent": from_ag,
+                    "to_agent": to_ag,
+                    "amount": amt,
+                    **schedule_dict,
+                }
+                if prio is not None:
+                    result["priority"] = prio
+                if dl is not None:
+                    result["deadline"] = dl
+                if div is not None:
+                    result["is_divisible"] = div
+                return result
+            case CollateralAdjustmentEvent(agent=ag, delta=d):
+                return {
+                    "type": "CollateralAdjustment",
+                    "agent": ag,
+                    "delta": d,
+                    **schedule_dict,
+                }
+            case GlobalArrivalRateChangeEvent(multiplier=mult):
+                return {
+                    "type": "GlobalArrivalRateChange",
+                    "multiplier": mult,
+                    **schedule_dict,
+                }
+            case AgentArrivalRateChangeEvent(agent=ag, multiplier=mult):
+                return {
+                    "type": "AgentArrivalRateChange",
+                    "agent": ag,
+                    "multiplier": mult,
+                    **schedule_dict,
+                }
+            case CounterpartyWeightChangeEvent(
+                agent=ag,
+                counterparty=cp,
+                new_weight=nw,
+                auto_balance_others=abo,
+            ):
+                return {
+                    "type": "CounterpartyWeightChange",
+                    "agent": ag,
+                    "counterparty": cp,
+                    "new_weight": nw,
+                    "auto_balance_others": abo,
+                    **schedule_dict,
+                }
+            case DeadlineWindowChangeEvent(
+                min_ticks_multiplier=min_mult, max_ticks_multiplier=max_mult
+            ):
+                result = {
+                    "type": "DeadlineWindowChange",
+                    **schedule_dict,
+                }
+                if min_mult is not None:
+                    result["min_ticks_multiplier"] = min_mult
+                if max_mult is not None:
+                    result["max_ticks_multiplier"] = max_mult
+                return result
+            case _:
+                raise ValueError(f"Unknown scenario event type: {type(event)}")
+
+    def _schedule_to_ffi_dict(self, schedule: EventSchedule) -> dict[str, str | int]:
+        """Convert schedule config to FFI dict format."""
+        match schedule:
+            case OneTimeSchedule(tick=t):
+                return {"schedule": "OneTime", "tick": t}
+            case RepeatingSchedule(start_tick=start, interval=intv):
+                return {"schedule": "Repeating", "start_tick": start, "interval": intv}
+            case _:
+                raise ValueError(f"Unknown schedule type: {type(schedule)}")
 
     def _cost_rates_to_ffi_dict(self) -> dict[str, Any]:
         """Convert cost rates config to FFI dict format."""
@@ -862,7 +882,7 @@ class SimulationConfig(BaseModel):
 
         return result
 
-    def _arrival_bands_to_ffi_dict(self, bands: ArrivalBandsConfig) -> dict:
+    def _arrival_bands_to_ffi_dict(self, bands: ArrivalBandsConfig) -> dict[str, Any]:
         """Convert per-band arrival config to FFI dict format."""
         result = {}
 
@@ -875,7 +895,7 @@ class SimulationConfig(BaseModel):
 
         return result
 
-    def _arrival_band_to_ffi_dict(self, band: ArrivalBandConfig) -> dict:
+    def _arrival_band_to_ffi_dict(self, band: ArrivalBandConfig) -> dict[str, Any]:
         """Convert single arrival band config to FFI dict format."""
         return {
             "rate_per_tick": band.rate_per_tick,

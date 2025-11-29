@@ -166,7 +166,56 @@ def get_events(self) -> list[Event]:
     return self._events
 ```
 
-### Rule 5: Union Syntax Over Optional
+### Rule 5: Private Methods Need Full Types
+
+**All methods** need explicit return types, including private/internal methods. Pylance catches `dict[Unknown, Unknown]` on methods with bare `dict` returns.
+
+```python
+# Wrong - Pylance reports dict[Unknown, Unknown]
+def _convert_to_dict(self, model: SomeModel) -> dict:
+    return {"type": model.type, "value": model.value}
+
+# Correct - explicit type arguments
+def _convert_to_dict(self, model: SomeModel) -> dict[str, str | int]:
+    return {"type": model.type, "value": model.value}
+
+# Better - use TypedDict for complex/reused shapes
+class ConvertedDict(TypedDict):
+    type: str
+    value: int
+
+def _convert_to_dict(self, model: SomeModel) -> ConvertedDict:
+    return {"type": model.type, "value": model.value}
+```
+
+### Rule 6: Match Statements for Union Dispatch
+
+Prefer `match` statements over `isinstance` chains for union type dispatch.
+
+```python
+# Acceptable but verbose
+def _to_ffi(self, policy: PolicyConfig) -> dict[str, str | int]:
+    if isinstance(policy, FifoPolicy):
+        return {"type": "Fifo"}
+    elif isinstance(policy, DeadlinePolicy):
+        return {"type": "Deadline", "threshold": policy.urgency_threshold}
+    else:
+        raise ValueError(f"Unknown: {type(policy)}")
+
+# Better - match statement
+def _to_ffi(self, policy: PolicyConfig) -> dict[str, str | int]:
+    match policy:
+        case FifoPolicy():
+            return {"type": "Fifo"}
+        case DeadlinePolicy(urgency_threshold=t):
+            return {"type": "Deadline", "threshold": t}
+        case _:
+            raise ValueError(f"Unknown: {type(policy)}")
+```
+
+**Note**: Avoid unnecessary isinstance calls when type is already narrowed by control flow.
+
+### Rule 7: Union Syntax Over Optional
 
 ```python
 # Wrong
