@@ -18,7 +18,7 @@ class Orchestrator:
     """
 
     @staticmethod
-    def new(config: dict[str, Any]) -> "Orchestrator":
+    def new(config: dict[str, Any]) -> Orchestrator:
         """Create a new Orchestrator from configuration dict."""
         ...
 
@@ -229,7 +229,7 @@ class Orchestrator:
         ...
 
     @staticmethod
-    def load_state(config: dict[str, Any], state_json: str) -> "Orchestrator":
+    def load_state(config: dict[str, Any], state_json: str) -> Orchestrator:
         """Load orchestrator from saved state JSON."""
         ...
 
@@ -268,6 +268,6 @@ def validate_policy(policy_json: str) -> str:
 class RtgsPriority:
     """RTGS queue priority levels."""
 
-    High: "RtgsPriority"
-    Medium: "RtgsPriority"
-    Low: "RtgsPriority"
+    High: RtgsPriority
+    Medium: RtgsPriority
+    Low: RtgsPriority

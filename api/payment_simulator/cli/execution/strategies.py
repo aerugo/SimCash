@@ -73,8 +73,8 @@ class VerboseModeOutput:
         self.show_debug = show_debug
 
         # Track previous balances for change detection
-        self.prev_balances = {
-            agent_id: orch.get_agent_balance(agent_id) for agent_id in agent_ids
+        self.prev_balances: dict[str, int] = {
+            agent_id: orch.get_agent_balance(agent_id) or 0 for agent_id in agent_ids
         }
 
     def on_simulation_start(self, config: SimulationConfig) -> None:
@@ -125,12 +125,12 @@ class VerboseModeOutput:
         # Gather agent statistics for end-of-day summary
         agent_stats = []
         for agent_id in self.agent_ids:
-            balance = orch.get_agent_balance(agent_id)
+            balance = orch.get_agent_balance(agent_id) or 0
 
             # Calculate credit utilization (Issue #4 fix - CORRECTED)
             # CRITICAL: Use total allowed overdraft (credit + collateral backing), not just unsecured_cap!
             allowed_overdraft = orch.get_agent_allowed_overdraft_limit(agent_id)
-            credit_util = 0
+            credit_util = 0.0
             if allowed_overdraft and allowed_overdraft > 0:
                 # If balance is negative, we're using credit equal to the overdraft amount
                 # If balance is positive, we're not using any credit
@@ -140,12 +140,11 @@ class VerboseModeOutput:
             # Get queue sizes
             queue1_size = orch.get_queue1_size(agent_id)
             rtgs_queue = orch.get_rtgs_queue_contents()
-            queue2_size = sum(
-                1
-                for tx_id in rtgs_queue
-                if orch.get_transaction_details(tx_id)
-                and orch.get_transaction_details(tx_id).get("sender_id") == agent_id
-            )
+            queue2_size = 0
+            for tx_id in rtgs_queue:
+                tx_details = orch.get_transaction_details(tx_id)
+                if tx_details and tx_details.get("sender_id") == agent_id:
+                    queue2_size += 1
 
             # Get costs for this agent (cumulative for the day)
             costs = orch.get_agent_accumulated_costs(agent_id)
