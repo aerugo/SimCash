@@ -155,7 +155,7 @@ class CheckpointManager:
         config = json.loads(checkpoint["config_json"])
 
         # Import here to avoid circular dependency
-        from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
+        from payment_simulator._core import Orchestrator
 
         # Load orchestrator from state
         # The Orchestrator.load_state() will validate config hash
