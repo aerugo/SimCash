@@ -631,38 +631,250 @@ FastAPI-based REST API for programmatic simulation control.
 
 **Source**: `api/payment_simulator/api/main.py`
 
+### Package Structure
+
+```mermaid
+flowchart TB
+    subgraph api["api/"]
+        main["main.py<br/>(FastAPI App)"]
+
+        subgraph routers["routers/"]
+            sims["simulations.py"]
+            diag["diagnostics.py"]
+            events["events.py"]
+        end
+
+        subgraph services["services/"]
+            sim_svc["simulation_service.py"]
+            state_factory["state_provider_factory.py"]
+            data_svc["data_service.py"]
+        end
+
+        subgraph strategies["strategies/"]
+            protocol["protocol.py<br/>(APIOutputStrategy)"]
+            json_strat["json_strategy.py"]
+            ws_strat["websocket_strategy.py"]
+        end
+
+        subgraph models["models/"]
+            costs["costs.py"]
+            diag_models["diagnostics.py"]
+            tx_models["transactions.py"]
+        end
+    end
+
+    main --> routers
+    routers --> services
+    services --> strategies
+
+    style strategies fill:#fce4ec
+    style services fill:#e8f5e9
+```
+
 ### Endpoints
 
 ```mermaid
 flowchart TB
     subgraph API["FastAPI Application"]
-        Create["POST /api/simulations<br/>Create simulation"]
-        Tick["POST /api/simulations/{id}/tick<br/>Execute tick"]
-        State["GET /api/simulations/{id}/state<br/>Get state"]
-        Txs["GET /api/simulations/{id}/transactions<br/>List transactions"]
-        Delete["DELETE /api/simulations/{id}<br/>Delete simulation"]
-        Checkpoint["POST /api/simulations/{id}/checkpoint<br/>Save checkpoint"]
+        Create["POST /simulations<br/>Create simulation"]
+        Tick["POST /simulations/{id}/tick<br/>Execute tick"]
+        State["GET /simulations/{id}/state<br/>Get state"]
+        Costs["GET /simulations/{id}/costs<br/>Cost breakdown"]
+        Metrics["GET /simulations/{id}/metrics<br/>System metrics"]
+        Delete["DELETE /simulations/{id}<br/>Delete simulation"]
     end
 
     Create --> Registry["In-memory<br/>Registry"]
     Tick --> FFI["FFI Call"]
-    State --> FFI
+    State --> StateProvider["StateProvider"]
+    Costs --> StateProvider
+    Metrics --> StateProvider
 ```
 
 ### Endpoint Reference
 
-| Endpoint | Method | Request | Response |
-|----------|--------|---------|----------|
-| `/api/simulations` | POST | `SimulationConfig` | `{simulation_id, status}` |
-| `/api/simulations/{id}/tick` | POST | - | `TickResponse` |
-| `/api/simulations/{id}/state` | GET | - | Full state dict |
-| `/api/simulations/{id}/transactions` | GET | - | Transaction list |
-| `/api/simulations/{id}` | DELETE | - | `{deleted: bool}` |
-| `/api/simulations/{id}/checkpoint` | POST | `{description}` | `{checkpoint_id}` |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/simulations` | POST | Create new simulation |
+| `/simulations` | GET | List all simulations |
+| `/simulations/{id}/tick` | POST | Advance simulation by tick(s) |
+| `/simulations/{id}/state` | GET | Get current state snapshot |
+| `/simulations/{id}/costs` | GET | Get per-agent cost breakdown |
+| `/simulations/{id}/metrics` | GET | Get system-wide metrics |
+| `/simulations/{id}/events` | GET | Query events with filtering |
+| `/simulations/{id}` | DELETE | Delete simulation |
+
+See [API Reference: Endpoints](../api/endpoints.md) for complete documentation.
 
 ---
 
-## 8. Event Filtering
+## 8. API Output Strategies (`api/strategies/`)
+
+### Purpose
+Async output strategies for HTTP/WebSocket contexts, parallel to CLI's OutputStrategy pattern.
+
+**Source**: `api/payment_simulator/api/strategies/`
+
+### APIOutputStrategy Protocol
+
+```mermaid
+classDiagram
+    class APIOutputStrategy {
+        <<protocol>>
+        +on_simulation_start(config) async
+        +on_tick_complete(tick_data) async
+        +on_day_complete(day, day_stats) async
+        +on_simulation_complete(final_stats) async
+    }
+
+    class JSONOutputStrategy {
+        -_collected: dict
+        -_data_service: DataService
+        +get_response() dict
+    }
+
+    class WebSocketOutputStrategy {
+        -_ws: WebSocket
+        -_closed: bool
+        +_safe_send(data) async
+    }
+
+    class NullOutputStrategy {
+        +on_tick_complete(tick_data) async
+    }
+
+    APIOutputStrategy <|.. JSONOutputStrategy
+    APIOutputStrategy <|.. WebSocketOutputStrategy
+    APIOutputStrategy <|.. NullOutputStrategy
+```
+
+### Strategy Comparison (CLI vs API)
+
+| CLI Strategy | API Strategy | Use Case |
+|--------------|--------------|----------|
+| `QuietOutputStrategy` | `NullOutputStrategy` | Batch processing, no output |
+| `VerboseModeOutput` | - | Human-readable (CLI only) |
+| `StreamModeOutput` | `JSONOutputStrategy` | Collect for JSON response |
+| - | `WebSocketOutputStrategy` | Real-time streaming |
+
+### Factory Function
+
+```python
+from payment_simulator.api.strategies import create_output_strategy
+
+# JSON response mode (default)
+strategy = create_output_strategy(mode="json")
+
+# WebSocket streaming mode
+strategy = create_output_strategy(mode="websocket", websocket=ws)
+
+# No-op mode (for testing/batch)
+strategy = create_output_strategy(mode="null")
+```
+
+### Key Differences from CLI
+
+| Aspect | CLI OutputStrategy | API OutputStrategy |
+|--------|-------------------|-------------------|
+| Methods | Synchronous | Async (`async def`) |
+| Parameters | `result, orch` | `tick_data: dict` |
+| Output | stderr/stdout | Collected/WebSocket |
+| Context | Terminal | HTTP request |
+
+See [API Reference: Output Strategies](../api/output-strategies.md) for complete documentation.
+
+---
+
+## 9. API State Provider Factory (`api/services/`)
+
+### Purpose
+Factory for creating StateProvider instances in API context, supporting both live and persisted simulations.
+
+**Source**: `api/payment_simulator/api/services/state_provider_factory.py`
+
+### APIStateProviderFactory
+
+```mermaid
+classDiagram
+    class APIStateProviderFactory {
+        -_sim_service: SimulationService
+        -_db_manager: DatabaseManager
+        +create(sim_id, tick) StateProvider
+        +get_agent_ids(sim_id) list~str~
+        +get_transaction_stats(sim_id) dict
+    }
+
+    class StateProvider {
+        <<protocol>>
+        +get_agent_balance(agent_id) int
+        +get_agent_accumulated_costs(agent_id) dict
+        +get_queue1_size(agent_id) int
+    }
+
+    class OrchestratorStateProvider {
+        -_orch: Orchestrator
+    }
+
+    class DatabaseStateProvider {
+        -_conn: DuckDBConnection
+        -_sim_id: str
+        -_tick: int
+    }
+
+    APIStateProviderFactory --> StateProvider : creates
+    StateProvider <|.. OrchestratorStateProvider
+    StateProvider <|.. DatabaseStateProvider
+```
+
+### Provider Selection Flow
+
+```mermaid
+flowchart TB
+    Request["API Request<br/>/simulations/{id}/costs"]
+    Factory["APIStateProviderFactory.create()"]
+
+    Request --> Factory
+    Factory --> Check{"Simulation<br/>in memory?"}
+
+    Check -->|Yes| OrchProvider["OrchestratorStateProvider<br/>(Live FFI)"]
+    Check -->|No| DBCheck{"Database<br/>configured?"}
+
+    DBCheck -->|Yes| DBProvider["DatabaseStateProvider<br/>(SQL Queries)"]
+    DBCheck -->|No| Error["SimulationNotFoundError"]
+```
+
+### Historical State Queries
+
+For persisted simulations, query state at any tick:
+
+```python
+@router.get("/simulations/{sim_id}/ticks/{tick}/state")
+def get_historical_state(
+    sim_id: str,
+    tick: int,
+    factory: APIStateProviderFactory = Depends(get_state_provider_factory),
+) -> TickStateResponse:
+    # Factory creates provider for specific tick
+    provider = factory.create(sim_id, tick=tick)
+
+    # Query historical state
+    return TickStateResponse(
+        tick=tick,
+        agents={
+            agent_id: {
+                "balance": provider.get_agent_balance(agent_id),
+                "queue1_size": provider.get_queue1_size(agent_id),
+            }
+            for agent_id in factory.get_agent_ids(sim_id)
+        }
+    )
+```
+
+See [API Reference: State Provider](../api/state-provider.md) for complete documentation.
+
+---
+
+## 10. Event Filtering
 
 ### Purpose
 Filter events for targeted analysis.
@@ -710,7 +922,7 @@ flowchart TB
 
 ---
 
-## 9. FFI Integration
+## 11. FFI Integration
 
 ### _core.py Shim
 
@@ -878,10 +1090,17 @@ cd api
 
 ## Related Documents
 
+### Architecture
 - [02-rust-core-engine.md](./02-rust-core-engine.md) - Rust backend details
 - [04-ffi-boundary.md](./04-ffi-boundary.md) - Integration patterns
 - [09-persistence-layer.md](./09-persistence-layer.md) - Database details
 - [10-cli-architecture.md](./10-cli-architecture.md) - CLI details
+
+### API Reference
+- [API Index](../api/index.md) - REST API overview
+- [API Endpoints](../api/endpoints.md) - Complete endpoint reference
+- [API Output Strategies](../api/output-strategies.md) - APIOutputStrategy pattern
+- [API State Provider](../api/state-provider.md) - StateProvider for API
 
 ---
 
