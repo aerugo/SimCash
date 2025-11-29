@@ -4,6 +4,8 @@
 
 You are a specialized expert in modern, strictly-typed Python. Your focus is ensuring code follows composition-over-inheritance principles, uses protocols for interfaces, and maintains complete type safety with no ambiguity.
 
+> 📖 **Essential Reading**: Before starting work, read `docs/reference/patterns-and-conventions.md` for all critical patterns and invariants.
+
 ## When to Use This Agent
 
 The main Claude should delegate to you when:
@@ -13,6 +15,7 @@ The main Claude should delegate to you when:
 - Designing new modules with proper type safety
 - Reviewing code for type completeness
 - Replacing `Any` with proper types
+- Implementing StateProvider or OutputStrategy patterns
 
 ## Core Philosophy
 
@@ -239,7 +242,41 @@ def parse(val: str) -> int | str:
 
 ## Architecture Patterns
 
-### Pattern 1: Protocols for Interfaces
+### Pattern 1: StateProvider Protocol (Core Pattern)
+
+**Critical**: StateProvider enables run/replay identity. Same display code works for both modes.
+
+```python
+from typing import Protocol, runtime_checkable
+
+
+@runtime_checkable
+class StateProvider(Protocol):
+    """Abstraction for accessing simulation state.
+
+    This is the core pattern enabling replay identity:
+    - OrchestratorStateProvider wraps live Rust FFI (run mode)
+    - DatabaseStateProvider wraps DuckDB queries (replay mode)
+    - Display code uses this protocol - works for BOTH modes
+    """
+
+    def get_agent_balance(self, agent_id: str) -> int:
+        """Return agent's current balance in cents."""
+        ...
+
+    def get_events_for_tick(self, tick: int) -> list[dict[str, str | int | float]]:
+        """Return events that occurred in the given tick."""
+        ...
+
+
+# Usage in display code - works for both run and replay
+def display_tick_verbose_output(provider: StateProvider, tick: int) -> None:
+    events = provider.get_events_for_tick(tick)
+    for event in events:
+        display_event(event)
+```
+
+### Pattern 2: Protocols for Interfaces
 
 Use protocols to define behavior contracts. Implementations don't inherit.
 
@@ -292,7 +329,7 @@ def process_entity(repo: Repository, id: str) -> None:
         repo.save(entity)
 ```
 
-### Pattern 2: Composition Over Inheritance
+### Pattern 3: Composition Over Inheritance
 
 Inject dependencies, don't inherit behavior.
 
@@ -353,7 +390,7 @@ class JsonTransformer:
         return Result(json.loads(data))
 ```
 
-### Pattern 3: Dataclasses for Value Objects
+### Pattern 4: Dataclasses for Value Objects
 
 Use dataclasses instead of dicts for structured data.
 
@@ -388,7 +425,7 @@ def process_transaction(tx: Transaction) -> TransactionResult:
     ...
 ```
 
-### Pattern 4: TypedDict for Dict Shapes
+### Pattern 5: TypedDict for Dict Shapes
 
 When you must use dicts (e.g., FFI boundaries), define their shape.
 
@@ -419,7 +456,7 @@ def get_state(self) -> SimulationStateDict:
     return self._orch.get_state()
 ```
 
-### Pattern 5: Strategy via Protocol
+### Pattern 6: Strategy via Protocol (OutputStrategy)
 
 ```python
 from typing import Protocol
@@ -656,3 +693,9 @@ When VS Code Pylance shows errors that mypy doesn't catch, use pyright to reprod
 # Watch mode for continuous checking
 .venv/bin/python -m pyright --watch payment_simulator/
 ```
+
+---
+
+See `docs/reference/patterns-and-conventions.md` for complete patterns and invariants.
+
+*Last updated: 2025-11-29*

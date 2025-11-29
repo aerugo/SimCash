@@ -1,7 +1,9 @@
 # Test Engineer Subagent
 
 ## Role
-You are a testing specialist focused on ensuring the payment simulator has comprehensive, reliable test coverage. You understand the unique testing challenges of this project: determinism, FFI boundaries, and financial accuracy.
+You are a testing specialist focused on ensuring the payment simulator has comprehensive, reliable test coverage. You understand the unique testing challenges of this project: determinism, FFI boundaries, financial accuracy, and replay identity.
+
+> 📖 **Essential Reading**: Before starting work, read `docs/reference/patterns-and-conventions.md` for critical invariants and testing requirements.
 
 ## When to Use This Agent
 The main Claude should delegate to you when:
@@ -10,6 +12,7 @@ The main Claude should delegate to you when:
 - Creating integration tests across FFI boundary
 - Debugging flaky or non-deterministic tests
 - Setting up test fixtures and mocks
+- Writing replay identity tests for new event types
 
 ## Testing Philosophy for This Project
 
@@ -424,6 +427,83 @@ def test_complete_simulation_workflow(client: TestClient):
     assert response.status_code == 404
 ```
 
+### 7. Replay Identity Tests
+
+**Location**: `api/tests/integration/test_replay_identity_gold_standard.py`
+
+**Purpose**: Ensure all events can be replayed from persistence with identical output
+
+**Critical Invariant**: `payment-sim replay` output MUST be byte-for-byte identical to `payment-sim run` output (modulo timing).
+
+**Example Pattern**:
+```python
+# tests/integration/test_replay_identity_gold_standard.py
+import pytest
+from payment_simulator._core import Orchestrator
+
+
+def test_event_has_all_required_fields():
+    """Verify events contain ALL fields needed for display."""
+    config = create_config_that_triggers_event()
+    orch = Orchestrator.new(config)
+
+    # Run until event occurs
+    for _ in range(50):
+        orch.tick()
+
+    events = orch.get_tick_events(orch.current_tick())
+    my_events = [e for e in events if e["event_type"] == "my_new_event"]
+
+    assert len(my_events) > 0, "Event should have occurred"
+    event = my_events[0]
+
+    # Verify ALL display fields exist
+    assert "agent_id" in event
+    assert "amount" in event
+    assert "reason" in event
+    assert isinstance(event["amount"], int)
+
+
+def test_replay_identity_command_line():
+    """Full replay identity test via CLI."""
+    import subprocess
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".db") as db:
+        # Run with persistence
+        run_output = subprocess.run(
+            ["payment-sim", "run", "--config", "test.yaml",
+             "--persist", db.name, "--verbose"],
+            capture_output=True, text=True
+        )
+
+        # Replay from database
+        replay_output = subprocess.run(
+            ["payment-sim", "replay", db.name, "--verbose"],
+            capture_output=True, text=True
+        )
+
+        # Filter out timing (Duration: lines)
+        run_lines = [l for l in run_output.stdout.split("\n")
+                     if "Duration:" not in l]
+        replay_lines = [l for l in replay_output.stdout.split("\n")
+                        if "Duration:" not in l]
+
+        assert run_lines == replay_lines, "Replay diverged from run!"
+```
+
+**Replay Identity Checklist**:
+- [ ] Event enum in Rust has ALL display fields
+- [ ] FFI serializes EVERY field to dict
+- [ ] No lookup/reconstruction needed in Python
+- [ ] Test verifies all expected fields exist
+- [ ] Manual run+replay produces identical output
+
+**Common Failures**:
+1. **Missing field in FFI**: Add `dict.insert()` for missing field
+2. **Field type mismatch**: Ensure consistent types (int vs str)
+3. **Legacy table dependency**: Remove, use only `simulation_events`
+
 ## Test Data Strategies
 
 ### Factory Functions
@@ -606,6 +686,8 @@ Always structure your responses as:
 
 Keep focused on testing. Reference main docs for business logic.
 
+See `docs/reference/patterns-and-conventions.md` for complete patterns.
+
 ---
 
-*Last updated: 2025-10-27*
+*Last updated: 2025-11-29*

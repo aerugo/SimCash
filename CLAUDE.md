@@ -776,6 +776,7 @@ The subagent will work in parallel, analyze relevant docs/code, and return only 
 ## Key Resources
 
 ### Documentation
+- `docs/reference/patterns-and-conventions.md` - **Consolidated patterns, invariants, and conventions** (read this for comprehensive reference)
 - `docs/architecture.md` - System architecture deep dive
 - `docs/game-design.md` - Domain model and rules
 - `foundational_plan.md` - Original project plan
@@ -789,6 +790,7 @@ The subagent will work in parallel, analyze relevant docs/code, and return only 
 - `.claude/agents/ffi-specialist.md` - FFI boundary expert
 - `.claude/agents/test-engineer.md` - Testing specialist
 - `.claude/agents/performance.md` - Performance optimization expert
+- `.claude/agents/python-stylist.md` - Modern Python typing and patterns expert
 
 ---
 
@@ -797,11 +799,12 @@ The subagent will work in parallel, analyze relevant docs/code, and return only 
 When starting work on this project:
 
 1. ✅ Read this file (you're doing it!)
-2. ✅ Scan `backend/CLAUDE.md` for Rust patterns
-3. ✅ Scan `api/CLAUDE.md` for Python patterns
-4. ✅ Review `docs/architecture.md` for system design
-5. ✅ Look at example configs to understand domain
-6. ✅ Build and test:
+2. ✅ Read `docs/reference/patterns-and-conventions.md` for all invariants and patterns
+3. ✅ Scan `backend/CLAUDE.md` for Rust patterns
+4. ✅ Scan `api/CLAUDE.md` for Python patterns
+5. ✅ Review `docs/architecture.md` for system design
+6. ✅ Look at example configs to understand domain
+7. ✅ Build and test:
    ```bash
    # Setup: Build Rust module and install everything (one command!)
    cd api
@@ -821,7 +824,7 @@ When starting work on this project:
    - After Python changes: No rebuild needed (editable mode)
    - After Rust changes: Add `--reinstall-package payment-simulator` flag
    - Rust tests require `--no-default-features` flag
-7. ✅ Create subagents as needed for specialized work
+8. ✅ Create subagents as needed for specialized work
 
 ---
 
@@ -936,5 +939,5 @@ See `docs/research/deprecate-settlement-event-compatibility.md` for details.
 
 ---
 
-*Last updated: 2025-11-28*
+*Last updated: 2025-11-29*
 *This is a living document. Update it as the project evolves.*
