@@ -168,7 +168,9 @@ class ArrivalConfig(BaseModel):
             raise ValueError("counterparty_weights must sum to positive value")
         return v
 
-    def get_effective_priority_config(self) -> dict:
+    def get_effective_priority_config(
+        self,
+    ) -> dict[str, str | int | float | list[int] | list[float]]:
         """Get the effective priority configuration as FFI-compatible dict.
 
         If priority_distribution is set, use it.
@@ -180,7 +182,9 @@ class ArrivalConfig(BaseModel):
             # Convert legacy single priority to Fixed distribution
             return {"type": "Fixed", "value": self.priority}
 
-    def _priority_distribution_to_dict(self, dist: PriorityDistribution) -> dict:
+    def _priority_distribution_to_dict(
+        self, dist: PriorityDistribution
+    ) -> dict[str, str | int | float | list[int] | list[float]]:
         """Convert priority distribution to FFI dict format."""
         if isinstance(dist, FixedPriorityDistribution):
             return {"type": "Fixed", "value": dist.value}
@@ -642,8 +646,11 @@ class SimulationConfig(BaseModel):
 
         return self
 
-    def to_ffi_dict(self) -> dict:
-        """Convert to dictionary format expected by FFI layer."""
+    def to_ffi_dict(self) -> dict[str, Any]:
+        """Convert to dictionary format expected by FFI layer.
+
+        Returns dict[str, Any] because FFI boundary types are dynamic.
+        """
         result = {
             "ticks_per_day": self.simulation.ticks_per_day,
             "num_days": self.simulation.num_days,
@@ -666,7 +673,7 @@ class SimulationConfig(BaseModel):
 
         return result
 
-    def _agent_to_ffi_dict(self, agent: AgentConfig) -> dict:
+    def _agent_to_ffi_dict(self, agent: AgentConfig) -> dict[str, Any]:
         """Convert agent config to FFI dict format."""
         result = {
             "id": agent.id,
@@ -699,7 +706,7 @@ class SimulationConfig(BaseModel):
 
         return result
 
-    def _policy_to_ffi_dict(self, policy: PolicyConfig) -> dict:
+    def _policy_to_ffi_dict(self, policy: PolicyConfig) -> dict[str, str | int]:
         """Convert policy config to FFI dict format."""
         if isinstance(policy, FifoPolicy):
             return {"type": "Fifo"}
@@ -744,7 +751,7 @@ class SimulationConfig(BaseModel):
         else:
             raise ValueError(f"Unknown policy type: {type(policy)}")
 
-    def _distribution_to_ffi_dict(self, dist: AmountDistribution) -> dict:
+    def _distribution_to_ffi_dict(self, dist: AmountDistribution) -> dict[str, str | int | float]:
         """Convert distribution config to FFI dict format."""
         if isinstance(dist, NormalDistribution):
             return {"type": "Normal", "mean": dist.mean, "std_dev": dist.std_dev}
@@ -862,7 +869,7 @@ class SimulationConfig(BaseModel):
 
         return result
 
-    def _arrival_bands_to_ffi_dict(self, bands: ArrivalBandsConfig) -> dict:
+    def _arrival_bands_to_ffi_dict(self, bands: ArrivalBandsConfig) -> dict[str, Any]:
         """Convert per-band arrival config to FFI dict format."""
         result = {}
 
@@ -875,7 +882,7 @@ class SimulationConfig(BaseModel):
 
         return result
 
-    def _arrival_band_to_ffi_dict(self, band: ArrivalBandConfig) -> dict:
+    def _arrival_band_to_ffi_dict(self, band: ArrivalBandConfig) -> dict[str, Any]:
         """Convert single arrival band config to FFI dict format."""
         return {
             "rate_per_tick": band.rate_per_tick,

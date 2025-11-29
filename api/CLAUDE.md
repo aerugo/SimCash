@@ -153,6 +153,56 @@ class TickResult:
     events: list[dict[str, str | int | float]]
 ```
 
+### Private Methods Need Return Types Too
+
+**All methods** need explicit return types, including private/internal methods. Pylance catches missing return types that mypy may miss.
+
+```python
+# Wrong - Pylance reports dict[Unknown, Unknown]
+def _to_ffi_dict(self, obj: SomeModel) -> dict:
+    return {"type": obj.type, "value": obj.value}
+
+# Correct - explicit return type
+def _to_ffi_dict(self, obj: SomeModel) -> dict[str, str | int]:
+    return {"type": obj.type, "value": obj.value}
+
+# Better - use TypedDict for complex shapes
+class FfiDict(TypedDict):
+    type: str
+    value: int
+
+def _to_ffi_dict(self, obj: SomeModel) -> FfiDict:
+    return {"type": obj.type, "value": obj.value}
+```
+
+### Use Match Statements for Union Type Dispatch
+
+When converting union types, prefer `match` statements over `isinstance` chains. This provides exhaustiveness checking and cleaner code.
+
+```python
+# Acceptable but verbose - isinstance chains
+def _policy_to_dict(self, policy: PolicyConfig) -> dict[str, str | int]:
+    if isinstance(policy, FifoPolicy):
+        return {"type": "Fifo"}
+    elif isinstance(policy, DeadlinePolicy):
+        return {"type": "Deadline", "threshold": policy.urgency_threshold}
+    else:
+        raise ValueError(f"Unknown policy: {type(policy)}")
+
+# Better - match statement with exhaustiveness
+def _policy_to_dict(self, policy: PolicyConfig) -> dict[str, str | int]:
+    match policy:
+        case FifoPolicy():
+            return {"type": "Fifo"}
+        case DeadlinePolicy(urgency_threshold=threshold):
+            return {"type": "Deadline", "threshold": threshold}
+        case _:
+            # This catches any unhandled types at runtime
+            raise ValueError(f"Unknown policy: {type(policy)}")
+```
+
+**Note**: When using isinstance for type narrowing that Pylance already infers, consider if the check is necessary. Unnecessary isinstance calls indicate the type is already narrowed.
+
 ### Use Union Syntax, Not Optional
 
 ```python
