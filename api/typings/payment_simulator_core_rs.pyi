@@ -1,4 +1,4 @@
-"""Type stubs for payment_simulator._core (Rust FFI module).
+"""Type stubs for payment_simulator_core_rs (Rust FFI module).
 
 This stub file provides type hints for the Rust Orchestrator class
 exposed via PyO3. The actual implementation is in payment_simulator_core_rs.
