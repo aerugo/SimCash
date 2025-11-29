@@ -363,7 +363,13 @@ For future consideration (separate ticket):
 - [x] Phase 1.3: Fix E501 in api/main.py - SKIPPED (209 issues in SQL/docstrings)
 - [x] Phase 2.1: Replace Union with | in config/schemas.py (5 Union types converted)
 - [x] Phase 2.2: Add type arguments to bare dict (1 fix)
-- [x] Final: mypy passes
+- [x] Phase 3: Pylance-level strictness (match statements, return types)
+- [x] Phase 4: CLI module type improvements
+  - [x] TypedDicts for state_provider return types (TransactionDetails, AccumulatedCosts, etc.)
+  - [x] DuckDBPyConnection type instead of Any
+  - [x] Created _core.pyi stub file for Rust FFI module (Orchestrator class)
+  - [x] Replaced type: ignore comments with proper casts
+- [x] Final: mypy passes (state_provider.py)
 - [x] Final: ruff B904/F401 passes (E501 skipped, RUF cosmetic issues remain)
 - [x] Final: pytest passes (275 passed, 4 skipped)
 - [x] Final: All changes committed and pushed

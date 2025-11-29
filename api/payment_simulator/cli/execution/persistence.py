@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
+from payment_simulator._core import Orchestrator
 
 # Import existing persistence helpers from run.py module
 # These will be moved to persistence package in Phase 5 cleanup
@@ -182,7 +182,7 @@ class PersistenceManager:
 
         # 2. Buffer agent state snapshots
         for agent_id in agent_ids:
-            current_balance = orch.get_agent_balance(agent_id)
+            current_balance = orch.get_agent_balance(agent_id) or 0
             unsecured_cap = orch.get_agent_unsecured_cap(agent_id)
             costs = orch.get_agent_accumulated_costs(agent_id)
             collateral = orch.get_agent_collateral_posted(agent_id) or 0

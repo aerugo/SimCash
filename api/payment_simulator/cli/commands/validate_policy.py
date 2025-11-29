@@ -241,7 +241,7 @@ def _run_functional_tests(
     2. Policy executes without errors on sample transactions
     3. Policy produces valid decisions
     """
-    from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
+    from payment_simulator._core import Orchestrator
 
     tests_run = 0
     tests_passed = 0
