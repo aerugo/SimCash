@@ -1,16 +1,30 @@
 # API Endpoints Reference
 
-> Complete REST API endpoint documentation
+**Version**: 1.0
+**Last Updated**: 2025-11-29
 
-## Base URL
+---
 
-```
-http://localhost:8000
-```
+## Overview
+
+Complete REST API endpoint documentation for the Payment Simulator.
+
+**Base URL:** `http://localhost:8000`
 
 ---
 
 ## Simulation Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created: POST /simulations
+    Created --> Running: POST /tick
+    Running --> Running: POST /tick
+    Running --> Checkpointed: POST /checkpoints
+    Checkpointed --> Running: POST /checkpoints/{id}/load
+    Running --> [*]: DELETE /simulations/{id}
+    Created --> [*]: DELETE /simulations/{id}
+```
 
 ### Create Simulation
 
@@ -139,6 +153,26 @@ DELETE /simulations/{sim_id}
 
 ## Execution
 
+### Tick Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant Orch as Orchestrator
+    participant Rust as Rust Engine
+
+    Client->>API: POST /tick?count=N
+    loop N times
+        API->>Orch: tick()
+        Orch->>Rust: Execute tick loop
+        Note right of Rust: Arrivals → Policy<br/>→ RTGS → LSM → Costs
+        Rust-->>Orch: TickResult
+        Orch-->>API: Events + Stats
+    end
+    API-->>Client: JSON Response
+```
+
 ### Advance Tick
 
 Advances the simulation by one or more ticks.
@@ -256,6 +290,33 @@ GET /simulations/{sim_id}/ticks/{tick}/state
 ---
 
 ## Diagnostics
+
+### Data Access Pattern
+
+```mermaid
+flowchart TB
+    subgraph Endpoints["Diagnostic Endpoints"]
+        Costs["/costs"]
+        Metrics["/metrics"]
+        Events["/events"]
+        Agents["/agents"]
+    end
+
+    subgraph Provider["StateProvider"]
+        P1["get_agent_accumulated_costs()"]
+        P2["get_transaction_stats()"]
+        P3["get_simulation_events()"]
+        P4["get_agent_balance()"]
+    end
+
+    Costs --> P1
+    Metrics --> P2
+    Events --> P3
+    Agents --> P4
+
+    style Endpoints fill:#e3f2fd
+    style Provider fill:#e8f5e9
+```
 
 ### Get Costs
 
@@ -450,6 +511,26 @@ GET /simulations/{sim_id}/agents/{agent_id}/queues
 
 ## Checkpoints
 
+### Checkpoint Flow
+
+```mermaid
+flowchart LR
+    subgraph Save["Save Checkpoint"]
+        S1["Capture State"] --> S2["Serialize"]
+        S2 --> S3["Store in DB"]
+    end
+
+    subgraph Load["Load Checkpoint"]
+        L1["Retrieve from DB"] --> L2["Deserialize"]
+        L2 --> L3["Restore State"]
+    end
+
+    Running["Running Simulation"] --> Save
+    Save --> Checkpoint["Checkpoint Created"]
+    Checkpoint --> Load
+    Load --> Restored["Restored State"]
+```
+
 ### Save Checkpoint
 
 Saves current simulation state.
@@ -527,6 +608,26 @@ POST /simulations/{sim_id}/checkpoints/{checkpoint_id}/load
 ---
 
 ## Error Responses
+
+### Error Response Flow
+
+```mermaid
+flowchart TB
+    Request["HTTP Request"] --> Validate{"Validation"}
+    Validate -->|Invalid| E422["422 Validation Error"]
+    Validate -->|Valid| Process["Process Request"]
+
+    Process --> Exists{"Resource Exists?"}
+    Exists -->|No| E404["404 Not Found"]
+    Exists -->|Yes| Execute["Execute Operation"]
+
+    Execute --> Range{"Valid Range?"}
+    Range -->|No| E400["400 Bad Request"]
+    Range -->|Yes| Success["200 OK"]
+
+    Execute --> Error{"Internal Error?"}
+    Error -->|Yes| E500["500 Internal Error"]
+```
 
 ### 404 Not Found
 
@@ -608,12 +709,14 @@ Endpoints returning lists support pagination:
 
 ---
 
-## Related Documentation
+## Related Documents
 
 - [API Index](index.md) - API overview
 - [Output Strategies](output-strategies.md) - Streaming patterns
+- [State Provider](state-provider.md) - Data access abstraction
 - [Models](models.md) - Pydantic schemas
+- [Event System](../architecture/08-event-system.md) - Event types reference
 
 ---
 
-*Last updated: 2025-11-29*
+*Next: [output-strategies.md](output-strategies.md) - Output handling patterns*

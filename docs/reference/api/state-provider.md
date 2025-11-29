@@ -1,36 +1,61 @@
 # API State Provider
 
-> Unified data access for live and persisted simulations
+**Version**: 1.0
+**Last Updated**: 2025-11-29
 
-The API uses the **StateProvider pattern** to ensure consistent data access regardless of whether a simulation is live (in-memory) or persisted (database). This enables **Replay Identity** for API responses.
+---
 
 ## Overview
 
+The API uses the **StateProvider pattern** to ensure consistent data access regardless of whether a simulation is live (in-memory) or persisted (database). This enables **Replay Identity** for API responses.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Factory["APIStateProviderFactory"]
+        Create["create(sim_id, db_manager)"]
+    end
+
+    subgraph Protocol["StateProvider Protocol"]
+        Interface["Abstract Interface"]
+    end
+
+    subgraph Implementations["Implementations"]
+        OSP["OrchestratorStateProvider<br/>(Live FFI)"]
+        DSP["DatabaseStateProvider<br/>(Replay)"]
+    end
+
+    Factory --> Protocol
+    Protocol --> OSP
+    Protocol --> DSP
+
+    style Factory fill:#fff3e0
+    style Protocol fill:#e8f5e9
+    style Implementations fill:#e3f2fd
 ```
-┌─────────────────────────────────────────────────────────┐
-│          APIStateProviderFactory                        │
-│          (Creates appropriate provider)                 │
-└────────────────┬───────────────────────────────────────┘
-                 │ create(sim_id, db_manager)
-                 │
-         ┌───────┴────────┐
-         │ StateProvider  │  ← Protocol (interface)
-         │   Protocol     │
-         └───────┬────────┘
-                 │
-    ┌────────────┴─────────────┐
-    │                          │
-    ▼                          ▼
-┌────────────────┐      ┌──────────────────┐
-│ Orchestrator   │      │ Database         │
-│ StateProvider  │      │ StateProvider    │
-│ (Live FFI)     │      │ (Replay)         │
-└────────────────┘      └──────────────────┘
-```
+
+---
 
 ## Problem Solved
 
-Without StateProvider, API endpoints would need separate code paths:
+### Without StateProvider
+
+Without the abstraction, API endpoints need duplicate code paths:
+
+```mermaid
+flowchart TB
+    Request["GET /costs"] --> Check{"Is live?"}
+    Check -->|Yes| FFI["FFI Call to Rust"]
+    Check -->|No| SQL["SQL Query to DB"]
+    FFI --> Format1["Format Response A"]
+    SQL --> Format2["Format Response B"]
+
+    style Format1 fill:#ffcdd2
+    style Format2 fill:#ffcdd2
+```
 
 ```python
 # ❌ BAD: Duplicate code paths
@@ -46,7 +71,19 @@ def get_costs(sim_id: str):
     return costs
 ```
 
-With StateProvider:
+### With StateProvider
+
+With the abstraction, a single code path serves both modes:
+
+```mermaid
+flowchart TB
+    Request["GET /costs"] --> Factory["StateProviderFactory"]
+    Factory --> Provider["StateProvider"]
+    Provider --> Unified["get_agent_accumulated_costs()"]
+    Unified --> Format["Single Format Response"]
+
+    style Format fill:#c8e6c9
+```
 
 ```python
 # ✅ GOOD: Unified code path
@@ -56,6 +93,8 @@ def get_costs(sim_id: str, factory: APIStateProviderFactory):
     costs = provider.get_agent_accumulated_costs(agent_id)
     return costs
 ```
+
+---
 
 ## APIStateProviderFactory
 
@@ -115,7 +154,29 @@ class StateProvider(Protocol):
     def get_overdue_transactions(self) -> list[dict]: ...
 ```
 
+---
+
 ## Implementations
+
+```mermaid
+flowchart TB
+    subgraph Orchestrator["OrchestratorStateProvider"]
+        direction LR
+        O1["get_agent_balance()"] --> FFI["FFI → Rust"]
+        O2["get_costs()"] --> FFI
+        O3["get_queue()"] --> FFI
+    end
+
+    subgraph Database["DatabaseStateProvider"]
+        direction LR
+        D1["get_agent_balance()"] --> SQL["SQL → DuckDB"]
+        D2["get_costs()"] --> SQL
+        D3["get_queue()"] --> SQL
+    end
+
+    style Orchestrator fill:#dea584
+    style Database fill:#e3f2fd
+```
 
 ### OrchestratorStateProvider
 
@@ -163,7 +224,36 @@ class DatabaseStateProvider:
         return None
 ```
 
+---
+
 ## API Usage
+
+### Dependency Injection Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Endpoint as FastAPI Endpoint
+    participant Factory as StateProviderFactory
+    participant Provider as StateProvider
+    participant Backend as Rust/DB
+
+    Client->>Endpoint: GET /simulations/{id}/costs
+    Endpoint->>Factory: Depends(get_state_provider_factory)
+    Factory->>Factory: Check if sim_id is live
+    alt Live Simulation
+        Factory-->>Endpoint: OrchestratorStateProvider
+        Endpoint->>Provider: get_agent_accumulated_costs()
+        Provider->>Backend: FFI call
+    else Persisted Simulation
+        Factory-->>Endpoint: DatabaseStateProvider
+        Endpoint->>Provider: get_agent_accumulated_costs()
+        Provider->>Backend: SQL query
+    end
+    Backend-->>Provider: Raw data
+    Provider-->>Endpoint: Formatted result
+    Endpoint-->>Client: JSON response
+```
 
 ### As FastAPI Dependency
 
@@ -216,11 +306,31 @@ def get_historical_state(
     return TickStateResponse(tick=tick, agents=agent_states)
 ```
 
+---
+
 ## DataService Layer
 
 **Source:** `api/payment_simulator/api/services/data_service.py`
 
 DataService wraps StateProvider for higher-level operations:
+
+```mermaid
+flowchart LR
+    subgraph DataService["DataService"]
+        Method["get_costs()"]
+    end
+
+    subgraph Provider["StateProvider"]
+        Raw["get_agent_accumulated_costs()"]
+    end
+
+    subgraph Output["Output"]
+        Model["AgentCostBreakdown<br/>(Pydantic)"]
+    end
+
+    Method --> Raw
+    Raw --> Model
+```
 
 ```python
 class DataService:
@@ -340,13 +450,16 @@ def test_factory_returns_database_provider_for_persisted():
     assert isinstance(provider, DatabaseStateProvider)
 ```
 
-## Related Documentation
+---
+
+## Related Documents
 
 - [API Index](index.md) - API overview
+- [Endpoints](endpoints.md) - Complete endpoint reference
 - [Output Strategies](output-strategies.md) - Output handling
 - [Architecture: StateProvider](../architecture/03-python-api-layer.md#stateprovider-pattern) - Full pattern docs
 - [CLI: State Provider](../cli/output-modes.md) - CLI implementation
 
 ---
 
-*Last updated: 2025-11-29*
+*Next: [output-strategies.md](output-strategies.md) - Output handling patterns*
