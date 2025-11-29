@@ -583,6 +583,29 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 ```
 
+### pyright / Pylance (pyproject.toml)
+
+```toml
+[tool.pyright]
+pythonVersion = "3.11"
+pythonPlatform = "Linux"
+include = ["payment_simulator"]
+exclude = ["**/node_modules", "**/__pycache__", ".venv", "build", "dist"]
+typeCheckingMode = "standard"
+# Suppress noisy errors for Rust FFI module
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+# Useful warnings
+reportPrivateUsage = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+```
+
+**Note**: VS Code Pylance also reads `pyrightconfig.json` if present. Both are provided in this project.
+
 ### ruff (pyproject.toml)
 
 ```toml
@@ -615,8 +638,11 @@ uv sync --extra dev
 # After Rust changes
 uv sync --extra dev --reinstall-package payment-simulator
 
-# Type checking (MUST pass)
+# Type checking with mypy (MUST pass)
 .venv/bin/python -m mypy payment_simulator/
+
+# Type checking with pyright (matches VS Code Pylance)
+.venv/bin/python -m pyright payment_simulator/
 
 # Linting (MUST pass)
 .venv/bin/python -m ruff check payment_simulator/
@@ -630,6 +656,29 @@ uv sync --extra dev --reinstall-package payment-simulator
 # Coverage
 .venv/bin/python -m pytest --cov=payment_simulator --cov-report=html
 ```
+
+### Type Checking: mypy vs pyright
+
+This project uses **both** mypy and pyright for type checking:
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| **mypy** | Traditional Python type checker | CI/CD, pre-commit hooks |
+| **pyright** | Pylance's underlying engine | Match VS Code Pylance errors |
+
+**Why both?** VS Code's Pylance extension uses pyright internally. If you see errors in VS Code that mypy doesn't catch, run pyright to reproduce them in the terminal.
+
+```bash
+# See the same errors as VS Code Pylance
+.venv/bin/python -m pyright payment_simulator/
+
+# Pyright with watch mode (re-checks on file changes)
+.venv/bin/python -m pyright --watch payment_simulator/
+```
+
+**Configuration**: Both tools read from `pyproject.toml`:
+- mypy: `[tool.mypy]` section
+- pyright: `[tool.pyright]` section (also used by Pylance)
 
 ---
 
@@ -720,6 +769,7 @@ balance: int = 100050  # $1,000.50
 
 ### Verification
 - [ ] mypy passes: `.venv/bin/python -m mypy payment_simulator/`
+- [ ] pyright passes: `.venv/bin/python -m pyright payment_simulator/`
 - [ ] ruff passes: `.venv/bin/python -m ruff check payment_simulator/`
 - [ ] Tests pass: `.venv/bin/python -m pytest`
 - [ ] All money values are `int` (cents, never floats)

@@ -627,12 +627,32 @@ Keep responses focused on type safety and architecture patterns. Don't get invol
 Always suggest running these after changes:
 
 ```bash
-# Type check
+# Type check with mypy
 .venv/bin/python -m mypy payment_simulator/
+
+# Type check with pyright (matches VS Code Pylance errors)
+.venv/bin/python -m pyright payment_simulator/
 
 # Lint
 .venv/bin/python -m ruff check payment_simulator/
 
 # Tests
 .venv/bin/python -m pytest
+```
+
+### mypy vs pyright
+
+**Both type checkers should pass before committing.** They catch different issues:
+
+- **mypy**: Traditional Python type checker, used in CI
+- **pyright**: Pylance's underlying engine - if VS Code shows an error, pyright will too
+
+When VS Code Pylance shows errors that mypy doesn't catch, use pyright to reproduce:
+
+```bash
+# See the same errors as VS Code Pylance
+.venv/bin/python -m pyright payment_simulator/
+
+# Watch mode for continuous checking
+.venv/bin/python -m pyright --watch payment_simulator/
 ```
