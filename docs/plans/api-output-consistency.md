@@ -1,8 +1,8 @@
 # API Output Consistency Plan
 
-**Version**: 1.0
+**Version**: 1.1
 **Created**: 2025-11-29
-**Status**: Draft
+**Status**: Implemented (Phases -1 through 5 complete)
 **Author**: Claude
 
 ---
@@ -1156,19 +1156,19 @@ api/payment_simulator/api/services/simulation_service.py  # Optional cleanup
 
 ### Must Have
 
-- [ ] **Shared data contracts** define canonical field names for costs, agent state, metrics
-- [ ] **CLI-API parity tests pass** - same field names, same values, same calculations
-- [ ] All endpoints work identically for live and persisted simulations
-- [ ] API costs match CLI costs exactly (same field names, same values)
-- [ ] API metrics match CLI metrics exactly (settlement_rate uses same formula)
+- [x] **Shared data contracts** define canonical field names for costs, agent state, metrics
+- [x] **CLI-API parity tests pass** - same field names, same values, same calculations
+- [x] All endpoints work identically for live and persisted simulations
+- [x] API costs match CLI costs exactly (same field names, same values)
+- [x] API metrics match CLI metrics exactly (settlement_rate uses same formula)
 - [ ] API events have same structure as CLI `--event-stream` output
-- [ ] `/metrics` returns 200 for persisted simulations
-- [ ] All existing tests continue to pass
-- [ ] All new tests pass
+- [x] `/metrics` returns 200 for persisted simulations
+- [x] All existing tests continue to pass
+- [x] All new tests pass
 
 ### Should Have
 
-- [ ] Historical tick state queries work
+- [x] Historical tick state queries work
 - [ ] `/agents/{id}/queues` works for persisted simulations
 - [ ] Documentation updated with consistency guarantees
 

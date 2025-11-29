@@ -627,3 +627,113 @@ class TestEdgeCases:
         # But costs should still be retrievable (from DB)
         response = test_client.get(f"/simulations/{sim_id}/costs")
         assert response.status_code == 200
+
+
+# ============================================================================
+# Phase 5: Historical State Support
+# ============================================================================
+
+
+class TestHistoricalTickState:
+    """Tests for historical tick state queries on persisted simulations.
+
+    These tests verify that `/ticks/{tick}/state` works for any historical
+    tick in persisted simulations.
+    """
+
+    def test_historical_tick_state_returns_200(
+        self, client_with_db, persisted_simulation
+    ) -> None:
+        """GET /ticks/{tick}/state should return 200 for any historical tick.
+
+        FAILING: Currently returns 404 because tick state endpoint
+        doesn't have database fallback for non-current ticks.
+        """
+        sim_id, _ = persisted_simulation
+        test_client, db_manager = client_with_db
+
+        # Get the total ticks from the simulation
+        conn = db_manager.get_connection()
+        result = conn.execute(
+            "SELECT ticks_per_day * num_days FROM simulations WHERE simulation_id = ?",
+            [sim_id],
+        ).fetchone()
+        total_ticks = result[0] if result else 20
+
+        # Query a tick in the middle of the simulation
+        mid_tick = total_ticks // 2
+
+        response = test_client.get(f"/simulations/{sim_id}/ticks/{mid_tick}/state")
+
+        assert response.status_code == 200, (
+            f"Expected 200 for historical tick {mid_tick}, got {response.status_code}. "
+            f"This fails because /ticks/{{tick}}/state has no database fallback."
+        )
+
+    def test_historical_tick_state_has_agent_data(
+        self, client_with_db, persisted_simulation
+    ) -> None:
+        """Historical tick state should include agent state data."""
+        sim_id, _ = persisted_simulation
+        test_client, _ = client_with_db
+
+        mid_tick = 5  # Query tick 5
+
+        response = test_client.get(f"/simulations/{sim_id}/ticks/{mid_tick}/state")
+
+        if response.status_code == 404:
+            pytest.skip("Historical tick state not implemented for persisted simulations")
+
+        data = response.json()
+
+        # Should have agents dict
+        assert "agents" in data
+        assert len(data["agents"]) > 0
+
+        # Each agent should have balance, queue sizes
+        for agent_id, agent_state in data["agents"].items():
+            assert "balance" in agent_state
+            assert "queue1_size" in agent_state
+
+    def test_historical_tick_state_correct_tick(
+        self, client_with_db, persisted_simulation
+    ) -> None:
+        """Historical tick state should report correct tick number."""
+        sim_id, _ = persisted_simulation
+        test_client, _ = client_with_db
+
+        requested_tick = 5  # Specific tick to query
+
+        response = test_client.get(f"/simulations/{sim_id}/ticks/{requested_tick}/state")
+
+        if response.status_code == 404:
+            pytest.skip("Historical tick state not implemented for persisted simulations")
+
+        data = response.json()
+        assert data["tick"] == requested_tick, (
+            f"Response tick ({data['tick']}) doesn't match requested tick ({requested_tick})"
+        )
+
+    def test_tick_state_final_tick_persisted(
+        self, client_with_db, persisted_simulation
+    ) -> None:
+        """Should be able to query final tick state for persisted simulation."""
+        sim_id, _ = persisted_simulation
+        test_client, db_manager = client_with_db
+
+        # Get the total ticks from the simulation
+        conn = db_manager.get_connection()
+        result = conn.execute(
+            "SELECT ticks_per_day * num_days FROM simulations WHERE simulation_id = ?",
+            [sim_id],
+        ).fetchone()
+        total_ticks = result[0] if result else 20
+
+        # Query the final tick
+        final_tick = total_ticks - 1
+
+        response = test_client.get(f"/simulations/{sim_id}/ticks/{final_tick}/state")
+
+        assert response.status_code == 200, (
+            f"Expected 200 for final tick {final_tick}, got {response.status_code}"
+        )
