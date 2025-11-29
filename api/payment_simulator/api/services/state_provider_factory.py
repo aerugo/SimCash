@@ -111,6 +111,113 @@ class APIStateProviderFactory:
 
         raise SimulationNotFoundError(simulation_id)
 
+    def get_transaction_stats(
+        self,
+        simulation_id: str,
+        db_manager: DatabaseManager | None = None,
+    ) -> dict[str, Any]:
+        """Get transaction statistics for metrics computation.
+
+        Returns stats needed by DataService.get_metrics():
+        - total_arrivals: Total transactions that arrived
+        - total_settlements: Total transactions settled
+        - avg_delay_ticks: Average settlement delay
+        - max_delay_ticks: Maximum delay observed
+
+        Args:
+            simulation_id: The simulation ID
+            db_manager: Optional database manager for persisted simulations
+
+        Returns:
+            Dict with transaction statistics
+
+        Raises:
+            SimulationNotFoundError: If simulation not found
+        """
+        if self._is_live_simulation(simulation_id):
+            return self._get_live_transaction_stats(simulation_id)
+
+        if db_manager is not None:
+            return self._get_persisted_transaction_stats(simulation_id, db_manager)
+
+        raise SimulationNotFoundError(simulation_id)
+
+    def _get_live_transaction_stats(self, simulation_id: str) -> dict[str, Any]:
+        """Get transaction stats from live orchestrator.
+
+        Args:
+            simulation_id: The simulation ID
+
+        Returns:
+            Dict with transaction statistics
+        """
+        from payment_simulator.api.dependencies import container
+
+        orch = container.simulation_service.get_simulation(simulation_id)
+        metrics = orch.get_system_metrics()
+
+        return {
+            "total_arrivals": metrics.get("total_arrivals", 0),
+            "total_settlements": metrics.get("total_settlements", 0),
+            "avg_delay_ticks": metrics.get("avg_delay_ticks", 0.0),
+            "max_delay_ticks": metrics.get("max_delay_ticks", 0),
+        }
+
+    def _get_persisted_transaction_stats(
+        self, simulation_id: str, db_manager: DatabaseManager
+    ) -> dict[str, Any]:
+        """Get transaction stats from database.
+
+        Args:
+            simulation_id: The simulation ID
+            db_manager: Database manager for queries
+
+        Returns:
+            Dict with transaction statistics
+
+        Raises:
+            SimulationNotFoundError: If simulation not in database
+        """
+        conn = db_manager.get_connection()
+
+        # Check simulation exists
+        result = conn.execute(
+            "SELECT simulation_id FROM simulations WHERE simulation_id = ?",
+            [simulation_id],
+        ).fetchone()
+
+        if result is None:
+            raise SimulationNotFoundError(simulation_id)
+
+        # Get transaction stats from transactions table
+        stats_result = conn.execute(
+            """
+            SELECT
+                COUNT(*) as total_arrivals,
+                COUNT(settlement_tick) as total_settlements,
+                COALESCE(AVG(settlement_tick - arrival_tick), 0) as avg_delay,
+                COALESCE(MAX(settlement_tick - arrival_tick), 0) as max_delay
+            FROM transactions
+            WHERE simulation_id = ?
+            """,
+            [simulation_id],
+        ).fetchone()
+
+        if stats_result is None:
+            return {
+                "total_arrivals": 0,
+                "total_settlements": 0,
+                "avg_delay_ticks": 0.0,
+                "max_delay_ticks": 0,
+            }
+
+        return {
+            "total_arrivals": stats_result[0] or 0,
+            "total_settlements": stats_result[1] or 0,
+            "avg_delay_ticks": float(stats_result[2]) if stats_result[2] else 0.0,
+            "max_delay_ticks": int(stats_result[3]) if stats_result[3] else 0,
+        }
+
     def get_simulation_state(
         self,
         simulation_id: str,

@@ -272,32 +272,45 @@ def get_cost_timeline(
 @router.get("/simulations/{sim_id}/metrics", response_model=MetricsResponse)
 def get_simulation_metrics(
     sim_id: str,
-    service: SimulationService = Depends(get_simulation_service),
+    factory: APIStateProviderFactory = Depends(get_state_provider_factory),
+    db_manager: Any = Depends(get_db_manager),
 ) -> MetricsResponse:
     """Get comprehensive system-wide metrics for a simulation.
 
     Returns settlement rates, delays, queue statistics, and liquidity usage.
+
+    Uses StateProvider pattern for unified data access across live and persisted
+    simulations.
     """
     try:
-        orchestrator = service.get_simulation(sim_id)
+        # Create StateProvider (handles live vs persisted automatically)
+        provider = factory.create(sim_id, db_manager)
 
-        # Get metrics from FFI
-        metrics_dict = orchestrator.get_system_metrics()
+        # Get agent IDs and simulation state
+        agent_ids = factory.get_agent_ids(sim_id, db_manager)
+        sim_state = factory.get_simulation_state(sim_id, db_manager)
+
+        # Get transaction stats (from orchestrator for live, database for persisted)
+        transaction_stats = factory.get_transaction_stats(sim_id, db_manager)
+
+        # Use DataService for consistent metrics computation
+        data_service = DataService(provider)
+        metrics_dict = data_service.get_metrics(agent_ids, transaction_stats)
 
         # Convert to Pydantic model
         metrics = SystemMetrics(**metrics_dict)
 
-        # Get current tick and day
-        current_tick = orchestrator.current_tick()
-        current_day = orchestrator.current_day()
-
         return MetricsResponse(
-            simulation_id=sim_id, tick=current_tick, day=current_day, metrics=metrics
+            simulation_id=sim_id,
+            tick=sim_state["tick"],
+            day=sim_state["day"],
+            metrics=metrics,
         )
 
-    except SimulationNotFoundError:
+    except FactorySimulationNotFoundError:
         raise HTTPException(
-            status_code=404, detail=f"Simulation not found: {sim_id}"
+            status_code=404,
+            detail=f"Simulation not found: {sim_id}",
         ) from None
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
