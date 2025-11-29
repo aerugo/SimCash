@@ -6,6 +6,8 @@ This is the **Rust simulation engine** - the performance-critical core of the pa
 
 **Your role**: You're an expert Rust developer who understands systems programming, zero-cost abstractions, and FFI safety with PyO3.
 
+> 📖 **Essential Reading**: Before working on this codebase, read [`docs/reference/patterns-and-conventions.md`](/docs/reference/patterns-and-conventions.md) for all critical invariants and patterns.
+
 ---
 
 ## 🎯 Quick Reference
@@ -216,7 +218,57 @@ impl SimulationState {
 
 **Critical**: The RNG mutates its own state. No manual seed management needed within Rust. Only persist seed across FFI boundary.
 
-### 4. Performance Hot Paths
+### 4. Balance Conservation Invariant
+
+**Rule**: Money is never created or destroyed within the simulation.
+
+```rust
+// ✅ CORRECT - Settlement moves money, total unchanged
+sender.balance -= amount;
+receiver.balance += amount;
+// Total remains constant
+
+// ❌ WRONG - Creates money from nothing
+receiver.balance += amount; // Where did this come from?
+```
+
+**Validation** (add to integration tests):
+```rust
+fn assert_balance_conservation(state: &SimulationState, expected_total: i64) {
+    let actual_total: i64 = state.agents.values().map(|a| a.balance).sum();
+    assert_eq!(actual_total, expected_total, "Balance conservation violated!");
+}
+```
+
+### 5. Atomicity Invariant
+
+**Rule**: Settlement is all-or-nothing. Either complete success with all state updates, or complete failure with no state changes.
+
+```rust
+// ✅ CORRECT - Check first, then update all
+pub fn try_settle(sender: &mut Agent, receiver: &mut Agent, amount: i64) -> Result<(), Error> {
+    // Pre-check
+    if sender.balance < amount {
+        return Err(Error::InsufficientFunds);  // No state changes
+    }
+
+    // All-or-nothing update
+    sender.balance -= amount;
+    receiver.balance += amount;
+    Ok(())
+}
+
+// ❌ WRONG - Partial update possible
+pub fn bad_settle(sender: &mut Agent, receiver: &mut Agent, amount: i64) -> Result<(), Error> {
+    sender.balance -= amount;  // State changed!
+    if receiver.validate_credit()? {  // This could fail!
+        receiver.balance += amount;
+    }
+    Ok(())
+}
+```
+
+### 6. Performance Hot Paths
 
 These functions are called thousands of times per simulation. Optimize ruthlessly:
 
@@ -1332,8 +1384,9 @@ pub enum PolicyExecutor {
 1. **FFI not working?** → Consider using the `ffi-specialist` subagent
 2. **Complex algorithm needed?** → Use `ultrathink` mode
 3. **Performance issue?** → Profile first, optimize second
-4. **Not sure about pattern?** → Look for similar code in codebase
+4. **Not sure about pattern?** → Check `docs/reference/patterns-and-conventions.md` first, then look for similar code in codebase
 5. **Determinism broken?** → Check RNG usage and HashMap iteration
+6. **Adding new events?** → Follow the event workflow in the patterns document
 
 ---
 
@@ -1342,15 +1395,20 @@ pub enum PolicyExecutor {
 - [ ] No `f32` or `f64` for money calculations
 - [ ] All public functions have doc comments
 - [ ] Tests pass: `cargo test --no-default-features`
-- [ ] No compiler warnings: `cargo clippy`
+- [ ] No compiler warnings: `cargo clippy -- -D warnings`
 - [ ] Code formatted: `cargo fmt`
 - [ ] FFI functions return `PyResult`
+- [ ] No `.unwrap()` in `#[pymethods]` (use `?` with `PyResult`)
 - [ ] RNG state properly managed
 - [ ] Determinism verified (if relevant)
+- [ ] HashMap iteration is sorted (for determinism)
+- [ ] Balance conservation maintained (settlement moves money, never creates)
 - [ ] Performance acceptable (if hot path)
+- [ ] New events follow event workflow (see patterns doc)
 
 ---
 
-*Last updated: 2025-10-27*
+*Last updated: 2025-11-29*
 *For Python/FFI guidance, see `/api/CLAUDE.md`*
-*For general patterns, see root `/CLAUDE.md`*
+*For consolidated patterns and invariants, see `docs/reference/patterns-and-conventions.md`*
+*For general guidance, see root `/CLAUDE.md`*

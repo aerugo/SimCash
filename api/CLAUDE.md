@@ -6,6 +6,8 @@ This is the **Python middleware layer** for the payment simulator. It provides C
 
 **Key Principle**: Python orchestrates; Rust computes. Keep FFI minimal, validate early, and maintain strict type safety throughout.
 
+> 📖 **Essential Reading**: Before working on this codebase, read [`docs/reference/patterns-and-conventions.md`](/docs/reference/patterns-and-conventions.md) for all critical invariants and patterns.
+
 ---
 
 ## 🔴 Documentation Requirements
@@ -516,6 +518,50 @@ class GoodManager:
 
 ---
 
+## 🎯 Replay Identity Pattern
+
+**Critical Invariant**: `payment-sim replay` output MUST be byte-for-byte identical to `payment-sim run` output (modulo timing).
+
+### StateProvider Pattern
+
+Both run and replay modes use the same display code through the `StateProvider` abstraction:
+
+```python
+# Display code uses StateProvider - works for BOTH run and replay
+def display_tick_verbose_output(provider: StateProvider, tick: int) -> None:
+    events = provider.get_events_for_tick(tick)
+    for event in events:
+        display_event(event)
+
+# Run mode: uses OrchestratorStateProvider (live FFI)
+# Replay mode: uses DatabaseStateProvider (persisted data)
+```
+
+### When Adding New Display Logic
+
+1. **ALWAYS use StateProvider** - never access FFI or database directly from display code
+2. **Add methods to StateProvider protocol** if you need new data access patterns
+3. **Implement in BOTH providers** - OrchestratorStateProvider and DatabaseStateProvider
+4. **Test with both run and replay** - verify identical output
+
+### What NOT To Do
+
+```python
+# ❌ WRONG - Only works in run mode, bypasses abstraction
+def display_balance(orch: Orchestrator, agent_id: str) -> None:
+    balance = orch.get_agent_balance(agent_id)  # Direct FFI access!
+    print(f"Balance: {balance}")
+
+# ✅ CORRECT - Works in both modes
+def display_balance(provider: StateProvider, agent_id: str) -> None:
+    balance = provider.get_agent_balance(agent_id)  # Abstracted
+    print(f"Balance: {balance}")
+```
+
+See `docs/reference/patterns-and-conventions.md` for the complete event workflow.
+
+---
+
 ## Project Structure
 
 ```
@@ -776,6 +822,7 @@ balance: int = 100050  # $1,000.50
 
 ---
 
-*Last updated: 2025-11-28*
+*Last updated: 2025-11-29*
+*For consolidated patterns and invariants, see `docs/reference/patterns-and-conventions.md`*
 *For Rust patterns, see `/backend/CLAUDE.md`*
 *For project overview, see root `/CLAUDE.md`*
