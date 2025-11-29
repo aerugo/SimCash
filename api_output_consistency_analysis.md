@@ -1,7 +1,4 @@
-# API Layer Output Consistency Analysis
-
-## Executive Summary
-
+(MOVE ENTIRE FILE TO docs/plans/api_output_consistency_analysis.md)
 The API layer handles simulation output through a **fundamentally different approach** than the CLI layer, creating significant **architectural inconsistency** and **missed abstraction opportunities**. 
 
 **Key Finding**: The API layer **does NOT use the StateProvider pattern** that the CLI employs for unified output consistency. Instead, it directly queries both Orchestrator (for live simulations) and database (for persisted simulations) separately in each endpoint.
