@@ -428,11 +428,27 @@ flowchart TB
 
 ---
 
+## API Parallel
+
+The REST API (`api/`) provides an equivalent OutputStrategy pattern for HTTP/WebSocket contexts:
+
+| CLI Strategy | API Equivalent | Context |
+|--------------|----------------|---------|
+| `QuietOutputStrategy` | `NullOutputStrategy` | Batch processing |
+| `StreamModeOutput` | `JSONOutputStrategy` | Collect tick data |
+| - | `WebSocketOutputStrategy` | Real-time streaming |
+
+See [API Output Strategies](../api/output-strategies.md) for details.
+
+---
+
 ## Related Documents
 
 - [03-python-api-layer.md](./03-python-api-layer.md) - CLI implementation
 - [09-persistence-layer.md](./09-persistence-layer.md) - Database operations
 - [appendix-c-configuration-reference.md](./appendix-c-configuration-reference.md) - Config schema
+- [API Output Strategies](../api/output-strategies.md) - API equivalent strategies
+- [API Index](../api/index.md) - REST API overview
 
 ---
 
