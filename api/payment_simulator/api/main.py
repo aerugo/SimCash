@@ -2050,7 +2050,7 @@ def get_agent_list(sim_id: str) -> AgentListResponse:
                         total_settled=0,  # Would need to track this
                         total_dropped=0,  # Would need to track this
                         total_cost_cents=0,  # Would need to track this
-                        avg_balance_cents=orch.get_agent_balance(agent_id),
+                        avg_balance_cents=orch.get_agent_balance(agent_id) or 0,
                         peak_overdraft_cents=0,  # Would need to track this
                         unsecured_cap_cents=unsecured_cap,
                     )
@@ -2280,7 +2280,7 @@ def get_agent_timeline(sim_id: str, agent_id: str) -> AgentTimelineResponse:
                 )
 
             # For in-memory simulations, provide current state as single metric
-            current_balance = orch.get_agent_balance(agent_id)
+            current_balance = orch.get_agent_balance(agent_id) or 0
             current_day = orch.current_day()
 
             daily_metrics = [
@@ -2678,7 +2678,7 @@ def get_tick_state(sim_id: str, tick: int) -> TickStateResponse:
         for agent_config in agent_list:
             agent_id = agent_config["id"]
 
-            balance = orch.get_agent_balance(agent_id)
+            balance = orch.get_agent_balance(agent_id) or 0
             unsecured_cap = agent_config.get("unsecured_cap", 0)
             queue1_size = orch.get_queue1_size(agent_id)
 
@@ -2694,12 +2694,11 @@ def get_tick_state(sim_id: str, tick: int) -> TickStateResponse:
 
             # Get queue2 size for this agent (transactions in RTGS queue)
             rtgs_tx_ids = orch.get_rtgs_queue_contents()
-            queue2_size = sum(
-                1
-                for tx_id in rtgs_tx_ids
-                if orch.get_transaction_details(tx_id)
-                and orch.get_transaction_details(tx_id)["sender_id"] == agent_id
-            )
+            queue2_size = 0
+            for tx_id in rtgs_tx_ids:
+                tx_details = orch.get_transaction_details(tx_id)
+                if tx_details and tx_details["sender_id"] == agent_id:
+                    queue2_size += 1
 
             agents[agent_id] = AgentStateSnapshot(
                 balance=balance,
