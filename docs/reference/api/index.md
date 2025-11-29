@@ -1,8 +1,15 @@
 # REST API Reference
 
-> FastAPI-based HTTP API for programmatic simulation control
+**Version**: 1.0
+**Last Updated**: 2025-11-29
 
-The Payment Simulator provides a REST API for creating, running, and analyzing simulations programmatically. It supports both live simulation control and querying persisted simulation data.
+---
+
+## Overview
+
+The Payment Simulator provides a REST API for creating, running, and analyzing simulations programmatically. It supports both **live simulation control** and **querying persisted simulation data**.
+
+---
 
 ## Documentation
 
@@ -12,6 +19,8 @@ The Payment Simulator provides a REST API for creating, running, and analyzing s
 | [Output Strategies](output-strategies.md) | API OutputStrategy pattern for streaming |
 | [State Provider](state-provider.md) | Unified data access for live and persisted sims |
 | [Models](models.md) | Request/response Pydantic models |
+
+---
 
 ## Quick Start
 
@@ -43,63 +52,133 @@ curl http://localhost:8000/simulations/{sim_id}/metrics
 curl http://localhost:8000/simulations/{sim_id}/costs
 ```
 
+---
+
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph FastAPI["FastAPI Application"]
+        direction TB
+        E1["/simulations<br/>Lifecycle management"]
+        E2["/simulations/{id}/tick<br/>Execution control"]
+        E3["/simulations/{id}/state<br/>State queries"]
+        E4["/simulations/{id}/costs<br/>Cost breakdown"]
+        E5["/simulations/{id}/metrics<br/>System metrics"]
+        E6["/simulations/{id}/events<br/>Event queries"]
+    end
+
+    subgraph Factory["State Provider Factory"]
+        SPF["StateProviderFactory"]
+    end
+
+    subgraph Providers["State Providers"]
+        OSP["OrchestratorStateProvider<br/>(Live FFI)"]
+        DSP["DatabaseStateProvider<br/>(Persisted)"]
+    end
+
+    FastAPI --> Factory
+    Factory --> OSP
+    Factory --> DSP
+
+    style FastAPI fill:#e3f2fd
+    style Factory fill:#fff3e0
+    style Providers fill:#e8f5e9
 ```
-┌─────────────────────────────────────────────────────────┐
-│  FastAPI Application                                    │
-│  ├── /simulations           Lifecycle management        │
-│  ├── /simulations/{id}/tick Execution control          │
-│  ├── /simulations/{id}/state State queries             │
-│  ├── /simulations/{id}/costs Cost breakdown            │
-│  ├── /simulations/{id}/metrics System metrics          │
-│  └── /simulations/{id}/events Event queries            │
-└──────────────────┬──────────────────────────────────────┘
-                   │
-         ┌─────────┴─────────┐
-         │ StateProviderFactory │
-         └─────────┬─────────┘
-                   │
-    ┌──────────────┴──────────────┐
-    │                             │
-    ▼                             ▼
-┌────────────────┐      ┌──────────────────┐
-│ Orchestrator   │      │ Database         │
-│ StateProvider  │      │ StateProvider    │
-│ (Live FFI)     │      │ (Persisted)      │
-└────────────────┘      └──────────────────┘
-```
+
+---
 
 ## Key Concepts
 
 ### Live vs Persisted Simulations
 
-The API seamlessly handles both:
+The API seamlessly handles both simulation modes through the StateProvider pattern:
 
-- **Live simulations**: Created via API, held in memory, accessed via FFI
-- **Persisted simulations**: Loaded from DuckDB, accessed via SQL queries
+```mermaid
+flowchart LR
+    subgraph Live["Live Simulations"]
+        Create["POST /simulations"] --> Memory["In-Memory State"]
+        Memory --> FFI["FFI Calls"]
+    end
 
-Both modes return identical response formats through the **StateProvider pattern**.
+    subgraph Persisted["Persisted Simulations"]
+        Load["Load from DB"] --> Query["SQL Queries"]
+    end
+
+    FFI --> Response["Identical<br/>Response Format"]
+    Query --> Response
+
+    style Live fill:#e8f5e9
+    style Persisted fill:#e3f2fd
+```
+
+| Mode | Storage | Access Method | Use Case |
+|------|---------|---------------|----------|
+| **Live** | In-memory | FFI to Rust | Interactive control |
+| **Persisted** | DuckDB | SQL queries | Analysis, replay |
 
 ### Output Consistency
 
-API responses match CLI verbose output through:
+API responses match CLI verbose output through shared contracts:
 
-1. **Shared Data Contracts**: Canonical field names (`deadline_penalty`, not `penalty_cost`)
-2. **StateProvider Protocol**: Same data access abstraction as CLI
-3. **DataService Layer**: Unified data retrieval
+```mermaid
+flowchart TB
+    subgraph Contracts["Shared Data Contracts"]
+        Canon["Canonical Field Names<br/>(deadline_penalty, not penalty_cost)"]
+        Proto["StateProvider Protocol"]
+        Service["DataService Layer"]
+    end
+
+    subgraph Outputs["Consistent Output"]
+        API["API Response"]
+        CLI["CLI Verbose"]
+    end
+
+    Canon --> API
+    Canon --> CLI
+    Proto --> API
+    Proto --> CLI
+    Service --> API
+    Service --> CLI
+
+    style Contracts fill:#fff3e0
+    style Outputs fill:#e8f5e9
+```
 
 ### Output Strategies
 
 For real-time streaming, use the **APIOutputStrategy** pattern:
 
-| Strategy | Use Case |
-|----------|----------|
-| `JSONOutputStrategy` | Standard REST responses |
-| `WebSocketOutputStrategy` | Real-time tick streaming |
-| `NullOutputStrategy` | Batch processing (no output) |
+| Strategy | Use Case | Delivery |
+|----------|----------|----------|
+| `JSONOutputStrategy` | Standard REST responses | Synchronous |
+| `WebSocketOutputStrategy` | Real-time tick streaming | Async push |
+| `NullOutputStrategy` | Batch processing (no output) | None |
+
+---
 
 ## Endpoint Summary
+
+### Request Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as FastAPI
+    participant Factory as StateProviderFactory
+    participant Provider as StateProvider
+    participant Engine as Rust Engine / DB
+
+    Client->>API: HTTP Request
+    API->>Factory: Get provider for sim_id
+    Factory->>Factory: Check live or persisted
+    Factory-->>API: StateProvider instance
+    API->>Provider: Query data
+    Provider->>Engine: FFI call or SQL query
+    Engine-->>Provider: Raw data
+    Provider-->>API: Formatted response
+    API-->>Client: JSON Response
+```
 
 ### Simulation Lifecycle
 
@@ -134,9 +213,27 @@ For real-time streaming, use the **APIOutputStrategy** pattern:
 | `/simulations/{id}/checkpoints` | GET | List checkpoints |
 | `/simulations/{id}/checkpoints/{cp_id}/load` | POST | Load checkpoint |
 
+---
+
 ## Response Format
 
 All responses follow consistent JSON structure:
+
+```mermaid
+flowchart LR
+    subgraph Success["Success Response (2xx)"]
+        S1["simulation_id"]
+        S2["tick"]
+        S3["day"]
+        S4["data: {...}"]
+    end
+
+    subgraph Error["Error Response (4xx/5xx)"]
+        E1["detail: message"]
+    end
+```
+
+**Success Response:**
 
 ```json
 {
@@ -147,7 +244,7 @@ All responses follow consistent JSON structure:
 }
 ```
 
-Error responses:
+**Error Response:**
 
 ```json
 {
@@ -155,16 +252,25 @@ Error responses:
 }
 ```
 
+---
+
 ## Authentication
 
 Currently no authentication required (local development mode).
+
+---
 
 ## Rate Limiting
 
 No rate limiting in development mode.
 
-## Related Documentation
+---
 
+## Related Documents
+
+- [Endpoints](endpoints.md) - Complete endpoint reference
+- [Output Strategies](output-strategies.md) - Streaming patterns
+- [State Provider](state-provider.md) - Data access abstraction
 - [CLI Reference](../cli/index.md) - Command-line interface
 - [Scenario Configuration](../scenario/index.md) - YAML configuration format
 - [Architecture](../architecture/index.md) - System architecture
@@ -172,4 +278,4 @@ No rate limiting in development mode.
 
 ---
 
-*Last updated: 2025-11-29*
+*Next: [endpoints.md](endpoints.md) - Complete endpoint reference*
