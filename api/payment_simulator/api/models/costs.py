@@ -1,10 +1,21 @@
 """Pydantic models for cost and metrics endpoints."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from payment_simulator.shared.data_contracts import CostBreakdownContract
 
 
 class AgentCostBreakdown(BaseModel):
-    """Cost breakdown for a single agent."""
+    """Cost breakdown for a single agent.
+
+    This model should be created from CostBreakdownContract to ensure
+    field names and calculations are consistent with CLI output.
+    """
 
     liquidity_cost: int = Field(..., description="Overdraft cost in cents")
     collateral_cost: int = Field(
@@ -16,6 +27,27 @@ class AgentCostBreakdown(BaseModel):
     )
     deadline_penalty: int = Field(..., description="Deadline miss penalties in cents")
     total_cost: int = Field(..., description="Sum of all costs in cents")
+
+    @classmethod
+    def from_contract(cls, contract: CostBreakdownContract) -> AgentCostBreakdown:
+        """Create from canonical CostBreakdownContract.
+
+        This ensures field names and total_cost calculation match CLI output.
+
+        Args:
+            contract: CostBreakdownContract with canonical field names
+
+        Returns:
+            AgentCostBreakdown model with values from contract
+        """
+        return cls(
+            liquidity_cost=contract.liquidity_cost,
+            delay_cost=contract.delay_cost,
+            collateral_cost=contract.collateral_cost,
+            deadline_penalty=contract.deadline_penalty,
+            split_friction_cost=contract.split_friction_cost,
+            total_cost=contract.total_cost,
+        )
 
 
 class CostResponse(BaseModel):
