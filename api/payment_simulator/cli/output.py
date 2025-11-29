@@ -1007,13 +1007,20 @@ def log_collateral_activity(provider: StateProvider, events: list[dict[str, Any]
         console.print(f"   [bold]{agent_id}:[/bold]")
 
         # Get agent's current financial state for context
+        # Initialize defaults for type checker (these are only used when balance is not None)
+        balance: int | None = None
+        haircut = 0.02
+        headroom = 0
+        credit_used = 0
+        unsecured_cap = 0
+        using_collateralized_credit = False
+
         try:
             balance = provider.get_agent_balance(agent_id)
             unsecured_cap = provider.get_agent_unsecured_cap(agent_id)
             collateral_posted = provider.get_agent_collateral_posted(agent_id)
 
             # Calculate financial metrics (assuming 2% haircut - standard for T2/CLM)
-            haircut = 0.02
             credit_used = max(-balance, 0)
             collateral_capacity = int(collateral_posted * (1 - haircut))
             allowed_limit = collateral_capacity + unsecured_cap  # Unsecured cap assumed 0 for simplicity

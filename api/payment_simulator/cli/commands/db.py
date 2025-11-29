@@ -997,6 +997,7 @@ def db_costs(
         console.print(f"  Mode: {'Per-tick' if show_per_tick else 'Accumulated'}")
 
         # Determine which ticks to show
+        half = 0  # Initialize to satisfy type checker
         if limit > 0 and len(tick_costs) > limit:
             # Show first limit/2 and last limit/2
             half = limit // 2
