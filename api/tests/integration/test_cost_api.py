@@ -10,9 +10,19 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client():
-    """Create test client."""
+    """Create test client and clean up state after test."""
+    from payment_simulator.api.dependencies import container
     from payment_simulator.api.main import app
-    return TestClient(app)
+
+    # Clean up any leftover state from previous tests
+    container.clear_all()
+    container.db_manager = None
+
+    yield TestClient(app)
+
+    # Clean up after test
+    container.clear_all()
+    container.db_manager = None
 
 
 @pytest.fixture
