@@ -69,11 +69,6 @@ orchestrator.process(my_python_dataclass)
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  TypeScript React Frontend (future)             │
-│  - Real-time visualization via WebSocket        │
-└──────────────────┬──────────────────────────────┘
-                   │ HTTP/WS
-┌──────────────────▼──────────────────────────────┐
 │  Python FastAPI Middleware (/api)               │
 │  - REST/WebSocket endpoints                     │
 │  - Configuration validation (Pydantic)          │
@@ -172,9 +167,6 @@ Each agent has a configuration controlling automatic transaction generation:
 │   ├── migrations/              ← Database schema migrations
 │   ├── tests/                   ← Python tests
 │   └── pyproject.toml           ← Build config + mypy/ruff settings
-├── frontend/
-│   ├── CLAUDE.md                ← React-specific guidance (future)
-│   └── src/
 ├── docs/
 │   ├── architecture.md
 │   ├── api.md
@@ -593,7 +585,6 @@ When implementing replay identity for a new event:
 5. **Implement in appropriate layer**:
    - Performance-critical? → Rust (`/backend`)
    - API/orchestration? → Python (`/api`)
-   - User interaction? → React (`/frontend`)
 6. **Test across FFI boundary**: Integration tests in `/api/tests/integration/`
 7. **Commit often**: Small, atomic commits with clear messages
 
@@ -857,7 +848,6 @@ When starting work on this project:
 ### Image Support
 - Drag architecture diagrams into terminal for reference
 - Screenshot error messages for debugging
-- Paste UI mockups for frontend work (future)
 
 ---
 
