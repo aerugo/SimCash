@@ -1102,9 +1102,16 @@ def get_transaction_lifecycle(
 def get_tick_state(
     sim_id: str,
     tick: int,
+    factory: APIStateProviderFactory = Depends(get_state_provider_factory),
+    db_manager: Any = Depends(get_db_manager),
     service: SimulationService = Depends(get_simulation_service),
 ) -> TickStateResponse:
-    """Get complete state snapshot at a specific tick."""
+    """Get complete state snapshot at a specific tick.
+
+    Supports both live and persisted simulations:
+    - Live simulations: Only current tick is supported
+    - Persisted simulations: Any historical tick within the simulation range
+    """
     try:
         # Validate tick
         if tick < 0:
@@ -1112,87 +1119,17 @@ def get_tick_state(
                 status_code=400, detail=f"Invalid tick: {tick} (must be >= 0)"
             )
 
-        orch = service.get_simulation(sim_id)
-        current_tick = orch.current_tick()
+        # Check if simulation is live
+        if service.has_simulation(sim_id):
+            return _get_tick_state_live(sim_id, tick, service)
 
-        if tick > current_tick:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Tick {tick} is in the future (current tick: {current_tick})",
-            )
+        # Persisted simulation - use factory with specific tick
+        return _get_tick_state_persisted(sim_id, tick, factory, db_manager)
 
-        # For live simulations, only current tick is fully supported
-        if tick != current_tick:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Historical tick state only available for database simulations. Current tick: {current_tick}",
-            )
-
-        current_day = orch.current_day()
-
-        # Build agent states
-        config = service.get_config(sim_id)["original"]
-        agent_list = config.get("agents") or config.get("agent_configs", [])
-
-        agents = {}
-        queue1_total = 0
-        queue2_total = 0
-        total_system_cost = 0
-
-        for agent_config in agent_list:
-            agent_id = agent_config["id"]
-
-            balance = orch.get_agent_balance(agent_id) or 0
-            unsecured_cap = agent_config.get("unsecured_cap", 0)
-            queue1_size = orch.get_queue1_size(agent_id)
-
-            liquidity = balance + unsecured_cap
-            headroom = unsecured_cap - max(0, -balance)
-
-            costs_dict = orch.get_agent_accumulated_costs(agent_id)
-            costs = AgentCostBreakdown(**costs_dict)
-
-            # Get queue2 size for this agent
-            rtgs_tx_ids = orch.get_rtgs_queue_contents()
-            queue2_size = 0
-            for tx_id in rtgs_tx_ids:
-                tx_details = orch.get_transaction_details(tx_id)
-                if tx_details and tx_details["sender_id"] == agent_id:
-                    queue2_size += 1
-
-            agents[agent_id] = AgentStateSnapshot(
-                balance=balance,
-                unsecured_cap=unsecured_cap,
-                liquidity=liquidity,
-                headroom=headroom,
-                queue1_size=queue1_size,
-                queue2_size=queue2_size,
-                costs=costs,
-            )
-
-            queue1_total += queue1_size
-            queue2_total += queue2_size
-            total_system_cost += costs.total_cost
-
-        # Build system metrics
-        metrics_dict = orch.get_system_metrics()
-        system = SystemStateSnapshot(
-            total_arrivals=metrics_dict["total_arrivals"],
-            total_settlements=metrics_dict["total_settlements"],
-            settlement_rate=metrics_dict["settlement_rate"],
-            queue1_total_size=queue1_total,
-            queue2_total_size=queue2_total,
-            total_system_cost=total_system_cost,
-        )
-
-        return TickStateResponse(
-            simulation_id=sim_id,
-            tick=current_tick,
-            day=current_day,
-            agents=agents,
-            system=system,
-        )
-
+    except FactorySimulationNotFoundError:
+        raise HTTPException(
+            status_code=404, detail=f"Simulation not found: {sim_id}"
+        ) from None
     except SimulationNotFoundError:
         raise HTTPException(
             status_code=404, detail=f"Simulation not found: {sim_id}"
@@ -1201,3 +1138,172 @@ def get_tick_state(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}") from e
+
+
+def _get_tick_state_live(
+    sim_id: str,
+    tick: int,
+    service: SimulationService,
+) -> TickStateResponse:
+    """Get tick state for a live (in-memory) simulation."""
+    orch = service.get_simulation(sim_id)
+    current_tick = orch.current_tick()
+
+    if tick > current_tick:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tick {tick} is in the future (current tick: {current_tick})",
+        )
+
+    # For live simulations, only current tick is fully supported
+    if tick != current_tick:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Historical tick state only available for database simulations. Current tick: {current_tick}",
+        )
+
+    current_day = orch.current_day()
+
+    # Build agent states
+    config = service.get_config(sim_id)["original"]
+    agent_list = config.get("agents") or config.get("agent_configs", [])
+
+    agents = {}
+    queue1_total = 0
+    queue2_total = 0
+    total_system_cost = 0
+
+    for agent_config in agent_list:
+        agent_id = agent_config["id"]
+
+        balance = orch.get_agent_balance(agent_id) or 0
+        unsecured_cap = agent_config.get("unsecured_cap", 0)
+        queue1_size = orch.get_queue1_size(agent_id)
+
+        liquidity = balance + unsecured_cap
+        headroom = unsecured_cap - max(0, -balance)
+
+        costs_dict = orch.get_agent_accumulated_costs(agent_id)
+        costs = AgentCostBreakdown(**costs_dict)
+
+        # Get queue2 size for this agent
+        rtgs_tx_ids = orch.get_rtgs_queue_contents()
+        queue2_size = 0
+        for tx_id in rtgs_tx_ids:
+            tx_details = orch.get_transaction_details(tx_id)
+            if tx_details and tx_details["sender_id"] == agent_id:
+                queue2_size += 1
+
+        agents[agent_id] = AgentStateSnapshot(
+            balance=balance,
+            unsecured_cap=unsecured_cap,
+            liquidity=liquidity,
+            headroom=headroom,
+            queue1_size=queue1_size,
+            queue2_size=queue2_size,
+            costs=costs,
+        )
+
+        queue1_total += queue1_size
+        queue2_total += queue2_size
+        total_system_cost += costs.total_cost
+
+    # Build system metrics
+    metrics_dict = orch.get_system_metrics()
+    system = SystemStateSnapshot(
+        total_arrivals=metrics_dict["total_arrivals"],
+        total_settlements=metrics_dict["total_settlements"],
+        settlement_rate=metrics_dict["settlement_rate"],
+        queue1_total_size=queue1_total,
+        queue2_total_size=queue2_total,
+        total_system_cost=total_system_cost,
+    )
+
+    return TickStateResponse(
+        simulation_id=sim_id,
+        tick=current_tick,
+        day=current_day,
+        agents=agents,
+        system=system,
+    )
+
+
+def _get_tick_state_persisted(
+    sim_id: str,
+    tick: int,
+    factory: APIStateProviderFactory,
+    db_manager: Any,
+) -> TickStateResponse:
+    """Get tick state for a persisted (database) simulation."""
+    # Create provider for specific tick
+    provider = factory.create(sim_id, db_manager, tick=tick)
+
+    # Get agent IDs
+    agent_ids = factory.get_agent_ids(sim_id, db_manager)
+
+    # Get simulation config for ticks_per_day
+    sim_state = factory.get_simulation_state(sim_id, db_manager)
+    conn = db_manager.get_connection()
+    config_result = conn.execute(
+        "SELECT ticks_per_day FROM simulations WHERE simulation_id = ?",
+        [sim_id],
+    ).fetchone()
+    ticks_per_day = config_result[0] if config_result else 100
+
+    # Calculate day from tick
+    day = tick // ticks_per_day
+
+    # Use DataService for consistent data access
+    data_service = DataService(provider)
+
+    agents = {}
+    queue1_total = 0
+    queue2_total = 0
+    total_system_cost = 0
+
+    for agent_id in agent_ids:
+        agent_state = data_service.get_agent_state(agent_id)
+
+        costs = AgentCostBreakdown(
+            liquidity_cost=agent_state["costs"]["liquidity_cost"],
+            delay_cost=agent_state["costs"]["delay_cost"],
+            collateral_cost=agent_state["costs"]["collateral_cost"],
+            deadline_penalty=agent_state["costs"]["deadline_penalty"],
+            split_friction_cost=agent_state["costs"]["split_friction_cost"],
+            total_cost=agent_state["costs"]["total_cost"],
+        )
+
+        agents[agent_id] = AgentStateSnapshot(
+            balance=agent_state["balance"],
+            unsecured_cap=agent_state["unsecured_cap"],
+            liquidity=agent_state["liquidity"],
+            headroom=agent_state["headroom"],
+            queue1_size=agent_state["queue1_size"],
+            queue2_size=agent_state["queue2_size"],
+            costs=costs,
+        )
+
+        queue1_total += agent_state["queue1_size"]
+        queue2_total += agent_state["queue2_size"]
+        total_system_cost += costs.total_cost
+
+    # Get transaction stats for system metrics
+    transaction_stats = factory.get_transaction_stats(sim_id, db_manager)
+    metrics = data_service.get_metrics(agent_ids, transaction_stats)
+
+    system = SystemStateSnapshot(
+        total_arrivals=metrics["total_arrivals"],
+        total_settlements=metrics["total_settlements"],
+        settlement_rate=metrics["settlement_rate"],
+        queue1_total_size=queue1_total,
+        queue2_total_size=queue2_total,
+        total_system_cost=total_system_cost,
+    )
+
+    return TickStateResponse(
+        simulation_id=sim_id,
+        tick=tick,
+        day=day,
+        agents=agents,
+        system=system,
+    )
