@@ -384,8 +384,30 @@ payment-sim run --config scenario.yaml --quiet | jq .
 
 ---
 
+## API Output Strategies
+
+The REST API provides equivalent output strategies for HTTP/WebSocket contexts. See [API Output Strategies](../api/output-strategies.md) for details.
+
+### CLI-to-API Mapping
+
+| CLI Mode | CLI Strategy | API Strategy | Transport |
+|----------|--------------|--------------|-----------|
+| `--quiet` | `QuietOutputStrategy` | `NullOutputStrategy` | - |
+| `--verbose` | `VerboseModeOutput` | - | Human only |
+| `--stream` | `StreamModeOutput` | `JSONOutputStrategy` | HTTP |
+| - | - | `WebSocketOutputStrategy` | WebSocket |
+
+### Key Differences
+
+- **CLI strategies** are synchronous, **API strategies** are async
+- CLI outputs to stdout/stderr, API collects for response or streams via WebSocket
+- CLI verbose mode has no API equivalent (human-readable only)
+
+---
+
 ## Related Documentation
 
 - [run Command](commands/run.md) - Full `run` command reference
 - [Event Filtering](filtering.md) - Filter events in verbose/event-stream modes
 - [replay Command](commands/replay.md) - Replay modes
+- [API Output Strategies](../api/output-strategies.md) - API equivalent strategies
