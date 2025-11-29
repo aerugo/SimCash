@@ -156,7 +156,7 @@ async def stream_simulation(websocket: WebSocket, sim_id: str):
 {"type": "simulation_start", "config": {"simulation_id": "sim-abc"}}
 
 // tick_complete (sent per tick)
-{"type": "tick_complete", "tick": 5, "events": [...], "arrivals": 3, "settlements": 2}
+{"type": "tick_complete", "tick": 5, "events": [{"type": "payment", "amount": 100.0, "timestamp": "2024-06-01T12:00:00Z"}], "arrivals": 3, "settlements": 2}
 
 // day_complete
 {"type": "day_complete", "day": 0, "stats": {"arrivals": 100, "settlements": 95}}
