@@ -151,6 +151,271 @@ sequenceDiagram
 
 ## Implementation Phases
 
+### Phase -1: CLI-API Output Parity (Critical Foundation)
+
+**Goal**: Ensure API responses contain the **exact same data** as CLI verbose output.
+
+This phase is **critical** because even with StateProvider, the API and CLI could still diverge if:
+1. Field names differ (e.g., CLI uses `penalty_cost`, API uses `deadline_penalty`)
+2. Calculations differ (e.g., different settlement_rate formulas)
+3. Data is transformed differently before output
+
+#### The Problem: Current Field Name Divergence
+
+| Data Type | CLI Field Name | API Model Field Name | StateProvider Returns |
+|-----------|----------------|---------------------|----------------------|
+| Deadline penalty | `penalty_cost` | `deadline_penalty` | `deadline_penalty` |
+| Total cost | `total_cost` (calculated) | `total_cost` | `total_cost` |
+
+**This MUST be harmonized before proceeding.**
+
+#### Step -1.1: Create Shared Data Contracts
+
+```python
+# api/payment_simulator/shared/data_contracts.py
+"""
+Canonical data structures shared between CLI and API.
+
+These define the SINGLE SOURCE OF TRUTH for field names and types.
+Both CLI display functions and API Pydantic models MUST use these.
+"""
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class CostBreakdownContract:
+    """Canonical cost breakdown structure.
+
+    IMPORTANT: These field names are the contract. Both CLI and API must use them.
+    """
+    liquidity_cost: int
+    delay_cost: int
+    collateral_cost: int
+    deadline_penalty: int  # CANONICAL NAME (not penalty_cost)
+    split_friction_cost: int
+
+    @property
+    def total_cost(self) -> int:
+        """Calculate total - same formula everywhere."""
+        return (
+            self.liquidity_cost +
+            self.delay_cost +
+            self.collateral_cost +
+            self.deadline_penalty +
+            self.split_friction_cost
+        )
+
+
+@dataclass(frozen=True)
+class AgentStateContract:
+    """Canonical agent state structure."""
+    balance: int
+    unsecured_cap: int
+    collateral_posted: int
+    queue1_size: int
+    queue2_size: int
+    costs: CostBreakdownContract
+
+    @property
+    def liquidity(self) -> int:
+        """Available liquidity = balance + credit."""
+        return self.balance + self.unsecured_cap
+
+    @property
+    def headroom(self) -> int:
+        """Available credit headroom."""
+        return self.unsecured_cap - max(0, -self.balance)
+
+
+@dataclass(frozen=True)
+class SystemMetricsContract:
+    """Canonical system metrics structure."""
+    total_arrivals: int
+    total_settlements: int
+    total_lsm_releases: int
+
+    @property
+    def settlement_rate(self) -> float:
+        """Settlement rate - same formula everywhere."""
+        if self.total_arrivals == 0:
+            return 0.0
+        return self.total_settlements / self.total_arrivals
+```
+
+#### Step -1.2: Derive API Models from Contracts
+
+```python
+# api/payment_simulator/api/models/costs.py (REFACTORED)
+
+from payment_simulator.shared.data_contracts import CostBreakdownContract
+
+class AgentCostBreakdown(BaseModel):
+    """Cost breakdown - derived from CostBreakdownContract."""
+
+    liquidity_cost: int = Field(..., description="Overdraft cost in cents")
+    delay_cost: int = Field(..., description="Queue 1 delay cost in cents")
+    collateral_cost: int = Field(..., description="Collateral opportunity cost")
+    deadline_penalty: int = Field(..., description="Deadline miss penalties")  # MATCHES CONTRACT
+    split_friction_cost: int = Field(..., description="Transaction splitting cost")
+    total_cost: int = Field(..., description="Sum of all costs")
+
+    @classmethod
+    def from_contract(cls, contract: CostBreakdownContract) -> "AgentCostBreakdown":
+        """Create from canonical contract."""
+        return cls(
+            liquidity_cost=contract.liquidity_cost,
+            delay_cost=contract.delay_cost,
+            collateral_cost=contract.collateral_cost,
+            deadline_penalty=contract.deadline_penalty,
+            split_friction_cost=contract.split_friction_cost,
+            total_cost=contract.total_cost,
+        )
+```
+
+#### Step -1.3: Update CLI to Use Contracts
+
+```python
+# api/payment_simulator/cli/output.py (REFACTORED)
+
+def log_cost_breakdown(provider: StateProvider, agent_ids: list[str], quiet: bool = False) -> None:
+    """Log cost breakdown using canonical contract."""
+    from payment_simulator.shared.data_contracts import CostBreakdownContract
+
+    for agent_id in agent_ids:
+        raw_costs = provider.get_agent_accumulated_costs(agent_id)
+
+        # Convert to canonical contract (ensures field name consistency)
+        costs = CostBreakdownContract(
+            liquidity_cost=raw_costs["liquidity_cost"],
+            delay_cost=raw_costs["delay_cost"],
+            collateral_cost=raw_costs["collateral_cost"],
+            deadline_penalty=raw_costs["deadline_penalty"],  # Use canonical name
+            split_friction_cost=raw_costs["split_friction_cost"],
+        )
+
+        # Display using contract properties
+        console.print(f"  Deadline penalty: ${costs.deadline_penalty / 100:,.2f}")
+        console.print(f"  Total: ${costs.total_cost / 100:,.2f}")  # Uses property
+```
+
+#### Step -1.4: Write Parity Tests
+
+```python
+# api/tests/integration/test_cli_api_parity.py
+
+class TestCLIAPIParity:
+    """Tests that API output matches CLI output exactly."""
+
+    def test_cost_field_names_match(self):
+        """API cost field names match CLI display field names."""
+        from payment_simulator.shared.data_contracts import CostBreakdownContract
+        from payment_simulator.api.models.costs import AgentCostBreakdown
+
+        contract_fields = set(CostBreakdownContract.__dataclass_fields__.keys())
+        api_model_fields = set(AgentCostBreakdown.model_fields.keys()) - {"total_cost"}
+
+        # All contract fields must appear in API model
+        assert contract_fields == api_model_fields, (
+            f"Field mismatch: Contract has {contract_fields}, "
+            f"API has {api_model_fields}"
+        )
+
+    def test_cost_values_identical(self, test_simulation):
+        """API costs exactly match CLI costs for same simulation."""
+        sim_id = test_simulation
+
+        # Get costs via CLI
+        cli_output = run_cli_command(["show", "costs", sim_id, "--json"])
+        cli_costs = json.loads(cli_output)
+
+        # Get costs via API
+        api_response = client.get(f"/simulations/{sim_id}/costs")
+        api_costs = api_response.json()
+
+        # Compare field by field
+        for agent_id in cli_costs["agents"]:
+            cli_agent = cli_costs["agents"][agent_id]
+            api_agent = api_costs["agents"][agent_id]
+
+            assert cli_agent["liquidity_cost"] == api_agent["liquidity_cost"]
+            assert cli_agent["delay_cost"] == api_agent["delay_cost"]
+            assert cli_agent["deadline_penalty"] == api_agent["deadline_penalty"]
+            assert cli_agent["total_cost"] == api_agent["total_cost"]
+
+    def test_metrics_calculation_identical(self, test_simulation):
+        """settlement_rate calculated same way in CLI and API."""
+        sim_id = test_simulation
+
+        # Get via CLI
+        cli_output = run_cli_command(["replay", sim_id, "--format=json"])
+        cli_metrics = json.loads(cli_output)["metrics"]
+
+        # Get via API
+        api_response = client.get(f"/simulations/{sim_id}/metrics")
+        api_metrics = api_response.json()["metrics"]
+
+        # Same calculation
+        assert cli_metrics["settlement_rate"] == api_metrics["settlement_rate"]
+        assert cli_metrics["total_arrivals"] == api_metrics["total_arrivals"]
+
+    def test_event_structure_matches(self, test_simulation):
+        """API events have same structure as CLI events."""
+        sim_id = test_simulation
+
+        # Get events via CLI event-stream
+        cli_events = run_cli_command(["replay", sim_id, "--event-stream"])
+
+        # Get events via API
+        api_response = client.get(f"/simulations/{sim_id}/events")
+        api_events = api_response.json()["events"]
+
+        # First event should have same fields
+        cli_first = json.loads(cli_events.split("\n")[0])
+        api_first = api_events[0]
+
+        assert set(cli_first.keys()) == set(api_first.keys()), (
+            f"Event field mismatch: CLI has {set(cli_first.keys())}, "
+            f"API has {set(api_first.keys())}"
+        )
+```
+
+#### Step -1.5: Fix Existing Discrepancies
+
+1. **Rename `penalty_cost` to `deadline_penalty`** in:
+   - `replay.py` reconstruction functions
+   - `log_cost_breakdown_from_db()` in `output.py`
+   - Database schema documentation
+
+2. **Update StateProvider return types** to match contract:
+   ```python
+   def get_agent_accumulated_costs(self, agent_id: str) -> dict[str, int]:
+       """Returns dict with canonical field names:
+       - liquidity_cost
+       - delay_cost
+       - collateral_cost
+       - deadline_penalty  # NOT penalty_cost
+       - split_friction_cost
+       """
+   ```
+
+**Files**:
+- `api/payment_simulator/shared/__init__.py` (NEW)
+- `api/payment_simulator/shared/data_contracts.py` (NEW)
+- `api/payment_simulator/api/models/costs.py` (MODIFIED)
+- `api/payment_simulator/cli/output.py` (MODIFIED - field name fixes)
+- `api/tests/integration/test_cli_api_parity.py` (NEW)
+
+**Acceptance Criteria**:
+- [ ] All field names match between CLI and API
+- [ ] Shared contracts defined for costs, agent state, metrics
+- [ ] API models derive from contracts
+- [ ] CLI display functions use contracts
+- [ ] Parity tests pass
+- [ ] No calculation divergence (e.g., settlement_rate)
+
+---
+
 ### Phase 0: Test Infrastructure (TDD Foundation)
 
 **Goal**: Create the test harness that will drive all subsequent development.
@@ -830,13 +1095,17 @@ The refactoring maintains backward compatibility:
 
 ### Rollout Steps
 
-1. **Phase 0-1**: Add test infrastructure and factory (no behavior change)
-2. **Phase 2**: Add DataService (no behavior change)
-3. **Phase 3**: Refactor endpoints one at a time
+1. **Phase -1**: Create shared data contracts and fix field name discrepancies
+   - This is the FOUNDATION - must be done first
+   - Fixes `penalty_cost` → `deadline_penalty` inconsistency
+   - Establishes CLI-API parity tests
+2. **Phase 0-1**: Add test infrastructure and factory (no behavior change)
+3. **Phase 2**: Add DataService using contracts (no behavior change)
+4. **Phase 3**: Refactor endpoints one at a time
    - `/costs` first (highest risk)
    - `/metrics` second
    - `/agents` third
-4. **Phase 4-5**: Add new capabilities (metrics for persisted, historical state)
+5. **Phase 4-5**: Add new capabilities (metrics for persisted, historical state)
 
 ---
 
@@ -845,6 +1114,10 @@ The refactoring maintains backward compatibility:
 ### New Files
 
 ```
+api/payment_simulator/shared/                  # Phase -1: Canonical contracts
+├── __init__.py
+└── data_contracts.py                         # CostBreakdownContract, etc.
+
 api/payment_simulator/api/providers/
 ├── __init__.py
 └── factory.py
@@ -858,6 +1131,7 @@ api/payment_simulator/api/strategies/          # Phase 6 only
 └── websocket_strategy.py
 
 api/tests/integration/
+├── test_cli_api_parity.py                    # Phase -1: Parity tests
 ├── test_api_output_consistency.py
 ├── test_diagnostics_consistency.py
 ├── test_metrics_consistency.py
@@ -882,9 +1156,12 @@ api/payment_simulator/api/services/simulation_service.py  # Optional cleanup
 
 ### Must Have
 
+- [ ] **Shared data contracts** define canonical field names for costs, agent state, metrics
+- [ ] **CLI-API parity tests pass** - same field names, same values, same calculations
 - [ ] All endpoints work identically for live and persisted simulations
 - [ ] API costs match CLI costs exactly (same field names, same values)
-- [ ] API metrics match CLI metrics exactly
+- [ ] API metrics match CLI metrics exactly (settlement_rate uses same formula)
+- [ ] API events have same structure as CLI `--event-stream` output
 - [ ] `/metrics` returns 200 for persisted simulations
 - [ ] All existing tests continue to pass
 - [ ] All new tests pass
@@ -917,7 +1194,8 @@ api/payment_simulator/api/services/simulation_service.py  # Optional cleanup
 
 | Phase | Effort | Dependencies |
 |-------|--------|--------------|
-| Phase 0: Test Infrastructure | Small | None |
+| **Phase -1: CLI-API Parity** | **Medium** | **None (CRITICAL FOUNDATION)** |
+| Phase 0: Test Infrastructure | Small | Phase -1 |
 | Phase 1: StateProvider Factory | Small | Phase 0 |
 | Phase 2: DataService | Medium | Phase 1 |
 | Phase 3: Refactor Endpoints | Medium | Phase 2 |
