@@ -26,6 +26,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "httpx>=0.25.0",  # For TestClient
     "mypy>=1.8.0",
+    "pyright>=1.1.0",  # Pylance CLI - same engine as VS Code Pylance
     "ruff>=0.3.0",
     "types-PyYAML",  # Type stubs for PyYAML
 ]
@@ -96,6 +97,23 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
+
+[tool.pyright]
+pythonVersion = "3.11"
+pythonPlatform = "Linux"
+include = ["payment_simulator"]
+exclude = ["**/node_modules", "**/__pycache__", ".venv", "build", "dist"]
+typeCheckingMode = "standard"
+# Suppress noisy errors for Rust FFI module
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+# Useful warnings
+reportPrivateUsage = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
