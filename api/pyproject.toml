@@ -97,6 +97,23 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
 
+[tool.pyright]
+pythonVersion = "3.11"
+pythonPlatform = "Linux"
+include = ["payment_simulator"]
+exclude = ["**/node_modules", "**/__pycache__", ".venv", "build", "dist"]
+typeCheckingMode = "standard"
+# Suppress noisy errors for Rust FFI module
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+# Useful warnings
+reportPrivateUsage = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
