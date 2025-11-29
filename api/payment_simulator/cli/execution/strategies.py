@@ -7,7 +7,7 @@ output behavior while using the same core execution logic.
 
 from typing import TYPE_CHECKING, Any
 
-from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
+from payment_simulator._core import Orchestrator
 
 if TYPE_CHECKING:
     from rich.progress import Progress, TaskID

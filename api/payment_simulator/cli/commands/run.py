@@ -13,7 +13,7 @@ import polars as pl
 import typer
 import yaml
 
-from payment_simulator._core import Orchestrator  # type: ignore[attr-defined]
+from payment_simulator._core import Orchestrator
 from payment_simulator.cli.filters import EventFilter
 from payment_simulator.cli.output import (  # Enhanced verbose mode functions
     log_error,
