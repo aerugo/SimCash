@@ -1,6 +1,6 @@
 # Research Proposal: LLM-Driven Policy Optimization for Payment System Cash Management
 
-**Version**: 2.0
+**Version**: 2.1
 **Date**: 2025-11-30
 **Status**: Proposal
 
@@ -10,7 +10,7 @@
 
 This research proposal outlines a novel approach to optimizing cash management policies in Real-Time Gross Settlement (RTGS) payment systems using Large Language Models (LLMs) as policy iterators. Inspired by the work of Bodislav et al. (2024) on integrating machine learning in central banks, we propose replacing traditional reinforcement learning (RL) with an LLM-in-the-loop system that iteratively refines JSON-based decision tree policies based on simulation outcomes.
 
-Using SimCash as our simulation environment, we leverage its new **policy feature toggles** to restrict the DSL to a simplified subset, and its **policy-schema generator** to create precise documentation for the LLM. This approach enables interpretable policy discovery that can inform real-world central bank operations.
+Using SimCash as our simulation environment, we leverage its **policy feature toggles** to create a controlled experimental setup, and its **policy-schema generator** to create precise documentation for the LLM. This approach enables interpretable policy discovery that can inform real-world central bank operations.
 
 ---
 
@@ -31,7 +31,7 @@ Bodislav et al. (2024) explore how artificial intelligence, particularly machine
 
 We propose using a high-powered reasoning LLM (e.g., Claude Opus, GPT-4) to iteratively refine human-readable JSON policy trees based on simulation outcomes. Key enablers:
 
-1. **Policy Feature Toggles**: SimCash's new feature toggle system allows restricting the policy DSL to a simplified subset—removing collateral, LSM, and state registers for the first paper
+1. **Policy Feature Toggles**: SimCash's feature toggle system restricts the policy DSL to a controlled subset, ensuring comparable results
 2. **Policy Schema Generator**: The `policy-schema` command generates context-aware documentation showing exactly what fields, actions, and operators are available
 3. **Deterministic Simulation**: Same seed always produces identical results, enabling precise A/B comparisons
 
@@ -46,7 +46,7 @@ We propose using a high-powered reasoning LLM (e.g., Claude Opus, GPT-4) to iter
 
 ## 2. Mapping Bodislav et al. to SimCash
 
-Bodislav et al. (2024) is a conceptual/review paper discussing AI applications in central banking. We map their key concepts to SimCash:
+Bodislav et al. (2024) is a conceptual/review paper discussing AI applications in central banking. We map their key concepts to our SimCash experimental setup:
 
 | Bodislav Concept | SimCash Implementation |
 |------------------|------------------------|
@@ -54,14 +54,14 @@ Bodislav et al. (2024) is a conceptual/review paper discussing AI applications i
 | "Delay costs from slow execution" | Delay penalty per tick in Queue 1 |
 | "Deadline-driven obligations" | Transaction deadlines with penalties |
 | "Optimizing policy decisions" | Choosing when to Release vs. Hold |
-| "Risk assessment for stability" | Gridlock detection, EOD settlement pressure |
+| "Risk assessment for stability" | EOD settlement pressure |
 | "Real-time data integration" | Tick-by-tick simulation feedback |
 | "Predictive analytics" | LLM reasoning about cost trade-offs |
 | "Interpretable AI solutions" | JSON decision trees with full audit trails |
 
 ### Core Trade-off
 
-The fundamental tension in both Bodislav's monetary policy context and SimCash:
+The fundamental tension in both Bodislav's monetary policy context and our SimCash model:
 
 ```
                     LIQUIDITY COST
@@ -73,38 +73,45 @@ The fundamental tension in both Bodislav's monetary policy context and SimCash:
                     DELAY COST
 ```
 
+This mirrors the central bank trade-off between maintaining reserves (opportunity cost) and ensuring timely settlement (service quality).
+
 ---
 
-## 3. Phase 1: Simplified Experiment Design
+## 3. Experimental Design
 
 ### 3.1 Design Philosophy
 
-For the first paper, we strip SimCash to its minimal core to isolate the fundamental timing optimization problem:
+We isolate the fundamental timing optimization problem by using a controlled subset of SimCash features:
 
 | Feature | Status | Rationale |
 |---------|--------|-----------|
 | RTGS Settlement | **Enabled** | Core mechanic |
 | Queue 1 (internal) | **Enabled** | Strategic holding |
 | Queue 2 (RTGS) | **Enabled** | Liquidity waiting |
-| LSM Bilateral/Multilateral | **Disabled** | Adds strategic complexity |
-| Collateral Posting | **Disabled** | Separate optimization dimension |
-| Transaction Splitting | **Disabled** | Additional action space |
+| LSM Bilateral/Multilateral | **Disabled** | Focus on timing, not offset exploitation |
+| Collateral Posting | **Disabled** | Single optimization dimension |
+| Transaction Splitting | **Disabled** | Binary Release/Hold decisions |
 | Budget Management (bank_tree) | **Disabled** | payment_tree suffices |
-| State Registers | **Disabled** | Memory adds complexity |
-| Heterogeneous Agents | **Disabled** | Start with symmetric setup |
+| State Registers | **Disabled** | Stateless policies |
+| Heterogeneous Agents | **Disabled** | Symmetric setup for comparability |
+
+This controlled setup ensures:
+- **Comparability**: All baselines and LLM experiments face identical constraints
+- **Interpretability**: Policies are simple decision trees
+- **Focus**: Pure timing optimization without confounding factors
 
 ### 3.2 Feature Toggle Configuration
 
-SimCash's new `policy_feature_toggles` allows precisely this restriction:
+SimCash's `policy_feature_toggles` enforces these restrictions:
 
 ```yaml
-# research_simple_scenario.yaml
+# research_scenario.yaml
 simulation:
   ticks_per_day: 100
   num_days: 1
   rng_seed: 42
 
-# CRITICAL: Restrict policy DSL to simplified subset
+# Restrict policy DSL to controlled subset
 policy_feature_toggles:
   include:
     # Actions: Only Release and Hold
@@ -121,11 +128,11 @@ policy_feature_toggles:
     - LogicalOperator     # and, or
     - BinaryArithmetic    # +, -, *, /
 
-# Disable LSM to focus purely on timing decisions
+# Disable LSM for controlled experiment
 lsm:
   enabled: false
 
-# Simple cost structure matching Bodislav's trade-offs
+# Cost structure matching Bodislav's trade-offs
 costs:
   overdraft_cost_bps: 10.0           # Liquidity cost
   delay_penalty_per_tick: 100        # Delay cost
@@ -191,10 +198,10 @@ The policy-schema generator creates precise documentation for the LLM, filtered 
 
 ```bash
 # Generate schema showing ONLY categories allowed by the scenario
-payment-sim policy-schema --scenario research_simple_scenario.yaml --format json
+payment-sim policy-schema --scenario research_scenario.yaml --format json
 
 # Or markdown for human review
-payment-sim policy-schema --scenario research_simple_scenario.yaml --format markdown
+payment-sim policy-schema --scenario research_scenario.yaml --format markdown
 ```
 
 This produces documentation like:
@@ -233,9 +240,9 @@ This produces documentation like:
 }
 ```
 
-### 3.4 Minimal Policy Structure
+### 3.4 Policy Structure
 
-With the restricted DSL, policies have a simple structure:
+With the restricted DSL, policies have a simple, interpretable structure:
 
 ```json
 {
@@ -343,7 +350,6 @@ class PolicyOptimizer:
 
     def _validate_policy(self, policy_json: str) -> ValidationResult:
         """Validate policy against scenario's feature toggles."""
-        # Write policy to temp file
         with tempfile.NamedTemporaryFile(suffix=".json") as f:
             f.write(policy_json.encode())
             f.flush()
@@ -376,25 +382,20 @@ class PolicyOptimizer:
 
     def iterate(self) -> Policy:
         """Run one iteration of the optimization loop."""
-        # Build prompt with schema, history, and analysis
         prompt = self._build_prompt()
 
-        # Generate new policy
         response = self.llm.generate(prompt)
         policy_json = self._extract_policy_json(response)
 
         # Validate against feature toggles
         validation = self._validate_policy(policy_json)
         if not validation.valid:
-            # Retry with error feedback
             retry_prompt = self._build_retry_prompt(validation.errors)
             response = self.llm.generate(retry_prompt)
             policy_json = self._extract_policy_json(response)
 
-        # Run simulations
         metrics = self._run_simulations(policy_json, seeds=range(1, 11))
 
-        # Record result
         self.history.append(IterationResult(
             iteration=len(self.history),
             policy=policy_json,
@@ -462,7 +463,7 @@ BEGIN YOUR RESPONSE:
 
 ---
 
-## 5. Experimental Design
+## 5. Baselines and Evaluation
 
 ### 5.1 Baselines
 
@@ -483,7 +484,7 @@ BEGIN YOUR RESPONSE:
 **Secondary**:
 - Iterations to best policy
 - Policy complexity (tree depth, node count)
-- Generalization across seeds
+- Generalization across seeds (train seeds vs. held-out seeds)
 
 ### 5.3 Ablation Studies
 
@@ -494,69 +495,13 @@ BEGIN YOUR RESPONSE:
 
 ---
 
-## 6. Future Phases
-
-This simplified Phase 1 establishes the methodology. Subsequent phases add complexity:
-
-### Phase 2: LSM Awareness
-
-```yaml
-policy_feature_toggles:
-  include:
-    - PaymentAction
-    - TransactionField
-    - AgentField
-    - TimeField
-    - CostField
-    - LsmField           # NEW: bilateral_offset_potential, etc.
-    - ComparisonOperator
-    - LogicalOperator
-    - BinaryArithmetic
-
-lsm:
-  enabled: true          # Enable LSM settlement
-```
-
-Research questions:
-- Can LLM discover strategies that exploit LSM offsets?
-- Does it learn to time releases to create bilateral opportunities?
-
-### Phase 3: Collateral Management
-
-```yaml
-policy_feature_toggles:
-  include:
-    - PaymentAction
-    - CollateralAction   # NEW: PostCollateral, WithdrawCollateral
-    - TransactionField
-    - AgentField
-    - TimeField
-    - CostField
-    - CollateralField    # NEW: posted_collateral, etc.
-    - ComparisonOperator
-    - LogicalOperator
-    - BinaryArithmetic
-```
-
-Research questions:
-- Can LLM optimize collateral posting timing?
-- Does it discover temporary collateral boost strategies?
-
-### Phase 4: Multi-Agent Heterogeneity
-
-- Different policies for different agent archetypes
-- Competitive optimization against adversarial counterparties
-- Emergent coordination patterns
-
----
-
-## 7. Implementation Plan
+## 6. Implementation Plan
 
 ### Week 1-2: Infrastructure
 
 1. **Create optimization harness**
    - Python script wrapping SimCash CLI
-   - LLM API integration
+   - LLM API integration (Anthropic, OpenAI)
    - Result aggregation and logging
 
 2. **Develop prompt templates**
@@ -566,41 +511,43 @@ Research questions:
 
 ### Week 3-4: Baseline Experiments
 
-1. Run all baselines on simplified scenario
+1. Run all baselines on the scenario
 2. Establish performance bounds
 3. Characterize cost trade-off surface
+4. Validate experimental setup
 
 ### Week 5-6: LLM Experiments
 
 1. Run optimization loops with different models
 2. Collect convergence data
 3. Analyze discovered policies
+4. Compare to baselines
 
 ### Week 7-8: Analysis & Writing
 
-1. Statistical analysis
-2. Policy structure analysis
+1. Statistical analysis of results
+2. Policy structure analysis (what patterns emerge?)
 3. Paper writing
 
 ---
 
-## 8. Expected Contributions
+## 7. Expected Contributions
 
-1. **Methodology**: LLM-as-optimizer for interpretable policy discovery
-2. **Tooling**: Integration with SimCash feature toggles and schema generator
-3. **Empirical Results**: Comparison with baselines and RL
-4. **Policy Catalog**: Collection of discovered effective strategies
+1. **Methodology**: LLM-as-optimizer framework for interpretable policy discovery in financial systems
+2. **Tooling**: Integration pattern using SimCash feature toggles and schema generator
+3. **Empirical Results**: Quantitative comparison of LLM optimization vs. grid search and heuristic baselines
+4. **Policy Analysis**: Catalog of strategies discovered by LLMs and their characteristics
 
 ---
 
-## 9. Risks and Mitigations
+## 8. Risks and Mitigations
 
 | Risk | Mitigation |
 |------|------------|
-| LLM generates invalid policy | `validate-policy --scenario` catches violations; retry with error |
-| LLM overfits to specific seed | Evaluate on held-out seed ranges |
-| LLM plateaus early | Try diverse prompt strategies |
-| Feature toggles too restrictive | Start simple, expand in phases |
+| LLM generates invalid policy | `validate-policy --scenario` catches violations; retry with error feedback |
+| LLM overfits to training seeds | Evaluate on held-out seed ranges (seeds 1-10 for training, 11-20 for test) |
+| LLM plateaus early | Try diverse prompt strategies; increase iteration budget |
+| High variance across runs | Run multiple independent optimization trials; report confidence intervals |
 
 ---
 
@@ -706,4 +653,4 @@ BEGIN:
 
 ---
 
-*Document generated for SimCash research initiative - Version 2.0*
+*Document generated for SimCash research initiative - Version 2.1*
