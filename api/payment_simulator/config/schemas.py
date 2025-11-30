@@ -562,6 +562,138 @@ class LsmConfig(BaseModel):
 
 
 # ============================================================================
+# Policy Feature Toggles
+# ============================================================================
+
+# All valid category names from the policy schema
+VALID_POLICY_CATEGORIES: set[str] = {
+    # Expression categories
+    "ComparisonOperator",
+    "LogicalOperator",
+    # Computation categories
+    "BinaryArithmetic",
+    "NaryArithmetic",
+    "UnaryMath",
+    "TernaryMath",
+    # Value categories
+    "ValueType",
+    # Action categories
+    "PaymentAction",
+    "BankAction",
+    "CollateralAction",
+    "RtgsAction",
+    # Field categories
+    "TransactionField",
+    "AgentField",
+    "QueueField",
+    "CollateralField",
+    "CostField",
+    "TimeField",
+    "LsmField",
+    "ThroughputField",
+    "StateRegisterField",
+    "SystemField",
+    "DerivedField",
+    # Node and tree categories
+    "NodeType",
+    "TreeType",
+}
+
+
+class PolicyFeatureToggles(BaseModel):
+    """Feature toggles for policy DSL in this scenario.
+
+    Allows restricting which policy features are available.
+    Only ONE of include or exclude can be specified.
+
+    Examples:
+        # Only allow basic payment actions and transaction fields
+        policy_feature_toggles:
+          include:
+            - PaymentAction
+            - TransactionField
+            - TimeField
+
+        # Allow all except collateral features
+        policy_feature_toggles:
+          exclude:
+            - CollateralAction
+            - CollateralField
+    """
+
+    include: list[str] | None = Field(
+        None,
+        description="Only allow these categories (mutually exclusive with exclude)"
+    )
+    exclude: list[str] | None = Field(
+        None,
+        description="Forbid these categories (mutually exclusive with include)"
+    )
+
+    @field_validator("include", "exclude", mode="before")
+    @classmethod
+    def validate_categories(cls, v: list[str] | None) -> list[str] | None:
+        """Validate that all category names are valid."""
+        if v is None:
+            return v
+        for cat in v:
+            if cat not in VALID_POLICY_CATEGORIES:
+                raise ValueError(
+                    f"Unknown category: {cat}. "
+                    f"Valid categories: {sorted(VALID_POLICY_CATEGORIES)}"
+                )
+        return v
+
+    @model_validator(mode="after")
+    def validate_mutual_exclusion(self) -> "PolicyFeatureToggles":
+        """Ensure include and exclude are mutually exclusive."""
+        if self.include is not None and self.exclude is not None:
+            raise ValueError(
+                "Cannot specify both 'include' and 'exclude' - choose one"
+            )
+        return self
+
+    def is_category_allowed(self, category: str) -> bool:
+        """Check if a category is allowed by the toggles.
+
+        Args:
+            category: The category name to check.
+
+        Returns:
+            True if the category is allowed, False otherwise.
+        """
+        if self.include is not None:
+            return category in self.include
+        if self.exclude is not None:
+            return category not in self.exclude
+        return True  # No toggles means all allowed
+
+    def get_allowed_categories(self) -> set[str]:
+        """Get the set of allowed category names.
+
+        Returns:
+            Set of category names that are allowed.
+        """
+        if self.include is not None:
+            return set(self.include)
+        if self.exclude is not None:
+            return VALID_POLICY_CATEGORIES - set(self.exclude)
+        return VALID_POLICY_CATEGORIES.copy()
+
+    def get_forbidden_categories(self) -> set[str]:
+        """Get the set of forbidden category names.
+
+        Returns:
+            Set of category names that are forbidden.
+        """
+        if self.exclude is not None:
+            return set(self.exclude)
+        if self.include is not None:
+            return VALID_POLICY_CATEGORIES - set(self.include)
+        return set()  # No toggles means nothing forbidden
+
+
+# ============================================================================
 # Simulation Configuration
 # ============================================================================
 
@@ -582,6 +714,9 @@ class SimulationConfig(BaseModel):
     lsm_config: LsmConfig = Field(default_factory=LsmConfig, description="LSM configuration")  # type: ignore[arg-type]
     scenario_events: list[ScenarioEvent] | None = Field(
         None, description="Optional scenario events to execute during simulation"
+    )
+    policy_feature_toggles: PolicyFeatureToggles | None = Field(
+        None, description="Restrict policy DSL features for this scenario"
     )
 
     @field_validator("agents")
@@ -638,6 +773,53 @@ class SimulationConfig(BaseModel):
                 # DeadlineWindowChangeEvent is global (no agent field) - no validation needed
 
         return self
+
+    def validate_policies_against_toggles(self) -> list[str]:
+        """Validate all FromJson policies against feature toggles.
+
+        Returns:
+            List of error messages. Empty list if all policies are valid.
+        """
+        if self.policy_feature_toggles is None:
+            return []  # No toggles, all policies allowed
+
+        errors: list[str] = []
+
+        from payment_simulator.policy.validation import validate_policy_for_scenario
+
+        for agent in self.agents:
+            if isinstance(agent.policy, FromJsonPolicy):
+                # Load the policy JSON
+                json_path = Path(agent.policy.json_path)
+                if not json_path.exists():
+                    project_root = Path(__file__).resolve().parent.parent.parent.parent
+                    json_path = project_root / agent.policy.json_path
+
+                if not json_path.exists():
+                    errors.append(
+                        f"Agent {agent.id}: Policy file not found: {agent.policy.json_path}"
+                    )
+                    continue
+
+                try:
+                    policy_json = json_path.read_text()
+                except Exception as e:
+                    errors.append(
+                        f"Agent {agent.id}: Failed to read policy file: {e}"
+                    )
+                    continue
+
+                # Validate against toggles
+                result = validate_policy_for_scenario(
+                    policy_json, scenario_config=self
+                )
+                if not result.valid:
+                    for error in result.errors:
+                        errors.append(
+                            f"Agent {agent.id}: {error.get('message', 'Unknown error')}"
+                        )
+
+        return errors
 
     def to_ffi_dict(self) -> dict[str, Any]:
         """Convert to dictionary format expected by FFI layer.
