@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
@@ -154,11 +155,23 @@ manager = _ManagerProxy()
 # ============================================================================
 
 
+# Default database filename (consistent with CLI)
+DEFAULT_DB_NAME = "simulation_data.db"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Lifespan context manager for startup/shutdown."""
-    # Startup: Configure database if environment variable is set
+    # Startup: Configure database
+    # Priority: 1) Environment variable, 2) Default file if it exists
     db_path = os.environ.get("PAYMENT_SIM_DB_PATH")
+
+    if not db_path:
+        # Auto-discover default database if it exists
+        default_db = Path(DEFAULT_DB_NAME)
+        if default_db.exists():
+            db_path = str(default_db)
+
     if db_path:
         from payment_simulator.persistence.connection import DatabaseManager
 
