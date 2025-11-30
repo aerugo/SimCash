@@ -1,9 +1,10 @@
 """CLI command for validating policy tree JSON files.
 
-This command validates policy files in three stages:
+This command validates policy files in multiple stages:
 1. JSON syntax validation
 2. Schema validation (required fields)
 3. Semantic validation (field references, parameters, division safety, etc.)
+4. Scenario feature toggle validation (if --scenario provided)
 
 Optionally runs functional tests against a test scenario.
 """
@@ -21,6 +22,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from payment_simulator.backends import validate_policy as rust_validate_policy
+from payment_simulator.policy.validation import validate_policy_for_scenario
 
 
 class OutputFormat(str, Enum):
@@ -51,7 +53,10 @@ def validate_policy(
     ] = False,
     scenario: Annotated[
         Path | None,
-        typer.Option("--scenario", "-s", help="Custom scenario config for functional tests"),
+        typer.Option(
+            "--scenario", "-s",
+            help="Validate against scenario's feature toggles and use for functional tests"
+        ),
     ] = None,
 ) -> None:
     """Validate a policy tree JSON file.
@@ -67,6 +72,8 @@ def validate_policy(
       - Parameter reference validity
       - Division-by-zero safety
       - Action reachability
+    - Scenario feature toggle validation (if --scenario provided):
+      - Checks policy doesn't use forbidden categories
 
     Examples:
 
@@ -78,6 +85,9 @@ def validate_policy(
 
         # Verbose output with details
         payment-sim validate-policy policies/complex.json --verbose
+
+        # Validate against scenario feature toggles
+        payment-sim validate-policy policies/custom.json --scenario scenario.yaml
 
         # Run functional tests
         payment-sim validate-policy policies/smart.json --functional-tests
@@ -111,9 +121,27 @@ def validate_policy(
         )
         raise typer.Exit(code=1)
 
-    # Call Rust validation
-    result_json = rust_validate_policy(policy_content)
-    result = json.loads(result_json)
+    # Validate policy - use scenario-aware validation if scenario provided
+    if scenario is not None:
+        validation_result = validate_policy_for_scenario(
+            policy_content, scenario_path=scenario
+        )
+        # Convert to dict format for output
+        result: dict[str, Any] = {
+            "valid": validation_result.valid,
+            "policy_id": validation_result.policy_id,
+            "version": validation_result.version,
+            "description": validation_result.description,
+            "errors": validation_result.errors,
+        }
+        if validation_result.forbidden_categories:
+            result["forbidden_categories"] = validation_result.forbidden_categories
+        if validation_result.forbidden_elements:
+            result["forbidden_elements"] = validation_result.forbidden_elements
+    else:
+        # Standard Rust validation without scenario toggles
+        result_json = rust_validate_policy(policy_content)
+        result = json.loads(result_json)
 
     # Run functional tests if requested
     functional_test_result = None
@@ -191,6 +219,12 @@ def _output_text(
             )
 
         console.print(error_table)
+
+        # Show forbidden categories if present
+        forbidden = result.get("forbidden_categories", [])
+        if forbidden:
+            console.print(f"\n[yellow]Forbidden categories used:[/yellow] {', '.join(forbidden)}")
+
         console.print(f"\n[red]Policy validation failed with {len(errors)} error(s)[/red]")
 
 

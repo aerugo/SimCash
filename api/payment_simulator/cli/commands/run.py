@@ -540,6 +540,14 @@ def run_simulation(
             log_error(f"Invalid configuration: {e}")
             raise typer.Exit(1)
 
+        # Validate policies against feature toggles (if any)
+        policy_errors = sim_config.validate_policies_against_toggles()
+        if policy_errors:
+            log_error("Policy validation failed against scenario feature toggles:")
+            for error in policy_errors:
+                log_error(f"  - {error}")
+            raise typer.Exit(1)
+
         # Convert to FFI format
         ffi_dict = sim_config.to_ffi_dict()
 

@@ -95,6 +95,13 @@ def policy_schema(
         list[SchemaSection] | None,
         typer.Option("--section", "-s", help="Include only specific sections"),
     ] = None,
+    scenario: Annotated[
+        Path | None,
+        typer.Option(
+            "--scenario",
+            help="Filter schema based on scenario's feature toggles"
+        ),
+    ] = None,
     output: Annotated[
         Path | None,
         typer.Option("--output", "-o", help="Output file (default: stdout)"),
@@ -123,16 +130,46 @@ def policy_schema(
 
         # Exclude collateral actions
         payment-sim policy-schema --exclude-category CollateralAction
+
+        # Schema filtered by scenario's feature toggles
+        payment-sim policy-schema --scenario scenario.yaml
     """
     # Get schema from Rust
     schema_json = get_policy_schema()
     schema = json.loads(schema_json)
 
-    # Apply filters
+    # Apply filters from CLI options
     include_categories = {c.value for c in category} if category else None
     exclude_categories = {c.value for c in exclude_category} if exclude_category else set()
     include_trees = {t.value for t in tree} if tree else None
     include_sections = {s.value for s in section} if section else None
+
+    # Apply scenario feature toggles if provided
+    if scenario is not None:
+        from payment_simulator.config import load_config
+
+        try:
+            config = load_config(str(scenario))
+        except Exception as e:
+            typer.echo(f"Error loading scenario: {e}", err=True)
+            raise typer.Exit(code=1)
+
+        if config.policy_feature_toggles is not None:
+            toggles = config.policy_feature_toggles
+
+            if toggles.include is not None:
+                # Scenario has include list - merge with any CLI include
+                scenario_includes = set(toggles.include)
+                if include_categories is not None:
+                    # Intersection of CLI and scenario includes
+                    include_categories = include_categories & scenario_includes
+                else:
+                    include_categories = scenario_includes
+
+            if toggles.exclude is not None:
+                # Scenario has exclude list - merge with CLI excludes
+                scenario_excludes = set(toggles.exclude)
+                exclude_categories = exclude_categories | scenario_excludes
 
     # Filter schema
     filtered_schema = filter_schema(
