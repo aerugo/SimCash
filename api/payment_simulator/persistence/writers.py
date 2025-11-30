@@ -14,6 +14,17 @@ from typing import Any
 import duckdb
 import polars as pl
 
+# Check for pyarrow availability at import time
+# This provides a clearer error message than the cryptic DuckDB error
+try:
+    import pyarrow  # type: ignore[import-untyped]  # noqa: F401
+except ImportError as e:
+    raise ImportError(
+        "pyarrow is required for Polars-DuckDB integration but is not installed.\n"
+        "Please run: uv sync --extra dev\n"
+        "Or install directly: pip install pyarrow"
+    ) from e
+
 from .models import (
     DailyAgentMetricsRecord,
     PolicyDecisionRecord,
