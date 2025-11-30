@@ -38,6 +38,7 @@ This command is useful for:
 | `--exclude-category` | `-x` | List | None | Exclude specific categories (repeatable). |
 | `--tree` | `-t` | List | All | Filter to elements valid in specific trees. |
 | `--section` | `-s` | List | All | Include only specific sections. |
+| `--scenario` | - | Path | None | Apply scenario's feature toggles as filters. |
 
 ## Categories
 
@@ -206,6 +207,34 @@ payment-sim policy-schema \
   --no-examples
 ```
 
+### Scenario Feature Toggles
+
+When a scenario file specifies `policy_feature_toggles`, use `--scenario` to automatically apply those restrictions:
+
+```yaml
+# scenario.yaml
+policy_feature_toggles:
+  include:
+    - PaymentAction
+    - TransactionField
+    - AgentField
+```
+
+```bash
+# Generate schema showing only categories allowed by scenario
+payment-sim policy-schema --scenario scenario.yaml
+
+# Combine with other filters (CLI filters merge with scenario toggles)
+payment-sim policy-schema --scenario scenario.yaml --section actions
+```
+
+This is useful for:
+- Generating documentation for a restricted policy environment
+- Understanding what policy elements are available in a specific scenario
+- Creating policy templates that conform to scenario restrictions
+
+See [Feature Toggles](../../scenario/feature-toggles.md) for complete documentation.
+
 ## Output Format
 
 ### Markdown Format
@@ -317,6 +346,7 @@ git diff --exit-code docs/policy-schema.md || (git add docs/policy-schema.md && 
 
 - [Policy Reference](../../policy/index.md) - Complete policy DSL documentation
 - [Policy Configuration](../../scenario/policies.md) - Configuring policies in scenarios
+- [Feature Toggles](../../scenario/feature-toggles.md) - Scenario feature toggle configuration
 
 ## Implementation Details
 

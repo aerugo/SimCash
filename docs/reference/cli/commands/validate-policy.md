@@ -42,7 +42,7 @@ This command is useful for:
 | `--format` | `-f` | Enum | `text` | Output format: `text` or `json` |
 | `--verbose` | `-v` | Boolean | `false` | Show detailed validation output |
 | `--functional-tests` | - | Boolean | `false` | Run functional tests against the policy |
-| `--scenario` | `-s` | Path | None | Custom scenario config for functional tests |
+| `--scenario` | `-s` | Path | None | Validate against scenario's feature toggles and use for functional tests |
 
 ## Validation Stages
 
@@ -86,6 +86,22 @@ Deep validation of policy structure and references:
 | Parameter References | All parameters must be defined | `InvalidParameterReference` |
 | Division Safety | Static check for division by zero | `DivisionByZeroRisk` |
 | Action Reachability | All actions must be reachable | `UnreachableAction` |
+
+### Stage 4: Scenario Feature Toggle Validation
+
+When `--scenario` is provided, the command also validates that the policy doesn't use categories forbidden by the scenario's `policy_feature_toggles`:
+
+```yaml
+# scenario.yaml
+policy_feature_toggles:
+  exclude:
+    - CollateralAction      # Policies cannot use collateral actions
+    - StateRegisterField    # No custom state registers allowed
+```
+
+The validation extracts all categories used by the policy (actions, fields, operators) and checks them against the scenario's allowed categories. If a forbidden category is used, the validation fails with details about which elements are forbidden.
+
+See [Feature Toggles](../../scenario/feature-toggles.md) for complete documentation.
 
 ## Functional Tests
 
@@ -205,6 +221,47 @@ payment-sim validate-policy policies/fifo.json --functional-tests
 All functional tests passed (3/3)
 ```
 
+### Scenario Feature Toggle Validation
+
+```bash
+# Validate policy against scenario feature toggles
+payment-sim validate-policy policies/custom.json --scenario scenario.yaml
+
+# Output when policy uses forbidden categories:
+                              Validation Errors
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Type                       ┃ Message                                                  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ForbiddenCategory          │ Policy uses forbidden category 'CollateralAction'        │
+└────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+Forbidden categories used: CollateralAction
+
+Policy validation failed with 1 error(s)
+```
+
+```bash
+# JSON output shows detailed forbidden elements
+payment-sim validate-policy policies/collateral.json --scenario restricted.yaml --format json
+
+# Output:
+{
+  "valid": false,
+  "policy_id": "collateral_policy",
+  "version": "1.0",
+  "errors": [
+    {
+      "type": "ForbiddenCategory",
+      "message": "Policy uses forbidden category 'CollateralAction'"
+    }
+  ],
+  "forbidden_categories": ["CollateralAction"],
+  "forbidden_elements": [
+    {"element": "PostCollateral", "category": "CollateralAction"}
+  ]
+}
+```
+
 ### Validation Errors
 
 ```bash
@@ -260,6 +317,7 @@ echo "All policies valid!"
 | `InvalidParameterReference` | Parameter not defined | Add parameter to `parameters` section |
 | `DivisionByZeroRisk` | Division by literal zero | Use SafeDiv or check divisor |
 | `UnreachableAction` | Action node never reached | Fix condition logic |
+| `ForbiddenCategory` | Policy uses category forbidden by scenario | Remove elements from forbidden category or update scenario toggles |
 
 ## Related Commands
 
@@ -269,6 +327,7 @@ echo "All policies valid!"
 ## Related Documentation
 
 - [Policy Reference](../../policy/index.md) - Complete policy DSL documentation
+- [Feature Toggles](../../scenario/feature-toggles.md) - Scenario feature toggle configuration
 - [Policy Validation](../../policy/validation.md) - Validation rules in detail
 
 ## Implementation Details
