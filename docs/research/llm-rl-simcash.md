@@ -1,6 +1,6 @@
 # Research Proposal: LLM-Driven Policy Optimization for Payment System Cash Management
 
-**Version**: 1.0
+**Version**: 2.0
 **Date**: 2025-11-30
 **Status**: Proposal
 
@@ -8,7 +8,9 @@
 
 ## Abstract
 
-This research proposal outlines a novel approach to optimizing cash management policies in Real-Time Gross Settlement (RTGS) payment systems using Large Language Models (LLMs) as policy iterators. Inspired by the work of Bodislav et al. (2024) on integrating machine learning in central banks, we propose replacing traditional reinforcement learning (RL) with an LLM-in-the-loop system that iteratively refines JSON-based decision tree policies based on simulation outcomes. Using SimCash as our simulation environment, we aim to demonstrate that reasoning-capable LLMs can discover effective cash management strategies that minimize costs while maintaining settlement performance, providing interpretable policy artifacts that can inform real-world central bank operations.
+This research proposal outlines a novel approach to optimizing cash management policies in Real-Time Gross Settlement (RTGS) payment systems using Large Language Models (LLMs) as policy iterators. Inspired by the work of Bodislav et al. (2024) on integrating machine learning in central banks, we propose replacing traditional reinforcement learning (RL) with an LLM-in-the-loop system that iteratively refines JSON-based decision tree policies based on simulation outcomes.
+
+Using SimCash as our simulation environment, we leverage its new **policy feature toggles** to restrict the DSL to a simplified subset, and its **policy-schema generator** to create precise documentation for the LLM. This approach enables interpretable policy discovery that can inform real-world central bank operations.
 
 ---
 
@@ -16,9 +18,9 @@ This research proposal outlines a novel approach to optimizing cash management p
 
 ### 1.1 Background
 
-Modern economies rely on Real-Time Gross Settlement (RTGS) systems for high-value interbank payments. These systems—including TARGET2 (Eurosystem), Fedwire (US), and RIX-RTGS (Sweden)—process trillions of dollars daily. Banks participating in these systems face a fundamental coordination problem: liquidity costs money (holding reserves ties up capital), but delays also cost money (client dissatisfaction, regulatory penalties, operational risk).
+Modern economies rely on Real-Time Gross Settlement (RTGS) systems for high-value interbank payments. These systems—including TARGET2 (Eurosystem), Fedwire (US), and RIX-RTGS (Sweden)—process trillions of dollars daily. Banks participating in these systems face a fundamental coordination problem: **liquidity costs money** (holding reserves ties up capital), but **delays also cost money** (client dissatisfaction, regulatory penalties, operational risk).
 
-Bodislav et al. (2024) explore how artificial intelligence, particularly machine learning, can be integrated into central bank operations for economic forecasting, risk management, and policy optimization. Their work emphasizes the potential of neural networks, time series analysis, and natural language processing to improve monetary and fiscal policy decisions. However, traditional RL approaches to policy optimization have limitations:
+Bodislav et al. (2024) explore how artificial intelligence, particularly machine learning, can be integrated into central bank operations for economic forecasting, risk management, and policy optimization. Their conceptual framework emphasizes the potential of AI to improve monetary and fiscal policy decisions. However, traditional RL approaches to policy optimization have significant limitations in financial contexts:
 
 - **Sample inefficiency**: RL requires millions of episodes to converge
 - **Black-box policies**: Neural network policies are not interpretable
@@ -27,532 +29,578 @@ Bodislav et al. (2024) explore how artificial intelligence, particularly machine
 
 ### 1.2 Proposed Innovation
 
-We propose a fundamentally different approach: using a high-powered reasoning LLM (e.g., Claude Opus, GPT-4, or specialized financial LLMs) to iteratively refine human-readable JSON policy trees based on simulation outcomes. This approach offers:
+We propose using a high-powered reasoning LLM (e.g., Claude Opus, GPT-4) to iteratively refine human-readable JSON policy trees based on simulation outcomes. Key enablers:
 
-- **Sample efficiency**: LLMs leverage pre-trained knowledge of financial systems
-- **Interpretability**: JSON decision trees are human-readable and auditable
-- **Rapid iteration**: Each refinement cycle produces testable hypotheses
-- **Domain knowledge integration**: LLMs can incorporate financial reasoning
+1. **Policy Feature Toggles**: SimCash's new feature toggle system allows restricting the policy DSL to a simplified subset—removing collateral, LSM, and state registers for the first paper
+2. **Policy Schema Generator**: The `policy-schema` command generates context-aware documentation showing exactly what fields, actions, and operators are available
+3. **Deterministic Simulation**: Same seed always produces identical results, enabling precise A/B comparisons
 
 ### 1.3 Research Questions
 
-1. Can LLMs effectively optimize payment system cash management policies through iterative simulation-and-refinement cycles?
-2. How do LLM-optimized policies compare to hand-crafted heuristics and traditional RL baselines?
-3. What policy structures and strategies emerge from LLM-driven optimization?
-4. How many iteration cycles are required for convergence to effective policies?
+1. Can an LLM discover the optimal urgency threshold faster than parameter grid search?
+2. Does the LLM find non-obvious parameter combinations or policy structures?
+3. How does LLM performance scale with iteration count (5, 10, 25, 50)?
+4. Does the LLM generalize policies across different random seeds?
 
 ---
 
-## 2. Related Work
+## 2. Mapping Bodislav et al. to SimCash
 
-### 2.1 AI in Central Banking (Bodislav et al., 2024)
+Bodislav et al. (2024) is a conceptual/review paper discussing AI applications in central banking. We map their key concepts to SimCash:
 
-The foundational paper examines three AI techniques for central bank applications:
+| Bodislav Concept | SimCash Implementation |
+|------------------|------------------------|
+| "Holding reserves ties up capital" | Overdraft cost when balance goes negative |
+| "Delay costs from slow execution" | Delay penalty per tick in Queue 1 |
+| "Deadline-driven obligations" | Transaction deadlines with penalties |
+| "Optimizing policy decisions" | Choosing when to Release vs. Hold |
+| "Risk assessment for stability" | Gridlock detection, EOD settlement pressure |
+| "Real-time data integration" | Tick-by-tick simulation feedback |
+| "Predictive analytics" | LLM reasoning about cost trade-offs |
+| "Interpretable AI solutions" | JSON decision trees with full audit trails |
 
-| Technique | Application | SimCash Analogue |
-|-----------|-------------|------------------|
-| Neural Networks | Non-linear pattern recognition, inflation forecasting | LSM cycle prediction, gridlock detection |
-| Time Series Analysis | Trend identification, GDP forecasting | Intraday payment flow prediction |
-| Natural Language Processing | Sentiment analysis, policy communication | (Out of scope for this proposal) |
+### Core Trade-off
 
-Key insights from Bodislav et al. relevant to our work:
+The fundamental tension in both Bodislav's monetary policy context and SimCash:
 
-- **Predictive analytics for employment and inflation**: Analogous to predicting Queue 2 congestion and liquidity pressure
-- **Interest rate optimization**: Analogous to collateral posting and withdrawal timing
-- **Real-time data integration**: SimCash provides tick-by-tick state for immediate feedback
-- **Risk assessment for financial stability**: Maps to gridlock detection and EOD settlement risk
-
-### 2.2 RL in Payment Systems
-
-Prior work on applying RL to payment systems includes:
-
-- **Galbiati & Soramäki (2011)**: Agent-based modeling of payment systems
-- **Denbee et al. (2021)**: RL for intraday liquidity management
-- **BIS studies**: CPMI reports on AI in financial market infrastructure
-
-Limitations of these approaches that we address:
-- Black-box policies unsuitable for regulatory scrutiny
-- High sample complexity (millions of episodes)
-- Difficulty incorporating domain expertise
-
-### 2.3 LLMs as Optimizers
-
-Recent work has demonstrated LLMs' capability for optimization:
-
-- **Prompt optimization**: LLMs iterating on prompts for task performance
-- **Code generation with feedback**: LLMs refining code based on test results
-- **AutoGPT-style agents**: Autonomous task completion with iterative refinement
-
-Our approach extends this paradigm to financial policy optimization.
+```
+                    LIQUIDITY COST
+                         ↑
+                         |
+     Release early  ←----+----→  Hold payments
+     (use credit)        |       (wait for inflows)
+                         ↓
+                    DELAY COST
+```
 
 ---
 
-## 3. SimCash Environment
+## 3. Phase 1: Simplified Experiment Design
 
-### 3.1 System Overview
+### 3.1 Design Philosophy
 
-SimCash is a high-fidelity payment system simulator implementing TARGET2-style mechanics:
+For the first paper, we strip SimCash to its minimal core to isolate the fundamental timing optimization problem:
 
+| Feature | Status | Rationale |
+|---------|--------|-----------|
+| RTGS Settlement | **Enabled** | Core mechanic |
+| Queue 1 (internal) | **Enabled** | Strategic holding |
+| Queue 2 (RTGS) | **Enabled** | Liquidity waiting |
+| LSM Bilateral/Multilateral | **Disabled** | Adds strategic complexity |
+| Collateral Posting | **Disabled** | Separate optimization dimension |
+| Transaction Splitting | **Disabled** | Additional action space |
+| Budget Management (bank_tree) | **Disabled** | payment_tree suffices |
+| State Registers | **Disabled** | Memory adds complexity |
+| Heterogeneous Agents | **Disabled** | Start with symmetric setup |
+
+### 3.2 Feature Toggle Configuration
+
+SimCash's new `policy_feature_toggles` allows precisely this restriction:
+
+```yaml
+# research_simple_scenario.yaml
+simulation:
+  ticks_per_day: 100
+  num_days: 1
+  rng_seed: 42
+
+# CRITICAL: Restrict policy DSL to simplified subset
+policy_feature_toggles:
+  include:
+    # Actions: Only Release and Hold
+    - PaymentAction
+
+    # Fields: Core timing and liquidity
+    - TransactionField    # amount, priority, deadline
+    - AgentField          # balance, effective_liquidity
+    - TimeField           # ticks_to_deadline, is_eod_rush
+    - CostField           # cost_delay_this_tx_one_tick
+
+    # Operators: Basic comparisons and arithmetic
+    - ComparisonOperator  # <, <=, >, >=, ==
+    - LogicalOperator     # and, or
+    - BinaryArithmetic    # +, -, *, /
+
+# Disable LSM to focus purely on timing decisions
+lsm:
+  enabled: false
+
+# Simple cost structure matching Bodislav's trade-offs
+costs:
+  overdraft_cost_bps: 10.0           # Liquidity cost
+  delay_penalty_per_tick: 100        # Delay cost
+  deadline_penalty: 10000            # $100 for missing deadline
+  overdue_delay_multiplier: 5.0      # Escalation after deadline
+  collateral_cost_per_tick_bps: 0.0  # Disabled
+  split_friction_cost: 0             # Disabled
+  eod_unsettled_penalty: 50000       # Strong EOD pressure
+
+agents:
+  - id: BANK_A
+    opening_balance: 500000          # $5,000
+    credit_limit: 200000             # $2,000 overdraft capacity
+    policy:
+      type: FromJson
+      json_path: "policies/llm_optimized.json"
+    arrival_config:
+      rate_per_tick: 0.3             # ~30 transactions/day
+      counterparty_weights:
+        BANK_B: 1.0
+      amount_distribution:
+        type: Normal
+        mean: 25000
+        std_dev: 5000
+      deadline_offset:
+        type: Uniform
+        min: 20
+        max: 60
+      priority_distribution:
+        type: Uniform
+        min: 1
+        max: 10
+      divisible: false
+
+  - id: BANK_B
+    opening_balance: 500000
+    credit_limit: 200000
+    policy:
+      type: FromJson
+      json_path: "policies/llm_optimized.json"  # Same policy (symmetric)
+    arrival_config:
+      rate_per_tick: 0.3
+      counterparty_weights:
+        BANK_A: 1.0
+      amount_distribution:
+        type: Normal
+        mean: 25000
+        std_dev: 5000
+      deadline_offset:
+        type: Uniform
+        min: 20
+        max: 60
+      priority_distribution:
+        type: Uniform
+        min: 1
+        max: 10
+      divisible: false
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    SimCash Environment                  │
-├─────────────────────────────────────────────────────────┤
-│  Agents (Banks)          │  Settlement Engine           │
-│  ├─ Balance              │  ├─ RTGS Immediate           │
-│  ├─ Credit Limit         │  ├─ Queue 2 (LSM)            │
-│  ├─ Collateral           │  │   ├─ Algorithm 1: FIFO    │
-│  ├─ Queue 1 (internal)   │  │   ├─ Algorithm 2: Bilatrl │
-│  └─ Policy (JSON DSL)    │  │   └─ Algorithm 3: Cycles  │
-│                          │  └─ Entry Disposition        │
-├──────────────────────────┴──────────────────────────────┤
-│  Cost Model: Overdraft | Delay | Deadline | Collateral  │
-└─────────────────────────────────────────────────────────┘
+
+### 3.3 Generating LLM Documentation
+
+The policy-schema generator creates precise documentation for the LLM, filtered by the scenario's feature toggles:
+
+```bash
+# Generate schema showing ONLY categories allowed by the scenario
+payment-sim policy-schema --scenario research_simple_scenario.yaml --format json
+
+# Or markdown for human review
+payment-sim policy-schema --scenario research_simple_scenario.yaml --format markdown
 ```
 
-### 3.2 Policy DSL
+This produces documentation like:
 
-SimCash policies are defined as JSON decision trees with 140+ context fields:
+```json
+{
+  "actions": [
+    {
+      "name": "Release",
+      "description": "Submit transaction to RTGS for immediate settlement",
+      "valid_in": ["payment_tree"]
+    },
+    {
+      "name": "Hold",
+      "description": "Keep transaction in Queue 1, do not release this tick",
+      "valid_in": ["payment_tree"],
+      "parameters": {
+        "reason": "Optional string explaining hold decision"
+      }
+    }
+  ],
+  "fields": [
+    {"name": "ticks_to_deadline", "type": "f64", "description": "Ticks until deadline (can be negative)"},
+    {"name": "effective_liquidity", "type": "f64", "description": "Balance + credit headroom"},
+    {"name": "remaining_amount", "type": "f64", "description": "Payment amount to settle"},
+    {"name": "priority", "type": "f64", "description": "Transaction priority (1-10)"},
+    {"name": "is_past_deadline", "type": "bool", "description": "Already overdue?"},
+    {"name": "balance", "type": "f64", "description": "Current account balance"},
+    {"name": "day_progress_fraction", "type": "f64", "description": "Progress through day (0-1)"}
+  ],
+  "operators": {
+    "comparison": ["<", "<=", ">", ">=", "==", "!="],
+    "logical": ["and", "or"],
+    "arithmetic": ["+", "-", "*", "/"]
+  }
+}
+```
+
+### 3.4 Minimal Policy Structure
+
+With the restricted DSL, policies have a simple structure:
 
 ```json
 {
   "version": "1.0",
-  "policy_id": "example_policy",
+  "policy_id": "simple_timing",
+  "description": "Simple release timing policy",
   "parameters": {
-    "urgency_threshold": 5.0,
-    "target_buffer": 100000.0
+    "urgency_threshold": 10.0,
+    "liquidity_buffer": 50000.0
   },
   "payment_tree": {
     "type": "condition",
+    "node_id": "check_urgent",
     "condition": {
       "op": "<=",
       "left": {"field": "ticks_to_deadline"},
       "right": {"param": "urgency_threshold"}
     },
-    "on_true": {"type": "action", "action": "Release"},
-    "on_false": {"type": "action", "action": "Hold"}
-  }
-}
-```
-
-### 3.3 Cost Model
-
-The cost model creates a multi-objective optimization problem:
-
-| Cost Type | Formula | Trade-off |
-|-----------|---------|-----------|
-| Overdraft | `bps × max(0, -balance) × (1/ticks_per_day)` | Liquidity vs. credit usage |
-| Delay | `penalty_per_tick × queue1_wait_time` | Speed vs. liquidity conservation |
-| Deadline | `fixed_penalty` (one-time) | Urgency handling |
-| Overdue | `delay × 5.0` (multiplied after deadline) | Penalty escalation |
-| Collateral | `bps × posted_amount × (1/ticks_per_day)` | Credit access vs. opportunity cost |
-| EOD | `penalty × unsettled_count` | Settlement completion pressure |
-
-### 3.4 Evaluation Metrics
-
-The simulation produces rich metrics for policy evaluation:
-
-```python
-{
-  "settlement_rate": 0.95,          # Fraction of transactions settled
-  "total_cost": 125000,             # Total costs incurred (cents)
-  "cost_breakdown": {
-    "overdraft": 15000,
-    "delay": 45000,
-    "deadline_penalties": 30000,
-    "collateral": 20000,
-    "eod_penalties": 15000
-  },
-  "lsm_utilization": {
-    "bilateral_offsets": 23,
-    "multilateral_cycles": 5
-  },
-  "average_settlement_time": 12.3,  # Ticks from arrival to settlement
-  "queue_metrics": {
-    "max_queue1_size": 45,
-    "max_queue2_size": 12
+    "on_true": {
+      "type": "action",
+      "node_id": "release_urgent",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "check_affordable",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "effective_liquidity"},
+        "right": {
+          "compute": {
+            "op": "+",
+            "left": {"field": "remaining_amount"},
+            "right": {"param": "liquidity_buffer"}
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "release_affordable",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "hold",
+        "action": "Hold"
+      }
+    }
   }
 }
 ```
 
 ---
 
-## 4. Proposed Methodology
+## 4. LLM Optimization Protocol
 
 ### 4.1 System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    LLM Policy Optimization Loop                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐ │
-│   │   Scenario  │───▶│  SimCash    │───▶│  Results Collector  │ │
-│   │   Config    │    │  Simulator  │    │  (Metrics + Events) │ │
-│   └─────────────┘    └─────────────┘    └──────────┬──────────┘ │
-│                                                    │            │
-│   ┌─────────────┐    ┌─────────────┐    ┌──────────▼──────────┐ │
-│   │   Policy    │◀───│  Reasoning  │◀───│  Context Builder    │ │
-│   │   JSON      │    │  LLM        │    │  (Structured Prompt)│ │
-│   └─────────────┘    └─────────────┘    └─────────────────────┘ │
-│         │                                                       │
-│         └───────────────────────────────────────────────────────┤
-│                          Iteration Loop                         │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LLM Policy Optimization Loop                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌───────────────┐    ┌─────────────────┐    ┌──────────────────┐  │
+│  │   Scenario    │───▶│  policy-schema  │───▶│  Schema JSON     │  │
+│  │   YAML        │    │  --scenario X   │    │  (for LLM)       │  │
+│  └───────────────┘    └─────────────────┘    └────────┬─────────┘  │
+│                                                       │            │
+│  ┌───────────────┐    ┌─────────────────┐    ┌────────▼─────────┐  │
+│  │   Policy      │───▶│  validate-      │───▶│  Valid?          │  │
+│  │   JSON        │    │  policy --scen  │    │  (toggles check) │  │
+│  └───────────────┘    └─────────────────┘    └────────┬─────────┘  │
+│         ▲                                             │            │
+│         │                                             ▼            │
+│  ┌──────┴────────┐    ┌─────────────────┐    ┌──────────────────┐  │
+│  │   Reasoning   │◀───│  Context        │◀───│  SimCash Run     │  │
+│  │   LLM         │    │  Builder        │    │  (N seeds)       │  │
+│  └───────────────┘    └─────────────────┘    └──────────────────┘  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.2 Iteration Protocol
+### 4.2 Iteration Workflow
 
-#### Phase 1: Baseline Establishment
+```python
+class PolicyOptimizer:
+    def __init__(self, scenario_path: str, llm_client: LLMClient):
+        self.scenario_path = scenario_path
+        self.llm = llm_client
 
-1. Run simulation with naive FIFO policy
-2. Collect comprehensive metrics as baseline
-3. Identify cost breakdown and bottlenecks
+        # Generate restricted schema documentation
+        self.schema_docs = self._generate_schema_docs()
 
-#### Phase 2: LLM Policy Generation
+        # Track iteration history
+        self.history: list[IterationResult] = []
 
-The LLM receives a structured prompt containing:
+    def _generate_schema_docs(self) -> str:
+        """Generate policy schema filtered by scenario's feature toggles."""
+        result = subprocess.run([
+            "payment-sim", "policy-schema",
+            "--scenario", self.scenario_path,
+            "--format", "json"
+        ], capture_output=True, text=True)
+        return result.stdout
+
+    def _validate_policy(self, policy_json: str) -> ValidationResult:
+        """Validate policy against scenario's feature toggles."""
+        # Write policy to temp file
+        with tempfile.NamedTemporaryFile(suffix=".json") as f:
+            f.write(policy_json.encode())
+            f.flush()
+
+            result = subprocess.run([
+                "payment-sim", "validate-policy",
+                f.name,
+                "--scenario", self.scenario_path
+            ], capture_output=True, text=True)
+
+            return ValidationResult(
+                valid=result.returncode == 0,
+                errors=result.stderr
+            )
+
+    def _run_simulations(self, policy_path: str, seeds: list[int]) -> Metrics:
+        """Run simulations with multiple seeds and aggregate results."""
+        all_metrics = []
+        for seed in seeds:
+            result = subprocess.run([
+                "payment-sim", "run",
+                "--config", self.scenario_path,
+                "--seed", str(seed),
+                "--quiet"
+            ], capture_output=True, text=True)
+            metrics = json.loads(result.stdout)
+            all_metrics.append(metrics)
+
+        return aggregate_metrics(all_metrics)
+
+    def iterate(self) -> Policy:
+        """Run one iteration of the optimization loop."""
+        # Build prompt with schema, history, and analysis
+        prompt = self._build_prompt()
+
+        # Generate new policy
+        response = self.llm.generate(prompt)
+        policy_json = self._extract_policy_json(response)
+
+        # Validate against feature toggles
+        validation = self._validate_policy(policy_json)
+        if not validation.valid:
+            # Retry with error feedback
+            retry_prompt = self._build_retry_prompt(validation.errors)
+            response = self.llm.generate(retry_prompt)
+            policy_json = self._extract_policy_json(response)
+
+        # Run simulations
+        metrics = self._run_simulations(policy_json, seeds=range(1, 11))
+
+        # Record result
+        self.history.append(IterationResult(
+            iteration=len(self.history),
+            policy=policy_json,
+            metrics=metrics
+        ))
+
+        return policy_json
+```
+
+### 4.3 Prompt Template
 
 ```markdown
-## Task
-You are optimizing a cash management policy for a bank in an RTGS payment system.
-Your goal is to minimize total costs while maintaining high settlement rates.
+# SimCash Policy Optimization - Iteration {iteration}
+
+## Your Role
+You are an expert cash manager optimizing payment release timing in an RTGS
+payment system. Your goal: minimize total costs while maintaining settlement
+performance.
+
+## Available Policy Elements (Restricted Schema)
+
+{schema_docs}
+
+**IMPORTANT**: You may ONLY use the actions, fields, and operators listed above.
+The scenario has feature toggles that will reject policies using other elements.
 
 ## Current Policy
-{current_policy_json}
+```json
+{current_policy}
+```
 
-## Simulation Results (Last 5 Runs)
-| Run | Total Cost | Settlement Rate | Overdraft | Delay | Deadline |
-|-----|------------|-----------------|-----------|-------|----------|
-| 1   | $1,250     | 95.2%           | $150      | $450  | $300     |
-| ... | ...        | ...             | ...       | ...   | ...      |
+## Simulation Results (10 seeds)
+
+| Metric | Mean | Std Dev | Min | Max |
+|--------|------|---------|-----|-----|
+| Total Cost | ${total_cost_mean} | ${total_cost_std} | ... | ... |
+| Settlement Rate | {rate_mean}% | {rate_std}% | ... | ... |
+| Overdraft Cost | ${overdraft_mean} | ... | ... | ... |
+| Delay Cost | ${delay_mean} | ... | ... | ... |
+| Deadline Penalties | ${deadline_mean} | ... | ... | ... |
 
 ## Cost Analysis
-- Primary cost driver: Delay costs (36% of total)
-- Suggestion: Consider earlier release for high-priority transactions
-- LSM utilization: Only 23 bilateral offsets detected
-- Queue 2 bottleneck detected at ticks 40-60
+{automated_analysis}
 
-## Available Context Fields
-{subset_of_relevant_fields}
-
-## Policy DSL Syntax
-{syntax_reference}
+## Previous Iterations
+| Iter | Total Cost | Settlement Rate | Change |
+|------|------------|-----------------|--------|
+{iteration_history}
 
 ## Constraints
-- Settlement rate must remain above 90%
-- Policy must be valid JSON
-- Maximum tree depth: 15 nodes
+- Settlement rate must stay above 90%
+- Maximum tree depth: 10 nodes
+- Use ONLY elements from the schema above
 
 ## Instructions
 1. Analyze the current policy's weaknesses
-2. Propose a refined policy addressing the identified issues
-3. Explain your reasoning for each change
+2. Propose a refined policy addressing the issues
+3. Explain your reasoning
 4. Output the complete new policy JSON
+
+---
+
+BEGIN YOUR RESPONSE:
 ```
-
-#### Phase 3: Policy Validation and Simulation
-
-1. Validate generated policy JSON against schema
-2. Run N simulations with different random seeds
-3. Collect aggregate metrics
-
-#### Phase 4: Comparative Analysis
-
-1. Compare new policy to previous iteration
-2. Determine if improvement threshold met
-3. Update best-known policy if improved
-
-#### Phase 5: Convergence Check
-
-Continue iterations until:
-- Cost improvement < 1% for 3 consecutive iterations
-- Maximum iteration count reached (e.g., 50)
-- Settlement rate drops below threshold
-
-### 4.3 Prompt Engineering Strategies
-
-#### Strategy A: Full Context
-
-Provide complete simulation state including:
-- All 140+ context fields
-- Complete event log
-- Tick-by-tick cost accrual
-
-**Pros**: Maximum information for LLM
-**Cons**: Token-heavy, may overwhelm context
-
-#### Strategy B: Summarized Context
-
-Provide aggregated metrics:
-- Per-agent cost summaries
-- Key bottleneck indicators
-- High-level pattern analysis
-
-**Pros**: Focused, efficient
-**Cons**: May miss subtle patterns
-
-#### Strategy C: Hierarchical Prompting
-
-1. First prompt: High-level strategy selection
-2. Second prompt: Detailed parameter tuning
-3. Third prompt: Edge case handling
-
-**Pros**: Structured reasoning
-**Cons**: Higher latency
-
-### 4.4 Multi-Agent Policy Optimization
-
-SimCash supports heterogeneous policies across agents. We propose:
-
-1. **Symmetric optimization**: All agents share the same policy
-2. **Asymmetric optimization**: Different policies for different agent archetypes (conservative, aggressive, liquidity-rich, liquidity-constrained)
-3. **Competitive optimization**: Policies optimized against adversarial counterparties
 
 ---
 
 ## 5. Experimental Design
 
-### 5.1 Scenarios
+### 5.1 Baselines
 
-We define four benchmark scenarios of increasing complexity:
+| Baseline | Description | Expected Performance |
+|----------|-------------|---------------------|
+| FIFO | Release everything immediately | High overdraft, low delay |
+| Deadline-5 | Release when ≤5 ticks to deadline | Low delay, moderate overdraft |
+| Deadline-10 | Release when ≤10 ticks to deadline | Balance point |
+| LiquidityAware-20% | Maintain 20% buffer before release | Conservative |
+| Grid Search | Sweep urgency_threshold [1-20] × buffer [0-100k] | Exhaustive |
 
-#### Scenario 1: Bilateral Exchange (Simple)
+### 5.2 Evaluation Metrics
 
-```yaml
-simulation:
-  ticks_per_day: 100
-  num_days: 5
+**Primary**:
+- Total Cost (lower is better)
+- Settlement Rate (constraint: ≥90%)
 
-agents:
-  - id: BANK_A
-    opening_balance: 1000000
-    credit_limit: 500000
-  - id: BANK_B
-    opening_balance: 1000000
-    credit_limit: 500000
+**Secondary**:
+- Iterations to best policy
+- Policy complexity (tree depth, node count)
+- Generalization across seeds
 
-arrival_config:
-  rate_per_tick: 0.5
-  amount_distribution:
-    type: Normal
-    mean: 50000
-    std_dev: 10000
-```
+### 5.3 Ablation Studies
 
-**Objective**: Learn basic urgency-based release timing
-
-#### Scenario 2: Three-Party Gridlock (LSM Focus)
-
-```yaml
-agents:
-  - id: BANK_A  # Net payer to B
-  - id: BANK_B  # Net payer to C
-  - id: BANK_C  # Net payer to A
-
-# Circular payment pattern that should trigger LSM cycles
-```
-
-**Objective**: Learn to exploit LSM bilateral/multilateral offsets
-
-#### Scenario 3: Liquidity Crisis (Stress)
-
-```yaml
-# Low opening balances
-# High payment volumes
-# Tight credit limits
-# Scenario events: liquidity shock at tick 50
-```
-
-**Objective**: Learn collateral management and crisis response
-
-#### Scenario 4: Full System (Realistic)
-
-```yaml
-# 10 heterogeneous agents
-# Mixed transaction sizes
-# Varied urgency levels
-# Realistic intraday patterns (morning slow, afternoon rush)
-```
-
-**Objective**: Comprehensive policy optimization
-
-### 5.2 Baselines
-
-We compare LLM-optimized policies against:
-
-| Baseline | Description |
-|----------|-------------|
-| FIFO | Release all transactions immediately |
-| Deadline-5 | Release when ≤5 ticks to deadline |
-| LiquidityAware | Maintain 20% balance buffer |
-| Hand-crafted Expert | Sophisticated multi-tree policy (e.g., `sophisticated_adaptive_bank.json`) |
-| PPO-RL | Standard RL baseline with reward = -total_cost |
-| Random Search | 1000 random policy variations |
-
-### 5.3 Evaluation Metrics
-
-Primary metrics:
-- **Total Cost** (lower is better)
-- **Settlement Rate** (higher is better, constraint ≥ 90%)
-- **Pareto Efficiency** (cost vs. settlement trade-off curve)
-
-Secondary metrics:
-- **LSM Utilization**: Bilateral offsets + multilateral cycles
-- **Queue Dynamics**: Max Q1 size, Q2 residence time
-- **Collateral Efficiency**: Posted collateral vs. credit usage
-- **Policy Complexity**: Decision tree depth, node count
-
-Convergence metrics:
-- **Iterations to Best**: How many cycles to reach best policy
-- **Stability**: Variance across random seeds
-- **Transferability**: Performance on unseen scenarios
-
-### 5.4 Ablation Studies
-
-1. **Model Comparison**: Claude Opus vs. Sonnet vs. GPT-4 vs. Gemini
-2. **Prompt Strategy**: Full vs. Summarized vs. Hierarchical
-3. **Feedback Granularity**: Aggregate metrics vs. tick-by-tick events
-4. **Search Budget**: 10 vs. 25 vs. 50 vs. 100 iterations
-5. **Ensemble Methods**: Multiple LLM-generated policies combined
+1. **Model Comparison**: Claude Opus vs Sonnet vs Haiku vs GPT-4
+2. **Prompt Strategy**: Full history vs. rolling window vs. summarized
+3. **Iteration Budget**: 5, 10, 25, 50 iterations
+4. **Schema Detail**: Verbose vs. compact schema documentation
 
 ---
 
-## 6. Implementation Plan
+## 6. Future Phases
 
-### 6.1 Phase 1: Infrastructure (Weeks 1-2)
+This simplified Phase 1 establishes the methodology. Subsequent phases add complexity:
 
-1. **Extend SimCash CLI** for batch evaluation mode
-   ```bash
-   payment-sim batch-eval \
-     --policy policy.json \
-     --scenario scenario.yaml \
-     --seeds 1000 \
-     --output metrics.json
-   ```
+### Phase 2: LSM Awareness
 
-2. **Create LLM interface module**
-   ```python
-   class PolicyOptimizer:
-       def __init__(self, llm: LLMClient, scenario: ScenarioConfig):
-           self.llm = llm
-           self.scenario = scenario
-           self.history: list[PolicyResult] = []
+```yaml
+policy_feature_toggles:
+  include:
+    - PaymentAction
+    - TransactionField
+    - AgentField
+    - TimeField
+    - CostField
+    - LsmField           # NEW: bilateral_offset_potential, etc.
+    - ComparisonOperator
+    - LogicalOperator
+    - BinaryArithmetic
 
-       def iterate(self) -> Policy:
-           context = self.build_context()
-           response = self.llm.generate(self.prompt_template.format(**context))
-           policy = self.parse_policy(response)
-           self.validate(policy)
-           return policy
-   ```
+lsm:
+  enabled: true          # Enable LSM settlement
+```
 
-3. **Build result aggregation pipeline**
-   - Parse simulation outputs
-   - Compute summary statistics
-   - Generate LLM-friendly reports
+Research questions:
+- Can LLM discover strategies that exploit LSM offsets?
+- Does it learn to time releases to create bilateral opportunities?
 
-### 6.2 Phase 2: Prompt Engineering (Weeks 3-4)
+### Phase 3: Collateral Management
 
-1. Develop and test prompt templates
-2. Iterate on context compression strategies
-3. Build few-shot example library
-4. Create policy explanation extraction
+```yaml
+policy_feature_toggles:
+  include:
+    - PaymentAction
+    - CollateralAction   # NEW: PostCollateral, WithdrawCollateral
+    - TransactionField
+    - AgentField
+    - TimeField
+    - CostField
+    - CollateralField    # NEW: posted_collateral, etc.
+    - ComparisonOperator
+    - LogicalOperator
+    - BinaryArithmetic
+```
 
-### 6.3 Phase 3: Experimentation (Weeks 5-8)
+Research questions:
+- Can LLM optimize collateral posting timing?
+- Does it discover temporary collateral boost strategies?
 
-1. Run all scenarios with all baselines
-2. Execute LLM optimization loops
-3. Collect convergence data
-4. Perform ablation studies
+### Phase 4: Multi-Agent Heterogeneity
 
-### 6.4 Phase 4: Analysis and Writing (Weeks 9-10)
+- Different policies for different agent archetypes
+- Competitive optimization against adversarial counterparties
+- Emergent coordination patterns
 
-1. Statistical analysis of results
-2. Policy structure analysis (what patterns emerge?)
+---
+
+## 7. Implementation Plan
+
+### Week 1-2: Infrastructure
+
+1. **Create optimization harness**
+   - Python script wrapping SimCash CLI
+   - LLM API integration
+   - Result aggregation and logging
+
+2. **Develop prompt templates**
+   - Schema documentation formatting
+   - Result summarization
+   - Retry with error feedback
+
+### Week 3-4: Baseline Experiments
+
+1. Run all baselines on simplified scenario
+2. Establish performance bounds
+3. Characterize cost trade-off surface
+
+### Week 5-6: LLM Experiments
+
+1. Run optimization loops with different models
+2. Collect convergence data
+3. Analyze discovered policies
+
+### Week 7-8: Analysis & Writing
+
+1. Statistical analysis
+2. Policy structure analysis
 3. Paper writing
-4. Visualization and presentation
 
 ---
 
-## 7. Expected Contributions
+## 8. Expected Contributions
 
-### 7.1 Technical Contributions
-
-1. **LLM-as-Optimizer Framework**: A reusable methodology for using LLMs to optimize domain-specific decision trees
-2. **SimCash Extensions**: Batch evaluation mode, LLM integration APIs
-3. **Benchmark Suite**: Standardized scenarios for payment system policy evaluation
-4. **Policy Library**: Collection of LLM-discovered effective policies
-
-### 7.2 Scientific Contributions
-
-1. **Sample Efficiency Comparison**: Quantify LLM advantage over RL in low-sample regimes
-2. **Interpretability Analysis**: Demonstrate auditable policy discovery
-3. **Emergent Strategy Catalog**: Document strategies discovered by LLMs
-4. **Transfer Learning**: Show policy generalization across scenarios
-
-### 7.3 Practical Contributions
-
-1. **Central Bank Guidance**: Recommendations for AI-assisted policy design
-2. **Regulatory Considerations**: Explainability requirements for automated cash management
-3. **Best Practices**: Prompt engineering for financial optimization
+1. **Methodology**: LLM-as-optimizer for interpretable policy discovery
+2. **Tooling**: Integration with SimCash feature toggles and schema generator
+3. **Empirical Results**: Comparison with baselines and RL
+4. **Policy Catalog**: Collection of discovered effective strategies
 
 ---
 
-## 8. Risks and Mitigations
+## 9. Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| LLM generates invalid JSON | Medium | Schema validation + retry with error feedback |
-| LLM overfits to seed | High | Evaluate on held-out seed ranges |
-| LLM plateaus early | Medium | Implement diverse prompt strategies |
-| Computational cost | Low | Use efficient models for exploration, powerful for exploitation |
-| Policy complexity explosion | Medium | Enforce tree depth limits, prefer simpler policies |
-| Non-reproducibility | High | Log all prompts, responses, and random seeds |
-
----
-
-## 9. Relationship to Bodislav et al. (2024)
-
-Our work directly extends the vision of Bodislav et al. in several dimensions:
-
-| Paper Concept | Our Implementation |
-|---------------|-------------------|
-| "AI for monetary policy optimization" | LLM optimizing payment release policies |
-| "Neural networks for non-linear data processing" | LLM reasoning about complex cost trade-offs |
-| "Real-time data integration" | Tick-by-tick simulation feedback |
-| "Predictive analytics for inflation/employment" | Predicting Queue 2 congestion, liquidity pressure |
-| "Risk assessment for financial stability" | Gridlock detection, EOD settlement risk |
-| "Decision support systems" | Automated policy recommendation with human review |
-| "Interdisciplinary collaboration" | Bridging AI, finance, and payment systems |
-| "Transparent, ethical AI solutions" | Interpretable JSON policies with full audit trails |
-
-Our approach addresses several limitations Bodislav et al. identify:
-
-1. **Data quality**: SimCash provides perfect, deterministic data
-2. **Algorithmic biases**: JSON policies are fully inspectable
-3. **Regulatory considerations**: Policies are human-readable and auditable
-4. **Interpretability requirements**: Decision trees are inherently explainable
-
----
-
-## 10. Future Work
-
-Beyond this proposal, we envision:
-
-1. **Multi-objective optimization**: Pareto-front discovery for cost/speed trade-offs
-2. **Adversarial robustness**: Policies that perform well against strategic counterparties
-3. **Online adaptation**: Policies that update in real-time based on intraday conditions
-4. **Cross-system transfer**: Policies trained on TARGET2 simulation applied to Fedwire
-5. **Human-in-the-loop**: Interactive policy refinement with domain experts
-6. **Formal verification**: Proving safety properties of discovered policies
-
----
-
-## 11. Conclusion
-
-This proposal outlines a novel approach to cash management policy optimization that leverages the reasoning capabilities of LLMs while maintaining the interpretability requirements of financial regulation. By using SimCash as our testbed, we can safely explore policy space and discover strategies that may inform real-world central bank operations.
-
-The key innovation is treating policy optimization as a language generation task, where the LLM iteratively refines human-readable decision trees based on simulation feedback. This approach offers a compelling alternative to black-box RL methods, particularly in domains where explainability and auditability are paramount.
+| Risk | Mitigation |
+|------|------------|
+| LLM generates invalid policy | `validate-policy --scenario` catches violations; retry with error |
+| LLM overfits to specific seed | Evaluate on held-out seed ranges |
+| LLM plateaus early | Try diverse prompt strategies |
+| Feature toggles too restrictive | Start simple, expand in phases |
 
 ---
 
@@ -564,124 +612,98 @@ The key innovation is treating policy optimization as a language generation task
 
 3. Bank for International Settlements. (2023). AI/ML in Financial Market Infrastructures. CPMI Reports.
 
-4. Galbiati, M., & Soramäki, K. (2011). An agent-based model of payment systems. *Journal of Economic Dynamics and Control*, 35(6), 859-875.
-
-5. OpenAI. (2024). GPT-4 Technical Report. arXiv preprint.
-
-6. Anthropic. (2024). Claude 3 Model Card. Anthropic Research.
-
-7. Wei, J., et al. (2022). Chain-of-thought prompting elicits reasoning in large language models. *NeurIPS*.
+4. Wei, J., et al. (2022). Chain-of-thought prompting elicits reasoning in large language models. *NeurIPS*.
 
 ---
 
-## Appendix A: Example LLM Prompt Template
+## Appendix A: Full LLM Prompt Example
 
 ```markdown
-# SimCash Policy Optimization - Iteration {iteration_number}
+# SimCash Policy Optimization - Iteration 3
 
 ## Your Role
-You are an expert cash manager at a major bank participating in a TARGET2-style
-RTGS payment system. Your task is to optimize the payment release policy to
-minimize costs while maintaining settlement performance.
+You are an expert cash manager optimizing payment release timing in an RTGS
+payment system. Your goal: minimize total costs while maintaining settlement
+performance.
 
-## Current Policy Performance
+## Available Policy Elements (Restricted Schema)
 
-### Aggregate Metrics (5 simulation runs, different seeds)
-| Metric | Mean | Std Dev | Best | Worst |
-|--------|------|---------|------|-------|
-{metrics_table}
+### Actions (payment_tree only)
+- **Release**: Submit transaction to RTGS for immediate settlement
+- **Hold**: Keep transaction in Queue 1, parameters: {reason: string}
 
-### Cost Breakdown
-{cost_breakdown}
+### Fields
+| Field | Type | Description |
+|-------|------|-------------|
+| ticks_to_deadline | f64 | Ticks until deadline (can be negative) |
+| effective_liquidity | f64 | Balance + credit headroom |
+| remaining_amount | f64 | Payment amount to settle |
+| priority | f64 | Transaction priority (1-10) |
+| is_past_deadline | f64 | 1.0 if overdue, else 0.0 |
+| balance | f64 | Current account balance |
+| day_progress_fraction | f64 | Progress through day (0.0-1.0) |
+| is_eod_rush | f64 | 1.0 if in EOD rush period |
 
-### Key Observations
-{automated_observations}
+### Operators
+- Comparison: <, <=, >, >=, ==, !=
+- Logical: and, or
+- Arithmetic: +, -, *, /
 
 ## Current Policy
 ```json
-{current_policy}
+{
+  "version": "1.0",
+  "policy_id": "iter2",
+  "parameters": {"urgency_threshold": 8.0, "buffer": 30000.0},
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "root",
+    "condition": {"op": "<=", "left": {"field": "ticks_to_deadline"}, "right": {"param": "urgency_threshold"}},
+    "on_true": {"type": "action", "node_id": "release", "action": "Release"},
+    "on_false": {
+      "type": "condition",
+      "node_id": "check_liq",
+      "condition": {"op": ">=", "left": {"field": "effective_liquidity"}, "right": {"compute": {"op": "+", "left": {"field": "remaining_amount"}, "right": {"param": "buffer"}}}},
+      "on_true": {"type": "action", "node_id": "rel2", "action": "Release"},
+      "on_false": {"type": "action", "node_id": "hold", "action": "Hold"}
+    }
+  }
+}
 ```
 
-## Available Improvements
-Based on analysis, consider:
-{suggestions}
+## Simulation Results (10 seeds)
 
-## Policy DSL Quick Reference
-- Conditions: `op` can be `<`, `<=`, `>`, `>=`, `==`, `and`, `or`
-- Fields: `ticks_to_deadline`, `effective_liquidity`, `remaining_amount`, `priority`
-- Actions: `Release`, `Hold`, `Split`
-- Parameters: Define in `parameters` block, reference with `{"param": "name"}`
+| Metric | Mean | Std Dev |
+|--------|------|---------|
+| Total Cost | $892 | $45 |
+| Settlement Rate | 96.2% | 1.1% |
+| Overdraft Cost | $312 | $28 |
+| Delay Cost | $380 | $32 |
+| Deadline Penalties | $200 | $15 |
 
-## Constraints
-- Settlement rate must stay above 90% (currently: {settlement_rate}%)
-- Maximum tree depth: 15 nodes
-- Must be valid JSON
+## Cost Analysis
+- Delay costs are 43% of total - still significant
+- Deadline penalties suggest some transactions barely miss deadlines
+- Lowering urgency_threshold from 8 to 6 might reduce deadline penalties
 
-## Output Format
-1. First, explain your analysis (2-3 paragraphs)
-2. Then output the complete new policy JSON in a code block
-3. Finally, predict the expected improvement
+## Previous Iterations
+| Iter | Total Cost | Settlement Rate | Notes |
+|------|------------|-----------------|-------|
+| 0 | $1,450 | 94.1% | Baseline FIFO |
+| 1 | $1,020 | 95.8% | Added urgency check |
+| 2 | $892 | 96.2% | Added liquidity buffer |
 
-BEGIN YOUR RESPONSE:
+## Instructions
+1. Analyze weaknesses in current policy
+2. Propose refined policy
+3. Explain reasoning
+4. Output complete JSON
+
+---
+
+BEGIN:
 ```
 
 ---
 
-## Appendix B: Candidate Policy Structures
-
-### Structure 1: Urgency-First
-
-```
-payment_tree:
-├── IF ticks_to_deadline <= 5
-│   └── THEN Release
-└── ELSE
-    ├── IF effective_liquidity >= remaining_amount + buffer
-    │   └── THEN Release
-    └── ELSE Hold
-```
-
-### Structure 2: LSM-Aware
-
-```
-payment_tree:
-├── IF ticks_to_deadline <= 3 OR is_past_deadline
-│   └── THEN Release
-├── ELSE IF my_bilateral_net_q2 > threshold
-│   └── THEN Release (exploit offset opportunity)
-└── ELSE Hold
-```
-
-### Structure 3: Budget-Controlled
-
-```
-bank_tree:
-└── SetReleaseBudget(max = 0.35 * effective_liquidity)
-
-payment_tree:
-├── IF release_budget_remaining >= remaining_amount
-│   └── THEN Release
-└── ELSE Hold (budget exhausted)
-```
-
-### Structure 4: Collateral-Integrated
-
-```
-strategic_collateral_tree:
-├── IF queue1_liquidity_gap > min_buffer
-│   └── THEN PostCollateral(gap * 0.6)
-└── ELSE HoldCollateral
-
-payment_tree:
-├── (standard urgency/liquidity logic)
-└── ...
-
-end_of_tick_collateral_tree:
-├── IF excess_collateral > threshold
-│   └── THEN WithdrawCollateral(excess * 0.3)
-└── ELSE HoldCollateral
-```
-
----
-
-*Document generated for SimCash research initiative*
+*Document generated for SimCash research initiative - Version 2.0*
