@@ -17,6 +17,7 @@ This reference documents every configurable aspect of SimCash scenario files, in
 | [lsm-config](lsm-config.md) | Liquidity-Saving Mechanism settings |
 | [scenario-events](scenario-events.md) | Dynamic runtime events |
 | [priority-system](priority-system.md) | Priority bands, escalation, ordering |
+| [feature-toggles](feature-toggles.md) | Policy DSL feature restrictions |
 | [advanced-settings](advanced-settings.md) | TARGET2 alignment and advanced features |
 | [examples](examples.md) | Annotated example configurations |
 
@@ -86,6 +87,10 @@ SimulationConfig (root)
 │   ├── enable_cycles: bool
 │   ├── max_cycle_length: int
 │   └── max_cycles_per_tick: int
+│
+├── policy_feature_toggles: Optional[PolicyFeatureToggles]
+│   ├── include: Optional[List[str]]  # Allowlist (mutually exclusive with exclude)
+│   └── exclude: Optional[List[str]]  # Blocklist (mutually exclusive with include)
 │
 └── scenario_events: Optional[List[ScenarioEvent]]
 ```
