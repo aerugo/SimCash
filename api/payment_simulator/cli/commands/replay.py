@@ -13,7 +13,6 @@ from typing import Annotated, Any
 import typer
 
 from payment_simulator.cli.output import (
-    log_end_of_day_event,
     log_end_of_day_statistics,
     log_error,
     log_info,
@@ -661,6 +660,96 @@ def _calculate_final_queue_sizes(
     return queue_sizes
 
 
+def _reconstruct_agent_balances(
+    conn: Any,
+    simulation_id: str,
+    tick: int,
+    config_dict: dict[str, Any],
+) -> dict[str, int]:
+    """Reconstruct agent balances at a specific tick from settlement events.
+
+    CRITICAL FIX (Bug #1): Agent Financial Stats showed $0.00 without --full-replay
+    because balances weren't being populated in agent_states_dict.
+
+    This reconstructs balances by:
+    1. Starting with opening balances from config
+    2. Applying all settlement events up to and including the current tick
+
+    Args:
+        conn: Database connection
+        simulation_id: Simulation identifier
+        tick: Current tick number
+        config_dict: Simulation configuration with agent opening_balance
+
+    Returns:
+        Dict mapping agent_id -> balance in cents
+    """
+    # Start with opening balances from config
+    balances: dict[str, int] = {}
+    for agent_config in config_dict.get("agents", []):
+        agent_id = agent_config["id"]
+        balances[agent_id] = agent_config.get("opening_balance", 0)
+
+    # Query all settlement events up to and including current tick
+    # These include: RtgsImmediateSettlement, Queue2LiquidityRelease, LsmBilateralOffset, LsmCycleSettlement
+    settlement_query = """
+        SELECT event_type, details
+        FROM simulation_events
+        WHERE simulation_id = ?
+        AND tick <= ?
+        AND event_type IN (
+            'RtgsImmediateSettlement',
+            'Queue2LiquidityRelease',
+            'LsmBilateralOffset',
+            'LsmCycleSettlement'
+        )
+        ORDER BY tick ASC, event_id ASC
+    """
+
+    rows = conn.execute(settlement_query, [simulation_id, tick]).fetchall()
+
+    for event_type, details_json in rows:
+        details = json.loads(details_json) if isinstance(details_json, str) else details_json
+
+        if event_type in ("RtgsImmediateSettlement", "Queue2LiquidityRelease"):
+            # Direct settlement: sender loses amount, receiver gains amount
+            sender = details.get("sender")
+            receiver = details.get("receiver")
+            amount = details.get("amount", 0)
+
+            if sender and sender in balances:
+                balances[sender] -= amount
+            if receiver and receiver in balances:
+                balances[receiver] += amount
+
+        elif event_type == "LsmBilateralOffset":
+            # Bilateral offset: net settlement between two agents
+            agent_a = details.get("agent_a")
+            agent_b = details.get("agent_b")
+            amount_a = details.get("amount_a", 0)
+            amount_b = details.get("amount_b", 0)
+
+            # agent_a pays amount_a to agent_b, agent_b pays amount_b to agent_a
+            # Net: agent_a balance change = amount_b - amount_a
+            #      agent_b balance change = amount_a - amount_b
+            if agent_a and agent_a in balances:
+                balances[agent_a] += (amount_b - amount_a)
+            if agent_b and agent_b in balances:
+                balances[agent_b] += (amount_a - amount_b)
+
+        elif event_type == "LsmCycleSettlement":
+            # Multilateral cycle: net positions are applied
+            agent_ids = details.get("agent_ids", [])
+            net_positions = details.get("net_positions", [])
+
+            # net_positions[i] is the net change for agent_ids[i]
+            for i, agent_id in enumerate(agent_ids):
+                if i < len(net_positions) and agent_id in balances:
+                    balances[agent_id] += net_positions[i]
+
+    return balances
+
+
 def _has_full_replay_data(conn: Any, simulation_id: str) -> bool:
     """Check if simulation has full replay data (--full-replay was used).
 
@@ -735,11 +824,12 @@ def _get_summary_statistics(
     result = conn.execute(arrivals_query, [simulation_id, from_tick, to_tick]).fetchone()
     total_arrivals = result[0] if result else 0
 
-    # Count settlements (both Settlement events and LSM events)
-    # For LSM events, we need to count the transactions they settle (from tx_ids array)
+    # Count settlements (RTGS immediate + Queue2 releases + LSM settlements)
+    # NOTE: The generic 'Settlement' event type was deprecated and removed.
     settlements_query = """
         SELECT COUNT(*) FROM simulation_events
-        WHERE simulation_id = ? AND event_type = 'Settlement'
+        WHERE simulation_id = ?
+        AND event_type IN ('RtgsImmediateSettlement', 'Queue2LiquidityRelease')
         AND tick BETWEEN ? AND ?
     """
     result = conn.execute(settlements_query, [simulation_id, from_tick, to_tick]).fetchone()
@@ -1048,29 +1138,66 @@ def replay_simulation(
             offset += 1000
 
         # Update cache with settlement information (with pagination)
-        offset = 0
-        while True:
-            settlement_events_result = get_simulation_events(
-                conn=db_manager.conn,
-                simulation_id=simulation_id,
-                event_type="Settlement",
-                sort="tick_asc",
-                limit=1000,
-                offset=offset,
-            )
+        # NOTE: The generic 'Settlement' event type was deprecated and removed.
+        # We now query for specific settlement event types.
 
-            for event in settlement_events_result["events"]:
-                details = event["details"]  # Already parsed by get_simulation_events
-                tx_id = event["tx_id"]
-                if tx_id and tx_id in tx_cache:
-                    tx_cache[tx_id]["amount_settled"] = details.get("amount", 0)
-                    tx_cache[tx_id]["settlement_tick"] = event["tick"]
-                    tx_cache[tx_id]["status"] = "settled"
+        # First, handle RtgsImmediateSettlement and Queue2LiquidityRelease events
+        for settlement_event_type in ["RtgsImmediateSettlement", "Queue2LiquidityRelease"]:
+            offset = 0
+            while True:
+                settlement_events_result = get_simulation_events(
+                    conn=db_manager.conn,
+                    simulation_id=simulation_id,
+                    event_type=settlement_event_type,
+                    sort="tick_asc",
+                    limit=1000,
+                    offset=offset,
+                )
 
-            # Check if there are more events to fetch
-            if len(settlement_events_result["events"]) < 1000:
-                break
-            offset += 1000
+                for event in settlement_events_result["events"]:
+                    details = event["details"]  # Already parsed by get_simulation_events
+                    tx_id = event["tx_id"]
+                    if tx_id and tx_id in tx_cache:
+                        tx_cache[tx_id]["amount_settled"] = details.get("amount", 0)
+                        tx_cache[tx_id]["settlement_tick"] = event["tick"]
+                        tx_cache[tx_id]["status"] = "settled"
+
+                # Check if there are more events to fetch
+                if len(settlement_events_result["events"]) < 1000:
+                    break
+                offset += 1000
+
+        # Handle LSM settlements (bilateral offsets and cycle settlements)
+        # These have tx_ids in the details, not as a single tx_id field
+        for lsm_event_type in ["LsmBilateralOffset", "LsmCycleSettlement"]:
+            offset = 0
+            while True:
+                lsm_events_result = get_simulation_events(
+                    conn=db_manager.conn,
+                    simulation_id=simulation_id,
+                    event_type=lsm_event_type,
+                    sort="tick_asc",
+                    limit=1000,
+                    offset=offset,
+                )
+
+                for event in lsm_events_result["events"]:
+                    details = event["details"]  # Already parsed by get_simulation_events
+                    tx_ids = details.get("tx_ids", [])
+                    tx_amounts = details.get("tx_amounts", [])
+
+                    for i, tx_id in enumerate(tx_ids):
+                        if tx_id and tx_id in tx_cache:
+                            # Get the amount for this transaction if available
+                            amount = tx_amounts[i] if i < len(tx_amounts) else tx_cache[tx_id]["amount"]
+                            tx_cache[tx_id]["amount_settled"] = amount
+                            tx_cache[tx_id]["settlement_tick"] = event["tick"]
+                            tx_cache[tx_id]["status"] = "settled"
+
+                # Check if there are more events to fetch
+                if len(lsm_events_result["events"]) < 1000:
+                    break
+                offset += 1000
 
         cache_duration = time.time() - cache_start
         if not event_stream:
@@ -1421,6 +1548,21 @@ def replay_simulation(
                         # Inject or update cost fields
                         agent_states_dict[agent_id].update(costs)
 
+                    # CRITICAL FIX (Bug #1): Inject balances into agent_states for Agent Financial Stats
+                    # Without --full-replay, agent_states is empty, so get_agent_balance() returns 0.
+                    # We reconstruct balances from settlement events.
+                    if not has_full_replay:
+                        reconstructed_balances = _reconstruct_agent_balances(
+                            db_manager.conn,
+                            simulation_id,
+                            tick_num,
+                            config_dict,
+                        )
+                        for agent_id, balance in reconstructed_balances.items():
+                            if agent_id not in agent_states_dict:
+                                agent_states_dict[agent_id] = {}
+                            agent_states_dict[agent_id]["balance"] = balance
+
                     # ═══════════════════════════════════════════════════════════
                     # USE SHARED DISPLAY FUNCTION (SINGLE SOURCE OF TRUTH)
                     # ═══════════════════════════════════════════════════════════
@@ -1476,10 +1618,13 @@ def replay_simulation(
                         full_day_arrivals = day_arrivals_result[0] if day_arrivals_result else 0
 
                         # Query full day settlements (including LSM settlements)
-                        # Count Settlement events
+                        # Count RtgsImmediateSettlement and Queue2LiquidityRelease events
+                        # NOTE: The generic 'Settlement' event type was deprecated and removed.
+                        # All settlements now use specific event types (Bug #3 fix).
                         day_settlements_query = """
                             SELECT COUNT(*) FROM simulation_events
-                            WHERE simulation_id = ? AND event_type = 'Settlement'
+                            WHERE simulation_id = ?
+                            AND event_type IN ('RtgsImmediateSettlement', 'Queue2LiquidityRelease')
                             AND tick BETWEEN ? AND ?
                         """
                         day_settlements_result = db_manager.conn.execute(
@@ -1572,18 +1717,9 @@ def replay_simulation(
                                     "total_costs": agent_total_cost,
                                 })
 
-                        # Show end-of-day event (must match live execution output)
-                        # Query events from the last tick of the day
-                        last_tick_of_day = (current_day + 1) * ticks_per_day - 1
-                        eod_events_result = get_simulation_events(
-                            conn=db_manager.conn,
-                            simulation_id=simulation_id,
-                            tick=last_tick_of_day,
-                            sort="tick_asc",
-                            limit=1000,
-                            offset=0,
-                        )
-                        log_end_of_day_event(eod_events_result["events"])
+                        # NOTE: log_end_of_day_event() is already called inside
+                        # display_tick_verbose_output() when processing EndOfDay events.
+                        # DO NOT call it again here - that caused duplicate output (Bug #2).
 
                         # CRITICAL: Use full day statistics, NOT accumulated daily_stats which only
                         # covers the replayed tick range. This fixes Discrepancy #5.
