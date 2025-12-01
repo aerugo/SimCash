@@ -1637,3 +1637,69 @@ For Castro-equivalent with $500k max collateral capacity intention:
 
 ---
 
+
+## Reproducible Experiment Framework
+
+### Date: 2025-12-01
+
+Created a comprehensive reproducible experiment framework to enable third-party validation of results.
+
+**Files Created**:
+- `scripts/reproducible_experiment.py` - Main experiment runner
+- `scripts/README.md` - Documentation for reproduction
+
+### Framework Features
+
+1. **Complete Logging**: Every policy iteration, LLM interaction, and simulation run is stored
+2. **DuckDB Storage**: Queryable database for analysis and comparison
+3. **Hash Verification**: All configs, policies, prompts and responses are hashed for integrity
+4. **Parallel Execution**: Multi-seed simulations run in parallel for efficiency
+5. **Convergence Detection**: Automatic detection when optimization stabilizes
+
+### Database Schema
+
+```
+experiment_config    - Full experiment configuration with hashes
+policy_iterations    - Every policy version (init, llm, manual)
+llm_interactions     - Complete prompts/responses with tokens/latency
+simulation_runs      - Individual seed results with cost breakdown
+iteration_metrics    - Aggregated stats per iteration
+```
+
+### Test Results
+
+**Experiment 1 (2-period)**:
+```
+Iteration 1: $8,052 (100% settlement)
+Iteration 2: $8,072 (100% settlement)
+Iteration 3: $8,060 (100% settlement)
+```
+LLM successfully evolved policies across iterations.
+
+**Experiment 2-fixed (12-period)**:
+```
+Iteration 1: $5,244,549 ± $224,377 (100% settlement across 10 seeds)
+Iteration 2: $5,244,549 ± $224,377 (same - LLM network error)
+```
+Multi-seed parallel execution working correctly.
+
+### Usage
+
+```bash
+# Run experiment with full logging
+python scripts/reproducible_experiment.py \
+    --experiment exp2_fixed \
+    --output results/my_experiment.db \
+    --max-iter 25
+
+# Query results
+duckdb results/my_experiment.db "SELECT * FROM iteration_metrics ORDER BY iteration_number"
+```
+
+### Next Steps
+
+1. Run full 25-iteration experiments with working LLM
+2. Compare cost reduction trajectories with Castro et al. RL results
+3. Publish database files for third-party verification
+
+---
