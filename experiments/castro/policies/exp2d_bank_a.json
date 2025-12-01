@@ -1,0 +1,106 @@
+{
+  "version": "1.0",
+  "policy_id": "castro_exp2d_bankA_baseline_v1",
+  "description": "Castro-equivalent Experiment 2d baseline policy for Bank A. Starts with moderate collateral posting and liquidity-aware payment timing. Key difference from Exp 2c: no EOD penalty exists, so optimization targets minimizing (collateral cost + delay cost + overdraft cost) rather than maximizing settlement rate.",
+  "parameters": {
+    "initial_liquidity_fraction": 0.5,
+    "urgency_threshold": 3.0,
+    "liquidity_buffer_factor": 1.2
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC1_tick_zero",
+    "description": "At start of day, post a fraction of available collateral. This reduces overdraft usage but has opportunity cost (r_c).",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "system_tick_in_day"
+      },
+      "right": {
+        "value": 0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "SC2_post_initial",
+      "action": "PostCollateral",
+      "description": "Post initial_liquidity_fraction of max collateral capacity.",
+      "args": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_liquidity_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialAllocation_Exp2d_v1"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SC3_hold",
+      "action": "HoldCollateral",
+      "description": "No collateral changes during the day."
+    }
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "P1_is_urgent",
+    "description": "Check if payment is approaching its deadline (urgent).",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "param": "urgency_threshold"
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "P2_release_urgent",
+      "action": "Release",
+      "description": "Payment is urgent - release to avoid delay costs escalating."
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "P3_has_liquidity",
+      "description": "Check if we have enough liquidity (with buffer) to release without overdraft.",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer_factor"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "P4_release",
+        "action": "Release",
+        "description": "Have sufficient liquidity - release payment to avoid delay costs."
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "P5_hold",
+        "action": "Hold",
+        "description": "Insufficient liquidity - hold to avoid overdraft costs (r_b > r_d means overdraft is expensive)."
+      }
+    }
+  }
+}
