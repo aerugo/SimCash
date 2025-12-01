@@ -47,6 +47,7 @@ fn test_agent_config_with_liquidity_pool_basic() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(2_000_000), // New field
         liquidity_allocation_fraction: None, // Defaults to 1.0
@@ -67,6 +68,7 @@ fn test_agent_config_with_allocation_fraction() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(2_000_000),
         liquidity_allocation_fraction: Some(0.5), // 50% of pool
@@ -87,6 +89,7 @@ fn test_agent_config_backwards_compatible() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: None, // Not specified
         liquidity_allocation_fraction: None,
@@ -113,6 +116,7 @@ fn test_full_pool_allocation_default() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(2_000_000),
         liquidity_allocation_fraction: None, // Should default to 1.0
@@ -138,6 +142,7 @@ fn test_half_pool_allocation() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(2_000_000),
         liquidity_allocation_fraction: Some(0.5),
@@ -162,6 +167,7 @@ fn test_zero_allocation() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(2_000_000),
         liquidity_allocation_fraction: Some(0.0),
@@ -186,6 +192,7 @@ fn test_opening_balance_plus_allocated_liquidity() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(1_000_000), // Additional pool
         liquidity_allocation_fraction: Some(0.5), // Allocate 50%
@@ -217,6 +224,7 @@ fn test_reject_allocation_fraction_above_one() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(2_000_000),
         liquidity_allocation_fraction: Some(1.5), // Invalid: > 1.0
@@ -239,6 +247,7 @@ fn test_reject_allocation_fraction_below_zero() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(2_000_000),
         liquidity_allocation_fraction: Some(-0.1), // Invalid: < 0
@@ -261,6 +270,7 @@ fn test_reject_negative_liquidity_pool() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(-1_000_000), // Invalid: negative
         liquidity_allocation_fraction: None,
@@ -286,6 +296,7 @@ fn test_fractional_allocation_rounds_down() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(1_000_001), // Odd number
         liquidity_allocation_fraction: Some(0.5),
@@ -311,6 +322,7 @@ fn test_zero_pool_is_valid() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(0),
         liquidity_allocation_fraction: Some(0.5),
@@ -341,6 +353,7 @@ fn test_allocated_liquidity_has_opportunity_cost() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: Some(1_000_000),
         liquidity_allocation_fraction: Some(1.0),
@@ -372,6 +385,7 @@ fn test_opening_balance_no_liquidity_cost() {
                 arrival_bands: None,
         posted_collateral: None,
         collateral_haircut: None,
+                max_collateral_capacity: None,
         limits: None,
         liquidity_pool: None, // No liquidity pool
         liquidity_allocation_fraction: None,
