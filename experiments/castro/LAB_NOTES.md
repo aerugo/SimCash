@@ -1195,3 +1195,123 @@ python experiments/castro/scripts/optimizer_v2.py \
   --reasoning high
 ```
 
+
+**[2025-12-01 11:08:17]** 
+---
+## Experiment 2b Run: castro_12period_v2.yaml
+**Model**: gpt-5.1
+**Reasoning**: high
+**Max Iterations**: 40
+**Seeds**: 10
+**Convergence**: 10% over 5 iterations
+**Enhanced**: Stochastic-focused prompt with risk-adjusted metrics
+
+
+**[2025-12-01 11:08:17]** Starting iteration 0 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:08:29]** Iteration 0: Mean=$229279 ± $82462, RiskAdj=$311741, Failures=5/10, Settlement=90.6%
+
+**[2025-12-01 11:08:31]** LLM call attempt 1 failed: Error code: 400 - {'error': {'message': 'max_tokens is too large: 200000. This model supports at most 128000 completion tokens, whereas you provided 200000.', 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'invalid_value'}}. Retrying in 2s...
+
+**[2025-12-01 11:08:33]** LLM call attempt 2 failed: Error code: 400 - {'error': {'message': 'max_tokens is too large: 200000. This model supports at most 128000 completion tokens, whereas you provided 200000.', 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'invalid_value'}}. Retrying in 4s...
+
+**[2025-12-01 11:08:37]** LLM call attempt 3 failed: Error code: 400 - {'error': {'message': 'max_tokens is too large: 200000. This model supports at most 128000 completion tokens, whereas you provided 200000.', 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'invalid_value'}}. Retrying in 8s...
+
+**[2025-12-01 11:08:46]** LLM call attempt 4 failed: Error code: 400 - {'error': {'message': 'max_tokens is too large: 200000. This model supports at most 128000 completion tokens, whereas you provided 200000.', 'type': 'invalid_request_error', 'param': 'max_tokens', 'code': 'invalid_value'}}. Retrying in 16s...
+
+**[2025-12-01 11:09:06]** 
+---
+## Experiment 2b Run: castro_12period_v2.yaml
+**Model**: gpt-5.1
+**Reasoning**: high
+**Max Iterations**: 40
+**Seeds**: 10
+**Convergence**: 10% over 5 iterations
+**Enhanced**: Stochastic-focused prompt with risk-adjusted metrics
+
+
+**[2025-12-01 11:09:06]** Starting iteration 0 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:09:10]** Iteration 0: Mean=$229279 ± $82462, RiskAdj=$311741, Failures=5/10, Settlement=90.6%
+
+**[2025-12-01 11:11:42]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 11:11:44]** Parameter changes: Bank A liquidity 0.5 -> 0.85, Bank B liquidity 0.5 -> 0.85
+
+**[2025-12-01 11:11:44]** Starting iteration 1 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:11:48]** Iteration 1: Mean=$355977 ± $110106, RiskAdj=$466083, Failures=4/10, Settlement=92.9%
+
+**[2025-12-01 11:15:23]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 11:15:25]** Parameter changes: Bank A liquidity 0.85 -> 1.0, Bank B liquidity 0.85 -> 1.0
+
+**[2025-12-01 11:15:25]** Starting iteration 2 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:15:29]** Iteration 2: Mean=$399789 ± $122080, RiskAdj=$521869, Failures=4/10, Settlement=95.0%
+
+**[2025-12-01 11:28:48]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 11:28:50]** Parameter changes: Bank A liquidity 1.0 -> 1.0, Bank B liquidity 1.0 -> 1.0
+
+**[2025-12-01 11:28:50]** Starting iteration 3 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:28:54]** Iteration 3: Mean=$412128 ± $132134, RiskAdj=$544262, Failures=4/10, Settlement=95.0%
+
+**[2025-12-01 11:28:55]** LLM call attempt 1 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 2s...
+
+**[2025-12-01 11:28:59]** LLM call attempt 2 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 4s...
+
+**[2025-12-01 11:29:05]** LLM call attempt 3 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 8s...
+
+**[2025-12-01 11:32:34]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 11:32:36]** Parameter changes: Bank A liquidity 1.0 -> 1.0, Bank B liquidity 1.0 -> 1.0
+
+**[2025-12-01 11:32:36]** Starting iteration 4 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:32:40]** Iteration 4: Mean=$335691 ± $96757, RiskAdj=$432448, Failures=4/10, Settlement=92.2%
+
+**[2025-12-01 11:45:54]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 11:45:56]** Parameter changes: Bank A liquidity 1.0 -> 1.0, Bank B liquidity 1.0 -> 1.0
+
+**[2025-12-01 11:45:56]** Starting iteration 5 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:46:00]** Iteration 5: Mean=$411500 ± $131089, RiskAdj=$542589, Failures=4/10, Settlement=95.0%
+
+**[2025-12-01 11:46:01]** LLM call attempt 1 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 2s...
+
+**[2025-12-01 11:46:05]** LLM call attempt 2 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 4s...
+
+**[2025-12-01 11:46:10]** LLM call attempt 3 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 8s...
+
+**[2025-12-01 11:46:20]** LLM call attempt 4 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 16s...
+
+**[2025-12-01 11:46:37]** LLM call attempt 5 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 32s...
+
+**[2025-12-01 11:47:11]** LLM call attempt 6 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 64s...
+
+**[2025-12-01 11:55:17]** 
+---
+## Experiment 2c Run: castro_12period_v3.yaml
+**Model**: gpt-5.1
+**Reasoning**: high
+**Max Iterations**: 40
+**Seeds**: 10
+**Verbose Logs**: 2 best + 2 worst
+**Convergence**: 10% over 5 iterations
+**Enhanced**: Per-tick event logs for causal understanding
+
+
+**[2025-12-01 11:55:17]** Starting iteration 0 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:55:24]** Iteration 0: Mean=$229279 ± $82462, RiskAdj=$311741, Failures=5/10, Settlement=90.6%, VerboseLogs=4
+
+**[2025-12-01 11:59:00]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 11:59:02]** Parameter changes: Bank A liquidity 0.5 -> 0.9, Bank B liquidity 0.5 -> 0.9
+
+**[2025-12-01 11:59:02]** Starting iteration 1 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 11:59:09]** Iteration 1: Mean=$358626 ± $109104, RiskAdj=$467730, Failures=4/10, Settlement=93.7%, VerboseLogs=4

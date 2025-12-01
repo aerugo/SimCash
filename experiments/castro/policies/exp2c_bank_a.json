@@ -1,0 +1,155 @@
+{
+  "version": "1.0",
+  "policy_id": "castro_exp2c_bankA_liquidity_heavy_robust_v1",
+  "description": "Robust stochastic policy for Experiment 2c (Bank A): prioritize 100% settlement by posting high initial liquidity and relaxing buffers late in the day.",
+  "parameters": {
+    "initial_liquidity_fraction": 0.9,
+    "urgency_threshold": 3.0,
+    "liquidity_buffer_factor": 1.0,
+    "late_day_tick_threshold": 9.0,
+    "late_day_liquidity_factor": 0.9
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC1_tick_zero",
+    "description": "At the start of the day, post a high fraction of available collateral to ensure robustness under one-sided net flows.",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "system_tick_in_day"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "SC2_post_initial_high",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_liquidity_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialHighAllocation_Exp2c_Robust"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SC3_hold",
+      "action": "HoldCollateral",
+      "description": "No additional strategic collateral moves during the day."
+    }
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "P1_is_urgent",
+    "description": "First, check if payment is within the urgency window relative to its deadline.",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "param": "urgency_threshold"
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "P2_release_urgent",
+      "action": "Release",
+      "description": "Payment is urgent, release immediately to avoid EOD penalty."
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "P3_has_liquidity_normal",
+      "description": "For non-urgent payments, check if liquidity is sufficient with the standard buffer.",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer_factor"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "P4_release_with_normal_buffer",
+        "action": "Release",
+        "description": "Liquidity is sufficient with standard buffer, release payment."
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "P5_late_in_day",
+        "description": "If we are late in the day, consider relaxing the liquidity buffer to avoid EOD penalties.",
+        "condition": {
+          "op": ">=",
+          "left": {
+            "field": "system_tick_in_day"
+          },
+          "right": {
+            "param": "late_day_tick_threshold"
+          }
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "P6_has_liquidity_late_day",
+          "description": "Late in the day: use a slightly more aggressive buffer to push payments out if possible.",
+          "condition": {
+            "op": ">=",
+            "left": {
+              "field": "effective_liquidity"
+            },
+            "right": {
+              "compute": {
+                "op": "*",
+                "left": {
+                  "field": "remaining_amount"
+                },
+                "right": {
+                  "param": "late_day_liquidity_factor"
+                }
+              }
+            }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "P7_release_with_late_buffer",
+            "action": "Release",
+            "description": "Late in the day and liquidity is sufficient under relaxed buffer: release to prevent EOD penalty."
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "P8_hold_insufficient_even_late",
+            "action": "Hold",
+            "description": "Even under relaxed conditions, liquidity is insufficient; must hold."
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "P9_hold_preserve_liquidity",
+          "action": "Hold",
+          "description": "Not yet urgent and not late in the day; hold to preserve liquidity for future obligations."
+        }
+      }
+    }
+  }
+}
