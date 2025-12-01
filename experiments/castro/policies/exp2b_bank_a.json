@@ -1,0 +1,104 @@
+{
+  "version": "1.0",
+  "policy_id": "castro_exp2b_bankA_iter4_robust_high_throughput",
+  "description": "Robust stochastic policy for Experiment 2b (Bank A), iteration 4. Posts full collateral at the start of the day and uses a very permissive, deadline-aware liquidity rule: release almost all payments early, holding back only the very largest non-urgent payments when liquidity is extremely tight. This prioritizes eliminating EOD unsettled transactions while retaining a thin liquidity buffer for robustness.",
+  "parameters": {
+    "initial_liquidity_fraction": 1.0,
+    "urgency_threshold": 4.0,
+    "liquidity_buffer_factor": 1.05
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC1_tick_zero",
+    "description": "At the start of the day, post the full collateral capacity to maximize liquidity available for settlement and minimize the risk of EOD unsettled payments.",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "system_tick_in_day"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "SC2_post_initial",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_liquidity_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialAllocation_FullForRobustThroughput_Iter4"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SC3_hold",
+      "action": "HoldCollateral"
+    }
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "P1_is_urgent",
+    "description": "More aggressive deadline-aware release rule. Treat payments as urgent earlier in the day and release them immediately to avoid late-day bunching and EOD non-settlement.",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "param": "urgency_threshold"
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "P2_release_urgent",
+      "action": "Release",
+      "description": "Payment is within the wider urgency window; release immediately to reduce the backlog and protect against EOD unsettled payments."
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "P3_has_thin_liquidity_buffer",
+      "description": "For non-urgent payments, apply only a very thin liquidity buffer so that almost all payments are released early, holding back only the very largest ones when liquidity is extremely tight.",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer_factor"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "P4_release_with_thin_buffer",
+        "action": "Release",
+        "description": "Effective liquidity comfortably covers the payment amount with only a 5% buffer, so release now to keep flows circulating and minimize EOD risk."
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "P5_hold_very_large_non_urgent",
+        "action": "Hold",
+        "description": "Liquidity is extremely tight relative to this large non-urgent payment; hold it temporarily to avoid exhausting all liquidity on a single item while smaller payments continue to settle."
+      }
+    }
+  }
+}
