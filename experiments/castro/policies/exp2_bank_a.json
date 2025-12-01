@@ -1,10 +1,10 @@
 {
   "version": "1.0",
-  "policy_id": "castro_iter3_bankA_liq0_63_buf1_05_urg4",
-  "description": "Bank A policy with initial liquidity set near the estimated cost-minimizing level and a slightly tighter urgency threshold to better balance collateral, delay, and overdraft/EOD costs.",
+  "policy_id": "castro_iter4_bankA_liq0_66_buf1_05_urg5",
+  "description": "Bank A policy with slightly higher initial liquidity and a less stringent urgency threshold to reduce delay and overdraft/EOD costs while keeping collateral costs moderate.",
   "parameters": {
-    "urgency_threshold": 4.0,
-    "initial_liquidity_fraction": 0.63,
+    "urgency_threshold": 5.0,
+    "initial_liquidity_fraction": 0.66,
     "liquidity_buffer_factor": 1.05
   },
   "strategic_collateral_tree": {
