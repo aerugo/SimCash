@@ -1,10 +1,10 @@
 {
   "version": "1.0",
-  "policy_id": "castro_iter0_bankB_liq0_65_buf1_05",
-  "description": "Bank B policy mirroring Bank A: higher initial liquidity and a lower liquidity buffer to improve settlement and reduce high-penalty costs.",
+  "policy_id": "castro_iter2_bankB_liq0_70_buf1_05",
+  "description": "Bank B policy mirroring Bank A: slightly higher initial liquidity and a modest liquidity buffer to reduce delay and overdraft/EOD costs while keeping collateral costs contained.",
   "parameters": {
     "urgency_threshold": 5.0,
-    "initial_liquidity_fraction": 0.65,
+    "initial_liquidity_fraction": 0.7,
     "liquidity_buffer_factor": 1.05
   },
   "strategic_collateral_tree": {
@@ -50,7 +50,7 @@
   "payment_tree": {
     "type": "condition",
     "node_id": "P1_check_urgent",
-    "description": "Release if close to deadline",
+    "description": "Release if close to deadline; otherwise check liquidity with a modest buffer.",
     "condition": {
       "op": "<=",
       "left": {
@@ -68,7 +68,7 @@
     "on_false": {
       "type": "condition",
       "node_id": "P3_check_liquidity",
-      "description": "Release if we have sufficient liquidity with a modest buffer",
+      "description": "Release if we have sufficient liquidity with a modest 5% buffer.",
       "condition": {
         "op": ">=",
         "left": {
