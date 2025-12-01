@@ -4,6 +4,7 @@
 **Reporter**: Claude (AI Assistant)
 **Severity**: High
 **Component**: Agent Model / FFI Configuration Parsing
+**Status**: ✅ RESOLVED (2025-12-01)
 
 ---
 
@@ -179,3 +180,59 @@ fn test_explicit_max_collateral_capacity() {
 
 - Experiment 2d investigation in `experiments/castro/LAB_NOTES.md`
 - Workaround config: `experiments/castro/configs/castro_12period_castro_equiv_fixed.yaml`
+
+---
+
+## Resolution
+
+**Fixed in commit**: [See branch `claude/fix-collateral-capacity-bug-*`]
+
+The fix was implemented by:
+
+1. **Added `max_collateral_capacity: Option<i64>` field to `Agent` struct** (`backend/src/models/agent.rs`)
+   - New field stores the explicit configuration value
+   - `max_collateral_capacity()` method uses stored value or falls back to heuristic (10 × unsecured_cap)
+   - New `set_max_collateral_capacity()` setter method
+   - New `max_collateral_capacity_setting()` getter for checkpoint serialization
+
+2. **Added field to `AgentConfig` struct** (`backend/src/orchestrator/engine.rs`)
+   - `max_collateral_capacity: Option<i64>` with serde default
+   - Wired through to agent initialization in `Orchestrator::new()`
+
+3. **Added FFI parsing** (`backend/src/ffi/types.rs`)
+   - `extract_optional(py_agent, "max_collateral_capacity")?` to parse from Python config
+
+4. **Added FFI export** (`backend/src/ffi/orchestrator.rs`)
+   - `get_agent_state()` now returns `max_collateral_capacity` and `remaining_collateral_capacity`
+
+5. **Updated Python schema** (`api/payment_simulator/config/schemas.py`)
+   - Added `max_collateral_capacity: int | None` field to `AgentConfig`
+
+6. **Updated checkpoint serialization** (`backend/src/orchestrator/checkpoint.rs`)
+   - `AgentSnapshot` now includes `max_collateral_capacity` for proper state save/restore
+
+7. **Added tests** (`backend/src/models/agent.rs`)
+   - `test_explicit_max_collateral_capacity` verifies the fix works correctly
+
+### Verification
+
+```python
+from payment_simulator_core_rs import Orchestrator
+
+config = {
+    'agent_configs': [{
+        'id': 'BANK_A',
+        'unsecured_cap': 100_000_000_00,  # $100M
+        'max_collateral_capacity': 50_000_000,  # $500k explicit
+        # ...
+    }],
+    # ...
+}
+
+orch = Orchestrator.new(config)
+state = orch.get_agent_state('BANK_A')
+
+# Previously (broken): 10 × $100M = $1B
+# Now (fixed): $500k as configured
+assert state['max_collateral_capacity'] == 50_000_000
+```

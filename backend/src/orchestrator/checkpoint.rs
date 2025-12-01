@@ -70,6 +70,9 @@ pub struct AgentSnapshot {
     // Enhancement 11.2: Liquidity pool allocation (optional for backwards compat)
     #[serde(default)]
     pub allocated_liquidity: Option<i64>,
+    // Maximum collateral capacity (optional for backwards compat)
+    #[serde(default)]
+    pub max_collateral_capacity: Option<i64>,
 }
 
 impl From<&Agent> for AgentSnapshot {
@@ -92,6 +95,8 @@ impl From<&Agent> for AgentSnapshot {
             total_outflow: agent.total_outflow(),
             // Enhancement 11.2: Liquidity pool allocation
             allocated_liquidity: Some(agent.allocated_liquidity()),
+            // Maximum collateral capacity (explicit setting, not heuristic)
+            max_collateral_capacity: agent.max_collateral_capacity_setting(),
         }
     }
 }
@@ -116,6 +121,7 @@ impl From<AgentSnapshot> for Agent {
             bilateral_outflows: snapshot.bilateral_outflows,
             total_outflow: snapshot.total_outflow,
             allocated_liquidity: snapshot.allocated_liquidity, // Enhancement 11.2
+            max_collateral_capacity: snapshot.max_collateral_capacity,
         })
     }
 }

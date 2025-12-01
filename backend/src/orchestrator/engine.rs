@@ -292,6 +292,13 @@ pub struct AgentConfig {
     /// T2/CLM typical range: 0.00-0.10 (0%-10% haircut)
     pub collateral_haircut: Option<f64>,
 
+    /// Maximum collateral capacity (cents) - overrides the default heuristic
+    /// If None, uses heuristic of 10 × unsecured_cap.
+    /// If specified, represents the agent's total collateralizable assets.
+    /// Example: 50_000_000 ($500k) limits collateral posting to $500k.
+    #[serde(default)]
+    pub max_collateral_capacity: Option<i64>,
+
     /// Payment limits configuration (Phase 1: TARGET2 LSM alignment)
     /// Controls bilateral (per-counterparty) and multilateral (total) outflow limits
     #[serde(default)]
@@ -1089,6 +1096,7 @@ impl Orchestrator {
     ///             arrival_bands: None,
     ///             posted_collateral: None,
     ///             collateral_haircut: None,
+    ///             max_collateral_capacity: None,
     ///             limits: None,
     ///             liquidity_pool: None,
     ///             liquidity_allocation_fraction: None,
@@ -1140,6 +1148,10 @@ impl Orchestrator {
                 // Set collateral haircut if specified (defaults to 0.02)
                 if let Some(haircut) = ac.collateral_haircut {
                     agent.set_collateral_haircut(haircut);
+                }
+                // Set max collateral capacity if specified (overrides 10x heuristic)
+                if let Some(max_cap) = ac.max_collateral_capacity {
+                    agent.set_max_collateral_capacity(max_cap);
                 }
                 // Set payment limits if specified (Phase 1: TARGET2 LSM)
                 if let Some(limits) = &ac.limits {
