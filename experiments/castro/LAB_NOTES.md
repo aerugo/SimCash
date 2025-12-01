@@ -1115,4 +1115,83 @@ The LLM invented a "partial release" strategy that trades small overdraft costs 
 | 2025-12-01 | Experiment 2 completed | 8.5% cost increase (stochastic challenge) |
 | 2025-12-01 | Experiment 3 completed | **99.95% cost reduction**, 15 iterations |
 | 2025-12-01 | Analysis section added | Documenting findings |
+| 2025-12-01 | Experiment 2b designed | Enhanced optimizer for stochastic scenarios |
+
+---
+
+## Experiment 2b: Stochastic Scenario (Enhanced Approach)
+
+### Motivation
+
+Experiment 2 failed (8.5% cost increase) due to several issues:
+
+1. **Bimodal cost distribution**: Costs clustered around $170-210k (success) or $300-450k (failures)
+2. **EOD penalty dominance**: At $500/unsettled tx, failures add $50-100k to cost
+3. **Poor feedback**: Prompt showed mean±std but didn't highlight which seeds failed and why
+4. **Early convergence**: Only 5 iterations before declaring convergence
+5. **Wrong metric**: Optimizing mean cost when variance matters more
+
+### Hypothesis
+
+Better feedback about stochastic outcomes (without revealing the solution) will help the LLM discover robust policies.
+
+### Key Changes from V1 Optimizer
+
+| Aspect | V1 (Original) | V2 (Enhanced) |
+|--------|---------------|---------------|
+| Primary metric | Mean cost | Risk-adjusted cost (mean + σ) |
+| Convergence threshold | 5% | 10% |
+| Convergence window | 3 iterations | 5 iterations |
+| Convergence check | Mean cost | Risk-adjusted + require 0% failure rate |
+| Max iterations | 20 | 40 |
+| Prompt: Failures | Not highlighted | Explicit callout with seed numbers |
+| Prompt: Per-seed data | Brief summary | Full table sorted by cost (worst first) |
+| Prompt: Cost breakdown | Sample only | Per-category (collateral/delay/eod) |
+| Prompt: Priority | Generic | "Achieve 100% settlement FIRST, then optimize" |
+
+### Enhanced Prompt Features
+
+1. **Worst-case analysis**: Explicitly shows 2-3 worst seeds with failure counts
+2. **Settlement focus**: Primary metric is "failure rate" (% seeds with <100% settlement)
+3. **Risk-adjusted score**: Presents `mean + σ` as the target to minimize
+4. **Per-category breakdown**: Shows collateral/delay/eod split
+5. **Clear priority**: "FIRST achieve 100% settlement, THEN minimize costs"
+
+### What We're NOT Telling the LLM
+
+- We do NOT reveal what parameter values work
+- We do NOT suggest specific strategies
+- We do NOT explain WHY certain seeds fail (only THAT they fail)
+- We only provide better FEEDBACK about outcomes, not GUIDANCE on solutions
+
+### Expected Outcome
+
+The LLM should:
+1. First focus on eliminating settlement failures (probably by increasing initial liquidity)
+2. Once 100% settlement achieved, gradually reduce liquidity while monitoring failures
+3. Discover that some liquidity buffer is needed for stochastic robustness
+
+### Files Created
+
+- `scripts/optimizer_v2.py` - Enhanced optimizer with stochastic focus
+- `configs/castro_12period_v2.yaml` - Config pointing to exp2b policy files
+- `policies/exp2b_bank_a.json` - Fresh seed policy for Bank A
+- `policies/exp2b_bank_b.json` - Fresh seed policy for Bank B
+- `results/exp2b_12period/` - Results directory (to be created)
+
+### Run Command
+
+```bash
+cd /home/user/SimCash
+python experiments/castro/scripts/optimizer_v2.py \
+  --scenario experiments/castro/configs/castro_12period_v2.yaml \
+  --policy-a experiments/castro/policies/exp2b_bank_a.json \
+  --policy-b experiments/castro/policies/exp2b_bank_b.json \
+  --results-dir experiments/castro/results/exp2b_12period \
+  --lab-notes experiments/castro/LAB_NOTES.md \
+  --seeds 10 \
+  --max-iter 40 \
+  --model gpt-5.1 \
+  --reasoning high
+```
 
