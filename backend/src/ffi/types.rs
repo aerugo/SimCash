@@ -294,6 +294,9 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
     // Parse optional posted_collateral using helper
     let posted_collateral: Option<i64> = extract_optional(py_agent, "posted_collateral")?;
 
+    // Parse optional max_collateral_capacity using helper
+    let max_collateral_capacity: Option<i64> = extract_optional(py_agent, "max_collateral_capacity")?;
+
     // Parse optional limits (bilateral/multilateral) using helper
     let limits: Option<AgentLimitsConfig> = if let Ok(Some(py_limits)) = py_agent.get_item("limits") {
         let limits_dict: Bound<'_, PyDict> = py_limits.downcast_into()?;
@@ -315,6 +318,7 @@ fn parse_agent_config(py_agent: &Bound<'_, PyDict>) -> PyResult<AgentConfig> {
         arrival_bands,
         posted_collateral,
         collateral_haircut,
+        max_collateral_capacity,
         limits,
         liquidity_pool,
         liquidity_allocation_fraction,

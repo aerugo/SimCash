@@ -76,6 +76,7 @@ pub enum WithdrawError {
 ///     bilateral_outflows: HashMap::new(),
 ///     total_outflow: 0,
 ///     allocated_liquidity: None,
+///     max_collateral_capacity: None,
 /// };
 ///
 /// let agent = Agent::restore(data);
@@ -112,6 +113,8 @@ pub struct AgentRestoreData {
     pub total_outflow: i64,
     /// Enhancement 11.2: Allocated liquidity from external pool (optional for backwards compat)
     pub allocated_liquidity: Option<i64>,
+    /// Maximum collateral capacity override (optional for backwards compat)
+    pub max_collateral_capacity: Option<i64>,
 }
 
 /// Represents a bank (agent) in the payment system
@@ -275,6 +278,14 @@ pub struct Agent {
     /// Note: This is separate from opening_balance (which is assumed
     /// to already be at the central bank without opportunity cost).
     allocated_liquidity: i64,
+
+    /// Maximum collateral capacity (i64 cents) - configurable override
+    ///
+    /// If set, this overrides the default heuristic (10 × unsecured_cap).
+    /// Represents the agent's total collateralizable assets.
+    ///
+    /// When None, falls back to the heuristic calculation.
+    max_collateral_capacity: Option<i64>,
 }
 
 impl Agent {
@@ -321,6 +332,8 @@ impl Agent {
             total_outflow: 0,
             // Enhancement 11.2: Liquidity pool allocation
             allocated_liquidity: 0, // Default: no allocated liquidity
+            // Max collateral capacity: None = use heuristic (10 × unsecured_cap)
+            max_collateral_capacity: None,
         }
     }
 
@@ -372,6 +385,8 @@ impl Agent {
             total_outflow: 0,
             // Enhancement 11.2: Liquidity pool allocation
             allocated_liquidity: 0, // Default: no allocated liquidity
+            // Max collateral capacity: None = use heuristic (10 × unsecured_cap)
+            max_collateral_capacity: None,
         }
     }
 
@@ -405,6 +420,7 @@ impl Agent {
     ///     bilateral_outflows: HashMap::new(),
     ///     total_outflow: 0,
     ///     allocated_liquidity: None,
+    ///     max_collateral_capacity: None,
     /// };
     ///
     /// let agent = Agent::restore(data);
@@ -439,6 +455,8 @@ impl Agent {
             total_outflow: data.total_outflow,
             // Enhancement 11.2: Liquidity pool allocation (restored or default 0)
             allocated_liquidity: data.allocated_liquidity.unwrap_or(0),
+            // Max collateral capacity (restored if set, otherwise None = heuristic)
+            max_collateral_capacity: data.max_collateral_capacity,
         }
     }
 
@@ -481,6 +499,7 @@ impl Agent {
             bilateral_outflows,
             total_outflow,
             allocated_liquidity: None, // Not tracked in legacy snapshots
+            max_collateral_capacity: None, // Not tracked in legacy snapshots
         })
     }
 
@@ -1256,14 +1275,50 @@ impl Agent {
     ///
     /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
     /// agent.set_unsecured_cap(500000);
-    /// // Max capacity = 10 × unsecured cap = 10 × 500k = 5M
+    /// // Max capacity = 10 × unsecured cap = 10 × 500k = 5M (default heuristic)
     /// assert_eq!(agent.max_collateral_capacity(), 5_000_000);
+    ///
+    /// // With explicit setting, use that value
+    /// agent.set_max_collateral_capacity(1_000_000);
+    /// assert_eq!(agent.max_collateral_capacity(), 1_000_000);
     /// ```
     pub fn max_collateral_capacity(&self) -> i64 {
-        // Heuristic: 10x unsecured overdraft capacity
-        // Rationale: If bank can borrow 500k unsecured intraday, they likely have
-        // ~5M in collateralizable assets (bonds, reserves, etc.)
-        self.unsecured_cap * 10
+        // Use explicitly configured value if set, otherwise fall back to heuristic
+        self.max_collateral_capacity.unwrap_or_else(|| {
+            // Heuristic: 10x unsecured overdraft capacity
+            // Rationale: If bank can borrow 500k unsecured intraday, they likely have
+            // ~5M in collateralizable assets (bonds, reserves, etc.)
+            self.unsecured_cap * 10
+        })
+    }
+
+    /// Set maximum collateral capacity
+    ///
+    /// Overrides the default heuristic (10 × unsecured_cap) with an explicit value.
+    ///
+    /// # Arguments
+    /// * `cap` - Maximum collateral capacity in cents (must be non-negative)
+    ///
+    /// # Example
+    /// ```
+    /// use payment_simulator_core_rs::Agent;
+    ///
+    /// let mut agent = Agent::new("BANK_A".to_string(), 1000000);
+    /// agent.set_unsecured_cap(500000);
+    /// agent.set_max_collateral_capacity(1_000_000);  // Override to $10k
+    /// assert_eq!(agent.max_collateral_capacity(), 1_000_000);
+    /// ```
+    pub fn set_max_collateral_capacity(&mut self, cap: i64) {
+        assert!(cap >= 0, "max_collateral_capacity must be non-negative");
+        self.max_collateral_capacity = Some(cap);
+    }
+
+    /// Get the raw max_collateral_capacity setting (for checkpoint serialization)
+    ///
+    /// Returns `None` if using the default heuristic, or `Some(value)` if explicitly set.
+    /// For the computed value (with heuristic fallback), use `max_collateral_capacity()`.
+    pub fn max_collateral_capacity_setting(&self) -> Option<i64> {
+        self.max_collateral_capacity
     }
 
     /// Calculate remaining collateral capacity
@@ -1780,8 +1835,25 @@ mod tests {
         let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
         agent.set_unsecured_cap(500_000);
 
-        // Max capacity = 10x credit limit
+        // Max capacity = 10x credit limit (default heuristic)
         assert_eq!(agent.max_collateral_capacity(), 5_000_000);
+    }
+
+    #[test]
+    fn test_explicit_max_collateral_capacity() {
+        let mut agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        agent.set_unsecured_cap(100_000_000_00); // $100M unsecured (cents)
+
+        // Without explicit setting, heuristic gives 10 × $100M = $1B
+        assert_eq!(agent.max_collateral_capacity(), 1_000_000_000_00);
+
+        // With explicit setting, use that value instead
+        agent.set_max_collateral_capacity(50_000_000); // $500k (cents)
+        assert_eq!(agent.max_collateral_capacity(), 50_000_000);
+
+        // Remaining capacity respects the explicit value
+        agent.set_posted_collateral(25_000_000); // $250k posted
+        assert_eq!(agent.remaining_collateral_capacity(), 25_000_000); // $250k remaining
     }
 
     #[test]
