@@ -1,0 +1,81 @@
+{
+  "version": "1.0",
+  "policy_id": "castro_exp3_bankB_seed",
+  "description": "Bank B policy for joint learning experiment (3-period symmetric scenario)",
+  "parameters": {
+    "urgency_threshold": 2.0,
+    "initial_liquidity_fraction": 0.5,
+    "liquidity_buffer_factor": 1.2
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC1_tick_zero",
+    "description": "Allocate initial liquidity at start of day",
+    "condition": {
+      "op": "==",
+      "left": {"field": "system_tick_in_day"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "SC2_post_initial",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "max_collateral_capacity"},
+            "right": {"param": "initial_liquidity_fraction"}
+          }
+        },
+        "reason": {"value": "InitialAllocation"}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SC3_hold",
+      "action": "HoldCollateral"
+    }
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "P1_check_urgent",
+    "description": "Release if close to deadline",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "ticks_to_deadline"},
+      "right": {"param": "urgency_threshold"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "P2_release_urgent",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "P3_check_liquidity",
+      "description": "Release if we have excess liquidity",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "effective_liquidity"},
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {"field": "remaining_amount"},
+            "right": {"param": "liquidity_buffer_factor"}
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "P4_release_liquid",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "P5_hold",
+        "action": "Hold"
+      }
+    }
+  }
+}

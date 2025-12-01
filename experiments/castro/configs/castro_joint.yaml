@@ -32,7 +32,7 @@ agents:
     max_collateral_capacity: 10000000
     policy:
       type: FromJson
-      json_path: "experiments/castro/policies/exp3_joint.json"
+      json_path: "experiments/castro/policies/exp3_bank_a.json"
 
   - id: BANK_B
     opening_balance: 0
@@ -40,7 +40,7 @@ agents:
     max_collateral_capacity: 10000000
     policy:
       type: FromJson
-      json_path: "experiments/castro/policies/exp3_joint.json"
+      json_path: "experiments/castro/policies/exp3_bank_b.json"
 
 # Symmetric payment profile
 scenario_events:
