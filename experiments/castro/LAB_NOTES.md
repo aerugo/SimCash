@@ -1703,3 +1703,76 @@ duckdb results/my_experiment.db "SELECT * FROM iteration_metrics ORDER BY iterat
 3. Publish database files for third-party verification
 
 ---
+
+## Results Comparison Analysis
+
+### Date: 2025-12-01
+
+### Castro et al. (2025) Reference Results
+
+| Experiment | Initial Liquidity | Final Cost | Convergence |
+|------------|-------------------|------------|-------------|
+| Two-Period | A: $0, B: $200 | R_A=$0, R_B=$20 | 10-20 episodes |
+| Twelve-Period | ~20% capacity | $1,000-3,000/day | 50-100 episodes |
+| Joint Learning | Near-zero | ~$0 | ~50 episodes |
+
+### Our LLM Results (with Reproducible Framework)
+
+| Experiment | Mean Cost | Settlement | Notes |
+|------------|-----------|------------|-------|
+| Two-Period | $80.52/day | 100% | Symmetric equilibrium |
+| Twelve-Period | $52,445 ± $2,244/day | 100% | Fixed collateral config |
+
+### Key Differences
+
+1. **Equilibrium Type**
+   - Castro RL: Asymmetric (Bank B pays, Bank A free-rides)
+   - Our LLM: Symmetric (both banks post minimal collateral)
+
+2. **Cost Function Mapping**
+   
+   Castro uses:
+   ```
+   R = r_c·ℓ₀ + Σ P_t(1-x_t)·r_d + r_b·c_b
+   ```
+   - r_c = 0.1/day (collateral opportunity cost)
+   - r_d = 0.2/day (delay cost)
+   - r_b = 0.4/day (borrowing cost)
+
+   SimCash uses:
+   - Per-tick collateral cost: 83 bps/tick (≈10%/day)
+   - Per-tick delay cost: 0.00017/cent/tick
+   - Per-tick overdraft: 333 bps/tick (≈40%/day)
+
+3. **Cost Magnitude**
+   
+   | Metric | Castro | SimCash |
+   |--------|--------|---------|
+   | Two-Period optimal | $20 | $80 |
+   | Twelve-Period optimal | ~$1,500 | ~$52,000 |
+   
+   Difference due to:
+   - SimCash has continuous cost accrual vs Castro's discrete
+   - SimCash collateral costs compound per-tick
+   - Transaction amounts differ ($100k median vs Castro's $100)
+
+4. **Convergence Speed**
+   - Castro RL: 50-100 episodes (gradient-based)
+   - LLM: 10-15 iterations (reasoning-based)
+   - LLM is ~5x faster to converge
+
+### Limitations for Direct Comparison
+
+1. **Cost function structure differs** - not directly comparable
+2. **Transaction scale differs** - SimCash uses $100k median
+3. **Payment ordering** - SimCash doesn't guarantee B-first ordering
+4. **max_collateral_capacity bug** - required workaround
+
+### Recommendations for Better Comparison
+
+1. Implement Castro's exact discrete cost function as an option
+2. Add payment ordering control for asymmetric equilibrium test
+3. Scale transaction amounts to match Castro's $100 per payment
+4. Run side-by-side with identical scenarios
+
+---
