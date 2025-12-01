@@ -25,7 +25,7 @@
       "node_id": "SC2_post_initial",
       "action": "PostCollateral",
       "description": "Post initial_liquidity_fraction of max collateral capacity.",
-      "args": {
+      "parameters": {
         "amount": {
           "compute": {
             "op": "*",
