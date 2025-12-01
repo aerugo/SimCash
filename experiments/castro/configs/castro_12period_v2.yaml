@@ -1,0 +1,68 @@
+# Castro et al. (2025) - 12-Period LVTS-Style Scenario (Experiment 2b)
+# Same as castro_12period.yaml but uses separate policy files for V2 optimizer
+#
+# Experiment 2b: Enhanced optimizer with:
+# - Risk-adjusted metrics (mean + σ)
+# - Explicit failure mode feedback
+# - Stricter convergence criteria
+# - Focus on achieving 100% settlement first
+
+simulation:
+  ticks_per_day: 12
+  num_days: 1
+  rng_seed: 42
+
+# Per-tick rates (Castro daily rates / 12)
+cost_rates:
+  collateral_cost_per_tick_bps: 83         # r_c ≈ 0.1/12 = 0.0083
+  delay_cost_per_tick_per_cent: 0.00017    # r_d ≈ 0.2/12 = 0.0167
+  overdraft_bps_per_tick: 333              # r_b ≈ 0.4/12 = 0.033
+  eod_penalty_per_transaction: 50000       # $500 strong EOD pressure
+  deadline_penalty: 0
+  split_friction_cost: 0
+  overdue_delay_multiplier: 1.0
+
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+  max_cycle_length: 3
+  max_cycles_per_tick: 1
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 100000                  # $1000 credit limit
+    max_collateral_capacity: 50000000      # $500k max
+    policy:
+      type: FromJson
+      json_path: "experiments/castro/policies/exp2b_bank_a.json"
+    arrival_config:
+      rate_per_tick: 0.5                   # ~6 transactions/day
+      amount_distribution:
+        type: LogNormal
+        mean: 11.51                        # ~$100k median
+        std_dev: 0.9
+      counterparty_weights:
+        BANK_B: 1.0
+      deadline_range: [3, 8]
+      priority: 5
+      divisible: false
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 100000
+    max_collateral_capacity: 50000000
+    policy:
+      type: FromJson
+      json_path: "experiments/castro/policies/exp2b_bank_b.json"
+    arrival_config:
+      rate_per_tick: 0.65                  # Higher volume than A
+      amount_distribution:
+        type: LogNormal
+        mean: 11.8                         # ~$120k median (larger)
+        std_dev: 1.0
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_range: [2, 6]               # Tighter deadlines
+      priority: 5
+      divisible: false

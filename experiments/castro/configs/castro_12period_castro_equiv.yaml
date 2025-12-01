@@ -1,0 +1,93 @@
+# Castro et al. (2025) - 12-Period LVTS-Style Scenario (CASTRO-EQUIVALENT)
+# Experiment 2d: Properly replicates Castro's model assumptions
+#
+# KEY DIFFERENCES FROM EXPERIMENTS 2/2b/2c:
+# 1. UNLIMITED CREDIT - Banks can always settle via overdraft (like Castro's
+#    central bank lending facility)
+# 2. NO EOD PENALTY - Unsettled payments don't incur flat penalty; instead,
+#    overdraft costs accumulate (rate-based like Castro's r_b)
+# 3. OVERDRAFT AS BORROWING - overdraft_bps_per_tick maps to Castro's r_b
+#
+# See: experiments/castro/docs/experiment_2d_design.md for full rationale
+
+simulation:
+  ticks_per_day: 12
+  num_days: 1
+  rng_seed: 42
+
+# Cost mapping from Castro's daily rates to per-tick rates
+# Castro: r_c = 0.1, r_d = 0.2, r_b = 0.4 (all per day)
+# For T=12: divide by 12 for per-tick equivalents
+cost_rates:
+  # r_c (initial liquidity / collateral opportunity cost)
+  # Castro: 0.1 per day → 0.1/12 ≈ 0.00833 per tick
+  # In bps: 0.00833 * 10000 = 83.3 bps
+  collateral_cost_per_tick_bps: 83
+
+  # r_d (delay cost per period)
+  # Castro: 0.2 per day → 0.2/12 ≈ 0.01667 per tick
+  # Per cent: 0.01667 / 100 = 0.000167
+  delay_cost_per_tick_per_cent: 0.00017
+
+  # r_b (end-of-day borrowing / overdraft cost)
+  # Castro: 0.4 per day → 0.4/12 ≈ 0.0333 per tick
+  # In bps: 0.0333 * 10000 = 333 bps
+  # NOTE: This is the KEY mechanism - overdraft replaces EOD borrowing
+  overdraft_bps_per_tick: 333
+
+  # CASTRO-EQUIVALENT: NO hard penalties
+  # In Castro's model, all payments eventually settle via borrowing
+  # The "cost" is the borrowing rate, not a flat penalty
+  eod_penalty_per_transaction: 0     # No unsettled penalty!
+  deadline_penalty: 0                 # Castro uses delay costs, not deadline jumps
+  split_friction_cost: 0              # Not in Castro's model
+  overdue_delay_multiplier: 1.0       # No escalation (Castro has flat r_d)
+
+# LSM disabled - Castro's model is pure RTGS + overdraft
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+  max_cycle_length: 3
+  max_cycles_per_tick: 1
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    # CASTRO-EQUIVALENT: Effectively unlimited credit
+    # This ensures any payment can settle via overdraft, matching Castro's
+    # assumption that banks can always borrow from the central bank
+    unsecured_cap: 10000000000        # $100M - unlimited for practical purposes
+    max_collateral_capacity: 50000000  # $500k max collateral (for r_c costs)
+    policy:
+      type: FromJson
+      json_path: "experiments/castro/policies/exp2d_bank_a.json"
+    arrival_config:
+      rate_per_tick: 0.5               # ~6 transactions/day
+      amount_distribution:
+        type: LogNormal
+        mean: 11.51                    # ~$100k median
+        std_dev: 0.9
+      counterparty_weights:
+        BANK_B: 1.0
+      deadline_range: [3, 8]           # Transactions have deadlines
+      priority: 5
+      divisible: false
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 10000000000        # $100M - unlimited
+    max_collateral_capacity: 50000000
+    policy:
+      type: FromJson
+      json_path: "experiments/castro/policies/exp2d_bank_b.json"
+    arrival_config:
+      rate_per_tick: 0.65              # Higher volume than A
+      amount_distribution:
+        type: LogNormal
+        mean: 11.8                     # ~$120k median (larger)
+        std_dev: 1.0
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_range: [2, 6]           # Tighter deadlines
+      priority: 5
+      divisible: false

@@ -1,0 +1,89 @@
+# Castro et al. (2025) - 3-Period Joint Learning Scenario
+# Replicates Section 7: Learn both initial liquidity AND intraday timing
+#
+# Symmetric payment profile: P = [20000, 20000, 0] for both banks
+# Tests the liquidity-delay tradeoff in a balanced setting
+
+simulation:
+  ticks_per_day: 3
+  num_days: 1
+  rng_seed: 42
+
+# Per-tick rates (Castro daily rates / 3)
+cost_rates:
+  collateral_cost_per_tick_bps: 333        # r_c ≈ 0.1/3
+  delay_cost_per_tick_per_cent: 0.00067    # r_d ≈ 0.2/3
+  overdraft_bps_per_tick: 1333             # r_b ≈ 0.4/3
+  eod_penalty_per_transaction: 100000      # $1000 EOD pressure
+  deadline_penalty: 0
+  split_friction_cost: 0
+  overdue_delay_multiplier: 1.0
+
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+  max_cycle_length: 3
+  max_cycles_per_tick: 1
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 50000
+    max_collateral_capacity: 10000000
+    policy:
+      type: FromJson
+      json_path: "experiments/castro/policies/exp3_bank_a.json"
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 50000
+    max_collateral_capacity: 10000000
+    policy:
+      type: FromJson
+      json_path: "experiments/castro/policies/exp3_bank_b.json"
+
+# Symmetric payment profile
+scenario_events:
+  # Bank A: $200 outgoing in period 1 (tick 0)
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 20000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # Bank A: $200 outgoing in period 2 (tick 1)
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 20000
+    priority: 5
+    deadline: 3
+    schedule:
+      type: OneTime
+      tick: 1
+
+  # Bank B: $200 outgoing in period 1 (tick 0) - symmetric
+  - type: CustomTransactionArrival
+    from_agent: BANK_B
+    to_agent: BANK_A
+    amount: 20000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # Bank B: $200 outgoing in period 2 (tick 1) - symmetric
+  - type: CustomTransactionArrival
+    from_agent: BANK_B
+    to_agent: BANK_A
+    amount: 20000
+    priority: 5
+    deadline: 3
+    schedule:
+      type: OneTime
+      tick: 1

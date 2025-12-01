@@ -1,0 +1,149 @@
+{
+  "version": "1.0",
+  "policy_id": "castro_exp4_bankB_iter15_lower_collateral_0_0001_partial_release",
+  "description": "Bank B policy for 3-period symmetric scenario with even lower initial liquidity (0.01% of capacity) and a deadline-sensitive payment rule that allows cost-effective partial funding near the deadline.",
+  "parameters": {
+    "urgency_threshold": 0.0,
+    "initial_liquidity_fraction": 0.0001,
+    "liquidity_buffer_factor": 1.0,
+    "partial_release_urgency_threshold": 1.0,
+    "min_partial_funding_ratio": 0.5
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC1_tick_zero",
+    "description": "Allocate initial liquidity at start of day with very low collateral (0.01% of capacity).",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "system_tick_in_day"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "SC2_post_initial",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_liquidity_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialAllocation_Reduced0.0001"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SC3_hold",
+      "action": "HoldCollateral"
+    }
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "P1_check_deadline",
+    "description": "If the payment is at or past the urgency threshold (ticks_to_deadline <= urgency_threshold), release immediately to avoid non-settlement penalties.",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "param": "urgency_threshold"
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "P2_release_due",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "P3_check_full_liquidity",
+      "description": "Before the urgency threshold, release immediately if the payment is fully funded (no overdraft).",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer_factor"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "P4_release_fully_funded",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "condition",
+        "node_id": "P5_check_partial_urgency",
+        "description": "If close to the deadline, consider a partially funded release that trades a small overdraft for reduced delay cost.",
+        "condition": {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "partial_release_urgency_threshold"
+          }
+        },
+        "on_true": {
+          "type": "condition",
+          "node_id": "P6_check_partial_liquidity",
+          "description": "If at least the minimum partial funding ratio is available, release even if not fully funded.",
+          "condition": {
+            "op": ">=",
+            "left": {
+              "field": "effective_liquidity"
+            },
+            "right": {
+              "compute": {
+                "op": "*",
+                "left": {
+                  "field": "remaining_amount"
+                },
+                "right": {
+                  "param": "min_partial_funding_ratio"
+                }
+              }
+            }
+          },
+          "on_true": {
+            "type": "action",
+            "node_id": "P7_release_partially_funded",
+            "action": "Release"
+          },
+          "on_false": {
+            "type": "action",
+            "node_id": "P8_hold_wait_for_inflows_partial",
+            "action": "Hold"
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "node_id": "P9_hold_wait_for_inflows",
+          "action": "Hold"
+        }
+      }
+    }
+  }
+}

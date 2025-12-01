@@ -1,0 +1,92 @@
+# Castro et al. (2025) - 2-Period Fixed Payment Scenario
+# Replicates Section 6.3 for analytical validation
+#
+# Payment profiles (in cents):
+#   Bank A: P^A = [0, 15000] - No period 1 outgoing, $150 in period 2
+#   Bank B: P^B = [15000, 5000] - $150 in period 1, $50 in period 2
+#
+# Expected Nash Equilibrium:
+#   Bank A: ℓ₀ = 0 (wait for incoming from B)
+#   Bank B: ℓ₀ = 20000 (cover both periods)
+#   Costs: R_A = 0, R_B = 2000 (0.1 * 20000)
+
+simulation:
+  ticks_per_day: 2
+  num_days: 1
+  rng_seed: 42
+
+# Castro cost structure: r_c = 0.1, r_d = 0.2, r_b = 0.4
+cost_rates:
+  # Collateral/liquidity opportunity cost: 10% per tick
+  collateral_cost_per_tick_bps: 1000     # 10% = 1000 bps
+
+  # Delay cost: 20% of held value per tick
+  delay_cost_per_tick_per_cent: 0.002    # 0.2% per cent = 20% of value
+
+  # EOD/borrowing penalty: 40% of unsettled
+  eod_penalty_per_transaction: 0         # Per-transaction EOD penalty
+  overdraft_bps_per_tick: 4000           # 40% borrowing rate
+
+  # Disable non-Castro features
+  deadline_penalty: 0
+  split_friction_cost: 0
+  overdue_delay_multiplier: 1.0
+
+# Disable LSM (not in Castro model)
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+  max_cycle_length: 3
+  max_cycles_per_tick: 1
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 50000                   # Allow some credit for flexibility
+    max_collateral_capacity: 10000000      # $100k max collateral
+    policy:
+      type: FromJson
+      json_path: "experiments/castro/policies/exp1_bank_a.json"
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 50000
+    max_collateral_capacity: 10000000
+    policy:
+      type: FromJson
+      json_path: "experiments/castro/policies/exp1_bank_b.json"
+
+# Deterministic payment injections matching Castro's profile
+scenario_events:
+  # Bank A: $150 outgoing in period 2 (tick 1)
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 15000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 1
+
+  # Bank B: $150 outgoing in period 1 (tick 0)
+  - type: CustomTransactionArrival
+    from_agent: BANK_B
+    to_agent: BANK_A
+    amount: 15000
+    priority: 5
+    deadline: 1
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # Bank B: $50 outgoing in period 2 (tick 1)
+  - type: CustomTransactionArrival
+    from_agent: BANK_B
+    to_agent: BANK_A
+    amount: 5000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 1
