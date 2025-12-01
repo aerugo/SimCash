@@ -1341,3 +1341,81 @@ python experiments/castro/scripts/optimizer_v2.py \
 **[2025-12-01 12:36:27]** Starting iteration 4 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 **[2025-12-01 12:36:35]** Iteration 4: Mean=$409819 ± $129296, RiskAdj=$539115, Failures=4/10, Settlement=95.0%, VerboseLogs=4
+
+---
+
+## Critical Analysis: SimCash vs Castro's Model (2025-12-01)
+
+### Discovery
+
+After careful re-reading of Castro et al. (2025), we identified **fundamental differences** between our SimCash model and Castro's that explain why Experiments 2/2b/2c failed to converge:
+
+### Castro's End-of-Day Treatment (Section 3)
+
+From the paper:
+> "At the end of the day, banks must settle all payment demands. If liquidity is insufficient, banks can borrow from the central bank at a rate higher than the morning collateral cost."
+
+**Key insight**: In Castro's model:
+1. Banks can **ALWAYS borrow** from the central bank at EOD
+2. `r_b · c_b` is **borrowing cost** (rate × amount), not a flat penalty
+3. **All payments settle** - some just cost more via borrowing
+4. There are NO "unsettled" transactions
+
+### Our SimCash Model
+
+Our experiments used:
+```yaml
+unsecured_cap: 100000              # Only $1000 credit limit!
+eod_penalty_per_transaction: 50000 # $500 per UNSETTLED tx
+```
+
+This creates:
+1. Limited credit capacity → payments can be **permanently unsettled**
+2. Flat penalty per unsettled transaction (not rate-based)
+3. "Failures" that **don't exist in Castro's model**
+
+### Consequence
+
+| Metric | Castro's Model | Our Exp 2/2b/2c |
+|--------|---------------|-----------------|
+| Can payments always settle? | Yes (via borrowing) | No (credit limits) |
+| EOD penalty type | Rate × amount | Flat per-tx |
+| "Settlement rate" meaning | % on-time | % settled at all |
+| Failures possible? | No | Yes (40%) |
+
+### Resolution: Experiment 2d
+
+To properly replicate Castro, we created Experiment 2d with:
+
+1. **Unlimited credit** (`unsecured_cap: 10000000000`) - Like Castro's central bank lending
+2. **No EOD penalty** (`eod_penalty_per_transaction: 0`) - Overdraft cost replaces it
+3. **Overdraft as borrowing** (`overdraft_bps_per_tick: 333`) - Maps to Castro's r_b = 0.4/day
+
+See: `experiments/castro/docs/experiment_2d_design.md` for full rationale.
+
+---
+
+## Experiment 2d: Castro-Equivalent 12-Period (PENDING)
+
+### Design Rationale
+
+This experiment properly replicates Castro's model assumptions:
+- **Unlimited credit**: Any payment can settle via overdraft
+- **No EOD penalty**: Only overdraft costs accumulate
+- **All payments settle**: 100% settlement guaranteed
+
+### Expected Behavior
+
+With unlimited credit:
+1. **All payments will settle** (possibly via overdraft)
+2. **Cost = liquidity cost + delay cost + overdraft cost**
+3. **No "failures"** - just varying costs
+4. **LLM should find optimal liquidity-delay-overdraft trade-off**
+
+### Files
+
+- Config: `configs/castro_12period_castro_equiv.yaml`
+- Policies: `policies/exp2d_bank_a.json`, `policies/exp2d_bank_b.json`
+- Design Doc: `docs/experiment_2d_design.md`
+
+### Status: Ready to Run
