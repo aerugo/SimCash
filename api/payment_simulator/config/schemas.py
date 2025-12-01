@@ -458,6 +458,11 @@ class AgentConfig(BaseModel):
     )
     posted_collateral: int | None = Field(None, description="Posted collateral in cents")
     collateral_haircut: float | None = Field(None, description="Collateral haircut (discount rate)", ge=0, le=1)
+    max_collateral_capacity: int | None = Field(
+        None,
+        description="Maximum collateral capacity override (cents). If not set, uses heuristic (10 × unsecured_cap).",
+        ge=0
+    )
     limits: dict[str, int | dict[str, int]] | None = Field(None, description="Payment limits configuration")
 
     # Enhancement 11.2: Liquidity Pool Configuration

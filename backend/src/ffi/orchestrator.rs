@@ -515,6 +515,10 @@ impl PyOrchestrator {
         dict.set_item("overdraft_headroom", agent.headroom())?;
         dict.set_item("max_withdrawable_collateral", agent.max_withdrawable_collateral(0))?;
 
+        // Max collateral capacity (explicitly configured or heuristic)
+        dict.set_item("max_collateral_capacity", agent.max_collateral_capacity())?;
+        dict.set_item("remaining_collateral_capacity", agent.remaining_collateral_capacity())?;
+
         Ok(dict.into())
     }
 
