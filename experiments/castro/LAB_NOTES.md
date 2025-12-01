@@ -813,3 +813,156 @@ To ensure policies generalize and are not overfit to a specific random seed, eac
 - **Final Cost**: $281054.90
 - **Settlement Rate**: 92.1%
 
+
+**[2025-12-01 09:45:41]** 
+---
+## Experiment Run: castro_joint.yaml
+**Model**: gpt-5.1
+**Reasoning**: high
+**Max Iterations**: 15
+**Seeds**: 10
+
+
+**[2025-12-01 09:45:41]** Starting iteration 0 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 09:45:45]** Iteration 0 results: Mean=$49950.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$49950, S2=$49950, S3=$49950, S4=$49950, S5=$49950, S6=$49950, S7=$49950, S8=$49950, S9=$49950, S10=$49950]
+
+**[2025-12-01 09:45:47]** LLM call attempt 1 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 2s...
+
+**[2025-12-01 09:45:50]** LLM call attempt 2 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 4s...
+
+**[2025-12-01 09:45:56]** LLM call attempt 3 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 8s...
+
+**[2025-12-01 09:48:28]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 09:48:30]** Parameter changes: Bank A liquidity 0.5 -> 0.4, Bank B liquidity 0.5 -> 0.4
+
+**[2025-12-01 09:48:30]** Starting iteration 1 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 09:48:34]** Iteration 1 results: Mean=$39960.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$39960, S2=$39960, S3=$39960, S4=$39960, S5=$39960, S6=$39960, S7=$39960, S8=$39960, S9=$39960, S10=$39960]
+
+**[2025-12-01 09:52:07]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 09:52:10]** Parameter changes: Bank A liquidity 0.4 -> 0.35, Bank B liquidity 0.4 -> 0.35
+
+**[2025-12-01 09:52:10]** Starting iteration 2 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 09:52:13]** Iteration 2 results: Mean=$34968.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$34968, S2=$34968, S3=$34968, S4=$34968, S5=$34968, S6=$34968, S7=$34968, S8=$34968, S9=$34968, S10=$34968]
+
+**[2025-12-01 09:55:29]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 09:55:31]** Parameter changes: Bank A liquidity 0.35 -> 0.3, Bank B liquidity 0.35 -> 0.3
+
+**[2025-12-01 09:55:31]** Starting iteration 3 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 09:55:35]** Iteration 3 results: Mean=$29970.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$29970, S2=$29970, S3=$29970, S4=$29970, S5=$29970, S6=$29970, S7=$29970, S8=$29970, S9=$29970, S10=$29970]
+
+**[2025-12-01 09:58:57]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 09:58:59]** Parameter changes: Bank A liquidity 0.3 -> 0.2, Bank B liquidity 0.3 -> 0.2
+
+**[2025-12-01 09:58:59]** Starting iteration 4 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 09:59:03]** Iteration 4 results: Mean=$19980.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$19980, S2=$19980, S3=$19980, S4=$19980, S5=$19980, S6=$19980, S7=$19980, S8=$19980, S9=$19980, S10=$19980]
+
+**[2025-12-01 10:02:07]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:02:09]** Parameter changes: Bank A liquidity 0.2 -> 0.1, Bank B liquidity 0.2 -> 0.1
+
+**[2025-12-01 10:02:09]** Starting iteration 5 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:02:13]** Iteration 5 results: Mean=$9990.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$9990, S2=$9990, S3=$9990, S4=$9990, S5=$9990, S6=$9990, S7=$9990, S8=$9990, S9=$9990, S10=$9990]
+
+**[2025-12-01 10:06:06]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:06:08]** Parameter changes: Bank A liquidity 0.1 -> 0.05, Bank B liquidity 0.1 -> 0.05
+
+**[2025-12-01 10:06:08]** Starting iteration 6 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:06:12]** Iteration 6 results: Mean=$4998.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$4998, S2=$4998, S3=$4998, S4=$4998, S5=$4998, S6=$4998, S7=$4998, S8=$4998, S9=$4998, S10=$4998]
+
+**[2025-12-01 10:15:19]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:15:21]** Parameter changes: Bank A liquidity 0.05 -> 0.03, Bank B liquidity 0.05 -> 0.03
+
+**[2025-12-01 10:15:21]** Starting iteration 7 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:15:25]** Iteration 7 results: Mean=$3000.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$3000, S2=$3000, S3=$3000, S4=$3000, S5=$3000, S6=$3000, S7=$3000, S8=$3000, S9=$3000, S10=$3000]
+
+**[2025-12-01 10:17:36]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:17:38]** Parameter changes: Bank A liquidity 0.03 -> 0.02, Bank B liquidity 0.03 -> 0.02
+
+**[2025-12-01 10:17:38]** Starting iteration 8 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:17:42]** Iteration 8 results: Mean=$1998.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$1998, S2=$1998, S3=$1998, S4=$1998, S5=$1998, S6=$1998, S7=$1998, S8=$1998, S9=$1998, S10=$1998]
+
+**[2025-12-01 10:21:08]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:21:10]** Parameter changes: Bank A liquidity 0.02 -> 0.01, Bank B liquidity 0.02 -> 0.01
+
+**[2025-12-01 10:21:10]** Starting iteration 9 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:21:14]** Iteration 9 results: Mean=$1002.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$1002, S2=$1002, S3=$1002, S4=$1002, S5=$1002, S6=$1002, S7=$1002, S8=$1002, S9=$1002, S10=$1002]
+
+**[2025-12-01 10:21:15]** LLM call attempt 1 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 2s...
+
+**[2025-12-01 10:24:58]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:25:00]** Parameter changes: Bank A liquidity 0.01 -> 0.005, Bank B liquidity 0.01 -> 0.005
+
+**[2025-12-01 10:25:00]** Starting iteration 10 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:25:04]** Iteration 10 results: Mean=$498.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$498, S2=$498, S3=$498, S4=$498, S5=$498, S6=$498, S7=$498, S8=$498, S9=$498, S10=$498]
+
+**[2025-12-01 10:27:55]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:27:57]** Parameter changes: Bank A liquidity 0.005 -> 0.003, Bank B liquidity 0.005 -> 0.003
+
+**[2025-12-01 10:27:57]** Starting iteration 11 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:28:01]** Iteration 11 results: Mean=$300.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$300, S2=$300, S3=$300, S4=$300, S5=$300, S6=$300, S7=$300, S8=$300, S9=$300, S10=$300]
+
+**[2025-12-01 10:32:08]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:32:10]** Parameter changes: Bank A liquidity 0.003 -> 0.001, Bank B liquidity 0.003 -> 0.001
+
+**[2025-12-01 10:32:10]** Starting iteration 12 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:32:14]** Iteration 12 results: Mean=$102.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$102, S2=$102, S3=$102, S4=$102, S5=$102, S6=$102, S7=$102, S8=$102, S9=$102, S10=$102]
+
+**[2025-12-01 10:35:10]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:35:12]** Parameter changes: Bank A liquidity 0.001 -> 0.0005, Bank B liquidity 0.001 -> 0.0005
+
+**[2025-12-01 10:35:12]** Starting iteration 13 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:35:16]** Iteration 13 results: Mean=$48.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$48, S2=$48, S3=$48, S4=$48, S5=$48, S6=$48, S7=$48, S8=$48, S9=$48, S10=$48]
+
+**[2025-12-01 10:39:36]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:39:38]** Parameter changes: Bank A liquidity 0.0005 -> 0.00025, Bank B liquidity 0.0005 -> 0.00025
+
+**[2025-12-01 10:39:38]** Starting iteration 14 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 10:39:42]** Iteration 14 results: Mean=$24.00 ± $0.00, Settlement=100.0%, Per-seed: [S1=$24, S2=$24, S3=$24, S4=$24, S5=$24, S6=$24, S7=$24, S8=$24, S9=$24, S10=$24]
+
+**[2025-12-01 10:39:44]** LLM call attempt 1 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 2s...
+
+**[2025-12-01 10:39:47]** LLM call attempt 2 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 4s...
+
+**[2025-12-01 10:39:52]** LLM call attempt 3 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 8s...
+
+**[2025-12-01 10:44:30]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 10:44:32]** Parameter changes: Bank A liquidity 0.00025 -> 0.0001, Bank B liquidity 0.00025 -> 0.0001
+
+**[2025-12-01 10:44:32]** 
+### Final Results
+- **Iterations**: 15
+- **Converged**: False
+- **Duration**: 0:58:51
+- **Total Tokens**: 231,161
+- **Final Cost**: $24.00
+- **Settlement Rate**: 100.0%
+

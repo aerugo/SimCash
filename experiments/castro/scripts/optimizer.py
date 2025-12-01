@@ -569,7 +569,7 @@ Provide your response in this exact format:
                 if self.model.startswith("gpt-5"):
                     # GPT-5.x uses max_completion_tokens and reasoning_effort
                     # High reasoning effort needs large token budget for reasoning + output
-                    request_params["max_completion_tokens"] = 100000
+                    request_params["max_completion_tokens"] = 200000
                     request_params["reasoning_effort"] = self.reasoning_effort
                 elif self.model.startswith("o1") or self.model.startswith("o3"):
                     # o1/o3 models use max_completion_tokens
