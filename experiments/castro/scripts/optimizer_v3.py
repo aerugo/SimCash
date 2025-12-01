@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-LLM Policy Optimizer V2 - Enhanced for Stochastic Scenarios
+LLM Policy Optimizer V3 - Enhanced with Per-Tick Event Logs
 
-Key improvements over V1:
-1. Enhanced prompt with worst-case analysis and settlement focus
-2. Risk-adjusted metrics (mean + σ) to penalize variance
-3. Stricter convergence criteria for high-variance scenarios
-4. Per-category cost breakdown for better LLM reasoning
-5. Explicit failure mode feedback without revealing solutions
+Key improvements over V2:
+1. All V2 features (risk-adjusted metrics, failure rate tracking, etc.)
+2. Captures verbose simulation logs for best/worst seeds
+3. Parses logs into condensed per-tick event summaries
+4. Includes causal event logs in LLM prompt for deeper insight
+
+The goal: Help the LLM understand WHY certain seeds fail, not just THAT they fail.
 """
 
 import json
@@ -16,6 +17,7 @@ import tempfile
 import os
 import sys
 import time
+import re
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,16 +30,21 @@ from openai import OpenAI
 
 def _run_single_simulation(args: tuple) -> dict | None:
     """Standalone function for parallel simulation execution."""
-    scenario_path, simcash_root, seed = args
+    scenario_path, simcash_root, seed, capture_verbose = args
     try:
+        cmd = [
+            str(Path(simcash_root) / "api" / ".venv" / "bin" / "payment-sim"),
+            "run",
+            "--config", str(scenario_path),
+            "--seed", str(seed),
+        ]
+
+        # Use --quiet for JSON output (metrics), but also capture verbose if requested
+        if not capture_verbose:
+            cmd.append("--quiet")
+
         result = subprocess.run(
-            [
-                str(Path(simcash_root) / "api" / ".venv" / "bin" / "payment-sim"),
-                "run",
-                "--config", str(scenario_path),
-                "--seed", str(seed),
-                "--quiet"
-            ],
+            cmd,
             capture_output=True,
             text=True,
             cwd=str(simcash_root)
@@ -46,10 +53,37 @@ def _run_single_simulation(args: tuple) -> dict | None:
         if result.returncode != 0:
             return {"error": f"Simulation failed (seed {seed}): {result.stderr}", "seed": seed}
 
-        try:
-            output = json.loads(result.stdout)
-        except json.JSONDecodeError as e:
-            return {"error": f"Failed to parse output: {e}", "seed": seed}
+        if capture_verbose:
+            # Extract JSON from verbose output (last line or search for JSON block)
+            verbose_output = result.stdout
+
+            # Run again with --quiet to get clean JSON
+            quiet_result = subprocess.run(
+                [
+                    str(Path(simcash_root) / "api" / ".venv" / "bin" / "payment-sim"),
+                    "run",
+                    "--config", str(scenario_path),
+                    "--seed", str(seed),
+                    "--quiet"
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(simcash_root)
+            )
+
+            if quiet_result.returncode != 0:
+                return {"error": f"Simulation failed (seed {seed}): {quiet_result.stderr}", "seed": seed}
+
+            try:
+                output = json.loads(quiet_result.stdout)
+            except json.JSONDecodeError as e:
+                return {"error": f"Failed to parse output: {e}", "seed": seed}
+        else:
+            verbose_output = None
+            try:
+                output = json.loads(result.stdout)
+            except json.JSONDecodeError as e:
+                return {"error": f"Failed to parse output: {e}", "seed": seed}
 
         # Extract costs from output
         costs = output.get("costs", {})
@@ -82,10 +116,17 @@ def _run_single_simulation(args: tuple) -> dict | None:
             "bank_a_balance_end": agents.get("BANK_A", {}).get("final_balance", 0),
             "bank_b_balance_end": agents.get("BANK_B", {}).get("final_balance", 0),
             "cost_breakdown": cost_breakdown,
-            "raw_output": output
+            "raw_output": output,
+            "verbose_log": verbose_output
         }
     except Exception as e:
         return {"error": str(e), "seed": seed}
+
+
+def _run_verbose_simulation(args: tuple) -> dict | None:
+    """Run a single simulation with verbose output capture."""
+    scenario_path, simcash_root, seed = args
+    return _run_single_simulation((scenario_path, simcash_root, seed, True))
 
 
 @dataclass
@@ -100,6 +141,8 @@ class SimulationResult:
     bank_b_balance_end: float
     cost_breakdown: dict
     raw_output: dict
+    verbose_log: str | None = None
+    condensed_log: str | None = None
 
 
 @dataclass
@@ -128,8 +171,20 @@ class IterationResult:
     tokens_used: int = 0
 
 
-class CastroPolicyOptimizerV2:
-    """Enhanced LLM-based policy optimizer for stochastic scenarios."""
+class VerboseLogParser:
+    """Handles verbose simulation logs - now passes through full logs."""
+
+    def parse(self, verbose_log: str, seed: int) -> str:
+        """Return the full verbose log with a header. No condensation needed with 200k token limit."""
+        if not verbose_log:
+            return f"[No verbose log for seed {seed}]"
+
+        # Just add a header and return the full log
+        return f"=== Seed {seed} Full Event Log ===\n{verbose_log}"
+
+
+class CastroPolicyOptimizerV3:
+    """LLM-based policy optimizer with per-tick event log feedback."""
 
     def __init__(
         self,
@@ -143,8 +198,9 @@ class CastroPolicyOptimizerV2:
         model: str = "gpt-5.1",
         reasoning_effort: str = "high",
         simcash_root: str = "/home/user/SimCash",
-        convergence_threshold: float = 0.10,  # 10% for stochastic
-        convergence_window: int = 5,  # 5 consecutive stable iterations
+        convergence_threshold: float = 0.10,
+        convergence_window: int = 5,
+        verbose_seeds: int = 2,  # Number of best/worst seeds to capture verbose logs for
     ):
         self.scenario_path = Path(scenario_path)
         self.policy_a_path = Path(policy_a_path)
@@ -158,9 +214,13 @@ class CastroPolicyOptimizerV2:
         self.simcash_root = Path(simcash_root)
         self.convergence_threshold = convergence_threshold
         self.convergence_window = convergence_window
+        self.verbose_seeds = verbose_seeds
 
         # Initialize OpenAI client
         self.client = OpenAI()
+
+        # Log parser
+        self.log_parser = VerboseLogParser()
 
         self.history: list[IterationResult] = []
         self.total_tokens = 0
@@ -189,8 +249,9 @@ class CastroPolicyOptimizerV2:
         """Run simulations with multiple seeds in parallel and aggregate results."""
         import statistics
 
+        # First pass: Run all simulations without verbose output (faster)
         args_list = [
-            (str(self.scenario_path), str(self.simcash_root), seed)
+            (str(self.scenario_path), str(self.simcash_root), seed, False)
             for seed in seeds
         ]
 
@@ -217,7 +278,8 @@ class CastroPolicyOptimizerV2:
                             bank_a_balance_end=result_dict["bank_a_balance_end"],
                             bank_b_balance_end=result_dict["bank_b_balance_end"],
                             cost_breakdown=result_dict.get("cost_breakdown", {}),
-                            raw_output=result_dict["raw_output"]
+                            raw_output=result_dict["raw_output"],
+                            verbose_log=None
                         ))
                     else:
                         error_msg = result_dict.get("error", "Unknown error") if result_dict else "No result"
@@ -230,6 +292,46 @@ class CastroPolicyOptimizerV2:
         if not results:
             raise RuntimeError(f"All simulations failed. Failures: {failed_seeds}")
 
+        # Sort by cost to identify best/worst
+        results.sort(key=lambda r: r.total_cost)
+
+        # Identify seeds needing verbose logs (worst N and best N)
+        worst_seeds = [r.seed for r in results[-self.verbose_seeds:]]
+        best_seeds = [r.seed for r in results[:self.verbose_seeds]]
+        verbose_target_seeds = set(worst_seeds + best_seeds)
+
+        print(f"  Capturing verbose logs for seeds: {sorted(verbose_target_seeds)}")
+
+        # Second pass: Run verbose simulations for selected seeds
+        verbose_args = [
+            (str(self.scenario_path), str(self.simcash_root), seed)
+            for seed in verbose_target_seeds
+        ]
+
+        with ProcessPoolExecutor(max_workers=min(len(verbose_args), 4)) as executor:
+            future_to_seed = {
+                executor.submit(_run_verbose_simulation, args): args[2]
+                for args in verbose_args
+            }
+
+            for future in as_completed(future_to_seed):
+                seed = future_to_seed[future]
+                try:
+                    result_dict = future.result()
+                    if result_dict and "error" not in result_dict and result_dict.get("verbose_log"):
+                        # Update the result with verbose log
+                        for r in results:
+                            if r.seed == seed:
+                                r.verbose_log = result_dict["verbose_log"]
+                                r.condensed_log = self.log_parser.parse(
+                                    result_dict["verbose_log"],
+                                    seed
+                                )
+                                break
+                except Exception as e:
+                    print(f"    Warning: Verbose capture for seed {seed} failed: {e}")
+
+        # Sort by seed for consistent ordering
         results.sort(key=lambda r: r.seed)
 
         costs = [r.total_cost for r in results]
@@ -247,7 +349,7 @@ class CastroPolicyOptimizerV2:
         return AggregatedMetrics(
             total_cost_mean=mean_cost,
             total_cost_std=std_cost,
-            risk_adjusted_cost=mean_cost + std_cost,  # Penalize variance
+            risk_adjusted_cost=mean_cost + std_cost,
             bank_a_cost_mean=statistics.mean(a_costs),
             bank_b_cost_mean=statistics.mean(b_costs),
             settlement_rate_mean=statistics.mean(rates),
@@ -263,7 +365,7 @@ class CastroPolicyOptimizerV2:
         policy_b: dict,
         metrics: AggregatedMetrics
     ) -> str:
-        """Build enhanced prompt with stochastic-focused feedback."""
+        """Build enhanced prompt with per-tick event logs for best/worst seeds."""
 
         # History table with risk-adjusted costs
         history_rows = []
@@ -282,9 +384,10 @@ class CastroPolicyOptimizerV2:
         sorted_results = sorted(metrics.individual_results, key=lambda r: r.total_cost, reverse=True)
         for r in sorted_results:
             status = "FAILED" if r.settlement_rate < 1.0 else "OK"
-            unsettled = int((1 - r.settlement_rate) * 10)  # Approximate unsettled count
+            unsettled = int((1 - r.settlement_rate) * 10)
+            has_log = "📋" if r.condensed_log else ""
             seed_rows.append(
-                f"| {r.seed} | ${r.total_cost:.0f} | {r.settlement_rate*100:.0f}% | {status} | ~{unsettled} unsettled |"
+                f"| {r.seed} | ${r.total_cost:.0f} | {r.settlement_rate*100:.0f}% | {status} | ~{unsettled} unsettled | {has_log} |"
             )
         seed_table = "\n".join(seed_rows)
 
@@ -325,6 +428,9 @@ Focus on reducing collateral and delay costs while maintaining perfect settlemen
 """
         else:
             cost_breakdown = ""
+
+        # ===== NEW: Per-tick event logs for best/worst seeds =====
+        event_logs_section = self._build_event_logs_section(metrics)
 
         return f"""# SimCash Stochastic Scenario Optimization - Iteration {len(self.history)}
 
@@ -385,9 +491,11 @@ This often exceeds all other costs combined.
 {cost_breakdown}
 
 ### Per-Seed Results (sorted by cost, worst first)
-| Seed | Total Cost | Settlement | Status | Notes |
-|------|------------|------------|--------|-------|
+| Seed | Total Cost | Settlement | Status | Notes | Log |
+|------|------------|------------|--------|-------|-----|
 {seed_table}
+
+{event_logs_section}
 
 ## Iteration History
 | Iter | Liquidity | Mean ± Std | Risk-Adj | Fail% | Settlement |
@@ -409,11 +517,14 @@ Policies use SimCash JSON DSL:
 
 Analyze the results and propose improved policies. Think step by step:
 
-1. **Settlement Analysis**: Are there settlement failures? If so, this is the PRIMARY problem to solve.
+1. **Event Log Analysis**: Review the per-tick event logs below. What patterns cause failures?
+   - Are payments arriving in bursts that overwhelm liquidity?
+   - Are there timing mismatches between inflows and outflows?
+   - Is liquidity being exhausted at critical moments?
 
-2. **Variance Analysis**: Is the cost variance high? What causes the worst seeds to perform poorly?
+2. **Settlement Analysis**: Are there settlement failures? If so, this is the PRIMARY problem to solve.
 
-3. **Cost Balance**: Once settlement is 100%, how can we balance collateral vs delay costs?
+3. **Variance Analysis**: Is the cost variance high? What causes the worst seeds to perform poorly?
 
 4. **Policy Changes**: Propose specific changes to parameters or tree structure.
 
@@ -421,9 +532,9 @@ Analyze the results and propose improved policies. Think step by step:
 
 ### Analysis
 [Your 2-3 paragraph analysis focusing on:
+- What patterns in the event logs explain the failures?
 - Why are some seeds failing? (if any)
-- What is causing the cost variance?
-- What is the dominant cost component?]
+- What specific timing or liquidity issues need to be addressed?]
 
 ### Bank A Policy
 ```json
@@ -443,6 +554,41 @@ Analyze the results and propose improved policies. Think step by step:
 - Do NOT use ellipsis (...) or placeholders
 - Focus on achieving 100% settlement FIRST, then optimize costs
 """
+
+    def _build_event_logs_section(self, metrics: AggregatedMetrics) -> str:
+        """Build the per-tick event logs section for best/worst seeds."""
+
+        # Sort by cost
+        sorted_results = sorted(metrics.individual_results, key=lambda r: r.total_cost)
+
+        # Get best and worst seeds with logs
+        worst_with_logs = [r for r in sorted_results if r.condensed_log][-self.verbose_seeds:]
+        best_with_logs = [r for r in sorted_results if r.condensed_log][:self.verbose_seeds]
+
+        sections = []
+
+        if worst_with_logs:
+            sections.append("## 📉 Worst Seed Event Logs (study these for failure patterns)")
+            for r in worst_with_logs:
+                status = "FAILED" if r.settlement_rate < 1.0 else "OK"
+                sections.append(f"\n### Seed {r.seed} - Cost: ${r.total_cost:.0f} ({r.settlement_rate*100:.0f}% settled) - {status}")
+                sections.append("```")
+                sections.append(r.condensed_log or "[No log available]")
+                sections.append("```")
+
+        if best_with_logs:
+            sections.append("\n## 📈 Best Seed Event Logs (study these for success patterns)")
+            for r in best_with_logs:
+                status = "OK" if r.settlement_rate >= 1.0 else "PARTIAL"
+                sections.append(f"\n### Seed {r.seed} - Cost: ${r.total_cost:.0f} ({r.settlement_rate*100:.0f}% settled) - {status}")
+                sections.append("```")
+                sections.append(r.condensed_log or "[No log available]")
+                sections.append("```")
+
+        if not sections:
+            return "## Event Logs\n[No verbose logs captured for this iteration]"
+
+        return "\n".join(sections)
 
     def parse_policies(self, response: str) -> tuple[dict, dict]:
         """Parse two policy JSONs from LLM response."""
@@ -545,14 +691,14 @@ Analyze the results and propose improved policies. Think step by step:
 
         # Enhanced logging with failure info
         failed_count = sum(1 for r in metrics.individual_results if r.settlement_rate < 1.0)
-        per_seed_costs = [f"S{r.seed}=${r.total_cost:.0f}" for r in metrics.individual_results]
-        per_seed_summary = ", ".join(per_seed_costs)
+        verbose_count = sum(1 for r in metrics.individual_results if r.condensed_log)
 
         self.log_to_notes(
             f"Iteration {iteration_num}: Mean=${metrics.total_cost_mean:.0f} ± ${metrics.total_cost_std:.0f}, "
             f"RiskAdj=${metrics.risk_adjusted_cost:.0f}, "
             f"Failures={failed_count}/{self.num_seeds}, "
-            f"Settlement={metrics.settlement_rate_mean*100:.1f}%"
+            f"Settlement={metrics.settlement_rate_mean*100:.1f}%, "
+            f"VerboseLogs={verbose_count}"
         )
 
         prompt = self.build_prompt(policy_a, policy_b, metrics)
@@ -568,14 +714,13 @@ Analyze the results and propose improved policies. Think step by step:
                     "messages": [
                         {
                             "role": "system",
-                            "content": "You are an expert financial systems researcher optimizing payment system policies for STOCHASTIC scenarios. Focus on ROBUSTNESS - policies must work across all random seeds, not just the average case."
+                            "content": "You are an expert financial systems researcher optimizing payment system policies for STOCHASTIC scenarios. Focus on ROBUSTNESS - policies must work across all random seeds, not just the average case. Pay special attention to the per-tick event logs to understand causality."
                         },
                         {"role": "user", "content": prompt}
                     ],
                 }
 
                 if self.model.startswith("gpt-5"):
-                    # GPT-5.1 supports up to 128k completion tokens
                     request_params["max_completion_tokens"] = 128000
                     request_params["reasoning_effort"] = self.reasoning_effort
                 elif self.model.startswith("o1") or self.model.startswith("o3"):
@@ -670,7 +815,7 @@ Analyze the results and propose improved policies. Think step by step:
         # Check variance of recent costs
         if len(recent_costs) > 1:
             variance = statistics.stdev(recent_costs) / max(statistics.mean(recent_costs), 1)
-            if variance > 0.15:  # Higher tolerance for stochastic
+            if variance > 0.15:
                 return False
 
         # Check if improvement is minimal
@@ -684,23 +829,25 @@ Analyze the results and propose improved policies. Think step by step:
         self.start_time = datetime.now()
 
         print(f"=" * 60)
-        print(f"Castro Policy Optimization V2 (Stochastic-Enhanced)")
+        print(f"Castro Policy Optimization V3 (Per-Tick Event Logs)")
         print(f"=" * 60)
         print(f"  Scenario: {self.scenario_path}")
         print(f"  Model: {self.model} (reasoning={self.reasoning_effort})")
         print(f"  Max iterations: {self.max_iterations}")
         print(f"  Seeds per iteration: {self.num_seeds}")
+        print(f"  Verbose logs for: {self.verbose_seeds} best + {self.verbose_seeds} worst seeds")
         print(f"  Convergence: {self.convergence_threshold*100:.0f}% over {self.convergence_window} iterations")
         print()
 
         self.log_to_notes(
-            f"\n---\n## Experiment 2b Run: {self.scenario_path.name}\n"
+            f"\n---\n## Experiment 2c Run: {self.scenario_path.name}\n"
             f"**Model**: {self.model}\n"
             f"**Reasoning**: {self.reasoning_effort}\n"
             f"**Max Iterations**: {self.max_iterations}\n"
             f"**Seeds**: {self.num_seeds}\n"
+            f"**Verbose Logs**: {self.verbose_seeds} best + {self.verbose_seeds} worst\n"
             f"**Convergence**: {self.convergence_threshold*100:.0f}% over {self.convergence_window} iterations\n"
-            f"**Enhanced**: Stochastic-focused prompt with risk-adjusted metrics\n"
+            f"**Enhanced**: Per-tick event logs for causal understanding\n"
         )
 
         for i in range(self.max_iterations):
@@ -727,7 +874,8 @@ Analyze the results and propose improved policies. Think step by step:
                     "bank_a_cost": r.bank_a_cost,
                     "bank_b_cost": r.bank_b_cost,
                     "settlement_rate": r.settlement_rate,
-                    "cost_breakdown": r.cost_breakdown
+                    "cost_breakdown": r.cost_breakdown,
+                    "has_verbose_log": r.condensed_log is not None
                 }
                 for r in metrics.individual_results
             ]
@@ -764,7 +912,7 @@ Analyze the results and propose improved policies. Think step by step:
             "experiment": str(self.scenario_path),
             "model": self.model,
             "reasoning_effort": self.reasoning_effort,
-            "version": "v2_stochastic_enhanced",
+            "version": "v3_event_logs",
             "total_iterations": len(self.history),
             "converged": self.has_converged(),
             "duration": duration_str,
@@ -790,7 +938,7 @@ Analyze the results and propose improved policies. Think step by step:
             json.dump(final_results, f, indent=2)
 
         self.log_to_notes(
-            f"\n### Final Results (V2 Stochastic-Enhanced)\n"
+            f"\n### Final Results (V3 Event Logs)\n"
             f"- **Iterations**: {len(self.history)}\n"
             f"- **Converged**: {self.has_converged()}\n"
             f"- **Duration**: {duration_str}\n"
@@ -802,7 +950,7 @@ Analyze the results and propose improved policies. Think step by step:
         )
 
         print(f"\n{'=' * 60}")
-        print(f"Optimization Complete (V2 Stochastic-Enhanced)")
+        print(f"Optimization Complete (V3 Event Logs)")
         print(f"{'=' * 60}")
         print(f"  Iterations: {len(self.history)}")
         print(f"  Duration: {duration_str}")
@@ -818,7 +966,7 @@ Analyze the results and propose improved policies. Think step by step:
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Castro Policy Optimizer V2 (Stochastic-Enhanced)")
+    parser = argparse.ArgumentParser(description="Castro Policy Optimizer V3 (Per-Tick Event Logs)")
     parser.add_argument("--scenario", required=True, help="Path to scenario YAML")
     parser.add_argument("--policy-a", required=True, help="Path to Bank A policy JSON")
     parser.add_argument("--policy-b", required=True, help="Path to Bank B policy JSON")
@@ -830,6 +978,8 @@ def main():
     parser.add_argument("--reasoning", default="high",
                        choices=["none", "low", "medium", "high"],
                        help="Reasoning effort level")
+    parser.add_argument("--verbose-seeds", type=int, default=2,
+                       help="Number of best/worst seeds to capture verbose logs for")
     parser.add_argument("--convergence-threshold", type=float, default=0.10,
                        help="Convergence threshold (default 10%)")
     parser.add_argument("--convergence-window", type=int, default=5,
@@ -837,7 +987,7 @@ def main():
 
     args = parser.parse_args()
 
-    optimizer = CastroPolicyOptimizerV2(
+    optimizer = CastroPolicyOptimizerV3(
         scenario_path=args.scenario,
         policy_a_path=args.policy_a,
         policy_b_path=args.policy_b,
@@ -847,6 +997,7 @@ def main():
         max_iterations=args.max_iter,
         model=args.model,
         reasoning_effort=args.reasoning,
+        verbose_seeds=args.verbose_seeds,
         convergence_threshold=args.convergence_threshold,
         convergence_window=args.convergence_window
     )
