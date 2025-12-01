@@ -1418,4 +1418,87 @@ With unlimited credit:
 - Policies: `policies/exp2d_bank_a.json`, `policies/exp2d_bank_b.json`
 - Design Doc: `docs/experiment_2d_design.md`
 
-### Status: Ready to Run
+### Status: Running (Interim Results)
+
+**Experiment 2d validates the Castro-equivalent setup!**
+
+**Key Findings (First 3 Iterations):**
+| Iteration | Mean Cost | Reduction | Settlement | Failures |
+|-----------|-----------|-----------|------------|----------|
+| 1 | $9.96B | baseline | 100% | 0/10 |
+| 2 | $7.97B | -20% | 100% | 0/10 |
+| 3 | $5.98B | -40% | 100% | 0/10 |
+
+**Validation:**
+- ✅ 100% settlement rate (as expected with unlimited credit)
+- ✅ 0 failures (the "failure" problem from Exp 2/2b/2c is eliminated)
+- ✅ LLM successfully optimizing cost trade-offs
+- ✅ Significant cost reduction in just 3 iterations
+
+**Technical Note:** Intermittent API errors (TLS certificate issues) causing delays but experiment continues with retry logic.
+
+**[2025-12-01 13:25:03]** 
+---
+## Experiment 2c Run: castro_12period_castro_equiv.yaml
+**Model**: gpt-5.1
+**Reasoning**: high
+**Max Iterations**: 20
+**Seeds**: 10
+**Verbose Logs**: 2 best + 2 worst
+**Convergence**: 5% over 3 iterations
+**Enhanced**: Per-tick event logs for causal understanding
+
+
+**[2025-12-01 13:25:03]** Starting iteration 0 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 13:26:57]** 
+---
+## Experiment 2c Run: castro_12period_castro_equiv.yaml
+**Model**: gpt-5.1
+**Reasoning**: high
+**Max Iterations**: 20
+**Seeds**: 10
+**Verbose Logs**: 2 best + 2 worst
+**Convergence**: 5% over 3 iterations
+**Enhanced**: Per-tick event logs for causal understanding
+
+
+**[2025-12-01 13:26:57]** Starting iteration 0 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 13:27:05]** Iteration 0: Mean=$9960264549 ± $224377, RiskAdj=$9960488927, Failures=0/10, Settlement=100.0%, VerboseLogs=4
+
+**[2025-12-01 13:30:56]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 13:30:59]** Parameter changes: Bank A liquidity 0.5 -> 0.4, Bank B liquidity 0.5 -> 0.4
+
+**[2025-12-01 13:30:59]** Starting iteration 1 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 13:31:06]** Iteration 1: Mean=$7968264549 ± $224377, RiskAdj=$7968488927, Failures=0/10, Settlement=100.0%, VerboseLogs=4
+
+**[2025-12-01 13:36:09]** LLM call attempt 1 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 2s...
+
+**[2025-12-01 13:36:13]** LLM call attempt 2 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 4s...
+
+**[2025-12-01 13:36:18]** LLM call attempt 3 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 8s...
+
+**[2025-12-01 13:39:40]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 13:39:42]** Parameter changes: Bank A liquidity 0.4 -> 0.3, Bank B liquidity 0.4 -> 0.3
+
+**[2025-12-01 13:39:42]** Starting iteration 2 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 13:39:49]** Iteration 2: Mean=$5976264549 ± $224377, RiskAdj=$5976488927, Failures=0/10, Settlement=100.0%, VerboseLogs=4
+
+**[2025-12-01 13:44:23]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 13:44:25]** Parameter changes: Bank A liquidity 0.3 -> 0.2, Bank B liquidity 0.3 -> 0.2
+
+**[2025-12-01 13:44:25]** Starting iteration 3 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 13:44:33]** Iteration 3: Mean=$3984264549 ± $224377, RiskAdj=$3984488927, Failures=0/10, Settlement=100.0%, VerboseLogs=4
+
+**[2025-12-01 13:54:38]** LLM call attempt 1 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 2s...
+
+**[2025-12-01 13:54:42]** LLM call attempt 2 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 4s...
+
+**[2025-12-01 13:59:49]** LLM call attempt 3 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 8s...
