@@ -1315,3 +1315,29 @@ python experiments/castro/scripts/optimizer_v2.py \
 **[2025-12-01 11:59:02]** Starting iteration 1 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 **[2025-12-01 11:59:09]** Iteration 1: Mean=$358626 ± $109104, RiskAdj=$467730, Failures=4/10, Settlement=93.7%, VerboseLogs=4
+
+**[2025-12-01 12:08:12]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 12:08:14]** Parameter changes: Bank A liquidity 0.9 -> 1.0, Bank B liquidity 0.9 -> 1.0
+
+**[2025-12-01 12:08:14]** Starting iteration 2 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 12:08:22]** Iteration 2: Mean=$383611 ± $117093, RiskAdj=$500705, Failures=4/10, Settlement=95.0%, VerboseLogs=4
+
+**[2025-12-01 12:13:09]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 12:13:11]** Parameter changes: Bank A liquidity 1.0 -> 1.0, Bank B liquidity 1.0 -> 1.0
+
+**[2025-12-01 12:13:11]** Starting iteration 3 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 12:13:19]** Iteration 3: Mean=$384821 ± $116030, RiskAdj=$500851, Failures=4/10, Settlement=95.0%, VerboseLogs=4
+
+**[2025-12-01 12:28:16]** LLM call attempt 1 failed: Error code: 500 - {'error': {'message': 'The server had an error while processing your request. Sorry about that!', 'type': 'server_error', 'param': None, 'code': None}}. Retrying in 2s...
+
+**[2025-12-01 12:36:25]** Successfully parsed new policies from LLM response
+
+**[2025-12-01 12:36:27]** Parameter changes: Bank A liquidity 1.0 -> 1.0, Bank B liquidity 1.0 -> 1.0
+
+**[2025-12-01 12:36:27]** Starting iteration 4 with seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+**[2025-12-01 12:36:35]** Iteration 4: Mean=$409819 ± $129296, RiskAdj=$539115, Failures=4/10, Settlement=95.0%, VerboseLogs=4
