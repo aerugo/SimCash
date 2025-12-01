@@ -1,0 +1,3 @@
+# Ignore experiment results (large JSON files)
+*.json
+llm_response_*.txt
