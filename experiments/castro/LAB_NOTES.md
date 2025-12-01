@@ -1504,3 +1504,136 @@ With unlimited credit:
 **[2025-12-01 13:59:49]** LLM call attempt 3 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 8s...
 
 **[2025-12-01 14:10:03]** LLM call attempt 4 failed: upstream connect error or disconnect/reset before headers. reset reason: remote connection failure, transport failure reason: TLS_error:|268435581:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED:TLS_error_end. Retrying in 16s...
+
+---
+
+## Cost Calculation Investigation
+
+**Date**: 2025-12-01
+**Issue**: Observed costs (~$40-100M) are ~1000-5000x higher than expected (~$30k)
+
+### Hypothesis
+
+The cost parameters we set may be interpreted differently than expected, or there may be
+default parameters we haven't overridden that are contributing to costs.
+
+### Parameter Comparison
+
+| Parameter | Default | Our Config | Ratio |
+|-----------|---------|------------|-------|
+| `overdraft_bps_per_tick` | 0.001 | 333 | 333,000x |
+| `collateral_cost_per_tick_bps` | 0.0002 | 83 | 415,000x |
+| `delay_cost_per_tick_per_cent` | 0.0001 | 0.00017 | 1.7x |
+| `eod_penalty_per_transaction` | 10,000 | 0 | 0 |
+| `deadline_penalty` | 50,000 | 0 | 0 |
+| `split_friction_cost` | 1,000 | 0 | 0 |
+| `overdue_delay_multiplier` | 5.0 | 1.0 | 0.2x |
+
+### Expected Cost Calculation (Manual)
+
+Given the simulation output:
+- ~16 transactions at ~$100-150k each
+- Bank B ends at -$20k balance (mild overdraft)
+- Collateral posted: ~$200k (40% of $500k capacity)
+
+**Expected overdraft cost** (for -$20k over 12 ticks):
+```
+2,000,000 cents × (333/10,000) × 12 ticks = $7,992
+```
+
+**Expected collateral cost** (for $200k over 12 ticks):
+```
+20,000,000 cents × (83/10,000) × 12 ticks = $19,920
+```
+
+**Expected delay cost** (rough estimate):
+```
+~$2,000
+```
+
+**Total expected**: ~$30,000
+
+**Actual observed**: ~$40,000,000 (from iteration results)
+
+**Discrepancy**: ~1,300x
+
+### Diagnostic Plan
+
+1. Run simulation with `--verbose` to see tick-by-tick events
+2. Check if cost breakdown components sum to total
+3. Create minimal test case with single known transaction
+4. Trace Rust code to verify calculation formulas
+5. Check if there's a units mismatch (e.g., dollars vs cents)
+
+### Diagnostic Test 1: Verbose Event Inspection
+
+
+### Diagnostic Test 1 Results: ROOT CAUSE FOUND!
+
+**Discovery**: The `max_collateral_capacity` config field is **IGNORED**.
+
+From `backend/src/models/agent.rs:1262`:
+```rust
+pub fn max_collateral_capacity(&self) -> i64 {
+    // Heuristic: 10x unsecured overdraft capacity
+    self.unsecured_cap * 10
+}
+```
+
+**The Problem**:
+- We set `unsecured_cap: 10,000,000,000` ($100M) for unlimited credit
+- This makes `max_collateral_capacity = 10 × $100M = $1 BILLION`
+- Policy posts 20% of capacity = **$200 MILLION** in collateral!
+- Collateral cost: $200M × 83bps × 12 ticks = **$19.9M per day**
+
+**Expected vs Actual**:
+| Metric | We Intended | What Happened |
+|--------|-------------|---------------|
+| max_collateral_capacity | $500k | $1B (ignored our config!) |
+| Posted collateral | $200k | $200M |
+| Collateral cost/day | $19,920 | $19,920,000 |
+
+**Root Cause**: Config field `max_collateral_capacity` doesn't exist in FFI parser - it's computed from `unsecured_cap`.
+
+### Fix Options
+
+1. **Adjust policy fraction**: Set `initial_liquidity_fraction` much smaller
+   - For $200k with $1B capacity: fraction = 0.0002
+   
+2. **Modify Rust code**: Add explicit `max_collateral_capacity` setter
+
+3. **Reduce unsecured_cap**: But this breaks unlimited credit
+
+**Recommended Fix**: Option 1 - Adjust the fraction to compensate for the inflated capacity.
+
+For Castro-equivalent with $500k max collateral capacity intention:
+- Target posted collateral: 50% × $500k = $250k
+- Actual capacity: $1B
+- Required fraction: $250k / $1B = 0.00025
+
+
+### Fix Applied: Experiment 2d-fixed
+
+**Files created**:
+- `configs/castro_12period_castro_equiv_fixed.yaml`
+- `policies/exp2d_fixed_bank_a.json`
+- `policies/exp2d_fixed_bank_b.json`
+
+**Key change**: Set `initial_liquidity_fraction: 0.00025` to compensate for the inflated max_collateral_capacity.
+
+**Results**:
+| Metric | Before Fix | After Fix |
+|--------|------------|-----------|
+| Posted Collateral | $200,000,000 | $250,000 |
+| Collateral cost/tick | $1,660,000 | $2,075 |
+| Total cost (seed 42) | ~$40,000,000 | $54,669 |
+
+**Cost breakdown verification** (seed 42):
+- Collateral: $250k × 83bps × 12 ticks × 2 banks ≈ $49,800
+- Overdraft: ~$5,000 (varies with intraday balance)
+- Total: ~$55,000 ✓
+
+**Conclusion**: The cost discrepancy was caused by `max_collateral_capacity` being computed as `10 × unsecured_cap` instead of being read from config. With corrected fraction, costs are now in the expected range and comparable to Castro et al.
+
+---
+
