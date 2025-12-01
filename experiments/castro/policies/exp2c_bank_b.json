@@ -1,18 +1,22 @@
 {
   "version": "1.0",
-  "policy_id": "castro_exp2c_bankB_liquidity_heavy_robust_v1",
-  "description": "Robust stochastic policy for Experiment 2c (Bank B): mirror of Bank A\u2019s policy with high initial liquidity and late-day buffer relaxation.",
+  "policy_id": "castro_exp2c_bankB_liquidity_full_robust_v4",
+  "description": "Robust stochastic policy for Experiment 2c (Bank B): post full initial liquidity but use slightly stricter buffers than Bank A early in the day, combined with an expanded urgency window and earlier, more aggressive late-day release to prevent EOD settlement failures even when Bank B is a large net payer.",
   "parameters": {
-    "initial_liquidity_fraction": 0.9,
-    "urgency_threshold": 3.0,
-    "liquidity_buffer_factor": 1.0,
-    "late_day_tick_threshold": 9.0,
-    "late_day_liquidity_factor": 0.9
+    "initial_liquidity_fraction": 1.0,
+    "urgency_threshold": 5.0,
+    "mid_day_tick_threshold": 5.0,
+    "late_day_tick_threshold": 8.0,
+    "final_flush_tick_threshold": 10.0,
+    "early_day_liquidity_factor": 1.6,
+    "mid_day_liquidity_factor": 1.15,
+    "late_day_liquidity_factor": 0.85,
+    "liquidity_buffer_factor": 1.0
   },
   "strategic_collateral_tree": {
     "type": "condition",
     "node_id": "SC1_tick_zero",
-    "description": "At the start of the day, post a high fraction of available collateral to ensure robustness under one-sided net flows.",
+    "description": "At the start of the day, post the full available collateral to ensure robustness under one-sided net flows, especially given Bank B's typical role as net payer.",
     "condition": {
       "op": "==",
       "left": {
@@ -24,7 +28,7 @@
     },
     "on_true": {
       "type": "action",
-      "node_id": "SC2_post_initial_high",
+      "node_id": "SC2_post_initial_full",
       "action": "PostCollateral",
       "parameters": {
         "amount": {
@@ -39,7 +43,7 @@
           }
         },
         "reason": {
-          "value": "InitialHighAllocation_Exp2c_Robust"
+          "value": "InitialFullAllocation_Exp2c_Robust_v4"
         }
       }
     },
@@ -52,67 +56,59 @@
   },
   "payment_tree": {
     "type": "condition",
-    "node_id": "P1_is_urgent",
-    "description": "First, check if payment is within the urgency window relative to its deadline.",
+    "node_id": "P0_final_flush",
+    "description": "From tick 10 onward, release any remaining payments regardless of liquidity to minimise EOD settlement failures, even when Bank B is a large net payer.",
     "condition": {
-      "op": "<=",
+      "op": ">=",
       "left": {
-        "field": "ticks_to_deadline"
+        "field": "system_tick_in_day"
       },
       "right": {
-        "param": "urgency_threshold"
+        "param": "final_flush_tick_threshold"
       }
     },
     "on_true": {
       "type": "action",
-      "node_id": "P2_release_urgent",
+      "node_id": "P0A_release_final_flush",
       "action": "Release",
-      "description": "Payment is urgent, release immediately to avoid EOD penalty."
+      "description": "Final-phase flush (ticks 10\u201312): always release to minimise the probability of unsettled payments."
     },
     "on_false": {
       "type": "condition",
-      "node_id": "P3_has_liquidity_normal",
-      "description": "For non-urgent payments, check if liquidity is sufficient with the standard buffer.",
+      "node_id": "P1_is_urgent",
+      "description": "If payment is within the expanded urgency window relative to its deadline, release immediately.",
       "condition": {
-        "op": ">=",
+        "op": "<=",
         "left": {
-          "field": "effective_liquidity"
+          "field": "ticks_to_deadline"
         },
         "right": {
-          "compute": {
-            "op": "*",
-            "left": {
-              "field": "remaining_amount"
-            },
-            "right": {
-              "param": "liquidity_buffer_factor"
-            }
-          }
+          "param": "urgency_threshold"
         }
       },
       "on_true": {
         "type": "action",
-        "node_id": "P4_release_with_normal_buffer",
+        "node_id": "P2_release_urgent",
         "action": "Release",
-        "description": "Liquidity is sufficient with standard buffer, release payment."
+        "description": "Payment is urgent (within 5 ticks of deadline); release immediately to avoid missing its deadline."
       },
       "on_false": {
         "type": "condition",
-        "node_id": "P5_late_in_day",
-        "description": "If we are late in the day, consider relaxing the liquidity buffer to avoid EOD penalties.",
+        "node_id": "P3_is_early_day",
+        "description": "For non-urgent payments, branch on time of day: early, mid, or late.",
         "condition": {
-          "op": ">=",
+          "op": "<",
           "left": {
             "field": "system_tick_in_day"
           },
           "right": {
-            "param": "late_day_tick_threshold"
+            "param": "mid_day_tick_threshold"
           }
         },
         "on_true": {
           "type": "condition",
-          "node_id": "P6_has_liquidity_late_day",
-          "description": "Late in the day: use a slightly more aggressive buffer to push payments out if possible.",
+          "node_id": "P4_has_liquidity_early",
+          "description": "Early in the day: Bank B, as net payer, uses a strict but slightly relaxed buffer relative to v3 to avoid premature depletion while still reducing excessive holding.",
           "condition": {
             "op": ">=",
             "left": {
@@ -125,29 +121,105 @@
                   "field": "remaining_amount"
                 },
                 "right": {
-                  "param": "late_day_liquidity_factor"
+                  "param": "early_day_liquidity_factor"
                 }
               }
             }
           },
           "on_true": {
             "type": "action",
-            "node_id": "P7_release_with_late_buffer",
+            "node_id": "P5_release_early",
             "action": "Release",
-            "description": "Late in the day and liquidity is sufficient under relaxed buffer: release to prevent EOD penalty."
+            "description": "Early in the day and liquidity is ample under the strict buffer; release payment."
           },
           "on_false": {
             "type": "action",
-            "node_id": "P8_hold_insufficient_even_late",
+            "node_id": "P6_hold_early",
             "action": "Hold",
-            "description": "Even under relaxed conditions, liquidity is insufficient; must hold."
+            "description": "Early in the day and liquidity is not ample; hold non-urgent payment to preserve liquidity for later obligations."
           }
         },
         "on_false": {
-          "type": "action",
-          "node_id": "P9_hold_preserve_liquidity",
-          "action": "Hold",
-          "description": "Not yet urgent and not late in the day; hold to preserve liquidity for future obligations."
+          "type": "condition",
+          "node_id": "P7_is_late_day",
+          "description": "If not early, check whether we are in the late-day window.",
+          "condition": {
+            "op": ">=",
+            "left": {
+              "field": "system_tick_in_day"
+            },
+            "right": {
+              "param": "late_day_tick_threshold"
+            }
+          },
+          "on_true": {
+            "type": "condition",
+            "node_id": "P8_has_liquidity_late",
+            "description": "Late in the day (ticks 8\u20139): relax the buffer substantially so that most payments are pushed out if at all feasible, to avoid carrying obligations into the final flush.",
+            "condition": {
+              "op": ">=",
+              "left": {
+                "field": "effective_liquidity"
+              },
+              "right": {
+                "compute": {
+                  "op": "*",
+                  "left": {
+                    "field": "remaining_amount"
+                  },
+                  "right": {
+                    "param": "late_day_liquidity_factor"
+                  }
+                }
+              }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "P9_release_late",
+              "action": "Release",
+              "description": "Late in the day and liquidity is sufficient under the relaxed buffer; release."
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "P10_hold_even_late",
+              "action": "Hold",
+              "description": "Even late in the day liquidity is insufficient under the relaxed buffer; hold and rely on the urgent rule or the final flush window (from tick 10)."
+            }
+          },
+          "on_false": {
+            "type": "condition",
+            "node_id": "P11_has_liquidity_mid",
+            "description": "Mid-day (ticks 5\u20137): use an intermediate buffer, now closer to neutral, to smooth release while limiting tail risk from large net outflows.",
+            "condition": {
+              "op": ">=",
+              "left": {
+                "field": "effective_liquidity"
+              },
+              "right": {
+                "compute": {
+                  "op": "*",
+                  "left": {
+                    "field": "remaining_amount"
+                  },
+                  "right": {
+                    "param": "mid_day_liquidity_factor"
+                  }
+                }
+              }
+            },
+            "on_true": {
+              "type": "action",
+              "node_id": "P12_release_mid",
+              "action": "Release",
+              "description": "Mid-day and liquidity is sufficient with the intermediate buffer; release."
+            },
+            "on_false": {
+              "type": "action",
+              "node_id": "P13_hold_mid",
+              "action": "Hold",
+              "description": "Mid-day and liquidity is tight; hold non-urgent payment, but only until it becomes urgent or enters the late-day/flush windows."
+            }
+          }
         }
       }
     }
