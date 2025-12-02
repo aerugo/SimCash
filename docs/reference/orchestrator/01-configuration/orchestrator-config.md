@@ -24,6 +24,8 @@ pub struct OrchestratorConfig {
     pub priority_escalation: PriorityEscalationConfig,
     pub algorithm_sequencing: bool,
     pub entry_disposition_offsetting: bool,
+    pub deferred_crediting: bool,
+    pub deadline_cap_at_eod: bool,
 }
 ```
 
@@ -471,6 +473,91 @@ entry_disposition_offsetting: true
 
 ---
 
+### `deferred_crediting`
+
+**Type:** `bool`
+**Default:** `false`
+**Location:** `engine.rs:169-171`
+
+Enable Castro et al. (2025) compatible settlement mode with batched credits.
+
+**Description:**
+When enabled, credits from settled transactions are batched and applied at the end of each tick rather than immediately. This prevents within-tick liquidity recycling.
+
+**Behavior:**
+
+When enabled:
+- Credits are batched and applied at end of tick
+- Prevents within-tick liquidity recycling
+- Receivers cannot use incoming funds until next tick
+
+When disabled (default):
+- Credits are applied immediately after settlement
+- Within-tick recycling: Agent A pays B, B can use funds to pay C in same tick
+
+**Example:**
+```yaml
+deferred_crediting: true
+```
+
+**Use Case:**
+- Castro et al. (2025) model replication
+- Research on liquidity recycling effects
+- Conservative settlement analysis
+
+**Related:**
+- See [Advanced Settings](../../scenario/advanced-settings.md#deferred_crediting)
+
+---
+
+### `deadline_cap_at_eod`
+
+**Type:** `bool`
+**Default:** `false`
+**Location:** `engine.rs:173-175`
+
+Enable Castro et al. (2025) compatible deadline generation with end-of-day caps.
+
+**Description:**
+When enabled, all generated transaction deadlines are capped at the end of the current simulation day. This ensures all payments must settle within the same business day they arrive, creating realistic intraday settlement pressure.
+
+**Behavior:**
+
+When enabled:
+- All generated transaction deadlines capped at end of current day
+- Day boundary = `(current_day + 1) × ticks_per_day`
+- Creates realistic same-day settlement requirements
+
+When disabled (default):
+- Deadlines only capped at episode end (`num_days × ticks_per_day`)
+- Transactions can span multiple days
+
+**Implementation:**
+```rust
+// In ArrivalGenerator::generate_deadline()
+if self.deadline_cap_at_eod {
+    let current_day = arrival_tick / self.ticks_per_day;
+    let day_end_tick = (current_day + 1) * self.ticks_per_day;
+    deadline.min(day_end_tick)
+}
+```
+
+**Example:**
+```yaml
+deadline_cap_at_eod: true
+```
+
+**Use Case:**
+- Castro et al. (2025) model replication
+- Realistic same-day settlement requirements
+- Research on EOD settlement pressure
+
+**Related:**
+- See [Advanced Settings](../../scenario/advanced-settings.md#deadline_cap_at_eod)
+- See [ArrivalConfig](arrival-config.md) for deadline_range configuration
+
+---
+
 ## Related Types
 
 ### `PriorityEscalationConfig`
@@ -640,6 +727,8 @@ queue1_ordering: fifo
 priority_mode: false
 algorithm_sequencing: false
 entry_disposition_offsetting: false
+deferred_crediting: false
+deadline_cap_at_eod: false
 ```
 
 ---
@@ -655,4 +744,4 @@ entry_disposition_offsetting: false
 
 ---
 
-*Last Updated: 2025-11-28*
+*Last Updated: 2025-12-02*
