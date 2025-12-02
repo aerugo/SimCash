@@ -15,7 +15,7 @@ The tick loop is the heart of SimCash, executing a 9-step process each tick to a
 
 ```mermaid
 flowchart TB
-    subgraph TickLoop["tick - 9 Steps"]
+    subgraph TickLoop["tick - 10 Steps"]
         S1["1. Advance Time"]
         S2["2. Check EOD"]
         S3["3. Generate Arrivals"]
@@ -23,6 +23,7 @@ flowchart TB
         S5["5. Policy Evaluation"]
         S6["6. RTGS Processing"]
         S7["7. LSM Optimization"]
+        S5_7["5.7. Apply Deferred Credits"]
         S8["8. Cost Accrual"]
         S9["9. Event Logging"]
     end
@@ -34,10 +35,13 @@ flowchart TB
     S4 --> S5
     S5 --> S6
     S6 --> S7
-    S7 --> S8
+    S7 --> S5_7
+    S5_7 --> S8
     S8 --> S9
     S9 --> Return(["Return TickResult"])
 ```
+
+> **Note**: Step 5.7 (Apply Deferred Credits) only executes when `deferred_crediting: true` is configured.
 
 ---
 
@@ -331,6 +335,59 @@ flowchart TB
 
 ---
 
+## Step 5.7: Apply Deferred Credits (Optional)
+
+> **Conditional**: Only executes when `deferred_crediting: true`
+
+```mermaid
+flowchart TB
+    Check{"deferred_crediting<br/>enabled?"}
+    Check -->|No| Skip["Skip (immediate mode)"]
+    Check -->|Yes| HasCredits{"Deferred credits<br/>accumulated?"}
+
+    HasCredits -->|No| Done["Continue"]
+    HasCredits -->|Yes| Apply["For each agent (sorted)"]
+
+    Apply --> Credit["Credit agent balance"]
+    Credit --> Event["Emit DeferredCreditApplied"]
+    Event --> Next["Next agent"]
+
+    Next --> More{"More agents?"}
+    More -->|Yes| Apply
+    More -->|No| Done
+
+    Skip --> Done
+```
+
+**Source**: `backend/src/orchestrator/engine.rs` (STEP 5.7)
+
+**Purpose**: In deferred crediting mode (Castro-compatible), credits from settlements are accumulated during the tick and applied here, before cost accrual. This prevents "within-tick recycling" of liquidity.
+
+**Process**:
+1. Check if deferred credits were accumulated
+2. Iterate agents in sorted order (deterministic)
+3. Credit each agent's balance with accumulated amount
+4. Emit `DeferredCreditApplied` event per agent
+
+**State Changes**:
+- Agent balances credited
+- Deferred credits accumulator cleared
+
+**Events Generated**: `DeferredCreditApplied` (per receiving agent)
+
+**Example Event**:
+```json
+{
+  "event_type": "DeferredCreditApplied",
+  "tick": 42,
+  "agent_id": "BANK_B",
+  "amount": 150000,
+  "source_transactions": ["tx-001", "tx-002"]
+}
+```
+
+---
+
 ## Step 8: Cost Accrual
 
 ```mermaid
@@ -468,10 +525,13 @@ gantt
 | 3. Arrivals | New transactions, Q1 queues |
 | 4. Entry Disposition | Q2 queue, balances |
 | 5. Policy | Q1→Q2, splits, budgets, collateral, state registers |
-| 6. RTGS | Balances, transaction status, Q2 |
-| 7. LSM | Balances, transaction status, Q2 |
+| 6. RTGS | Balances (debits), transaction status, Q2 |
+| 7. LSM | Balances (debits), transaction status, Q2 |
+| 5.7. Deferred Credits | Balances (credits), deferred accumulator cleared |
 | 8. Costs | Accumulated costs, overdue status |
 | 9. Return | None (read-only) |
+
+> **Note**: In immediate crediting mode (default), steps 6 and 7 also credit receiver balances. In deferred mode, credits are accumulated and applied in step 5.7.
 
 ---
 
@@ -484,8 +544,9 @@ gantt
 | 3 | Arrival (per transaction) |
 | 4 | EntryDispositionOffset |
 | 5 | PolicySubmit, PolicyHold, PolicySplit, CollateralPost, etc. |
-| 6 | Queue2LiquidityRelease |
+| 6 | Queue2LiquidityRelease, RtgsImmediateSettlement |
 | 7 | AlgorithmExecution, LsmBilateralOffset, LsmCycleSettlement |
+| 5.7 | DeferredCreditApplied (if deferred_crediting enabled) |
 | 8 | CostAccrual, TransactionWentOverdue |
 | 9 | None |
 

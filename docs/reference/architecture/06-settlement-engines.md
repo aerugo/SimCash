@@ -506,7 +506,84 @@ flowchart TB
 
 ---
 
-## 8. Configuration Reference
+## 8. Deferred Crediting Mode
+
+**Source**: `backend/src/settlement/deferred.rs`
+
+### Overview
+
+Deferred crediting is a Castro-compatible settlement mode where credits from settlements are accumulated during a tick and applied at the end, rather than being immediately available.
+
+```mermaid
+flowchart LR
+    subgraph Immediate["Immediate Crediting (Default)"]
+        A1["A→B settles"] --> B1["B balance +X immediately"]
+        B1 --> C1["B can use X this tick"]
+    end
+
+    subgraph Deferred["Deferred Crediting"]
+        A2["A→B settles"] --> B2["B deferred credit +X"]
+        B2 --> C2["X not available this tick"]
+        C2 --> D2["End of tick: Apply X to B"]
+    end
+```
+
+### Configuration
+
+```yaml
+deferred_crediting: true  # Enable Castro-compatible mode (default: false)
+```
+
+### Behavioral Difference
+
+| Scenario | Immediate (default) | Deferred |
+|----------|---------------------|----------|
+| A→B, B→A mutual payments | May settle if B→A first | Gridlock (neither can use incoming) |
+| Chain A→B→C | C has funds same tick | C has funds next tick |
+| LSM bilateral offset | Net receiver has funds same tick | Net receiver has funds end of tick |
+
+### Use Case: Castro Model Alignment
+
+The deferred crediting mode matches the Castro et al. (2025) academic model where:
+
+```
+ℓ_t = ℓ_{t-1} - P_t x_t + R_t
+```
+
+Incoming payments (R_t) are only available in the **next** period, preventing "within-tick recycling" of liquidity.
+
+### Implementation
+
+```mermaid
+sequenceDiagram
+    participant RTGS as RTGS Engine
+    participant DC as DeferredCredits
+    participant State as SimulationState
+
+    Note over RTGS,State: During tick (settlements)
+    RTGS->>RTGS: Debit sender immediately
+    RTGS->>DC: accumulate(receiver, amount, tx_id)
+
+    Note over RTGS,State: End of tick (Step 5.7)
+    DC->>State: apply_all()
+    DC->>State: Credit each receiver
+    DC->>State: Emit DeferredCreditApplied events
+```
+
+### Events Generated
+
+| Event | When Emitted | Key Fields |
+|-------|--------------|------------|
+| `DeferredCreditApplied` | End of tick, per receiver | agent_id, amount, source_transactions |
+
+### Related Documents
+
+- [11-tick-loop-anatomy.md](./11-tick-loop-anatomy.md) - Step 5.7 deferred credits
+- [appendix-b-event-catalog.md](./appendix-b-event-catalog.md) - DeferredCreditApplied event
+
+---
+
+## 9. Configuration Reference
 
 ### Full LSM Config
 

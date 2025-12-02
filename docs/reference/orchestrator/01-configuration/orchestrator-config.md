@@ -482,7 +482,13 @@ entry_disposition_offsetting: true
 Enable Castro et al. (2025) compatible settlement mode with batched credits.
 
 **Description:**
-When enabled, credits from settled transactions are batched and applied at the end of each tick rather than immediately. This prevents within-tick liquidity recycling.
+When enabled, credits from settlements (RTGS and LSM) are accumulated during the tick and applied at the end (step 5.7), rather than being immediately available. This prevents "within-tick recycling" of liquidity and matches the Castro et al. (2025) academic model.
+
+**Formula (Castro model):**
+```
+ℓ_t = ℓ_{t-1} - P_t x_t + R_t
+```
+Where incoming payments (R_t) are only available in the next period.
 
 **Behavior:**
 
@@ -490,6 +496,7 @@ When enabled:
 - Credits are batched and applied at end of tick
 - Prevents within-tick liquidity recycling
 - Receivers cannot use incoming funds until next tick
+- Credits from LSM bilateral/cycle settlements are also deferred
 
 When disabled (default):
 - Credits are applied immediately after settlement
@@ -500,13 +507,15 @@ When disabled (default):
 deferred_crediting: true
 ```
 
-**Use Case:**
+**Use Cases:**
 - Castro et al. (2025) model replication
-- Research on liquidity recycling effects
-- Conservative settlement analysis
+- Payment gridlock research
+- Strict liquidity constraint scenarios
 
 **Related:**
 - See [Advanced Settings](../../scenario/advanced-settings.md#deferred_crediting)
+- See [Settlement Engines - Deferred Crediting](../../architecture/06-settlement-engines.md#8-deferred-crediting-mode)
+- See [DeferredCreditApplied Event](../../architecture/appendix-b-event-catalog.md#deferredcreditapplied)
 
 ---
 
@@ -727,8 +736,12 @@ queue1_ordering: fifo
 priority_mode: false
 algorithm_sequencing: false
 entry_disposition_offsetting: false
+<<<<<<< HEAD
 deferred_crediting: false
 deadline_cap_at_eod: false
+=======
+deferred_crediting: false  # Castro-compatible settlement
+>>>>>>> origin/claude/deferred-crediting-feature-01GkF4jd3WstarpjfNQmXMGi
 ```
 
 ---
