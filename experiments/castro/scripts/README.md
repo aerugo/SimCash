@@ -2,6 +2,18 @@
 
 This directory contains scripts for running reproducible experiments that replicate the Castro et al. (2025) payment system optimization results.
 
+## Castro Alignment (2025-12-02)
+
+All experiments now use **Castro-aligned** configurations with two critical features enabled:
+
+1. **`deferred_crediting: true`** - Credits applied at end of tick (matches Castro's timing model)
+2. **`deadline_cap_at_eod: true`** - All deadlines capped at day end (same-day settlement)
+
+These features ensure the simulation environment matches Castro et al. (2025) Section 3.
+
+> **Note**: Previous experiments (pre-alignment) have been archived to `archive/pre-castro-alignment/`.
+> See `LAB_NOTES.md` for details on alignment issues discovered.
+
 ## Quick Start
 
 ```bash
@@ -12,10 +24,13 @@ python reproducible_experiment.py --list
 python reproducible_experiment.py --experiment exp1 --output exp1_results.db
 
 # Run Experiment 2 (Twelve-Period Stochastic)
-python reproducible_experiment.py --experiment exp2_fixed --output exp2_results.db
+python reproducible_experiment.py --experiment exp2 --output exp2_results.db
+
+# Run Experiment 3 (Joint Learning)
+python reproducible_experiment.py --experiment exp3 --output exp3_results.db
 
 # Run with custom settings
-python reproducible_experiment.py --experiment exp2_fixed \
+python reproducible_experiment.py --experiment exp2 \
     --output exp2_custom.db \
     --model gpt-4o \
     --max-iter 50 \
@@ -26,9 +41,9 @@ python reproducible_experiment.py --experiment exp2_fixed \
 
 | Key | Name | Seeds | Description |
 |-----|------|-------|-------------|
-| `exp1` | Two-Period Deterministic | 1 | Simple 2-period scenario validating Nash equilibrium discovery |
-| `exp2_fixed` | Twelve-Period Stochastic | 10 | 12-period LVTS-style with corrected collateral capacity |
-| `exp3` | Joint Learning | 10 | Three-period scenario testing joint policy learning |
+| `exp1` | Two-Period Deterministic (Castro-Aligned) | 1 | Nash equilibrium validation with deferred crediting |
+| `exp2` | Twelve-Period Stochastic (Castro-Aligned) | 10 | 12-period LVTS-style with deferred crediting + EOD deadline cap |
+| `exp3` | Joint Learning (Castro-Aligned) | 10 | 3-period joint policy learning with deferred crediting |
 
 ## Database Schema
 
@@ -169,7 +184,14 @@ print(json.dumps(json.loads(summary), indent=2))
 ## Known Issues
 
 ### max_collateral_capacity Bug
-The `max_collateral_capacity` config field is currently ignored - it's computed as `10 * unsecured_cap` in Rust. The `exp2_fixed` experiment uses corrected `initial_liquidity_fraction` values to work around this. See `docs/bugs/max_collateral_capacity_ignored.md`.
+The `max_collateral_capacity` config field is currently ignored - it's computed as `10 * unsecured_cap` in Rust. Use corrected `initial_liquidity_fraction` values to work around this. See archived experiment notes for details.
+
+### Castro Alignment Requirements
+For accurate Castro et al. replication, both alignment features MUST be enabled:
+- `deferred_crediting: true` - Without this, within-tick recycling changes equilibrium structure
+- `deadline_cap_at_eod: true` - Without this, multi-day deadlines reduce settlement urgency
+
+Pre-alignment experiments (before 2025-12-02) are archived and should not be used for comparison.
 
 ## Requirements
 
