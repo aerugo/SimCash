@@ -1776,3 +1776,167 @@ duckdb results/my_experiment.db "SELECT * FROM iteration_metrics ORDER BY iterat
 4. Run side-by-side with identical scenarios
 
 ---
+
+## Model Alignment Review and Archive
+
+### Date: 2025-12-02
+
+### Critical Discovery: SimCash-Castro Misalignment
+
+Upon detailed review of Castro et al. (2025) Section 3 "The Payment System Environment", we identified two fundamental differences between SimCash's default behavior and Castro's model that invalidate direct comparison:
+
+#### Issue 1: Immediate vs Deferred Crediting
+
+**Castro Model** (Section 3, Page 6):
+> "At the end of each period, the agent receives incoming payments \( R_t \) from other agents. Liquidity evolves as: \( \ell_t = \ell_{t-1} - P_t x_t + R_t \)"
+
+This means credits from received payments are applied at the **end** of the period, not immediately. The ordering is:
+1. Start with \( \ell_{t-1} \)
+2. Send payments: \( P_t \cdot x_t \) (debited)
+3. At period end: receive \( R_t \) (credited)
+
+**SimCash (Old Behavior)**:
+Credits were applied immediately when settlements occurred. This allowed "within-tick recycling" where Bank A could receive a payment and immediately use those funds to make its own payment within the same tick.
+
+**Impact**: This created a fundamentally different strategic landscape. The immediate recycling enabled symmetric equilibria (both banks post minimal collateral) that are impossible in Castro's model.
+
+#### Issue 2: Multi-Day Deadlines
+
+**Castro Model**:
+> "At the end of the day, banks must settle all payment demands."
+
+All payments in Castro's model must settle within the same business day. There are no multi-day deadlines.
+
+**SimCash (Old Behavior)**:
+Deadline offsets could extend beyond the current day. A payment arriving at tick 10 with deadline offset 100 would have a deadline at tick 110, potentially spanning multiple days.
+
+**Impact**: Reduced urgency for same-day settlement, changing optimal policy structure.
+
+### Features Implemented
+
+Two new features were added to SimCash to achieve Castro compatibility:
+
+#### 1. `deferred_crediting: true`
+
+**Implementation**: `backend/src/orchestrator/engine.rs`
+
+When enabled:
+- Credits from settlements are accumulated during the tick
+- All credits are applied atomically at the end of the tick
+- Emits `DeferredCreditsApplied` event with details
+
+**Documentation**: `docs/reference/scenario/advanced-settings.md`
+
+#### 2. `deadline_cap_at_eod: true`
+
+**Implementation**: `backend/src/arrivals/mod.rs`
+
+When enabled:
+- All generated deadlines are capped at end of current business day
+- Formula: `min(computed_deadline, (current_day + 1) * ticks_per_day)`
+
+**Documentation**: `docs/reference/scenario/arrivals.md`
+
+### Archive Created
+
+All previous experimental runs have been archived to:
+```
+experiments/castro/archive/pre-castro-alignment/
+├── README.md           # Archive documentation
+├── configs/            # 7 YAML config files
+├── docs/               # 3 feature request documents
+└── policies/           # 16 JSON policy files
+```
+
+The archive includes complete documentation of why these experiments are no longer valid for Castro comparison.
+
+### Impact on Results
+
+| Experiment | Previous Finding | Validity |
+|------------|-----------------|----------|
+| 1: 2-Period | Symmetric equilibrium | **INVALID** - immediate crediting enabled recycling |
+| 2: 12-Period | $52k mean cost, 100% settlement | **INVALID** - different strategic dynamics |
+| 3: Joint Learning | 99.95% cost reduction | **INVALID** - equilibrium structure differs |
+
+**Key Insight**: The "symmetric equilibrium" we found in Experiment 1 (both banks post ~0 initial liquidity) differs from Castro's predicted asymmetric equilibrium (Bank B posts, Bank A free-rides). This is almost certainly due to the immediate crediting allowing both banks to coordinate on the recycling equilibrium.
+
+---
+
+## New Experiment Plan: Castro-Aligned
+
+### Date: 2025-12-02
+
+### Configuration Requirements
+
+All new experiments must enable both Castro-alignment features:
+
+```yaml
+# Top-level configuration
+deferred_crediting: true      # Credits applied at end of tick
+deadline_cap_at_eod: true     # All deadlines capped at day end
+```
+
+### Experiment Matrix (Revised)
+
+| Exp | Name | Periods | Key Test | Castro Reference |
+|-----|------|---------|----------|------------------|
+| 1 | Two-Period Deterministic | 2 | Nash equilibrium discovery | Section 6.3, Table 2 |
+| 2 | Twelve-Period Stochastic | 12 | Learning under uncertainty | Section 7.1 |
+| 3 | Joint Learning | 3 | Liquidity + timing optimization | Section 8 |
+
+### Expected Outcomes (Castro-Aligned)
+
+#### Experiment 1: Two-Period Validation
+
+**Castro's Nash Equilibrium** (Section 6.3):
+- Bank A: \( \ell_0 = 0 \) (posts no collateral, waits for B's payment)
+- Bank B: \( \ell_0 = 200 \) (posts collateral to cover both periods)
+- Cost: \( R_A = 0 \), \( R_B = 20 \) (= 0.1 × 200)
+
+**Key Mechanism**: With deferred crediting, Bank A cannot receive and re-use B's period-1 payment within period 1. Bank A must wait until period 2. This forces Bank B to post initial liquidity.
+
+**Hypothesis**: With deferred crediting enabled, LLM should discover the **asymmetric** equilibrium matching Castro's prediction.
+
+#### Experiment 2: Twelve-Period Stochastic
+
+**Castro's Findings**:
+- Optimal initial liquidity: ~15-25% of expected daily outflow
+- Intraday liquidity management crucial
+- Both banks converge to similar policies (symmetric environment)
+
+**Key Difference from Previous Runs**: Payments cannot be recycled within same tick, requiring more initial liquidity buffer.
+
+#### Experiment 3: Joint Learning
+
+**Castro's Findings**:
+- Near-zero cost achievable with optimal joint strategy
+- Timing coordination more important than liquidity choice
+
+### New Configuration Files to Create
+
+1. `configs/castro_2period_aligned.yaml` - Experiment 1 with alignment features
+2. `configs/castro_12period_aligned.yaml` - Experiment 2 with alignment features
+3. `configs/castro_joint_aligned.yaml` - Experiment 3 with alignment features
+
+### Seed Policy Update
+
+The seed policy should be conservative given the new constraints:
+- `initial_liquidity_fraction`: 0.25 (higher than before, since recycling is disabled)
+- `urgency_threshold`: 5.0 (release closer to deadline)
+- `liquidity_buffer_factor`: 1.0 (100% funds required)
+
+### Success Criteria
+
+1. **Experiment 1**: LLM discovers asymmetric equilibrium matching Castro's prediction
+2. **Experiment 2**: 100% settlement rate with cost comparable to Castro's RL results
+3. **Experiment 3**: Near-zero cost through coordination
+
+### Timeline
+
+1. Create new configuration files
+2. Create updated seed policy
+3. Run Experiment 1 first (deterministic, quick validation)
+4. Run Experiments 2 and 3 with multi-seed validation
+5. Update RESEARCH_PAPER.md with new results
+
+---
