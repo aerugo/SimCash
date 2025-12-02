@@ -1,8 +1,7 @@
 # Deadline EOD Cap Implementation Plan
 
 **Date**: 2025-12-02
-**Feature Request**: `experiments/castro/docs/feature_request_deadline_eod_cap.md`
-**Priority**: Medium (Important for Castro paper alignment)
+**Priority**: Medium
 
 ---
 
@@ -26,12 +25,9 @@ fn generate_deadline(&self, arrival_tick: usize, range: (usize, usize), rng: &mu
 
 This means a transaction arriving on day 1 can have a deadline extending into day 2 or beyond (up to `episode_end_tick`).
 
-### 1.2 Castro Model (EOD Cap)
+### 1.2 Same-Day Settlement Model (EOD Cap)
 
-In Castro et al. (2025) Section 3:
-> "At the end of the day, banks must settle all payment demands."
-
-All payments that arrive during a day must settle by end-of-day. There are no per-transaction "deadlines" that extend beyond the current day.
+In academic payment system models, all payments that arrive during a day must settle by end-of-day. There are no per-transaction "deadlines" that extend beyond the current day.
 
 ### 1.3 Implementation Goal
 
@@ -387,7 +383,7 @@ fn test_determinism_with_eod_cap() {
 pub struct OrchestratorConfig {
     // ... existing fields ...
 
-    /// Cap deadlines at end of current day (Castro-compatible)
+    /// Cap deadlines at end of current day (same-day settlement)
     /// When true, all generated deadlines are capped at the current day's end
     #[serde(default)]
     pub deadline_cap_at_eod: bool,
@@ -505,7 +501,7 @@ class SimulationConfig(BaseModel):
         False,
         description=(
             "When true, all generated transaction deadlines are capped at the "
-            "end of the current day (Castro-compatible mode). When false (default), "
+            "end of the current day (same-day settlement mode). When false (default), "
             "deadlines are only capped at episode end."
         ),
     )
@@ -623,7 +619,7 @@ let deadline_cap_at_eod = config_dict
 
 - [ ] `CLAUDE.md` - Add deadline_cap_at_eod to configuration documentation
 - [ ] `docs/game-design.md` - Document deadline behavior options
-- [ ] `experiments/castro/README.md` - Document Castro-compatible mode usage
+- [ ] Document same-day settlement mode usage in relevant locations
 
 ### 7.2 Example Configuration
 
@@ -633,19 +629,19 @@ simulation:
   num_days: 1
   rng_seed: 12345
 
-# Enable Castro-compatible deadline mode
+# Enable same-day settlement deadline mode
 deadline_cap_at_eod: true
 
 cost_rates:
   delay_cost_per_tick_per_cent: 0.00167
-  deadline_penalty: 0         # Castro model has no explicit deadline penalty
+  deadline_penalty: 0         # No explicit deadline penalty for this scenario
   overdue_delay_multiplier: 1.0
   eod_penalty_per_transaction: 0
 
 agents:
   - id: BANK_A
     opening_balance: 10000000
-    unsecured_cap: 10000000000  # Unlimited credit (Castro's central bank)
+    unsecured_cap: 10000000000  # Unlimited credit
     arrival_config:
       rate_per_tick: 0.5
       deadline_range: [1, 12]   # Will be capped at current day's end

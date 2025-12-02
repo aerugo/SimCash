@@ -111,8 +111,8 @@ queue1_ordering: priority_deadline      # fifo | priority_deadline
 priority_mode: true                     # Enable T2 priority bands
 algorithm_sequencing: true              # Emit algorithm events
 entry_disposition_offsetting: true      # Pre-queue offset check
-deferred_crediting: false               # Castro-compatible: batch credits at tick end
-deadline_cap_at_eod: false              # Castro-compatible: cap deadlines at day end
+deferred_crediting: false               # Batch credits at tick end
+deadline_cap_at_eod: false              # Cap deadlines at day end
 
 priority_escalation:
   enabled: true
@@ -126,7 +126,7 @@ priority_escalation:
 ## Deferred Crediting
 
 ```yaml
-deferred_crediting: true    # Enable Castro-compatible settlement (default: false)
+deferred_crediting: true    # Enable deferred settlement mode (default: false)
 ```
 
 When enabled, credits from settlements are accumulated during a tick and applied at the end (step 5.7), rather than being immediately available. This prevents "within-tick recycling" of liquidity.
@@ -134,7 +134,7 @@ When enabled, credits from settlements are accumulated during a tick and applied
 **Behavioral Impact**:
 - Mutual payments between agents with zero balance will gridlock
 - Incoming payments are only available in the next tick
-- Matches Castro et al. (2025) academic model
+- Suitable for academic model replication
 
 **Default**: `false` (immediate crediting for backward compatibility)
 

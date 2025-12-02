@@ -414,12 +414,11 @@ pub enum Event {
         reason: String,
     },
 
-    /// Deferred credits applied at end of tick (Castro-compatible mode)
+    /// Deferred credits applied at end of tick (deferred crediting mode)
     ///
     /// Emitted when deferred_crediting is enabled and credits accumulated during
-    /// the tick are applied to the receiver at end of tick. This matches the
-    /// Castro et al. (2025) model where incoming payments R_t only become
-    /// available in period t+1.
+    /// the tick are applied to the receiver at end of tick. Incoming payments R_t
+    /// only become available in period t+1.
     ///
     /// Contains aggregated credit amount and list of source transactions.
     DeferredCreditApplied {

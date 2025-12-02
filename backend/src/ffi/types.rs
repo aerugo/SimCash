@@ -202,7 +202,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         .unwrap_or(false);
 
     // Parse deferred_crediting (default: false for backward compatibility)
-    // When true, credits are batched and applied at end of tick (Castro-compatible mode)
+    // When true, credits are batched and applied at end of tick
     let deferred_crediting: bool = py_config
         .get_item("deferred_crediting")?
         .map(|item| item.extract())
@@ -210,7 +210,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         .unwrap_or(false);
 
     // Parse deadline_cap_at_eod (default: false for backward compatibility)
-    // When true, deadlines are capped at end of current day (Castro-compatible mode)
+    // When true, deadlines are capped at end of current day
     let deadline_cap_at_eod: bool = py_config
         .get_item("deadline_cap_at_eod")?
         .map(|item| item.extract())

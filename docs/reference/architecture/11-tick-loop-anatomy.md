@@ -361,7 +361,7 @@ flowchart TB
 
 **Source**: `backend/src/orchestrator/engine.rs` (STEP 5.7)
 
-**Purpose**: In deferred crediting mode (Castro-compatible), credits from settlements are accumulated during the tick and applied here, before cost accrual. This prevents "within-tick recycling" of liquidity.
+**Purpose**: In deferred crediting mode, credits from settlements are accumulated during the tick and applied here, before cost accrual. This prevents "within-tick recycling" of liquidity.
 
 **Process**:
 1. Check if deferred credits were accumulated
