@@ -1,9 +1,7 @@
 //! TDD Tests for Deadline EOD Cap Feature
 //!
 //! Tests for the `deadline_cap_at_eod` configuration option that caps all
-//! transaction deadlines at the end of the current day (Castro-compatible mode).
-//!
-//! Feature Request: experiments/castro/docs/feature_request_deadline_eod_cap.md
+//! transaction deadlines at the end of the current day.
 
 use payment_simulator_core_rs::arrivals::{
     AmountDistribution, ArrivalBandConfig, ArrivalBandsConfig, ArrivalConfig, ArrivalGenerator,

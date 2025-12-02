@@ -479,12 +479,12 @@ entry_disposition_offsetting: true
 **Default:** `false`
 **Location:** `engine.rs:169-171`
 
-Enable Castro et al. (2025) compatible settlement mode with batched credits.
+Enable deferred crediting settlement mode with batched credits.
 
 **Description:**
-When enabled, credits from settlements (RTGS and LSM) are accumulated during the tick and applied at the end (step 5.7), rather than being immediately available. This prevents "within-tick recycling" of liquidity and matches the Castro et al. (2025) academic model.
+When enabled, credits from settlements (RTGS and LSM) are accumulated during the tick and applied at the end (step 5.7), rather than being immediately available. This prevents "within-tick recycling" of liquidity.
 
-**Formula (Castro model):**
+**Formula:**
 ```
 ℓ_t = ℓ_{t-1} - P_t x_t + R_t
 ```
@@ -508,9 +508,9 @@ deferred_crediting: true
 ```
 
 **Use Cases:**
-- Castro et al. (2025) model replication
 - Payment gridlock research
 - Strict liquidity constraint scenarios
+- Academic model replication
 
 **Related:**
 - See [Advanced Settings](../../scenario/advanced-settings.md#deferred_crediting)
@@ -525,7 +525,7 @@ deferred_crediting: true
 **Default:** `false`
 **Location:** `engine.rs:173-175`
 
-Enable Castro et al. (2025) compatible deadline generation with end-of-day caps.
+Enable deadline generation with end-of-day caps.
 
 **Description:**
 When enabled, all generated transaction deadlines are capped at the end of the current simulation day. This ensures all payments must settle within the same business day they arrive, creating realistic intraday settlement pressure.
@@ -557,9 +557,9 @@ deadline_cap_at_eod: true
 ```
 
 **Use Case:**
-- Castro et al. (2025) model replication
 - Realistic same-day settlement requirements
 - Research on EOD settlement pressure
+- Academic model replication
 
 **Related:**
 - See [Advanced Settings](../../scenario/advanced-settings.md#deadline_cap_at_eod)
@@ -736,12 +736,8 @@ queue1_ordering: fifo
 priority_mode: false
 algorithm_sequencing: false
 entry_disposition_offsetting: false
-<<<<<<< HEAD
 deferred_crediting: false
 deadline_cap_at_eod: false
-=======
-deferred_crediting: false  # Castro-compatible settlement
->>>>>>> origin/claude/deferred-crediting-feature-01GkF4jd3WstarpjfNQmXMGi
 ```
 
 ---

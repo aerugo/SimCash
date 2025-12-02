@@ -512,7 +512,7 @@ flowchart TB
 
 ### Overview
 
-Deferred crediting is a Castro-compatible settlement mode where credits from settlements are accumulated during a tick and applied at the end, rather than being immediately available.
+Deferred crediting is a settlement mode where credits from settlements are accumulated during a tick and applied at the end, rather than being immediately available.
 
 ```mermaid
 flowchart LR
@@ -531,7 +531,7 @@ flowchart LR
 ### Configuration
 
 ```yaml
-deferred_crediting: true  # Enable Castro-compatible mode (default: false)
+deferred_crediting: true  # Enable deferred crediting mode (default: false)
 ```
 
 ### Behavioral Difference
@@ -542,9 +542,9 @@ deferred_crediting: true  # Enable Castro-compatible mode (default: false)
 | Chain A→B→C | C has funds same tick | C has funds next tick |
 | LSM bilateral offset | Net receiver has funds same tick | Net receiver has funds end of tick |
 
-### Use Case: Castro Model Alignment
+### Use Case: Academic Model Alignment
 
-The deferred crediting mode matches the Castro et al. (2025) academic model where:
+The deferred crediting mode matches academic models where:
 
 ```
 ℓ_t = ℓ_{t-1} - P_t x_t + R_t

@@ -251,7 +251,7 @@ Credit applied at end of tick (deferred crediting mode only).
 
 **When Emitted**: End of tick (step 5.7), only when `deferred_crediting: true` is configured.
 
-**Use Case**: Castro model alignment where incoming payments are not available until the next tick. See [06-settlement-engines.md](./06-settlement-engines.md#8-deferred-crediting-mode).
+**Use Case**: For scenarios where incoming payments are not available until the next tick. See [06-settlement-engines.md](./06-settlement-engines.md#8-deferred-crediting-mode).
 
 ---
 

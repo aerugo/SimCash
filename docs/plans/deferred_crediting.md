@@ -1,8 +1,7 @@
 # Deferred Crediting Implementation Plan
 
 **Date**: 2025-12-02
-**Feature Request**: `experiments/castro/docs/feature_request_deferred_crediting.md`
-**Priority**: High (blocks accurate Castro et al. replication)
+**Priority**: High
 
 ---
 
@@ -20,13 +19,10 @@ receiver.credit(amount);  // Immediate!
 
 This allows "within-tick recycling": when A pays B, B can use those funds for its own transactions processed later in the **same tick**.
 
-### 1.2 Castro Model (Deferred Crediting)
+### 1.2 Academic Model (Deferred Crediting)
 
-In Castro et al. (2025) Section 3:
-> "At the end of each period, the agent receives incoming payments R_t from other agents."
+In academic payment models, incoming payments received in period t only become available in period t+1:
 > "Liquidity evolves as: ℓ_t = ℓ_{t-1} - P_t x_t + R_t"
-
-Incoming payments received in period t only become available in period t+1.
 
 ### 1.3 Implementation Goal
 
@@ -76,7 +72,7 @@ Config:
 | Immediate | One settles (A→B), then other settles (B→A using incoming $100) |
 | Deferred | **GRIDLOCK** - Neither can settle (both have $0 available) |
 
-This is the **core behavioral difference** that matches Castro's model.
+This is the **core behavioral difference** that matches academic payment models.
 
 ### 2.3 LSM Bilateral Offset
 
@@ -370,7 +366,7 @@ def test_deferred_crediting_config_default_false():
 pub struct OrchestratorConfig {
     // ... existing fields ...
 
-    /// Deferred crediting mode (Castro-compatible)
+    /// Deferred crediting mode (deferred crediting)
     /// When true, credits are batched and applied at end of tick
     #[serde(default)]
     pub deferred_crediting: bool,
@@ -384,7 +380,7 @@ class SimulationConfig(BaseModel):
 
     deferred_crediting: bool = Field(
         False,
-        description="When true, credits are batched and applied at end of tick (Castro-compatible)"
+        description="When true, credits are batched and applied at end of tick (deferred crediting)"
     )
 ```
 
@@ -449,7 +445,7 @@ impl DeferredCredits {
 pub enum Event {
     // ... existing variants ...
 
-    /// Deferred credits applied at end of tick (Castro-compatible mode)
+    /// Deferred credits applied at end of tick (deferred crediting mode)
     DeferredCreditApplied {
         tick: usize,
         agent_id: String,
@@ -679,7 +675,7 @@ Event::DeferredCreditApplied { tick, agent_id, amount, source_transactions } => 
 - [ ] `docs/architecture.md` - Document new settlement mode
 - [ ] `docs/game-design.md` - Document behavioral difference
 - [ ] `docs/reference/patterns-and-conventions.md` - Add to config patterns
-- [ ] `experiments/castro/README.md` - Document Castro-compatible mode
+- [ ] Document deferred crediting mode in relevant locations
 
 ### 6.2 Example Configuration
 
@@ -689,7 +685,7 @@ simulation:
   num_days: 1
   rng_seed: 12345
 
-# Enable Castro-compatible settlement mode
+# Enable deferred crediting settlement mode
 deferred_crediting: true
 
 agents:
