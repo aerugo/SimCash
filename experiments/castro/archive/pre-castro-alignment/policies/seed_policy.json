@@ -1,11 +1,11 @@
 {
-  "version": "2.0",
-  "policy_id": "castro_aligned_seed_policy",
-  "description": "Seed policy for Castro-aligned experiments with deferred crediting. Higher initial liquidity since within-tick recycling is disabled.",
+  "version": "1.0",
+  "policy_id": "castro_seed_policy",
+  "description": "Seed policy for LLM optimization - simple urgency-based release with initial liquidity allocation",
   "parameters": {
-    "urgency_threshold": 3.0,
-    "initial_liquidity_fraction": 0.25,
-    "liquidity_buffer_factor": 1.0
+    "urgency_threshold": 5.0,
+    "initial_liquidity_fraction": 0.5,
+    "liquidity_buffer_factor": 1.2
   },
   "strategic_collateral_tree": {
     "type": "condition",
@@ -54,7 +54,7 @@
     "on_false": {
       "type": "condition",
       "node_id": "P3_check_liquidity",
-      "description": "Release if we have sufficient liquidity",
+      "description": "Release if we have excess liquidity",
       "condition": {
         "op": ">=",
         "left": {"field": "effective_liquidity"},

@@ -151,34 +151,35 @@ CREATE INDEX IF NOT EXISTS idx_metrics_exp ON iteration_metrics(experiment_id, i
 # ============================================================================
 
 EXPERIMENTS = {
+    # Castro-aligned experiments (with deferred_crediting and deadline_cap_at_eod)
     "exp1": {
-        "name": "Experiment 1: Two-Period Deterministic",
-        "description": "Simple 2-period scenario to validate Nash equilibrium discovery",
-        "config_path": "experiments/castro/configs/castro_2period.yaml",
-        "policy_a_path": "experiments/castro/policies/exp1_bank_a.json",
-        "policy_b_path": "experiments/castro/policies/exp1_bank_b.json",
+        "name": "Experiment 1: Two-Period Deterministic (Castro-Aligned)",
+        "description": "2-period Nash equilibrium validation with deferred crediting",
+        "config_path": "experiments/castro/configs/castro_2period_aligned.yaml",
+        "policy_a_path": "experiments/castro/policies/seed_policy.json",
+        "policy_b_path": "experiments/castro/policies/seed_policy.json",
         "num_seeds": 1,  # Deterministic - only need 1 seed
         "max_iterations": 25,
         "convergence_threshold": 0.05,
         "convergence_window": 3,
     },
-    "exp2_fixed": {
-        "name": "Experiment 2: Twelve-Period Stochastic (Castro-Equivalent)",
-        "description": "12-period LVTS-style with correct collateral capacity",
-        "config_path": "experiments/castro/configs/castro_12period_castro_equiv_fixed.yaml",
-        "policy_a_path": "experiments/castro/policies/exp2d_fixed_bank_a.json",
-        "policy_b_path": "experiments/castro/policies/exp2d_fixed_bank_b.json",
+    "exp2": {
+        "name": "Experiment 2: Twelve-Period Stochastic (Castro-Aligned)",
+        "description": "12-period LVTS-style with deferred crediting and EOD deadline cap",
+        "config_path": "experiments/castro/configs/castro_12period_aligned.yaml",
+        "policy_a_path": "experiments/castro/policies/seed_policy.json",
+        "policy_b_path": "experiments/castro/policies/seed_policy.json",
         "num_seeds": 10,
         "max_iterations": 25,
         "convergence_threshold": 0.05,
         "convergence_window": 3,
     },
     "exp3": {
-        "name": "Experiment 3: Joint Liquidity and Timing Learning",
-        "description": "Three-period scenario testing joint policy learning",
-        "config_path": "experiments/castro/configs/castro_joint.yaml",
-        "policy_a_path": "experiments/castro/policies/exp3_bank_a.json",
-        "policy_b_path": "experiments/castro/policies/exp3_bank_b.json",
+        "name": "Experiment 3: Joint Liquidity and Timing (Castro-Aligned)",
+        "description": "3-period joint learning with deferred crediting",
+        "config_path": "experiments/castro/configs/castro_joint_aligned.yaml",
+        "policy_a_path": "experiments/castro/policies/seed_policy.json",
+        "policy_b_path": "experiments/castro/policies/seed_policy.json",
         "num_seeds": 10,
         "max_iterations": 25,
         "convergence_threshold": 0.05,
@@ -998,13 +999,13 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run Experiment 1 (Two-Period)
+  # Run Experiment 1 (Two-Period, Castro-Aligned)
   python reproducible_experiment.py --experiment exp1 --output exp1.db
 
-  # Run Experiment 2 (Twelve-Period, Castro-equivalent with fix)
-  python reproducible_experiment.py --experiment exp2_fixed --output exp2.db
+  # Run Experiment 2 (Twelve-Period, Castro-Aligned)
+  python reproducible_experiment.py --experiment exp2 --output exp2.db
 
-  # Run Experiment 3 (Joint Learning)
+  # Run Experiment 3 (Joint Learning, Castro-Aligned)
   python reproducible_experiment.py --experiment exp3 --output exp3.db
 
   # List available experiments
