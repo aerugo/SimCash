@@ -24,6 +24,7 @@ pub struct OrchestratorConfig {
     pub priority_escalation: PriorityEscalationConfig,
     pub algorithm_sequencing: bool,
     pub entry_disposition_offsetting: bool,
+    pub deferred_crediting: bool,
 }
 ```
 
@@ -471,6 +472,44 @@ entry_disposition_offsetting: true
 
 ---
 
+### `deferred_crediting`
+
+**Type:** `bool`
+**Default:** `false`
+**Location:** `engine.rs`
+
+Enable Castro-compatible deferred crediting mode.
+
+**Description:**
+When enabled, credits from settlements (RTGS and LSM) are accumulated during the tick and applied at the end (step 5.7), rather than being immediately available. This prevents "within-tick recycling" of liquidity and matches the Castro et al. (2025) academic model.
+
+**Formula (Castro model):**
+```
+ℓ_t = ℓ_{t-1} - P_t x_t + R_t
+```
+Where incoming payments (R_t) are only available in the next period.
+
+**Behavioral Impact:**
+- Mutual payments between agents with zero balance will gridlock
+- Incoming payments are only available in the next tick
+- Credits from LSM bilateral/cycle settlements are also deferred
+
+**Example:**
+```yaml
+deferred_crediting: true
+```
+
+**Use Cases:**
+- Academic model replication (Castro et al. 2025)
+- Payment gridlock research
+- Strict liquidity constraint scenarios
+
+**Related:**
+- See [Settlement Engines - Deferred Crediting](../../architecture/06-settlement-engines.md#8-deferred-crediting-mode)
+- See [DeferredCreditApplied Event](../../architecture/appendix-b-event-catalog.md#deferredcreditapplied)
+
+---
+
 ## Related Types
 
 ### `PriorityEscalationConfig`
@@ -640,6 +679,7 @@ queue1_ordering: fifo
 priority_mode: false
 algorithm_sequencing: false
 entry_disposition_offsetting: false
+deferred_crediting: false  # Castro-compatible settlement
 ```
 
 ---
@@ -655,4 +695,4 @@ entry_disposition_offsetting: false
 
 ---
 
-*Last Updated: 2025-11-28*
+*Last Updated: 2025-12-02*
