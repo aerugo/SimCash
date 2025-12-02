@@ -61,16 +61,20 @@
 //! println!("LSM settled {} transactions", result.total_settled_value);
 //! ```
 
+pub mod deferred;
 pub mod lsm;
 pub mod rtgs;
 
 // Re-export public API
 pub use rtgs::{
-    process_queue, submit_transaction, try_settle, QueueProcessingResult, SettlementError,
-    SubmissionResult,
+    process_queue, process_queue_with_deferred, submit_transaction, try_settle,
+    QueueProcessingResult, SettlementError, SubmissionResult,
 };
 
 pub use lsm::{
-    bilateral_offset, detect_cycles, run_lsm_pass, settle_cycle, BilateralOffsetResult, Cycle,
-    CycleSettlementResult, LsmConfig, LsmPassResult,
+    bilateral_offset, bilateral_offset_with_deferred, detect_cycles, run_lsm_pass,
+    run_lsm_pass_with_deferred, settle_cycle, settle_cycle_with_deferred, BilateralOffsetResult,
+    Cycle, CycleSettlementResult, LsmConfig, LsmPassResult,
 };
+
+pub use deferred::DeferredCredits;

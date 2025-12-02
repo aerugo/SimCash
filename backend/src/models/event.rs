@@ -413,6 +413,21 @@ pub enum Event {
         amount: i64,
         reason: String,
     },
+
+    /// Deferred credits applied at end of tick (Castro-compatible mode)
+    ///
+    /// Emitted when deferred_crediting is enabled and credits accumulated during
+    /// the tick are applied to the receiver at end of tick. This matches the
+    /// Castro et al. (2025) model where incoming payments R_t only become
+    /// available in period t+1.
+    ///
+    /// Contains aggregated credit amount and list of source transactions.
+    DeferredCreditApplied {
+        tick: usize,
+        agent_id: String,
+        amount: i64,
+        source_transactions: Vec<String>,
+    },
 }
 
 impl Event {
@@ -451,6 +466,7 @@ impl Event {
             Event::EntryDispositionOffset { tick, .. } => *tick,
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { tick, .. } => *tick,
+            Event::DeferredCreditApplied { tick, .. } => *tick,
         }
     }
 
@@ -489,6 +505,7 @@ impl Event {
             Event::EntryDispositionOffset { .. } => "EntryDispositionOffset",
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { .. } => "RtgsQueue2Settle",
+            Event::DeferredCreditApplied { .. } => "DeferredCreditApplied",
         }
     }
 
@@ -537,6 +554,7 @@ impl Event {
             Event::MultilateralLimitExceeded { sender, .. } => Some(sender),
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { sender, .. } => Some(sender),
+            Event::DeferredCreditApplied { agent_id, .. } => Some(agent_id),
             _ => None,
         }
     }

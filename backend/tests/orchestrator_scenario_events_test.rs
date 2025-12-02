@@ -59,6 +59,7 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
         scenario_events: Some(events),
     }
 }
@@ -126,6 +127,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
         scenario_events: Some(events),
     }
 }

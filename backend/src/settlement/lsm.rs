@@ -272,7 +272,20 @@ pub struct LsmPassResult {
 /// // A→B 500k (queued), B→A 300k (queued)
 /// // Bilateral offset will settle both, net 200k A→B
 /// ```
+/// Find and settle bilateral offsetting opportunities with optional deferred crediting
 pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOffsetResult {
+    bilateral_offset_with_deferred(state, tick, None)
+}
+
+/// Find and settle bilateral offsetting opportunities with optional deferred crediting
+///
+/// Same as `bilateral_offset`, but accepts an optional `DeferredCredits` accumulator.
+/// When provided, credits are accumulated instead of applied immediately.
+pub fn bilateral_offset_with_deferred(
+    state: &mut SimulationState,
+    tick: usize,
+    mut deferred_credits: Option<&mut super::deferred::DeferredCredits>,
+) -> BilateralOffsetResult {
     let mut pairs_found = 0;
     let mut offset_value = 0i64;
     let mut settlements_count = 0;
@@ -328,7 +341,7 @@ pub fn bilateral_offset(state: &mut SimulationState, tick: usize) -> BilateralOf
         // Settle in both directions up to offset amount
         if offset_amount > 0 {
             settlements_count +=
-                settle_bilateral_pair(state, &txs_ab, &txs_ba, offset_amount, tick, &mut to_remove);
+                settle_bilateral_pair(state, &txs_ab, &txs_ba, offset_amount, tick, &mut to_remove, deferred_credits.as_deref_mut());
 
             // Track this bilateral pair for event emission
             offset_pairs.push(BilateralPair {
@@ -377,6 +390,7 @@ fn settle_bilateral_pair(
     _offset_amount: i64, // Unused: we calculate net flows ourselves
     tick: usize,
     to_remove: &mut BTreeMap<String, ()>,
+    mut deferred_credits: Option<&mut super::deferred::DeferredCredits>,
 ) -> usize {
     let mut settlements = 0;
 
@@ -471,10 +485,19 @@ fn settle_bilateral_pair(
                 // Record outflow for bilateral/multilateral limit tracking
                 sender.record_outflow(&receiver_id, amount);
             }
-            state
-                .get_agent_mut(&receiver_id)
-                .unwrap()
-                .adjust_balance(amount as i64);
+
+            // Credit handling: immediate or deferred based on mode
+            if let Some(ref mut dc) = deferred_credits {
+                // Deferred mode: accumulate credit
+                dc.accumulate(&receiver_id, amount, tx_id);
+            } else {
+                // Immediate mode: credit directly
+                state
+                    .get_agent_mut(&receiver_id)
+                    .unwrap()
+                    .adjust_balance(amount as i64);
+            }
+
             state
                 .get_transaction_mut(tx_id)
                 .unwrap()
@@ -505,10 +528,19 @@ fn settle_bilateral_pair(
                 // Record outflow for bilateral/multilateral limit tracking
                 sender.record_outflow(&receiver_id, amount);
             }
-            state
-                .get_agent_mut(&receiver_id)
-                .unwrap()
-                .adjust_balance(amount as i64);
+
+            // Credit handling: immediate or deferred based on mode
+            if let Some(ref mut dc) = deferred_credits {
+                // Deferred mode: accumulate credit
+                dc.accumulate(&receiver_id, amount, tx_id);
+            } else {
+                // Immediate mode: credit directly
+                state
+                    .get_agent_mut(&receiver_id)
+                    .unwrap()
+                    .adjust_balance(amount as i64);
+            }
+
             state
                 .get_transaction_mut(tx_id)
                 .unwrap()
@@ -865,11 +897,26 @@ fn find_cycles_from_start(
 /// //   Total settled: 2M (not 500k min)
 /// //   Final balances: A=+200k, B=-300k, C=+100k
 /// ```
+/// Settle a cycle with optional deferred crediting (wrapper for backward compatibility)
 pub fn settle_cycle(
     state: &mut SimulationState,
     cycle: &Cycle,
     tick: usize,
     to_remove: &mut BTreeMap<String, ()>,
+) -> Result<CycleSettlementResult, SettlementError> {
+    settle_cycle_with_deferred(state, cycle, tick, to_remove, None)
+}
+
+/// Settle a cycle with optional deferred crediting
+///
+/// Same as `settle_cycle`, but accepts an optional `DeferredCredits` accumulator.
+/// When provided, credits are accumulated instead of applied immediately.
+pub fn settle_cycle_with_deferred(
+    state: &mut SimulationState,
+    cycle: &Cycle,
+    tick: usize,
+    to_remove: &mut BTreeMap<String, ()>,
+    mut deferred_credits: Option<&mut super::deferred::DeferredCredits>,
 ) -> Result<CycleSettlementResult, SettlementError> {
     // ========== PHASE 1: FEASIBILITY CHECK (No State Changes) ==========
 
@@ -1007,10 +1054,19 @@ pub fn settle_cycle(
             // Record outflow for bilateral/multilateral limit tracking
             sender.record_outflow(&receiver_id, amount);
         }
-        state
-            .get_agent_mut(&receiver_id)
-            .unwrap()
-            .adjust_balance(amount as i64);
+
+        // Credit handling: immediate or deferred based on mode
+        if let Some(ref mut dc) = deferred_credits {
+            // Deferred mode: accumulate credit
+            dc.accumulate(&receiver_id, amount, tx_id);
+        } else {
+            // Immediate mode: credit directly
+            state
+                .get_agent_mut(&receiver_id)
+                .unwrap()
+                .adjust_balance(amount as i64);
+        }
+
         state
             .get_transaction_mut(tx_id)
             .unwrap()
@@ -1068,6 +1124,21 @@ pub fn run_lsm_pass(
     ticks_per_day: usize,
     entry_disposition_offsetting: bool,
 ) -> LsmPassResult {
+    run_lsm_pass_with_deferred(state, config, tick, ticks_per_day, entry_disposition_offsetting, None)
+}
+
+/// Run LSM pass with optional deferred crediting
+///
+/// Same as `run_lsm_pass`, but accepts an optional `DeferredCredits` accumulator.
+/// When provided, credits are accumulated instead of applied immediately.
+pub fn run_lsm_pass_with_deferred(
+    state: &mut SimulationState,
+    config: &LsmConfig,
+    tick: usize,
+    ticks_per_day: usize,
+    entry_disposition_offsetting: bool,
+    mut deferred_credits: Option<&mut super::deferred::DeferredCredits>,
+) -> LsmPassResult {
     let mut total_settled_value = 0i64;
     let mut iterations = 0;
     let mut bilateral_offsets = 0;
@@ -1089,7 +1160,7 @@ pub fn run_lsm_pass(
 
         // 1. Bilateral offsetting
         if config.enable_bilateral {
-            let bilateral_result = bilateral_offset(state, tick);
+            let bilateral_result = bilateral_offset_with_deferred(state, tick, deferred_credits.as_deref_mut());
             bilateral_offsets += bilateral_result.pairs_found;
             total_settled_value += bilateral_result.offset_value;
 
@@ -1249,7 +1320,7 @@ pub fn run_lsm_pass(
             }
 
             for cycle in cycles.iter().take(config.max_cycles_per_tick) {
-                if let Ok(result) = settle_cycle(state, cycle, tick, &mut cycle_to_remove) {
+                if let Ok(result) = settle_cycle_with_deferred(state, cycle, tick, &mut cycle_to_remove, deferred_credits.as_deref_mut()) {
                     total_settled_value += result.settled_value;
                     cycles_settled += 1;
 

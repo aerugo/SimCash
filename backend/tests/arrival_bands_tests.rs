@@ -590,6 +590,7 @@ fn test_orchestrator_with_arrival_bands() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Should create orchestrator");
@@ -676,6 +677,7 @@ fn test_arrival_config_and_bands_mutually_exclusive() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let result = Orchestrator::new(config);

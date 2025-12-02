@@ -101,6 +101,7 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     }
 }
 

@@ -75,6 +75,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -175,6 +176,7 @@ fn test_liquidity_aware_buffer_recovery() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -298,6 +300,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -415,6 +418,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     // Aggressive (high urgency threshold = more overrides)
@@ -463,6 +467,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orch_conservative = Orchestrator::new(config_conservative).unwrap();
