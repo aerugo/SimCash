@@ -138,6 +138,7 @@ fn test_deferred_crediting_causes_gridlock_zero_balances() {
         num_days: 1,
         rng_seed: 12345,
         deferred_crediting: true, // Castro-compatible mode
+        deadline_cap_at_eod: false,
         agent_configs: vec![
             AgentConfig {
                 id: "BANK_A".to_string(),
@@ -227,6 +228,7 @@ fn test_immediate_crediting_allows_recycling() {
         num_days: 1,
         rng_seed: 12345,
         deferred_crediting: false, // Default (immediate crediting)
+        deadline_cap_at_eod: false,
         agent_configs: vec![
             AgentConfig {
                 id: "BANK_A".to_string(),
@@ -301,6 +303,7 @@ fn test_deferred_credit_event_emitted() {
         num_days: 1,
         rng_seed: 12345,
         deferred_crediting: true,
+        deadline_cap_at_eod: false,
         agent_configs: vec![
             AgentConfig {
                 id: "BANK_A".to_string(),
@@ -383,6 +386,7 @@ fn test_deferred_crediting_determinism() {
         num_days: 1,
         rng_seed: 12345,
         deferred_crediting: true,
+        deadline_cap_at_eod: false,
         agent_configs: vec![
             AgentConfig {
                 id: "BANK_A".to_string(),

@@ -176,6 +176,16 @@ pub struct OrchestratorConfig {
     /// When true: Deferred crediting - receivers can only use funds in the next tick
     #[serde(default)]
     pub deferred_crediting: bool,
+
+    /// Deadline cap at end-of-day mode (default: false)
+    /// When enabled, all generated transaction deadlines are capped at the end
+    /// of the current day, matching Castro et al. (2025) model where all payments
+    /// must settle by end-of-day.
+    ///
+    /// When false (default): Deadlines are only capped at episode end
+    /// When true: Deadlines are capped at the current day's end
+    #[serde(default)]
+    pub deadline_cap_at_eod: bool,
 }
 
 /// Priority escalation configuration
@@ -1122,6 +1132,7 @@ impl Orchestrator {
     ///     algorithm_sequencing: false,
     ///     entry_disposition_offsetting: false,
     ///     deferred_crediting: false,
+    ///     deadline_cap_at_eod: false,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -1224,6 +1235,8 @@ impl Orchestrator {
                 arrival_configs_map,
                 all_agent_ids,
                 episode_end_tick,
+                config.ticks_per_day,
+                config.deadline_cap_at_eod,
             ))
         } else {
             None
@@ -2802,6 +2815,8 @@ impl Orchestrator {
                 arrival_configs_map,
                 all_agent_ids,
                 episode_end_tick,
+                config.ticks_per_day,
+                config.deadline_cap_at_eod,
             ))
         } else {
             None

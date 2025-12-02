@@ -1,7 +1,7 @@
 # Appendix C: Configuration Reference
 
-**Version**: 1.0
-**Last Updated**: 2025-11-28
+**Version**: 1.1
+**Last Updated**: 2025-12-02
 
 ---
 
@@ -111,6 +111,8 @@ queue1_ordering: priority_deadline      # fifo | priority_deadline
 priority_mode: true                     # Enable T2 priority bands
 algorithm_sequencing: true              # Emit algorithm events
 entry_disposition_offsetting: true      # Pre-queue offset check
+deferred_crediting: false               # Castro-compatible: batch credits at tick end
+deadline_cap_at_eod: false              # Castro-compatible: cap deadlines at day end
 
 priority_escalation:
   enabled: true
@@ -399,6 +401,8 @@ queue1_ordering: priority_deadline
 priority_mode: true
 algorithm_sequencing: true
 entry_disposition_offsetting: true
+deferred_crediting: false
+deadline_cap_at_eod: false
 
 priority_escalation:
   enabled: true
@@ -430,6 +434,8 @@ scenario_events:
 | `deadline_range` | [min, max] where min ≤ max |
 | `priority` | 0-10 |
 | `seed` | Any u64 |
+| `deferred_crediting` | Boolean (default: false) |
+| `deadline_cap_at_eod` | Boolean (default: false) |
 
 ---
 
