@@ -118,9 +118,11 @@ class VerboseModeOutput:
     def on_day_complete(self, day: int, day_stats: dict[str, Any], orch: Orchestrator) -> None:
         """Log end-of-day summary with agent performance."""
         from payment_simulator.cli.output import (
-            log_end_of_day_event,
             log_end_of_day_statistics,
         )
+        # NOTE: log_end_of_day_event() is already called inside
+        # display_tick_verbose_output() when processing EndOfDay events.
+        # DO NOT call it again here - that caused duplicate output (Bug #2).
 
         # Gather agent statistics for end-of-day summary
         agent_stats = []
@@ -166,10 +168,6 @@ class VerboseModeOutput:
                 "queue2_size": queue2_size,
                 "total_costs": agent_total_costs,
             })
-
-        # Get EOD events for display
-        events = orch.get_tick_events((day + 1) * self.ticks_per_day - 1)
-        log_end_of_day_event(events)
 
         log_end_of_day_statistics(
             day=day,
