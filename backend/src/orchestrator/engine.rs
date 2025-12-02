@@ -168,9 +168,9 @@ pub struct OrchestratorConfig {
 
     /// Deferred crediting mode (default: false)
     /// When enabled, credits from settlements are accumulated during the tick
-    /// and applied at the end of the tick, matching Castro et al. (2025) model.
-    /// This prevents "within-tick recycling" where incoming payments become
-    /// immediately available for outgoing payments in the same tick.
+    /// and applied at the end of the tick. This prevents "within-tick recycling"
+    /// where incoming payments become immediately available for outgoing payments
+    /// in the same tick.
     ///
     /// When false (default): Immediate crediting - receivers can use funds immediately
     /// When true: Deferred crediting - receivers can only use funds in the next tick
@@ -179,8 +179,7 @@ pub struct OrchestratorConfig {
 
     /// Deadline cap at end-of-day mode (default: false)
     /// When enabled, all generated transaction deadlines are capped at the end
-    /// of the current day, matching Castro et al. (2025) model where all payments
-    /// must settle by end-of-day.
+    /// of the current day, requiring all payments to settle by end-of-day.
     ///
     /// When false (default): Deadlines are only capped at episode end
     /// When true: Deadlines are capped at the current day's end
@@ -2935,7 +2934,7 @@ impl Orchestrator {
         let current_tick = self.current_tick();
         let mut num_settlements = 0;
 
-        // Initialize deferred credits accumulator if Castro-compatible mode is enabled
+        // Initialize deferred credits accumulator if deferred crediting mode is enabled
         let mut deferred_credits = if self.config.deferred_crediting {
             Some(DeferredCredits::new())
         } else {
@@ -4054,7 +4053,7 @@ impl Orchestrator {
                 .balance();
 
             // Try to settle the transaction (already in state)
-            // Pass deferred_credits for Castro-compatible mode
+            // Pass deferred_credits for deferred crediting mode
             let settlement_result = self.try_settle_transaction_with_deferred(
                 tx_id,
                 current_tick,
@@ -4438,7 +4437,7 @@ impl Orchestrator {
         // Capture timing for LSM phase
         timing.lsm_micros = lsm_start.elapsed().as_micros() as u64;
 
-        // STEP 5.7: APPLY DEFERRED CREDITS (Castro-compatible mode)
+        // STEP 5.7: APPLY DEFERRED CREDITS (deferred crediting mode)
         // If deferred crediting is enabled, accumulated credits are applied at end of tick
         // This prevents "within-tick recycling" where incoming payments fund outgoing payments
         if let Some(ref mut dc) = deferred_credits {
@@ -5133,8 +5132,8 @@ impl Orchestrator {
     /// Try to settle a transaction with optional deferred crediting support.
     ///
     /// When `deferred_credits` is Some, credits are accumulated instead of being
-    /// applied immediately. This matches the Castro et al. (2025) model where
-    /// incoming payments only become available in the next period.
+    /// applied immediately. In this mode, incoming payments only become available
+    /// in the next period.
     fn try_settle_transaction_with_deferred(
         &mut self,
         tx_id: &str,

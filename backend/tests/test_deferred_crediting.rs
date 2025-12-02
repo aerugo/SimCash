@@ -1,9 +1,7 @@
 //! Deferred Crediting Tests
 //!
-//! Tests for the Castro-compatible deferred crediting mode where credits
+//! Tests for the deferred crediting mode where credits
 //! are accumulated during a tick and applied at the end of tick.
-//!
-//! Reference: experiments/castro/docs/feature_request_deferred_crediting.md
 
 use payment_simulator_core_rs::{Agent, SimulationState};
 
@@ -137,7 +135,7 @@ fn test_deferred_crediting_causes_gridlock_zero_balances() {
         ticks_per_day: 100,
         num_days: 1,
         rng_seed: 12345,
-        deferred_crediting: true, // Castro-compatible mode
+        deferred_crediting: true, // Enable deferred crediting mode
         deadline_cap_at_eod: false,
         agent_configs: vec![
             AgentConfig {

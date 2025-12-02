@@ -10,10 +10,9 @@ Advanced settings control **TARGET2 alignment features** and simulation internal
 |:--------|:--------|:--------|
 | `algorithm_sequencing` | Sequenced FIFO→Bilateral→Multilateral LSM | `false` |
 | `entry_disposition_offsetting` | Check offsets at payment entry | `false` |
-| `deferred_crediting` | Castro-compatible deferred credit application | `false` |
+| `deferred_crediting` | Batch credits at end of tick | `false` |
 | `eod_rush_threshold` | When EOD rush behavior begins | `0.8` |
-| `deferred_crediting` | Batch credits at end of tick (Castro-compatible) | `false` |
-| `deadline_cap_at_eod` | Cap deadlines at end of current day (Castro-compatible) | `false` |
+| `deadline_cap_at_eod` | Cap deadlines at end of current day | `false` |
 
 ---
 
@@ -125,7 +124,7 @@ algorithm_sequencing: true    # Often used together
 **Location**: Top-level config
 **Default**: `false`
 
-Enables Castro-compatible deferred crediting mode where credits from settlements are accumulated during a tick and applied at the end.
+Enables deferred crediting mode where credits from settlements are accumulated during a tick and applied at the end.
 
 ### Schema
 
@@ -155,9 +154,9 @@ When disabled (default):
 
 ### Use Cases
 
-- **Castro model replication**: Matches ℓ_t = ℓ_{t-1} - P_t x_t + R_t
 - **Gridlock research**: Study payment gridlock under strict liquidity constraints
 - **Academic validation**: Compare with theoretical models
+- **Strict liquidity constraints**: Matches ℓ_t = ℓ_{t-1} - P_t x_t + R_t
 
 ### Example
 
@@ -237,61 +236,13 @@ eod_rush_threshold: 0.75    # Rush at 75% of day
 
 ---
 
-## `deferred_crediting`
-
-**Type**: `bool`
-**Location**: Top-level config
-**Default**: `false`
-
-Enables Castro et al. (2025) compatible settlement mode where credits are batched.
-
-### Schema
-
-```yaml
-deferred_crediting: true
-```
-
-### Implementation
-
-**Rust** (`engine.rs:180-181`):
-```rust
-#[serde(default)]
-pub deferred_crediting: bool,
-```
-
-### Behavior
-
-When enabled:
-- Credits are **batched** and applied at end of tick
-- Prevents within-tick liquidity recycling
-- Receivers cannot use incoming funds until next tick
-
-When disabled (default):
-- Credits are applied **immediately** after settlement
-- Within-tick recycling: Agent A pays B, B can use funds to pay C in same tick
-- More efficient liquidity usage
-
-### Use Cases
-
-- Castro et al. (2025) model replication
-- Research on liquidity recycling effects
-- Conservative settlement analysis
-
-### Example
-
-```yaml
-deferred_crediting: true    # Castro-compatible mode
-```
-
----
-
 ## `deadline_cap_at_eod`
 
 **Type**: `bool`
 **Location**: Top-level config
 **Default**: `false`
 
-Enables Castro et al. (2025) compatible deadline generation where all deadlines are capped at end of current day.
+Enables deadline generation mode where all deadlines are capped at end of current day.
 
 ### Schema
 
@@ -332,10 +283,10 @@ When disabled (default):
 
 ### Use Cases
 
-- Castro et al. (2025) model replication
 - Realistic same-day settlement requirements
 - Research on EOD settlement pressure
 - Modeling payment systems with strict daily cutoffs
+- Academic model replication
 
 ### Interaction with Arrival Config
 
@@ -355,7 +306,7 @@ arrival_config:
 ### Example
 
 ```yaml
-deadline_cap_at_eod: true    # Castro-compatible mode
+deadline_cap_at_eod: true    # Enable same-day settlement requirement
 ```
 
 ### Multi-Day Behavior
@@ -403,7 +354,7 @@ cost_rates:
   overdue_delay_multiplier: 5.0
 ```
 
-### Castro et al. (2025) Alignment
+### Strict Same-Day Settlement Mode
 
 ```yaml
 simulation:
@@ -411,7 +362,7 @@ simulation:
   num_days: 10
   rng_seed: 42
 
-# Castro-compatible modes
+# Enable same-day settlement constraints
 deferred_crediting: true      # Batch credits at tick end
 deadline_cap_at_eod: true     # All deadlines within same day
 

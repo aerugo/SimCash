@@ -180,7 +180,7 @@ pub deadline_range: (usize, usize),
 - Transactions past deadline become "overdue"
 - Overdue transactions incur `deadline_penalty` and `overdue_delay_multiplier`
 
-#### End-of-Day Deadline Cap (Castro-Compatible Mode)
+#### End-of-Day Deadline Cap
 
 When `deadline_cap_at_eod: true` is set at the top level of the configuration, all generated deadlines are additionally capped at the **end of the current day**. This ensures payments must settle within the same business day they arrive.
 

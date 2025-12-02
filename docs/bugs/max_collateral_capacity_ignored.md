@@ -88,7 +88,7 @@ vs intended:
 
 ### Research Impact
 
-This bug caused our Castro et al. (2025) replication experiment to show $40M costs instead of expected $50k, making results appear non-comparable to the paper.
+This bug caused research experiments to show $40M costs instead of expected $50k, producing incorrect results.
 
 ---
 
@@ -173,13 +173,6 @@ fn test_explicit_max_collateral_capacity() {
     assert_eq!(agent.max_collateral_capacity(), 500_000);
 }
 ```
-
----
-
-## Related
-
-- Experiment 2d investigation in `experiments/castro/LAB_NOTES.md`
-- Workaround config: `experiments/castro/configs/castro_12period_castro_equiv_fixed.yaml`
 
 ---
 

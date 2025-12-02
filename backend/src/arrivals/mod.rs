@@ -200,7 +200,7 @@ pub struct ArrivalGenerator {
     /// Ticks per day (for EOD cap calculation)
     ticks_per_day: usize,
 
-    /// Whether to cap deadlines at end of current day (Castro-compatible mode)
+    /// Whether to cap deadlines at end of current day
     deadline_cap_at_eod: bool,
 }
 
@@ -536,7 +536,7 @@ impl ArrivalGenerator {
     ///
     /// Deadlines are capped at episode_end_tick to prevent impossible deadlines
     /// (Issue #6 fix). Additionally, if `deadline_cap_at_eod` is enabled, deadlines
-    /// are further capped at the end of the current day (Castro-compatible mode).
+    /// are further capped at the end of the current day.
     fn generate_deadline(
         &self,
         arrival_tick: usize,

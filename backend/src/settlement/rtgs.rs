@@ -369,13 +369,13 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
 ///
 /// Same as `process_queue`, but accepts an optional `DeferredCredits` accumulator.
 /// When provided, credits are accumulated instead of applied immediately.
-/// This supports Castro et al. (2025) compatible deferred crediting mode.
+/// This supports deferred crediting mode.
 ///
 /// # Arguments
 ///
 /// * `state` - The simulation state
 /// * `tick` - Current tick number
-/// * `deferred_credits` - Optional accumulator for deferred credits (Castro mode)
+/// * `deferred_credits` - Optional accumulator for deferred credits
 pub fn process_queue_with_deferred(
     state: &mut SimulationState,
     tick: usize,
