@@ -361,6 +361,26 @@ pub fn submit_transaction(
 /// assert_eq!(result.remaining_queue_size, 0);
 /// ```
 pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessingResult {
+    // Call with no deferred credits (immediate crediting mode)
+    process_queue_with_deferred(state, tick, None)
+}
+
+/// Process Queue 2 with optional deferred crediting.
+///
+/// Same as `process_queue`, but accepts an optional `DeferredCredits` accumulator.
+/// When provided, credits are accumulated instead of applied immediately.
+/// This supports Castro et al. (2025) compatible deferred crediting mode.
+///
+/// # Arguments
+///
+/// * `state` - The simulation state
+/// * `tick` - Current tick number
+/// * `deferred_credits` - Optional accumulator for deferred credits (Castro mode)
+pub fn process_queue_with_deferred(
+    state: &mut SimulationState,
+    tick: usize,
+    mut deferred_credits: Option<&mut super::deferred::DeferredCredits>,
+) -> QueueProcessingResult {
     let mut settled_count = 0;
     let mut settled_value = 0i64;
     let mut overdue_count = 0; // NEW: Count newly overdue transactions
@@ -414,9 +434,18 @@ pub fn process_queue(state: &mut SimulationState, tick: usize) -> QueueProcessin
                 // Record outflow for bilateral/multilateral limit tracking
                 sender.record_outflow(&receiver_id, amount);
             }
-            {
-                let receiver = state.get_agent_mut(&receiver_id).unwrap();
-                receiver.credit(amount);
+
+            // Credit handling: immediate or deferred based on mode
+            match deferred_credits {
+                Some(ref mut dc) => {
+                    // Deferred mode: accumulate credit
+                    dc.accumulate(&receiver_id, amount, &tx_id);
+                }
+                None => {
+                    // Immediate mode: credit directly
+                    let receiver = state.get_agent_mut(&receiver_id).unwrap();
+                    receiver.credit(amount);
+                }
             }
 
             // Get parent_id before settling (need to read before mut borrow)

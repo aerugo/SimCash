@@ -201,6 +201,14 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         .transpose()?
         .unwrap_or(false);
 
+    // Parse deferred_crediting (default: false for backward compatibility)
+    // When true, credits are batched and applied at end of tick (Castro-compatible mode)
+    let deferred_crediting: bool = py_config
+        .get_item("deferred_crediting")?
+        .map(|item| item.extract())
+        .transpose()?
+        .unwrap_or(false);
+
     // Parse priority_escalation (default: disabled for backward compatibility)
     let priority_escalation = if let Some(py_escalation) = py_config.get_item("priority_escalation")? {
         let escalation_dict: Bound<'_, PyDict> = py_escalation.downcast_into()?;
@@ -253,6 +261,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         priority_escalation,
         algorithm_sequencing,
         entry_disposition_offsetting,
+        deferred_crediting,
     })
 }
 

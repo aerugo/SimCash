@@ -723,6 +723,14 @@ class SimulationConfig(BaseModel):
     policy_feature_toggles: PolicyFeatureToggles | None = Field(
         None, description="Restrict policy DSL features for this scenario"
     )
+    deferred_crediting: bool = Field(
+        False,
+        description=(
+            "When true, credits are batched and applied at end of tick "
+            "(Castro-compatible mode). When false (default), credits are "
+            "applied immediately allowing within-tick recycling."
+        ),
+    )
 
     @field_validator("agents")
     @classmethod
@@ -850,6 +858,9 @@ class SimulationConfig(BaseModel):
             result["scenario_events"] = [
                 self._scenario_event_to_ffi_dict(event) for event in self.scenario_events
             ]
+
+        # Add deferred_crediting (Castro-compatible mode)
+        result["deferred_crediting"] = self.deferred_crediting
 
         return result
 

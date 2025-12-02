@@ -86,6 +86,7 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     }
 }
 
