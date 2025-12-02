@@ -81,6 +81,7 @@ fn create_test_config() -> OrchestratorConfig {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     }
 }
 
@@ -754,6 +755,7 @@ fn test_lsm_cycle_settlement_event() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

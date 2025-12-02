@@ -165,6 +165,17 @@ pub struct OrchestratorConfig {
     /// they can be immediately offset without waiting for periodic LSM runs.
     #[serde(default)]
     pub entry_disposition_offsetting: bool,
+
+    /// Deferred crediting mode (default: false)
+    /// When enabled, credits from settlements are accumulated during the tick
+    /// and applied at the end of the tick, matching Castro et al. (2025) model.
+    /// This prevents "within-tick recycling" where incoming payments become
+    /// immediately available for outgoing payments in the same tick.
+    ///
+    /// When false (default): Immediate crediting - receivers can use funds immediately
+    /// When true: Deferred crediting - receivers can only use funds in the next tick
+    #[serde(default)]
+    pub deferred_crediting: bool,
 }
 
 /// Priority escalation configuration
@@ -1110,6 +1121,7 @@ impl Orchestrator {
     ///     priority_escalation: Default::default(),
     ///     algorithm_sequencing: false,
     ///     entry_disposition_offsetting: false,
+    ///     deferred_crediting: false,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -2899,7 +2911,7 @@ impl Orchestrator {
     /// }
     /// ```
     pub fn tick(&mut self) -> Result<TickResult, SimulationError> {
-        use crate::settlement::{lsm, rtgs};
+        use crate::settlement::{lsm, rtgs, DeferredCredits};
         use std::time::Instant;
 
         let tick_start = Instant::now();
@@ -2907,6 +2919,13 @@ impl Orchestrator {
 
         let current_tick = self.current_tick();
         let mut num_settlements = 0;
+
+        // Initialize deferred credits accumulator if Castro-compatible mode is enabled
+        let mut deferred_credits = if self.config.deferred_crediting {
+            Some(DeferredCredits::new())
+        } else {
+            None
+        };
 
         // Clear pending settlements from previous tick
         self.pending_settlements.clear();
@@ -4020,7 +4039,12 @@ impl Orchestrator {
                 .balance();
 
             // Try to settle the transaction (already in state)
-            let settlement_result = self.try_settle_transaction(tx_id, current_tick)?;
+            // Pass deferred_credits for Castro-compatible mode
+            let settlement_result = self.try_settle_transaction_with_deferred(
+                tx_id,
+                current_tick,
+                deferred_credits.as_mut(),
+            )?;
 
             match settlement_result {
                 SettlementOutcome::Settled => {
@@ -4087,7 +4111,11 @@ impl Orchestrator {
         self.sort_queue2_by_priority_bands();
 
         let rtgs_queue_start = Instant::now();
-        let queue_result = rtgs::process_queue(&mut self.state, current_tick);
+        let queue_result = rtgs::process_queue_with_deferred(
+            &mut self.state,
+            current_tick,
+            deferred_credits.as_mut(),
+        );
         num_settlements += queue_result.settled_count;
 
         // Emit Settlement events for Queue 2 settlements (Issue #2 fix: visibility into Queue 2 activity)
@@ -4148,12 +4176,13 @@ impl Orchestrator {
             );
         }
 
-        let lsm_result = lsm::run_lsm_pass(
+        let lsm_result = lsm::run_lsm_pass_with_deferred(
             &mut self.state,
             &self.lsm_config,
             current_tick,
             self.time_manager.ticks_per_day(),
             self.config.entry_disposition_offsetting,
+            deferred_credits.as_mut(),
         );
         let num_lsm_releases = lsm_result.bilateral_offsets + lsm_result.cycles_settled;
         num_settlements += num_lsm_releases;
@@ -4393,6 +4422,21 @@ impl Orchestrator {
 
         // Capture timing for LSM phase
         timing.lsm_micros = lsm_start.elapsed().as_micros() as u64;
+
+        // STEP 5.7: APPLY DEFERRED CREDITS (Castro-compatible mode)
+        // If deferred crediting is enabled, accumulated credits are applied at end of tick
+        // This prevents "within-tick recycling" where incoming payments fund outgoing payments
+        if let Some(ref mut dc) = deferred_credits {
+            if !dc.is_empty() {
+                // Apply all accumulated credits and get the events
+                let credit_events = dc.apply_all(&mut self.state, current_tick);
+
+                // Log each deferred credit event
+                for event in credit_events {
+                    self.log_event(event);
+                }
+            }
+        }
 
         // STEP 6: COST ACCRUAL (Phase 4b.3 - minimal for now)
         let cost_accrual_start = Instant::now();
@@ -5068,6 +5112,20 @@ impl Orchestrator {
         tx_id: &str,
         tick: usize,
     ) -> Result<SettlementOutcome, SimulationError> {
+        self.try_settle_transaction_with_deferred(tx_id, tick, None)
+    }
+
+    /// Try to settle a transaction with optional deferred crediting support.
+    ///
+    /// When `deferred_credits` is Some, credits are accumulated instead of being
+    /// applied immediately. This matches the Castro et al. (2025) model where
+    /// incoming payments only become available in the next period.
+    fn try_settle_transaction_with_deferred(
+        &mut self,
+        tx_id: &str,
+        tick: usize,
+        deferred_credits: Option<&mut crate::settlement::DeferredCredits>,
+    ) -> Result<SettlementOutcome, SimulationError> {
         // Get transaction details
         let (sender_id, receiver_id, amount) = {
             let tx = self
@@ -5141,9 +5199,18 @@ impl Orchestrator {
                 // Record outflow for bilateral/multilateral limit tracking (Phase 1 TARGET2 LSM)
                 sender.record_outflow(&receiver_id, amount);
             }
-            {
-                let receiver = self.state.get_agent_mut(&receiver_id).unwrap();
-                receiver.credit(amount);
+
+            // Handle credit: either defer or apply immediately
+            match deferred_credits {
+                Some(dc) => {
+                    // Deferred crediting mode: accumulate credit for end of tick
+                    dc.accumulate(&receiver_id, amount, tx_id);
+                }
+                None => {
+                    // Immediate crediting mode: apply credit now
+                    let receiver = self.state.get_agent_mut(&receiver_id).unwrap();
+                    receiver.credit(amount);
+                }
             }
 
             // Get parent_id before settling (need to read before mut borrow)
