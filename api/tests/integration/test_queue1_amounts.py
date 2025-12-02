@@ -7,6 +7,13 @@ Issue #3 from replay-crisis-scenario-fixes.md
 import pytest
 from pathlib import Path
 import json
+
+try:
+    import duckdb
+    HAS_DUCKDB = True
+except ImportError:
+    HAS_DUCKDB = False
+
 from payment_simulator.persistence.connection import DatabaseManager
 from payment_simulator.persistence.event_queries import get_simulation_events
 
@@ -20,7 +27,19 @@ def crisis_db():
     return db_path
 
 
-def test_queue1_amounts_are_nonzero(crisis_db):
+@pytest.fixture
+def crisis_db_manager(crisis_db):
+    """Database manager for the crisis database, with lock handling."""
+    try:
+        db_manager = DatabaseManager(str(crisis_db))
+        yield db_manager
+    except Exception as e:
+        if "lock" in str(e).lower() or "IOException" in str(type(e).__name__):
+            pytest.skip(f"Database is locked by another process: {e}")
+        raise
+
+
+def test_queue1_amounts_are_nonzero(crisis_db_manager):
     """
     Queue-1 transactions must have positive amounts.
 
@@ -28,7 +47,7 @@ def test_queue1_amounts_are_nonzero(crisis_db):
     WHEN we retrieve agent state from the database
     THEN queue1 items must have 'amount' field > 0
     """
-    db_manager = DatabaseManager(str(crisis_db))
+    db_manager = crisis_db_manager
     conn = db_manager.get_connection()
     cursor = conn.cursor()
 
@@ -83,7 +102,7 @@ def test_queue1_amounts_are_nonzero(crisis_db):
     assert found_queue1_with_items, "No agent found with Queue-1 items at tick 250"
 
 
-def test_queue1_display_amounts_match_sum(crisis_db):
+def test_queue1_display_amounts_match_sum(crisis_db_manager):
     """
     Queue-1 display header sum must match individual amounts.
 
@@ -91,7 +110,7 @@ def test_queue1_display_amounts_match_sum(crisis_db):
     WHEN displayed in verbose output
     THEN the header total must equal sum of detail amounts
     """
-    db_manager = DatabaseManager(str(crisis_db))
+    db_manager = crisis_db_manager
 
     # Get simulation ID
     conn = db_manager.get_connection()
