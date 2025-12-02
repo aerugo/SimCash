@@ -10,6 +10,7 @@ Advanced settings control **TARGET2 alignment features** and simulation internal
 |:--------|:--------|:--------|
 | `algorithm_sequencing` | Sequenced FIFO→Bilateral→Multilateral LSM | `false` |
 | `entry_disposition_offsetting` | Check offsets at payment entry | `false` |
+| `deferred_crediting` | Castro-compatible deferred credit application | `false` |
 | `eod_rush_threshold` | When EOD rush behavior begins | `0.8` |
 | `deferred_crediting` | Batch credits at end of tick (Castro-compatible) | `false` |
 | `deadline_cap_at_eod` | Cap deadlines at end of current day (Castro-compatible) | `false` |
@@ -115,6 +116,65 @@ When disabled:
 entry_disposition_offsetting: true
 algorithm_sequencing: true    # Often used together
 ```
+
+---
+
+## `deferred_crediting`
+
+**Type**: `bool`
+**Location**: Top-level config
+**Default**: `false`
+
+Enables Castro-compatible deferred crediting mode where credits from settlements are accumulated during a tick and applied at the end.
+
+### Schema
+
+```yaml
+deferred_crediting: true
+```
+
+### Implementation
+
+**Rust** (`engine.rs`):
+```rust
+pub deferred_crediting: bool,
+```
+
+### Behavior
+
+When enabled:
+- Credits from RTGS and LSM settlements are accumulated during the tick
+- Credits are applied at end of tick (step 5.7), before cost accrual
+- Prevents "within-tick recycling" of liquidity
+- Emits `DeferredCreditApplied` event per receiving agent
+
+When disabled (default):
+- Credits are applied immediately when settlements occur
+- Incoming payments can fund outgoing payments in same tick
+- Backward-compatible with existing scenarios
+
+### Use Cases
+
+- **Castro model replication**: Matches ℓ_t = ℓ_{t-1} - P_t x_t + R_t
+- **Gridlock research**: Study payment gridlock under strict liquidity constraints
+- **Academic validation**: Compare with theoretical models
+
+### Example
+
+```yaml
+deferred_crediting: true
+lsm_config:
+  enable_bilateral: false  # May want to disable LSM for pure gridlock study
+  enable_cycles: false
+```
+
+### Behavioral Impact
+
+| Scenario | Immediate (default) | Deferred |
+|:---------|:--------------------|:---------|
+| Mutual A→B, B→A (zero balance) | May settle if B→A first | Gridlock |
+| Chain A→B→C | C has funds same tick | C has funds next tick |
+| LSM bilateral net receiver | Funds available same tick | Funds available end of tick |
 
 ---
 
@@ -422,6 +482,8 @@ How advanced settings interact with other configurations:
 | `algorithm_sequencing` | `lsm_config` | Defines when LSM runs |
 | `algorithm_sequencing` | `priority_mode` | Priority respected in sequence |
 | `entry_disposition_offsetting` | `lsm_config.enable_bilateral` | Entry-time bilateral check |
+| `deferred_crediting` | `lsm_config` | LSM credits also deferred |
+| `deferred_crediting` | Agent balances | Credits applied end of tick |
 | `eod_rush_threshold` | `ticks_per_day` | Determines rush start tick |
 | `eod_rush_threshold` | Policy `is_eod_rush` | Enables time-based policy |
 | `deferred_crediting` | Settlement engine | Controls when credits are applied |
@@ -447,6 +509,13 @@ When `entry_disposition_offsetting: true`:
 - `EntryDispositionOffset` when immediate bilateral found
 - Includes matched transaction details
 
+### Deferred Crediting Events
+
+When `deferred_crediting: true`:
+- `DeferredCreditApplied` for each agent receiving credits
+- Emitted at end of tick (step 5.7)
+- Includes agent_id, amount, and source_transactions
+
 ---
 
 ## Performance Considerations
@@ -455,6 +524,7 @@ When `entry_disposition_offsetting: true`:
 |:--------|:-------------------|
 | `algorithm_sequencing` | Slight overhead from phase separation |
 | `entry_disposition_offsetting` | Extra check per Queue 2 entry |
+| `deferred_crediting` | Minimal - BTreeMap operations |
 | `eod_rush_threshold` | No performance impact |
 
 ---

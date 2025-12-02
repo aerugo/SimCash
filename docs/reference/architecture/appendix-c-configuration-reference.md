@@ -123,6 +123,23 @@ priority_escalation:
 
 ---
 
+## Deferred Crediting
+
+```yaml
+deferred_crediting: true    # Enable Castro-compatible settlement (default: false)
+```
+
+When enabled, credits from settlements are accumulated during a tick and applied at the end (step 5.7), rather than being immediately available. This prevents "within-tick recycling" of liquidity.
+
+**Behavioral Impact**:
+- Mutual payments between agents with zero balance will gridlock
+- Incoming payments are only available in the next tick
+- Matches Castro et al. (2025) academic model
+
+**Default**: `false` (immediate crediting for backward compatibility)
+
+---
+
 ## Amount Distributions
 
 ### Normal
