@@ -145,7 +145,7 @@ fn test_arrival_generator_with_bands_config() {
     band_configs.insert("BANK_A".to_string(), bands);
 
     let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
-    let generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000);
+    let generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000, 1000, false);
 
     assert!(generator.has_bands_config("BANK_A"));
 }
@@ -196,7 +196,7 @@ fn test_per_band_arrivals_have_correct_priority_ranges() {
     band_configs.insert("BANK_A".to_string(), bands);
 
     let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
-    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000);
+    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000, 1000, false);
 
     let mut rng = RngManager::new(42);
     let arrivals = generator.generate_for_agent("BANK_A", 0, &mut rng);
@@ -269,7 +269,7 @@ fn test_urgent_band_has_tight_deadlines() {
     band_configs.insert("BANK_A".to_string(), bands);
 
     let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
-    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000);
+    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000, 1000, false);
 
     let mut rng = RngManager::new(42);
     let arrival_tick = 10;
@@ -313,7 +313,7 @@ fn test_low_band_has_relaxed_deadlines() {
     band_configs.insert("BANK_A".to_string(), bands);
 
     let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
-    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000);
+    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000, 1000, false);
 
     let mut rng = RngManager::new(42);
     let arrival_tick = 10;
@@ -368,14 +368,14 @@ fn test_per_band_arrivals_deterministic() {
     // First run
     let mut band_configs1 = HashMap::new();
     band_configs1.insert("BANK_A".to_string(), make_bands());
-    let mut generator1 = ArrivalGenerator::new_with_bands(band_configs1, all_agents.clone(), 1000);
+    let mut generator1 = ArrivalGenerator::new_with_bands(band_configs1, all_agents.clone(), 1000, 1000, false);
     let mut rng1 = RngManager::new(12345);
     let arrivals1 = generator1.generate_for_agent("BANK_A", 0, &mut rng1);
 
     // Second run with same seed
     let mut band_configs2 = HashMap::new();
     band_configs2.insert("BANK_A".to_string(), make_bands());
-    let mut generator2 = ArrivalGenerator::new_with_bands(band_configs2, all_agents, 1000);
+    let mut generator2 = ArrivalGenerator::new_with_bands(band_configs2, all_agents, 1000, 1000, false);
     let mut rng2 = RngManager::new(12345);
     let arrivals2 = generator2.generate_for_agent("BANK_A", 0, &mut rng2);
 
@@ -442,7 +442,7 @@ fn test_mixed_arrival_modes() {
         "BANK_C".to_string(),
     ];
     let mut generator =
-        ArrivalGenerator::new_mixed(band_configs, legacy_configs, all_agents, 1000);
+        ArrivalGenerator::new_mixed(band_configs, legacy_configs, all_agents, 1000, 1000, false);
 
     let mut rng = RngManager::new(42);
 
@@ -495,7 +495,7 @@ fn test_per_band_counterparty_weights() {
         "BANK_B".to_string(),
         "BANK_C".to_string(),
     ];
-    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000);
+    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000, 1000, false);
 
     let mut rng = RngManager::new(42);
     let arrivals = generator.generate_for_agent("BANK_A", 0, &mut rng);
@@ -591,6 +591,7 @@ fn test_orchestrator_with_arrival_bands() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Should create orchestrator");
@@ -678,6 +679,7 @@ fn test_arrival_config_and_bands_mutually_exclusive() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let result = Orchestrator::new(config);
@@ -709,7 +711,7 @@ fn test_empty_bands_config_valid() {
     band_configs.insert("BANK_A".to_string(), bands);
 
     let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
-    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000);
+    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, 1000, 1000, false);
 
     let mut rng = RngManager::new(42);
     let arrivals = generator.generate_for_agent("BANK_A", 0, &mut rng);
@@ -744,7 +746,8 @@ fn test_band_arrivals_deadline_capped_at_episode_end() {
 
     let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
     let episode_end = 50; // Short episode
-    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, episode_end);
+    let ticks_per_day = 50; // Same as episode_end for backward compatibility
+    let mut generator = ArrivalGenerator::new_with_bands(band_configs, all_agents, episode_end, ticks_per_day, false);
 
     let mut rng = RngManager::new(42);
     let arrival_tick = 30; // Late in episode

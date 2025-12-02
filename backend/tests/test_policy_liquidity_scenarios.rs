@@ -76,6 +76,7 @@ fn test_liquidity_aware_with_high_arrival_rate() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -177,6 +178,7 @@ fn test_liquidity_aware_buffer_recovery() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -301,6 +303,7 @@ fn test_liquidity_aware_credit_limit_interaction() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -419,6 +422,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     // Aggressive (high urgency threshold = more overrides)
@@ -468,6 +472,7 @@ fn test_liquidity_aware_urgency_threshold_tuning() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orch_conservative = Orchestrator::new(config_conservative).unwrap();

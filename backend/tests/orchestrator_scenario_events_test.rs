@@ -60,6 +60,7 @@ fn create_basic_config_with_events(events: Vec<ScheduledEvent>) -> OrchestratorC
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
         scenario_events: Some(events),
     }
 }
@@ -128,6 +129,7 @@ fn create_config_with_arrivals_and_events(events: Vec<ScheduledEvent>) -> Orches
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
         scenario_events: Some(events),
     }
 }

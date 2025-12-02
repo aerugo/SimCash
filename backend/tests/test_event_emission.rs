@@ -82,6 +82,7 @@ fn create_test_config() -> OrchestratorConfig {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     }
 }
 
@@ -756,6 +757,7 @@ fn test_lsm_cycle_settlement_event() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
