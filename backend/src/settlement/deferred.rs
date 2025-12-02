@@ -1,7 +1,7 @@
 //! Deferred Crediting Module
 //!
-//! Implements Castro et al. (2025) compatible deferred crediting mode
-//! where credits are accumulated during a tick and applied at the end.
+//! Implements deferred crediting mode where credits are accumulated during
+//! a tick and applied at the end.
 //!
 //! # Overview
 //!
@@ -9,7 +9,7 @@
 //! immediately. This allows "within-tick recycling" where incoming payments
 //! become available for outgoing payments in the same tick.
 //!
-//! In Castro's model, incoming payments R_t only become available in period t+1.
+//! In deferred crediting mode, incoming payments R_t only become available in period t+1.
 //! This module implements that behavior by:
 //! 1. Accumulating credits during tick processing
 //! 2. Applying all credits atomically at end of tick

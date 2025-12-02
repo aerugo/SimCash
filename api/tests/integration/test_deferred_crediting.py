@@ -1,12 +1,10 @@
 """
-Test deferred crediting mode (Castro-compatible settlement).
+Test deferred crediting mode.
 
 These tests verify the deferred crediting feature where credits are accumulated
-during a tick and applied at end of tick, matching the Castro et al. (2025) model.
+during a tick and applied at end of tick.
 
 TDD: These tests are written BEFORE implementation.
-
-Reference: experiments/castro/docs/feature_request_deferred_crediting.md
 """
 
 from __future__ import annotations
@@ -30,7 +28,7 @@ def test_deferred_crediting_causes_gridlock_zero_balances() -> None:
         "rng_seed": 42,
         "ticks_per_day": 100,
         "num_days": 1,
-        "deferred_crediting": True,  # Castro-compatible mode
+        "deferred_crediting": True,  # Enable deferred crediting mode
         # Disable LSM to test pure deferred crediting behavior
         # (LSM bilateral offset would resolve the gridlock)
         "lsm_config": {

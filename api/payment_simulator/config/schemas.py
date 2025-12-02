@@ -726,17 +726,17 @@ class SimulationConfig(BaseModel):
     deferred_crediting: bool = Field(
         False,
         description=(
-            "When true, credits are batched and applied at end of tick "
-            "(Castro-compatible mode). When false (default), credits are "
-            "applied immediately allowing within-tick recycling."
+            "When true, credits are batched and applied at end of tick. "
+            "When false (default), credits are applied immediately allowing "
+            "within-tick recycling."
         ),
     )
     deadline_cap_at_eod: bool = Field(
         False,
         description=(
             "When true, all generated transaction deadlines are capped at the "
-            "end of the current day (Castro-compatible mode). When false (default), "
-            "deadlines are only capped at episode end."
+            "end of the current day. When false (default), deadlines are only "
+            "capped at episode end."
         ),
     )
 
@@ -867,10 +867,10 @@ class SimulationConfig(BaseModel):
                 self._scenario_event_to_ffi_dict(event) for event in self.scenario_events
             ]
 
-        # Add deferred_crediting (Castro-compatible mode)
+        # Add deferred_crediting
         result["deferred_crediting"] = self.deferred_crediting
 
-        # Add deadline_cap_at_eod (Castro-compatible mode)
+        # Add deadline_cap_at_eod
         result["deadline_cap_at_eod"] = self.deadline_cap_at_eod
 
         return result
