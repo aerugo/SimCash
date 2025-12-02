@@ -18,11 +18,21 @@ def client():
     container.clear_all()
     container.db_manager = None
 
-    yield TestClient(app)
+    # Create the test client - this runs the lifespan which may set db_manager
+    test_client = TestClient(app)
+
+    # Clear db_manager AFTER lifespan runs (lifespan may auto-discover databases)
+    container.db_manager = None
+    if hasattr(app.state, "db_manager"):
+        app.state.db_manager = None
+
+    yield test_client
 
     # Clean up after test
     container.clear_all()
     container.db_manager = None
+    if hasattr(app.state, "db_manager"):
+        app.state.db_manager = None
 
 
 @pytest.fixture
