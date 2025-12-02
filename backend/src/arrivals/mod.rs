@@ -196,6 +196,12 @@ pub struct ArrivalGenerator {
 
     /// Episode end tick (for deadline capping) - Issue #6 fix
     episode_end_tick: usize,
+
+    /// Ticks per day (for EOD cap calculation)
+    ticks_per_day: usize,
+
+    /// Whether to cap deadlines at end of current day (Castro-compatible mode)
+    deadline_cap_at_eod: bool,
 }
 
 impl ArrivalGenerator {
@@ -206,10 +212,14 @@ impl ArrivalGenerator {
     /// * `configs` - Map of agent ID to arrival configuration
     /// * `all_agent_ids` - List of all agent IDs in the simulation
     /// * `episode_end_tick` - Final tick of the simulation (for deadline capping)
+    /// * `ticks_per_day` - Number of ticks per day (for EOD cap calculation)
+    /// * `deadline_cap_at_eod` - Whether to cap deadlines at end of current day
     pub fn new(
         configs: HashMap<String, ArrivalConfig>,
         all_agent_ids: Vec<String>,
         episode_end_tick: usize,
+        ticks_per_day: usize,
+        deadline_cap_at_eod: bool,
     ) -> Self {
         Self {
             base_configs: configs.clone(), // Store original configs
@@ -218,6 +228,8 @@ impl ArrivalGenerator {
             all_agent_ids,
             next_tx_id: 0,
             episode_end_tick,
+            ticks_per_day,
+            deadline_cap_at_eod,
         }
     }
 
@@ -228,10 +240,14 @@ impl ArrivalGenerator {
     /// * `band_configs` - Map of agent ID to per-band arrival configuration
     /// * `all_agent_ids` - List of all agent IDs in the simulation
     /// * `episode_end_tick` - Final tick of the simulation (for deadline capping)
+    /// * `ticks_per_day` - Number of ticks per day (for EOD cap calculation)
+    /// * `deadline_cap_at_eod` - Whether to cap deadlines at end of current day
     pub fn new_with_bands(
         band_configs: HashMap<String, ArrivalBandsConfig>,
         all_agent_ids: Vec<String>,
         episode_end_tick: usize,
+        ticks_per_day: usize,
+        deadline_cap_at_eod: bool,
     ) -> Self {
         Self {
             configs: HashMap::new(),
@@ -240,6 +256,8 @@ impl ArrivalGenerator {
             all_agent_ids,
             next_tx_id: 0,
             episode_end_tick,
+            ticks_per_day,
+            deadline_cap_at_eod,
         }
     }
 
@@ -253,11 +271,15 @@ impl ArrivalGenerator {
     /// * `legacy_configs` - Map of agent ID to legacy arrival configuration
     /// * `all_agent_ids` - List of all agent IDs in the simulation
     /// * `episode_end_tick` - Final tick of the simulation (for deadline capping)
+    /// * `ticks_per_day` - Number of ticks per day (for EOD cap calculation)
+    /// * `deadline_cap_at_eod` - Whether to cap deadlines at end of current day
     pub fn new_mixed(
         band_configs: HashMap<String, ArrivalBandsConfig>,
         legacy_configs: HashMap<String, ArrivalConfig>,
         all_agent_ids: Vec<String>,
         episode_end_tick: usize,
+        ticks_per_day: usize,
+        deadline_cap_at_eod: bool,
     ) -> Self {
         Self {
             base_configs: legacy_configs.clone(),
@@ -266,6 +288,8 @@ impl ArrivalGenerator {
             all_agent_ids,
             next_tx_id: 0,
             episode_end_tick,
+            ticks_per_day,
+            deadline_cap_at_eod,
         }
     }
 
@@ -511,7 +535,8 @@ impl ArrivalGenerator {
     /// Generate a deadline for the transaction.
     ///
     /// Deadlines are capped at episode_end_tick to prevent impossible deadlines
-    /// (Issue #6 fix).
+    /// (Issue #6 fix). Additionally, if `deadline_cap_at_eod` is enabled, deadlines
+    /// are further capped at the end of the current day (Castro-compatible mode).
     fn generate_deadline(
         &self,
         arrival_tick: usize,
@@ -523,7 +548,16 @@ impl ArrivalGenerator {
         let raw_deadline = arrival_tick + offset;
 
         // Cap deadline at episode end (Issue #6 fix)
-        raw_deadline.min(self.episode_end_tick)
+        let episode_capped = raw_deadline.min(self.episode_end_tick);
+
+        // If deadline_cap_at_eod enabled, also cap at current day's end
+        if self.deadline_cap_at_eod {
+            let current_day = arrival_tick / self.ticks_per_day;
+            let day_end_tick = (current_day + 1) * self.ticks_per_day;
+            episode_capped.min(day_end_tick)
+        } else {
+            episode_capped
+        }
     }
 
     /// Sample from standard normal distribution using Box-Muller transform.
@@ -684,7 +718,7 @@ mod tests {
         );
 
         let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
-        let generator = ArrivalGenerator::new(configs, all_agents, 1000); // Episode ends at tick 1000
+        let generator = ArrivalGenerator::new(configs, all_agents, 1000, 1000, false); // Episode ends at tick 1000
 
         assert_eq!(generator.next_tx_id, 0);
     }
@@ -710,12 +744,12 @@ mod tests {
         let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
 
         // Generate with seed 42
-        let mut generator1 = ArrivalGenerator::new(configs.clone(), all_agents.clone(), 1000);
+        let mut generator1 = ArrivalGenerator::new(configs.clone(), all_agents.clone(), 1000, 1000, false);
         let mut rng1 = RngManager::new(42);
         let arrivals1 = generator1.generate_for_agent("BANK_A", 0, &mut rng1);
 
         // Generate again with same seed
-        let mut generator2 = ArrivalGenerator::new(configs, all_agents, 1000);
+        let mut generator2 = ArrivalGenerator::new(configs, all_agents, 1000, 1000, false);
         let mut rng2 = RngManager::new(42);
         let arrivals2 = generator2.generate_for_agent("BANK_A", 0, &mut rng2);
 
@@ -748,6 +782,8 @@ mod tests {
             vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
             1000, // Episode end tick
+            1000, // ticks_per_day
+            false, // deadline_cap_at_eod
         );
         let mut rng = RngManager::new(42);
 
@@ -783,6 +819,8 @@ mod tests {
             vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
             1000, // Episode end tick
+            1000, // ticks_per_day
+            false, // deadline_cap_at_eod
         );
         let mut rng = RngManager::new(42);
 
@@ -814,6 +852,8 @@ mod tests {
             vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
             1000, // Episode end tick
+            1000, // ticks_per_day
+            false, // deadline_cap_at_eod
         );
         let mut rng = RngManager::new(42);
 
@@ -854,6 +894,8 @@ mod tests {
             vec![("BANK_A".to_string(), config)].into_iter().collect(),
             all_agents,
             1000, // Episode end tick
+            1000, // ticks_per_day
+            false, // deadline_cap_at_eod
         );
         let mut rng = RngManager::new(42);
 

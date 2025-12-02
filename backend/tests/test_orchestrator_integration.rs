@@ -59,6 +59,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     }
 }
 
@@ -370,6 +371,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -610,6 +612,7 @@ fn test_orchestrator_automatic_arrivals() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -685,6 +688,7 @@ fn test_orchestrator_arrival_determinism() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     // Run two simulations with same seed
@@ -784,6 +788,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -886,6 +891,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
