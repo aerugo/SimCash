@@ -58,6 +58,7 @@ fn create_two_agent_config() -> OrchestratorConfig {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     }
 }
 
@@ -368,6 +369,7 @@ fn test_orchestrator_lsm_bilateral_offset() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -607,6 +609,7 @@ fn test_orchestrator_automatic_arrivals() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -681,6 +684,7 @@ fn test_orchestrator_arrival_determinism() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     // Run two simulations with same seed
@@ -779,6 +783,7 @@ fn test_orchestrator_weighted_counterparty_arrivals() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -880,6 +885,7 @@ fn test_orchestrator_arrivals_respect_amount_distribution() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

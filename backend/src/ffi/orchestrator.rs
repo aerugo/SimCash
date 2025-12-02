@@ -307,6 +307,11 @@ fn event_to_py_dict<'py>(
             let details_json = serde_json::to_string(details).unwrap_or_else(|_| "{}".to_string());
             dict.set_item("details_json", details_json)?;
         }
+        crate::models::event::Event::DeferredCreditApplied { agent_id, amount, source_transactions, .. } => {
+            dict.set_item("agent_id", agent_id)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("source_transactions", source_transactions)?;
+        }
     }
 
     Ok(dict)

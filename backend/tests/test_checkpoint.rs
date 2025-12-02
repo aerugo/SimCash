@@ -69,6 +69,7 @@ fn create_test_orchestrator_with_seed(seed: u64) -> Orchestrator {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     Orchestrator::new(config).expect("Failed to create test orchestrator")
@@ -146,6 +147,7 @@ fn create_test_orchestrator_with_arrivals() -> Orchestrator {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     Orchestrator::new(config).expect("Failed to create orchestrator with arrivals")
@@ -279,6 +281,7 @@ fn test_load_state_restores_exact_state() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
     let state_json = original.save_state().unwrap();
 
@@ -375,6 +378,7 @@ fn test_determinism_after_restore() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
     let state_json = sim1.save_state().unwrap();
 
@@ -490,6 +494,7 @@ fn test_balance_conservation_preserved() {
         priority_escalation: Default::default(),
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
     let state_json = orchestrator.save_state().unwrap();
     let restored = Orchestrator::load_state(config, &state_json).unwrap();
@@ -560,6 +565,7 @@ fn test_config_mismatch_rejected() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     // Should fail to load with config mismatch error
@@ -606,6 +612,7 @@ fn test_corrupted_state_json_rejected() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
     };
 
     // Invalid JSON
@@ -674,6 +681,7 @@ fn test_save_load_roundtrip_preserves_state_multiple_seeds() {
         priority_escalation: Default::default(),
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
+            deferred_crediting: false,
         };
         let state_json = original.save_state().unwrap();
         let mut restored = Orchestrator::load_state(config, &state_json).unwrap();
