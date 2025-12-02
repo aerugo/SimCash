@@ -11,7 +11,7 @@
 |----------|-------|--------|
 | Arrival | 1 | Arrival |
 | Policy | 8 | PolicySubmit, PolicyHold, PolicyDrop, PolicySplit, TransactionReprioritized, PriorityEscalated, BankBudgetSet, StateRegisterSet |
-| Settlement | 6 | RtgsImmediateSettlement, QueuedRtgs, Queue2LiquidityRelease, RtgsSubmission, RtgsWithdrawal, RtgsResubmission |
+| Settlement | 7 | RtgsImmediateSettlement, QueuedRtgs, Queue2LiquidityRelease, RtgsSubmission, RtgsWithdrawal, RtgsResubmission, DeferredCreditApplied |
 | LSM | 6 | LsmBilateralOffset, LsmCycleSettlement, BilateralLimitExceeded, MultilateralLimitExceeded, AlgorithmExecution, EntryDispositionOffset |
 | Cost | 3 | CostAccrual, TransactionWentOverdue, OverdueTransactionSettled |
 | Collateral | 4 | CollateralPost, CollateralWithdraw, CollateralTimerWithdrawn, CollateralTimerBlocked |
@@ -228,6 +228,30 @@ Resubmitted with new priority.
   "new_priority": "Urgent"
 }
 ```
+
+### DeferredCreditApplied
+
+Credit applied at end of tick (deferred crediting mode only).
+
+```json
+{
+  "event_type": "DeferredCreditApplied",
+  "tick": 42,
+  "agent_id": "BANK_B",
+  "amount": 150000,
+  "source_transactions": ["tx-001", "tx-002"]
+}
+```
+
+**Fields**:
+- `tick`: Tick when credit was applied
+- `agent_id`: Receiving agent ID
+- `amount`: Total credit amount (cents)
+- `source_transactions`: List of transaction IDs that contributed to this credit
+
+**When Emitted**: End of tick (step 5.7), only when `deferred_crediting: true` is configured.
+
+**Use Case**: Castro model alignment where incoming payments are not available until the next tick. See [06-settlement-engines.md](./06-settlement-engines.md#8-deferred-crediting-mode).
 
 ---
 
