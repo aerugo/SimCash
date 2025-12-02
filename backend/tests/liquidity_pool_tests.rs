@@ -29,6 +29,7 @@ fn create_base_config() -> OrchestratorConfig {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
+            deadline_cap_at_eod: false,
     }
 }
 

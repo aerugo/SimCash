@@ -731,6 +731,14 @@ class SimulationConfig(BaseModel):
             "applied immediately allowing within-tick recycling."
         ),
     )
+    deadline_cap_at_eod: bool = Field(
+        False,
+        description=(
+            "When true, all generated transaction deadlines are capped at the "
+            "end of the current day (Castro-compatible mode). When false (default), "
+            "deadlines are only capped at episode end."
+        ),
+    )
 
     @field_validator("agents")
     @classmethod
@@ -861,6 +869,9 @@ class SimulationConfig(BaseModel):
 
         # Add deferred_crediting (Castro-compatible mode)
         result["deferred_crediting"] = self.deferred_crediting
+
+        # Add deadline_cap_at_eod (Castro-compatible mode)
+        result["deadline_cap_at_eod"] = self.deadline_cap_at_eod
 
         return result
 

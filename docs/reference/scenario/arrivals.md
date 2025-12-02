@@ -176,8 +176,28 @@ pub deadline_range: (usize, usize),
 #### Behavior
 
 - Deadline tick = `arrival_tick + uniform_random(min, max)`
+- Deadlines are always capped at episode end (`num_days × ticks_per_day`)
 - Transactions past deadline become "overdue"
 - Overdue transactions incur `deadline_penalty` and `overdue_delay_multiplier`
+
+#### End-of-Day Deadline Cap (Castro-Compatible Mode)
+
+When `deadline_cap_at_eod: true` is set at the top level of the configuration, all generated deadlines are additionally capped at the **end of the current day**. This ensures payments must settle within the same business day they arrive.
+
+```yaml
+# Top-level setting
+deadline_cap_at_eod: true
+
+agents:
+  - id: BANK_A
+    arrival_config:
+      deadline_range: [30, 100]  # Sample offset from [30, 100]
+      # With 100 ticks/day:
+      # - Arrival at tick 50, sampled offset 80 → raw deadline 130
+      # - Capped to day end: min(130, 100) = 100
+```
+
+See [Advanced Settings: deadline_cap_at_eod](advanced-settings.md#deadline_cap_at_eod) for full details.
 
 #### Example
 
@@ -341,6 +361,8 @@ Minimum ticks from arrival to deadline for this band.
 **Constraint**: `> 0`, `>= deadline_offset_min`
 
 Maximum ticks from arrival to deadline for this band.
+
+**Note**: When `deadline_cap_at_eod: true` is enabled, band deadlines are also capped at day end. See [Advanced Settings: deadline_cap_at_eod](advanced-settings.md#deadline_cap_at_eod).
 
 ### `counterparty_weights`
 
@@ -513,3 +535,7 @@ Error: deadline_range max must be >= min
 
 **Previous**: [Policies](policies.md)
 **Next**: [Distributions](distributions.md)
+
+---
+
+*Last updated: 2025-12-02*
