@@ -11,6 +11,8 @@ Advanced settings control **TARGET2 alignment features** and simulation internal
 | `algorithm_sequencing` | Sequenced FIFO→Bilateral→Multilateral LSM | `false` |
 | `entry_disposition_offsetting` | Check offsets at payment entry | `false` |
 | `eod_rush_threshold` | When EOD rush behavior begins | `0.8` |
+| `deferred_crediting` | Batch credits at end of tick (Castro-compatible) | `false` |
+| `deadline_cap_at_eod` | Cap deadlines at end of current day (Castro-compatible) | `false` |
 
 ---
 
@@ -175,6 +177,136 @@ eod_rush_threshold: 0.75    # Rush at 75% of day
 
 ---
 
+## `deferred_crediting`
+
+**Type**: `bool`
+**Location**: Top-level config
+**Default**: `false`
+
+Enables Castro et al. (2025) compatible settlement mode where credits are batched.
+
+### Schema
+
+```yaml
+deferred_crediting: true
+```
+
+### Implementation
+
+**Rust** (`engine.rs:180-181`):
+```rust
+#[serde(default)]
+pub deferred_crediting: bool,
+```
+
+### Behavior
+
+When enabled:
+- Credits are **batched** and applied at end of tick
+- Prevents within-tick liquidity recycling
+- Receivers cannot use incoming funds until next tick
+
+When disabled (default):
+- Credits are applied **immediately** after settlement
+- Within-tick recycling: Agent A pays B, B can use funds to pay C in same tick
+- More efficient liquidity usage
+
+### Use Cases
+
+- Castro et al. (2025) model replication
+- Research on liquidity recycling effects
+- Conservative settlement analysis
+
+### Example
+
+```yaml
+deferred_crediting: true    # Castro-compatible mode
+```
+
+---
+
+## `deadline_cap_at_eod`
+
+**Type**: `bool`
+**Location**: Top-level config
+**Default**: `false`
+
+Enables Castro et al. (2025) compatible deadline generation where all deadlines are capped at end of current day.
+
+### Schema
+
+```yaml
+deadline_cap_at_eod: true
+```
+
+### Implementation
+
+**Rust** (`engine.rs:183-184`):
+```rust
+#[serde(default)]
+pub deadline_cap_at_eod: bool,
+```
+
+**ArrivalGenerator** (`arrivals/mod.rs`):
+```rust
+// In generate_deadline()
+if self.deadline_cap_at_eod {
+    let current_day = arrival_tick / self.ticks_per_day;
+    let day_end_tick = (current_day + 1) * self.ticks_per_day;
+    deadline.min(day_end_tick)
+}
+```
+
+### Behavior
+
+When enabled:
+- All generated transaction deadlines are capped at **end of current day**
+- Transaction arriving at tick 50 with deadline offset 80 → deadline = tick 100 (day end)
+- Creates more realistic intraday settlement pressure
+- All payments must settle by end-of-day or incur penalties
+
+When disabled (default):
+- Deadlines only capped at **episode end** (`num_days × ticks_per_day`)
+- Transactions can span multiple days
+- Day 1 transaction can have deadline in Day 3
+
+### Use Cases
+
+- Castro et al. (2025) model replication
+- Realistic same-day settlement requirements
+- Research on EOD settlement pressure
+- Modeling payment systems with strict daily cutoffs
+
+### Interaction with Arrival Config
+
+The cap is applied **after** the deadline offset is sampled:
+
+```yaml
+arrival_config:
+  deadline_range: [30, 100]  # Sample offset from [30, 100]
+
+# With deadline_cap_at_eod: true and 100 ticks/day:
+# - Arrival at tick 50, sampled offset 80 → raw deadline 130
+# - Capped to day end: min(130, 100) = 100
+# - Arrival at tick 90, sampled offset 30 → raw deadline 120
+# - Capped to day end: min(120, 100) = 100
+```
+
+### Example
+
+```yaml
+deadline_cap_at_eod: true    # Castro-compatible mode
+```
+
+### Multi-Day Behavior
+
+For multi-day simulations:
+- Day 1 transactions: deadlines capped at tick 100 (end of day 1)
+- Day 2 transactions: deadlines capped at tick 200 (end of day 2)
+- Each day's arrivals respect that day's EOD boundary
+
+---
+
 ## Complete Configuration Examples
 
 ### TARGET2 Full Alignment
@@ -209,6 +341,34 @@ cost_rates:
   delay_cost_per_tick_per_cent: 0.00035
   overdraft_bps_per_tick: 0.50
   overdue_delay_multiplier: 5.0
+```
+
+### Castro et al. (2025) Alignment
+
+```yaml
+simulation:
+  ticks_per_day: 100
+  num_days: 10
+  rng_seed: 42
+
+# Castro-compatible modes
+deferred_crediting: true      # Batch credits at tick end
+deadline_cap_at_eod: true     # All deadlines within same day
+
+# Standard LSM
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: true
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+agents:
+  - id: BANK_A
+    opening_balance: 10000000
+    arrival_config:
+      rate_per_tick: 0.5
+      deadline_range: [30, 100]  # Will be capped to day end
+      # ...
 ```
 
 ### BIS-Minimal Configuration
@@ -264,6 +424,10 @@ How advanced settings interact with other configurations:
 | `entry_disposition_offsetting` | `lsm_config.enable_bilateral` | Entry-time bilateral check |
 | `eod_rush_threshold` | `ticks_per_day` | Determines rush start tick |
 | `eod_rush_threshold` | Policy `is_eod_rush` | Enables time-based policy |
+| `deferred_crediting` | Settlement engine | Controls when credits are applied |
+| `deadline_cap_at_eod` | `ticks_per_day` | Day boundary for deadline cap |
+| `deadline_cap_at_eod` | `arrival_config.deadline_range` | Raw deadline capped to day end |
+| `deadline_cap_at_eod` | `arrival_bands.*.deadline_offset_*` | Band deadlines also capped |
 
 ---
 
@@ -326,3 +490,7 @@ Already covered in [priority-system.md](priority-system.md).
 
 **Previous**: [Priority System](priority-system.md)
 **Next**: [Examples](examples.md)
+
+---
+
+*Last updated: 2025-12-02*
