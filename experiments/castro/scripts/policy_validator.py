@@ -76,6 +76,10 @@ class PolicyValidator:
                 f"Run 'cd api && uv sync --extra dev' to build."
             )
 
+        # Cache for dynamic schema
+        self._schema_cache: dict | None = None
+        self._schema_markdown_cache: str | None = None
+
     def validate(self, policy_json: str) -> ValidationResult:
         """Validate a policy JSON string.
 
@@ -287,6 +291,9 @@ collateral_trees: PostCollateral, WithdrawCollateral, HoldCollateral"""
         Returns:
             Markdown-formatted schema documentation.
         """
+        if self._schema_markdown_cache is not None:
+            return self._schema_markdown_cache
+
         cmd = [
             str(self.cli_path),
             "policy-schema",
@@ -310,9 +317,300 @@ collateral_trees: PostCollateral, WithdrawCollateral, HoldCollateral"""
                 cwd=str(self.simcash_root),
                 timeout=30,
             )
+            self._schema_markdown_cache = result.stdout
             return result.stdout
         except Exception as e:
             return f"Error getting schema: {e}"
+
+    def get_schema_json(self) -> dict:
+        """Get the policy schema as a JSON dict, filtered by scenario.
+
+        Returns:
+            Schema dict with expressions, values, computations, actions, fields.
+        """
+        if self._schema_cache is not None:
+            return self._schema_cache
+
+        cmd = [
+            str(self.cli_path),
+            "policy-schema",
+            "--format", "json",
+        ]
+
+        if self.scenario_path:
+            scenario_abs = (
+                self.simcash_root / self.scenario_path
+                if not Path(self.scenario_path).is_absolute()
+                else Path(self.scenario_path)
+            )
+            cmd.extend(["--scenario", str(scenario_abs)])
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(self.simcash_root),
+                timeout=30,
+            )
+            self._schema_cache = json.loads(result.stdout)
+            return self._schema_cache
+        except Exception as e:
+            return {"error": str(e)}
+
+    def generate_dynamic_prompt(self) -> str:
+        """Generate a dynamic LLM prompt with only valid schema elements.
+
+        This generates a policy generation guide that includes ONLY the
+        actions, fields, and operators that are valid for this scenario.
+
+        Returns:
+            Markdown-formatted prompt with scenario-specific schema.
+        """
+        schema = self.get_schema_json()
+
+        if "error" in schema:
+            return f"# Error loading schema: {schema['error']}"
+
+        # Build dynamic prompt sections
+        sections = []
+
+        sections.append("""# SimCash Policy Generation Guide
+
+You are generating payment policies for SimCash, a bank payment system simulator.
+Policies are JSON decision trees that control when banks release payments and manage collateral.
+
+## Critical Rules
+
+1. **All amounts are in CENTS** - $100 = 10000 cents
+2. **Node IDs must be unique** within each tree
+3. **Settlement rate is paramount** - Policies must settle all payments
+4. **Only use elements listed below** - Other elements will cause validation errors
+
+## Policy JSON Structure
+
+```json
+{
+  "version": "2.0",
+  "policy_id": "your_policy_name",
+  "description": "Strategy description",
+  "parameters": {
+    "param_name": 0.5
+  },
+  "payment_tree": { ... },
+  "strategic_collateral_tree": { ... }
+}
+```
+
+## Node Types
+
+### Condition Node
+```json
+{
+  "type": "condition",
+  "node_id": "C1_unique_id",
+  "condition": { "op": ">=", "left": {"field": "balance"}, "right": {"field": "amount"} },
+  "on_true": { ... },
+  "on_false": { ... }
+}
+```
+
+### Action Node
+```json
+{
+  "type": "action",
+  "node_id": "A1_unique_id",
+  "action": "Release"
+}
+```
+""")
+
+        # Actions section
+        actions = schema.get("actions", [])
+        if actions:
+            sections.append("## Available Actions\n")
+
+            # Group by tree type
+            by_tree: dict[str, list[dict]] = {}
+            for action in actions:
+                valid_trees = action.get("valid_in_trees", [])
+                for tree in valid_trees:
+                    if tree not in by_tree:
+                        by_tree[tree] = []
+                    by_tree[tree].append(action)
+
+            for tree, tree_actions in sorted(by_tree.items()):
+                sections.append(f"### {tree}\n")
+                for a in tree_actions:
+                    name = a.get("json_key", a.get("name", "Unknown"))
+                    desc = a.get("description", "")
+                    params = a.get("parameters", [])
+                    if params:
+                        param_str = ", ".join(
+                            f"`{p['name']}`" + (" (required)" if p.get("required") else "")
+                            for p in params
+                        )
+                        sections.append(f"- **{name}**: {desc} - Parameters: {param_str}")
+                    else:
+                        sections.append(f"- **{name}**: {desc}")
+                sections.append("")
+
+        # Expressions section
+        expressions = schema.get("expressions", [])
+        if expressions:
+            sections.append("## Comparison & Logical Operators\n")
+            for expr in expressions:
+                key = expr.get("json_key", expr.get("name", ""))
+                desc = expr.get("description", "")
+                sections.append(f"- `{key}`: {desc}")
+            sections.append("")
+
+        # Computations section
+        computations = schema.get("computations", [])
+        if computations:
+            sections.append("## Arithmetic Operators\n")
+            for comp in computations:
+                key = comp.get("json_key", comp.get("name", ""))
+                desc = comp.get("description", "")
+                sections.append(f"- `{key}`: {desc}")
+            sections.append("")
+
+        # Values section
+        values = schema.get("values", [])
+        if values:
+            sections.append("## Value Types\n")
+            for val in values:
+                key = val.get("json_key", val.get("name", ""))
+                desc = val.get("description", "")
+                example = val.get("example_json", {})
+                sections.append(f"- `{key}`: {desc}")
+                if example:
+                    sections.append(f"  Example: `{json.dumps(example)}`")
+            sections.append("")
+
+        # Fields section - this is critical!
+        # Note: The schema may not include fields directly, so we need to
+        # provide them from the hardcoded list in analysis.py
+        sections.append("""## Available Context Fields
+
+### Transaction Fields (payment_tree only)
+| Field | Description |
+|-------|-------------|
+| `amount` | Transaction amount (cents) |
+| `remaining_amount` | Amount still to be paid (cents) |
+| `priority` | Payment priority (0-10) |
+| `ticks_to_deadline` | Ticks until deadline |
+| `is_overdue` | Past deadline (0 or 1) |
+| `is_divisible` | Can be split (0 or 1) |
+
+### Agent Fields (all trees)
+| Field | Description |
+|-------|-------------|
+| `balance` | Current account balance (cents) |
+| `effective_liquidity` | Balance + credit available (cents) |
+| `credit_limit` | Total credit line (cents) |
+| `posted_collateral` | Active collateral (cents) |
+| `max_collateral_capacity` | Maximum postable collateral (cents) |
+| `remaining_collateral_capacity` | Capacity left (cents) |
+
+### Queue Fields (all trees)
+| Field | Description |
+|-------|-------------|
+| `queue1_size` | Pending payment count |
+| `queue1_value` | Pending payment total (cents) |
+| `queue2_size` | RTGS queue count |
+| `queue2_value` | RTGS queue total (cents) |
+
+### Time Fields (all trees)
+| Field | Description |
+|-------|-------------|
+| `current_tick` | Current simulation tick |
+| `system_tick_in_day` | Tick within current day (0-indexed) |
+| `ticks_per_day` | Total ticks per day |
+| `ticks_to_eod` | Ticks until end of day |
+""")
+
+        # Example policy
+        sections.append("""## Example Valid Policy
+
+```json
+{
+  "version": "2.0",
+  "policy_id": "balanced_timing",
+  "description": "Release urgent payments, hold others if low liquidity",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 1.1
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "node_id": "SC1_start",
+    "condition": {
+      "op": "==",
+      "left": {"field": "system_tick_in_day"},
+      "right": {"value": 0.0}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "SC2_post",
+      "action": "PostCollateral",
+      "parameters": {
+        "amount": {"compute": {"op": "*", "left": {"field": "max_collateral_capacity"}, "right": {"value": 0.2}}},
+        "reason": {"value": "InitialAllocation"}
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "node_id": "SC3_hold",
+      "action": "HoldCollateral"
+    }
+  },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "P1_urgent",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "ticks_to_deadline"},
+      "right": {"param": "urgency_threshold"}
+    },
+    "on_true": {
+      "type": "action",
+      "node_id": "P2_release",
+      "action": "Release"
+    },
+    "on_false": {
+      "type": "condition",
+      "node_id": "P3_liquidity",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "effective_liquidity"},
+        "right": {"compute": {"op": "*", "left": {"field": "remaining_amount"}, "right": {"param": "liquidity_buffer"}}}
+      },
+      "on_true": {
+        "type": "action",
+        "node_id": "P4_release",
+        "action": "Release"
+      },
+      "on_false": {
+        "type": "action",
+        "node_id": "P5_hold",
+        "action": "Hold"
+      }
+    }
+  }
+}
+```
+
+## Common Mistakes to Avoid
+
+1. **Duplicate node_id** - Each node needs a unique ID
+2. **Wrong action for tree** - `Release` only in payment_tree, `PostCollateral` only in collateral trees
+3. **Missing parameters** - Actions like `Split` require `num_splits`
+4. **Invalid field names** - Only use fields listed above
+5. **Forgetting node_id** - Every node needs one
+""")
+
+        return "\n".join(sections)
 
 
 def create_retry_prompt(context: RetryContext, master_prompt_path: str) -> str:

@@ -797,18 +797,6 @@ def compute_metrics(results: list[dict]) -> dict:
 # LLM Optimizer with Policy Validation
 # ============================================================================
 
-# Path to master prompt (relative to this script)
-MASTER_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "policy_generation_master.md"
-
-
-def load_master_prompt() -> str:
-    """Load the master prompt for policy generation."""
-    try:
-        return MASTER_PROMPT_PATH.read_text()
-    except Exception as e:
-        print(f"Warning: Could not load master prompt: {e}")
-        return ""
-
 
 class LLMOptimizer:
     """LLM-based policy optimizer with validation and retry logic."""
@@ -827,14 +815,19 @@ class LLMOptimizer:
         self.simcash_root = simcash_root
         self.max_validation_retries = max_validation_retries
 
-        # Initialize policy validator
+        # Initialize policy validator (also generates dynamic prompts)
         self.validator = PolicyValidator(
             simcash_root=simcash_root,
             scenario_path=scenario_path,
         ) if scenario_path else None
 
-        # Load master prompt
-        self.master_prompt = load_master_prompt()
+        # Generate dynamic prompt from scenario-specific schema
+        # This ensures we only show valid elements to the LLM
+        if self.validator:
+            print("  Generating dynamic policy schema for scenario...")
+            self.master_prompt = self.validator.generate_dynamic_prompt()
+        else:
+            self.master_prompt = ""
 
     def create_prompt(
         self,

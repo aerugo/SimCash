@@ -610,19 +610,25 @@ LLM generates policy
 
 ### Components
 
-#### Master Prompt (`prompts/policy_generation_master.md`)
+#### Dynamic Schema Generation
 
-The master prompt teaches the LLM how to generate valid SimCash policies:
+The policy schema is **dynamically generated** from the `policy-schema` CLI command, filtered by the scenario's feature toggles. This ensures the LLM only sees elements that are valid for the specific scenario.
+
+The dynamic prompt includes:
 
 - **Policy structure**: JSON format, required fields
-- **Tree types**: payment_tree, bank_tree, collateral trees
-- **Node types**: condition, action with examples
-- **Available actions**: Release, Hold, PostCollateral, etc.
-- **Context fields**: balance, amount, ticks_to_deadline, etc.
-- **Expression syntax**: comparisons, logical operators, computations
-- **Common mistakes**: duplicate node_ids, wrong action types
+- **Available actions**: Only actions valid for the scenario's enabled features
+- **Comparison & logical operators**: From the schema
+- **Arithmetic operators**: From the schema
+- **Context fields**: Transaction, agent, queue, and time fields
+- **Example valid policy**: Complete working example
+- **Common mistakes**: To help the LLM avoid validation errors
 
-This prompt is prepended to all optimization prompts.
+**Key benefit**: If a scenario disables certain features (e.g., splitting), the corresponding actions won't appear in the prompt, preventing the LLM from generating invalid policies.
+
+#### Static Reference (`prompts/policy_generation_master.md`)
+
+A static reference prompt is also available for documentation and fallback purposes. The dynamic prompt takes precedence when a scenario is configured.
 
 #### Policy Validator (`scripts/policy_validator.py`)
 
