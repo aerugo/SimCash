@@ -194,7 +194,7 @@ EXPERIMENTS = {
         "num_seeds": 1,  # Deterministic - only need 1 seed
         "max_iterations": 25,
         "convergence_threshold": 0.05,
-        "convergence_window": 3,
+        "convergence_window": 5,  # Require 5 stable iterations before converging
     },
     "exp2": {
         "name": "Experiment 2: Twelve-Period Stochastic (Castro-Aligned)",
@@ -205,7 +205,7 @@ EXPERIMENTS = {
         "num_seeds": 10,
         "max_iterations": 25,
         "convergence_threshold": 0.05,
-        "convergence_window": 3,
+        "convergence_window": 5,  # Require 5 stable iterations before converging
     },
     "exp3": {
         "name": "Experiment 3: Joint Liquidity and Timing (Castro-Aligned)",
@@ -216,7 +216,7 @@ EXPERIMENTS = {
         "num_seeds": 10,
         "max_iterations": 25,
         "convergence_threshold": 0.05,
-        "convergence_window": 3,
+        "convergence_window": 5,  # Require 5 stable iterations before converging
     },
 }
 
