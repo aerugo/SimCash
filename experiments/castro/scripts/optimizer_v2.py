@@ -8,7 +8,22 @@ Key improvements over V1:
 3. Stricter convergence criteria for high-variance scenarios
 4. Per-category cost breakdown for better LLM reasoning
 5. Explicit failure mode feedback without revealing solutions
+
+⚠️ DEPRECATED: This script writes directly to seed policy files which can cause
+corruption. Use optimizer_v3.py instead, which:
+- Never modifies seed policy files
+- Creates iteration-specific policy files in results directory
+- Has LLM retry logic when policy validation fails
+- Stores all policy versions for reproducibility
 """
+
+import warnings
+warnings.warn(
+    "optimizer_v2.py is deprecated and can corrupt seed policy files. "
+    "Use optimizer_v3.py instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 import json
 import subprocess
