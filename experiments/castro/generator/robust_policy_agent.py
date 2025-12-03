@@ -97,8 +97,9 @@ def generate_system_prompt(constraints: ScenarioConstraints) -> str:
 
     The prompt includes:
     - Critical rules for valid policy generation
-    - Few-shot examples of correct syntax
-    - Explicit invalid patterns to avoid
+    - Complete validated example with all tree types
+    - Explicit action-to-tree mapping table
+    - Pre-generation checklist
     - Structured vocabulary of allowed elements
     """
     # Build parameter vocabulary with defaults
@@ -106,98 +107,156 @@ def generate_system_prompt(constraints: ScenarioConstraints) -> str:
     param_defaults = {}
     if constraints.allowed_parameters:
         for spec in constraints.allowed_parameters:
-            param_vocab.append(f"  - {spec.name}: {spec.description} "
-                             f"(range: {spec.min_value}-{spec.max_value}, default: {spec.default})")
+            param_vocab.append(f"    {spec.name}: {spec.description} "
+                             f"[range: {spec.min_value}-{spec.max_value}, default: {spec.default}]")
             param_defaults[spec.name] = spec.default
 
-    param_list = "\n".join(param_vocab) if param_vocab else "  (No parameters defined)"
+    param_list = "\n".join(param_vocab) if param_vocab else "    (No parameters defined)"
 
-    # Build field vocabulary
-    field_list = "\n".join([f"  - {f}" for f in constraints.allowed_fields])
+    # Build field vocabulary organized by category
+    field_list = "\n".join([f"    {f}" for f in constraints.allowed_fields])
 
-    # Build action vocabulary - note: constraints only has payment actions
-    # We need to tell LLM about tree-specific actions
-    payment_action_list = "\n".join([f"  - {a}" for a in constraints.allowed_actions])
+    # Build action vocabulary by tree type
+    payment_action_list = "\n".join([f"      {a}" for a in constraints.allowed_actions])
 
-    # Generate parameter defaults JSON
+    # Build bank and collateral action lists
+    bank_actions = constraints.allowed_bank_actions or []
+    collateral_actions = constraints.allowed_collateral_actions or []
+
+    bank_action_list = "\n".join([f"      {a}" for a in bank_actions]) if bank_actions else "      (Not enabled)"
+    collateral_action_list = "\n".join([f"      {a}" for a in collateral_actions]) if collateral_actions else "      (Not enabled)"
+
+    # Generate parameter defaults JSON for the example
     if param_defaults:
         defaults_json = ",\n    ".join([f'"{k}": {v}' for k, v in param_defaults.items()])
         param_defaults_example = f'{{\n    {defaults_json}\n  }}'
     else:
         param_defaults_example = '{}'
 
+    # Determine which trees are enabled
+    has_bank_tree = bool(bank_actions)
+    has_collateral_trees = bool(collateral_actions)
+
+    # Build tree enablement info
+    tree_info = []
+    tree_info.append("    payment_tree: ALWAYS REQUIRED")
+    if has_bank_tree:
+        tree_info.append("    bank_tree: OPTIONAL (enabled in this scenario)")
+    if has_collateral_trees:
+        tree_info.append("    strategic_collateral_tree: OPTIONAL (enabled in this scenario)")
+        tree_info.append("    end_of_tick_collateral_tree: OPTIONAL (enabled in this scenario)")
+    tree_enablement = "\n".join(tree_info)
+
     return f'''You are an expert policy generator for SimCash, a payment settlement simulation.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CRITICAL RULES - VIOLATIONS CAUSE VALIDATION FAILURES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+################################################################################
+#                     MANDATORY PRE-GENERATION CHECKLIST                       #
+################################################################################
+BEFORE generating ANY policy, verify you will satisfy ALL of these:
 
-1. EVERY parameter referenced with {{"param": "X"}} MUST be defined in "parameters"
-2. Arithmetic MUST be wrapped in {{"compute": {{...}}}} - never use raw {{"op": "*"}}
-3. Use ONLY the allowed fields, parameters, and actions listed below
-4. Every node MUST have a unique "node_id" string
+  [ ] Every {{"param": "X"}} has a matching "X" key in the "parameters" object
+  [ ] Every action matches its tree type (see ACTION VALIDITY TABLE below)
+  [ ] Every node has a unique "node_id" string
+  [ ] Arithmetic expressions are wrapped in {{"compute": {{...}}}}
+  [ ] Only use fields and parameters from the ALLOWED VOCABULARY section
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ALLOWED VOCABULARY (use ONLY these)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+################################################################################
+#                        ACTION VALIDITY TABLE                                 #
+#                   (VIOLATIONS = IMMEDIATE FAILURE)                           #
+################################################################################
 
-PARAMETERS (define in "parameters" object, reference with {{"param": "name"}}):
+  +----------------------------------+----------------------------------------+
+  | Tree Type                        | ONLY VALID Actions                     |
+  +----------------------------------+----------------------------------------+
+  | payment_tree                     | Release, Hold, Split, Drop,            |
+  |                                  | Reprioritize, ReleaseWithCredit,       |
+  |                                  | PaceAndRelease, StaggerSplit,          |
+  |                                  | WithdrawFromRtgs, ResubmitToRtgs       |
+  +----------------------------------+----------------------------------------+
+  | bank_tree                        | SetReleaseBudget, SetState,            |
+  |                                  | AddState, NoAction                     |
+  +----------------------------------+----------------------------------------+
+  | strategic_collateral_tree        | PostCollateral, WithdrawCollateral,    |
+  | end_of_tick_collateral_tree      | HoldCollateral                         |
+  +----------------------------------+----------------------------------------+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! CRITICAL: "Hold" != "HoldCollateral" - they are DIFFERENT actions!       !!
+  !! CRITICAL: "NoAction" is ONLY valid in bank_tree, NOT collateral trees!   !!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+################################################################################
+#                         ALLOWED VOCABULARY                                   #
+################################################################################
+
+ENABLED TREE TYPES (for this scenario):
+{tree_enablement}
+
+ALLOWED PARAMETERS (define in "parameters", reference with {{"param": "name"}}):
 {param_list}
 
-FIELDS (reference with {{"field": "name"}}):
+ALLOWED FIELDS (reference with {{"field": "name"}}):
 {field_list}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔴 CRITICAL: TREE-SPECIFIC ACTIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Different tree types require DIFFERENT action types. Using wrong actions causes RUNTIME ERRORS!
-
-PAYMENT_TREE actions (use in "payment_tree"):
+ALLOWED ACTIONS BY TREE:
+  payment_tree:
 {payment_action_list}
 
-BANK_TREE actions (use in "bank_tree"):
-  - SetReleaseBudget
-  - SetState
-  - AddState
+  bank_tree:
+{bank_action_list}
 
-COLLATERAL_TREE actions (use in "strategic_collateral_tree" and "end_of_tick_collateral_tree"):
-  - PostCollateral
-  - WithdrawCollateral
-  - HoldCollateral
+  collateral trees (strategic_collateral_tree, end_of_tick_collateral_tree):
+{collateral_action_list}
 
-⚠️ COMMON ERROR: Using "Hold" in collateral trees - this WILL cause validation failure!
-   ✗ WRONG:   {{"action": "Hold"}} in strategic_collateral_tree
-   ✓ CORRECT: {{"action": "HoldCollateral"}} in strategic_collateral_tree
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VALUE TYPES (how to reference data)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. Literal number:     {{"value": 5}}
-2. Field reference:    {{"field": "balance"}}
-3. Parameter ref:      {{"param": "urgency_threshold"}}
-4. Computation:        {{"compute": {{"op": "*", "left": {{"field": "X"}}, "right": {{"value": 2}}}}}}
-
-IMPORTANT: For arithmetic, ALWAYS wrap in "compute":
-  ✓ CORRECT:   {{"compute": {{"op": "-", "left": {{"field": "balance"}}, "right": {{"field": "amount"}}}}}}
-  ✗ WRONG:     {{"op": "-", "left": {{"field": "balance"}}, "right": {{"field": "amount"}}}}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLE 1: SIMPLE URGENCY-BASED POLICY (VALID)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+################################################################################
+#                    VALIDATED COMPLETE EXAMPLE                                #
+#           (This policy passes SimCash validation - use as template)          #
+################################################################################
 
 ```json
 {{
-  "version": "1.0",
-  "policy_id": "urgency_policy",
-  "description": "Release urgent payments, hold others",
+  "version": "2.0",
+  "policy_id": "complete_validated_example",
+  "description": "A complete policy showing all tree types with correct actions",
   "parameters": {{
-    "urgency_threshold": 5.0
+    "urgency_threshold": 3.0,
+    "liquidity_buffer_factor": 1.0,
+    "initial_liquidity_fraction": 0.25
+  }},
+  "strategic_collateral_tree": {{
+    "type": "condition",
+    "node_id": "SC1_tick_zero",
+    "description": "Post initial collateral at start of day",
+    "condition": {{
+      "op": "==",
+      "left": {{"field": "system_tick_in_day"}},
+      "right": {{"value": 0.0}}
+    }},
+    "on_true": {{
+      "type": "action",
+      "node_id": "SC2_post_initial",
+      "action": "PostCollateral",
+      "parameters": {{
+        "amount": {{
+          "compute": {{
+            "op": "*",
+            "left": {{"field": "max_collateral_capacity"}},
+            "right": {{"param": "initial_liquidity_fraction"}}
+          }}
+        }},
+        "reason": {{"value": "InitialAllocation"}}
+      }}
+    }},
+    "on_false": {{
+      "type": "action",
+      "node_id": "SC3_hold",
+      "action": "HoldCollateral"
+    }}
   }},
   "payment_tree": {{
     "type": "condition",
-    "node_id": "N1_check_urgency",
+    "node_id": "P1_check_urgent",
+    "description": "Release if close to deadline",
     "condition": {{
       "op": "<=",
       "left": {{"field": "ticks_to_deadline"}},
@@ -205,178 +264,129 @@ EXAMPLE 1: SIMPLE URGENCY-BASED POLICY (VALID)
     }},
     "on_true": {{
       "type": "action",
-      "node_id": "A1_release",
+      "node_id": "P2_release_urgent",
       "action": "Release"
     }},
     "on_false": {{
-      "type": "action",
-      "node_id": "A2_hold",
-      "action": "Hold"
-    }}
-  }}
-}}
-```
-
-Key points:
-- "urgency_threshold" is DEFINED in "parameters" before being used
-- Each node has a unique "node_id"
-- Simple structure: condition → action branches
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLE 2: LIQUIDITY-AWARE WITH COMPUTATION (VALID)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-```json
-{{
-  "version": "1.0",
-  "policy_id": "liquidity_aware",
-  "description": "Check liquidity buffer before releasing",
-  "parameters": {{
-    "urgency_threshold": 3.0,
-    "liquidity_buffer": 1.2
-  }},
-  "payment_tree": {{
-    "type": "condition",
-    "node_id": "N1_urgent",
-    "condition": {{
-      "op": "<=",
-      "left": {{"field": "ticks_to_deadline"}},
-      "right": {{"param": "urgency_threshold"}}
-    }},
-    "on_true": {{
       "type": "condition",
-      "node_id": "N2_can_afford",
-      "condition": {{
-        "op": ">=",
-        "left": {{"field": "effective_liquidity"}},
-        "right": {{"field": "remaining_amount"}}
-      }},
-      "on_true": {{"type": "action", "node_id": "A1_release", "action": "Release"}},
-      "on_false": {{"type": "action", "node_id": "A2_hold_urgent", "action": "Hold"}}
-    }},
-    "on_false": {{
-      "type": "condition",
-      "node_id": "N3_buffer_check",
+      "node_id": "P3_check_liquidity",
+      "description": "Release if sufficient liquidity",
       "condition": {{
         "op": ">=",
         "left": {{"field": "effective_liquidity"}},
         "right": {{
           "compute": {{
             "op": "*",
-            "left": {{"param": "liquidity_buffer"}},
-            "right": {{"field": "remaining_amount"}}
+            "left": {{"field": "remaining_amount"}},
+            "right": {{"param": "liquidity_buffer_factor"}}
           }}
         }}
       }},
-      "on_true": {{"type": "action", "node_id": "A3_release", "action": "Release"}},
-      "on_false": {{"type": "action", "node_id": "A4_hold", "action": "Hold"}}
+      "on_true": {{
+        "type": "action",
+        "node_id": "P4_release_liquid",
+        "action": "Release"
+      }},
+      "on_false": {{
+        "type": "action",
+        "node_id": "P5_hold",
+        "action": "Hold"
+      }}
     }}
   }}
 }}
 ```
 
-Key points:
-- BOTH parameters are DEFINED before use
-- Arithmetic uses {{"compute": {{...}}}} wrapper
-- Nested conditions for multi-factor decisions
+KEY OBSERVATIONS FROM THE VALIDATED EXAMPLE:
+  1. ALL parameters are DEFINED in "parameters" BEFORE any {{"param": "X"}} reference
+  2. strategic_collateral_tree uses HoldCollateral (NOT Hold or NoAction!)
+  3. payment_tree uses Hold (NOT HoldCollateral!)
+  4. Each node has a UNIQUE node_id (SC1, SC2, SC3, P1, P2, P3, P4, P5)
+  5. Arithmetic uses {{"compute": {{...}}}} wrapper
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-COMMON ERRORS TO AVOID
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+################################################################################
+#                         VALUE TYPES REFERENCE                                #
+################################################################################
 
-ERROR 1: Using undefined parameter
+Four ways to specify values:
+
+1. LITERAL (constant number):
+   {{"value": 5.0}}
+   {{"value": 0}}
+   {{"value": true}}   // Becomes 1.0
+   {{"value": false}}  // Becomes 0.0
+
+2. FIELD REFERENCE (simulation state):
+   {{"field": "balance"}}
+   {{"field": "ticks_to_deadline"}}
+   {{"field": "effective_liquidity"}}
+
+3. PARAMETER REFERENCE (policy constant):
+   {{"param": "urgency_threshold"}}
+   // REQUIRES: "urgency_threshold" defined in "parameters" object!
+
+4. COMPUTATION (arithmetic):
+   {{"compute": {{"op": "+", "left": {{"field": "balance"}}, "right": {{"value": 1000}}}}}}
+   {{"compute": {{"op": "*", "left": {{"param": "factor"}}, "right": {{"field": "amount"}}}}}}
+   {{"compute": {{"op": "max", "values": [{{"field": "X"}}, {{"value": 0}}]}}}}
+
+   AVAILABLE OPERATORS: +, -, *, /, max, min, ceil, floor, abs, round, clamp, div0
+
+################################################################################
+#                      COMMON ERRORS TO AVOID                                  #
+################################################################################
+
+ERROR 1: UNDEFINED PARAMETER (causes TYPE_ERROR)
   ✗ WRONG:
     "parameters": {{}},
-    "condition": {{"right": {{"param": "threshold"}}}}  // ERROR: threshold not defined!
+    "condition": {{"right": {{"param": "threshold"}}}}
 
-  ✓ CORRECT:
+  ✓ FIX: Add "threshold" to parameters:
     "parameters": {{"threshold": 5.0}},
     "condition": {{"right": {{"param": "threshold"}}}}
 
-ERROR 2: Raw arithmetic without "compute" wrapper
+ERROR 2: WRONG ACTION FOR TREE (causes INVALID_ACTION)
+  ✗ WRONG in strategic_collateral_tree:
+    {{"action": "Hold"}}      // Hold is PAYMENT-only!
+    {{"action": "NoAction"}}  // NoAction is BANK-only!
+
+  ✓ FIX in strategic_collateral_tree:
+    {{"action": "HoldCollateral"}}  // Correct collateral action
+
+ERROR 3: RAW ARITHMETIC (causes parse error)
   ✗ WRONG:
-    "right": {{"op": "*", "left": {{"value": 2}}, "right": {{"field": "amount"}}}}
+    "right": {{"op": "*", "left": {{"value": 2}}, "right": {{"field": "X"}}}}
 
-  ✓ CORRECT:
-    "right": {{"compute": {{"op": "*", "left": {{"value": 2}}, "right": {{"field": "amount"}}}}}}
+  ✓ FIX: Wrap in "compute":
+    "right": {{"compute": {{"op": "*", "left": {{"value": 2}}, "right": {{"field": "X"}}}}}}
 
-ERROR 3: Missing node_id
+ERROR 4: MISSING NODE_ID (causes MISSING_FIELD)
   ✗ WRONG:
     {{"type": "action", "action": "Release"}}
 
-  ✓ CORRECT:
-    {{"type": "action", "node_id": "A1", "action": "Release"}}
+  ✓ FIX: Add unique node_id:
+    {{"type": "action", "node_id": "A1_release", "action": "Release"}}
 
-ERROR 4: Using payment actions in collateral trees (CAUSES RUNTIME ERROR!)
-  ✗ WRONG (strategic_collateral_tree):
-    {{"type": "action", "node_id": "C1", "action": "Hold"}}  // Hold is a PAYMENT action!
+################################################################################
+#                         OPTIMIZATION STRATEGY                                #
+################################################################################
 
-  ✓ CORRECT (strategic_collateral_tree):
-    {{"type": "action", "node_id": "C1", "action": "HoldCollateral"}}  // Correct COLLATERAL action
+COST COMPONENTS (minimize total):
+  - Delay Cost: Each tick payment waits in queue accrues cost
+  - Overdraft Cost: Negative balance charges interest
+  - Deadline Penalty: Large one-time penalty when deadline missed
+  - End-of-Day Penalty: Very large penalty for unsettled transactions at EOD
 
-  ✗ WRONG (bank_tree):
-    {{"type": "action", "node_id": "B1", "action": "Release"}}  // Release is a PAYMENT action!
-
-  ✓ CORRECT (bank_tree):
-    {{"type": "action", "node_id": "B1", "action": "SetReleaseBudget", "parameters": {{"budget": {{"value": 0}}}}}}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-NODE STRUCTURE REFERENCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-CONDITION NODE:
-{{
-  "type": "condition",
-  "node_id": "<unique_string>",
-  "condition": <expression>,
-  "on_true": <tree_node>,
-  "on_false": <tree_node>
-}}
-
-ACTION NODE:
-{{
-  "type": "action",
-  "node_id": "<unique_string>",
-  "action": "<action_name>"
-}}
-
-COMPARISON EXPRESSION:
-{{
-  "op": "<operator>",       // ==, !=, <, <=, >, >=
-  "left": <value>,
-  "right": <value>
-}}
-
-LOGICAL AND:
-{{
-  "op": "and",
-  "conditions": [<expr1>, <expr2>, ...]
-}}
-
-LOGICAL OR:
-{{
-  "op": "or",
-  "conditions": [<expr1>, <expr2>, ...]
-}}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OPTIMIZATION GOALS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Minimize total costs:
-1. Delay Cost - each tick payment waits in queue
-2. Overdraft Cost - when balance goes negative
-3. Deadline Penalty - large penalty when deadline missed
-
-Strategy:
-- Release urgent payments (low ticks_to_deadline) to avoid deadline penalties
-- Release when effective_liquidity >= remaining_amount
-- Hold low-priority when liquidity is tight
+EFFECTIVE STRATEGIES:
+  1. Release urgent payments (low ticks_to_deadline) to avoid deadline penalties
+  2. Check effective_liquidity >= remaining_amount before releasing
+  3. Hold low-priority payments when liquidity is tight
+  4. Post collateral proactively if queue1_liquidity_gap > 0
 
 RECOMMENDED STARTING PARAMETERS:
 {param_defaults_example}
 
-Keep trees simple (2-4 levels) but effective.
+Keep trees simple (2-4 levels) for robustness.
 '''
 
 
