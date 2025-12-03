@@ -13,7 +13,8 @@ Policies control **how agents decide when and how to release payments**. Each ag
 | `LiquidityAware` | Maintain target balance buffer | Conservative liquidity management |
 | `LiquiditySplitting` | Split large payments | High-value transaction handling |
 | `MockSplitting` | Deterministic splits for testing | Unit tests |
-| `FromJson` | JSON DSL decision tree | Advanced, customizable strategies |
+| `FromJson` | JSON DSL decision tree from file | Advanced, customizable strategies |
+| `Inline` | Embedded JSON DSL decision tree | Dynamic testing, LLM experiments |
 
 ---
 
@@ -496,6 +497,121 @@ agents:
 
 ---
 
+## `Inline` Policy
+
+**Type**: `Inline`
+**Parameters**: `decision_trees`
+**Behavior**: Embed a JSON DSL decision tree directly in configuration.
+
+### Schema
+
+```yaml
+policy:
+  type: Inline
+  decision_trees: <dict>    # Required, embedded DSL structure
+```
+
+### Fields
+
+#### `decision_trees`
+
+**Type**: `dict`
+**Required**: Yes
+
+Embedded decision tree DSL structure, same format as `seed_policy.json` files used by `FromJson`.
+
+### Implementation Details
+
+**Python Schema** (`schemas.py:431-446`):
+```python
+class InlinePolicy(BaseModel):
+    type: Literal["Inline"]
+    decision_trees: dict[str, Any] = Field(
+        ...,
+        description="Embedded decision tree DSL structure"
+    )
+```
+
+**Rust**: Serialized to same format as `FromJson` for FFI.
+
+### Behavior
+
+1. Decision tree is embedded directly in YAML/dict configuration
+2. At simulation start, serialized to JSON and passed to Rust engine
+3. Identical execution semantics to `FromJson`
+4. Supports all decision tree types (`payment_tree`, `bank_tree`, etc.)
+
+### Use Cases
+
+- **Dynamic policy testing**: Test policy variations without file I/O
+- **LLM policy optimization**: Generate and evaluate policies programmatically
+- **Parameter sweeps**: Vary policy structure across experiments
+- **Unit testing**: Define test policies inline in test code
+
+### Example
+
+```yaml
+agents:
+  - id: DYNAMIC_BANK
+    opening_balance: 10000000
+    policy:
+      type: Inline
+      decision_trees:
+        version: "1.0"
+        policy_id: "inline_urgency"
+        description: "Inline urgency-based policy"
+        parameters:
+          urgency_threshold: 5.0
+        payment_tree:
+          type: condition
+          node_id: root
+          condition:
+            op: "<="
+            left:
+              field: ticks_to_deadline
+            right:
+              param: urgency_threshold
+          on_true:
+            type: action
+            node_id: release
+            action: Release
+          on_false:
+            type: action
+            node_id: hold
+            action: Hold
+```
+
+### Programmatic Example (Python)
+
+```python
+from payment_simulator.config.schemas import SimulationConfig, AgentConfig, InlinePolicy
+
+# Dynamically generate policy
+policy = InlinePolicy(
+    decision_trees={
+        "version": "1.0",
+        "policy_id": "generated_policy",
+        "payment_tree": {
+            "type": "action",
+            "node_id": "always_release",
+            "action": "Release"
+        }
+    }
+)
+
+agent = AgentConfig(
+    id="AGENT_A",
+    opening_balance=10000000,
+    policy=policy
+)
+```
+
+### Feature Toggle Validation
+
+`Inline` policies are validated against `policy_feature_toggles`, just like `FromJson` policies. If the embedded decision tree uses forbidden categories, the simulation will not start.
+
+---
+
 ## Additional Rust-Only Policies
 
 These policies exist in Rust but are not exposed via YAML configuration:
@@ -523,7 +639,9 @@ MockStaggerSplit {
 | Simple urgency-based | `Deadline` |
 | Conservative bank | `LiquidityAware` |
 | High-value payments | `LiquiditySplitting` |
-| Complex strategies | `FromJson` |
+| Complex strategies (file-based) | `FromJson` |
+| Complex strategies (embedded) | `Inline` |
+| LLM/dynamic experiments | `Inline` |
 | Testing | `MockSplitting` |
 
 ---
@@ -532,7 +650,8 @@ MockStaggerSplit {
 
 | Component | File | Lines |
 |:----------|:-----|:------|
-| Python Policies | `api/payment_simulator/config/schemas.py` | 395-440 |
+| Python Policies | `api/payment_simulator/config/schemas.py` | 395-460 |
+| InlinePolicy Schema | `api/payment_simulator/config/schemas.py` | 431-446 |
 | Rust PolicyConfig | `backend/src/orchestrator/engine.rs` | 345-416 |
 | FFI Parsing | `backend/src/ffi/types.rs` | 350-399 |
 | JSON DSL Types | `backend/src/policy/tree/types.rs` | - |

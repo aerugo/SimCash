@@ -146,7 +146,7 @@ payment-sim policy-schema --scenario scenario.yaml --section actions
 
 ### Running Simulations
 
-When running a simulation with `payment-sim run`, policies using `FromJson` type are automatically validated against the scenario's feature toggles:
+When running a simulation with `payment-sim run`, policies using `FromJson` or `Inline` types are automatically validated against the scenario's feature toggles:
 
 ```bash
 payment-sim run --config scenario.yaml
@@ -231,7 +231,7 @@ policy_feature_toggles:
 
 ## Built-in Policies
 
-Note that feature toggles only apply to `FromJson` policies. Built-in policies (Fifo, Deadline, LiquidityAware, etc.) are not subject to feature toggle validation because they are implemented in Rust and don't use the policy DSL.
+Note that feature toggles only apply to `FromJson` and `Inline` policies. Built-in policies (Fifo, Deadline, LiquidityAware, etc.) are not subject to feature toggle validation because they are implemented in Rust and don't use the policy DSL.
 
 ## Implementation Details
 
@@ -243,4 +243,4 @@ Note that feature toggles only apply to `FromJson` policies. Built-in policies (
 
 ---
 
-*Last updated: 2025-11-30*
+*Last updated: 2025-12-03*
