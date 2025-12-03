@@ -258,22 +258,34 @@ deadline_cap_at_eod: true
 pub deadline_cap_at_eod: bool,
 ```
 
-**ArrivalGenerator** (`arrivals/mod.rs`):
+**Centralized Deadline Capping** (`engine.rs`):
 ```rust
-// In generate_deadline()
-if self.deadline_cap_at_eod {
-    let current_day = arrival_tick / self.ticks_per_day;
-    let day_end_tick = (current_day + 1) * self.ticks_per_day;
-    deadline.min(day_end_tick)
+// cap_deadline() helper applies consistent capping to ALL transaction sources
+fn cap_deadline(&self, arrival_tick: usize, raw_deadline: usize) -> usize {
+    // 1. Cap at episode end (prevent impossible deadlines)
+    let episode_capped = raw_deadline.min(episode_end_tick);
+
+    // 2. If deadline_cap_at_eod enabled, also cap at current day's end
+    if self.config.deadline_cap_at_eod {
+        let day_end_tick = (current_day + 1) * self.ticks_per_day - 1;
+        episode_capped.min(day_end_tick)
+    }
+
+    // 3. Ensure deadline > arrival_tick (Transaction invariant)
+    capped.max(arrival_tick + 1)
 }
 ```
 
 ### Behavior
 
 When enabled:
-- All generated transaction deadlines are capped at **end of current day**
-- Transaction arriving at tick 50 with deadline offset 80 → deadline = tick 100 (day end)
-- Creates more realistic intraday settlement pressure
+- **All transaction deadlines** are capped at **end of current day**
+- Applies uniformly to all three transaction sources:
+  1. **Automatic arrivals** from `ArrivalGenerator`
+  2. **`submit_transaction()`** API calls
+  3. **`CustomTransactionArrival`** scenario events
+- Transaction arriving at tick 50 with deadline offset 80 → deadline = tick 99 (last tick of day)
+- Creates realistic intraday settlement pressure
 - All payments must settle by end-of-day or incur penalties
 
 When disabled (default):
@@ -297,10 +309,11 @@ arrival_config:
   deadline_range: [30, 100]  # Sample offset from [30, 100]
 
 # With deadline_cap_at_eod: true and 100 ticks/day:
+# Day 0 has ticks 0-99, so last tick of day 0 is 99
 # - Arrival at tick 50, sampled offset 80 → raw deadline 130
-# - Capped to day end: min(130, 100) = 100
+# - Capped to day end: min(130, 99) = 99
 # - Arrival at tick 90, sampled offset 30 → raw deadline 120
-# - Capped to day end: min(120, 100) = 100
+# - Capped to day end: min(120, 99) = 99
 ```
 
 ### Example
@@ -311,9 +324,9 @@ deadline_cap_at_eod: true    # Enable same-day settlement requirement
 
 ### Multi-Day Behavior
 
-For multi-day simulations:
-- Day 1 transactions: deadlines capped at tick 100 (end of day 1)
-- Day 2 transactions: deadlines capped at tick 200 (end of day 2)
+For multi-day simulations (100 ticks/day):
+- Day 0 transactions (ticks 0-99): deadlines capped at tick 99 (last tick of day 0)
+- Day 1 transactions (ticks 100-199): deadlines capped at tick 199 (last tick of day 1)
 - Each day's arrivals respect that day's EOD boundary
 
 ---
@@ -514,4 +527,4 @@ Already covered in [priority-system.md](priority-system.md).
 
 ---
 
-*Last updated: 2025-12-02*
+*Last updated: 2025-12-03*
