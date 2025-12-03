@@ -1202,8 +1202,10 @@ class ReproducibleExperiment:
     def validate_policy_with_details(self, policy: dict, agent_name: str) -> tuple[bool, str, list[str]]:
         """Validate a policy and return detailed error messages.
 
-        Uses --functional-tests to catch runtime errors (e.g., wrong action types
-        in collateral trees) that schema validation alone would miss.
+        Uses both:
+        - --scenario: Validates against scenario's feature toggles
+        - --functional-tests: Catches runtime errors (e.g., wrong action types
+          in collateral trees) that schema validation alone would miss.
         """
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode='w') as f:
             json.dump(policy, f)
@@ -1211,14 +1213,19 @@ class ReproducibleExperiment:
             temp_path = f.name
 
         try:
+            cmd = [
+                str(self.simcash_root / "api" / ".venv" / "bin" / "payment-sim"),
+                "validate-policy",
+                temp_path,
+                "--format", "json",
+                "--functional-tests",  # Catches runtime errors like wrong action types
+            ]
+            # Add scenario validation if we have a config path
+            if hasattr(self, 'current_config_path') and self.current_config_path:
+                cmd.extend(["--scenario", str(self.current_config_path)])
+
             result = subprocess.run(
-                [
-                    str(self.simcash_root / "api" / ".venv" / "bin" / "payment-sim"),
-                    "validate-policy",
-                    temp_path,
-                    "--format", "json",
-                    "--functional-tests",  # Catches runtime errors like wrong action types
-                ],
+                cmd,
                 capture_output=True,
                 text=True,
                 cwd=str(self.simcash_root)
@@ -1240,6 +1247,17 @@ class ReproducibleExperiment:
                     for test_result in functional_tests.get("results", []):
                         if not test_result.get("passed", True):
                             errors.append(f"[FunctionalTest] {test_result.get('message', 'Test failed')}")
+
+                # Check scenario validation - forbidden categories/elements
+                forbidden_cats = output.get("forbidden_categories", [])
+                if forbidden_cats:
+                    is_valid = False
+                    errors.append(f"[Scenario] Forbidden categories used: {', '.join(forbidden_cats)}")
+
+                forbidden_elems = output.get("forbidden_elements", [])
+                if forbidden_elems:
+                    is_valid = False
+                    errors.append(f"[Scenario] Forbidden elements used: {', '.join(forbidden_elems)}")
 
                 if not is_valid and not errors:
                     if "errors" in output:
