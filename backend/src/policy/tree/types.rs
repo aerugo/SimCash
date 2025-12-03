@@ -320,6 +320,13 @@ pub enum ActionType {
     /// Useful for counters, accumulators, running totals.
     AddState,
 
+    // Phase 3.3: Bank-Level No-Op Action
+    /// Take no bank-level action this tick
+    ///
+    /// Used in bank_tree when no budget changes or state updates are needed.
+    /// This is the bank-tree equivalent of HoldCollateral for collateral trees.
+    NoAction,
+
     // Phase 8: Collateral Management Actions
     /// Post collateral to increase available liquidity
     PostCollateral,
@@ -782,5 +789,80 @@ mod tests {
                 tree.err()
             );
         }
+    }
+
+    // ============================================================================
+    // Phase 3.3: NoAction for bank_tree (TDD)
+    // ============================================================================
+
+    #[test]
+    fn test_parse_noaction_in_bank_tree() {
+        // NoAction is the bank-tree equivalent of HoldCollateral for collateral trees.
+        // It should deserialize successfully from JSON.
+        let json = r#"{
+            "version": "1.0",
+            "policy_id": "noaction_test",
+            "bank_tree": {
+                "node_id": "B1",
+                "type": "action",
+                "action": "NoAction"
+            }
+        }"#;
+
+        let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
+        assert!(
+            tree.is_ok(),
+            "Failed to parse NoAction in bank_tree: {:?}",
+            tree.err()
+        );
+
+        let tree = tree.unwrap();
+        assert!(tree.bank_tree.is_some());
+
+        // Verify it's an action node with NoAction
+        match tree.bank_tree.as_ref().unwrap() {
+            TreeNode::Action { action, .. } => {
+                assert!(matches!(action, ActionType::NoAction));
+            }
+            _ => panic!("Expected action node in bank_tree"),
+        }
+    }
+
+    #[test]
+    fn test_noaction_in_conditional_bank_tree() {
+        // Test NoAction as a branch outcome in a conditional bank_tree
+        let json = r#"{
+            "version": "1.0",
+            "policy_id": "conditional_noaction_test",
+            "bank_tree": {
+                "node_id": "N1",
+                "type": "condition",
+                "condition": {
+                    "op": ">",
+                    "left": {"field": "balance"},
+                    "right": {"value": 0}
+                },
+                "on_true": {
+                    "node_id": "B1_set",
+                    "type": "action",
+                    "action": "SetReleaseBudget",
+                    "parameters": {
+                        "max_value_to_release": {"value": 100000}
+                    }
+                },
+                "on_false": {
+                    "node_id": "B2_noop",
+                    "type": "action",
+                    "action": "NoAction"
+                }
+            }
+        }"#;
+
+        let tree: Result<DecisionTreeDef, _> = serde_json::from_str(json);
+        assert!(
+            tree.is_ok(),
+            "Failed to parse conditional bank_tree with NoAction: {:?}",
+            tree.err()
+        );
     }
 }

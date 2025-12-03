@@ -1084,4 +1084,170 @@ mod tests {
             CollateralDecision::Withdraw { amount: 75000, .. }
         ));
     }
+
+    // ========================================================================
+    // Phase 3.3: NoAction Integration Tests
+    // ========================================================================
+
+    #[test]
+    fn test_evaluate_bank_tree_noaction() {
+        use crate::policy::BankDecision;
+
+        // Create tree with bank_tree that returns NoAction
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test_noaction_bank_tree".to_string(),
+            description: None,
+            bank_tree: Some(TreeNode::Action {
+                node_id: "B1".to_string(),
+                action: ActionType::NoAction,
+                parameters: HashMap::new(),
+            }),
+            payment_tree: Some(TreeNode::Action {
+                node_id: "P1".to_string(),
+                action: ActionType::Release,
+                parameters: HashMap::new(),
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let cost_rates = CostRates::default();
+        let mut policy = TreePolicy::new(tree);
+
+        // Create test state
+        let agent = Agent::new("BANK_A".to_string(), 100_000);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        // Evaluate bank tree
+        let decision = policy
+            .evaluate_bank_tree(&agent, &state, 10, &cost_rates, 100, 0.8)
+            .unwrap();
+
+        // Should return NoAction
+        assert_eq!(decision, BankDecision::NoAction);
+    }
+
+    #[test]
+    fn test_evaluate_bank_tree_conditional_noaction() {
+        use crate::policy::BankDecision;
+
+        // Create tree with conditional bank_tree:
+        // If balance > 500000: SetReleaseBudget
+        // Else: NoAction (low balance, don't set budget)
+        let tree = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test_conditional_noaction".to_string(),
+            description: None,
+            bank_tree: Some(TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: "Check if balance is high enough for budgeting".to_string(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "balance".to_string(),
+                    },
+                    right: Value::Literal { value: json!(500000) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "B1_budget".to_string(),
+                    action: ActionType::SetReleaseBudget,
+                    parameters: {
+                        let mut params = HashMap::new();
+                        params.insert(
+                            "max_value_to_release".to_string(),
+                            ValueOrCompute::Direct {
+                                value: json!(100000),
+                            },
+                        );
+                        params
+                    },
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "B2_noop".to_string(),
+                    action: ActionType::NoAction,
+                    parameters: HashMap::new(),
+                }),
+            }),
+            payment_tree: Some(TreeNode::Action {
+                node_id: "P1".to_string(),
+                action: ActionType::Release,
+                parameters: HashMap::new(),
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+
+        let cost_rates = CostRates::default();
+        let mut policy = TreePolicy::new(tree);
+
+        // Test with low balance (100k < 500k threshold) - should return NoAction
+        let agent_low = Agent::new("BANK_A".to_string(), 100_000);
+        let state_low = SimulationState::new(vec![agent_low.clone()]);
+
+        let decision_low = policy
+            .evaluate_bank_tree(&agent_low, &state_low, 10, &cost_rates, 100, 0.8)
+            .unwrap();
+
+        assert_eq!(decision_low, BankDecision::NoAction);
+
+        // Test with high balance (1M > 500k threshold) - should return SetReleaseBudget
+        let agent_high = Agent::new("BANK_B".to_string(), 1_000_000);
+        let state_high = SimulationState::new(vec![agent_high.clone()]);
+
+        // Need to re-create policy because validated flag is set
+        let tree2 = DecisionTreeDef {
+            version: "1.0".to_string(),
+            policy_id: "test_conditional_noaction".to_string(),
+            description: None,
+            bank_tree: Some(TreeNode::Condition {
+                node_id: "N1".to_string(),
+                description: "Check if balance is high enough for budgeting".to_string(),
+                condition: Expression::GreaterThan {
+                    left: Value::Field {
+                        field: "balance".to_string(),
+                    },
+                    right: Value::Literal { value: json!(500000) },
+                },
+                on_true: Box::new(TreeNode::Action {
+                    node_id: "B1_budget".to_string(),
+                    action: ActionType::SetReleaseBudget,
+                    parameters: {
+                        let mut params = HashMap::new();
+                        params.insert(
+                            "max_value_to_release".to_string(),
+                            ValueOrCompute::Direct {
+                                value: json!(100000),
+                            },
+                        );
+                        params
+                    },
+                }),
+                on_false: Box::new(TreeNode::Action {
+                    node_id: "B2_noop".to_string(),
+                    action: ActionType::NoAction,
+                    parameters: HashMap::new(),
+                }),
+            }),
+            payment_tree: Some(TreeNode::Action {
+                node_id: "P1".to_string(),
+                action: ActionType::Release,
+                parameters: HashMap::new(),
+            }),
+            strategic_collateral_tree: None,
+            end_of_tick_collateral_tree: None,
+            parameters: HashMap::new(),
+        };
+        let mut policy2 = TreePolicy::new(tree2);
+
+        let decision_high = policy2
+            .evaluate_bank_tree(&agent_high, &state_high, 10, &cost_rates, 100, 0.8)
+            .unwrap();
+
+        assert!(matches!(
+            decision_high,
+            BankDecision::SetReleaseBudget { max_value_to_release: 100000, .. }
+        ));
+    }
 }
