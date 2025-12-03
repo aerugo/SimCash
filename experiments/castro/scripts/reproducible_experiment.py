@@ -151,12 +151,30 @@ CREATE TABLE IF NOT EXISTS iteration_metrics (
     FOREIGN KEY (experiment_id) REFERENCES experiment_config(experiment_id)
 );
 
+-- Policy validation errors (track all failures for learning)
+CREATE TABLE IF NOT EXISTS validation_errors (
+    error_id VARCHAR PRIMARY KEY,
+    experiment_id VARCHAR NOT NULL,
+    iteration_number INTEGER NOT NULL,
+    agent_id VARCHAR NOT NULL,
+    attempt_number INTEGER NOT NULL,  -- 0 = initial, 1-3 = fix attempts
+    policy_json TEXT NOT NULL,
+    error_messages JSON NOT NULL,
+    error_category VARCHAR,           -- Categorized error type
+    was_fixed BOOLEAN NOT NULL,
+    fix_attempt_count INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (experiment_id) REFERENCES experiment_config(experiment_id)
+);
+
 -- Create indexes for efficient queries
 CREATE INDEX IF NOT EXISTS idx_policy_exp_iter ON policy_iterations(experiment_id, iteration_number);
 CREATE INDEX IF NOT EXISTS idx_policy_hash ON policy_iterations(policy_hash);
 CREATE INDEX IF NOT EXISTS idx_llm_exp_iter ON llm_interactions(experiment_id, iteration_number);
 CREATE INDEX IF NOT EXISTS idx_sim_exp_iter ON simulation_runs(experiment_id, iteration_number);
 CREATE INDEX IF NOT EXISTS idx_metrics_exp ON iteration_metrics(experiment_id, iteration_number);
+CREATE INDEX IF NOT EXISTS idx_validation_errors_exp ON validation_errors(experiment_id, iteration_number);
+CREATE INDEX IF NOT EXISTS idx_validation_errors_category ON validation_errors(error_category);
 """
 
 
@@ -423,6 +441,133 @@ class ExperimentDatabase:
             datetime.now(),
         ])
         return metric_id
+
+    def record_validation_error(
+        self,
+        experiment_id: str,
+        iteration_number: int,
+        agent_id: str,
+        attempt_number: int,
+        policy: dict,
+        errors: list[str],
+        was_fixed: bool,
+        fix_attempt_count: int,
+    ) -> str:
+        """Record a policy validation error for learning purposes.
+
+        Args:
+            experiment_id: The experiment ID
+            iteration_number: Current iteration
+            agent_id: Bank A or Bank B
+            attempt_number: 0 for initial, 1-3 for fix attempts
+            policy: The invalid policy JSON
+            errors: List of error messages from validator
+            was_fixed: Whether this error was eventually fixed
+            fix_attempt_count: Total number of fix attempts made
+        """
+        error_id = str(uuid.uuid4())
+
+        # Categorize the error based on common patterns
+        error_category = self._categorize_error(errors)
+
+        self.conn.execute("""
+            INSERT INTO validation_errors VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            error_id,
+            experiment_id,
+            iteration_number,
+            agent_id,
+            attempt_number,
+            json.dumps(policy),
+            json.dumps(errors),
+            error_category,
+            was_fixed,
+            fix_attempt_count,
+            datetime.now(),
+        ])
+        return error_id
+
+    def _categorize_error(self, errors: list[str]) -> str:
+        """Categorize validation errors for analysis."""
+        error_text = " ".join(errors).lower()
+
+        # Check for error type prefix (format: [ErrorType] message)
+        if "[parseerror]" in error_text:
+            # Parse errors are often about missing/invalid JSON structure
+            if "missing field" in error_text:
+                return "MISSING_FIELD"
+            elif "node_id" in error_text:
+                return "MISSING_NODE_ID"
+            else:
+                return "PARSE_ERROR"
+        elif "[validationerror]" in error_text:
+            return "VALIDATION_ERROR"
+        elif "[unknown]" in error_text:
+            return "UNKNOWN_TYPE"
+
+        # Check for common error patterns (fallback for untyped errors)
+        if "custom_param" in error_text or "unknown parameter" in error_text:
+            return "CUSTOM_PARAM"
+        elif "unknown field" in error_text or "invalid field" in error_text:
+            return "UNKNOWN_FIELD"
+        elif "missing field" in error_text or "missing" in error_text:
+            return "MISSING_FIELD"
+        elif "node_id" in error_text:
+            return "MISSING_NODE_ID"
+        elif "schema" in error_text or "validation" in error_text:
+            return "SCHEMA_ERROR"
+        elif "operator" in error_text or "op" in error_text:
+            return "INVALID_OPERATOR"
+        elif "action" in error_text:
+            return "INVALID_ACTION"
+        elif "type" in error_text or "expected" in error_text:
+            return "TYPE_ERROR"
+        elif "cli error" in error_text:
+            return "CLI_ERROR"
+        else:
+            return "UNKNOWN"
+
+    def get_validation_error_summary(self, experiment_id: str | None = None) -> dict:
+        """Get summary statistics for validation errors."""
+        where_clause = "WHERE experiment_id = ?" if experiment_id else ""
+        params = [experiment_id] if experiment_id else []
+
+        # Total errors by category
+        category_counts = self.conn.execute(f"""
+            SELECT error_category, COUNT(*) as count
+            FROM validation_errors
+            {where_clause}
+            GROUP BY error_category
+            ORDER BY count DESC
+        """, params).fetchall()
+
+        # Fix success rate
+        fix_stats = self.conn.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN was_fixed THEN 1 ELSE 0 END) as fixed,
+                AVG(fix_attempt_count) as avg_attempts
+            FROM validation_errors
+            {where_clause}
+            AND attempt_number = 0
+        """, params).fetchone()
+
+        # Errors by agent
+        agent_counts = self.conn.execute(f"""
+            SELECT agent_id, COUNT(*) as count
+            FROM validation_errors
+            {where_clause}
+            GROUP BY agent_id
+        """, params).fetchall()
+
+        return {
+            "by_category": {row[0]: row[1] for row in category_counts},
+            "total_errors": fix_stats[0] if fix_stats else 0,
+            "fixed_count": fix_stats[1] if fix_stats else 0,
+            "fix_rate": (fix_stats[1] / fix_stats[0] * 100) if fix_stats and fix_stats[0] > 0 else 0,
+            "avg_fix_attempts": fix_stats[2] if fix_stats else 0,
+            "by_agent": {row[0]: row[1] for row in agent_counts},
+        }
 
     def get_latest_policies(self, experiment_id: str) -> dict[str, dict]:
         """Get the latest policy for each agent."""
@@ -932,18 +1077,24 @@ class ReproducibleExperiment:
             )
 
             errors = []
-            if result.returncode != 0:
-                stderr = result.stderr.strip()
-                if stderr:
-                    errors.append(f"CLI error: {stderr}")
-                return False, result.stderr, errors
 
+            # Note: validator returns JSON even on error (return code != 0)
+            # so we should parse stdout in both cases
             try:
                 output = json.loads(result.stdout)
                 is_valid = output.get("valid", False)
                 if not is_valid:
                     if "errors" in output:
-                        errors = output["errors"]
+                        # Errors are objects with 'message' and 'type' fields
+                        raw_errors = output["errors"]
+                        errors = []
+                        for err in raw_errors:
+                            if isinstance(err, dict):
+                                msg = err.get("message", str(err))
+                                err_type = err.get("type", "Unknown")
+                                errors.append(f"[{err_type}] {msg}")
+                            else:
+                                errors.append(str(err))
                     elif "error" in output:
                         errors = [output["error"]]
                     elif "message" in output:
@@ -981,13 +1132,25 @@ Generate a corrected policy that avoids these errors.
         except Exception:
             return None
 
-    def validate_and_fix_policy(self, policy: dict, agent_name: str, fallback: dict) -> tuple[dict, bool]:
-        """Validate a policy, attempting to fix it if invalid."""
+    def validate_and_fix_policy(
+        self,
+        policy: dict,
+        agent_name: str,
+        fallback: dict,
+        iteration: int = 0,
+    ) -> tuple[dict, bool]:
+        """Validate a policy, attempting to fix it if invalid.
+
+        Logs all validation errors to the database for analysis.
+        """
         is_valid, _, errors = self.validate_policy_with_details(policy, agent_name)
         if is_valid:
             return policy, True
 
         print(f"  {agent_name} policy invalid, attempting LLM fix...")
+
+        # Track all errors for logging
+        all_errors: list[tuple[int, dict, list[str]]] = [(0, policy, errors)]
 
         for attempt in range(self.MAX_VALIDATION_RETRIES):
             fixed = self.request_policy_fix_from_llm(policy, agent_name, errors)
@@ -997,8 +1160,37 @@ Generate a corrected policy that avoids these errors.
             is_valid, _, new_errors = self.validate_policy_with_details(fixed, agent_name)
             if is_valid:
                 print(f"  {agent_name} policy fixed on attempt {attempt + 1}")
+                # Log all errors with was_fixed=True for the initial, False for fix attempts
+                for err_attempt, err_policy, err_msgs in all_errors:
+                    self.db.record_validation_error(
+                        experiment_id=self.experiment_id,
+                        iteration_number=iteration,
+                        agent_id=agent_name,
+                        attempt_number=err_attempt,
+                        policy=err_policy,
+                        errors=err_msgs,
+                        was_fixed=True,
+                        fix_attempt_count=attempt + 1,
+                    )
                 return fixed, False
+
+            # Track this fix attempt's error
+            all_errors.append((attempt + 1, fixed, new_errors))
             errors = new_errors
+            policy = fixed  # Use fixed policy for next attempt
+
+        # Log all errors with was_fixed=False
+        for err_attempt, err_policy, err_msgs in all_errors:
+            self.db.record_validation_error(
+                experiment_id=self.experiment_id,
+                iteration_number=iteration,
+                agent_id=agent_name,
+                attempt_number=err_attempt,
+                policy=err_policy,
+                errors=err_msgs,
+                was_fixed=False,
+                fix_attempt_count=self.MAX_VALIDATION_RETRIES,
+            )
 
         print(f"  {agent_name} policy unfixable, using previous valid policy")
         return fallback, False
@@ -1141,11 +1333,12 @@ Goal: Reduce cost while maintaining 100% settlement."""
             return False
 
         # Validate policies with retry logic (NEVER writes to seed files)
+        # Log all validation errors to database for analysis
         new_policy_a, was_valid_a = self.validate_and_fix_policy(
-            policy_a, "Bank A", self.policy_a
+            policy_a, "Bank A", self.policy_a, iteration=iteration
         )
         new_policy_b, was_valid_b = self.validate_and_fix_policy(
-            policy_b, "Bank B", self.policy_b
+            policy_b, "Bank B", self.policy_b, iteration=iteration
         )
 
         # Update current policies (in-memory only, seed files never modified)
