@@ -3,7 +3,7 @@ name = "castro-experiments"
 version = "0.1.0"
 description = "Castro et al. replication experiments for payment system optimization"
 requires-python = ">=3.11"
-readme = "RESEARCH_PAPER.md"
+readme = "ARCHITECTURE.md"
 dependencies = [
     # LLM integration for policy optimization
     "pydantic-ai>=0.0.30",  # Unified LLM interface with structured output
