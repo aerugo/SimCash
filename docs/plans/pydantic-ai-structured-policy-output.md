@@ -1,9 +1,10 @@
 # Pydantic AI Structured Policy Output
 
-**Status**: Planning
+**Status**: ✅ Implemented
 **Priority**: Critical (Flagship Feature)
 **Target**: Next major version
 **Created**: 2025-12-03
+**Completed**: 2025-12-03
 
 ---
 
@@ -247,7 +248,7 @@ class StructuredPolicyGenerator:
 
     def __init__(
         self,
-        model: str = "gpt-4o-2024-08-06",
+        model: str = "gpt-5.1",  # Default: GPT-5.1 with high reasoning
         max_depth: int = 5,
     ):
         self.client = OpenAI()
@@ -547,7 +548,7 @@ def test_prompt_includes_performance_context():
 @pytest.mark.requires_openai
 def test_generate_simple_policy():
     """Generate a valid simple policy via structured output."""
-    generator = StructuredPolicyGenerator(model="gpt-4o-2024-08-06")
+    generator = StructuredPolicyGenerator(model="gpt-5.1")
 
     policy = await generator.generate_policy(
         tree_type="payment_tree",
@@ -634,7 +635,7 @@ class StructuredOptimizer:
     def __init__(
         self,
         config: ExperimentConfig,
-        model: str = "gpt-4o-2024-08-06",
+        model: str = "gpt-5.1",  # Default: GPT-5.1 with high reasoning
     ):
         self.config = config
         self.generator = StructuredPolicyGenerator(model=model)
@@ -795,9 +796,9 @@ experiments/castro/
 
 ### Risk 1: OpenAI API Changes
 **Mitigation**:
-- Pin to specific model version (`gpt-4o-2024-08-06`)
-- Abstract API calls behind interface for easy swap
-- Keep fallback to free-form generation + validation
+- Use GPT-5.1 as default with PydanticAI abstraction
+- PydanticAI handles provider abstraction internally
+- Easy model switching via model string (e.g., `gpt-5.1`, `anthropic:claude-3-5-sonnet-20241022`)
 
 ### Risk 2: Schema Too Complex for OpenAI
 **Mitigation**:
@@ -865,9 +866,67 @@ experiments/castro/
 
 ---
 
+## Implementation Notes (2025-12-03)
+
+### What Was Implemented
+
+The plan has been fully implemented with a simplified architecture using PydanticAI directly:
+
+#### Core Components
+
+1. **`experiments/castro/generator/policy_agent.py`** - Simplified PolicyAgent using PydanticAI
+   - `PolicyAgent` class with GPT-5.1 default and high reasoning effort
+   - `generate_policy()` convenience function
+   - Automatic GPT-5.x detection for reasoning settings
+
+2. **`experiments/castro/schemas/`** - Depth-limited Pydantic models
+   - `tree.py` - TreeNodeL0-L5, ConditionNodeL1-L5
+   - `values.py` - ContextField, LiteralValue, ComputeValue
+   - `expressions.py` - Comparison, AndExpression, OrExpression
+   - `actions.py` - Action types by tree type
+   - `registry.py` - Field registries by tree type
+
+3. **`experiments/castro/generator/validation.py`** - Validation utilities
+
+4. **`experiments/castro/prompts/templates.py`** - System prompts
+
+#### Key Design Decisions
+
+1. **PydanticAI for provider abstraction**: Instead of custom provider protocols, we use PydanticAI which handles all LLM provider abstraction internally
+
+2. **GPT-5.1 as default**: With `reasoning_effort='high'` and `reasoning_summary='detailed'` for optimal policy generation
+
+3. **OpenAIResponsesModel**: Used for GPT-5.x models to enable reasoning parameters
+
+4. **Model string format**: Simple strings like `"gpt-5.1"`, `"anthropic:claude-3-5-sonnet-20241022"`
+
+#### Usage
+
+```python
+from experiments.castro.generator import PolicyAgent, generate_policy
+
+# Default: GPT-5.1 with high reasoning
+agent = PolicyAgent()
+policy = agent.generate("payment_tree", "Optimize for low delay costs")
+
+# Custom reasoning effort
+agent = PolicyAgent(reasoning_effort="medium")
+
+# Different provider
+agent = PolicyAgent(model="anthropic:claude-3-5-sonnet-20241022")
+```
+
+#### Test Coverage
+
+- 209 unit tests passing
+- Tests for PolicyAgent, PolicyDeps, validation, schemas, providers
+
+---
+
 ## References
 
 - [OpenAI Structured Output Guide](https://platform.openai.com/docs/guides/structured-outputs)
 - [Pydantic AI Documentation](https://ai.pydantic.dev/)
+- [GPT-5.1 Reasoning Documentation](https://ai.pydantic.dev/thinking/)
 - [SimCash Policy DSL Reference](../reference/policy/index.md)
 - [Castro Experiment Lab Notes](../../experiments/castro/LAB_NOTES.md)
