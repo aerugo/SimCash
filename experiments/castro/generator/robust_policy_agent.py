@@ -32,13 +32,13 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass, field
-from typing import Any, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import BaseModel
-
-from experiments.castro.schemas.parameter_config import ScenarioConstraints
 from experiments.castro.schemas.dynamic import create_constrained_policy_model
+from experiments.castro.schemas.parameter_config import ScenarioConstraints
 
 if TYPE_CHECKING:
     from experiments.castro.prompts.context import IterationRecord
@@ -51,6 +51,12 @@ if TYPE_CHECKING:
 DEFAULT_MODEL = "gpt-4o"
 DEFAULT_REASONING_EFFORT: Literal["low", "medium", "high"] = "high"
 DEFAULT_REASONING_SUMMARY: Literal["concise", "detailed"] = "detailed"
+
+# Retry configuration for transient API errors (TLS, 503, etc.)
+MAX_RETRIES = 5
+INITIAL_BACKOFF_SECONDS = 2.0
+MAX_BACKOFF_SECONDS = 60.0
+BACKOFF_MULTIPLIER = 2.0
 
 
 # ============================================================================
@@ -73,7 +79,7 @@ class RobustPolicyDeps:
     iteration: int = 0
 
     # Extended context for improved optimization
-    iteration_history: list["IterationRecord"] = field(default_factory=list)
+    iteration_history: list[IterationRecord] = field(default_factory=list)
     best_seed_output: str | None = None
     worst_seed_output: str | None = None
     best_seed: int = 0
@@ -467,7 +473,7 @@ class RobustPolicyAgent:
 
                 # Ensure model has openai: prefix for proper routing
                 model_name = self.model
-                if not model_name.startswith("openai:") and not ":" in model_name:
+                if not model_name.startswith("openai:") and ":" not in model_name:
                     model_name = f"openai:{model_name}"
 
                 self._agent = Agent(
@@ -586,12 +592,61 @@ class RobustPolicyAgent:
             other_bank_policy=other_bank_policy,
         )
 
-        result = agent.run_sync(prompt, deps=deps)
+        # Retry with exponential backoff for transient API errors
+        last_exception: Exception | None = None
+        backoff = INITIAL_BACKOFF_SECONDS
 
-        # Convert Pydantic model to dict
-        if hasattr(result.output, "model_dump"):
-            return result.output.model_dump(exclude_none=True)
-        return dict(result.output)
+        for attempt in range(MAX_RETRIES):
+            try:
+                result = agent.run_sync(prompt, deps=deps)
+
+                # Convert Pydantic model to dict
+                if hasattr(result.output, "model_dump"):
+                    return result.output.model_dump(exclude_none=True)
+                return dict(result.output)
+
+            except Exception as e:
+                last_exception = e
+                error_str = str(e).lower()
+
+                # Check if this is a transient error worth retrying
+                is_transient = any(
+                    indicator in error_str
+                    for indicator in [
+                        "503",
+                        "502",
+                        "500",
+                        "tls",
+                        "ssl",
+                        "certificate",
+                        "connection",
+                        "timeout",
+                        "reset",
+                        "upstream",
+                        "temporarily unavailable",
+                        "service unavailable",
+                        "bad gateway",
+                        "internal server error",
+                    ]
+                )
+
+                if not is_transient:
+                    # Non-transient error, don't retry
+                    raise
+
+                # Transient error - retry with backoff
+                if attempt < MAX_RETRIES - 1:
+                    print(
+                        f"  [Retry {attempt + 1}/{MAX_RETRIES}] "
+                        f"Transient API error, waiting {backoff:.1f}s: {str(e)[:100]}"
+                    )
+                    time.sleep(backoff)
+                    backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_SECONDS)
+
+        # All retries exhausted
+        raise RuntimeError(
+            f"API call failed after {MAX_RETRIES} retries: {last_exception}"
+        ) from last_exception
 
     def _build_simple_prompt(
         self,
@@ -700,7 +755,7 @@ class RobustPolicyAgent:
         instruction: str = "Generate an optimal policy",
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """Async version of generate_policy."""
+        """Async version of generate_policy with exponential backoff retry."""
         agent = self._get_agent()
 
         deps = RobustPolicyDeps(
@@ -711,11 +766,60 @@ class RobustPolicyAgent:
             iteration=kwargs.get("iteration", 0),
         )
 
-        result = await agent.run(instruction, deps=deps)
+        # Retry with exponential backoff for transient API errors
+        last_exception: Exception | None = None
+        backoff = INITIAL_BACKOFF_SECONDS
 
-        if hasattr(result.output, "model_dump"):
-            return result.output.model_dump(exclude_none=True)
-        return dict(result.output)
+        for attempt in range(MAX_RETRIES):
+            try:
+                result = await agent.run(instruction, deps=deps)
+
+                if hasattr(result.output, "model_dump"):
+                    return result.output.model_dump(exclude_none=True)
+                return dict(result.output)
+
+            except Exception as e:
+                last_exception = e
+                error_str = str(e).lower()
+
+                # Check if this is a transient error worth retrying
+                is_transient = any(
+                    indicator in error_str
+                    for indicator in [
+                        "503",
+                        "502",
+                        "500",
+                        "tls",
+                        "ssl",
+                        "certificate",
+                        "connection",
+                        "timeout",
+                        "reset",
+                        "upstream",
+                        "temporarily unavailable",
+                        "service unavailable",
+                        "bad gateway",
+                        "internal server error",
+                    ]
+                )
+
+                if not is_transient:
+                    # Non-transient error, don't retry
+                    raise
+
+                # Transient error - retry with backoff
+                if attempt < MAX_RETRIES - 1:
+                    print(
+                        f"  [Retry {attempt + 1}/{MAX_RETRIES}] "
+                        f"Transient API error, waiting {backoff:.1f}s: {str(e)[:100]}"
+                    )
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_SECONDS)
+
+        # All retries exhausted
+        raise RuntimeError(
+            f"API call failed after {MAX_RETRIES} retries: {last_exception}"
+        ) from last_exception
 
 
 # ============================================================================
