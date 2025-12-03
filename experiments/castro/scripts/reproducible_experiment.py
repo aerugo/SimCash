@@ -19,14 +19,21 @@ The resulting database contains:
 - llm_interactions: All prompts and responses
 - simulation_runs: Results for every seed at every iteration
 - iteration_metrics: Aggregated metrics per iteration
+
+IMPORTANT: This runner NEVER modifies the seed policy files.
+- Seed policies are read-only (loaded once at startup)
+- Each iteration creates temporary policy files in the output directory
+- All policy versions are stored in the database
 """
 
 import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -36,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import yaml
 from openai import OpenAI
 
 
@@ -718,7 +726,18 @@ Return your response as valid JSON with this structure:
 # ============================================================================
 
 class ReproducibleExperiment:
-    """Main experiment runner with full reproducibility."""
+    """Main experiment runner with full reproducibility.
+
+    IMPORTANT: This runner NEVER modifies the seed policy files.
+    Instead, it:
+    1. Loads seed policies once at initialization (read-only)
+    2. Creates iteration-specific policy files in output directory
+    3. Creates iteration-specific YAML configs pointing to those policies
+    4. Stores all policy versions in the database
+    """
+
+    # Maximum retries when LLM produces invalid policy
+    MAX_VALIDATION_RETRIES = 3
 
     def __init__(
         self,
@@ -730,22 +749,33 @@ class ReproducibleExperiment:
     ):
         self.experiment_def = EXPERIMENTS[experiment_key]
         self.experiment_id = f"{experiment_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        self.simcash_root = simcash_root
+        self.simcash_root = Path(simcash_root)
 
         self.db = ExperimentDatabase(db_path)
         self.optimizer = LLMOptimizer(model=model, reasoning_effort=reasoning_effort)
 
         # Load configs
-        self.config_path = str(Path(simcash_root) / self.experiment_def["config_path"])
-        self.config = load_yaml_config(self.config_path)
+        self.config_path = self.simcash_root / self.experiment_def["config_path"]
+        self.config = load_yaml_config(str(self.config_path))
 
-        # Load initial policies
-        self.policy_a = load_json_policy(
-            str(Path(simcash_root) / self.experiment_def["policy_a_path"])
+        # Create output directories for iteration-specific files
+        self.output_dir = Path(db_path).parent
+        self.policies_dir = self.output_dir / "policies"
+        self.configs_dir = self.output_dir / "configs"
+        self.policies_dir.mkdir(parents=True, exist_ok=True)
+        self.configs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load seed policies ONCE (read-only, never modified)
+        self.seed_policy_a = load_json_policy(
+            str(self.simcash_root / self.experiment_def["policy_a_path"])
         )
-        self.policy_b = load_json_policy(
-            str(Path(simcash_root) / self.experiment_def["policy_b_path"])
+        self.seed_policy_b = load_json_policy(
+            str(self.simcash_root / self.experiment_def["policy_b_path"])
         )
+
+        # Current policies (start with seed, updated each iteration)
+        self.policy_a = self.seed_policy_a.copy()
+        self.policy_b = self.seed_policy_b.copy()
 
         # Settings
         self.num_seeds = self.experiment_def["num_seeds"]
@@ -754,6 +784,9 @@ class ReproducibleExperiment:
         self.convergence_window = self.experiment_def["convergence_window"]
         self.model = model
         self.reasoning_effort = reasoning_effort
+
+        # Track current iteration config path
+        self.current_config_path: Path | None = None
 
         # History
         self.history: list[dict] = []
@@ -794,18 +827,166 @@ class ReproducibleExperiment:
             created_by="init",
         )
 
-    def save_policies_to_temp(self) -> tuple[str, str]:
-        """Save current policies to temp files for simulation."""
-        import tempfile
+    def create_iteration_config(self, iteration: int) -> Path:
+        """Create iteration-specific policy files and YAML config.
 
-        temp_dir = tempfile.mkdtemp()
-        policy_a_path = str(Path(temp_dir) / "policy_a.json")
-        policy_b_path = str(Path(temp_dir) / "policy_b.json")
+        This method:
+        1. Writes current policies to policies/iter_XXX_policy_{a,b}.json
+        2. Creates a modified YAML config pointing to those policy files
+        3. Returns the path to the iteration-specific config
 
-        save_json_policy(policy_a_path, self.policy_a)
-        save_json_policy(policy_b_path, self.policy_b)
+        NEVER modifies the original seed policy files.
+        """
+        # Write iteration-specific policy files
+        policy_a_path = self.policies_dir / f"iter_{iteration:03d}_policy_a.json"
+        policy_b_path = self.policies_dir / f"iter_{iteration:03d}_policy_b.json"
 
-        return policy_a_path, policy_b_path
+        save_json_policy(str(policy_a_path), self.policy_a)
+        save_json_policy(str(policy_b_path), self.policy_b)
+
+        # Create modified config with new policy paths
+        iter_config = self.config.copy()
+
+        # Deep copy agents to avoid modifying base config
+        iter_config["agents"] = []
+        for agent in self.config.get("agents", []):
+            agent_copy = agent.copy()
+            if agent_copy.get("id") == "BANK_A":
+                agent_copy["policy"] = {
+                    "type": "FromJson",
+                    "json_path": str(policy_a_path.absolute())
+                }
+            elif agent_copy.get("id") == "BANK_B":
+                agent_copy["policy"] = {
+                    "type": "FromJson",
+                    "json_path": str(policy_b_path.absolute())
+                }
+            iter_config["agents"].append(agent_copy)
+
+        # Write iteration config
+        iter_config_path = self.configs_dir / f"iter_{iteration:03d}_config.yaml"
+        with open(iter_config_path, 'w') as f:
+            yaml.safe_dump(iter_config, f, default_flow_style=False)
+
+        self.current_config_path = iter_config_path
+        return iter_config_path
+
+    def validate_policy_with_details(self, policy: dict, agent_name: str) -> tuple[bool, str, list[str]]:
+        """Validate a policy and return detailed error messages."""
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode='w') as f:
+            json.dump(policy, f)
+            f.flush()
+            temp_path = f.name
+
+        try:
+            result = subprocess.run(
+                [
+                    str(self.simcash_root / "api" / ".venv" / "bin" / "payment-sim"),
+                    "validate-policy",
+                    temp_path,
+                    "--format", "json"
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(self.simcash_root)
+            )
+
+            errors = []
+            if result.returncode != 0:
+                stderr = result.stderr.strip()
+                if stderr:
+                    errors.append(f"CLI error: {stderr}")
+                return False, result.stderr, errors
+
+            try:
+                output = json.loads(result.stdout)
+                is_valid = output.get("valid", False)
+                if not is_valid:
+                    if "errors" in output:
+                        errors = output["errors"]
+                    elif "error" in output:
+                        errors = [output["error"]]
+                    elif "message" in output:
+                        errors = [output["message"]]
+                    else:
+                        errors = [f"Validation failed for {agent_name}: {result.stdout[:500]}"]
+                return is_valid, result.stdout, errors
+            except json.JSONDecodeError:
+                return result.returncode == 0, result.stdout, [f"Non-JSON output: {result.stdout[:200]}"]
+        finally:
+            os.unlink(temp_path)
+
+    def request_policy_fix_from_llm(self, policy: dict, agent_name: str, errors: list[str]) -> dict | None:
+        """Ask LLM to fix an invalid policy."""
+        error_list = "\n".join(f"  - {e}" for e in errors)
+
+        fix_prompt = f"""# Policy Validation Error - Fix Required
+
+The {agent_name} policy failed validation with these errors:
+
+{error_list}
+
+## Invalid Policy
+```json
+{json.dumps(policy, indent=2)}
+```
+
+Please fix the policy. Output ONLY the corrected JSON policy.
+
+## Corrected {agent_name} Policy
+```json
+"""
+        try:
+            response = self.optimizer.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "Fix the JSON policy. Output ONLY valid JSON."},
+                    {"role": "user", "content": fix_prompt}
+                ],
+                max_tokens=4000,
+                temperature=0.3,
+            )
+            response_text = response.choices[0].message.content
+
+            # Parse JSON from response
+            if "```json" in response_text:
+                json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_text)
+                if json_match:
+                    return json.loads(json_match.group(1))
+            elif "```" in response_text:
+                json_match = re.search(r'```\s*([\s\S]*?)\s*```', response_text)
+                if json_match:
+                    return json.loads(json_match.group(1))
+            else:
+                start = response_text.find('{')
+                end = response_text.rfind('}') + 1
+                if start != -1 and end > start:
+                    return json.loads(response_text[start:end])
+            return None
+        except Exception:
+            return None
+
+    def validate_and_fix_policy(self, policy: dict, agent_name: str, fallback: dict) -> tuple[dict, bool]:
+        """Validate a policy, attempting to fix it if invalid."""
+        is_valid, _, errors = self.validate_policy_with_details(policy, agent_name)
+        if is_valid:
+            return policy, True
+
+        print(f"  {agent_name} policy invalid, attempting LLM fix...")
+
+        for attempt in range(self.MAX_VALIDATION_RETRIES):
+            fixed = self.request_policy_fix_from_llm(policy, agent_name, errors)
+            if fixed is None:
+                continue
+
+            is_valid, _, new_errors = self.validate_policy_with_details(fixed, agent_name)
+            if is_valid:
+                print(f"  {agent_name} policy fixed on attempt {attempt + 1}")
+                return fixed, False
+            errors = new_errors
+
+        print(f"  {agent_name} policy unfixable, using previous valid policy")
+        return fallback, False
 
     def run_iteration(self, iteration: int) -> dict:
         """Run a single iteration."""
@@ -813,14 +994,17 @@ class ReproducibleExperiment:
         print(f"Iteration {iteration}/{self.max_iterations}")
         print(f"{'='*60}")
 
+        # Create iteration-specific config with current policies
+        config_path = self.create_iteration_config(iteration)
+
         # Run simulations
         seeds = list(range(1, self.num_seeds + 1))
         verbose_seeds = [seeds[0], seeds[-1]] if len(seeds) > 1 else seeds
 
         print(f"  Running {len(seeds)} simulations...")
         results = run_simulations_parallel(
-            config_path=self.config_path,
-            simcash_root=self.simcash_root,
+            config_path=str(config_path),
+            simcash_root=str(self.simcash_root),
             seeds=seeds,
             capture_verbose_for=verbose_seeds,
         )
@@ -908,11 +1092,19 @@ class ReproducibleExperiment:
 
         new_policy_a, new_policy_b = parsed
 
-        # Update policies
+        # Validate policies with retry logic (NEVER writes to seed files)
+        new_policy_a, was_valid_a = self.validate_and_fix_policy(
+            new_policy_a, "Bank A", self.policy_a
+        )
+        new_policy_b, was_valid_b = self.validate_and_fix_policy(
+            new_policy_b, "Bank B", self.policy_b
+        )
+
+        # Update current policies (in-memory only, seed files never modified)
         self.policy_a = new_policy_a
         self.policy_b = new_policy_b
 
-        # Record new policies
+        # Record new policies to database
         self.db.record_policy_iteration(
             experiment_id=self.experiment_id,
             iteration_number=iteration + 1,
@@ -928,11 +1120,8 @@ class ReproducibleExperiment:
             created_by="llm",
         )
 
-        # Update temp policy files for next iteration
-        policy_a_path = str(Path(self.simcash_root) / self.experiment_def["policy_a_path"])
-        policy_b_path = str(Path(self.simcash_root) / self.experiment_def["policy_b_path"])
-        save_json_policy(policy_a_path, new_policy_a)
-        save_json_policy(policy_b_path, new_policy_b)
+        # NOTE: Policies are saved to iteration-specific files in run_iteration()
+        # via create_iteration_config(). The seed policy files are NEVER modified.
 
         print(f"  Policies updated for iteration {iteration + 1}")
         return True
