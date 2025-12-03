@@ -24,8 +24,15 @@ API_PATH = SIMCASH_ROOT / "api"
 
 sys.path.insert(0, str(API_PATH))
 
-from payment_simulator._core import Orchestrator
-from payment_simulator.config import SimulationConfig
+# Optional import - Rust backend not needed for unit tests
+try:
+    from payment_simulator._core import Orchestrator
+    from payment_simulator.config import SimulationConfig
+    RUST_BACKEND_AVAILABLE = True
+except ImportError:
+    Orchestrator = None  # type: ignore
+    SimulationConfig = None  # type: ignore
+    RUST_BACKEND_AVAILABLE = False
 
 
 # ============================================================================
@@ -115,6 +122,8 @@ def seed_policy_dict(seed_policy_path: Path) -> dict[str, Any]:
 
 def _config_to_ffi(config_dict: dict[str, Any]) -> dict[str, Any]:
     """Convert a raw config dict to FFI-compatible format."""
+    if SimulationConfig is None:
+        pytest.skip("Rust backend not available")
     sim_config = SimulationConfig.from_dict(config_dict)
     return sim_config.to_ffi_dict()
 
@@ -122,6 +131,8 @@ def _config_to_ffi(config_dict: dict[str, Any]) -> dict[str, Any]:
 @pytest.fixture
 def exp1_orchestrator(exp1_config_dict: dict[str, Any]) -> Orchestrator:
     """Create Orchestrator for Experiment 1."""
+    if Orchestrator is None:
+        pytest.skip("Rust backend not available")
     ffi_config = _config_to_ffi(exp1_config_dict)
     return Orchestrator.new(ffi_config)
 
@@ -129,6 +140,8 @@ def exp1_orchestrator(exp1_config_dict: dict[str, Any]) -> Orchestrator:
 @pytest.fixture
 def exp2_orchestrator(exp2_config_dict: dict[str, Any]) -> Orchestrator:
     """Create Orchestrator for Experiment 2."""
+    if Orchestrator is None:
+        pytest.skip("Rust backend not available")
     ffi_config = _config_to_ffi(exp2_config_dict)
     return Orchestrator.new(ffi_config)
 
@@ -136,6 +149,8 @@ def exp2_orchestrator(exp2_config_dict: dict[str, Any]) -> Orchestrator:
 @pytest.fixture
 def exp3_orchestrator(exp3_config_dict: dict[str, Any]) -> Orchestrator:
     """Create Orchestrator for Experiment 3."""
+    if Orchestrator is None:
+        pytest.skip("Rust backend not available")
     ffi_config = _config_to_ffi(exp3_config_dict)
     return Orchestrator.new(ffi_config)
 
