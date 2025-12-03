@@ -61,6 +61,7 @@ Before running ANY experiment, verify the following:
 - [ ] OpenAI API key set: `export OPENAI_API_KEY="your-key-here"`
 - [ ] Verify API access: Run a simple API test to confirm connectivity
 - [ ] Check API quota: Ensure sufficient tokens for experiment (~500k tokens per full run)
+- [ ] Default model: GPT-5.1 with high reasoning effort (configured in PolicyAgent)
 
 #### Configuration Validation
 - [ ] Verify `deferred_crediting: true` in config file
@@ -539,11 +540,25 @@ experiments/castro/
 ├── policies/
 │   └── seed_policy.json        ← Starting policy for optimization
 │
+├── generator/
+│   ├── policy_agent.py         ← PydanticAI integration (GPT-5.1 default)
+│   ├── providers.py            ← LLM provider implementations
+│   ├── validation.py           ← Policy validation utilities
+│   └── client.py               ← Structured output client
+│
+├── schemas/
+│   ├── tree.py                 ← Depth-limited tree models (L0-L5)
+│   ├── values.py               ← PolicyValue, ContextField types
+│   ├── expressions.py          ← Comparison, And/Or expressions
+│   └── actions.py              ← Action type definitions
+│
 ├── scripts/
 │   ├── README.md               ← Script documentation
 │   ├── optimizer.py            ← Original optimizer
 │   ├── optimizer_v2.py         ← Improved version
-│   ├── optimizer_v3.py         ← Latest version
+│   ├── optimizer_v3.py         ← Previous version
+│   ├── optimizer_v4.py         ← Structured output optimizer
+│   ├── optimizer_v5.py         ← PydanticAI-based optimizer
 │   └── reproducible_experiment.py  ← Main experiment runner
 │
 ├── results/                    ← Output databases go here
