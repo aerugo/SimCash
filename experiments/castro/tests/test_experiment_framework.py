@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import statistics
 import tempfile
 from pathlib import Path
@@ -102,8 +103,9 @@ class TestDatabaseSchema:
 
     def test_schema_creates_successfully(self) -> None:
         """Database schema should create without errors."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as f:
-            conn = duckdb.connect(f.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test.db")
+            conn = duckdb.connect(db_path)
 
             # Execute each statement
             for stmt in SCHEMA_SQL.split(";"):
@@ -115,8 +117,9 @@ class TestDatabaseSchema:
 
     def test_tables_exist_after_creation(self) -> None:
         """All required tables should exist after schema creation."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as f:
-            conn = duckdb.connect(f.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test.db")
+            conn = duckdb.connect(db_path)
 
             for stmt in SCHEMA_SQL.split(";"):
                 stmt = stmt.strip()
@@ -147,8 +150,9 @@ class TestExperimentConfigRecording:
 
     def test_record_experiment_config(self) -> None:
         """Should be able to record experiment config."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as f:
-            conn = duckdb.connect(f.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test.db")
+            conn = duckdb.connect(db_path)
 
             for stmt in SCHEMA_SQL.split(";"):
                 stmt = stmt.strip()
@@ -203,8 +207,9 @@ class TestPolicyIterationRecording:
 
     def test_record_policy_iteration(self) -> None:
         """Should record policy iterations with hash."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as f:
-            conn = duckdb.connect(f.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test.db")
+            conn = duckdb.connect(db_path)
 
             for stmt in SCHEMA_SQL.split(";"):
                 stmt = stmt.strip()
@@ -279,8 +284,9 @@ class TestSimulationRunRecording:
 
     def test_record_simulation_run(self) -> None:
         """Should record simulation run with costs."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as f:
-            conn = duckdb.connect(f.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test.db")
+            conn = duckdb.connect(db_path)
 
             for stmt in SCHEMA_SQL.split(";"):
                 stmt = stmt.strip()
@@ -503,8 +509,9 @@ class TestQueryInterface:
 
     def test_query_iteration_results(self) -> None:
         """Should query aggregated results per iteration."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as f:
-            conn = duckdb.connect(f.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test.db")
+            conn = duckdb.connect(db_path)
 
             for stmt in SCHEMA_SQL.split(";"):
                 stmt = stmt.strip()
@@ -557,8 +564,9 @@ class TestQueryInterface:
 
     def test_query_policy_history(self) -> None:
         """Should query policy evolution across iterations."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as f:
-            conn = duckdb.connect(f.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test.db")
+            conn = duckdb.connect(db_path)
 
             for stmt in SCHEMA_SQL.split(";"):
                 stmt = stmt.strip()
