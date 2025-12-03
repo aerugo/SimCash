@@ -1940,3 +1940,284 @@ The seed policy should be conservative given the new constraints:
 5. Update RESEARCH_PAPER.md with new results
 
 ---
+
+## Session: 2025-12-03 - New Experiment Run with GPT-5.1
+
+**Researcher**: Claude (Opus 4)
+**Date**: 2025-12-03
+**Objective**: Conduct Castro et al. replication experiments using GPT-5.1 with high reasoning effort
+
+### Environment Setup
+
+- **Python environment**: experiments/castro/.venv
+- **Payment-simulator**: Installed from api/ with Rust backend built
+- **Model**: GPT-5.1 with high reasoning effort via PydanticAI
+- **OpenAI API key**: Verified available
+
+### Baseline Results (Seed Policy, initial_liquidity_fraction=0.25)
+
+| Experiment | Config | Total Cost | Settlement Rate | Notes |
+|------------|--------|------------|-----------------|-------|
+| Exp 1 (2-period) | castro_2period_aligned.yaml | $290 (29,000¢) | 100% | Both banks post ~$1,250 collateral |
+| Exp 2 (12-period) | castro_12period_aligned.yaml | ~$49.8M | 100% | Very high due to huge max_collateral_capacity |
+| Exp 3 (joint) | castro_joint_aligned.yaml | $250 (24,978¢) | 100% | Symmetric flows |
+
+### Expected Optimal Outcomes (Castro Paper)
+
+**Experiment 1** (Section 6.3):
+- Bank A: ℓ₀ = 0 (post nothing, wait for B's incoming)
+- Bank B: ℓ₀ = $200 (cover both periods)
+- Optimal cost: ~$20 total (Bank A: $0, Bank B: $20)
+
+**Experiment 2** (Section 7):
+- Optimal initial liquidity: ~15-25% of expected daily outflow
+- Cost should be significantly lower than baseline
+
+**Experiment 3**:
+- Near-zero cost achievable with optimal timing coordination
+- Symmetric flows should offset
+
+---
+
+### Experiment 1 Results (2025-12-03)
+
+**Run ID**: exp1_20251203_143719
+**Model**: GPT-5.1 with high reasoning effort
+**Database**: experiments/castro/results/exp1_gpt51_20251203_143717.db
+
+#### Cost Progression
+
+| Iteration | Total Cost | Cost Reduction | Settlement |
+|-----------|------------|----------------|------------|
+| 1 (baseline) | $29,000 | 0% | 100% |
+| 2 | $20,000 | 31% | 100% |
+| 3 | $14,000 | 52% | 100% |
+| 4 | $14,000 | 52% | 100% |
+| 5 | $14,000 | 52% | 100% |
+| 6 (converged) | $12,500 | **57%** | 100% |
+
+#### Final Policy Parameters
+
+| Agent | initial_liquidity_fraction | urgency_threshold | liquidity_buffer_factor |
+|-------|---------------------------|-------------------|------------------------|
+| BANK_A | 0.10 | 2.0 | 1.07 |
+| BANK_B | 0.07 | 2.0 | 1.12 |
+
+#### Analysis
+
+**Key Finding**: GPT-5.1 found a **symmetric** solution (both banks post low collateral), NOT the **asymmetric** Nash equilibrium predicted by Castro.
+
+**Castro's Prediction**:
+- Bank A: ℓ₀ = 0 (post nothing, wait for B's incoming)
+- Bank B: ℓ₀ = $200 (cover both periods)
+- Optimal cost: ~$20 total
+
+**GPT-5.1's Solution**:
+- Bank A: 10% of max collateral
+- Bank B: 7% of max collateral
+- Final cost: $12,500 (125× higher than theoretical optimum)
+
+**Interpretation**:
+1. **Local vs Global Optimum**: LLM found a local optimum (symmetric low-liquidity) rather than the global asymmetric Nash equilibrium
+2. **Direction Correct**: The LLM correctly learned to reduce initial liquidity (good direction)
+3. **Sample Efficiency**: Converged in 6 iterations (excellent sample efficiency vs RL's ~50-100)
+4. **Settlement Maintained**: 100% settlement throughout (constraint respected)
+
+**Hypothesis for Gap**: The reproducible_experiment.py optimizer uses free-form prompts rather than structured output. The LLM may not have received sufficient information about the payment flow asymmetry (Bank A receives $150 from B in period 1, which is exactly what A needs in period 2).
+
+---
+
+### Experiment 2 Results (2025-12-03)
+
+**Run ID**: exp2_20251203_144249
+**Model**: GPT-5.1 with high reasoning effort
+**Database**: experiments/castro/results/exp2_gpt51_20251203_144247.db
+
+#### Cost Progression
+
+| Iteration | Total Cost | Cost Change | Settlement |
+|-----------|------------|-------------|------------|
+| 1 (baseline) | $4,980,264,549 | 0% | 100% |
+| 2 | $4,980,264,549 | 0% | 100% |
+| 3 | $5,976,264,549 | **+20%** | 100% |
+| 4-6 (converged) | $5,976,264,549 | +20% | 100% |
+
+#### Policy Changes
+
+| Iteration | BANK_A ilf | BANK_B ilf |
+|-----------|------------|------------|
+| 0 (seed) | 0.25 | 0.25 |
+| 3-6 | 0.30 | 0.30 |
+
+#### Analysis
+
+**Key Finding**: GPT-5.1 **FAILED** on this experiment - costs **INCREASED by 20%** (~$1 billion).
+
+**Root Cause**:
+1. **Invalid Policies**: Most LLM-generated policies failed validation (5 of 6 iterations)
+2. **Wrong Direction**: The one valid policy INCREASED initial_liquidity_fraction (25% → 30%)
+3. **Premature Convergence**: Converged at higher cost because policies stopped changing
+
+**Why This Happened**:
+1. **Scale Confusion**: Cost numbers in billions are hard for LLM to reason about
+2. **No Gradient Information**: Free-form prompts don't convey cost derivatives
+3. **Risk Aversion**: LLM may have increased liquidity as "safer" choice
+
+**Lesson**: The 12-period stochastic scenario with extreme cost scales is beyond the capability of free-form prompt optimization.
+
+---
+
+### Experiment 3 Results (2025-12-03)
+
+**Run ID**: exp3_20251203_144257
+**Model**: GPT-5.1 with high reasoning effort
+**Database**: experiments/castro/results/exp3_gpt51_20251203_144254.db
+
+#### Cost Progression
+
+| Iteration | Total Cost | Cost Reduction | Settlement |
+|-----------|------------|----------------|------------|
+| 1 (baseline) | $24,978 | 0% | 100% |
+| 2 | $13,488 | 46% | 100% |
+| 3 | $10,491 | 58% | 100% |
+| 4 | $9,492 | 62% | 100% |
+| 5-6 | $9,492 | 62% | 100% |
+| 7 (converged) | $7,242 | **71%** | 100% |
+
+#### Final Policy Parameters
+
+| Agent | initial_liquidity_fraction | urgency_threshold | liquidity_buffer_factor |
+|-------|---------------------------|-------------------|------------------------|
+| BANK_A | 0.06 | 2.0 | 1.70 |
+| BANK_B | 0.085 | 2.0 | 1.65 |
+
+#### Analysis
+
+**Key Finding**: GPT-5.1 achieved **71% cost reduction** in 7 iterations - excellent performance!
+
+**What the LLM Learned**:
+1. **Low Initial Liquidity**: Reduced from 25% to 6-8.5% (correct direction)
+2. **Urgency Threshold**: Maintained at 2 ticks (release payments close to deadline)
+3. **Higher Buffer Factor**: Increased to 1.65-1.70 (require more headroom before releasing)
+
+**Comparison to Castro's Optimal**:
+- Castro predicts near-zero cost achievable through perfect timing coordination
+- GPT-5.1's $7,242 final cost suggests room for improvement
+- But 71% reduction is very strong sample efficiency (7 iterations vs RL's ~50-100)
+
+---
+
+## Summary of GPT-5.1 Experiments (2025-12-03)
+
+### Aggregate Results
+
+| Experiment | Baseline | Final | Improvement | Converged At | Notes |
+|------------|----------|-------|-------------|--------------|-------|
+| Exp 1 (2-period) | $29,000 | $12,500 | **57%** ✓ | Iter 6 | Found local optimum |
+| Exp 2 (12-period) | $4.98B | $5.98B | **-20%** ✗ | Iter 6 | FAILED - wrong direction |
+| Exp 3 (joint) | $24,978 | $7,242 | **71%** ✓ | Iter 7 | Strong performance |
+
+### Key Findings
+
+1. **Sample Efficiency**: When successful, LLM converges in 6-7 iterations (vs RL's 50-100)
+
+2. **Scale Sensitivity**: GPT-5.1 struggles with billion-dollar cost scales (Exp 2 failure)
+
+3. **Policy Validation**: Free-form prompts often produce invalid policies (structural issues)
+
+4. **Local vs Global Optima**: LLM finds good local optima but misses game-theoretic equilibria
+
+5. **TLS Errors**: Intermittent OpenAI API connectivity issues (retry logic helps)
+
+### Recommendations for Future Work
+
+1. **Use Structured Output**: PydanticAI with structured policies should reduce validation failures
+
+2. **Normalize Cost Scales**: Present costs in comparable units (e.g., percentage of baseline)
+
+3. **Explicit Game Theory Context**: Add asymmetric payment flow information to prompts
+
+4. **Multi-Agent Training**: Allow banks to optimize independently for true Nash equilibrium
+
+5. **Curriculum Learning**: Start with simpler scenarios, increase complexity gradually
+
+---
+
+## Robust Policy Generator Implementation (2025-12-03)
+
+### Motivation
+
+Following the validation error analysis, I implemented the recommendations from `VALIDATION_ERROR_REPORT.md` to create a more robust policy generator that eliminates ~94% of validation errors by enforcing constraints at generation time.
+
+### Implementation Summary
+
+**Three new files created:**
+
+1. **`schemas/constrained.py`** (765 lines)
+   - `ConstrainedPolicyParameters`: Only allows 3 parameters with `extra="forbid"`
+     - `urgency_threshold` (0-20)
+     - `initial_liquidity_fraction` (0-1)
+     - `liquidity_buffer_factor` (0.5-3.0)
+   - `ConstrainedContextField`: Uses `Literal` type with all valid field names
+   - `ConstrainedParameterRef`: Uses `Literal["urgency_threshold", "initial_liquidity_fraction", "liquidity_buffer_factor"]`
+   - `ConstrainedExpression`: Enforces correct operator structure
+   - Depth-limited tree models for payment and collateral trees
+
+2. **`generator/robust_policy_agent.py`** (285 lines)
+   - `RobustPolicyAgent`: Uses PydanticAI with `ConstrainedPolicy` output type
+   - Comprehensive system prompt with schema documentation
+   - `RobustPaymentTreeAgent`, `RobustCollateralTreeAgent`, `RobustParameterAgent` for individual tree generation
+
+3. **`scripts/robust_experiment.py`** (360 lines)
+   - Experiment runner using the robust policy agent
+   - DuckDB schema for tracking iterations, errors, and results
+   - Mock simulation fallback for testing optimization loop
+
+### Key Design Decisions
+
+1. **Type-level Enforcement**: Using Pydantic's `Literal` types and `ConfigDict(extra="forbid")` prevents invalid values at schema validation time, not just runtime.
+
+2. **Schema-Aware Prompts**: The system prompt includes explicit documentation of:
+   - All 3 allowed parameters with ranges
+   - Correct operator structures (and/or use conditions array, NOT left/right)
+   - Common mistakes to avoid
+
+3. **Depth-Limited Trees**: Since OpenAI structured output doesn't support recursive schemas, we use explicit L0-L3 tree depth types.
+
+### Test Results
+
+All constraint tests pass:
+- ConstrainedPolicyParameters rejects invented parameters ✓
+- ConstrainedContextField rejects invalid field names ✓
+- ConstrainedParameterRef rejects invalid param names ✓
+- Schema prompt additions contain constraints ✓
+
+### Expected Impact
+
+Based on the validation error analysis:
+- **91% CUSTOM_PARAM errors** → Eliminated by constrained parameters
+- **6% UNKNOWN_FIELD errors** → Eliminated by Literal field types
+- **3% SCHEMA_ERROR** → Eliminated by correct operator model structure
+
+Total expected elimination: **~94% of validation errors**
+
+### Usage
+
+```python
+from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
+
+agent = RobustPolicyAgent(model="gpt-5.1")
+policy = agent.generate_policy(
+    instruction="Optimize for minimal delay costs",
+    current_cost=50000,
+    settlement_rate=0.85,
+)
+```
+
+### Next Steps
+
+1. Run full experiments with robust agent to verify error reduction
+2. Compare optimization performance with original free-form generation
+3. Consider adding additional constraints based on future error analysis
+
+---
