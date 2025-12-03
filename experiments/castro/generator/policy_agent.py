@@ -7,8 +7,8 @@ abstraction internally.
 Usage:
     from experiments.castro.generator.policy_agent import PolicyAgent
 
-    # Generate a payment policy with OpenAI
-    agent = PolicyAgent(model="openai:gpt-4o")
+    # Generate a payment policy with OpenAI GPT-5.1 (default, high reasoning)
+    agent = PolicyAgent()
     policy = agent.generate("payment_tree", "Optimize for low delay costs")
 
     # Switch to Anthropic - just change the model string
@@ -27,15 +27,21 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 
 from experiments.castro.schemas.tree import get_tree_model, PolicyTree
 from experiments.castro.schemas.actions import ACTIONS_BY_TREE_TYPE
 from experiments.castro.schemas.registry import FIELDS_BY_TREE_TYPE
 from experiments.castro.prompts.templates import SYSTEM_PROMPT
+
+# Default model configuration
+DEFAULT_MODEL = "gpt-5.1"
+DEFAULT_REASONING_EFFORT: Literal["low", "medium", "high"] = "high"
+DEFAULT_REASONING_SUMMARY: Literal["concise", "detailed"] = "detailed"
 
 
 @dataclass
@@ -58,6 +64,7 @@ class PolicyAgent:
     abstraction internally.
 
     Supported models (via PydanticAI):
+        - gpt-5.1 (default, with high reasoning effort)
         - openai:gpt-4o, openai:gpt-4o-mini
         - anthropic:claude-3-5-sonnet-20241022
         - google-gla:gemini-1.5-pro
@@ -66,27 +73,62 @@ class PolicyAgent:
         - And many more: https://ai.pydantic.dev/models/
 
     Example:
-        agent = PolicyAgent(model="openai:gpt-4o")
+        # Default GPT-5.1 with high reasoning
+        agent = PolicyAgent()
         policy = agent.generate("payment_tree", "Prioritize high-value payments")
+
+        # Custom model
+        agent = PolicyAgent(model="anthropic:claude-3-5-sonnet-20241022")
     """
 
     def __init__(
         self,
-        model: str = "openai:gpt-4o",
+        model: str | None = None,
         max_depth: int = 3,
         retries: int = 3,
+        reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
+        reasoning_summary: Literal["concise", "detailed"] = DEFAULT_REASONING_SUMMARY,
     ) -> None:
         """Initialize policy agent.
 
         Args:
-            model: PydanticAI model string (e.g., "openai:gpt-4o")
+            model: PydanticAI model string. Defaults to GPT-5.1.
+                   For OpenAI: "gpt-5.1", "gpt-4o", etc.
+                   For others: "anthropic:claude-3-5-sonnet-20241022", etc.
             max_depth: Maximum tree depth for generated policies
             retries: Number of retries on validation failure
+            reasoning_effort: Reasoning effort for GPT-5.1 ("low", "medium", "high")
+            reasoning_summary: Reasoning summary verbosity ("concise", "detailed")
         """
-        self.model = model
+        self.model = model or DEFAULT_MODEL
         self.max_depth = max_depth
         self.retries = retries
+        self.reasoning_effort = reasoning_effort
+        self.reasoning_summary = reasoning_summary
         self._agents: dict[str, Agent[PolicyDeps, Any]] = {}
+        self._model_settings: OpenAIResponsesModelSettings | None = None
+
+        # Configure model settings for GPT-5.1
+        if self._is_gpt5_model():
+            self._model_settings = OpenAIResponsesModelSettings(
+                openai_reasoning_effort=reasoning_effort,
+                openai_reasoning_summary=reasoning_summary,
+            )
+
+    def _is_gpt5_model(self) -> bool:
+        """Check if using a GPT-5 series model."""
+        return self.model.startswith("gpt-5") or self.model.startswith("openai:gpt-5")
+
+    def _get_model(self) -> OpenAIResponsesModel | str:
+        """Get the appropriate model instance.
+
+        For GPT-5.x models, returns an OpenAIResponsesModel with reasoning settings.
+        For other models, returns the model string directly.
+        """
+        if self._is_gpt5_model():
+            # Use OpenAIResponsesModel for GPT-5.x with reasoning support
+            return OpenAIResponsesModel(self.model)
+        return self.model
 
     def _get_agent(self, tree_type: str) -> Agent[PolicyDeps, Any]:
         """Get or create agent for tree type."""
@@ -107,12 +149,14 @@ Available context fields: {', '.join(fields[:20])}{'...' if len(fields) > 20 els
 Generate a policy tree that optimizes bank costs while maintaining high settlement rates.
 """
 
+            model = self._get_model()
             self._agents[tree_type] = Agent(
-                self.model,
+                model,
                 output_type=TreeModel,  # type: ignore
                 system_prompt=system_prompt,
                 deps_type=PolicyDeps,
                 retries=self.retries,
+                model_settings=self._model_settings,
             )
 
         return self._agents[tree_type]
@@ -206,7 +250,8 @@ Generate a policy tree that optimizes bank costs while maintaining high settleme
 def generate_policy(
     tree_type: str,
     instruction: str = "Generate an optimal policy",
-    model: str = "openai:gpt-4o",
+    model: str | None = None,
+    reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate a policy tree with a single function call.
@@ -214,18 +259,26 @@ def generate_policy(
     Args:
         tree_type: Type of tree (payment_tree, bank_tree, etc.)
         instruction: Natural language instruction
-        model: PydanticAI model string
+        model: PydanticAI model string (defaults to GPT-5.1)
+        reasoning_effort: Reasoning effort for GPT-5.1 ("low", "medium", "high")
         **kwargs: Additional context (current_policy, total_cost, etc.)
 
     Returns:
         Generated policy as dict
 
     Example:
+        # Default GPT-5.1 with high reasoning
         policy = generate_policy(
             "payment_tree",
             "Minimize delay costs for high-priority payments",
+        )
+
+        # With Anthropic
+        policy = generate_policy(
+            "payment_tree",
+            "Minimize delay costs",
             model="anthropic:claude-3-5-sonnet-20241022",
         )
     """
-    agent = PolicyAgent(model=model)
+    agent = PolicyAgent(model=model, reasoning_effort=reasoning_effort)
     return agent.generate(tree_type, instruction, **kwargs)

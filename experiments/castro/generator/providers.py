@@ -4,7 +4,7 @@ This module defines a provider-agnostic interface for structured output
 generation. New providers can be added by implementing the LLMProvider protocol.
 
 Supported providers:
-- OpenAI (gpt-4o, gpt-4o-mini)
+- OpenAI (gpt-5.1, gpt-5, gpt-4o, gpt-4o-mini)
 - Anthropic (claude-3.5-sonnet) - requires anthropic package
 - Google (gemini-1.5-pro) - requires google-generativeai package
 - Ollama (local models) - requires ollama package
@@ -105,10 +105,10 @@ class OpenAIProvider:
 
     Requires the openai package: pip install openai
 
-    Supports models: gpt-4o-2024-08-06, gpt-4o-mini, gpt-4-turbo
+    Supports models: gpt-5.1, gpt-5, gpt-4o, gpt-4o-mini
     """
 
-    DEFAULT_MODEL = "gpt-4o-2024-08-06"
+    DEFAULT_MODEL = "gpt-5.1"
 
     def __init__(
         self,
