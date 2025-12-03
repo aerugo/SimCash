@@ -78,8 +78,8 @@ class TestDeadlineCapping:
         tx = orch.get_transaction_details(tx_id)
 
         # Deadline should be capped at EOD (tick 9)
-        assert tx["deadline"] <= eod_tick, (
-            f"Deadline should be capped to EOD ({eod_tick}), got {tx['deadline']}"
+        assert tx["deadline_tick"] <= eod_tick, (
+            f"Deadline should be capped to EOD ({eod_tick}), got {tx['deadline_tick']}"
         )
 
     def test_deadline_within_eod_not_changed(self) -> None:
@@ -116,7 +116,7 @@ class TestDeadlineCapping:
         tx = orch.get_transaction_details(tx_id)
 
         # Deadline should remain unchanged
-        assert tx["deadline"] == requested_deadline, (
+        assert tx["deadline_tick"] == requested_deadline, (
             f"Deadline within EOD should be unchanged: {requested_deadline}"
         )
 
@@ -152,7 +152,7 @@ class TestDeadlineCapping:
         )
 
         tx = orch.get_transaction_details(tx_id)
-        assert tx["deadline"] == eod_tick
+        assert tx["deadline_tick"] == eod_tick
 
 
 class TestDeadlineCapDisabled:
@@ -192,7 +192,7 @@ class TestDeadlineCapDisabled:
         tx = orch.get_transaction_details(tx_id)
 
         # Deadline should remain at requested value
-        assert tx["deadline"] == requested_deadline, (
+        assert tx["deadline_tick"] == requested_deadline, (
             "Without deadline_cap_at_eod, deadline should not be modified"
         )
 
@@ -351,7 +351,7 @@ class TestSettlementUrgency:
 
         # Get capped deadline
         tx = orch.get_transaction_details(tx_id)
-        assert tx["deadline"] == eod_tick
+        assert tx["deadline_tick"] == eod_tick
 
         # Run to end of day
         for _ in range(ticks_per_day):
@@ -391,7 +391,7 @@ class TestSettlementUrgency:
 
         # Get capped deadline
         tx = orch.get_transaction_details(tx_id)
-        capped_deadline = tx["deadline"]
+        capped_deadline = tx["deadline_tick"]
         assert capped_deadline == eod_tick
 
         # Run past the deadline

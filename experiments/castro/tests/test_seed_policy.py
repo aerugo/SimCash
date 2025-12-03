@@ -287,7 +287,7 @@ class TestPolicyBehavior:
                             },
                             "strategic_collateral_tree": {
                                 "type": "action",
-                                "node_id": "hold",
+                                "node_id": "collateral_hold",
                                 "action": "HoldCollateral",
                             },
                             "payment_tree": {
@@ -305,7 +305,7 @@ class TestPolicyBehavior:
                                 },
                                 "on_false": {
                                     "type": "action",
-                                    "node_id": "hold",
+                                    "node_id": "payment_hold",
                                     "action": "Hold",
                                 },
                             },

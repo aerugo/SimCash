@@ -64,7 +64,7 @@ def run_full_experiment(
             "total_cost": costs["total_cost"],
             "collateral_cost": costs["collateral_cost"],
             "delay_cost": costs["delay_cost"],
-            "overdraft_cost": costs["overdraft_cost"],
+            "liquidity_cost": costs["liquidity_cost"],
             "posted_collateral": state.get("posted_collateral", 0),
         }
 
@@ -312,7 +312,7 @@ class TestCostCalculations:
             )
             assert agent_data["collateral_cost"] >= 0
             assert agent_data["delay_cost"] >= 0
-            assert agent_data["overdraft_cost"] >= 0
+            assert agent_data["liquidity_cost"] >= 0
 
     def test_total_cost_is_sum_of_components(
         self, exp1_config_dict: dict[str, Any]
@@ -324,7 +324,7 @@ class TestCostCalculations:
             expected = (
                 agent_data["collateral_cost"]
                 + agent_data["delay_cost"]
-                + agent_data["overdraft_cost"]
+                + agent_data["liquidity_cost"]
             )
 
             # Allow for some other cost components we might not track
