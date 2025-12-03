@@ -6,8 +6,8 @@ which uses constrained Pydantic schemas to PREVENT validation errors at
 generation time.
 
 Key improvements over reproducible_experiment.py:
-1. Uses ConstrainedPolicy model - only 3 parameters allowed
-2. Uses valid field names only (no invented fields)
+1. Uses dynamic ConstrainedPolicy model with ScenarioConstraints
+2. Parameters, fields, and actions are constrained by scenario configuration
 3. Enforces correct operator structure (and/or with conditions array)
 4. Eliminates ~94% of validation errors
 
@@ -48,6 +48,7 @@ from experiments.castro.generator.robust_policy_agent import (
     RobustPolicyAgent,
     generate_robust_policy,
 )
+from experiments.castro.parameter_sets import STANDARD_CONSTRAINTS
 
 
 # ============================================================================
@@ -234,17 +235,17 @@ def _mock_simulation(policies: dict[str, dict[str, Any]]) -> SimulationResult:
     for bank_id, policy in policies.items():
         params = policy.get("parameters", {})
         urgency = params.get("urgency_threshold", 3.0)
-        liquidity_frac = params.get("initial_liquidity_fraction", 0.25)
-        buffer = params.get("liquidity_buffer_factor", 1.0)
+        collateral_frac = params.get("initial_collateral_fraction", 0.25)
+        buffer = params.get("liquidity_buffer", 1.0)
 
         # Cost model:
         # - Higher urgency threshold -> lower delay costs
-        # - Higher liquidity fraction -> lower overdraft costs but higher collateral costs
-        # - Higher buffer factor -> higher delay costs (too conservative)
+        # - Higher collateral fraction -> lower overdraft costs but higher collateral costs
+        # - Higher liquidity buffer -> higher delay costs (too conservative)
 
         delay_cost = max(0, 5000 - urgency * 500 + buffer * 1000) * (1 + random.uniform(-0.1, 0.1))
-        collateral_cost = liquidity_frac * 10000 * (1 + random.uniform(-0.1, 0.1))
-        overdraft_cost = max(0, 2000 - liquidity_frac * 5000) * (1 + random.uniform(-0.1, 0.1))
+        collateral_cost = collateral_frac * 10000 * (1 + random.uniform(-0.1, 0.1))
+        overdraft_cost = max(0, 2000 - collateral_frac * 5000) * (1 + random.uniform(-0.1, 0.1))
 
         bank_cost = delay_cost + collateral_cost + overdraft_cost
         per_bank_costs[bank_id] = bank_cost
@@ -274,7 +275,10 @@ class RobustPolicyOptimizer:
         model: str = "gpt-5.1",
         verbose: bool = False,
     ) -> None:
-        self.agent = RobustPolicyAgent(model=model)
+        self.agent = RobustPolicyAgent(
+            constraints=STANDARD_CONSTRAINTS,
+            model=model,
+        )
         self.verbose = verbose
 
     def optimize_policy(
@@ -316,8 +320,9 @@ class RobustPolicyOptimizer:
                 params = policy.get("parameters", {})
                 print(f"  [{bank_id}] Generated policy with params:")
                 print(f"    urgency_threshold: {params.get('urgency_threshold', 'N/A')}")
-                print(f"    initial_liquidity_fraction: {params.get('initial_liquidity_fraction', 'N/A')}")
-                print(f"    liquidity_buffer_factor: {params.get('liquidity_buffer_factor', 'N/A')}")
+                print(f"    liquidity_buffer: {params.get('liquidity_buffer', 'N/A')}")
+                print(f"    initial_collateral_fraction: {params.get('initial_collateral_fraction', 'N/A')}")
+                print(f"    eod_urgency_boost: {params.get('eod_urgency_boost', 'N/A')}")
 
         except Exception as e:
             # PydanticAI structured output failed - this should be rare
