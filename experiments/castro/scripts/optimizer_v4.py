@@ -3,10 +3,11 @@
 LLM Policy Optimizer V4 - Structured Output with Pydantic AI
 
 Key improvements over V3:
-1. Uses OpenAI Structured Output for policy generation
+1. Uses Structured Output for policy generation (provider-agnostic)
 2. Pydantic schemas ensure valid JSON structure
 3. Dynamic schemas based on feature toggles
 4. Reduced parsing failures and invalid policies
+5. Supports multiple LLM providers: OpenAI, Anthropic, Google, Ollama
 
 The structured output approach constrains the LLM to generate valid
 policy JSON that matches our Pydantic schemas, dramatically reducing
@@ -16,13 +17,7 @@ IMPORTANT: This optimizer NEVER modifies the seed policy file.
 """
 
 import json
-import shutil
 import subprocess
-import tempfile
-import os
-import sys
-import time
-import re
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,16 +26,18 @@ from datetime import datetime
 
 import yaml
 
-# OpenAI API
-from openai import OpenAI
-
-# Structured output imports
+# Structured output imports (provider-agnostic)
 from experiments.castro.schemas.generator import PolicySchemaGenerator
 from experiments.castro.schemas.toggles import PolicyFeatureToggles
 from experiments.castro.prompts.builder import PolicyPromptBuilder
 from experiments.castro.prompts.templates import SYSTEM_PROMPT
 from experiments.castro.generator.validation import validate_policy_structure
 from experiments.castro.generator.client import PolicyContext
+from experiments.castro.generator.providers import (
+    LLMProvider,
+    StructuredOutputRequest,
+    get_provider,
+)
 
 
 def _run_single_simulation(args: tuple) -> dict | None:
@@ -163,10 +160,12 @@ class AggregatedMetrics:
 
 
 class StructuredPolicyOptimizerV4:
-    """LLM-based policy optimizer using OpenAI Structured Output.
+    """LLM-based policy optimizer using provider-agnostic Structured Output.
 
     This version uses Pydantic schemas to constrain the LLM output,
     ensuring valid JSON structure and reducing parse/validation failures.
+
+    Supports multiple providers: OpenAI, Anthropic, Google, Ollama.
     """
 
     def __init__(
@@ -177,7 +176,8 @@ class StructuredPolicyOptimizerV4:
         lab_notes_path: str,
         num_seeds: int = 10,
         max_iterations: int = 40,
-        model: str = "gpt-4o-2024-08-06",
+        provider_type: str = "openai",
+        model: str | None = None,
         simcash_root: str = "/home/user/SimCash",
         convergence_threshold: float = 0.10,
         convergence_window: int = 5,
@@ -189,14 +189,13 @@ class StructuredPolicyOptimizerV4:
         self.lab_notes_path = Path(lab_notes_path)
         self.num_seeds = num_seeds
         self.max_iterations = max_iterations
-        self.model = model
         self.simcash_root = Path(simcash_root)
         self.convergence_threshold = convergence_threshold
         self.convergence_window = convergence_window
         self.max_depth = max_depth
 
-        # Initialize OpenAI client
-        self.client = OpenAI()
+        # Initialize provider (supports OpenAI, Anthropic, Google, Ollama)
+        self.provider: LLMProvider = get_provider(provider_type, model=model)
 
         # Feature toggles (can be loaded from scenario config)
         self.feature_toggles = PolicyFeatureToggles()
@@ -337,7 +336,7 @@ class StructuredPolicyOptimizerV4:
         context: PolicyContext,
         current_tree: dict | None = None,
     ) -> dict:
-        """Generate a policy tree using structured output."""
+        """Generate a policy tree using structured output (provider-agnostic)."""
 
         # Build schema generator
         schema_gen = PolicySchemaGenerator(
@@ -363,31 +362,23 @@ class StructuredPolicyOptimizerV4:
         adapter = TypeAdapter(TreeType)
         json_schema = adapter.json_schema()
 
-        # Call API with structured output
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": f"{tree_type}_schema",
-                    "strict": True,
-                    "schema": json_schema,
-                },
-            },
+        # Build request for provider
+        request = StructuredOutputRequest(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            json_schema=json_schema,
+            schema_name=f"{tree_type}_schema",
             max_tokens=4000,
         )
 
-        content = response.choices[0].message.content
-        self.total_tokens += response.usage.total_tokens if response.usage else 0
+        # Call provider (works with OpenAI, Anthropic, Google, Ollama)
+        response = self.provider.generate_structured(request)
 
-        if not content:
-            raise ValueError("Empty response from API")
+        # Track token usage
+        if response.usage:
+            self.total_tokens += response.usage.get("total_tokens", 0)
 
-        tree = json.loads(content)
+        tree = response.content
 
         # Validate
         validation = validate_policy_structure(tree, tree_type, self.max_depth)
@@ -423,7 +414,7 @@ class StructuredPolicyOptimizerV4:
         )
 
         # Generate new trees using structured output
-        print(f"  Generating new policy with structured output ({self.model})...")
+        print(f"  Generating new policy with structured output ({self.provider.name})...")
 
         new_policy = self.current_policy.copy()
 
@@ -482,7 +473,7 @@ class StructuredPolicyOptimizerV4:
         print(f"Castro Policy Optimization V4 (Structured Output)")
         print(f"=" * 60)
         print(f"  Scenario: {self.scenario_path}")
-        print(f"  Model: {self.model}")
+        print(f"  Provider: {self.provider.name}")
         print(f"  Max depth: {self.max_depth}")
         print(f"  Max iterations: {self.max_iterations}")
         print(f"  Seeds per iteration: {self.num_seeds}")
@@ -490,7 +481,7 @@ class StructuredPolicyOptimizerV4:
 
         self.log_to_notes(
             f"\n---\n## Optimizer V4 Run (Structured Output)\n"
-            f"**Model**: {self.model}\n"
+            f"**Provider**: {self.provider.name}\n"
             f"**Max Depth**: {self.max_depth}\n"
             f"**Max Iterations**: {self.max_iterations}\n"
             f"**Seeds**: {self.num_seeds}\n"
@@ -515,7 +506,7 @@ class StructuredPolicyOptimizerV4:
 
         final_results = {
             "experiment": str(self.scenario_path),
-            "model": self.model,
+            "provider": self.provider.name,
             "version": "v4_structured_output",
             "total_iterations": len(self.history),
             "converged": self.has_converged(),
@@ -548,7 +539,13 @@ def main():
     parser.add_argument("--lab-notes", required=True, help="Path to lab notes file")
     parser.add_argument("--seeds", type=int, default=10, help="Seeds per iteration")
     parser.add_argument("--max-iter", type=int, default=40, help="Max iterations")
-    parser.add_argument("--model", default="gpt-4o-2024-08-06", help="OpenAI model")
+    parser.add_argument(
+        "--provider",
+        choices=["openai", "anthropic", "google", "ollama"],
+        default="openai",
+        help="LLM provider (default: openai)"
+    )
+    parser.add_argument("--model", default=None, help="Model name (uses provider default if not specified)")
     parser.add_argument("--max-depth", type=int, default=3, help="Max tree depth for schemas")
 
     args = parser.parse_args()
@@ -560,6 +557,7 @@ def main():
         lab_notes_path=args.lab_notes,
         num_seeds=args.seeds,
         max_iterations=args.max_iter,
+        provider_type=args.provider,
         model=args.model,
         max_depth=args.max_depth,
     )

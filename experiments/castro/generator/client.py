@@ -1,13 +1,21 @@
 """Structured output client for policy generation.
 
-Uses OpenAI's structured output feature with Pydantic schemas
-to generate valid policy JSON.
+Uses a provider-agnostic interface to generate valid policy JSON
+with any LLM that supports structured output.
+
+Usage:
+    # Default (OpenAI)
+    generator = StructuredPolicyGenerator()
+    policy = generator.generate_policy("payment_tree")
+
+    # With specific provider
+    from experiments.castro.generator.providers import AnthropicProvider
+    provider = AnthropicProvider(model="claude-3-5-sonnet-20241022")
+    generator = StructuredPolicyGenerator(provider=provider)
 """
 
 from __future__ import annotations
 
-import json
-import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,6 +28,13 @@ from experiments.castro.prompts.templates import SYSTEM_PROMPT
 from experiments.castro.generator.validation import (
     validate_policy_structure,
     ValidationResult,
+)
+from experiments.castro.generator.providers import (
+    LLMProvider,
+    OpenAIProvider,
+    StructuredOutputRequest,
+    StructuredOutputResponse,
+    get_provider,
 )
 
 
@@ -49,57 +64,94 @@ class PolicyContext:
         )
 
 
-class StructuredPolicyGenerator:
-    """Generate valid policies using OpenAI structured output.
+@dataclass
+class GenerationResult:
+    """Result from policy generation including metadata."""
 
-    This class wraps the OpenAI API to generate policies that conform
+    policy: dict[str, Any]
+    provider: str
+    attempts: int
+    usage: dict[str, int] | None = None
+
+
+class StructuredPolicyGenerator:
+    """Generate valid policies using LLM structured output.
+
+    This class wraps any LLM provider to generate policies that conform
     to our Pydantic schemas. It handles:
     - Schema generation based on tree type and feature toggles
     - Prompt construction with context
-    - API calls with structured output
+    - Provider-agnostic API calls with structured output
     - Validation and retry logic
 
     Usage:
+        # With default OpenAI provider
         generator = StructuredPolicyGenerator()
-        policy = await generator.generate_policy(
+        policy = generator.generate_policy(
             tree_type="payment_tree",
             feature_toggles=PolicyFeatureToggles(),
             context=PolicyContext(...),
         )
-    """
 
-    # Default model for structured output (must support response_format)
-    DEFAULT_MODEL = "gpt-4o-2024-08-06"
+        # With custom provider
+        from experiments.castro.generator.providers import AnthropicProvider
+        provider = AnthropicProvider()
+        generator = StructuredPolicyGenerator(provider=provider)
+    """
 
     def __init__(
         self,
-        model: str | None = None,
+        provider: LLMProvider | None = None,
         max_depth: int = 5,
         max_retries: int = 3,
-        api_key: str | None = None,
+        temperature: float = 0.7,
     ) -> None:
         """Initialize the generator.
 
         Args:
-            model: OpenAI model to use (must support structured output)
+            provider: LLM provider to use (defaults to OpenAI)
             max_depth: Maximum tree depth for generated policies
             max_retries: Maximum retry attempts on validation failure
-            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
+            temperature: Sampling temperature for generation
         """
-        self.model = model or self.DEFAULT_MODEL
+        self.provider = provider or OpenAIProvider()
         self.max_depth = max_depth
         self.max_retries = max_retries
-        self._api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        self.temperature = temperature
 
-    def _get_client(self) -> Any:
-        """Get OpenAI client lazily."""
-        try:
-            from openai import OpenAI
-            return OpenAI(api_key=self._api_key)
-        except ImportError:
-            raise ImportError(
-                "openai package required. Install with: pip install openai"
+    @classmethod
+    def with_provider(
+        cls,
+        provider_type: str,
+        model: str | None = None,
+        max_depth: int = 5,
+        max_retries: int = 3,
+        **provider_kwargs: Any,
+    ) -> "StructuredPolicyGenerator":
+        """Create generator with a specific provider type.
+
+        Args:
+            provider_type: One of "openai", "anthropic", "google", "ollama"
+            model: Model name (optional, uses provider default)
+            max_depth: Maximum tree depth for generated policies
+            max_retries: Maximum retry attempts on validation failure
+            **provider_kwargs: Additional provider-specific arguments
+
+        Returns:
+            Configured StructuredPolicyGenerator
+
+        Example:
+            generator = StructuredPolicyGenerator.with_provider(
+                "anthropic",
+                model="claude-3-5-sonnet-20241022"
             )
+        """
+        provider = get_provider(provider_type, model=model, **provider_kwargs)
+        return cls(
+            provider=provider,
+            max_depth=max_depth,
+            max_retries=max_retries,
+        )
 
     def generate_policy(
         self,
@@ -118,6 +170,35 @@ class StructuredPolicyGenerator:
 
         Returns:
             Generated policy dict
+
+        Raises:
+            ValueError: If generation fails after all retries
+        """
+        result = self.generate_policy_with_metadata(
+            tree_type=tree_type,
+            feature_toggles=feature_toggles,
+            context=context,
+            current_policy=current_policy,
+        )
+        return result.policy
+
+    def generate_policy_with_metadata(
+        self,
+        tree_type: str,
+        feature_toggles: PolicyFeatureToggles | None = None,
+        context: PolicyContext | None = None,
+        current_policy: dict[str, Any] | None = None,
+    ) -> GenerationResult:
+        """Generate a valid policy tree with generation metadata.
+
+        Args:
+            tree_type: Type of tree to generate
+            feature_toggles: Feature toggles for schema generation
+            context: Performance context for optimization
+            current_policy: Current policy to improve (if any)
+
+        Returns:
+            GenerationResult with policy and metadata
 
         Raises:
             ValueError: If generation fails after all retries
@@ -151,22 +232,55 @@ class StructuredPolicyGenerator:
         adapter = TypeAdapter(TreeType)
         json_schema = adapter.json_schema()
 
+        # Build base request
+        request = StructuredOutputRequest(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            json_schema=json_schema,
+            schema_name=f"{tree_type}_schema",
+            temperature=self.temperature,
+        )
+
         # Attempt generation with retries
         last_error: str | None = None
+        total_usage: dict[str, int] = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
         for attempt in range(self.max_retries):
             try:
-                policy = self._call_api(
-                    user_prompt=user_prompt,
-                    json_schema=json_schema,
-                    last_error=last_error if attempt > 0 else None,
-                )
+                # Add error context for retries
+                if last_error and attempt > 0:
+                    request = StructuredOutputRequest(
+                        system_prompt=SYSTEM_PROMPT,
+                        user_prompt=(
+                            f"{user_prompt}\n\n"
+                            f"IMPORTANT: The previous attempt failed validation with: {last_error}\n"
+                            "Please fix these issues."
+                        ),
+                        json_schema=json_schema,
+                        schema_name=f"{tree_type}_schema",
+                        temperature=self.temperature,
+                    )
+
+                response = self.provider.generate_structured(request)
+
+                # Track usage
+                if response.usage:
+                    for key in total_usage:
+                        total_usage[key] += response.usage.get(key, 0)
+
+                policy = response.content
 
                 # Validate the generated policy
                 validation = validate_policy_structure(
                     policy, tree_type, self.max_depth
                 )
                 if validation.is_valid:
-                    return policy
+                    return GenerationResult(
+                        policy=policy,
+                        provider=self.provider.name,
+                        attempts=attempt + 1,
+                        usage=total_usage if any(total_usage.values()) else None,
+                    )
 
                 # Validation failed - prepare for retry
                 last_error = "; ".join(validation.errors)
@@ -175,61 +289,9 @@ class StructuredPolicyGenerator:
                 last_error = str(e)
 
         raise ValueError(
-            f"Failed to generate valid policy after {self.max_retries} attempts. "
-            f"Last error: {last_error}"
+            f"Failed to generate valid policy after {self.max_retries} attempts "
+            f"using {self.provider.name}. Last error: {last_error}"
         )
-
-    def _call_api(
-        self,
-        user_prompt: str,
-        json_schema: dict[str, Any],
-        last_error: str | None = None,
-    ) -> dict[str, Any]:
-        """Make API call with structured output.
-
-        Args:
-            user_prompt: The user message
-            json_schema: JSON schema for response format
-            last_error: Error from last attempt (for retry context)
-
-        Returns:
-            Parsed policy dict
-        """
-        client = self._get_client()
-
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ]
-
-        # Add error context for retries
-        if last_error:
-            messages.append({
-                "role": "user",
-                "content": (
-                    f"The previous attempt failed validation with: {last_error}\n"
-                    "Please fix these issues and try again."
-                ),
-            })
-
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "policy_tree",
-                    "strict": True,
-                    "schema": json_schema,
-                },
-            },
-        )
-
-        content = response.choices[0].message.content
-        if not content:
-            raise ValueError("Empty response from API")
-
-        return json.loads(content)
 
     def generate_all_trees(
         self,
