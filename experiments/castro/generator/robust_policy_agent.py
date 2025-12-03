@@ -32,13 +32,16 @@ Usage:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Literal
+from dataclasses import dataclass, field
+from typing import Any, Literal, TYPE_CHECKING
 
 from pydantic import BaseModel
 
 from experiments.castro.schemas.parameter_config import ScenarioConstraints
 from experiments.castro.schemas.dynamic import create_constrained_policy_model
+
+if TYPE_CHECKING:
+    from experiments.castro.prompts.context import IterationRecord
 
 
 # ============================================================================
@@ -57,13 +60,31 @@ DEFAULT_REASONING_SUMMARY: Literal["concise", "detailed"] = "detailed"
 
 @dataclass
 class RobustPolicyDeps:
-    """Dependencies for robust policy generation."""
+    """Dependencies for robust policy generation.
 
+    Extended to support rich historical context for improved optimization.
+    """
+
+    # Current state
     current_policy: dict[str, Any] | None = None
     current_cost: float | None = None
     settlement_rate: float | None = None
     per_bank_costs: dict[str, float] | None = None
     iteration: int = 0
+
+    # Extended context for improved optimization
+    iteration_history: list["IterationRecord"] = field(default_factory=list)
+    best_seed_output: str | None = None
+    worst_seed_output: str | None = None
+    best_seed: int = 0
+    worst_seed: int = 0
+    best_seed_cost: int = 0
+    worst_seed_cost: int = 0
+    cost_breakdown: dict[str, int] = field(default_factory=dict)
+    cost_rates: dict[str, Any] = field(default_factory=dict)
+
+    # Policy for the other bank (for joint optimization context)
+    other_bank_policy: dict[str, Any] | None = None
 
 
 # ============================================================================
@@ -428,8 +449,19 @@ class RobustPolicyAgent:
         settlement_rate: float | None = None,
         per_bank_costs: dict[str, float] | None = None,
         iteration: int = 0,
+        # Extended context parameters
+        iteration_history: list[Any] | None = None,
+        best_seed_output: str | None = None,
+        worst_seed_output: str | None = None,
+        best_seed: int = 0,
+        worst_seed: int = 0,
+        best_seed_cost: int = 0,
+        worst_seed_cost: int = 0,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_rates: dict[str, Any] | None = None,
+        other_bank_policy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Generate a constrained policy.
+        """Generate a constrained policy with rich historical context.
 
         Args:
             instruction: Natural language instruction for policy
@@ -438,11 +470,95 @@ class RobustPolicyAgent:
             settlement_rate: Current settlement rate for context (optional)
             per_bank_costs: Per-bank costs for context (optional)
             iteration: Current optimization iteration (optional)
+            iteration_history: List of IterationRecord from previous iterations
+            best_seed_output: Full tick-by-tick verbose output from best seed
+            worst_seed_output: Full tick-by-tick verbose output from worst seed
+            best_seed: Best performing seed number
+            worst_seed: Worst performing seed number
+            best_seed_cost: Cost from best seed
+            worst_seed_cost: Cost from worst seed
+            cost_breakdown: Breakdown of costs by type (delay, collateral, etc.)
+            cost_rates: Cost rate configuration from simulation
+            other_bank_policy: Policy of the other bank (for joint context)
 
         Returns:
             Generated policy as dict (fully validated)
         """
-        # Build context-aware prompt
+        # Determine if we should use extended context
+        has_extended_context = (
+            iteration_history is not None
+            or best_seed_output is not None
+            or worst_seed_output is not None
+        )
+
+        if has_extended_context:
+            # Build massive extended context prompt
+            prompt = self._build_extended_prompt(
+                instruction=instruction,
+                current_policy=current_policy,
+                current_cost=current_cost,
+                settlement_rate=settlement_rate,
+                iteration=iteration,
+                iteration_history=iteration_history,
+                best_seed_output=best_seed_output,
+                worst_seed_output=worst_seed_output,
+                best_seed=best_seed,
+                worst_seed=worst_seed,
+                best_seed_cost=best_seed_cost,
+                worst_seed_cost=worst_seed_cost,
+                cost_breakdown=cost_breakdown,
+                cost_rates=cost_rates,
+                other_bank_policy=other_bank_policy,
+            )
+        else:
+            # Legacy: Build simple context-aware prompt
+            prompt = self._build_simple_prompt(
+                instruction=instruction,
+                current_policy=current_policy,
+                current_cost=current_cost,
+                settlement_rate=settlement_rate,
+                per_bank_costs=per_bank_costs,
+                iteration=iteration,
+            )
+
+        # Use PydanticAI agent for all models
+        agent = self._get_agent()
+
+        deps = RobustPolicyDeps(
+            current_policy=current_policy,
+            current_cost=current_cost,
+            settlement_rate=settlement_rate,
+            per_bank_costs=per_bank_costs,
+            iteration=iteration,
+            iteration_history=iteration_history or [],
+            best_seed_output=best_seed_output,
+            worst_seed_output=worst_seed_output,
+            best_seed=best_seed,
+            worst_seed=worst_seed,
+            best_seed_cost=best_seed_cost,
+            worst_seed_cost=worst_seed_cost,
+            cost_breakdown=cost_breakdown or {},
+            cost_rates=cost_rates or {},
+            other_bank_policy=other_bank_policy,
+        )
+
+        result = agent.run_sync(prompt, deps=deps)
+
+        # Convert Pydantic model to dict
+        if hasattr(result.output, "model_dump"):
+            return result.output.model_dump(exclude_none=True)
+        return dict(result.output)
+
+    def _build_simple_prompt(
+        self,
+        instruction: str,
+        current_policy: dict[str, Any] | None,
+        current_cost: float | None,
+        settlement_rate: float | None,
+        per_bank_costs: dict[str, float] | None,
+        iteration: int,
+    ) -> str:
+        """Build a simple context-aware prompt (legacy mode)."""
         prompt_parts = [instruction]
 
         if current_policy:
@@ -452,7 +568,7 @@ class RobustPolicyAgent:
                 prompt_parts.append(f"- {name}: {value}")
 
         if current_cost is not None:
-            prompt_parts.append(f"\n## Current Performance")
+            prompt_parts.append("\n## Current Performance")
             prompt_parts.append(f"Total cost: ${current_cost:,.0f}")
 
         if settlement_rate is not None:
@@ -467,25 +583,73 @@ class RobustPolicyAgent:
             prompt_parts.append(f"\n## Iteration: {iteration}")
             prompt_parts.append("Based on the current performance, suggest improvements.")
 
-        prompt = "\n".join(prompt_parts)
+        return "\n".join(prompt_parts)
 
-        # Use PydanticAI agent for all models
-        agent = self._get_agent()
+    def _build_extended_prompt(
+        self,
+        instruction: str,
+        current_policy: dict[str, Any] | None,
+        current_cost: float | None,
+        settlement_rate: float | None,
+        iteration: int,
+        iteration_history: list[Any] | None,
+        best_seed_output: str | None,
+        worst_seed_output: str | None,
+        best_seed: int,
+        worst_seed: int,
+        best_seed_cost: int,
+        worst_seed_cost: int,
+        cost_breakdown: dict[str, int] | None,
+        cost_rates: dict[str, Any] | None,
+        other_bank_policy: dict[str, Any] | None,
+    ) -> str:
+        """Build a massive extended context prompt with full history.
 
-        deps = RobustPolicyDeps(
-            current_policy=current_policy,
-            current_cost=current_cost,
-            settlement_rate=settlement_rate,
-            per_bank_costs=per_bank_costs,
-            iteration=iteration,
+        This prompt includes:
+        - Full tick-by-tick output from best and worst seeds
+        - Complete iteration history with metrics
+        - Policy changes between iterations
+        - Cost analysis and optimization guidance
+        """
+        from experiments.castro.prompts.context import build_extended_context
+
+        # Build current metrics dict
+        current_metrics = {
+            "total_cost_mean": current_cost or 0,
+            "total_cost_std": 0,
+            "risk_adjusted_cost": current_cost or 0,
+            "settlement_rate_mean": settlement_rate or 1.0,
+            "failure_rate": 0 if (settlement_rate or 1.0) >= 1.0 else 1.0 - (settlement_rate or 1.0),
+            "best_seed": best_seed,
+            "worst_seed": worst_seed,
+            "best_seed_cost": best_seed_cost,
+            "worst_seed_cost": worst_seed_cost,
+        }
+
+        # Build extended context
+        extended_context = build_extended_context(
+            current_iteration=iteration,
+            current_policy_a=current_policy or {},
+            current_policy_b=other_bank_policy or {},
+            current_metrics=current_metrics,
+            iteration_history=iteration_history,
+            best_seed_output=best_seed_output,
+            worst_seed_output=worst_seed_output,
+            best_seed=best_seed,
+            worst_seed=worst_seed,
+            best_seed_cost=best_seed_cost,
+            worst_seed_cost=worst_seed_cost,
+            cost_breakdown=cost_breakdown,
+            cost_rates=cost_rates,
         )
 
-        result = agent.run_sync(prompt, deps=deps)
+        # Combine instruction with extended context
+        return f"""# OPTIMIZATION TASK
 
-        # Convert Pydantic model to dict
-        if hasattr(result.output, "model_dump"):
-            return result.output.model_dump(exclude_none=True)
-        return dict(result.output)
+{instruction}
+
+{extended_context}
+"""
 
     async def generate_policy_async(
         self,
