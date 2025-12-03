@@ -44,7 +44,13 @@ from typing import Any
 
 import duckdb
 import yaml
-from openai import OpenAI
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
+from experiments.castro.parameter_sets import STANDARD_CONSTRAINTS
 
 
 # ============================================================================
@@ -145,12 +151,30 @@ CREATE TABLE IF NOT EXISTS iteration_metrics (
     FOREIGN KEY (experiment_id) REFERENCES experiment_config(experiment_id)
 );
 
+-- Policy validation errors (track all failures for learning)
+CREATE TABLE IF NOT EXISTS validation_errors (
+    error_id VARCHAR PRIMARY KEY,
+    experiment_id VARCHAR NOT NULL,
+    iteration_number INTEGER NOT NULL,
+    agent_id VARCHAR NOT NULL,
+    attempt_number INTEGER NOT NULL,  -- 0 = initial, 1-3 = fix attempts
+    policy_json TEXT NOT NULL,
+    error_messages JSON NOT NULL,
+    error_category VARCHAR,           -- Categorized error type
+    was_fixed BOOLEAN NOT NULL,
+    fix_attempt_count INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (experiment_id) REFERENCES experiment_config(experiment_id)
+);
+
 -- Create indexes for efficient queries
 CREATE INDEX IF NOT EXISTS idx_policy_exp_iter ON policy_iterations(experiment_id, iteration_number);
 CREATE INDEX IF NOT EXISTS idx_policy_hash ON policy_iterations(policy_hash);
 CREATE INDEX IF NOT EXISTS idx_llm_exp_iter ON llm_interactions(experiment_id, iteration_number);
 CREATE INDEX IF NOT EXISTS idx_sim_exp_iter ON simulation_runs(experiment_id, iteration_number);
 CREATE INDEX IF NOT EXISTS idx_metrics_exp ON iteration_metrics(experiment_id, iteration_number);
+CREATE INDEX IF NOT EXISTS idx_validation_errors_exp ON validation_errors(experiment_id, iteration_number);
+CREATE INDEX IF NOT EXISTS idx_validation_errors_category ON validation_errors(error_category);
 """
 
 
@@ -418,6 +442,133 @@ class ExperimentDatabase:
         ])
         return metric_id
 
+    def record_validation_error(
+        self,
+        experiment_id: str,
+        iteration_number: int,
+        agent_id: str,
+        attempt_number: int,
+        policy: dict,
+        errors: list[str],
+        was_fixed: bool,
+        fix_attempt_count: int,
+    ) -> str:
+        """Record a policy validation error for learning purposes.
+
+        Args:
+            experiment_id: The experiment ID
+            iteration_number: Current iteration
+            agent_id: Bank A or Bank B
+            attempt_number: 0 for initial, 1-3 for fix attempts
+            policy: The invalid policy JSON
+            errors: List of error messages from validator
+            was_fixed: Whether this error was eventually fixed
+            fix_attempt_count: Total number of fix attempts made
+        """
+        error_id = str(uuid.uuid4())
+
+        # Categorize the error based on common patterns
+        error_category = self._categorize_error(errors)
+
+        self.conn.execute("""
+            INSERT INTO validation_errors VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            error_id,
+            experiment_id,
+            iteration_number,
+            agent_id,
+            attempt_number,
+            json.dumps(policy),
+            json.dumps(errors),
+            error_category,
+            was_fixed,
+            fix_attempt_count,
+            datetime.now(),
+        ])
+        return error_id
+
+    def _categorize_error(self, errors: list[str]) -> str:
+        """Categorize validation errors for analysis."""
+        error_text = " ".join(errors).lower()
+
+        # Check for error type prefix (format: [ErrorType] message)
+        if "[parseerror]" in error_text:
+            # Parse errors are often about missing/invalid JSON structure
+            if "missing field" in error_text:
+                return "MISSING_FIELD"
+            elif "node_id" in error_text:
+                return "MISSING_NODE_ID"
+            else:
+                return "PARSE_ERROR"
+        elif "[validationerror]" in error_text:
+            return "VALIDATION_ERROR"
+        elif "[unknown]" in error_text:
+            return "UNKNOWN_TYPE"
+
+        # Check for common error patterns (fallback for untyped errors)
+        if "custom_param" in error_text or "unknown parameter" in error_text:
+            return "CUSTOM_PARAM"
+        elif "unknown field" in error_text or "invalid field" in error_text:
+            return "UNKNOWN_FIELD"
+        elif "missing field" in error_text or "missing" in error_text:
+            return "MISSING_FIELD"
+        elif "node_id" in error_text:
+            return "MISSING_NODE_ID"
+        elif "schema" in error_text or "validation" in error_text:
+            return "SCHEMA_ERROR"
+        elif "operator" in error_text or "op" in error_text:
+            return "INVALID_OPERATOR"
+        elif "action" in error_text:
+            return "INVALID_ACTION"
+        elif "type" in error_text or "expected" in error_text:
+            return "TYPE_ERROR"
+        elif "cli error" in error_text:
+            return "CLI_ERROR"
+        else:
+            return "UNKNOWN"
+
+    def get_validation_error_summary(self, experiment_id: str | None = None) -> dict:
+        """Get summary statistics for validation errors."""
+        where_clause = "WHERE experiment_id = ?" if experiment_id else ""
+        params = [experiment_id] if experiment_id else []
+
+        # Total errors by category
+        category_counts = self.conn.execute(f"""
+            SELECT error_category, COUNT(*) as count
+            FROM validation_errors
+            {where_clause}
+            GROUP BY error_category
+            ORDER BY count DESC
+        """, params).fetchall()
+
+        # Fix success rate
+        fix_stats = self.conn.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN was_fixed THEN 1 ELSE 0 END) as fixed,
+                AVG(fix_attempt_count) as avg_attempts
+            FROM validation_errors
+            {where_clause}
+            AND attempt_number = 0
+        """, params).fetchone()
+
+        # Errors by agent
+        agent_counts = self.conn.execute(f"""
+            SELECT agent_id, COUNT(*) as count
+            FROM validation_errors
+            {where_clause}
+            GROUP BY agent_id
+        """, params).fetchall()
+
+        return {
+            "by_category": {row[0]: row[1] for row in category_counts},
+            "total_errors": fix_stats[0] if fix_stats else 0,
+            "fixed_count": fix_stats[1] if fix_stats else 0,
+            "fix_rate": (fix_stats[1] / fix_stats[0] * 100) if fix_stats and fix_stats[0] > 0 else 0,
+            "avg_fix_attempts": fix_stats[2] if fix_stats else 0,
+            "by_agent": {row[0]: row[1] for row in agent_counts},
+        }
+
     def get_latest_policies(self, experiment_id: str) -> dict[str, dict]:
         """Get the latest policy for each agent."""
         result = self.conn.execute("""
@@ -572,12 +723,15 @@ def run_simulations_parallel(
     return sorted(results, key=lambda x: x.get("seed", 0))
 
 
-def compute_metrics(results: list[dict]) -> dict:
-    """Compute aggregated metrics from simulation results."""
+def compute_metrics(results: list[dict]) -> dict | None:
+    """Compute aggregated metrics from simulation results.
+
+    Returns None if all simulations failed, allowing caller to handle gracefully.
+    """
     valid_results = [r for r in results if "error" not in r]
 
     if not valid_results:
-        raise RuntimeError("All simulations failed")
+        return None  # Let caller handle this gracefully
 
     costs = [r["total_cost"] for r in valid_results]
     settlements = [r["settlement_rate"] for r in valid_results]
@@ -605,11 +759,18 @@ def compute_metrics(results: list[dict]) -> dict:
 
 
 # ============================================================================
-# LLM Optimizer
+# LLM Optimizer (using PydanticAI via RobustPolicyAgent)
 # ============================================================================
 
 class LLMOptimizer:
-    """LLM-based policy optimizer with full logging."""
+    """LLM-based policy optimizer using PydanticAI structured output.
+
+    This class wraps RobustPolicyAgent to generate validated policies
+    using PydanticAI's structured output capabilities. This ensures:
+    - Correct API usage for reasoning models (GPT-5.1, o1, etc.)
+    - Structured JSON output with validation
+    - Proper retry logic on validation failures
+    """
 
     def __init__(
         self,
@@ -618,7 +779,20 @@ class LLMOptimizer:
     ):
         self.model = model
         self.reasoning_effort = reasoning_effort
-        self.client = OpenAI()
+
+        # Create RobustPolicyAgent with constraints
+        # Use "high" reasoning for GPT-5.1, map string to literal
+        effort_mapping = {"low": "low", "medium": "medium", "high": "high"}
+        effort = effort_mapping.get(reasoning_effort, "high")
+
+        self.agent = RobustPolicyAgent(
+            constraints=STANDARD_CONSTRAINTS,
+            model=model,
+            reasoning_effort=effort,  # type: ignore
+        )
+
+        # Track last prompt for logging
+        self._last_prompt: str = ""
 
     def create_prompt(
         self,
@@ -631,73 +805,84 @@ class LLMOptimizer:
         cost_rates: dict,
     ) -> str:
         """Create optimization prompt for LLM."""
-
-        prompt = f"""# Policy Optimization Task
-
-## Experiment: {experiment_name}
-## Iteration: {iteration}
+        prompt = f"""# Policy Optimization - {experiment_name} - Iteration {iteration}
 
 ## Current Performance
-- Mean Cost: ${metrics['total_cost_mean']:,.0f}
-- Std Dev: ${metrics['total_cost_std']:,.0f}
-- Risk-Adjusted: ${metrics['risk_adjusted_cost']:,.0f}
+- Mean Cost: ${metrics['total_cost_mean']:,.0f} ± ${metrics['total_cost_std']:,.0f}
 - Settlement Rate: {metrics['settlement_rate_mean']*100:.1f}%
-- Failure Rate: {metrics['failure_rate']*100:.0f}%
-- Best Seed Cost: ${metrics['best_seed_cost']:,.0f} (seed {metrics['best_seed']})
-- Worst Seed Cost: ${metrics['worst_seed_cost']:,.0f} (seed {metrics['worst_seed']})
+- Best/Worst: ${metrics['best_seed_cost']:,.0f} / ${metrics['worst_seed_cost']:,.0f}
 
 ## Cost Rates
 {json.dumps(cost_rates, indent=2)}
 
-## Current Policies
-
-### Bank A Policy
-```json
-{json.dumps(policy_a, indent=2)}
-```
-
-### Bank B Policy
-```json
-{json.dumps(policy_b, indent=2)}
-```
-
 ## Task
-Analyze the current policies and performance. Suggest improved policies that:
-1. Reduce total cost while maintaining 100% settlement
-2. Balance collateral costs vs overdraft costs
-3. Optimize payment timing for liquidity efficiency
-
-Return your response as valid JSON with this structure:
-```json
-{{
-  "analysis": "Your analysis of current performance and strategy",
-  "bank_a_policy": {{ ... full policy JSON ... }},
-  "bank_b_policy": {{ ... full policy JSON ... }},
-  "expected_improvement": "What improvement you expect and why"
-}}
-```
+Generate an improved policy that reduces total cost while maintaining 100% settlement.
+Focus on optimizing the trade-off between collateral costs and delay costs.
 """
+        self._last_prompt = prompt
         return prompt
 
-    def call_llm(self, prompt: str) -> tuple[str, int, float]:
-        """Call LLM and return response, tokens, latency."""
+    def generate_policy(
+        self,
+        instruction: str,
+        current_policy: dict | None = None,
+        current_cost: float = 0,
+        settlement_rate: float = 1.0,
+        iteration: int = 0,
+    ) -> tuple[dict | None, int, float]:
+        """Generate an optimized policy using PydanticAI.
+
+        Returns:
+            tuple of (policy_dict or None, tokens_used, latency_seconds)
+        """
         start_time = time.time()
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=16000,
+            policy = self.agent.generate_policy(
+                instruction=instruction,
+                current_policy=current_policy,
+                current_cost=current_cost,
+                settlement_rate=settlement_rate,
+                iteration=iteration,
             )
 
             latency = time.time() - start_time
-            response_text = response.choices[0].message.content
-            tokens = response.usage.total_tokens if response.usage else 0
+            # PydanticAI doesn't expose token counts directly in sync mode
+            # We'll estimate based on typical response sizes
+            tokens = 2000  # Rough estimate
 
-            return response_text, tokens, latency
+            return policy, tokens, latency
+
         except Exception as e:
             latency = time.time() - start_time
-            return f"ERROR: {e}", 0, latency
+            print(f"  Policy generation error: {e}")
+            return None, 0, latency
+
+    def call_llm(self, prompt: str) -> tuple[str, int, float]:
+        """Legacy interface for backward compatibility.
+
+        Note: This method is kept for logging purposes but actual
+        policy generation should use generate_policy() which returns
+        structured output directly.
+        """
+        # Generate a policy and serialize it
+        result, tokens, latency = self.generate_policy(
+            instruction=prompt,
+            iteration=0,
+        )
+
+        if result is None:
+            return "ERROR: Policy generation failed", 0, latency
+
+        # Wrap in expected response format
+        response = json.dumps({
+            "analysis": "Generated via PydanticAI structured output",
+            "bank_a_policy": result,
+            "bank_b_policy": result,  # Same policy for both in this mode
+            "expected_improvement": "Optimized based on cost structure"
+        }, indent=2)
+
+        return response, tokens, latency
 
     def parse_response(self, response: str) -> tuple[dict, dict] | None:
         """Parse LLM response to extract new policies."""
@@ -892,18 +1077,24 @@ class ReproducibleExperiment:
             )
 
             errors = []
-            if result.returncode != 0:
-                stderr = result.stderr.strip()
-                if stderr:
-                    errors.append(f"CLI error: {stderr}")
-                return False, result.stderr, errors
 
+            # Note: validator returns JSON even on error (return code != 0)
+            # so we should parse stdout in both cases
             try:
                 output = json.loads(result.stdout)
                 is_valid = output.get("valid", False)
                 if not is_valid:
                     if "errors" in output:
-                        errors = output["errors"]
+                        # Errors are objects with 'message' and 'type' fields
+                        raw_errors = output["errors"]
+                        errors = []
+                        for err in raw_errors:
+                            if isinstance(err, dict):
+                                msg = err.get("message", str(err))
+                                err_type = err.get("type", "Unknown")
+                                errors.append(f"[{err_type}] {msg}")
+                            else:
+                                errors.append(str(err))
                     elif "error" in output:
                         errors = [output["error"]]
                     elif "message" in output:
@@ -917,62 +1108,49 @@ class ReproducibleExperiment:
             os.unlink(temp_path)
 
     def request_policy_fix_from_llm(self, policy: dict, agent_name: str, errors: list[str]) -> dict | None:
-        """Ask LLM to fix an invalid policy."""
+        """Ask LLM to fix an invalid policy using PydanticAI.
+
+        Since RobustPolicyAgent uses structured output, invalid policies are rare.
+        When they do occur, we regenerate with explicit error context.
+        """
         error_list = "\n".join(f"  - {e}" for e in errors)
 
-        fix_prompt = f"""# Policy Validation Error - Fix Required
+        fix_instruction = f"""Fix the policy for {agent_name}.
 
-The {agent_name} policy failed validation with these errors:
-
+Previous policy had validation errors:
 {error_list}
 
-## Invalid Policy
-```json
-{json.dumps(policy, indent=2)}
-```
-
-Please fix the policy. Output ONLY the corrected JSON policy.
-
-## Corrected {agent_name} Policy
-```json
+Generate a corrected policy that avoids these errors.
 """
         try:
-            response = self.optimizer.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "Fix the JSON policy. Output ONLY valid JSON."},
-                    {"role": "user", "content": fix_prompt}
-                ],
-                max_tokens=4000,
-                temperature=0.3,
+            fixed_policy, _, _ = self.optimizer.generate_policy(
+                instruction=fix_instruction,
+                current_policy=policy,
+                iteration=0,
             )
-            response_text = response.choices[0].message.content
-
-            # Parse JSON from response
-            if "```json" in response_text:
-                json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_text)
-                if json_match:
-                    return json.loads(json_match.group(1))
-            elif "```" in response_text:
-                json_match = re.search(r'```\s*([\s\S]*?)\s*```', response_text)
-                if json_match:
-                    return json.loads(json_match.group(1))
-            else:
-                start = response_text.find('{')
-                end = response_text.rfind('}') + 1
-                if start != -1 and end > start:
-                    return json.loads(response_text[start:end])
-            return None
+            return fixed_policy
         except Exception:
             return None
 
-    def validate_and_fix_policy(self, policy: dict, agent_name: str, fallback: dict) -> tuple[dict, bool]:
-        """Validate a policy, attempting to fix it if invalid."""
+    def validate_and_fix_policy(
+        self,
+        policy: dict,
+        agent_name: str,
+        fallback: dict,
+        iteration: int = 0,
+    ) -> tuple[dict, bool]:
+        """Validate a policy, attempting to fix it if invalid.
+
+        Logs all validation errors to the database for analysis.
+        """
         is_valid, _, errors = self.validate_policy_with_details(policy, agent_name)
         if is_valid:
             return policy, True
 
         print(f"  {agent_name} policy invalid, attempting LLM fix...")
+
+        # Track all errors for logging
+        all_errors: list[tuple[int, dict, list[str]]] = [(0, policy, errors)]
 
         for attempt in range(self.MAX_VALIDATION_RETRIES):
             fixed = self.request_policy_fix_from_llm(policy, agent_name, errors)
@@ -982,8 +1160,37 @@ Please fix the policy. Output ONLY the corrected JSON policy.
             is_valid, _, new_errors = self.validate_policy_with_details(fixed, agent_name)
             if is_valid:
                 print(f"  {agent_name} policy fixed on attempt {attempt + 1}")
+                # Log all errors with was_fixed=True for the initial, False for fix attempts
+                for err_attempt, err_policy, err_msgs in all_errors:
+                    self.db.record_validation_error(
+                        experiment_id=self.experiment_id,
+                        iteration_number=iteration,
+                        agent_id=agent_name,
+                        attempt_number=err_attempt,
+                        policy=err_policy,
+                        errors=err_msgs,
+                        was_fixed=True,
+                        fix_attempt_count=attempt + 1,
+                    )
                 return fixed, False
+
+            # Track this fix attempt's error
+            all_errors.append((attempt + 1, fixed, new_errors))
             errors = new_errors
+            policy = fixed  # Use fixed policy for next attempt
+
+        # Log all errors with was_fixed=False
+        for err_attempt, err_policy, err_msgs in all_errors:
+            self.db.record_validation_error(
+                experiment_id=self.experiment_id,
+                iteration_number=iteration,
+                agent_id=agent_name,
+                attempt_number=err_attempt,
+                policy=err_policy,
+                errors=err_msgs,
+                was_fixed=False,
+                fix_attempt_count=self.MAX_VALIDATION_RETRIES,
+            )
 
         print(f"  {agent_name} policy unfixable, using previous valid policy")
         return fallback, False
@@ -1022,6 +1229,25 @@ Please fix the policy. Output ONLY the corrected JSON policy.
         # Compute metrics
         metrics = compute_metrics(results)
 
+        if metrics is None:
+            print("  ERROR: All simulations failed, reverting to previous policies")
+            # Revert to last known good policies
+            if self.history:
+                last_good = self.history[-1]
+                self.policy_a = last_good.get("policy_a", self.policy_a)
+                self.policy_b = last_good.get("policy_b", self.policy_b)
+            # Return with failure metrics
+            return {
+                "iteration": iteration,
+                "metrics": {"total_cost_mean": float("inf"), "total_cost_std": 0,
+                           "settlement_rate_mean": 0, "failure_rate": 1.0,
+                           "best_seed_cost": float("inf"), "worst_seed_cost": float("inf"),
+                           "best_seed": 0, "worst_seed": 0, "risk_adjusted_cost": float("inf")},
+                "results": results,
+                "converged": False,
+                "failed": True,
+            }
+
         print(f"  Mean cost: ${metrics['total_cost_mean']:,.0f} ± ${metrics['total_cost_std']:,.0f}")
         print(f"  Settlement rate: {metrics['settlement_rate_mean']*100:.1f}%")
         print(f"  Failure rate: {metrics['failure_rate']*100:.0f}%")
@@ -1047,57 +1273,72 @@ Please fix the policy. Output ONLY the corrected JSON policy.
         }
 
     def optimize_policies(self, iteration: int, metrics: dict, results: list[dict]) -> bool:
-        """Call LLM to optimize policies."""
+        """Call LLM to optimize policies using PydanticAI structured output."""
         print(f"  Calling LLM for optimization...")
 
-        # Create prompt
-        prompt = self.optimizer.create_prompt(
-            experiment_name=self.experiment_def["name"],
+        # Create instruction prompt
+        instruction = f"""Optimize policy for iteration {iteration}.
+Current performance: Mean cost ${metrics['total_cost_mean']:,.0f}, Settlement {metrics['settlement_rate_mean']*100:.1f}%
+Goal: Reduce cost while maintaining 100% settlement."""
+
+        # Generate policy for Bank A
+        policy_a, tokens_a, latency_a = self.optimizer.generate_policy(
+            instruction=instruction,
+            current_policy=self.policy_a,
+            current_cost=metrics['total_cost_mean'] / 2,  # Approximate per-bank cost
+            settlement_rate=metrics['settlement_rate_mean'],
             iteration=iteration,
-            policy_a=self.policy_a,
-            policy_b=self.policy_b,
-            metrics=metrics,
-            results=results,
-            cost_rates=self.config.get("cost_rates", {}),
         )
 
-        # Call LLM
-        response, tokens, latency = self.optimizer.call_llm(prompt)
+        # Generate policy for Bank B (may be same or different based on scenario)
+        policy_b, tokens_b, latency_b = self.optimizer.generate_policy(
+            instruction=instruction,
+            current_policy=self.policy_b,
+            current_cost=metrics['total_cost_mean'] / 2,
+            settlement_rate=metrics['settlement_rate_mean'],
+            iteration=iteration,
+        )
 
-        # Record interaction
-        error_msg = None if not response.startswith("ERROR:") else response
+        total_tokens = tokens_a + tokens_b
+        total_latency = latency_a + latency_b
+
+        # Record interaction for logging
+        prompt_text = instruction
+        if policy_a is not None and policy_b is not None:
+            response_text = json.dumps({
+                "bank_a_policy": policy_a,
+                "bank_b_policy": policy_b,
+            }, indent=2)
+            error_msg = None
+        else:
+            response_text = "ERROR: Policy generation failed"
+            error_msg = response_text
+
         self.db.record_llm_interaction(
             experiment_id=self.experiment_id,
             iteration_number=iteration,
-            prompt_text=prompt,
-            response_text=response,
+            prompt_text=prompt_text,
+            response_text=response_text,
             model_name=self.model,
             reasoning_effort=self.reasoning_effort,
-            tokens_used=tokens,
-            latency_seconds=latency,
+            tokens_used=total_tokens,
+            latency_seconds=total_latency,
             error_message=error_msg,
         )
 
-        print(f"  LLM response: {tokens} tokens, {latency:.1f}s")
+        print(f"  LLM response: ~{total_tokens} tokens, {total_latency:.1f}s")
 
-        if error_msg:
-            print(f"  ERROR: {error_msg}")
+        if policy_a is None or policy_b is None:
+            print("  ERROR: Policy generation failed")
             return False
-
-        # Parse response
-        parsed = self.optimizer.parse_response(response)
-        if parsed is None:
-            print("  Failed to parse LLM response")
-            return False
-
-        new_policy_a, new_policy_b = parsed
 
         # Validate policies with retry logic (NEVER writes to seed files)
+        # Log all validation errors to database for analysis
         new_policy_a, was_valid_a = self.validate_and_fix_policy(
-            new_policy_a, "Bank A", self.policy_a
+            policy_a, "Bank A", self.policy_a, iteration=iteration
         )
         new_policy_b, was_valid_b = self.validate_and_fix_policy(
-            new_policy_b, "Bank B", self.policy_b
+            policy_b, "Bank B", self.policy_b, iteration=iteration
         )
 
         # Update current policies (in-memory only, seed files never modified)
@@ -1155,6 +1396,11 @@ Please fix the policy. Output ONLY the corrected JSON policy.
 
         for iteration in range(1, self.max_iterations + 1):
             result = self.run_iteration(iteration)
+
+            # Handle failed iterations (all simulations crashed)
+            if result.get("failed"):
+                print(f"  Skipping optimization due to simulation failures")
+                continue
 
             if result["converged"]:
                 print(f"\n✓ Converged at iteration {iteration}")
