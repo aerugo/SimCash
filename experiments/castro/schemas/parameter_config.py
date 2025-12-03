@@ -95,7 +95,15 @@ class ScenarioConstraints(BaseModel):
     allowed_actions: list[str] = Field(
         ...,
         min_length=1,
-        description="Actions the LLM can use in trees",
+        description="Actions the LLM can use in payment_tree",
+    )
+    allowed_bank_actions: list[str] | None = Field(
+        default=None,
+        description="Actions the LLM can use in bank_tree. If None, bank_tree not supported.",
+    )
+    allowed_collateral_actions: list[str] | None = Field(
+        default=None,
+        description="Actions the LLM can use in collateral trees. If None, collateral trees not supported.",
     )
 
     @field_validator("allowed_fields")
@@ -116,22 +124,51 @@ class ScenarioConstraints(BaseModel):
 
     @field_validator("allowed_actions")
     @classmethod
-    def validate_actions_exist(cls, v: list[str]) -> list[str]:
-        """Validate all actions exist in SimCash registry."""
+    def validate_payment_actions_exist(cls, v: list[str]) -> list[str]:
+        """Validate all payment actions exist in SimCash registry."""
         if not v:
             raise ValueError("Must specify at least one action")
 
-        from experiments.castro.schemas.registry import (
-            PAYMENT_ACTIONS,
-            BANK_ACTIONS,
-            COLLATERAL_ACTIONS,
-        )
+        from experiments.castro.schemas.registry import PAYMENT_ACTIONS
 
-        # All valid actions across all tree types
-        valid_actions = set(PAYMENT_ACTIONS + BANK_ACTIONS + COLLATERAL_ACTIONS)
+        valid_actions = set(PAYMENT_ACTIONS)
         unknown = set(v) - valid_actions
         if unknown:
-            raise ValueError(f"unknown action(s): {unknown}")
+            raise ValueError(f"unknown payment action(s): {unknown}")
+        return v
+
+    @field_validator("allowed_bank_actions")
+    @classmethod
+    def validate_bank_actions_exist(
+        cls, v: list[str] | None
+    ) -> list[str] | None:
+        """Validate all bank actions exist in SimCash registry."""
+        if v is None:
+            return None
+
+        from experiments.castro.schemas.registry import BANK_ACTIONS
+
+        valid_actions = set(BANK_ACTIONS)
+        unknown = set(v) - valid_actions
+        if unknown:
+            raise ValueError(f"unknown bank action(s): {unknown}")
+        return v
+
+    @field_validator("allowed_collateral_actions")
+    @classmethod
+    def validate_collateral_actions_exist(
+        cls, v: list[str] | None
+    ) -> list[str] | None:
+        """Validate all collateral actions exist in SimCash registry."""
+        if v is None:
+            return None
+
+        from experiments.castro.schemas.registry import COLLATERAL_ACTIONS
+
+        valid_actions = set(COLLATERAL_ACTIONS)
+        unknown = set(v) - valid_actions
+        if unknown:
+            raise ValueError(f"unknown collateral action(s): {unknown}")
         return v
 
     @model_validator(mode="after")
