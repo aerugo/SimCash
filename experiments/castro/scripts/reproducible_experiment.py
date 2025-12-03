@@ -934,8 +934,19 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
         current_cost: float = 0,
         settlement_rate: float = 1.0,
         iteration: int = 0,
+        # Extended context parameters
+        iteration_history: list[Any] | None = None,
+        best_seed_output: str | None = None,
+        worst_seed_output: str | None = None,
+        best_seed: int = 0,
+        worst_seed: int = 0,
+        best_seed_cost: int = 0,
+        worst_seed_cost: int = 0,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_rates: dict[str, Any] | None = None,
+        other_bank_policy: dict[str, Any] | None = None,
     ) -> tuple[dict | None, int, float]:
-        """Generate an optimized policy using PydanticAI.
+        """Generate an optimized policy using PydanticAI with extended context.
 
         Returns:
             tuple of (policy_dict or None, tokens_used, latency_seconds)
@@ -949,6 +960,17 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
                 current_cost=current_cost,
                 settlement_rate=settlement_rate,
                 iteration=iteration,
+                # Pass through extended context
+                iteration_history=iteration_history,
+                best_seed_output=best_seed_output,
+                worst_seed_output=worst_seed_output,
+                best_seed=best_seed,
+                worst_seed=worst_seed,
+                best_seed_cost=best_seed_cost,
+                worst_seed_cost=worst_seed_cost,
+                cost_breakdown=cost_breakdown,
+                cost_rates=cost_rates,
+                other_bank_policy=other_bank_policy,
             )
 
             latency = time.time() - start_time
@@ -1170,7 +1192,7 @@ class ReproducibleExperiment:
             iter_config["agents"].append(agent_copy)
 
         # Write iteration config
-        iter_config_path = self.configs_dir / f"iter_{iteration:03d}_config.yaml"
+        iter_config_path = (self.configs_dir / f"iter_{iteration:03d}_config.yaml").absolute()
         with open(iter_config_path, 'w') as f:
             yaml.safe_dump(iter_config, f, default_flow_style=False)
 
@@ -1649,7 +1671,10 @@ Use this insight to make targeted policy improvements."""
         print(f"\n{'='*60}")
         print("Experiment Complete")
         print(f"{'='*60}")
-        print(f"  Final mean cost: ${self.history[-1]['total_cost_mean']:,.0f}")
+        if self.history:
+            print(f"  Final mean cost: ${self.history[-1]['total_cost_mean']:,.0f}")
+        else:
+            print("  WARNING: No successful iterations completed")
         print(f"  Database: {self.db.db_path}")
 
         self.db.close()
