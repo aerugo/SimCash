@@ -21,7 +21,8 @@ Deprecated optimizer scripts superseded by current versions:
 - `optimizer.py` - Original version (DEPRECATED: corrupts seed files)
 - `optimizer_v2.py` - Enhanced prompts (DEPRECATED: corrupts seed files)
 - `optimizer_v3.py` - Per-tick event logs (superseded by `reproducible_experiment.py`)
-- `optimizer_v4.py` - Structured output (superseded by `robust_experiment.py`)
+- `optimizer_v4.py` - Structured output (superseded by `reproducible_experiment.py`)
+- `robust_experiment.py` - Simplified duplicate (same policy agent but less comprehensive logging)
 
 ### `pre-castro-alignment/`
 Experiments from before Castro-alignment features were implemented (2025-12-02):
@@ -39,7 +40,7 @@ Experiments from before Castro-alignment features were implemented (2025-12-02):
 
 The current experiment code is in the parent directory:
 - `scripts/reproducible_experiment.py` - Main experiment runner
-- `scripts/robust_experiment.py` - Constrained schema version
+- `scripts/analyze_validation_errors.py` - Analysis tool
 - `generator/robust_policy_agent.py` - Current LLM policy agent
 - `schemas/` - Current Pydantic schemas
 

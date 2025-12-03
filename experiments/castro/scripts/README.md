@@ -7,7 +7,6 @@ This directory contains scripts for running reproducible experiments that replic
 | Script | Purpose |
 |--------|---------|
 | `reproducible_experiment.py` | Main experiment runner with full DuckDB persistence |
-| `robust_experiment.py` | Constrained schema version (prevents 94% of validation errors) |
 | `analyze_validation_errors.py` | Analysis tool for debugging policy validation failures |
 
 ## Archived Scripts
@@ -16,7 +15,8 @@ Previous optimizer versions have been archived to `../archive/deprecated-scripts
 - `optimizer.py` - Original (deprecated, corrupts seed files)
 - `optimizer_v2.py` - Enhanced prompts (deprecated)
 - `optimizer_v3.py` - Per-tick event logs (superseded by reproducible_experiment.py)
-- `optimizer_v4.py` - Structured output (superseded by robust_experiment.py)
+- `optimizer_v4.py` - Structured output (superseded by reproducible_experiment.py)
+- `robust_experiment.py` - Simplified duplicate (reproducible_experiment.py has same features + more)
 
 ## Castro Alignment (2025-12-02)
 
