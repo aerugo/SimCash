@@ -870,7 +870,8 @@ pub fn build_decision(
         // Phase 3.3/4.5: Bank-level actions are not valid in payment decision context
         ActionType::SetReleaseBudget
         | ActionType::SetState
-        | ActionType::AddState => Err(EvalError::InvalidActionType(format!(
+        | ActionType::AddState
+        | ActionType::NoAction => Err(EvalError::InvalidActionType(format!(
             "Bank-level action {:?} cannot be used in payment release decision tree. \
              Bank-level actions require bank_tree evaluation.",
             action
@@ -1034,10 +1035,11 @@ pub fn build_collateral_decision(
         | ActionType::SetReleaseBudget
         | ActionType::SetState
         | ActionType::AddState
+        | ActionType::NoAction
         | ActionType::WithdrawFromRtgs
         | ActionType::ResubmitToRtgs => Err(EvalError::InvalidActionType(format!(
             "Payment/bank action {:?} cannot be used in collateral decision tree. \
-             These actions require separate tree evaluation.",
+             Use PostCollateral, WithdrawCollateral, or HoldCollateral instead.",
             action
         ))),
     }
@@ -1266,10 +1268,16 @@ pub fn build_bank_decision_with_path(
             })
         }
 
+        // Phase 3.3: Explicit no-op action for bank_tree
+        ActionType::NoAction => {
+            // Take no bank-level action this tick
+            Ok(BankDecision::NoAction)
+        }
+
         // All other actions are not valid in bank decision context
         _ => {
-            // Bank tree can have NoAction nodes (do nothing this tick)
-            // Any action that's not SetReleaseBudget/SetState/AddState becomes NoAction
+            // Any action that's not SetReleaseBudget/SetState/AddState/NoAction becomes NoAction
+            // This is a fallback for unexpected actions
             Ok(BankDecision::NoAction)
         }
     }
