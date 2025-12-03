@@ -292,9 +292,9 @@ class TestProviderDefaults:
     """Test default values for providers."""
 
     def test_openai_default_model(self) -> None:
-        """OpenAI provider has sensible default model."""
+        """OpenAI provider has sensible default model (GPT-5.1)."""
         provider = OpenAIProvider()
-        assert provider.model == "gpt-4o-2024-08-06"
+        assert provider.model == "gpt-5.1"
 
     def test_anthropic_default_model(self) -> None:
         """Anthropic provider has sensible default model."""

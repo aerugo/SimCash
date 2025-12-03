@@ -8,8 +8,19 @@ import pytest
 class TestPolicyAgent:
     """Tests for PolicyAgent class."""
 
-    def test_agent_initialization(self) -> None:
-        """Agent initializes with model string."""
+    def test_agent_initialization_default(self) -> None:
+        """Agent initializes with GPT-5.1 by default."""
+        from experiments.castro.generator import PolicyAgent
+
+        agent = PolicyAgent()
+        assert agent.model == "gpt-5.1"
+        assert agent.max_depth == 3
+        assert agent.retries == 3
+        assert agent.reasoning_effort == "high"
+        assert agent.reasoning_summary == "detailed"
+
+    def test_agent_initialization_custom_model(self) -> None:
+        """Agent initializes with custom model string."""
         from experiments.castro.generator import PolicyAgent
 
         agent = PolicyAgent(model="openai:gpt-4o")
@@ -26,11 +37,20 @@ class TestPolicyAgent:
         assert agent.max_depth == 5
         assert agent.retries == 5
 
+    def test_agent_reasoning_effort_settings(self) -> None:
+        """Agent accepts reasoning effort settings for GPT-5.1."""
+        from experiments.castro.generator import PolicyAgent
+
+        agent = PolicyAgent(reasoning_effort="low", reasoning_summary="concise")
+        assert agent.reasoning_effort == "low"
+        assert agent.reasoning_summary == "concise"
+        assert agent._model_settings is not None
+
     def test_agent_caches_per_tree_type(self) -> None:
         """Agent caches agents per tree type."""
         from experiments.castro.generator import PolicyAgent
 
-        agent = PolicyAgent()
+        agent = PolicyAgent(model="openai:gpt-4o")  # Use non-GPT5 to avoid model settings
         # Access internal agent cache
         agent._get_agent("payment_tree")
         agent._get_agent("bank_tree")
@@ -38,6 +58,30 @@ class TestPolicyAgent:
         assert "payment_tree" in agent._agents
         assert "bank_tree" in agent._agents
         assert len(agent._agents) == 2
+
+    def test_agent_gpt5_detection(self) -> None:
+        """Agent correctly detects GPT-5 models."""
+        from experiments.castro.generator import PolicyAgent
+
+        # GPT-5.1 default
+        agent1 = PolicyAgent()
+        assert agent1._is_gpt5_model() is True
+
+        # Explicit GPT-5
+        agent2 = PolicyAgent(model="gpt-5")
+        assert agent2._is_gpt5_model() is True
+
+        # With openai prefix
+        agent3 = PolicyAgent(model="openai:gpt-5.1")
+        assert agent3._is_gpt5_model() is True
+
+        # Non-GPT-5
+        agent4 = PolicyAgent(model="openai:gpt-4o")
+        assert agent4._is_gpt5_model() is False
+
+        # Anthropic
+        agent5 = PolicyAgent(model="anthropic:claude-3-5-sonnet-20241022")
+        assert agent5._is_gpt5_model() is False
 
 
 class TestPolicyDeps:
@@ -111,6 +155,13 @@ class TestValidation:
 
 class TestModelStrings:
     """Tests verifying model string format."""
+
+    def test_default_gpt51(self) -> None:
+        """Default model is GPT-5.1."""
+        from experiments.castro.generator import PolicyAgent
+
+        agent = PolicyAgent()
+        assert agent.model == "gpt-5.1"
 
     def test_openai_format(self) -> None:
         """OpenAI model string format."""
