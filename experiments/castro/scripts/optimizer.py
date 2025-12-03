@@ -5,7 +5,22 @@ Using OpenAI GPT-5.1 with high reasoning effort
 
 This script implements the LLM-in-the-loop policy optimization
 described in llm-castro-simcash.md research proposal.
+
+⚠️ DEPRECATED: This script writes directly to seed policy files which can cause
+corruption. Use optimizer_v3.py instead, which:
+- Never modifies seed policy files
+- Creates iteration-specific policy files in results directory
+- Has LLM retry logic when policy validation fails
+- Stores all policy versions for reproducibility
 """
+
+import warnings
+warnings.warn(
+    "optimizer.py is deprecated and can corrupt seed policy files. "
+    "Use optimizer_v3.py instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 import json
 import subprocess
