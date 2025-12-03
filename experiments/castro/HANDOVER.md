@@ -151,11 +151,11 @@ experiments/castro/
 ## Troubleshooting
 
 ### "max_collateral_capacity ignored" Issue
-The `max_collateral_capacity` config field is computed as `10 × unsecured_cap`, not read from config. Adjust `initial_liquidity_fraction` in policies accordingly.
+**Status**: ✅ RESOLVED (2025-12-01)
 
-For Exp2 with `unsecured_cap: 10000000000`:
-- Actual max_collateral_capacity = $100B
-- Use very small fractions (e.g., 0.000025 for $250k collateral)
+This issue has been fixed. The `max_collateral_capacity` config field is now properly read from YAML configuration. If not specified, the 10x heuristic (`unsecured_cap × 10`) is used as a fallback.
+
+See `docs/bugs/max_collateral_capacity_ignored.md` for full details on the fix.
 
 ### Verifying Deferred Crediting Works
 Check for `DeferredCreditsApplied` events in verbose output. If Bank A can use Bank B's payment within the same tick, deferred crediting is NOT working.
