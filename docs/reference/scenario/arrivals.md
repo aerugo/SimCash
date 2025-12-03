@@ -182,7 +182,12 @@ pub deadline_range: (usize, usize),
 
 #### End-of-Day Deadline Cap
 
-When `deadline_cap_at_eod: true` is set at the top level of the configuration, all generated deadlines are additionally capped at the **end of the current day**. This ensures payments must settle within the same business day they arrive.
+When `deadline_cap_at_eod: true` is set at the top level of the configuration, all transaction deadlines are additionally capped at the **last tick of the current day**. This ensures payments must settle within the same business day they arrive.
+
+This applies to all transaction sources:
+- Automatic arrivals from `ArrivalGenerator`
+- `submit_transaction()` API calls
+- `CustomTransactionArrival` scenario events
 
 ```yaml
 # Top-level setting
@@ -192,9 +197,9 @@ agents:
   - id: BANK_A
     arrival_config:
       deadline_range: [30, 100]  # Sample offset from [30, 100]
-      # With 100 ticks/day:
+      # With 100 ticks/day (day 0 has ticks 0-99):
       # - Arrival at tick 50, sampled offset 80 → raw deadline 130
-      # - Capped to day end: min(130, 100) = 100
+      # - Capped to last tick of day: min(130, 99) = 99
 ```
 
 See [Advanced Settings: deadline_cap_at_eod](advanced-settings.md#deadline_cap_at_eod) for full details.
