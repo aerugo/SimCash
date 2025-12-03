@@ -2591,3 +2591,74 @@ experiments/castro/results/
 ```
 
 ---
+
+## Prompt Engineering Improvements
+
+### Date: 2025-12-03
+
+#### Objective
+
+Improve the LLM agent prompt to reduce validation errors based on the error analysis findings.
+
+#### Implementation
+
+Completely rewrote `generate_system_prompt()` in `experiments/castro/generator/robust_policy_agent.py` with:
+
+**1. Critical Rules Section**
+Added explicit rules at the top that address the two main error patterns:
+- Rule 1: EVERY parameter referenced with `{"param": "X"}` MUST be defined in "parameters"
+- Rule 2: Arithmetic MUST be wrapped in `{"compute": {...}}` - never use raw `{"op": "*"}`
+- Rule 3: Use ONLY the allowed fields, parameters, and actions
+- Rule 4: Every node MUST have a unique "node_id" string
+
+**2. Structured Vocabulary Section**
+Clear listing of allowed elements:
+- PARAMETERS: Listed with descriptions, ranges, and defaults
+- FIELDS: Complete list from constraints
+- ACTIONS: Allowed action types
+
+**3. Value Types Documentation**
+Explicit examples of the four value types:
+- Literal number: `{"value": 5}`
+- Field reference: `{"field": "balance"}`
+- Parameter ref: `{"param": "urgency_threshold"}`
+- Computation: `{"compute": {"op": "*", ...}}`
+
+**4. Two Few-Shot Examples**
+Validated example policies showing correct syntax:
+- Example 1: Simple urgency-based policy (basic structure)
+- Example 2: Liquidity-aware with computation (shows `{"compute": {...}}` wrapper)
+
+**5. Common Errors to Avoid Section**
+Explicit showing of wrong vs correct patterns:
+- ERROR 1: Using undefined parameter
+- ERROR 2: Raw arithmetic without "compute" wrapper
+- ERROR 3: Missing node_id
+
+**6. Recommended Starting Parameters**
+Auto-generated from scenario constraints with defaults.
+
+#### Key Design Decisions
+
+1. **Few-shot over documentation**: Research shows LLMs learn better from examples than abstract rules
+2. **Negative examples**: Showing what NOT to do is as important as showing correct patterns
+3. **Visual structure**: Using Unicode box characters for clear section separation
+4. **Vocabulary constraint**: Explicit listing prevents LLM from inventing fields/actions
+5. **Defaults provided**: Reduces chance of empty parameters object
+
+#### Files Modified
+
+- `experiments/castro/generator/robust_policy_agent.py` - Rewrote `generate_system_prompt()`
+
+#### Testing Required
+
+Run experiments with new prompt and compare validation error rate:
+```bash
+# Before: ~11% fix success rate (2/18 errors fixed)
+# Expected: Significantly higher success rate
+
+python reproducible_experiment.py --experiment exp1 --output new_prompt_test.db
+python analyze_validation_errors.py new_prompt_test.db
+```
+
+---
