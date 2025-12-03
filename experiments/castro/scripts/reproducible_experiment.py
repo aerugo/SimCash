@@ -1200,7 +1200,11 @@ class ReproducibleExperiment:
         return iter_config_path
 
     def validate_policy_with_details(self, policy: dict, agent_name: str) -> tuple[bool, str, list[str]]:
-        """Validate a policy and return detailed error messages."""
+        """Validate a policy and return detailed error messages.
+
+        Uses --functional-tests to catch runtime errors (e.g., wrong action types
+        in collateral trees) that schema validation alone would miss.
+        """
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode='w') as f:
             json.dump(policy, f)
             f.flush()
@@ -1212,7 +1216,8 @@ class ReproducibleExperiment:
                     str(self.simcash_root / "api" / ".venv" / "bin" / "payment-sim"),
                     "validate-policy",
                     temp_path,
-                    "--format", "json"
+                    "--format", "json",
+                    "--functional-tests",  # Catches runtime errors like wrong action types
                 ],
                 capture_output=True,
                 text=True,
@@ -1226,11 +1231,20 @@ class ReproducibleExperiment:
             try:
                 output = json.loads(result.stdout)
                 is_valid = output.get("valid", False)
-                if not is_valid:
+
+                # Check functional tests - these catch runtime errors
+                functional_tests = output.get("functional_tests", {})
+                if functional_tests and not functional_tests.get("passed", True):
+                    is_valid = False
+                    # Extract functional test error messages
+                    for test_result in functional_tests.get("results", []):
+                        if not test_result.get("passed", True):
+                            errors.append(f"[FunctionalTest] {test_result.get('message', 'Test failed')}")
+
+                if not is_valid and not errors:
                     if "errors" in output:
                         # Errors are objects with 'message' and 'type' fields
                         raw_errors = output["errors"]
-                        errors = []
                         for err in raw_errors:
                             if isinstance(err, dict):
                                 msg = err.get("message", str(err))
