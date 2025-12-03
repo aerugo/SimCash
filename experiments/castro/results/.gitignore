@@ -1,3 +1,7 @@
 # Ignore experiment results (large JSON files)
 *.json
 llm_response_*.txt
+
+# Ignore generated experiment artifacts
+configs/
+policies/
