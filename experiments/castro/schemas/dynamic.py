@@ -131,7 +131,7 @@ def create_constrained_policy_model(constraints: ScenarioConstraints) -> type[Ba
     - Parameters must be from allowed set with valid bounds
     - Field references must be from allowed set
     - Parameter references must be from defined parameters
-    - Actions must be from allowed set
+    - Actions must be from allowed set (per tree type)
 
     Args:
         constraints: Scenario constraints defining all allowed elements
@@ -141,7 +141,17 @@ def create_constrained_policy_model(constraints: ScenarioConstraints) -> type[Ba
     """
     # Create component models
     FieldLiteral = Literal[tuple(constraints.allowed_fields)]  # type: ignore[valid-type]
-    ActionLiteral = Literal[tuple(constraints.allowed_actions)]  # type: ignore[valid-type]
+    PaymentActionLiteral = Literal[tuple(constraints.allowed_actions)]  # type: ignore[valid-type]
+
+    # Create action literals for bank and collateral trees if enabled
+    has_bank_actions = bool(constraints.allowed_bank_actions)
+    has_collateral_actions = bool(constraints.allowed_collateral_actions)
+
+    if has_bank_actions:
+        BankActionLiteral = Literal[tuple(constraints.allowed_bank_actions)]  # type: ignore[valid-type]
+
+    if has_collateral_actions:
+        CollateralActionLiteral = Literal[tuple(constraints.allowed_collateral_actions)]  # type: ignore[valid-type]
 
     param_names = constraints.get_parameter_names()
     has_params = bool(param_names)
@@ -174,28 +184,78 @@ def create_constrained_policy_model(constraints: ScenarioConstraints) -> type[Ba
         conditions: list["DynamicExpression"] | None = None
         condition: "DynamicExpression | None" = None
 
-    # Action node
-    class DynamicActionNode(BaseModel):
+    # Payment action node (for payment_tree)
+    class DynamicPaymentActionNode(BaseModel):
         type: Literal["action"]
-        action: ActionLiteral  # type: ignore[valid-type]
+        action: PaymentActionLiteral  # type: ignore[valid-type]
         node_id: str | None = None
         description: str | None = None
         parameters: dict[str, Any] | None = None
 
-    # Condition node (recursive via dict for simplicity)
-    class DynamicConditionNode(BaseModel):
+    # Bank action node (for bank_tree) - only if bank actions are defined
+    if has_bank_actions:
+        class DynamicBankActionNode(BaseModel):
+            type: Literal["action"]
+            action: BankActionLiteral  # type: ignore[valid-type]
+            node_id: str | None = None
+            description: str | None = None
+            parameters: dict[str, Any] | None = None
+    else:
+        DynamicBankActionNode = None  # type: ignore[assignment, misc]
+
+    # Collateral action node (for collateral trees) - only if collateral actions defined
+    if has_collateral_actions:
+        class DynamicCollateralActionNode(BaseModel):
+            type: Literal["action"]
+            action: CollateralActionLiteral  # type: ignore[valid-type]
+            node_id: str | None = None
+            description: str | None = None
+            parameters: dict[str, Any] | None = None
+    else:
+        DynamicCollateralActionNode = None  # type: ignore[assignment, misc]
+
+    # Payment tree condition node (recursive)
+    class DynamicPaymentConditionNode(BaseModel):
         type: Literal["condition"]
         condition: DynamicExpression | dict[str, Any]
-        on_true: "DynamicTreeNode"
-        on_false: "DynamicTreeNode"
+        on_true: "DynamicPaymentTreeNode"
+        on_false: "DynamicPaymentTreeNode"
         node_id: str | None = None
         description: str | None = None
 
-    # Tree node union
-    DynamicTreeNode = DynamicActionNode | DynamicConditionNode
+    # Payment tree node union
+    DynamicPaymentTreeNode = DynamicPaymentActionNode | DynamicPaymentConditionNode
+    DynamicPaymentConditionNode.model_rebuild()
 
-    # Rebuild for forward refs
-    DynamicConditionNode.model_rebuild()
+    # Bank tree nodes (only if bank actions defined)
+    if has_bank_actions:
+        class DynamicBankConditionNode(BaseModel):
+            type: Literal["condition"]
+            condition: DynamicExpression | dict[str, Any]
+            on_true: "DynamicBankTreeNode"
+            on_false: "DynamicBankTreeNode"
+            node_id: str | None = None
+            description: str | None = None
+
+        DynamicBankTreeNode = DynamicBankActionNode | DynamicBankConditionNode
+        DynamicBankConditionNode.model_rebuild()
+    else:
+        DynamicBankTreeNode = None  # type: ignore[assignment, misc]
+
+    # Collateral tree nodes (only if collateral actions defined)
+    if has_collateral_actions:
+        class DynamicCollateralConditionNode(BaseModel):
+            type: Literal["condition"]
+            condition: DynamicExpression | dict[str, Any]
+            on_true: "DynamicCollateralTreeNode"
+            on_false: "DynamicCollateralTreeNode"
+            node_id: str | None = None
+            description: str | None = None
+
+        DynamicCollateralTreeNode = DynamicCollateralActionNode | DynamicCollateralConditionNode
+        DynamicCollateralConditionNode.model_rebuild()
+    else:
+        DynamicCollateralTreeNode = None  # type: ignore[assignment, misc]
 
     # Parameter model
     param_fields: dict[str, Any] = {}
@@ -216,17 +276,42 @@ def create_constrained_policy_model(constraints: ScenarioConstraints) -> type[Ba
         **param_fields,
     )
 
-    # Full policy model
-    class DynamicPolicy(BaseModel):
-        model_config = ConfigDict(extra="forbid")
+    # Build the policy model fields dynamically based on what's enabled
+    policy_fields: dict[str, Any] = {
+        "policy_id": (str | None, None),
+        "version": (str, "2.0"),
+        "description": (str | None, None),
+        "parameters": (dict[str, float], Field(default_factory=dict)),
+        "payment_tree": (DynamicPaymentTreeNode | dict[str, Any], ...),
+    }
 
-        policy_id: str | None = None
-        version: str = "2.0"
-        description: str | None = None
-        parameters: dict[str, float] = Field(default_factory=dict)
-        payment_tree: DynamicTreeNode | dict[str, Any]
-        bank_tree: DynamicTreeNode | dict[str, Any] | None = None
-        strategic_collateral_tree: DynamicTreeNode | dict[str, Any] | None = None
-        end_of_tick_collateral_tree: DynamicTreeNode | dict[str, Any] | None = None
+    # Add bank_tree if bank actions are defined
+    if has_bank_actions and DynamicBankTreeNode is not None:
+        policy_fields["bank_tree"] = (
+            DynamicBankTreeNode | dict[str, Any] | None,
+            None,
+        )
+    else:
+        policy_fields["bank_tree"] = (dict[str, Any] | None, None)
+
+    # Add collateral trees if collateral actions are defined
+    if has_collateral_actions and DynamicCollateralTreeNode is not None:
+        policy_fields["strategic_collateral_tree"] = (
+            DynamicCollateralTreeNode | dict[str, Any] | None,
+            None,
+        )
+        policy_fields["end_of_tick_collateral_tree"] = (
+            DynamicCollateralTreeNode | dict[str, Any] | None,
+            None,
+        )
+    else:
+        policy_fields["strategic_collateral_tree"] = (dict[str, Any] | None, None)
+        policy_fields["end_of_tick_collateral_tree"] = (dict[str, Any] | None, None)
+
+    DynamicPolicy = create_model(
+        "DynamicPolicy",
+        __config__=ConfigDict(extra="forbid"),
+        **policy_fields,
+    )
 
     return DynamicPolicy

@@ -233,7 +233,7 @@ class TestScenarioConstraints:
         """ScenarioConstraints rejects actions not in SimCash registry."""
         from experiments.castro.schemas.parameter_config import ScenarioConstraints
 
-        with pytest.raises(ValidationError, match="unknown action"):
+        with pytest.raises(ValidationError, match="unknown payment action"):
             ScenarioConstraints(
                 allowed_parameters=[],
                 allowed_fields=["balance"],
