@@ -9,9 +9,16 @@ Key improvements over V2:
 4. Includes causal event logs in LLM prompt for deeper insight
 
 The goal: Help the LLM understand WHY certain seeds fail, not just THAT they fail.
+
+IMPORTANT: This optimizer NEVER modifies the seed policy file.
+- Seed policy is read-only (loaded once at startup)
+- Each iteration creates temporary policy files in the results directory
+- All policy versions are stored in the database
+- If LLM produces invalid policies, we retry with feedback
 """
 
 import json
+import shutil
 import subprocess
 import tempfile
 import os
@@ -23,6 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from datetime import datetime
+
+import yaml
 
 # OpenAI API
 from openai import OpenAI
@@ -184,7 +193,18 @@ class VerboseLogParser:
 
 
 class CastroPolicyOptimizerV3:
-    """LLM-based policy optimizer with per-tick event log feedback."""
+    """LLM-based policy optimizer with per-tick event log feedback.
+
+    IMPORTANT: This optimizer NEVER modifies the seed policy files.
+    Instead, it:
+    1. Loads seed policies once at initialization (read-only)
+    2. Creates iteration-specific policy files in results_dir
+    3. Creates iteration-specific YAML configs pointing to those policies
+    4. Stores all policy versions for reproducibility
+    """
+
+    # Maximum retries when LLM produces invalid policy
+    MAX_VALIDATION_RETRIES = 3
 
     def __init__(
         self,
@@ -203,8 +223,8 @@ class CastroPolicyOptimizerV3:
         verbose_seeds: int = 2,  # Number of best/worst seeds to capture verbose logs for
     ):
         self.scenario_path = Path(scenario_path)
-        self.policy_a_path = Path(policy_a_path)
-        self.policy_b_path = Path(policy_b_path)
+        self.seed_policy_a_path = Path(policy_a_path)  # Read-only seed path
+        self.seed_policy_b_path = Path(policy_b_path)  # Read-only seed path
         self.results_dir = Path(results_dir)
         self.lab_notes_path = Path(lab_notes_path)
         self.num_seeds = num_seeds
@@ -229,6 +249,29 @@ class CastroPolicyOptimizerV3:
         # Ensure results directory exists
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
+        # Create policies subdirectory for iteration policies
+        self.policies_dir = self.results_dir / "policies"
+        self.policies_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create configs subdirectory for iteration configs
+        self.configs_dir = self.results_dir / "configs"
+        self.configs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load seed policies ONCE (read-only, never modified)
+        self.seed_policy_a = self.load_policy(self.seed_policy_a_path)
+        self.seed_policy_b = self.load_policy(self.seed_policy_b_path)
+
+        # Current policies (start with seed, updated each iteration)
+        self.current_policy_a = self.seed_policy_a.copy()
+        self.current_policy_b = self.seed_policy_b.copy()
+
+        # Load base scenario config
+        with open(self.scenario_path) as f:
+            self.base_scenario_config = yaml.safe_load(f)
+
+        # Track current iteration config path
+        self.current_config_path: Path | None = None
+
     def log_to_notes(self, message: str) -> None:
         """Append a message to the lab notes."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -245,13 +288,242 @@ class CastroPolicyOptimizerV3:
         with open(path, 'w') as f:
             json.dump(policy, f, indent=2)
 
-    def run_simulations(self, seeds: list[int]) -> AggregatedMetrics:
-        """Run simulations with multiple seeds in parallel and aggregate results."""
+    def create_iteration_config(self, iteration: int) -> Path:
+        """Create iteration-specific policy files and YAML config.
+
+        This method:
+        1. Writes current policies to results/policies/iter_XXX_policy_{a,b}.json
+        2. Creates a modified YAML config pointing to those policy files
+        3. Returns the path to the iteration-specific config
+
+        NEVER modifies the original seed policy files.
+        """
+        # Write iteration-specific policy files
+        policy_a_path = self.policies_dir / f"iter_{iteration:03d}_policy_a.json"
+        policy_b_path = self.policies_dir / f"iter_{iteration:03d}_policy_b.json"
+
+        self.save_policy(self.current_policy_a, policy_a_path)
+        self.save_policy(self.current_policy_b, policy_b_path)
+
+        # Create modified config with new policy paths
+        iter_config = self.base_scenario_config.copy()
+
+        # Deep copy agents to avoid modifying base config
+        iter_config["agents"] = []
+        for agent in self.base_scenario_config.get("agents", []):
+            agent_copy = agent.copy()
+            if agent_copy.get("id") == "BANK_A":
+                agent_copy["policy"] = {
+                    "type": "FromJson",
+                    "json_path": str(policy_a_path.absolute())
+                }
+            elif agent_copy.get("id") == "BANK_B":
+                agent_copy["policy"] = {
+                    "type": "FromJson",
+                    "json_path": str(policy_b_path.absolute())
+                }
+            iter_config["agents"].append(agent_copy)
+
+        # Write iteration config
+        iter_config_path = self.configs_dir / f"iter_{iteration:03d}_config.yaml"
+        with open(iter_config_path, 'w') as f:
+            yaml.safe_dump(iter_config, f, default_flow_style=False)
+
+        self.current_config_path = iter_config_path
+        return iter_config_path
+
+    def validate_policy_with_details(self, policy: dict, agent_name: str) -> tuple[bool, str, list[str]]:
+        """Validate a policy and return detailed error messages.
+
+        Returns:
+            (is_valid, raw_output, list_of_errors)
+        """
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode='w') as f:
+            json.dump(policy, f)
+            f.flush()
+            temp_path = f.name
+
+        try:
+            result = subprocess.run(
+                [
+                    str(self.simcash_root / "api" / ".venv" / "bin" / "payment-sim"),
+                    "validate-policy",
+                    temp_path,
+                    "--format", "json"
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(self.simcash_root)
+            )
+
+            errors = []
+
+            if result.returncode != 0:
+                # Try to extract specific error messages
+                stderr = result.stderr.strip()
+                if stderr:
+                    errors.append(f"CLI error: {stderr}")
+                return False, result.stderr, errors
+
+            try:
+                output = json.loads(result.stdout)
+                is_valid = output.get("valid", False)
+
+                if not is_valid:
+                    # Extract detailed error messages from validation output
+                    if "errors" in output:
+                        errors = output["errors"]
+                    elif "error" in output:
+                        errors = [output["error"]]
+                    elif "message" in output:
+                        errors = [output["message"]]
+                    else:
+                        errors = [f"Validation failed for {agent_name}: {result.stdout[:500]}"]
+
+                return is_valid, result.stdout, errors
+
+            except json.JSONDecodeError:
+                # If output isn't JSON, treat non-zero return as failure
+                return result.returncode == 0, result.stdout, [f"Non-JSON output: {result.stdout[:200]}"]
+
+        finally:
+            os.unlink(temp_path)
+
+    def request_policy_fix_from_llm(
+        self,
+        policy: dict,
+        agent_name: str,
+        errors: list[str],
+        original_prompt: str
+    ) -> dict | None:
+        """Ask LLM to fix an invalid policy.
+
+        Returns:
+            Fixed policy dict, or None if fix failed
+        """
+        error_list = "\n".join(f"  - {e}" for e in errors)
+
+        fix_prompt = f"""# Policy Validation Error - Fix Required
+
+The {agent_name} policy you generated failed validation with the following errors:
+
+{error_list}
+
+## Invalid Policy
+```json
+{json.dumps(policy, indent=2)}
+```
+
+## Task
+Please fix the policy to address these validation errors. Output ONLY the corrected JSON policy, nothing else.
+
+**Common fixes:**
+- Ensure all node_id values are unique strings
+- Ensure "type" is one of: "condition", "action"
+- Ensure "action" is one of: "Release", "Hold", "PostCollateral", "HoldCollateral"
+- Ensure all field references use valid field names
+- Ensure numeric values are numbers, not strings
+
+## Corrected {agent_name} Policy
+```json
+"""
+
+        try:
+            request_params = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": "You are fixing a JSON policy. Output ONLY valid JSON."},
+                    {"role": "user", "content": fix_prompt}
+                ],
+                "max_tokens": 4000,
+                "temperature": 0.3,  # Lower temperature for more deterministic fixes
+            }
+
+            response = self.client.chat.completions.create(**request_params)
+            response_text = response.choices[0].message.content
+
+            # Parse JSON from response
+            # Try to find JSON block
+            if "```json" in response_text:
+                json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_text)
+                if json_match:
+                    return json.loads(json_match.group(1))
+            elif "```" in response_text:
+                json_match = re.search(r'```\s*([\s\S]*?)\s*```', response_text)
+                if json_match:
+                    return json.loads(json_match.group(1))
+            else:
+                # Try to parse entire response as JSON
+                start = response_text.find('{')
+                end = response_text.rfind('}') + 1
+                if start != -1 and end > start:
+                    return json.loads(response_text[start:end])
+
+            return None
+
+        except Exception as e:
+            self.log_to_notes(f"Failed to get policy fix from LLM: {e}")
+            return None
+
+    def validate_and_fix_policy(
+        self,
+        policy: dict,
+        agent_name: str,
+        fallback_policy: dict
+    ) -> tuple[dict, bool]:
+        """Validate a policy, attempting to fix it if invalid.
+
+        Returns:
+            (final_policy, was_originally_valid)
+        """
+        is_valid, output, errors = self.validate_policy_with_details(policy, agent_name)
+
+        if is_valid:
+            return policy, True
+
+        self.log_to_notes(f"{agent_name} policy invalid. Attempting fix. Errors: {errors[:3]}")
+        print(f"  {agent_name} policy invalid, attempting LLM fix...")
+
+        # Try to fix the policy
+        for attempt in range(self.MAX_VALIDATION_RETRIES):
+            fixed_policy = self.request_policy_fix_from_llm(
+                policy, agent_name, errors, ""
+            )
+
+            if fixed_policy is None:
+                self.log_to_notes(f"  Fix attempt {attempt + 1} failed: LLM returned no valid JSON")
+                continue
+
+            # Validate the fixed policy
+            is_valid, output, new_errors = self.validate_policy_with_details(fixed_policy, agent_name)
+
+            if is_valid:
+                self.log_to_notes(f"  Fix succeeded on attempt {attempt + 1}")
+                print(f"  {agent_name} policy fixed on attempt {attempt + 1}")
+                return fixed_policy, False
+
+            # Update errors for next attempt
+            errors = new_errors
+            self.log_to_notes(f"  Fix attempt {attempt + 1} still invalid: {new_errors[:2]}")
+
+        # All fix attempts failed, use fallback
+        self.log_to_notes(f"{agent_name} policy could not be fixed after {self.MAX_VALIDATION_RETRIES} attempts. Using fallback.")
+        print(f"  {agent_name} policy unfixable, using previous valid policy")
+        return fallback_policy, False
+
+    def run_simulations(self, seeds: list[int], iteration: int) -> AggregatedMetrics:
+        """Run simulations with multiple seeds in parallel and aggregate results.
+
+        Uses the iteration-specific config created by create_iteration_config().
+        """
         import statistics
+
+        # Create iteration-specific config with current policies
+        config_path = self.create_iteration_config(iteration)
 
         # First pass: Run all simulations without verbose output (faster)
         args_list = [
-            (str(self.scenario_path), str(self.simcash_root), seed, False)
+            (str(config_path), str(self.simcash_root), seed, False)
             for seed in seeds
         ]
 
@@ -302,9 +574,9 @@ class CastroPolicyOptimizerV3:
 
         print(f"  Capturing verbose logs for seeds: {sorted(verbose_target_seeds)}")
 
-        # Second pass: Run verbose simulations for selected seeds
+        # Second pass: Run verbose simulations for selected seeds (same config)
         verbose_args = [
-            (str(self.scenario_path), str(self.simcash_root), seed)
+            (str(config_path), str(self.simcash_root), seed)
             for seed in verbose_target_seeds
         ]
 
@@ -675,7 +947,11 @@ Analyze the results and propose improved policies. Think step by step:
             os.unlink(temp_path)
 
     def iterate(self) -> tuple[dict, dict, AggregatedMetrics]:
-        """Run one iteration of the optimization loop."""
+        """Run one iteration of the optimization loop.
+
+        Uses current_policy_a/b (never reads from seed files after init).
+        Creates iteration-specific configs for simulations.
+        """
         iteration_num = len(self.history)
 
         seeds = list(range(1, self.num_seeds + 1))
@@ -683,11 +959,12 @@ Analyze the results and propose improved policies. Think step by step:
 
         self.log_to_notes(f"Starting iteration {iteration_num} with seeds: [{seeds_str}]")
 
-        policy_a = self.load_policy(self.policy_a_path)
-        policy_b = self.load_policy(self.policy_b_path)
+        # Use current policies (not loaded from files)
+        policy_a = self.current_policy_a
+        policy_b = self.current_policy_b
 
         print(f"  Running {self.num_seeds} simulations in parallel...")
-        metrics = self.run_simulations(seeds)
+        metrics = self.run_simulations(seeds, iteration_num)
 
         # Enhanced logging with failure info
         failed_count = sum(1 for r in metrics.individual_results if r.settlement_rate < 1.0)
@@ -755,20 +1032,16 @@ Analyze the results and propose improved policies. Think step by step:
             print(f"  Failed to parse policies: {e}")
             new_a, new_b = policy_a, policy_b
 
-        valid_a, msg_a = self.validate_policy(new_a)
-        if not valid_a:
-            self.log_to_notes(f"Bank A policy invalid: {msg_a[:200]}")
-            print(f"  Bank A policy invalid, keeping previous")
-            new_a = policy_a
+        # Validate policies with retry logic (NEVER writes to seed files)
+        new_a, was_valid_a = self.validate_and_fix_policy(new_a, "Bank A", policy_a)
+        new_b, was_valid_b = self.validate_and_fix_policy(new_b, "Bank B", policy_b)
 
-        valid_b, msg_b = self.validate_policy(new_b)
-        if not valid_b:
-            self.log_to_notes(f"Bank B policy invalid: {msg_b[:200]}")
-            print(f"  Bank B policy invalid, keeping previous")
-            new_b = policy_b
+        # Update current policies (in-memory, not written to seed files)
+        self.current_policy_a = new_a
+        self.current_policy_b = new_b
 
-        self.save_policy(new_a, self.policy_a_path)
-        self.save_policy(new_b, self.policy_b_path)
+        # Note: Policies are saved to iteration-specific files in run_simulations()
+        # via create_iteration_config(). The seed policy files are NEVER modified.
 
         self.history.append(IterationResult(
             iteration=iteration_num,
