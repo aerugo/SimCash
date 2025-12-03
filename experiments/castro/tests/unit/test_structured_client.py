@@ -15,23 +15,26 @@ class TestStructuredPolicyGenerator:
     """Tests for StructuredPolicyGenerator class."""
 
     def test_generator_initialization(self) -> None:
-        """Generator initializes with model and depth settings."""
+        """Generator initializes with provider and depth settings."""
         from experiments.castro.generator.client import StructuredPolicyGenerator
+        from experiments.castro.generator.providers import OpenAIProvider
 
+        provider = OpenAIProvider(model="gpt-4o-2024-08-06")
         gen = StructuredPolicyGenerator(
-            model="gpt-4o-2024-08-06",
+            provider=provider,
             max_depth=3,
         )
-        assert gen.model == "gpt-4o-2024-08-06"
+        assert gen.provider.model == "gpt-4o-2024-08-06"
         assert gen.max_depth == 3
 
-    def test_generator_default_model(self) -> None:
-        """Generator has sensible default model."""
+    def test_generator_default_provider(self) -> None:
+        """Generator uses OpenAI provider by default."""
         from experiments.castro.generator.client import StructuredPolicyGenerator
+        from experiments.castro.generator.providers import OpenAIProvider
 
         gen = StructuredPolicyGenerator()
-        assert gen.model is not None
-        assert "gpt" in gen.model.lower() or gen.model.startswith("o")
+        assert isinstance(gen.provider, OpenAIProvider)
+        assert gen.provider.model is not None
 
     def test_generator_default_depth(self) -> None:
         """Generator has sensible default depth."""
