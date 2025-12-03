@@ -573,6 +573,158 @@ OpenAI has rate limits. If hitting them:
 
 ---
 
+## Policy Validation Protocol
+
+### Overview
+
+LLM-generated policies are validated using the SimCash `validate-policy` CLI before being used in simulations. This ensures policies conform to the DSL schema and scenario feature toggles.
+
+### Validation Workflow
+
+```
+LLM generates policy
+        ↓
+    Validate with CLI (validate-policy --scenario config.yaml)
+        ↓
+    Valid? ───Yes───→ Use policy
+        │
+        No
+        ↓
+    Retry count < 5?
+        │
+       Yes
+        ↓
+    Create retry prompt with:
+      - Original policy
+      - Validation errors
+      - Schema hints
+        ↓
+    LLM generates fix
+        ↓
+    (loop back to validate)
+        │
+       No (retry limit reached)
+        ↓
+    Log failure, keep current policy
+```
+
+### Components
+
+#### Master Prompt (`prompts/policy_generation_master.md`)
+
+The master prompt teaches the LLM how to generate valid SimCash policies:
+
+- **Policy structure**: JSON format, required fields
+- **Tree types**: payment_tree, bank_tree, collateral trees
+- **Node types**: condition, action with examples
+- **Available actions**: Release, Hold, PostCollateral, etc.
+- **Context fields**: balance, amount, ticks_to_deadline, etc.
+- **Expression syntax**: comparisons, logical operators, computations
+- **Common mistakes**: duplicate node_ids, wrong action types
+
+This prompt is prepended to all optimization prompts.
+
+#### Policy Validator (`scripts/policy_validator.py`)
+
+Python module that wraps the CLI:
+
+```python
+from policy_validator import PolicyValidator
+
+validator = PolicyValidator(
+    simcash_root="/home/user/SimCash",
+    scenario_path="experiments/castro/configs/castro_2period_aligned.yaml"
+)
+
+result = validator.validate(policy_json)
+if result.valid:
+    print("Policy is valid!")
+else:
+    print(f"Errors: {result.error_summary}")
+```
+
+#### Integration in Experiment Runner
+
+The `LLMOptimizer` class in `reproducible_experiment.py` automatically:
+
+1. Includes master prompt in all optimization requests
+2. Validates generated policies using `PolicyValidator`
+3. Retries with LLM up to 5 times on validation failure
+4. Logs all validation attempts and errors
+
+### Configuration
+
+The validation retry limit can be configured:
+
+```python
+experiment = ReproducibleExperiment(
+    experiment_key="exp1",
+    db_path="results.db",
+    max_validation_retries=5,  # Default: 5
+)
+```
+
+### Monitoring Validation
+
+During experiment runs, watch for validation messages:
+
+```
+  Calling LLM for optimization (with validation)...
+  LLM response: 2500 tokens, 3.2s
+    BANK_A: Validation passed (attempt 1)
+    BANK_B: Validation failed (attempt 1)
+      Errors: [InvalidNodeId] Duplicate node_id 'P1_release'...
+    BANK_B: Requesting fix from LLM...
+    BANK_B: Validation passed (attempt 2)
+  Policies validated successfully
+```
+
+### Troubleshooting Validation Failures
+
+#### "Max retries reached"
+
+If policies consistently fail validation after 5 retries:
+
+1. **Check master prompt**: Ensure it's up-to-date with current DSL
+2. **Review error patterns**: Are errors similar across attempts?
+3. **Simplify prompts**: The LLM may be confused by complex requirements
+4. **Update examples**: Add examples of correct patterns
+
+#### "CLI not found"
+
+```
+RuntimeError: CLI not found at /home/user/SimCash/api/.venv/bin/payment-sim
+```
+
+Fix: Rebuild the environment:
+```bash
+cd /home/user/SimCash/api
+uv sync --extra dev
+```
+
+#### "Scenario load error"
+
+Check that the scenario path is correct and the YAML is valid:
+```bash
+payment-sim run --config experiments/castro/configs/castro_2period_aligned.yaml --dry-run
+```
+
+### Schema Reference
+
+Get the full policy schema for your scenario:
+
+```bash
+cd /home/user/SimCash/api
+payment-sim policy-schema --scenario ../experiments/castro/configs/castro_2period_aligned.yaml
+```
+
+For JSON format (useful for programmatic use):
+```bash
+payment-sim policy-schema --scenario ../experiments/castro/configs/castro_2period_aligned.yaml --format json
+```
+
+---
+
 ## File Locations
 
 ```
@@ -591,12 +743,16 @@ experiments/castro/
 ├── policies/
 │   └── seed_policy.json        ← Starting policy for optimization
 │
+├── prompts/
+│   └── policy_generation_master.md   ← LLM policy generation guide
+│
 ├── scripts/
 │   ├── README.md               ← Script documentation
 │   ├── optimizer.py            ← Original optimizer
 │   ├── optimizer_v2.py         ← Improved version
 │   ├── optimizer_v3.py         ← Latest version
-│   └── reproducible_experiment.py  ← Main experiment runner
+│   ├── policy_validator.py     ← Policy validation with retry logic
+│   └── reproducible_experiment.py  ← Main experiment runner (with validation)
 │
 ├── results/                    ← Output databases go here
 │   ├── exp1_baseline.db
@@ -617,6 +773,7 @@ experiments/castro/
 - **Castro Paper**: `papers/castro_et_al.md` - Full text with equations
 - **Feature Documentation**: `docs/reference/scenario/advanced-settings.md`
 - **Policy DSL Guide**: `docs/policy_dsl_guide.md`
+- **Policy Generation Prompt**: `prompts/policy_generation_master.md` - Master prompt for LLM
 - **Lab Notes**: `LAB_NOTES.md` - Detailed experiment history
 
 ---

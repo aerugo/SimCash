@@ -38,6 +38,9 @@ from typing import Any
 import duckdb
 from openai import OpenAI
 
+# Import policy validator
+from policy_validator import PolicyValidator, RetryContext
+
 
 # ============================================================================
 # Database Schema
@@ -791,20 +794,47 @@ def compute_metrics(results: list[dict]) -> dict:
 
 
 # ============================================================================
-# LLM Optimizer
+# LLM Optimizer with Policy Validation
 # ============================================================================
 
+# Path to master prompt (relative to this script)
+MASTER_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "policy_generation_master.md"
+
+
+def load_master_prompt() -> str:
+    """Load the master prompt for policy generation."""
+    try:
+        return MASTER_PROMPT_PATH.read_text()
+    except Exception as e:
+        print(f"Warning: Could not load master prompt: {e}")
+        return ""
+
+
 class LLMOptimizer:
-    """LLM-based policy optimizer with full logging."""
+    """LLM-based policy optimizer with validation and retry logic."""
 
     def __init__(
         self,
         model: str = "gpt-4o",
         reasoning_effort: str = "high",
+        simcash_root: str = "/home/user/SimCash",
+        scenario_path: str | None = None,
+        max_validation_retries: int = 5,
     ):
         self.model = model
         self.reasoning_effort = reasoning_effort
         self.client = OpenAI()
+        self.simcash_root = simcash_root
+        self.max_validation_retries = max_validation_retries
+
+        # Initialize policy validator
+        self.validator = PolicyValidator(
+            simcash_root=simcash_root,
+            scenario_path=scenario_path,
+        ) if scenario_path else None
+
+        # Load master prompt
+        self.master_prompt = load_master_prompt()
 
     def create_prompt(
         self,
@@ -816,9 +846,13 @@ class LLMOptimizer:
         results: list[dict],
         cost_rates: dict,
     ) -> str:
-        """Create optimization prompt for LLM."""
+        """Create optimization prompt for LLM with master prompt included."""
 
-        prompt = f"""# Policy Optimization Task
+        prompt = f"""{self.master_prompt}
+
+---
+
+# Policy Optimization Task
 
 ## Experiment: {experiment_name}
 ## Iteration: {iteration}
@@ -853,6 +887,9 @@ Analyze the current policies and performance. Suggest improved policies that:
 2. Balance collateral costs vs overdraft costs
 3. Optimize payment timing for liquidity efficiency
 
+**CRITICAL**: Generated policies must be valid JSON that passes SimCash validation.
+Follow the schema rules in the master prompt above.
+
 Return your response as valid JSON with this structure:
 ```json
 {{
@@ -864,6 +901,51 @@ Return your response as valid JSON with this structure:
 ```
 """
         return prompt
+
+    def create_validation_retry_prompt(
+        self,
+        original_policy: dict,
+        bank_id: str,
+        validation_errors: list[dict[str, str]],
+        error_summary: str,
+        attempt: int,
+    ) -> str:
+        """Create a prompt for fixing validation errors."""
+        return f"""{self.master_prompt}
+
+---
+
+# VALIDATION ERROR - FIX REQUIRED
+
+## Bank: {bank_id}
+## Attempt: {attempt}/{self.max_validation_retries}
+
+The following policy failed validation:
+
+```json
+{json.dumps(original_policy, indent=2)}
+```
+
+## Validation Errors
+
+{error_summary}
+
+## Detailed Errors
+
+{json.dumps(validation_errors, indent=2)}
+
+## Instructions
+
+Please provide a CORRECTED version of the policy that fixes ALL validation errors.
+
+Requirements:
+1. Return ONLY the corrected policy JSON, no additional text
+2. The policy must be valid JSON
+3. Fix all listed validation errors
+4. Maintain the same overall strategy, just fix structural/syntax issues
+
+```json
+"""
 
     def call_llm(self, prompt: str) -> tuple[str, int, float]:
         """Call LLM and return response, tokens, latency."""
@@ -877,7 +959,7 @@ Return your response as valid JSON with this structure:
             )
 
             latency = time.time() - start_time
-            response_text = response.choices[0].message.content
+            response_text = response.choices[0].message.content or ""
             tokens = response.usage.total_tokens if response.usage else 0
 
             return response_text, tokens, latency
@@ -906,13 +988,154 @@ Return your response as valid JSON with this structure:
         except (json.JSONDecodeError, KeyError):
             return None
 
+    def extract_single_policy(self, response: str) -> dict | None:
+        """Extract a single policy JSON from response (for retry attempts)."""
+        try:
+            start = response.find('{')
+            end = response.rfind('}') + 1
+            if start == -1 or end == 0:
+                return None
+
+            json_str = response[start:end]
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            return None
+
+    def validate_and_fix_policy(
+        self,
+        policy: dict,
+        bank_id: str,
+    ) -> tuple[dict | None, list[dict], int]:
+        """Validate a policy and retry with LLM fixes if needed.
+
+        Args:
+            policy: The policy dict to validate.
+            bank_id: Bank identifier (BANK_A or BANK_B).
+
+        Returns:
+            Tuple of (validated_policy, validation_errors, attempts_used).
+            validated_policy is None if validation failed after all retries.
+        """
+        if self.validator is None:
+            # No validator configured - return as-is
+            return policy, [], 0
+
+        current_policy = policy
+        all_errors: list[dict] = []
+
+        for attempt in range(1, self.max_validation_retries + 1):
+            policy_json = json.dumps(current_policy, indent=2)
+            result = self.validator.validate(policy_json)
+
+            if result.valid:
+                print(f"    {bank_id}: Validation passed (attempt {attempt})")
+                return current_policy, [], attempt
+
+            all_errors = result.errors
+            error_summary = result.error_summary or "Unknown validation error"
+
+            print(f"    {bank_id}: Validation failed (attempt {attempt})")
+            print(f"      Errors: {error_summary[:200]}...")
+
+            if attempt >= self.max_validation_retries:
+                print(f"    {bank_id}: Max retries ({self.max_validation_retries}) reached")
+                return None, all_errors, attempt
+
+            # Create retry prompt and call LLM
+            retry_prompt = self.create_validation_retry_prompt(
+                original_policy=current_policy,
+                bank_id=bank_id,
+                validation_errors=all_errors,
+                error_summary=error_summary,
+                attempt=attempt,
+            )
+
+            print(f"    {bank_id}: Requesting fix from LLM...")
+            response, tokens, latency = self.call_llm(retry_prompt)
+
+            if response.startswith("ERROR:"):
+                print(f"    {bank_id}: LLM error: {response}")
+                continue
+
+            fixed_policy = self.extract_single_policy(response)
+            if fixed_policy is None:
+                print(f"    {bank_id}: Could not parse fixed policy from response")
+                continue
+
+            current_policy = fixed_policy
+
+        return None, all_errors, self.max_validation_retries
+
+    def optimize_with_validation(
+        self,
+        experiment_name: str,
+        iteration: int,
+        policy_a: dict,
+        policy_b: dict,
+        metrics: dict,
+        results: list[dict],
+        cost_rates: dict,
+    ) -> tuple[tuple[dict, dict] | None, str, int, float, list[dict]]:
+        """Generate optimized policies with validation.
+
+        Returns:
+            Tuple of:
+            - (policy_a, policy_b) or None if failed
+            - LLM response text
+            - tokens used
+            - latency
+            - list of validation errors (if any)
+        """
+        # Create prompt and call LLM
+        prompt = self.create_prompt(
+            experiment_name=experiment_name,
+            iteration=iteration,
+            policy_a=policy_a,
+            policy_b=policy_b,
+            metrics=metrics,
+            results=results,
+            cost_rates=cost_rates,
+        )
+
+        response, tokens, latency = self.call_llm(prompt)
+
+        if response.startswith("ERROR:"):
+            return None, response, tokens, latency, []
+
+        # Parse response
+        parsed = self.parse_response(response)
+        if parsed is None:
+            return None, response, tokens, latency, [
+                {"type": "ParseError", "message": "Could not parse LLM response"}
+            ]
+
+        new_policy_a, new_policy_b = parsed
+
+        # Validate both policies
+        all_errors: list[dict] = []
+
+        validated_a, errors_a, attempts_a = self.validate_and_fix_policy(
+            new_policy_a, "BANK_A"
+        )
+        all_errors.extend(errors_a)
+
+        validated_b, errors_b, attempts_b = self.validate_and_fix_policy(
+            new_policy_b, "BANK_B"
+        )
+        all_errors.extend(errors_b)
+
+        if validated_a is None or validated_b is None:
+            return None, response, tokens, latency, all_errors
+
+        return (validated_a, validated_b), response, tokens, latency, all_errors
+
 
 # ============================================================================
 # Main Experiment Runner
 # ============================================================================
 
 class ReproducibleExperiment:
-    """Main experiment runner with full reproducibility."""
+    """Main experiment runner with full reproducibility and policy validation."""
 
     def __init__(
         self,
@@ -921,13 +1144,22 @@ class ReproducibleExperiment:
         simcash_root: str = "/home/user/SimCash",
         model: str = "gpt-4o",
         reasoning_effort: str = "high",
+        max_validation_retries: int = 5,
     ):
         self.experiment_def = EXPERIMENTS[experiment_key]
         self.experiment_id = f"{experiment_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.simcash_root = simcash_root
 
         self.db = ExperimentDatabase(db_path)
-        self.optimizer = LLMOptimizer(model=model, reasoning_effort=reasoning_effort)
+
+        # Initialize optimizer with validation
+        self.optimizer = LLMOptimizer(
+            model=model,
+            reasoning_effort=reasoning_effort,
+            simcash_root=simcash_root,
+            scenario_path=self.experiment_def["config_path"],
+            max_validation_retries=max_validation_retries,
+        )
 
         # Load configs
         self.config_path = str(Path(simcash_root) / self.experiment_def["config_path"])
@@ -1057,30 +1289,33 @@ class ReproducibleExperiment:
         }
 
     def optimize_policies(self, iteration: int, metrics: dict, results: list[dict]) -> bool:
-        """Call LLM to optimize policies."""
-        print(f"  Calling LLM for optimization...")
+        """Call LLM to optimize policies with validation and retry logic."""
+        print(f"  Calling LLM for optimization (with validation)...")
 
-        # Create prompt
-        prompt = self.optimizer.create_prompt(
-            experiment_name=self.experiment_def["name"],
-            iteration=iteration,
-            policy_a=self.policy_a,
-            policy_b=self.policy_b,
-            metrics=metrics,
-            results=results,
-            cost_rates=self.config.get("cost_rates", {}),
-        )
-
-        # Call LLM
-        response, tokens, latency = self.optimizer.call_llm(prompt)
+        # Call LLM with validation
+        validated_policies, response, tokens, latency, validation_errors = \
+            self.optimizer.optimize_with_validation(
+                experiment_name=self.experiment_def["name"],
+                iteration=iteration,
+                policy_a=self.policy_a,
+                policy_b=self.policy_b,
+                metrics=metrics,
+                results=results,
+                cost_rates=self.config.get("cost_rates", {}),
+            )
 
         # Record interaction
-        error_msg = None if not response.startswith("ERROR:") else response
+        error_msg = None
+        if response.startswith("ERROR:"):
+            error_msg = response
+        elif validation_errors:
+            error_msg = f"Validation errors: {json.dumps(validation_errors)}"
+
         self.db.record_llm_interaction(
             experiment_id=self.experiment_id,
             iteration_number=iteration,
-            prompt_text=prompt,
-            response_text=response,
+            prompt_text="(see optimize_with_validation)",  # Full prompt logged internally
+            response_text=response[:10000] if len(response) > 10000 else response,
             model_name=self.model,
             reasoning_effort=self.reasoning_effort,
             tokens_used=tokens,
@@ -1090,17 +1325,17 @@ class ReproducibleExperiment:
 
         print(f"  LLM response: {tokens} tokens, {latency:.1f}s")
 
-        if error_msg:
-            print(f"  ERROR: {error_msg}")
+        if validated_policies is None:
+            if validation_errors:
+                print(f"  VALIDATION FAILED after retries:")
+                for err in validation_errors[:3]:
+                    print(f"    - [{err.get('type')}] {err.get('message', '')[:100]}")
+            else:
+                print(f"  ERROR: {response[:200]}")
             return False
 
-        # Parse response
-        parsed = self.optimizer.parse_response(response)
-        if parsed is None:
-            print("  Failed to parse LLM response")
-            return False
-
-        new_policy_a, new_policy_b = parsed
+        new_policy_a, new_policy_b = validated_policies
+        print(f"  Policies validated successfully")
 
         # Update policies
         self.policy_a = new_policy_a
