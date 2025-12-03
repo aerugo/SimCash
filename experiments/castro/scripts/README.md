@@ -1,6 +1,22 @@
-# Castro et al. Replication - Reproducible Experiment Scripts
+# Castro et al. Replication - Experiment Scripts
 
 This directory contains scripts for running reproducible experiments that replicate the Castro et al. (2025) payment system optimization results.
+
+## Current Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `reproducible_experiment.py` | Main experiment runner with full DuckDB persistence |
+| `analyze_validation_errors.py` | Analysis tool for debugging policy validation failures |
+
+## Archived Scripts
+
+Previous optimizer versions have been archived to `../archive/deprecated-scripts-2025-12-03/`:
+- `optimizer.py` - Original (deprecated, corrupts seed files)
+- `optimizer_v2.py` - Enhanced prompts (deprecated)
+- `optimizer_v3.py` - Per-tick event logs (superseded by reproducible_experiment.py)
+- `optimizer_v4.py` - Structured output (superseded by reproducible_experiment.py)
+- `robust_experiment.py` - Simplified duplicate (reproducible_experiment.py has same features + more)
 
 ## Castro Alignment (2025-12-02)
 
@@ -11,8 +27,8 @@ All experiments now use **Castro-aligned** configurations with two critical feat
 
 These features ensure the simulation environment matches Castro et al. (2025) Section 3.
 
-> **Note**: Previous experiments (pre-alignment) have been archived to `archive/pre-castro-alignment/`.
-> See `LAB_NOTES.md` for details on alignment issues discovered.
+> **Note**: Previous experiments (pre-alignment) have been archived to `../archive/pre-castro-alignment/`.
+> See `ARCHITECTURE.md` for technical documentation.
 
 ## Quick Start
 
