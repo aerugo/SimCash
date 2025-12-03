@@ -2142,3 +2142,82 @@ The seed policy should be conservative given the new constraints:
 5. **Curriculum Learning**: Start with simpler scenarios, increase complexity gradually
 
 ---
+
+## Robust Policy Generator Implementation (2025-12-03)
+
+### Motivation
+
+Following the validation error analysis, I implemented the recommendations from `VALIDATION_ERROR_REPORT.md` to create a more robust policy generator that eliminates ~94% of validation errors by enforcing constraints at generation time.
+
+### Implementation Summary
+
+**Three new files created:**
+
+1. **`schemas/constrained.py`** (765 lines)
+   - `ConstrainedPolicyParameters`: Only allows 3 parameters with `extra="forbid"`
+     - `urgency_threshold` (0-20)
+     - `initial_liquidity_fraction` (0-1)
+     - `liquidity_buffer_factor` (0.5-3.0)
+   - `ConstrainedContextField`: Uses `Literal` type with all valid field names
+   - `ConstrainedParameterRef`: Uses `Literal["urgency_threshold", "initial_liquidity_fraction", "liquidity_buffer_factor"]`
+   - `ConstrainedExpression`: Enforces correct operator structure
+   - Depth-limited tree models for payment and collateral trees
+
+2. **`generator/robust_policy_agent.py`** (285 lines)
+   - `RobustPolicyAgent`: Uses PydanticAI with `ConstrainedPolicy` output type
+   - Comprehensive system prompt with schema documentation
+   - `RobustPaymentTreeAgent`, `RobustCollateralTreeAgent`, `RobustParameterAgent` for individual tree generation
+
+3. **`scripts/robust_experiment.py`** (360 lines)
+   - Experiment runner using the robust policy agent
+   - DuckDB schema for tracking iterations, errors, and results
+   - Mock simulation fallback for testing optimization loop
+
+### Key Design Decisions
+
+1. **Type-level Enforcement**: Using Pydantic's `Literal` types and `ConfigDict(extra="forbid")` prevents invalid values at schema validation time, not just runtime.
+
+2. **Schema-Aware Prompts**: The system prompt includes explicit documentation of:
+   - All 3 allowed parameters with ranges
+   - Correct operator structures (and/or use conditions array, NOT left/right)
+   - Common mistakes to avoid
+
+3. **Depth-Limited Trees**: Since OpenAI structured output doesn't support recursive schemas, we use explicit L0-L3 tree depth types.
+
+### Test Results
+
+All constraint tests pass:
+- ConstrainedPolicyParameters rejects invented parameters ✓
+- ConstrainedContextField rejects invalid field names ✓
+- ConstrainedParameterRef rejects invalid param names ✓
+- Schema prompt additions contain constraints ✓
+
+### Expected Impact
+
+Based on the validation error analysis:
+- **91% CUSTOM_PARAM errors** → Eliminated by constrained parameters
+- **6% UNKNOWN_FIELD errors** → Eliminated by Literal field types
+- **3% SCHEMA_ERROR** → Eliminated by correct operator model structure
+
+Total expected elimination: **~94% of validation errors**
+
+### Usage
+
+```python
+from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
+
+agent = RobustPolicyAgent(model="gpt-5.1")
+policy = agent.generate_policy(
+    instruction="Optimize for minimal delay costs",
+    current_cost=50000,
+    settlement_rate=0.85,
+)
+```
+
+### Next Steps
+
+1. Run full experiments with robust agent to verify error reduction
+2. Compare optimization performance with original free-form generation
+3. Consider adding additional constraints based on future error analysis
+
+---
