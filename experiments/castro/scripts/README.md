@@ -29,10 +29,10 @@ python reproducible_experiment.py --experiment exp2 --output exp2_results.db
 # Run Experiment 3 (Joint Learning)
 python reproducible_experiment.py --experiment exp3 --output exp3_results.db
 
-# Run with custom settings
+# Run with custom settings (GPT-5.1 is default with high reasoning)
 python reproducible_experiment.py --experiment exp2 \
     --output exp2_custom.db \
-    --model gpt-4o \
+    --model gpt-5.1 \
     --max-iter 50 \
     --reasoning high
 ```
