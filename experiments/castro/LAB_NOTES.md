@@ -2662,3 +2662,60 @@ python analyze_validation_errors.py new_prompt_test.db
 ```
 
 ---
+
+## Prompt Improvement Validation Results
+
+### Date: 2025-12-03
+
+#### Experiments Run
+
+Ran three experiments with the improved prompt:
+- exp1: Two-Period Deterministic (converged at iteration 4)
+- exp2: Twelve-Period Stochastic (converged at iteration 5)
+- exp3: Joint Liquidity and Timing (8 successful LLM iterations)
+
+#### Results Summary
+
+| Metric | Baseline | Improved | Change |
+|--------|----------|----------|--------|
+| Total validation errors | 66 | 7 | -89% |
+| Fix success rate | 11.1% | 100% | +88.9pp |
+| Errors per LLM call | ~1.78 | 0.47 | -74% |
+
+#### Error Breakdown (Improved Prompt)
+
+- **UNKNOWN** (InvalidParameterReference): 4 errors, 4 fixed (100%)
+- **MISSING_FIELD**: 2 errors, 2 fixed (100%)
+- **TYPE_ERROR**: 1 error, 1 fixed (100%)
+
+#### Key Improvements
+
+1. **Fix Success Rate**: From 11.1% to 100%
+   - All validation errors that occurred were successfully fixed by the LLM
+   - Few-shot examples and explicit error patterns helped the LLM self-correct
+
+2. **Error Rate Reduction**: 74% fewer errors per LLM interaction
+   - Structured vocabulary prevented inventing invalid fields
+   - Explicit rules about `{"compute": {...}}` wrapper reduced parse errors
+
+3. **Remaining Issues**
+   - Still see `InvalidParameterReference` when LLM forgets to define parameters
+   - The prompt improvements don't completely eliminate errors, but make them fixable
+
+#### Conclusion
+
+The prompt engineering improvements were highly effective:
+- **Primary goal achieved**: 100% fix success rate means experiments can proceed without human intervention
+- **Secondary goal achieved**: Fewer errors generated in the first place (0.47 vs 1.78 per call)
+- **Remaining work**: Could potentially add schema enforcement to prevent InvalidParameterReference entirely
+
+#### Files Created
+
+```
+experiments/castro/results/
+├── improved_prompt_test.db   # exp1 results
+├── improved_prompt_exp2.db   # exp2 results
+├── improved_prompt_exp3.db   # exp3 results
+```
+
+---
