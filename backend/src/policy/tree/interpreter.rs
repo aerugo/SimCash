@@ -1,7 +1,7 @@
-// Phase 6: Decision Tree Interpreter
-//
-// Evaluates expressions and traverses decision trees to produce policy decisions.
-// Implements recursive evaluation of values, computations, and boolean expressions.
+//! Decision Tree Interpreter
+//!
+//! Evaluates expressions and traverses decision trees to produce policy decisions.
+//! Implements recursive evaluation of values, computations, and boolean expressions.
 
 use crate::policy::tree::context::{ContextError, EvalContext};
 use crate::policy::tree::types::{
@@ -50,10 +50,6 @@ pub enum EvalError {
     #[error("Context error: {0}")]
     ContextError(#[from] ContextError),
 }
-
-// ============================================================================
-// VALUE EVALUATION (Phase 6.3)
-// ============================================================================
 
 /// Evaluate a value to a numeric result
 ///
@@ -127,10 +123,6 @@ pub fn evaluate_value(
         Value::Compute { compute } => evaluate_computation(compute, context, params),
     }
 }
-
-// ============================================================================
-// COMPUTATION EVALUATION (Phase 6.4)
-// ============================================================================
 
 /// Evaluate an arithmetic computation
 ///
@@ -209,7 +201,7 @@ pub fn evaluate_computation(
             Ok(min_val)
         }
 
-        // Phase 2.3: Math Helper Functions (Policy Enhancements V2)
+        // Math Helper Functions
         Computation::Ceil { value } => {
             let val = evaluate_value(value, context, params)?;
             Ok(val.ceil())
@@ -260,9 +252,7 @@ pub fn evaluate_computation(
     }
 }
 
-// ============================================================================
-// EXPRESSION EVALUATION (Phase 6.5 & 6.6)
-// ============================================================================
+// Expression Evaluation
 
 /// Epsilon for floating point equality comparison
 const FLOAT_EPSILON: f64 = 1e-9;
@@ -377,9 +367,7 @@ pub fn evaluate_expression(
     }
 }
 
-// ============================================================================
-// TREE TRAVERSAL (Phase 6.7)
-// ============================================================================
+// Tree Traversal
 
 /// Maximum tree depth to prevent infinite recursion
 const MAX_TREE_DEPTH: usize = 100;
@@ -467,7 +455,7 @@ pub fn traverse_end_of_tick_collateral_tree<'a>(
     traverse_node(root, context, &tree.parameters, 0)
 }
 
-/// Traverse the bank-level decision tree to reach an action node (Phase 3.3)
+/// Traverse the bank-level decision tree to reach an action node
 ///
 /// Returns the terminal action node reached.
 /// Returns error if bank_tree is not defined.
@@ -481,7 +469,7 @@ pub fn traverse_bank_tree<'a>(
     traverse_node(root, context, &tree.parameters, 0)
 }
 
-/// Traverse the bank-level decision tree with path tracking (Phase 4.6)
+/// Traverse the bank-level decision tree with path tracking
 ///
 /// Returns both the terminal action node and the decision path taken.
 /// Returns error if bank_tree is not defined.
@@ -531,7 +519,7 @@ fn traverse_node<'a>(
     }
 }
 
-/// Internal recursive tree traversal with path tracking (Phase 4.6)
+/// Internal recursive tree traversal with path tracking
 fn traverse_node_with_path<'a>(
     node: &'a TreeNode,
     context: &EvalContext,
@@ -571,9 +559,7 @@ fn traverse_node_with_path<'a>(
     }
 }
 
-// ============================================================================
-// ACTION BUILDING (Phase 6.8)
-// ============================================================================
+// Action Building
 
 /// Build a ReleaseDecision from an action node
 ///
@@ -640,7 +626,7 @@ pub fn build_decision(
     // Convert ActionType to ReleaseDecision
     match action {
         ActionType::Release => {
-            // Phase 3.2: Parse optional RTGS flags
+            // Parse optional RTGS flags
 
             // Parse priority_flag parameter (optional)
             let priority_override = if let Some(priority_flag_value) = action_params.get("priority_flag") {
@@ -759,7 +745,7 @@ pub fn build_decision(
         }
 
         ActionType::StaggerSplit => {
-            // Phase 3.1: Split with staggered timing
+            // Split with staggered timing
             let num_splits =
                 evaluate_action_parameter(action_params, "num_splits", context, params)?;
             let num_splits_usize = num_splits as usize;
@@ -848,7 +834,7 @@ pub fn build_decision(
         ActionType::Drop => Ok(ReleaseDecision::Drop { tx_id }),
 
         ActionType::Reprioritize => {
-            // Phase 4: Extract new_priority parameter
+            // Extract new_priority parameter
             let new_priority_f64 =
                 evaluate_action_parameter(action_params, "new_priority", context, params)?;
 
@@ -867,7 +853,7 @@ pub fn build_decision(
             })
         }
 
-        // Phase 3.3/4.5: Bank-level actions are not valid in payment decision context
+        // Bank-level actions are not valid in payment decision context
         ActionType::SetReleaseBudget
         | ActionType::SetState
         | ActionType::AddState => Err(EvalError::InvalidActionType(format!(
@@ -876,7 +862,7 @@ pub fn build_decision(
             action
         ))),
 
-        // Phase 8: Collateral actions are not valid in payment decision context
+        // Collateral actions are not valid in payment decision context
         // These should only appear in collateral-specific decision trees
         ActionType::PostCollateral
         | ActionType::WithdrawCollateral
@@ -886,7 +872,7 @@ pub fn build_decision(
             action
         ))),
 
-        // Phase 0.8: RTGS Queue 2 Management Actions (TARGET2 Dual Priority)
+        // RTGS Queue 2 Management Actions
         ActionType::WithdrawFromRtgs => {
             Ok(ReleaseDecision::WithdrawFromRtgs { tx_id })
         }
@@ -932,7 +918,7 @@ pub fn build_decision(
     }
 }
 
-/// Build a CollateralDecision from an action node (Phase 8.2)
+/// Build a CollateralDecision from an action node
 ///
 /// Converts collateral ActionType and its parameters into a collateral decision.
 /// Action parameters are evaluated using the context.
@@ -979,7 +965,7 @@ pub fn build_collateral_decision(
             // Extract reason parameter (required)
             let reason = extract_collateral_reason(action_params, context)?;
 
-            // Extract optional auto_withdraw_after_ticks parameter (Phase 3.4)
+            // Extract optional auto_withdraw_after_ticks parameter
             let auto_withdraw_after_ticks = if action_params.contains_key("auto_withdraw_after_ticks") {
                 let ticks = evaluate_action_parameter(action_params, "auto_withdraw_after_ticks", context, params)?;
                 if ticks > 0.0 {
@@ -1043,7 +1029,7 @@ pub fn build_collateral_decision(
     }
 }
 
-/// Build a BankDecision from an action node (Phase 3.3: Policy Enhancements V2)
+/// Build a BankDecision from an action node
 ///
 /// Converts bank-level ActionType and its parameters into a bank decision.
 /// Action parameters are evaluated using the context.
@@ -1112,7 +1098,7 @@ pub fn build_bank_decision(
     build_bank_decision_with_path(action_node, context, params, None)
 }
 
-/// Build a bank-level decision from an action node, with optional decision path (Phase 4.6)
+/// Build a bank-level decision from an action node, with optional decision path
 pub fn build_bank_decision_with_path(
     action_node: &TreeNode,
     context: &EvalContext,
@@ -1357,7 +1343,7 @@ fn evaluate_action_parameter(
     }
 }
 
-/// Evaluate action parameter as string (Phase 4.5)
+/// Evaluate action parameter as string
 ///
 /// Similar to evaluate_action_parameter but returns a String instead of f64.
 /// Used for state register keys and reasons.
@@ -1408,10 +1394,6 @@ fn evaluate_action_parameter_string(
     }
 }
 
-// ============================================================================
-// TESTS - Phase 6.3, 6.4, 6.5, 6.6, 6.7, 6.8
-// ============================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1437,7 +1419,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Phase 6.3: Value Evaluation Tests
+    // Value Evaluation Tests
     // ========================================================================
 
     #[test]
@@ -1532,7 +1514,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Phase 6.4: Computation Evaluation Tests
+    // Computation Evaluation Tests
     // ========================================================================
 
     #[test]
@@ -1686,7 +1668,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Phase 6.5: Comparison Expression Tests
+    // Comparison Expression Tests
     // ========================================================================
 
     #[test]
@@ -1817,7 +1799,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Phase 6.6: Logical Expression Tests
+    // Logical Expression Tests
     // ========================================================================
 
     #[test]
@@ -2006,7 +1988,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Phase 6.7: Tree Traversal Tests
+    // Tree Traversal Tests
     // ========================================================================
 
     use crate::policy::tree::types::{ActionType, DecisionTreeDef, TreeNode};
@@ -2309,7 +2291,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Phase 6.8: Action Building Tests
+    // Action Building Tests
     // ========================================================================
 
     #[test]
@@ -2516,7 +2498,7 @@ mod tests {
     }
 
     // ============================================================================
-    // PHASE 8.2: Collateral Decision Building (TDD Cycle 3)
+    // Collateral Decision Building
     // ============================================================================
 
     #[test]
@@ -2733,7 +2715,7 @@ mod tests {
     }
 
     // ============================================================================
-    // PHASE 4: Reprioritize Action Tests (TDD)
+    // Reprioritize Action Tests
     // ============================================================================
 
     #[test]

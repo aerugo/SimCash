@@ -1,4 +1,4 @@
-//! Orchestrator Engine - Phase 4b
+//! Orchestrator Engine
 //!
 //! Main simulation loop integrating all components:
 //! - Transaction arrivals (deterministic generation)
@@ -81,7 +81,7 @@ use std::collections::HashMap;
 // Configuration Types
 // ============================================================================
 
-/// Default EOD rush threshold for serde deserialization (Phase 9.5.2)
+/// Default EOD rush threshold for serde deserialization
 fn default_eod_rush_threshold() -> f64 {
     0.8
 }
@@ -103,7 +103,7 @@ pub struct OrchestratorConfig {
     /// Number of ticks per business day (e.g., 100 ticks = 1 tick per ~5 minutes)
     pub ticks_per_day: usize,
 
-    /// End-of-day rush threshold (Phase 9.5.2)
+    /// End-of-day rush threshold
     /// Fraction of day (0.0 to 1.0) when EOD rush period begins.
     /// Default: 0.8 (last 20% of day)
     /// Policies can check `is_eod_rush` field to enable time-based strategies.
@@ -160,7 +160,7 @@ pub struct OrchestratorConfig {
 
     /// Entry disposition offsetting mode (default: false)
     /// When enabled, checks for bilateral offset opportunities at transaction entry time
-    /// (before regular LSM processing). TARGET2 Phase 3 feature.
+    /// (before regular LSM processing).
     /// When a new transaction arrives, if there's an opposite payment queued,
     /// they can be immediately offset without waiting for periodic LSM runs.
     #[serde(default)]
@@ -302,7 +302,7 @@ pub struct AgentConfig {
     #[serde(default)]
     pub arrival_bands: Option<ArrivalBandsConfig>,
 
-    /// Posted collateral amount (cents) - Phase 8
+    /// Posted collateral amount (cents)
     /// If None, defaults to 0 (no collateral)
     pub posted_collateral: Option<i64>,
 
@@ -319,7 +319,7 @@ pub struct AgentConfig {
     #[serde(default)]
     pub max_collateral_capacity: Option<i64>,
 
-    /// Payment limits configuration (Phase 1: TARGET2 LSM alignment)
+    /// Payment limits configuration for TARGET2 LSM alignment
     /// Controls bilateral (per-counterparty) and multilateral (total) outflow limits
     #[serde(default)]
     pub limits: Option<AgentLimitsConfig>,
@@ -387,7 +387,7 @@ pub enum PolicyConfig {
         urgency_threshold: usize,
     },
 
-    /// Liquidity-aware splitting policy (Phase 5)
+    /// Liquidity-aware splitting policy
     ///
     /// Intelligently splits large payments when liquidity is constrained.
     /// Balances split friction cost against liquidity and deadline urgency.
@@ -398,7 +398,7 @@ pub enum PolicyConfig {
         min_split_amount: i64,
     },
 
-    /// Mock splitting policy for testing (Phase 5)
+    /// Mock splitting policy for testing
     ///
     /// Always splits transactions into fixed number of parts.
     /// Used in tests to verify splitting mechanics.
@@ -410,7 +410,7 @@ pub enum PolicyConfig {
         num_splits: usize,
     },
 
-    /// Mock stagger split policy for testing (Phase 3.1)
+    /// Mock stagger split policy for testing
     ///
     /// Always splits transactions with staggered timing.
     /// Used in tests to verify staggered release mechanics.
@@ -555,7 +555,7 @@ pub struct CostRates {
     /// (e.g., 0.0001 = 1 bp delay cost per tick)
     pub delay_cost_per_tick_per_cent: f64,
 
-    /// Collateral opportunity cost in basis points per tick (Phase 8)
+    /// Collateral opportunity cost in basis points per tick
     /// (e.g., 0.0002 = 2 bps annualized / 100 ticks = 0.02 bps per tick)
     pub collateral_cost_per_tick_bps: f64,
 
@@ -634,7 +634,7 @@ pub struct CostBreakdown {
     /// Queue delay cost accrued this tick (cents)
     pub delay_cost: i64,
 
-    /// Collateral opportunity cost accrued this tick (cents) - Phase 8
+    /// Collateral opportunity cost accrued this tick (cents)
     pub collateral_cost: i64,
 
     /// Penalties incurred this tick (cents)
@@ -678,7 +678,7 @@ pub struct CostAccumulator {
     /// Total delay cost
     pub total_delay_cost: i64,
 
-    /// Total collateral opportunity cost (Phase 8)
+    /// Total collateral opportunity cost
     pub total_collateral_cost: i64,
 
     /// Total penalties
@@ -732,13 +732,13 @@ impl CostAccumulator {
 }
 
 // ============================================================================
-// System-Wide Metrics (Phase 8: Cost Model API)
+// System-Wide Metrics
 // ============================================================================
 
 /// System-wide performance metrics
 ///
 /// Provides comprehensive view of simulation health and efficiency.
-/// Used for Phase 8 API endpoints and monitoring dashboards.
+/// Used for API endpoints and monitoring dashboards.
 #[derive(Debug, Clone)]
 pub struct SystemMetrics {
     /// Total transactions that have arrived in the system

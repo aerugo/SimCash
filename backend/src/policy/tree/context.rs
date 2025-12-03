@@ -1,7 +1,7 @@
-// Phase 6: Evaluation Context
-//
-// Builds field values from simulation state for expression evaluation.
-// Exposes transaction fields, agent fields, derived fields, and system state.
+//! Evaluation Context
+//!
+//! Builds field values from simulation state for expression evaluation.
+//! Exposes transaction fields, agent fields, derived fields, and system state.
 
 use crate::orchestrator::CostRates;
 use crate::{Agent, SimulationState, Transaction};
@@ -32,7 +32,7 @@ pub enum ContextError {
 ///
 /// **Agent Fields**:
 /// - balance, credit_limit, available_liquidity, credit_used (i64 → f64)
-/// - effective_liquidity: balance + unused_credit_capacity (i64 → f64) - Phase 11 fix
+/// - effective_liquidity: balance + unused_credit_capacity (i64 → f64)
 /// - liquidity_buffer, outgoing_queue_size, incoming_expected_count (i64/usize → f64)
 /// - is_using_credit (bool → 0.0/1.0)
 /// - liquidity_pressure (f64)
@@ -45,7 +45,7 @@ pub enum ContextError {
 /// - current_tick (usize → f64)
 /// - rtgs_queue_size, rtgs_queue_value, total_agents (usize/i64 → f64)
 ///
-/// **Collateral Fields** (Phase 8.2):
+/// **Collateral Fields**:
 /// - posted_collateral: Amount of collateral currently posted (i64 → f64)
 /// - max_collateral_capacity: Maximum collateral agent can post (i64 → f64)
 /// - remaining_collateral_capacity: Remaining capacity for collateral (i64 → f64)
@@ -67,7 +67,7 @@ pub enum ContextError {
 /// - excess_collateral: Collateral available for withdrawal (f64)
 /// - overdraft_utilization: credit_used / allowed_limit ratio (0.0-1.0+)
 ///
-/// **Cost Fields** (Phase 9.5.1):
+/// **Cost Fields**:
 /// - cost_overdraft_bps_per_tick: Overdraft cost in basis points per tick (f64)
 /// - cost_delay_per_tick_per_cent: Delay cost per tick per cent (f64)
 /// - cost_collateral_bps_per_tick: Collateral opportunity cost in bps per tick (f64)
@@ -77,7 +77,7 @@ pub enum ContextError {
 /// - cost_delay_this_tx_one_tick: Delay cost for THIS transaction for one tick (f64)
 /// - cost_overdraft_this_amount_one_tick: Overdraft cost for THIS amount for one tick (f64)
 ///
-/// **System Configuration Fields** (Phase 9.5.2):
+/// **System Configuration Fields**:
 /// - system_ticks_per_day: Number of ticks in a simulation day (f64)
 /// - system_current_day: Current day number (0-indexed) (f64)
 /// - system_tick_in_day: Current tick within the day (0 to ticks_per_day-1) (f64)
@@ -85,11 +85,11 @@ pub enum ContextError {
 /// - day_progress_fraction: Progress through day (0.0 to 1.0) (f64)
 /// - is_eod_rush: Boolean (1.0) if in end-of-day rush period (f64)
 ///
-/// **Overdraft Regime Fields** (Policy Enhancements V2, Phase 1.1):
+/// **Overdraft Regime Fields**:
 /// - credit_headroom: Remaining credit capacity (credit_limit - credit_used) (f64)
 /// - is_overdraft_capped: Boolean (1.0) indicating credit limit is enforced (f64)
 ///
-/// **LSM-Aware Fields** (Policy Enhancements V2, Phase 1.2):
+/// **LSM-Aware Fields**:
 /// - my_q2_out_value_to_counterparty: Value of my Q2 outflows to this tx's counterparty (f64)
 /// - my_q2_in_value_from_counterparty: Value of Q2 inflows from this tx's counterparty (f64)
 /// - my_bilateral_net_q2: Net Q2 position with this counterparty (out - in) (f64)
@@ -97,17 +97,17 @@ pub enum ContextError {
 /// - my_q2_in_value_top_1..5: Top 5 counterparties by Q2 inflow value (f64)
 /// - my_bilateral_net_q2_top_1..5: Top 5 counterparties by net Q2 position (f64)
 ///
-/// **Public Signal Fields** (Policy Enhancements V2, Phase 1.3):
+/// **Public Signal Fields**:
 /// - system_queue2_pressure_index: System-wide Q2 pressure (0.0 = low, 1.0 = high) (f64)
 /// - lsm_run_rate_last_10_ticks: LSM events per tick over last 10 ticks (f64)
 /// - system_throughput_guidance_fraction_by_tick: Expected throughput by this tick (0.0-1.0) (f64)
 ///
-/// **Throughput Progress Fields** (Policy Enhancements V2, Phase 2.1):
+/// **Throughput Progress Fields**:
 /// - my_throughput_fraction_today: Agent's throughput today (settled / total_due) (f64)
 /// - expected_throughput_fraction_by_now: Expected progress from guidance curve (f64)
 /// - throughput_gap: my_throughput - expected (negative = behind, positive = ahead) (f64)
 ///
-/// **Counterparty Fields** (Policy Enhancements V2, Phase 2.2):
+/// **Counterparty Fields**:
 /// - tx_counterparty_id: Hash of counterparty ID for this transaction (f64)
 /// - tx_is_top_counterparty: Boolean (1.0) if counterparty is in top 5 by volume (f64)
 #[derive(Debug, Clone)]
@@ -125,9 +125,9 @@ impl EvalContext {
     /// * `agent` - Agent whose queue contains this transaction
     /// * `state` - Full simulation state
     /// * `tick` - Current simulation tick
-    /// * `cost_rates` - Cost configuration (Phase 9.5.1)
-    /// * `ticks_per_day` - Number of ticks in a simulation day (Phase 9.5.2)
-    /// * `eod_rush_threshold` - End-of-day rush threshold (0.0 to 1.0) (Phase 9.5.2)
+    /// * `cost_rates` - Cost configuration
+    /// * `ticks_per_day` - Number of ticks in a simulation day
+    /// * `eod_rush_threshold` - End-of-day rush threshold (0.0 to 1.0)
     ///
     /// # Returns
     ///
@@ -176,15 +176,13 @@ impl EvalContext {
             if tx.is_past_deadline(tick) { 1.0 } else { 0.0 },
         );
 
-        // Phase 4: Overdue status fields
-        // Allows policies to detect and react to overdue transactions
+        // Overdue status fields (allows policies to detect and react to overdue transactions)
         fields.insert(
             "is_overdue".to_string(),
             if tx.is_overdue() { 1.0 } else { 0.0 },
         );
 
-        // Phase 0.8: Queue 2 status field (TARGET2 Dual Priority)
-        // Allows policies to check if transaction is in RTGS Queue 2
+        // Queue 2 status field
         // Transaction is in Queue 2 if it has a non-None RTGS priority
         fields.insert(
             "is_in_queue2".to_string(),
@@ -208,8 +206,7 @@ impl EvalContext {
         );
         fields.insert("credit_used".to_string(), agent.credit_used() as f64);
 
-        // Phase 11: Effective Liquidity Fix (from lsm-splitting-investigation-plan.md)
-        // effective_liquidity = balance + unused_credit_capacity
+        // Effective liquidity = balance + unused_credit_capacity
         // This is what policies should use for "can I do X?" checks when in overdraft,
         // as it represents the TRUE available capacity (both positive balance and credit headroom)
         let credit_headroom = (agent.unsecured_cap() as i64) - agent.credit_used();
@@ -243,20 +240,16 @@ impl EvalContext {
         );
         fields.insert("liquidity_pressure".to_string(), agent.liquidity_pressure());
 
-        // Phase 1.1: Overdraft Regime Fields (Policy Enhancements V2)
+        // Overdraft Regime Fields
         // credit_headroom = remaining capacity before hitting credit limit
-        // This is what policies should check to see if they can afford a payment
         fields.insert("credit_headroom".to_string(), credit_headroom as f64);
 
-        // is_overdraft_capped = 1.0 (always true for Option B: enforced credit limits)
-        // Policies can use this to distinguish between capped (hard limit) and
-        // unbounded (priced) overdraft regimes. In Option B, this is always 1.0.
+        // is_overdraft_capped = 1.0 (always true for enforced credit limits)
         fields.insert("is_overdraft_capped".to_string(), 1.0);
 
-        // Phase 1.2: LSM-Aware Fields (Policy Enhancements V2)
+        // LSM-Aware Fields
         // These fields enable policies to intentionally feed LSM by releasing
         // to counterparties where bilateral offset is likely.
-        //
         // Privacy: Only exposes OWN-BANK queue composition relative to THIS transaction's
         // counterparty. Does not expose other banks' queues or system-wide information.
 
@@ -312,14 +305,9 @@ impl EvalContext {
             fields.insert(format!("my_bilateral_net_q2_top_{}", idx), 0.0);
         }
 
-        // Phase 1.3: Public Signal Fields (Policy Enhancements V2)
+        // Public Signal Fields
         // These fields expose system-wide coarse metrics visible to all agents.
         // No privacy violation - everyone sees the same values.
-        //
-        // Use cases:
-        // - System pressure: Adjust aggression when system is gridlocked
-        // - LSM run rate: Coordinate releases when LSM is active
-        // - Throughput guidance: Compare own progress against expected curve
 
         // Calculate system-wide Queue 2 pressure index (0.0 = low, 1.0 = high)
         let system_pressure = calculate_queue2_pressure_index(state);
@@ -337,14 +325,8 @@ impl EvalContext {
         let throughput_guidance = 0.0; // Placeholder until config parameter added
         fields.insert("system_throughput_guidance_fraction_by_tick".to_string(), throughput_guidance);
 
-        // Phase 2.1: Throughput Progress Fields (Policy Enhancements V2)
-        // These fields enable policies to track settlement progress against expected
-        // throughput curves (e.g., "am I 30% done when I should be 50% done?").
-        //
-        // Use cases:
-        // - Catch-up behavior: Release more aggressively when behind schedule
-        // - Throttling: Be conservative when ahead of schedule
-        // - EOD rush detection: Know when to switch to panic mode
+        // Throughput Progress Fields
+        // Enable policies to track settlement progress against expected throughput curves
 
         // Calculate agent's throughput today (settled / total_due)
         // TODO: Requires SimulationState to track daily settlement amounts per agent
@@ -367,14 +349,9 @@ impl EvalContext {
         let throughput_gap = my_throughput_fraction - expected_throughput;
         fields.insert("throughput_gap".to_string(), throughput_gap);
 
-        // Phase 2.2: Counterparty Fields (Policy Enhancements V2)
-        // These fields enable policies to identify and prioritize transactions based on
-        // counterparty relationships (e.g., "is this my top trading partner?").
-        //
-        // Use cases:
-        // - Prioritize payments to top counterparties
-        // - Different strategies for frequent vs infrequent trading partners
-        // - Relationship-based liquidity management
+        // Counterparty Fields
+        // Enable policies to identify and prioritize transactions based on
+        // counterparty relationships
 
         // Transaction counterparty ID (hash-encoded for categorical comparison)
         let counterparty_id = tx.receiver_id();
@@ -403,8 +380,7 @@ impl EvalContext {
         fields.insert("rtgs_queue_value".to_string(), state.queue_value() as f64);
         fields.insert("total_agents".to_string(), state.num_agents() as f64);
 
-        // Phase 8.2: Collateral Management Fields
-
+        // Collateral Management Fields
         // Collateral state fields
         fields.insert(
             "posted_collateral".to_string(),
@@ -521,10 +497,8 @@ impl EvalContext {
             ticks_to_nearest_queue2_deadline,
         );
 
-        // Phase 9.5.1: Cost Fields
-        //
+        // Cost Fields
         // Expose cost parameters to enable cost-based decision making in policies.
-        // Policies can compare costs (e.g., "is delay cheaper than overdraft?").
 
         // Direct cost rate fields
         fields.insert(
@@ -569,8 +543,7 @@ impl EvalContext {
             overdraft_cost_one_tick,
         );
 
-        // Phase 9.5.2: System Configuration Fields
-        //
+        // System Configuration Fields
         // Expose time-of-day context to enable EOD rush detection and time-based strategies.
 
         // Direct system configuration fields
@@ -601,8 +574,7 @@ impl EvalContext {
         let is_eod_rush = if day_progress >= eod_rush_threshold { 1.0 } else { 0.0 };
         fields.insert("is_eod_rush".to_string(), is_eod_rush);
 
-        // Phase 4.5: Add state registers from agent
-        // State registers provide policy micro-memory (bank_state_* fields)
+        // Add state registers from agent (policy micro-memory, bank_state_* fields)
         for (key, value) in agent.state_registers() {
             fields.insert(key.clone(), *value);
         }
@@ -610,7 +582,7 @@ impl EvalContext {
         Self { fields }
     }
 
-    /// Create bank-level evaluation context (Phase 3.3: Policy Enhancements V2)
+    /// Create bank-level evaluation context
     ///
     /// Used for evaluating bank_tree nodes, which make decisions once per tick
     /// without reference to a specific transaction (e.g., setting budgets).
@@ -859,8 +831,7 @@ impl EvalContext {
         let throughput_gap = my_throughput_fraction - expected_throughput;
         fields.insert("throughput_gap".to_string(), throughput_gap);
 
-        // Phase 4.5: Add state registers from agent
-        // State registers provide policy micro-memory (bank_state_* fields)
+        // Add state registers from agent (policy micro-memory, bank_state_* fields)
         for (key, value) in agent.state_registers() {
             fields.insert(key.clone(), *value);
         }
@@ -878,11 +849,8 @@ impl EvalContext {
     ///
     /// Ok(value) if field exists, Err otherwise
     ///
-    /// # Phase 4.5: State Register Default Values
-    ///
     /// State registers (fields starting with "bank_state_") default to 0.0
-    /// if not explicitly set. This allows policies to read registers before
-    /// they're initialized.
+    /// if not explicitly set, allowing policies to read registers before initialization.
     pub fn get_field(&self, name: &str) -> Result<f64, ContextError> {
         if let Some(&value) = self.fields.get(name) {
             Ok(value)
@@ -904,10 +872,6 @@ impl EvalContext {
         self.fields.keys().map(|s| s.as_str()).collect()
     }
 }
-
-// ============================================================================
-// TESTS - Phase 6.2
-// ============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -1094,9 +1058,7 @@ mod tests {
         assert_eq!(context.get_field("is_split").unwrap(), 1.0);
     }
 
-    // ============================================================================
-    // PHASE 8.2: Collateral Management Context Fields
-    // ============================================================================
+    // Collateral Management Context Fields tests
 
     #[test]
     fn test_context_contains_collateral_fields() {
@@ -1157,9 +1119,7 @@ mod tests {
         assert!(context.has_field("collateral_utilization"));
     }
 
-    // ========================================================================
-    // Phase 4: Overdue Context Fields (TDD)
-    // ========================================================================
+    // Overdue context fields tests
 
     #[test]
     fn test_context_includes_is_overdue_field() {
@@ -1208,9 +1168,7 @@ mod tests {
     }
 }
 
-// ============================================================================
-// Phase 1.2: LSM-Aware Helper Functions (Policy Enhancements V2)
-// ============================================================================
+// LSM-Aware Helper Functions
 
 /// Calculate bilateral Queue 2 values for a specific counterparty
 ///
@@ -1345,9 +1303,7 @@ fn simple_string_hash(s: &str) -> u64 {
     hash
 }
 
-// ============================================================================
-// Phase 1.3: Public Signal Helper Functions (Policy Enhancements V2)
-// ============================================================================
+// Public Signal Helper Functions
 
 /// Calculate Queue 2 pressure index (0.0 = no pressure, 1.0 = high pressure)
 ///
@@ -1379,9 +1335,7 @@ fn calculate_queue2_pressure_index(state: &SimulationState) -> f64 {
     pressure.min(1.0)
 }
 
-// ============================================================================
-// Phase 2.1: Throughput Progress Helper Functions (Policy Enhancements V2)
-// ============================================================================
+// Throughput Progress Helper Functions
 
 /// Calculate agent's throughput fraction (simple version)
 ///

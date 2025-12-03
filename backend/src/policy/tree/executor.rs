@@ -1,7 +1,7 @@
-// Phase 6: Tree Policy Executor
-//
-// Implements CashManagerPolicy trait for JSON decision tree policies.
-// Provides unified interface for both trait-based and tree-based policies.
+//! Tree Policy Executor
+//!
+//! Implements CashManagerPolicy trait for JSON decision tree policies.
+//! Provides unified interface for both trait-based and tree-based policies.
 
 use crate::orchestrator::CostRates;
 use crate::policy::tree::{

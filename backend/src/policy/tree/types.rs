@@ -1,7 +1,7 @@
-// Phase 6: Policy DSL - Type Definitions
-//
-// JSON decision tree format for LLM-editable policies.
-// All types are designed to deserialize safely from JSON with validation.
+//! Policy DSL - Type Definitions
+//!
+//! JSON decision tree format for LLM-editable policies.
+//! All types are designed to deserialize safely from JSON with validation.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,12 +13,11 @@ use std::collections::HashMap;
 /// Complete decision tree definition
 ///
 /// This is the root object deserialized from JSON policy files.
-/// Phase 8.2: Extended to support three separate decision trees:
-/// - payment_tree: Payment release decisions (Queue 1 → Queue 2)
-/// - strategic_collateral_tree: Strategic collateral decisions (STEP 2.5)
-/// - end_of_tick_collateral_tree: Reactive collateral cleanup (STEP 8)
-/// Phase 3.3: Added bank_tree for bank-level budgeting decisions
-/// - bank_tree: Bank-level decisions evaluated once per tick (budget setting, etc.)
+/// Supports multiple decision trees:
+/// - `payment_tree`: Payment release decisions (Queue 1 → Queue 2)
+/// - `strategic_collateral_tree`: Strategic collateral decisions (STEP 2.5)
+/// - `end_of_tick_collateral_tree`: Reactive collateral cleanup (STEP 8)
+/// - `bank_tree`: Bank-level decisions evaluated once per tick (budget setting, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionTreeDef {
     /// Schema version (currently "1.0")
@@ -31,7 +30,7 @@ pub struct DecisionTreeDef {
     #[serde(default)]
     pub description: Option<String>,
 
-    /// Bank-level decision tree (Phase 3.3: Policy Enhancements V2)
+    /// Bank-level decision tree
     /// Evaluated once per tick before processing transactions.
     /// Used for setting budgets, global constraints, etc.
     #[serde(default)]
@@ -231,7 +230,7 @@ pub enum Computation {
     #[serde(rename = "min")]
     Min { values: Vec<Value> },
 
-    // Phase 2.3: Math Helper Functions (Policy Enhancements V2)
+    // Math helper functions
     /// Ceiling - round up to nearest integer
     #[serde(rename = "ceil")]
     Ceil { value: Value },
@@ -281,13 +280,13 @@ pub enum ActionType {
     /// Submit transaction using credit if needed
     ReleaseWithCredit,
 
-    /// Split and pace transaction (Phase 5)
+    /// Split and pace transaction
     PaceAndRelease,
 
-    /// Split transaction into multiple parts (Phase 5)
+    /// Split transaction into multiple parts
     Split,
 
-    /// Split transaction with staggered release timing (Phase 3.1)
+    /// Split transaction with staggered release timing
     StaggerSplit,
 
     /// Hold transaction in Queue 1 for later
@@ -296,17 +295,17 @@ pub enum ActionType {
     /// Drop transaction (expired or unviable)
     Drop,
 
-    /// Reprioritize transaction (Phase 4: Overdue Handling)
+    /// Reprioritize transaction
     /// Change transaction priority without moving from Queue 1
     Reprioritize,
 
-    // Phase 3.3: Bank-Level Budget Actions (Policy Enhancements V2)
+    // Bank-level budget actions
     /// Set release budget for this tick (bank-level action)
     /// Evaluated once per tick before processing transactions.
     /// Controls total value, counterparty focus, and per-counterparty limits.
     SetReleaseBudget,
 
-    // Phase 4.5: State Register Actions (Policy Enhancements V2)
+    // State register actions
     /// Set a state register value (policy micro-memory)
     ///
     /// Allows policies to remember values across ticks for stateful strategies.
@@ -320,7 +319,7 @@ pub enum ActionType {
     /// Useful for counters, accumulators, running totals.
     AddState,
 
-    // Phase 8: Collateral Management Actions
+    // Collateral management actions
     /// Post collateral to increase available liquidity
     PostCollateral,
 
@@ -330,7 +329,7 @@ pub enum ActionType {
     /// Take no action on collateral (keep current level)
     HoldCollateral,
 
-    // Phase 0.8: RTGS Queue 2 Management Actions (TARGET2 Dual Priority)
+    // RTGS Queue 2 management actions
     /// Withdraw transaction from RTGS Queue 2
     ///
     /// Removes transaction from central RTGS queue and clears its RTGS priority.
@@ -371,7 +370,7 @@ impl TreeNode {
 }
 
 // ============================================================================
-// DECISION PATH TRACKING (Phase 4.6)
+// DECISION PATH TRACKING
 // ============================================================================
 
 /// A single node in the decision path
@@ -493,10 +492,6 @@ mod tests {
         assert!(tree.payment_tree.is_some());
         assert!(tree.payment_tree.unwrap().is_action());
     }
-
-    // ============================================================================
-    // PHASE 6.1: Type System & Deserialization Tests
-    // ============================================================================
 
     #[test]
     fn test_parse_minimal_tree() {

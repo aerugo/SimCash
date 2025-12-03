@@ -1,12 +1,12 @@
-// Phase 6: Decision Tree Validation
-//
-// Pre-execution safety checks to ensure decision trees are well-formed:
-// - Node ID uniqueness
-// - Tree depth limits
-// - Field reference validity
-// - Parameter reference validity
-// - Division-by-zero safety
-// - Action reachability
+//! Decision Tree Validation
+//!
+//! Pre-execution safety checks to ensure decision trees are well-formed:
+//! - Node ID uniqueness
+//! - Tree depth limits
+//! - Field reference validity
+//! - Parameter reference validity
+//! - Division-by-zero safety
+//! - Action reachability
 
 use crate::policy::tree::context::EvalContext;
 use crate::policy::tree::types::{
@@ -95,33 +95,32 @@ const MAX_TREE_DEPTH: usize = 100;
 pub fn validate_tree(tree: &DecisionTreeDef, sample_context: &EvalContext) -> ValidationResult {
     let mut errors = Vec::new();
 
-    // Phase 6.9: Node ID uniqueness
+    // Node ID uniqueness
     if let Err(e) = validate_node_id_uniqueness(tree) {
         errors.extend(e);
     }
 
-    // Phase 6.10: Tree depth limits
+    // Tree depth limits
     if let Err(e) = validate_tree_depth(tree) {
         errors.extend(e);
     }
 
-    // Phase 6.11: Field references
+    // Field references
     if let Err(e) = validate_field_references(tree, sample_context) {
         errors.extend(e);
     }
 
-    // Phase 6.12: Parameter references
+    // Parameter references
     if let Err(e) = validate_parameter_references(tree) {
         errors.extend(e);
     }
 
-    // Phase 6.13: Division safety
+    // Division safety
     if let Err(e) = validate_division_safety(tree) {
         errors.extend(e);
     }
 
-    // Phase 6.14: Action reachability (optional warning, not critical)
-    // Note: This is a best-effort static analysis
+    // Action reachability (best-effort static analysis)
     if let Err(e) = validate_action_reachability(tree) {
         errors.extend(e);
     }
@@ -132,10 +131,6 @@ pub fn validate_tree(tree: &DecisionTreeDef, sample_context: &EvalContext) -> Va
         Err(errors)
     }
 }
-
-// ============================================================================
-// Phase 6.9: Node ID Uniqueness
-// ============================================================================
 
 /// Validate that all node IDs are unique across all three trees
 fn validate_node_id_uniqueness(tree: &DecisionTreeDef) -> ValidationResult {
@@ -185,10 +180,6 @@ fn collect_node_ids(
     }
 }
 
-// ============================================================================
-// Phase 6.10: Tree Depth Limits
-// ============================================================================
-
 /// Validate that tree depth does not exceed maximum for all three trees
 fn validate_tree_depth(tree: &DecisionTreeDef) -> ValidationResult {
     let mut max_depth = 0;
@@ -230,10 +221,6 @@ fn compute_tree_depth(node: &TreeNode, current_depth: usize) -> usize {
         }
     }
 }
-
-// ============================================================================
-// Phase 6.11: Field References
-// ============================================================================
 
 /// Validate that all field references are appropriate for each tree context
 ///
@@ -345,8 +332,7 @@ fn is_transaction_only_field(field: &str) -> bool {
             | "cost_if_settled_now"
             | "cost_if_held_one_tick"
             | "cost_urgency"
-            // Phase 9.5.1: Transaction-specific cost fields
-            // These use the transaction's remaining_amount, so only available in payment_tree
+            // Transaction-specific cost fields (use remaining_amount, only in payment_tree)
             | "cost_delay_this_tx_one_tick"
             | "cost_overdraft_this_amount_one_tick"
     )
@@ -486,7 +472,7 @@ fn collect_fields_from_computation(comp: &Computation, fields: &mut HashSet<Stri
                 collect_fields_from_value(value, fields);
             }
         }
-        // Phase 2.3: Math helper functions
+        // Math helper functions
         Computation::Ceil { value }
         | Computation::Floor { value }
         | Computation::Round { value }
@@ -521,10 +507,6 @@ fn collect_fields_from_value_or_compute(voc: &ValueOrCompute, fields: &mut HashS
         _ => {}
     }
 }
-
-// ============================================================================
-// Phase 6.12: Parameter References
-// ============================================================================
 
 /// Validate that all parameter references exist in tree parameters across all three trees
 fn validate_parameter_references(tree: &DecisionTreeDef) -> ValidationResult {
@@ -628,7 +610,7 @@ fn collect_params_from_computation(comp: &Computation, params: &mut HashSet<Stri
                 collect_params_from_value(value, params);
             }
         }
-        // Phase 2.3: Math helper functions
+        // Math helper functions
         Computation::Ceil { value }
         | Computation::Floor { value }
         | Computation::Round { value }
@@ -663,10 +645,6 @@ fn collect_params_from_value_or_compute(voc: &ValueOrCompute, params: &mut HashS
         _ => {}
     }
 }
-
-// ============================================================================
-// Phase 6.13: Division Safety
-// ============================================================================
 
 /// Validate that no division operations have literal zero divisors across all three trees
 ///
@@ -782,7 +760,7 @@ fn check_division_in_computation(
                 }
             }
         }
-        // Phase 2.3: Math helper functions
+        // Math helper functions
         Computation::Ceil { value }
         | Computation::Floor { value }
         | Computation::Round { value }
@@ -836,10 +814,6 @@ fn is_literal_zero(value: &Value) -> bool {
         _ => false,
     }
 }
-
-// ============================================================================
-// Phase 6.14: Action Reachability
-// ============================================================================
 
 /// Validate that all action nodes are potentially reachable across all three trees
 ///
@@ -911,10 +885,6 @@ fn mark_reachable_actions(node: &TreeNode, reachable: &mut HashSet<String>) {
     }
 }
 
-// ============================================================================
-// TESTS - Phase 6.9-6.14
-// ============================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -931,9 +901,7 @@ mod tests {
         EvalContext::build(&tx, &agent, &state, 10, &cost_rates, 100, 0.8)
     }
 
-    // ========================================================================
-    // Phase 6.9: Node ID Uniqueness Tests
-    // ========================================================================
+    // Node ID Uniqueness Tests
 
     #[test]
     fn test_validate_unique_node_ids() {
@@ -1016,9 +984,7 @@ mod tests {
             .any(|e| matches!(e, ValidationError::DuplicateNodeId(_))));
     }
 
-    // ========================================================================
-    // Phase 6.10: Tree Depth Tests
-    // ========================================================================
+    // Tree Depth Tests
 
     #[test]
     fn test_validate_tree_depth_ok() {
@@ -1067,9 +1033,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // ========================================================================
-    // Phase 6.11: Field Reference Tests
-    // ========================================================================
+    // Field Reference Tests
 
     #[test]
     fn test_validate_valid_field_references() {
@@ -1154,9 +1118,7 @@ mod tests {
             .any(|e| matches!(e, ValidationError::InvalidFieldReference(_))));
     }
 
-    // ========================================================================
-    // Phase 6.12: Parameter Reference Tests
-    // ========================================================================
+    // Parameter Reference Tests
 
     #[test]
     fn test_validate_valid_parameter_references() {
@@ -1246,9 +1208,7 @@ mod tests {
             .any(|e| matches!(e, ValidationError::InvalidParameterReference(_))));
     }
 
-    // ========================================================================
-    // Phase 6.13: Division Safety Tests
-    // ========================================================================
+    // Division Safety Tests
 
     #[test]
     fn test_reject_division_by_literal_zero() {
@@ -1343,9 +1303,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // ========================================================================
     // Collateral Tree Field Access Tests
-    // ========================================================================
 
     #[test]
     fn test_collateral_tree_can_access_state_registers() {

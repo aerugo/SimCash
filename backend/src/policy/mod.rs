@@ -86,8 +86,6 @@ pub enum ReleaseDecision {
     /// Moves transaction from Queue 1 to Queue 2 (RTGS central queue).
     /// May settle immediately if liquidity sufficient, or queue in RTGS.
     ///
-    /// # Phase 3.2: RTGS Flags
-    ///
     /// Optional parameters enable policies to control priority and timing:
     ///
     /// * `priority_override` - Override transaction's original priority (0-10)
@@ -136,7 +134,6 @@ pub enum ReleaseDecision {
     /// All child transactions are immediately submitted to RTGS.
     /// A split friction cost is charged: `split_friction_cost × (num_splits - 1)`
     ///
-    /// # Phase 5 Implementation
     /// This enables policies to "pace" large payments by voluntarily splitting
     /// them into smaller chunks to manage liquidity constraints.
     SubmitPartial {
@@ -156,11 +153,10 @@ pub enum ReleaseDecision {
     /// Typically used when transaction is past deadline or about to expire.
     ///
     /// NOTE: This variant is DEPRECATED. Use `Hold` instead. Transactions should
-    /// not be "dropped" - all obligations must eventually settle. See Phase 1
-    /// of realistic dropped transactions plan.
+    /// not be "dropped" - all obligations must eventually settle.
     Drop { tx_id: String },
 
-    /// Change transaction priority (Phase 4: Overdue Handling)
+    /// Change transaction priority
     ///
     /// Allows policy to adjust priority of queued transactions based on changing
     /// conditions (e.g., overdue status, approaching deadline). Transaction remains
@@ -193,7 +189,7 @@ pub enum ReleaseDecision {
         new_priority: u8,
     },
 
-    /// Split transaction and release children with staggered timing (Phase 3.1)
+    /// Split transaction and release children with staggered timing
     ///
     /// Creates `num_splits` child transactions from the parent, but unlike
     /// `SubmitPartial`, releases them gradually over time instead of all at once.
@@ -240,8 +236,6 @@ pub enum ReleaseDecision {
     /// * `stagger_gap_ticks >= 0` (negative gaps invalid)
     /// * All children inherit parent's deadline (staggering doesn't extend it)
     ///
-    /// # Phase 3.1 Implementation
-    ///
     /// This action enables realistic cash manager behavior: pacing releases to
     /// manage liquidity flow and optimize LSM recycling opportunities.
     StaggerSplit {
@@ -252,7 +246,7 @@ pub enum ReleaseDecision {
         priority_boost_children: u8,
     },
 
-    /// Withdraw transaction from RTGS Queue 2 (Phase 0.8: TARGET2 Dual Priority)
+    /// Withdraw transaction from RTGS Queue 2
     ///
     /// Removes the transaction from the central RTGS queue and clears its RTGS
     /// priority. The transaction returns to Queue 1 under policy control.
@@ -268,7 +262,7 @@ pub enum ReleaseDecision {
     /// * Withdrawal is instantaneous (no settlement impact)
     WithdrawFromRtgs { tx_id: String },
 
-    /// Resubmit transaction to RTGS with new priority (Phase 0.8: TARGET2 Dual Priority)
+    /// Resubmit transaction to RTGS with new priority
     ///
     /// Changes the RTGS priority of a transaction currently in Queue 2.
     /// The transaction loses its FIFO position and moves to the back of the
@@ -326,7 +320,7 @@ pub enum CollateralDecision {
     ///
     /// * `amount` - Amount of collateral to post (cents)
     /// * `reason` - Why collateral is being posted
-    /// * `auto_withdraw_after_ticks` - Optional: automatically withdraw after N ticks (Phase 3.4)
+    /// * `auto_withdraw_after_ticks` - Optional: automatically withdraw after N ticks
     Post {
         amount: i64,
         reason: CollateralReason,
@@ -373,7 +367,7 @@ pub enum CollateralReason {
     Custom(String),
 }
 
-/// Decision about bank-level resource management (Phase 3.3)
+/// Decision about bank-level resource management
 ///
 /// Bank-level decisions are evaluated once per agent per tick (not per transaction).
 /// They set budgets and constraints that affect all transaction-level decisions
@@ -451,7 +445,7 @@ pub enum BankDecision {
         max_per_counterparty: Option<i64>,
     },
 
-    /// Set a state register value (Phase 4.5: Policy Enhancements V2)
+    /// Set a state register value
     ///
     /// Allows policies to remember values across ticks for stateful strategies.
     /// Registers automatically reset at end of day.
@@ -461,7 +455,7 @@ pub enum BankDecision {
     /// * `key` - Register key (MUST start with "bank_state_")
     /// * `value` - New value (f64)
     /// * `reason` - Explanation for audit trail
-    /// * `decision_path` - Optional decision path (Phase 4.6)
+    /// * `decision_path` - Optional decision path for audit
     ///
     /// # Design Constraints
     ///
@@ -473,12 +467,12 @@ pub enum BankDecision {
         key: String,
         value: f64,
         reason: String,
-        /// Decision path that led to this action (Phase 4.6)
+        /// Decision path that led to this action
         #[serde(skip_serializing_if = "Option::is_none")]
         decision_path: Option<String>,
     },
 
-    /// Add to a state register value (Phase 4.5: Policy Enhancements V2)
+    /// Add to a state register value
     ///
     /// Increments (or decrements if negative) an existing state register.
     /// If register doesn't exist, starts from 0.0.
@@ -488,12 +482,12 @@ pub enum BankDecision {
     /// * `key` - Register key (MUST start with "bank_state_")
     /// * `delta` - Amount to add (positive or negative)
     /// * `reason` - Explanation for audit trail
-    /// * `decision_path` - Optional decision path (Phase 4.6)
+    /// * `decision_path` - Optional decision path for audit
     AddState {
         key: String,
         delta: f64,
         reason: String,
-        /// Decision path that led to this action (Phase 4.6)
+        /// Decision path that led to this action
         #[serde(skip_serializing_if = "Option::is_none")]
         decision_path: Option<String>,
     },
@@ -592,7 +586,7 @@ pub trait CashManagerPolicy: Send + Sync {
         eod_rush_threshold: f64,
     ) -> Vec<ReleaseDecision>;
 
-    /// Evaluate policy for a single transaction (Phase 0.8: Queue 2 management)
+    /// Evaluate policy for a single transaction in Queue 2
     ///
     /// This method allows evaluating the payment tree for a transaction that is
     /// already in Queue 2, enabling WithdrawFromRtgs and ResubmitToRtgs decisions.
@@ -681,10 +675,6 @@ pub trait CashManagerPolicy: Send + Sync {
 mod tests {
     use super::*;
     use crate::models::Transaction;
-
-    // ========================================================================
-    // Phase 4: Reprioritize Action Tests (TDD)
-    // ========================================================================
 
     #[test]
     fn test_reprioritize_decision() {
