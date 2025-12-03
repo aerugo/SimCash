@@ -408,7 +408,8 @@ class TestDeadlineAssignment:
         arrivals = [e for e in events if e.get("event_type") == "Arrival"]
 
         assert len(arrivals) == 1
-        assert arrivals[0]["deadline"] == 7
+        # Deadline in Arrival event is absolute tick (arrival_tick + offset = 2 + 7 = 9)
+        assert arrivals[0]["deadline"] == 9
 
     def test_deadline_capped_at_eod(self) -> None:
         """Deadline should be capped at EOD when feature enabled."""

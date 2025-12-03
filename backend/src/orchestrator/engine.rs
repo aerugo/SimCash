@@ -1346,6 +1346,40 @@ impl Orchestrator {
         Ok(())
     }
 
+    /// Cap a deadline according to config settings.
+    ///
+    /// This applies the same capping logic used by ArrivalGenerator:
+    /// 1. Cap at episode end (prevent impossible deadlines)
+    /// 2. If deadline_cap_at_eod enabled, also cap at current day's end
+    ///
+    /// # Arguments
+    /// * `arrival_tick` - The tick when the transaction arrives
+    /// * `raw_deadline` - The uncapped deadline tick
+    ///
+    /// # Returns
+    /// The capped deadline tick
+    fn cap_deadline(&self, arrival_tick: usize, raw_deadline: usize) -> usize {
+        // Cap at episode end (first tick after simulation ends)
+        let episode_end_tick = self.config.num_days * self.config.ticks_per_day;
+        let episode_capped = raw_deadline.min(episode_end_tick);
+
+        // If deadline_cap_at_eod enabled, also cap at current day's end
+        // For ticks_per_day=10: day 0 has ticks 0-9, so last tick of day 0 is 9
+        let capped = if self.config.deadline_cap_at_eod {
+            let current_day = arrival_tick / self.config.ticks_per_day;
+            // day_end_tick is the last tick OF the current day (not first tick of next day)
+            let day_end_tick = (current_day + 1) * self.config.ticks_per_day - 1;
+            episode_capped.min(day_end_tick)
+        } else {
+            episode_capped
+        };
+
+        // Ensure deadline is always at least one tick after arrival
+        // (required by Transaction invariant: deadline > arrival)
+        // This handles edge cases like transactions arriving at the last tick of a day
+        capped.max(arrival_tick + 1)
+    }
+
     // ========================================================================
     // Accessors
     // ========================================================================
@@ -1501,7 +1535,8 @@ impl Orchestrator {
                 };
 
                 // Submit through normal transaction submission path
-                // This handles validation, transaction creation, and arrival event logging
+                // This handles validation, transaction creation, arrival event logging,
+                // and deadline capping (episode end + deadline_cap_at_eod if enabled)
                 let tx_id = self.submit_transaction(
                     from_agent,
                     to_agent,
@@ -2213,13 +2248,16 @@ impl Orchestrator {
             )));
         }
 
+        // Apply deadline capping (episode end + deadline_cap_at_eod if enabled)
+        let capped_deadline = self.cap_deadline(current_tick, deadline_tick);
+
         // Create transaction (Transaction::new() generates its own UUID)
         let mut tx = crate::models::Transaction::new(
             sender_id.to_string(),
             receiver_id.to_string(),
             amount,
             current_tick, // Arrival tick = current tick
-            deadline_tick,
+            capped_deadline,
         );
 
         // Set priority
@@ -2248,7 +2286,7 @@ impl Orchestrator {
             sender_id: sender_id.to_string(),
             receiver_id: receiver_id.to_string(),
             amount,
-            deadline: deadline_tick,
+            deadline: capped_deadline,
             priority,
             is_divisible: divisible,
         });
@@ -2311,13 +2349,16 @@ impl Orchestrator {
             )));
         }
 
+        // Apply deadline capping (episode end + deadline_cap_at_eod if enabled)
+        let capped_deadline = self.cap_deadline(current_tick, deadline_tick);
+
         // Create transaction (Transaction::new() generates its own UUID)
         let mut tx = crate::models::Transaction::new(
             sender_id.to_string(),
             receiver_id.to_string(),
             amount,
             current_tick, // Arrival tick = current tick
-            deadline_tick,
+            capped_deadline,
         );
 
         // Set priority
@@ -2345,7 +2386,7 @@ impl Orchestrator {
             sender_id: sender_id.to_string(),
             receiver_id: receiver_id.to_string(),
             amount,
-            deadline: deadline_tick,
+            deadline: capped_deadline,
             priority,
             is_divisible: divisible,
         });
