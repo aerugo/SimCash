@@ -232,35 +232,26 @@ class RobustPolicyAgent:
         return self._system_prompt
 
     def _get_agent(self) -> Any:
-        """Get or create the PydanticAI agent."""
+        """Get or create the PydanticAI agent.
+
+        Uses PydanticAI's automatic model detection - it handles GPT-5.x/o1/o3
+        models correctly when using the 'openai:model-name' format.
+        """
         if self._agent is None:
             try:
                 from pydantic_ai import Agent
-                from pydantic_ai.models.openai import (
-                    OpenAIResponsesModel,
-                    OpenAIResponsesModelSettings,
-                )
 
-                # Configure model
-                model_instance: Any
-                model_settings: Any = None
-
-                if self.model.startswith("gpt-5") or self.model.startswith("openai:gpt-5"):
-                    model_instance = OpenAIResponsesModel(self.model)
-                    model_settings = OpenAIResponsesModelSettings(
-                        openai_reasoning_effort=self.reasoning_effort,
-                        openai_reasoning_summary=self.reasoning_summary,
-                    )
-                else:
-                    model_instance = self.model
+                # Ensure model has openai: prefix for proper routing
+                model_name = self.model
+                if not model_name.startswith("openai:") and not ":" in model_name:
+                    model_name = f"openai:{model_name}"
 
                 self._agent = Agent(
-                    model_instance,
+                    model_name,
                     output_type=self.policy_model,
                     system_prompt=self._system_prompt,
                     deps_type=RobustPolicyDeps,
                     retries=self.retries,
-                    model_settings=model_settings,
                 )
             except ImportError as e:
                 raise ImportError(
@@ -292,8 +283,6 @@ class RobustPolicyAgent:
         Returns:
             Generated policy as dict (fully validated)
         """
-        agent = self._get_agent()
-
         # Build context-aware prompt
         prompt_parts = [instruction]
 
@@ -321,7 +310,9 @@ class RobustPolicyAgent:
 
         prompt = "\n".join(prompt_parts)
 
-        # Run agent with structured output
+        # Use PydanticAI agent for all models
+        agent = self._get_agent()
+
         deps = RobustPolicyDeps(
             current_policy=current_policy,
             current_cost=current_cost,
