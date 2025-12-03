@@ -541,11 +541,15 @@ def main():
     parser.add_argument("--max-iter", type=int, default=40, help="Max iterations")
     parser.add_argument(
         "--provider",
-        choices=["openai", "anthropic", "google", "ollama"],
-        default="openai",
-        help="LLM provider (default: openai)"
+        choices=["openai", "anthropic", "google", "ollama", "pydantic-ai"],
+        default="pydantic-ai",
+        help="LLM provider (default: pydantic-ai for unified interface)"
     )
-    parser.add_argument("--model", default=None, help="Model name (uses provider default if not specified)")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Model name. For pydantic-ai, use 'provider:model' format (e.g., 'openai:gpt-4o', 'anthropic:claude-3-5-sonnet-20241022')"
+    )
     parser.add_argument("--max-depth", type=int, default=3, help="Max tree depth for schemas")
 
     args = parser.parse_args()

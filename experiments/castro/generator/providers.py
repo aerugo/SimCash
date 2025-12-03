@@ -480,8 +480,9 @@ def get_provider(
     """Factory function to create a provider by name.
 
     Args:
-        provider_type: One of "openai", "anthropic", "google", "ollama"
+        provider_type: One of "openai", "anthropic", "google", "ollama", "pydantic-ai"
         model: Model name (optional, uses provider default)
+            For pydantic-ai, use format "provider:model" like "openai:gpt-4o"
         **kwargs: Additional provider-specific arguments
 
     Returns:
@@ -491,10 +492,22 @@ def get_provider(
         ValueError: If provider_type is unknown
 
     Example:
+        # Direct provider
         provider = get_provider("anthropic", model="claude-3-5-sonnet-20241022")
+
+        # PydanticAI (recommended for multi-provider support)
+        provider = get_provider("pydantic-ai", model="anthropic:claude-3-5-sonnet-20241022")
         generator = StructuredPolicyGenerator(provider=provider)
     """
-    providers = {
+    # Handle pydantic-ai specially since it uses a different model format
+    if provider_type == "pydantic-ai":
+        from experiments.castro.generator.pydantic_ai_provider import PydanticAIProvider
+        # For pydantic-ai, model should be in format "provider:model"
+        # Default to openai:gpt-4o if not specified
+        pydantic_model = model or "openai:gpt-4o"
+        return PydanticAIProvider(model=pydantic_model, **kwargs)
+
+    providers: dict[str, type[LLMProvider]] = {
         "openai": OpenAIProvider,
         "anthropic": AnthropicProvider,
         "google": GoogleProvider,
@@ -502,7 +515,7 @@ def get_provider(
     }
 
     if provider_type not in providers:
-        available = ", ".join(providers.keys())
+        available = ", ".join(list(providers.keys()) + ["pydantic-ai"])
         raise ValueError(
             f"Unknown provider: {provider_type}. Available: {available}"
         )

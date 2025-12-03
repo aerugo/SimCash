@@ -23,6 +23,21 @@ from experiments.castro.generator.validation import (
     validate_policy_with_cli,
 )
 
+# PydanticAI integration (optional, requires pydantic-ai package)
+try:
+    from experiments.castro.generator.pydantic_ai_provider import (
+        PydanticAIProvider,
+        PydanticAIConfig,
+        create_policy_agent,
+        openai_provider,
+        anthropic_provider,
+        google_provider,
+        ollama_provider,
+    )
+    _PYDANTIC_AI_AVAILABLE = True
+except ImportError:
+    _PYDANTIC_AI_AVAILABLE = False
+
 __all__ = [
     # Provider protocol and implementations
     "LLMProvider",
@@ -33,6 +48,14 @@ __all__ = [
     "GoogleProvider",
     "OllamaProvider",
     "get_provider",
+    # PydanticAI (when available)
+    "PydanticAIProvider",
+    "PydanticAIConfig",
+    "create_policy_agent",
+    "openai_provider",
+    "anthropic_provider",
+    "google_provider",
+    "ollama_provider",
     # Policy generation
     "PolicyContext",
     "GenerationResult",
