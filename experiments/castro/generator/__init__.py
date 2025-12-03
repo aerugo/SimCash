@@ -1,67 +1,38 @@
-# LLM integration for structured policy generation
+# Policy generation using PydanticAI
+#
+# PydanticAI handles all LLM provider abstraction. Just use a model string:
+#   - openai:gpt-4o
+#   - anthropic:claude-3-5-sonnet-20241022
+#   - google-gla:gemini-1.5-pro
+#   - ollama:llama3.1:8b
+#
+# Usage:
+#   from experiments.castro.generator import PolicyAgent, generate_policy
+#
+#   # Simple one-liner
+#   policy = generate_policy("payment_tree", "Optimize for low costs")
+#
+#   # With agent for multiple generations
+#   agent = PolicyAgent(model="anthropic:claude-3-5-sonnet-20241022")
+#   policy = agent.generate("payment_tree", "Prioritize high-value payments")
 
-from experiments.castro.generator.providers import (
-    LLMProvider,
-    StructuredOutputRequest,
-    StructuredOutputResponse,
-    OpenAIProvider,
-    AnthropicProvider,
-    GoogleProvider,
-    OllamaProvider,
-    get_provider,
-)
-
-from experiments.castro.generator.client import (
-    PolicyContext,
-    GenerationResult,
-    StructuredPolicyGenerator,
+from experiments.castro.generator.policy_agent import (
+    PolicyAgent,
+    PolicyDeps,
+    generate_policy,
 )
 
 from experiments.castro.generator.validation import (
     ValidationResult,
     validate_policy_structure,
-    validate_policy_with_cli,
 )
 
-# PydanticAI integration (optional, requires pydantic-ai package)
-try:
-    from experiments.castro.generator.pydantic_ai_provider import (
-        PydanticAIProvider,
-        PydanticAIConfig,
-        create_policy_agent,
-        openai_provider,
-        anthropic_provider,
-        google_provider,
-        ollama_provider,
-    )
-    _PYDANTIC_AI_AVAILABLE = True
-except ImportError:
-    _PYDANTIC_AI_AVAILABLE = False
-
 __all__ = [
-    # Provider protocol and implementations
-    "LLMProvider",
-    "StructuredOutputRequest",
-    "StructuredOutputResponse",
-    "OpenAIProvider",
-    "AnthropicProvider",
-    "GoogleProvider",
-    "OllamaProvider",
-    "get_provider",
-    # PydanticAI (when available)
-    "PydanticAIProvider",
-    "PydanticAIConfig",
-    "create_policy_agent",
-    "openai_provider",
-    "anthropic_provider",
-    "google_provider",
-    "ollama_provider",
-    # Policy generation
-    "PolicyContext",
-    "GenerationResult",
-    "StructuredPolicyGenerator",
+    # Main API
+    "PolicyAgent",
+    "PolicyDeps",
+    "generate_policy",
     # Validation
     "ValidationResult",
     "validate_policy_structure",
-    "validate_policy_with_cli",
 ]

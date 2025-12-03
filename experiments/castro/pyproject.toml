@@ -51,11 +51,8 @@ packages = ["scripts"]
 # ============================================================================
 
 [tool.uv]
-# Install the main payment-simulator package from the api/ directory
-# This gives us access to payment-sim CLI and all its dependencies
-dev-dependencies = [
-    "payment-simulator @ file://../../api",
-]
+# Note: payment-simulator from api/ can be installed separately if needed
+# using: uv pip install -e ../../api
 
 # ============================================================================
 # Type Checking Configuration
