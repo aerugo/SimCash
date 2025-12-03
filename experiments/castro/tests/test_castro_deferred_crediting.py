@@ -62,7 +62,7 @@ class TestCastroNashEquilibrium:
     ) -> None:
         """Bank B's period-1 payment should queue if no collateral posted.
 
-        With deferred crediting and zero opening balance:
+        With deferred crediting, zero opening balance, AND zero unsecured cap:
         - Bank B's $150 period-1 payment has no funding source
         - It should queue (not settle) in tick 0
         """
@@ -90,12 +90,15 @@ class TestCastroNashEquilibrium:
             },
         }
 
-        # Override agents to use inline policy
+        # Override agents to use inline policy AND remove credit limits
         for agent in config["agents"]:
             agent["policy"] = {
                 "type": "Inline",
                 "decision_trees": zero_collateral_policy,
             }
+            # Must also set unsecured_cap to 0, otherwise agents can settle
+            # via overdraft even without posting collateral
+            agent["unsecured_cap"] = 0
 
         ffi_config = _config_to_ffi(config)
         orch = Orchestrator.new(ffi_config)
