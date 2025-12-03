@@ -2450,3 +2450,144 @@ experiments/castro/results/
 ```
 
 ---
+
+## Validation Error Analysis
+
+### Date: 2025-12-03
+
+#### Objective
+
+Implemented comprehensive validation error logging to understand WHY LLM-generated policies fail SimCash validation. The goal is to collect error patterns and develop fixes.
+
+#### Implementation
+
+1. **Added `validation_errors` table to database schema** - Tracks all validation failures including:
+   - Policy JSON that failed
+   - Error messages from validator
+   - Error category (auto-classified)
+   - Was it fixed after retries
+   - Number of fix attempts
+
+2. **Created `analyze_validation_errors.py` script** - Analysis tool that:
+   - Loads errors from multiple experiment databases
+   - Categorizes errors by type
+   - Shows fix success rates
+   - Extracts common error patterns
+   - Exports to JSON for further analysis
+
+#### Data Collection
+
+Ran 4 error sampling experiments:
+- `error_sample_1.db` (exp1, 10 iterations)
+- `error_sample_2.db` (exp2, 10 iterations)
+- `exp1_error_final.db` (exp1, 15 iterations)
+- `exp1_with_errors.db` (exp1, 5 iterations)
+
+#### Results Summary
+
+```
+Total errors logged: 66
+Initial generation errors: 18
+Successfully fixed: 2 (11.1%)
+Average fix attempts: 2.8
+
+Errors by Category:
+  TYPE_ERROR             36 (54.5%) - JSON parsing failed
+  UNKNOWN                30 (45.5%) - Mostly InvalidParameterReference
+
+Errors by Agent:
+  Bank A: 30
+  Bank B: 36
+```
+
+#### Root Cause Analysis
+
+**Error Type 1: InvalidParameterReference (~45% of errors)**
+
+The LLM generates parameter references in decision trees but doesn't define them:
+
+```json
+{
+  "parameters": {},  // EMPTY!
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "ticks_to_deadline"},
+      "right": {"param": "urgency_threshold"}  // UNDEFINED!
+    }
+  }
+}
+```
+
+The LLM uses `{"param": "urgency_threshold"}` but `"parameters": {}` is empty.
+
+**Error Type 2: Schema Mismatch / Parse Errors (~55% of errors)**
+
+The LLM generates complex expressions not supported by SimCash:
+
+```json
+{
+  "condition": {
+    "op": ">=",
+    "left": {"field": "effective_liquidity"},
+    "right": {
+      "op": "*",  // ARITHMETIC NOT SUPPORTED!
+      "left": {"param": "liquidity_buffer"},
+      "right": {"field": "amount"}
+    }
+  }
+}
+```
+
+The validator expects comparison targets to be:
+- Literal values: `{"value": 5}`
+- Field references: `{"field": "amount"}`
+- Parameter references: `{"param": "threshold"}`
+
+NOT arithmetic expressions like `{"op": "*", "left": {...}, "right": {...}}`.
+
+#### Key Findings
+
+1. **Low Fix Success Rate (11.1%)** - The LLM retry mechanism is not effective at fixing these structural issues
+
+2. **Consistent Error Patterns** - Both Bank A and Bank B agents make the same types of errors
+
+3. **GPT-5.1 Reasoning Limitation** - Despite high reasoning mode, the model:
+   - Understands the policy structure conceptually
+   - Fails to map parameters correctly between sections
+   - Generates overly complex expressions
+
+#### Recommendations for Fixes
+
+1. **Pre-process Generated Policies**:
+   - Scan payment_tree for `{"param": "X"}` references
+   - Auto-add missing parameters to the `parameters` dict with sensible defaults
+
+2. **Improve System Prompt**:
+   - Add explicit examples showing parameters MUST be defined
+   - Add explicit note that arithmetic expressions are NOT supported
+   - Show valid vs invalid comparison examples
+
+3. **Schema Enforcement via Pydantic**:
+   - Add cross-validation between parameters and tree references
+   - Restrict `right` side of comparisons to allowed types only
+
+4. **Post-Generation Validation Hook**:
+   - Extract all param references from tree
+   - Verify each exists in parameters dict
+   - Either add missing ones or reject with specific error
+
+#### Files Created
+
+```
+experiments/castro/scripts/
+├── analyze_validation_errors.py  # New analysis tool
+
+experiments/castro/results/
+├── error_sample_1.db             # Error collection run 1
+├── error_sample_2.db             # Error collection run 2
+├── validation_errors_analysis.json  # Exported analysis
+```
+
+---
