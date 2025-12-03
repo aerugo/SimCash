@@ -319,6 +319,65 @@ CREATE TABLE simulation_runs (
 
 ---
 
+## 🔴 Debugging LLM-Generated Policy Failures
+
+When the LLM generates policies that fail validation or simulation, follow this systematic approach:
+
+### NEVER Post-Process or Retrofit
+
+```python
+# ❌ NEVER DO THIS
+def fix_policy(policy: dict) -> dict:
+    """Manually fix LLM output."""
+    # Replace wrong actions with correct ones
+    policy["strategic_collateral_tree"]["action"] = "HoldCollateral"  # NO!
+    return policy
+
+# ✅ CORRECT - Find and fix the root cause
+# 1. Investigate why LLM generated wrong output
+# 2. Fix the prompt, schema, or validation
+# 3. Let the retry mechanism work
+```
+
+### Systematic Debugging Checklist
+
+When LLM policies fail, investigate in this order:
+
+1. **Check the prompt** (`generator/robust_policy_agent.py`)
+   - Does it explain ALL tree types and their valid actions?
+   - Are examples complete and correct?
+   - Is the vocabulary clear and unambiguous?
+
+2. **Check Pydantic schema** (`schemas/dynamic.py`)
+   - Does validation distinguish between tree types?
+   - Are action types properly constrained per tree?
+   - Look for `create_constrained_policy_model()`
+
+3. **Check CLI validation** (`payment-sim validate-policy`)
+   - Use `--functional-tests` flag to catch runtime errors
+   - Basic validation may pass but simulation may fail
+
+4. **Verify retry mechanism** (`scripts/reproducible_experiment.py`)
+   - Is `validate_and_fix_policy()` being called?
+   - Does error message reach the LLM for fixing?
+   - Check `MAX_VALIDATION_RETRIES`
+
+### Current Known Issues (2025-12-03)
+
+**Issue**: LLM uses payment actions (`Hold`) in collateral trees instead of collateral actions (`HoldCollateral`)
+
+**Root Causes Identified**:
+1. Prompt only shows payment_tree examples (no collateral tree examples)
+2. Pydantic schema uses same `ActionLiteral` for all tree types
+3. Experiment doesn't use `--functional-tests` in validation
+
+**Required Fixes**:
+1. Add per-tree-type action sets to the prompt
+2. Update `create_constrained_policy_model()` to use tree-specific actions
+3. Enable `--functional-tests` in experiment validation
+
+---
+
 ## Anti-Patterns
 
 ### Unreproducible Experiments

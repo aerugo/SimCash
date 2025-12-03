@@ -115,8 +115,9 @@ def generate_system_prompt(constraints: ScenarioConstraints) -> str:
     # Build field vocabulary
     field_list = "\n".join([f"  - {f}" for f in constraints.allowed_fields])
 
-    # Build action vocabulary
-    action_list = "\n".join([f"  - {a}" for a in constraints.allowed_actions])
+    # Build action vocabulary - note: constraints only has payment actions
+    # We need to tell LLM about tree-specific actions
+    payment_action_list = "\n".join([f"  - {a}" for a in constraints.allowed_actions])
 
     # Generate parameter defaults JSON
     if param_defaults:
@@ -146,8 +147,28 @@ PARAMETERS (define in "parameters" object, reference with {{"param": "name"}}):
 FIELDS (reference with {{"field": "name"}}):
 {field_list}
 
-ACTIONS (use in action nodes):
-{action_list}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL: TREE-SPECIFIC ACTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Different tree types require DIFFERENT action types. Using wrong actions causes RUNTIME ERRORS!
+
+PAYMENT_TREE actions (use in "payment_tree"):
+{payment_action_list}
+
+BANK_TREE actions (use in "bank_tree"):
+  - SetReleaseBudget
+  - SetState
+  - AddState
+
+COLLATERAL_TREE actions (use in "strategic_collateral_tree" and "end_of_tick_collateral_tree"):
+  - PostCollateral
+  - WithdrawCollateral
+  - HoldCollateral
+
+⚠️ COMMON ERROR: Using "Hold" in collateral trees - this WILL cause validation failure!
+   ✗ WRONG:   {{"action": "Hold"}} in strategic_collateral_tree
+   ✓ CORRECT: {{"action": "HoldCollateral"}} in strategic_collateral_tree
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VALUE TYPES (how to reference data)
@@ -285,6 +306,19 @@ ERROR 3: Missing node_id
 
   ✓ CORRECT:
     {{"type": "action", "node_id": "A1", "action": "Release"}}
+
+ERROR 4: Using payment actions in collateral trees (CAUSES RUNTIME ERROR!)
+  ✗ WRONG (strategic_collateral_tree):
+    {{"type": "action", "node_id": "C1", "action": "Hold"}}  // Hold is a PAYMENT action!
+
+  ✓ CORRECT (strategic_collateral_tree):
+    {{"type": "action", "node_id": "C1", "action": "HoldCollateral"}}  // Correct COLLATERAL action
+
+  ✗ WRONG (bank_tree):
+    {{"type": "action", "node_id": "B1", "action": "Release"}}  // Release is a PAYMENT action!
+
+  ✓ CORRECT (bank_tree):
+    {{"type": "action", "node_id": "B1", "action": "SetReleaseBudget", "parameters": {{"budget": {{"value": 0}}}}}}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NODE STRUCTURE REFERENCE
