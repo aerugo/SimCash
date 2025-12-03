@@ -1,20 +1,28 @@
-"""Robust Policy Agent using constrained schemas.
+"""Robust Policy Agent using dynamic constrained schemas.
 
 This module provides a RobustPolicyAgent that uses PydanticAI structured output
-with constrained Pydantic models to PREVENT the LLM from generating invalid
-policies. This eliminates ~94% of validation errors by enforcing constraints
-at generation time rather than post-validation.
+with dynamically generated Pydantic models based on ScenarioConstraints.
 
-Key improvements over the original PolicyAgent:
-1. Uses ConstrainedPolicy model that only allows 3 parameters
-2. Enforces valid context field names via Literal types
-3. Enforces correct operator structure (and/or use conditions array)
-4. Includes comprehensive schema documentation in the system prompt
+The agent supports ANY parameters, fields, and actions that SimCash allows,
+configured per-scenario via ScenarioConstraints.
 
 Usage:
     from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
+    from experiments.castro.schemas.parameter_config import (
+        ParameterSpec,
+        ScenarioConstraints,
+    )
 
-    agent = RobustPolicyAgent()
+    constraints = ScenarioConstraints(
+        allowed_parameters=[
+            ParameterSpec("urgency", 0, 20, 3, "Urgency threshold"),
+            ParameterSpec("buffer", 0.5, 3.0, 1.0, "Liquidity buffer"),
+        ],
+        allowed_fields=["balance", "ticks_to_deadline", "effective_liquidity"],
+        allowed_actions=["Release", "Hold", "Split"],
+    )
+
+    agent = RobustPolicyAgent(constraints=constraints)
     policy = agent.generate_policy(
         instruction="Optimize for low delay costs",
         current_cost=50000,
@@ -24,95 +32,28 @@ Usage:
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
+from pydantic import BaseModel
 
-from experiments.castro.schemas.constrained import (
-    ConstrainedPolicy,
-    ConstrainedPolicyParameters,
-    ConstrainedPaymentTreeL3,
-    ConstrainedCollateralTreeL3,
-    get_schema_aware_prompt_additions,
-    ALLOWED_PARAMETERS,
-)
+from experiments.castro.schemas.parameter_config import ScenarioConstraints
+from experiments.castro.schemas.dynamic import create_constrained_policy_model
 
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
-DEFAULT_MODEL = "gpt-5.1"
+DEFAULT_MODEL = "gpt-4o"
 DEFAULT_REASONING_EFFORT: Literal["low", "medium", "high"] = "high"
 DEFAULT_REASONING_SUMMARY: Literal["concise", "detailed"] = "detailed"
 
 
 # ============================================================================
-# System Prompt
-# ============================================================================
-
-ROBUST_SYSTEM_PROMPT = """You are an expert policy optimizer for a payment settlement simulation.
-
-Your task is to generate or improve policy decision trees that minimize total costs
-while maintaining high settlement rates. You are optimizing bank payment policies.
-
-## Policy Structure
-
-A policy consists of:
-1. parameters: Numeric thresholds that control decision logic
-2. strategic_collateral_tree: Decides collateral allocation at start of each tick
-3. payment_tree: Decides whether to Release or Hold each pending payment
-
-## Tree Node Types
-
-CONDITION node: Tests a boolean expression and branches
-    {
-        "type": "condition",
-        "condition": <expression>,
-        "on_true": <tree_node>,
-        "on_false": <tree_node>
-    }
-
-ACTION node: Terminal decision
-    {"type": "action", "action": "Release"}
-    {"type": "action", "action": "Hold"}
-    {"type": "action", "action": "PostCollateral", "parameters": {"amount": <value>}}
-
-""" + get_schema_aware_prompt_additions() + """
-
-## Cost Components (minimize these)
-
-1. Delay Cost: Incurred each tick a payment waits in queue
-2. Overdraft Cost: Incurred when balance goes negative
-3. Collateral Cost: Opportunity cost of posted collateral
-4. Deadline Penalty: Large penalty when payment misses deadline
-
-## Optimization Strategy
-
-To reduce costs:
-1. Release urgent payments (low ticks_to_deadline) to avoid deadline penalties
-2. Post sufficient collateral for liquidity but not excessive (collateral cost)
-3. Release payments when effective_liquidity > required amount
-4. Hold low-priority payments when liquidity is tight
-
-## Output Requirements
-
-Generate a valid ConstrainedPolicy JSON object with:
-- parameters: Only urgency_threshold, initial_liquidity_fraction, liquidity_buffer_factor
-- strategic_collateral_tree: Decision tree for collateral management
-- payment_tree: Decision tree for payment release
-
-Keep trees simple (2-3 levels deep) but effective.
-"""
-
-
-# ============================================================================
 # Dependencies
 # ============================================================================
+
 
 @dataclass
 class RobustPolicyDeps:
@@ -126,42 +67,137 @@ class RobustPolicyDeps:
 
 
 # ============================================================================
+# System Prompt Generation
+# ============================================================================
+
+
+def generate_system_prompt(constraints: ScenarioConstraints) -> str:
+    """Generate a system prompt from scenario constraints.
+
+    The prompt includes:
+    - Allowed parameters with bounds and descriptions
+    - Allowed context fields
+    - Allowed actions
+    - Policy structure documentation
+    """
+    # Parameter section
+    if constraints.allowed_parameters:
+        param_lines = ["## Allowed Parameters\n"]
+        param_lines.append("You can ONLY use these parameters:\n")
+        for spec in constraints.allowed_parameters:
+            param_lines.append(
+                f"- **{spec.name}** (range: {spec.min_value} to {spec.max_value}, "
+                f"default: {spec.default}): {spec.description}"
+            )
+        param_section = "\n".join(param_lines)
+    else:
+        param_section = "## Parameters\n\nNo parameters are defined for this scenario."
+
+    # Fields section
+    field_lines = ["## Available Context Fields\n"]
+    field_lines.append("You can reference these fields in conditions:\n")
+    for field in constraints.allowed_fields[:20]:  # Show first 20
+        field_lines.append(f"- {field}")
+    if len(constraints.allowed_fields) > 20:
+        field_lines.append(f"- ... and {len(constraints.allowed_fields) - 20} more")
+    fields_section = "\n".join(field_lines)
+
+    # Actions section
+    action_lines = ["## Allowed Actions\n"]
+    action_lines.append("You can use these actions in tree nodes:\n")
+    for action in constraints.allowed_actions:
+        action_lines.append(f"- {action}")
+    actions_section = "\n".join(action_lines)
+
+    return f"""You are an expert policy optimizer for a payment settlement simulation.
+
+Your task is to generate or improve policy decision trees that minimize total costs
+while maintaining high settlement rates.
+
+## Policy Structure
+
+A policy consists of:
+1. **parameters**: Numeric thresholds that control decision logic
+2. **payment_tree**: Decision tree for each pending payment (Release/Hold)
+
+## Tree Node Types
+
+CONDITION node: Tests a boolean expression and branches
+```json
+{{
+    "type": "condition",
+    "condition": {{"op": "<=", "left": {{"field": "ticks_to_deadline"}}, "right": {{"param": "threshold"}}}},
+    "on_true": <tree_node>,
+    "on_false": <tree_node>
+}}
+```
+
+ACTION node: Terminal decision
+```json
+{{"type": "action", "action": "Release"}}
+{{"type": "action", "action": "Hold"}}
+```
+
+## Expression Operators
+
+Comparison: ==, !=, <, <=, >, >=
+Logical: and, or, not (use "conditions" array for and/or)
+
+{param_section}
+
+{fields_section}
+
+{actions_section}
+
+## Cost Components (minimize these)
+
+1. **Delay Cost**: Incurred each tick a payment waits in queue
+2. **Overdraft Cost**: Incurred when balance goes negative
+3. **Collateral Cost**: Opportunity cost of posted collateral
+4. **Deadline Penalty**: Large penalty when payment misses deadline
+
+## Optimization Strategy
+
+- Release urgent payments (low ticks_to_deadline) to avoid deadline penalties
+- Release payments when effective_liquidity > required amount
+- Hold low-priority payments when liquidity is tight
+
+Keep decision trees simple (2-3 levels deep) but effective.
+"""
+
+
+# ============================================================================
 # Robust Policy Agent
 # ============================================================================
 
+
 class RobustPolicyAgent:
-    """Policy generator using constrained Pydantic models.
+    """Policy generator using dynamic constrained schemas.
 
-    This agent uses PydanticAI structured output with ConstrainedPolicy,
-    which enforces all schema constraints at generation time. This eliminates
-    the vast majority of validation errors seen with free-form generation.
+    This agent uses PydanticAI structured output with dynamically generated
+    Pydantic models based on ScenarioConstraints. This ensures:
 
-    Key features:
-    - Only 3 parameters allowed (urgency_threshold, initial_liquidity_fraction,
-      liquidity_buffer_factor)
-    - Only valid context fields allowed (no invented fields)
-    - Correct operator structure enforced (and/or use conditions array)
-    - Comprehensive schema documentation in system prompt
+    - Only allowed parameters can be used (with enforced bounds)
+    - Only allowed context fields can be referenced
+    - Only allowed actions can be used
+    - Correct policy structure is enforced
 
     Example:
-        agent = RobustPolicyAgent()
-
-        # Generate initial policy
-        policy = agent.generate_policy(
-            instruction="Optimize for minimal delay costs"
+        constraints = ScenarioConstraints(
+            allowed_parameters=[
+                ParameterSpec("urgency", 0, 20, 3, "Urgency"),
+            ],
+            allowed_fields=["balance", "ticks_to_deadline"],
+            allowed_actions=["Release", "Hold"],
         )
 
-        # Improve existing policy
-        improved = agent.generate_policy(
-            instruction="Reduce delay costs while maintaining settlement rate",
-            current_policy=policy,
-            current_cost=50000,
-            settlement_rate=0.95,
-        )
+        agent = RobustPolicyAgent(constraints=constraints)
+        policy = agent.generate_policy("Minimize delay costs")
     """
 
     def __init__(
         self,
+        constraints: ScenarioConstraints,
         model: str | None = None,
         retries: int = 3,
         reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
@@ -170,47 +206,68 @@ class RobustPolicyAgent:
         """Initialize robust policy agent.
 
         Args:
-            model: PydanticAI model string. Defaults to GPT-5.1.
+            constraints: Scenario constraints defining allowed elements
+            model: PydanticAI model string. Defaults to GPT-4o.
             retries: Number of retries on validation failure
-            reasoning_effort: Reasoning effort for GPT-5.1
+            reasoning_effort: Reasoning effort for GPT models
             reasoning_summary: Reasoning summary verbosity
         """
+        self.constraints = constraints
         self.model = model or DEFAULT_MODEL
         self.retries = retries
         self.reasoning_effort = reasoning_effort
         self.reasoning_summary = reasoning_summary
-        self._agent: Agent[RobustPolicyDeps, ConstrainedPolicy] | None = None
-        self._model_settings: OpenAIResponsesModelSettings | None = None
 
-        # Configure model settings for GPT-5.1
-        if self._is_gpt5_model():
-            self._model_settings = OpenAIResponsesModelSettings(
-                openai_reasoning_effort=reasoning_effort,
-                openai_reasoning_summary=reasoning_summary,
-            )
+        # Generate dynamic policy model from constraints
+        self.policy_model = create_constrained_policy_model(constraints)
 
-    def _is_gpt5_model(self) -> bool:
-        """Check if using a GPT-5 series model."""
-        return self.model.startswith("gpt-5") or self.model.startswith("openai:gpt-5")
+        # Generate system prompt from constraints
+        self._system_prompt = generate_system_prompt(constraints)
 
-    def _get_model(self) -> OpenAIResponsesModel | str:
-        """Get the appropriate model instance."""
-        if self._is_gpt5_model():
-            return OpenAIResponsesModel(self.model)
-        return self.model
+        # Lazy-initialized PydanticAI agent
+        self._agent: Any | None = None
 
-    def _get_agent(self) -> Agent[RobustPolicyDeps, ConstrainedPolicy]:
-        """Get or create the agent."""
+    def get_system_prompt(self) -> str:
+        """Get the system prompt for this agent."""
+        return self._system_prompt
+
+    def _get_agent(self) -> Any:
+        """Get or create the PydanticAI agent."""
         if self._agent is None:
-            model = self._get_model()
-            self._agent = Agent(
-                model,
-                output_type=ConstrainedPolicy,
-                system_prompt=ROBUST_SYSTEM_PROMPT,
-                deps_type=RobustPolicyDeps,
-                retries=self.retries,
-                model_settings=self._model_settings,
-            )
+            try:
+                from pydantic_ai import Agent
+                from pydantic_ai.models.openai import (
+                    OpenAIResponsesModel,
+                    OpenAIResponsesModelSettings,
+                )
+
+                # Configure model
+                model_instance: Any
+                model_settings: Any = None
+
+                if self.model.startswith("gpt-5") or self.model.startswith("openai:gpt-5"):
+                    model_instance = OpenAIResponsesModel(self.model)
+                    model_settings = OpenAIResponsesModelSettings(
+                        openai_reasoning_effort=self.reasoning_effort,
+                        openai_reasoning_summary=self.reasoning_summary,
+                    )
+                else:
+                    model_instance = self.model
+
+                self._agent = Agent(
+                    model_instance,
+                    output_type=self.policy_model,
+                    system_prompt=self._system_prompt,
+                    deps_type=RobustPolicyDeps,
+                    retries=self.retries,
+                    model_settings=model_settings,
+                )
+            except ImportError as e:
+                raise ImportError(
+                    "PydanticAI is required for RobustPolicyAgent. "
+                    "Install with: pip install pydantic-ai"
+                ) from e
+
         return self._agent
 
     def generate_policy(
@@ -241,19 +298,17 @@ class RobustPolicyAgent:
         prompt_parts = [instruction]
 
         if current_policy:
-            # Show current parameters
             params = current_policy.get("parameters", {})
-            prompt_parts.append(f"\n## Current Policy Parameters")
-            prompt_parts.append(f"- urgency_threshold: {params.get('urgency_threshold', 3.0)}")
-            prompt_parts.append(f"- initial_liquidity_fraction: {params.get('initial_liquidity_fraction', 0.25)}")
-            prompt_parts.append(f"- liquidity_buffer_factor: {params.get('liquidity_buffer_factor', 1.0)}")
+            prompt_parts.append("\n## Current Policy Parameters")
+            for name, value in params.items():
+                prompt_parts.append(f"- {name}: {value}")
 
         if current_cost is not None:
             prompt_parts.append(f"\n## Current Performance")
             prompt_parts.append(f"Total cost: ${current_cost:,.0f}")
 
         if settlement_rate is not None:
-            prompt_parts.append(f"Settlement rate: {settlement_rate*100:.1f}%")
+            prompt_parts.append(f"Settlement rate: {settlement_rate * 100:.1f}%")
 
         if per_bank_costs:
             prompt_parts.append("\nPer-bank costs:")
@@ -278,7 +333,9 @@ class RobustPolicyAgent:
         result = agent.run_sync(prompt, deps=deps)
 
         # Convert Pydantic model to dict
-        return result.output.model_dump(exclude_none=True)
+        if hasattr(result.output, "model_dump"):
+            return result.output.model_dump(exclude_none=True)
+        return dict(result.output)
 
     async def generate_policy_async(
         self,
@@ -297,229 +354,19 @@ class RobustPolicyAgent:
         )
 
         result = await agent.run(instruction, deps=deps)
-        return result.output.model_dump(exclude_none=True)
 
-
-# ============================================================================
-# Individual Tree Generators
-# ============================================================================
-
-class RobustPaymentTreeAgent:
-    """Generate only the payment_tree with constraints."""
-
-    def __init__(
-        self,
-        model: str | None = None,
-        reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
-    ) -> None:
-        self.model = model or DEFAULT_MODEL
-        self.reasoning_effort = reasoning_effort
-        self._agent: Agent[RobustPolicyDeps, ConstrainedPaymentTreeL3] | None = None
-
-    def _get_agent(self) -> Agent[RobustPolicyDeps, ConstrainedPaymentTreeL3]:
-        if self._agent is None:
-            model_instance: OpenAIResponsesModel | str
-            model_settings: OpenAIResponsesModelSettings | None = None
-
-            if self.model.startswith("gpt-5"):
-                model_instance = OpenAIResponsesModel(self.model)
-                model_settings = OpenAIResponsesModelSettings(
-                    openai_reasoning_effort=self.reasoning_effort,
-                )
-            else:
-                model_instance = self.model
-
-            prompt = """You are generating a payment_tree for a payment settlement simulation.
-
-The payment_tree evaluates each pending payment and decides: Release or Hold.
-
-""" + get_schema_aware_prompt_additions() + """
-
-## Key Decision Factors
-1. ticks_to_deadline: Release urgent payments (low ticks)
-2. effective_liquidity vs remaining_amount: Release if enough liquidity
-3. is_eod_rush: Release more aggressively at end of day
-
-Generate a concise but effective decision tree (2-3 levels).
-"""
-            self._agent = Agent(
-                model_instance,
-                output_type=ConstrainedPaymentTreeL3,  # type: ignore[arg-type]
-                system_prompt=prompt,
-                deps_type=RobustPolicyDeps,
-                retries=3,
-                model_settings=model_settings,
-            )
-        return self._agent
-
-    def generate(
-        self,
-        instruction: str = "Generate an optimal payment tree",
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Generate a payment tree."""
-        agent = self._get_agent()
-        deps = RobustPolicyDeps(**{k: v for k, v in kwargs.items() if k in RobustPolicyDeps.__dataclass_fields__})
-        result = agent.run_sync(instruction, deps=deps)
-        return result.output.model_dump(exclude_none=True) if hasattr(result.output, "model_dump") else result.output
-
-
-class RobustCollateralTreeAgent:
-    """Generate only the strategic_collateral_tree with constraints."""
-
-    def __init__(
-        self,
-        model: str | None = None,
-        reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
-    ) -> None:
-        self.model = model or DEFAULT_MODEL
-        self.reasoning_effort = reasoning_effort
-        self._agent: Agent[RobustPolicyDeps, ConstrainedCollateralTreeL3] | None = None
-
-    def _get_agent(self) -> Agent[RobustPolicyDeps, ConstrainedCollateralTreeL3]:
-        if self._agent is None:
-            model_instance: OpenAIResponsesModel | str
-            model_settings: OpenAIResponsesModelSettings | None = None
-
-            if self.model.startswith("gpt-5"):
-                model_instance = OpenAIResponsesModel(self.model)
-                model_settings = OpenAIResponsesModelSettings(
-                    openai_reasoning_effort=self.reasoning_effort,
-                )
-            else:
-                model_instance = self.model
-
-            prompt = """You are generating a strategic_collateral_tree for a payment settlement simulation.
-
-The collateral tree runs at start of each tick to manage collateral/liquidity.
-
-Actions:
-- PostCollateral: Increase credit limit by posting collateral
-- WithdrawCollateral: Reduce collateral (save opportunity cost)
-- HoldCollateral: No change
-
-""" + get_schema_aware_prompt_additions() + """
-
-## Key Decision Factors
-1. system_tick_in_day == 0: Post initial collateral at start of day
-2. queue1_liquidity_gap: Post more if queue exceeds liquidity
-3. remaining_collateral_capacity: Don't exceed capacity
-
-The amount for PostCollateral should use:
-{"compute": {"op": "*", "left": {"field": "max_collateral_capacity"}, "right": {"param": "initial_liquidity_fraction"}}}
-
-Generate a concise but effective decision tree (2-3 levels).
-"""
-            self._agent = Agent(
-                model_instance,
-                output_type=ConstrainedCollateralTreeL3,  # type: ignore[arg-type]
-                system_prompt=prompt,
-                deps_type=RobustPolicyDeps,
-                retries=3,
-                model_settings=model_settings,
-            )
-        return self._agent
-
-    def generate(
-        self,
-        instruction: str = "Generate an optimal collateral tree",
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Generate a collateral tree."""
-        agent = self._get_agent()
-        deps = RobustPolicyDeps(**{k: v for k, v in kwargs.items() if k in RobustPolicyDeps.__dataclass_fields__})
-        result = agent.run_sync(instruction, deps=deps)
-        return result.output.model_dump(exclude_none=True) if hasattr(result.output, "model_dump") else result.output
-
-
-class RobustParameterAgent:
-    """Generate only the policy parameters with constraints."""
-
-    def __init__(
-        self,
-        model: str | None = None,
-        reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
-    ) -> None:
-        self.model = model or DEFAULT_MODEL
-        self.reasoning_effort = reasoning_effort
-        self._agent: Agent[RobustPolicyDeps, ConstrainedPolicyParameters] | None = None
-
-    def _get_agent(self) -> Agent[RobustPolicyDeps, ConstrainedPolicyParameters]:
-        if self._agent is None:
-            model_instance: OpenAIResponsesModel | str
-            model_settings: OpenAIResponsesModelSettings | None = None
-
-            if self.model.startswith("gpt-5"):
-                model_instance = OpenAIResponsesModel(self.model)
-                model_settings = OpenAIResponsesModelSettings(
-                    openai_reasoning_effort=self.reasoning_effort,
-                )
-            else:
-                model_instance = self.model
-
-            prompt = """You are optimizing policy parameters for a payment settlement simulation.
-
-## The ONLY Three Parameters
-
-1. urgency_threshold (float, 0-20)
-   - Ticks before deadline when a payment is considered urgent
-   - Higher = release payments earlier (reduces deadline penalties)
-   - Lower = wait longer (saves collateral costs but risks deadlines)
-
-2. initial_liquidity_fraction (float, 0-1)
-   - Fraction of max_collateral_capacity to post at day start
-   - Higher = more initial liquidity (good for high volume)
-   - Lower = less collateral cost (good for low volume)
-
-3. liquidity_buffer_factor (float, 0.5-3.0)
-   - Multiplier for required liquidity before releasing
-   - Higher = more conservative (hold more payments)
-   - Lower = more aggressive (release more payments)
-
-DO NOT invent new parameters! Only return these three.
-
-## Optimization Strategy
-
-Based on current costs and settlement rate:
-- High delay costs → Increase urgency_threshold
-- High collateral costs → Decrease initial_liquidity_fraction
-- Low settlement rate → Decrease liquidity_buffer_factor
-- High overdraft costs → Increase initial_liquidity_fraction
-"""
-            self._agent = Agent(
-                model_instance,
-                output_type=ConstrainedPolicyParameters,
-                system_prompt=prompt,
-                deps_type=RobustPolicyDeps,
-                retries=3,
-                model_settings=model_settings,
-            )
-        return self._agent
-
-    def generate(
-        self,
-        instruction: str = "Optimize the policy parameters",
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Generate optimized parameters."""
-        agent = self._get_agent()
-
-        prompt_parts = [instruction]
-        if kwargs.get("current_cost"):
-            prompt_parts.append(f"\nCurrent total cost: ${kwargs['current_cost']:,.0f}")
-        if kwargs.get("settlement_rate"):
-            prompt_parts.append(f"Settlement rate: {kwargs['settlement_rate']*100:.1f}%")
-
-        deps = RobustPolicyDeps(**{k: v for k, v in kwargs.items() if k in RobustPolicyDeps.__dataclass_fields__})
-        result = agent.run_sync("\n".join(prompt_parts), deps=deps)
-        return result.output.model_dump(exclude_none=True)
+        if hasattr(result.output, "model_dump"):
+            return result.output.model_dump(exclude_none=True)
+        return dict(result.output)
 
 
 # ============================================================================
 # Convenience Functions
 # ============================================================================
 
+
 def generate_robust_policy(
+    constraints: ScenarioConstraints,
     instruction: str = "Generate an optimal policy",
     model: str | None = None,
     reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
@@ -527,24 +374,39 @@ def generate_robust_policy(
 ) -> dict[str, Any]:
     """Generate a policy with a single function call.
 
-    This is the recommended way to generate policies. It uses constrained
-    schemas to prevent validation errors.
-
     Args:
+        constraints: Scenario constraints defining allowed elements
         instruction: Natural language instruction
-        model: PydanticAI model string (defaults to GPT-5.1)
-        reasoning_effort: Reasoning effort for GPT-5.1
+        model: PydanticAI model string (defaults to GPT-4o)
+        reasoning_effort: Reasoning effort for GPT models
         **kwargs: Additional context (current_policy, current_cost, etc.)
 
     Returns:
         Generated policy as dict (fully validated)
 
     Example:
+        from experiments.castro.schemas.parameter_config import (
+            ParameterSpec, ScenarioConstraints
+        )
+
+        constraints = ScenarioConstraints(
+            allowed_parameters=[
+                ParameterSpec("urgency", 0, 20, 3, "Urgency"),
+            ],
+            allowed_fields=["balance", "ticks_to_deadline"],
+            allowed_actions=["Release", "Hold"],
+        )
+
         policy = generate_robust_policy(
+            constraints,
             "Minimize delay costs while maintaining 95% settlement",
             current_cost=50000,
             settlement_rate=0.85,
         )
     """
-    agent = RobustPolicyAgent(model=model, reasoning_effort=reasoning_effort)
+    agent = RobustPolicyAgent(
+        constraints=constraints,
+        model=model,
+        reasoning_effort=reasoning_effort,
+    )
     return agent.generate_policy(instruction, **kwargs)
