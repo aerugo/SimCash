@@ -45,7 +45,7 @@ def validate_policy_structure(
     Args:
         policy: The policy dict to validate
         tree_type: The type of tree (payment_tree, bank_tree, etc.)
-        max_depth: Maximum tree depth allowed
+        max_depth: Maximum tree depth allowed (0-5)
 
     Returns:
         ValidationResult indicating success or failure with errors
@@ -85,23 +85,8 @@ def validate_policy_structure(
         if errors:
             return ValidationResult.failure(errors)
 
-        # Recursively validate children
-        on_true_result = validate_policy_structure(
-            policy["on_true"], tree_type, max_depth - 1
-        )
-        if not on_true_result.is_valid:
-            errors.extend([f"on_true: {e}" for e in on_true_result.errors])
-
-        on_false_result = validate_policy_structure(
-            policy["on_false"], tree_type, max_depth - 1
-        )
-        if not on_false_result.is_valid:
-            errors.extend([f"on_false: {e}" for e in on_false_result.errors])
-
-        if errors:
-            return ValidationResult.failure(errors)
-
     # Use TypeAdapter for full schema validation
+    # This validates the entire tree structure including depth
     try:
         TreeType = get_tree_model(max_depth)
         adapter = TypeAdapter(TreeType)
