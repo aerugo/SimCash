@@ -20,8 +20,10 @@ from experiments.castro.schemas.parameter_config import (
     ScenarioConstraints,
 )
 from experiments.castro.schemas.registry import (
-    PAYMENT_TREE_FIELDS,
+    BANK_ACTIONS,
+    COLLATERAL_ACTIONS,
     PAYMENT_ACTIONS,
+    PAYMENT_TREE_FIELDS,
 )
 
 
@@ -122,6 +124,8 @@ STANDARD_CONSTRAINTS = ScenarioConstraints(
         "Hold",
         "Split",
     ],
+    allowed_bank_actions=BANK_ACTIONS,
+    allowed_collateral_actions=COLLATERAL_ACTIONS,
 )
 
 
@@ -209,6 +213,8 @@ FULL_CONSTRAINTS = ScenarioConstraints(
     ],
     allowed_fields=PAYMENT_TREE_FIELDS,
     allowed_actions=PAYMENT_ACTIONS,
+    allowed_bank_actions=BANK_ACTIONS,
+    allowed_collateral_actions=COLLATERAL_ACTIONS,
 )
 
 
