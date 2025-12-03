@@ -72,98 +72,257 @@ class RobustPolicyDeps:
 
 
 def generate_system_prompt(constraints: ScenarioConstraints) -> str:
-    """Generate a system prompt from scenario constraints.
+    """Generate an improved system prompt with few-shot examples.
 
     The prompt includes:
-    - Allowed parameters with bounds and descriptions
-    - Allowed context fields
-    - Allowed actions
-    - Policy structure documentation
+    - Critical rules for valid policy generation
+    - Few-shot examples of correct syntax
+    - Explicit invalid patterns to avoid
+    - Structured vocabulary of allowed elements
     """
-    # Parameter section
+    # Build parameter vocabulary with defaults
+    param_vocab = []
+    param_defaults = {}
     if constraints.allowed_parameters:
-        param_lines = ["## Allowed Parameters\n"]
-        param_lines.append("You can ONLY use these parameters:\n")
         for spec in constraints.allowed_parameters:
-            param_lines.append(
-                f"- **{spec.name}** (range: {spec.min_value} to {spec.max_value}, "
-                f"default: {spec.default}): {spec.description}"
-            )
-        param_section = "\n".join(param_lines)
+            param_vocab.append(f"  - {spec.name}: {spec.description} "
+                             f"(range: {spec.min_value}-{spec.max_value}, default: {spec.default})")
+            param_defaults[spec.name] = spec.default
+
+    param_list = "\n".join(param_vocab) if param_vocab else "  (No parameters defined)"
+
+    # Build field vocabulary
+    field_list = "\n".join([f"  - {f}" for f in constraints.allowed_fields])
+
+    # Build action vocabulary
+    action_list = "\n".join([f"  - {a}" for a in constraints.allowed_actions])
+
+    # Generate parameter defaults JSON
+    if param_defaults:
+        defaults_json = ",\n    ".join([f'"{k}": {v}' for k, v in param_defaults.items()])
+        param_defaults_example = f'{{\n    {defaults_json}\n  }}'
     else:
-        param_section = "## Parameters\n\nNo parameters are defined for this scenario."
+        param_defaults_example = '{}'
 
-    # Fields section
-    field_lines = ["## Available Context Fields\n"]
-    field_lines.append("You can reference these fields in conditions:\n")
-    for field in constraints.allowed_fields[:20]:  # Show first 20
-        field_lines.append(f"- {field}")
-    if len(constraints.allowed_fields) > 20:
-        field_lines.append(f"- ... and {len(constraints.allowed_fields) - 20} more")
-    fields_section = "\n".join(field_lines)
+    return f'''You are an expert policy generator for SimCash, a payment settlement simulation.
 
-    # Actions section
-    action_lines = ["## Allowed Actions\n"]
-    action_lines.append("You can use these actions in tree nodes:\n")
-    for action in constraints.allowed_actions:
-        action_lines.append(f"- {action}")
-    actions_section = "\n".join(action_lines)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL RULES - VIOLATIONS CAUSE VALIDATION FAILURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    return f"""You are an expert policy optimizer for a payment settlement simulation.
+1. EVERY parameter referenced with {{"param": "X"}} MUST be defined in "parameters"
+2. Arithmetic MUST be wrapped in {{"compute": {{...}}}} - never use raw {{"op": "*"}}
+3. Use ONLY the allowed fields, parameters, and actions listed below
+4. Every node MUST have a unique "node_id" string
 
-Your task is to generate or improve policy decision trees that minimize total costs
-while maintaining high settlement rates.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ALLOWED VOCABULARY (use ONLY these)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## Policy Structure
+PARAMETERS (define in "parameters" object, reference with {{"param": "name"}}):
+{param_list}
 
-A policy consists of:
-1. **parameters**: Numeric thresholds that control decision logic
-2. **payment_tree**: Decision tree for each pending payment (Release/Hold)
+FIELDS (reference with {{"field": "name"}}):
+{field_list}
 
-## Tree Node Types
+ACTIONS (use in action nodes):
+{action_list}
 
-CONDITION node: Tests a boolean expression and branches
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VALUE TYPES (how to reference data)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Literal number:     {{"value": 5}}
+2. Field reference:    {{"field": "balance"}}
+3. Parameter ref:      {{"param": "urgency_threshold"}}
+4. Computation:        {{"compute": {{"op": "*", "left": {{"field": "X"}}, "right": {{"value": 2}}}}}}
+
+IMPORTANT: For arithmetic, ALWAYS wrap in "compute":
+  ✓ CORRECT:   {{"compute": {{"op": "-", "left": {{"field": "balance"}}, "right": {{"field": "amount"}}}}}}
+  ✗ WRONG:     {{"op": "-", "left": {{"field": "balance"}}, "right": {{"field": "amount"}}}}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE 1: SIMPLE URGENCY-BASED POLICY (VALID)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 ```json
 {{
+  "version": "1.0",
+  "policy_id": "urgency_policy",
+  "description": "Release urgent payments, hold others",
+  "parameters": {{
+    "urgency_threshold": 5.0
+  }},
+  "payment_tree": {{
     "type": "condition",
-    "condition": {{"op": "<=", "left": {{"field": "ticks_to_deadline"}}, "right": {{"param": "threshold"}}}},
-    "on_true": <tree_node>,
-    "on_false": <tree_node>
+    "node_id": "N1_check_urgency",
+    "condition": {{
+      "op": "<=",
+      "left": {{"field": "ticks_to_deadline"}},
+      "right": {{"param": "urgency_threshold"}}
+    }},
+    "on_true": {{
+      "type": "action",
+      "node_id": "A1_release",
+      "action": "Release"
+    }},
+    "on_false": {{
+      "type": "action",
+      "node_id": "A2_hold",
+      "action": "Hold"
+    }}
+  }}
 }}
 ```
 
-ACTION node: Terminal decision
+Key points:
+- "urgency_threshold" is DEFINED in "parameters" before being used
+- Each node has a unique "node_id"
+- Simple structure: condition → action branches
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE 2: LIQUIDITY-AWARE WITH COMPUTATION (VALID)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 ```json
-{{"type": "action", "action": "Release"}}
-{{"type": "action", "action": "Hold"}}
+{{
+  "version": "1.0",
+  "policy_id": "liquidity_aware",
+  "description": "Check liquidity buffer before releasing",
+  "parameters": {{
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 1.2
+  }},
+  "payment_tree": {{
+    "type": "condition",
+    "node_id": "N1_urgent",
+    "condition": {{
+      "op": "<=",
+      "left": {{"field": "ticks_to_deadline"}},
+      "right": {{"param": "urgency_threshold"}}
+    }},
+    "on_true": {{
+      "type": "condition",
+      "node_id": "N2_can_afford",
+      "condition": {{
+        "op": ">=",
+        "left": {{"field": "effective_liquidity"}},
+        "right": {{"field": "remaining_amount"}}
+      }},
+      "on_true": {{"type": "action", "node_id": "A1_release", "action": "Release"}},
+      "on_false": {{"type": "action", "node_id": "A2_hold_urgent", "action": "Hold"}}
+    }},
+    "on_false": {{
+      "type": "condition",
+      "node_id": "N3_buffer_check",
+      "condition": {{
+        "op": ">=",
+        "left": {{"field": "effective_liquidity"}},
+        "right": {{
+          "compute": {{
+            "op": "*",
+            "left": {{"param": "liquidity_buffer"}},
+            "right": {{"field": "remaining_amount"}}
+          }}
+        }}
+      }},
+      "on_true": {{"type": "action", "node_id": "A3_release", "action": "Release"}},
+      "on_false": {{"type": "action", "node_id": "A4_hold", "action": "Hold"}}
+    }}
+  }}
+}}
 ```
 
-## Expression Operators
+Key points:
+- BOTH parameters are DEFINED before use
+- Arithmetic uses {{"compute": {{...}}}} wrapper
+- Nested conditions for multi-factor decisions
 
-Comparison: ==, !=, <, <=, >, >=
-Logical: and, or, not (use "conditions" array for and/or)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMMON ERRORS TO AVOID
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-{param_section}
+ERROR 1: Using undefined parameter
+  ✗ WRONG:
+    "parameters": {{}},
+    "condition": {{"right": {{"param": "threshold"}}}}  // ERROR: threshold not defined!
 
-{fields_section}
+  ✓ CORRECT:
+    "parameters": {{"threshold": 5.0}},
+    "condition": {{"right": {{"param": "threshold"}}}}
 
-{actions_section}
+ERROR 2: Raw arithmetic without "compute" wrapper
+  ✗ WRONG:
+    "right": {{"op": "*", "left": {{"value": 2}}, "right": {{"field": "amount"}}}}
 
-## Cost Components (minimize these)
+  ✓ CORRECT:
+    "right": {{"compute": {{"op": "*", "left": {{"value": 2}}, "right": {{"field": "amount"}}}}}}
 
-1. **Delay Cost**: Incurred each tick a payment waits in queue
-2. **Overdraft Cost**: Incurred when balance goes negative
-3. **Collateral Cost**: Opportunity cost of posted collateral
-4. **Deadline Penalty**: Large penalty when payment misses deadline
+ERROR 3: Missing node_id
+  ✗ WRONG:
+    {{"type": "action", "action": "Release"}}
 
-## Optimization Strategy
+  ✓ CORRECT:
+    {{"type": "action", "node_id": "A1", "action": "Release"}}
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NODE STRUCTURE REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CONDITION NODE:
+{{
+  "type": "condition",
+  "node_id": "<unique_string>",
+  "condition": <expression>,
+  "on_true": <tree_node>,
+  "on_false": <tree_node>
+}}
+
+ACTION NODE:
+{{
+  "type": "action",
+  "node_id": "<unique_string>",
+  "action": "<action_name>"
+}}
+
+COMPARISON EXPRESSION:
+{{
+  "op": "<operator>",       // ==, !=, <, <=, >, >=
+  "left": <value>,
+  "right": <value>
+}}
+
+LOGICAL AND:
+{{
+  "op": "and",
+  "conditions": [<expr1>, <expr2>, ...]
+}}
+
+LOGICAL OR:
+{{
+  "op": "or",
+  "conditions": [<expr1>, <expr2>, ...]
+}}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTIMIZATION GOALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Minimize total costs:
+1. Delay Cost - each tick payment waits in queue
+2. Overdraft Cost - when balance goes negative
+3. Deadline Penalty - large penalty when deadline missed
+
+Strategy:
 - Release urgent payments (low ticks_to_deadline) to avoid deadline penalties
-- Release payments when effective_liquidity > required amount
-- Hold low-priority payments when liquidity is tight
+- Release when effective_liquidity >= remaining_amount
+- Hold low-priority when liquidity is tight
 
-Keep decision trees simple (2-3 levels deep) but effective.
-"""
+RECOMMENDED STARTING PARAMETERS:
+{param_defaults_example}
+
+Keep trees simple (2-4 levels) but effective.
+'''
 
 
 # ============================================================================
