@@ -292,8 +292,8 @@ class TestCostDeterminism:
             assert costs1["delay_cost"] == costs2["delay_cost"], (
                 f"Agent {agent_id} delay cost differs"
             )
-            assert costs1["overdraft_cost"] == costs2["overdraft_cost"], (
-                f"Agent {agent_id} overdraft cost differs"
+            assert costs1["liquidity_cost"] == costs2["liquidity_cost"], (
+                f"Agent {agent_id} liquidity cost differs"
             )
 
 
