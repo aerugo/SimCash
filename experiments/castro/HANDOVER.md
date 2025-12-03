@@ -415,14 +415,66 @@ All data persisted to DuckDB for reproducibility:
 -- Experiment-level config
 experiment_config(experiment_id, name, config_yaml, created_at)
 
--- Per-iteration policies
-policy_iterations(iteration_id, experiment_id, iteration_number, policy_json, policy_hash)
+-- Per-iteration policies WITH CHANGE TRACKING
+policy_iterations(
+    iteration_id,
+    experiment_id,
+    iteration_number,
+    agent_id,
+    policy_json,              -- Full policy JSON
+    policy_hash,              -- SHA256 for quick comparison
+    parameters,               -- Extracted key parameters
+    changes_from_previous,    -- Structured diff (added/removed/modified)
+    change_summary,           -- Human-readable (e.g., "initial_liquidity_fraction: 0.5 → 0.25 (↓50%)")
+    created_by                -- 'init', 'llm', 'manual'
+)
 
 -- Per-run simulation results
 simulation_runs(run_id, iteration_id, seed, bank_a_cost, bank_b_cost, total_cost, settlement_rate)
 
 -- LLM interactions
 llm_interactions(interaction_id, iteration_id, prompt, response, model, tokens_used)
+```
+
+### Analyzing Policy Changes
+
+Query the policy evolution to understand how the LLM refined its strategy:
+
+```python
+from scripts.reproducible_experiment import ExperimentDatabase
+
+db = ExperimentDatabase("results/exp1_full.db")
+
+# Get full evolution with change tracking
+evolution = db.get_policy_evolution(experiment_id)
+for entry in evolution:
+    print(f"Iteration {entry['iteration_number']} ({entry['agent_id']}):")
+    print(f"  Changes: {entry['change_summary']}")
+
+# Get only significant changes (filter out no-ops)
+significant = db.get_significant_changes(experiment_id)
+for entry in significant:
+    changes = entry['changes_from_previous']
+    print(f"Iteration {entry['iteration_number']}: {len(changes.get('modified', {}))} params changed")
+```
+
+**Example change_summary output**:
+```
+Iteration 1: Initial policy (no previous version)
+Iteration 2: parameters.initial_liquidity_fraction: 0.5 → 0.25 (↓50.0%)
+Iteration 3: parameters.initial_liquidity_fraction: 0.25 → 0.1 (↓60.0%); parameters.urgency_threshold: 3 → 2 (↓33.3%)
+```
+
+**Structured diff format** (`changes_from_previous`):
+```json
+{
+  "added": {},
+  "removed": {},
+  "modified": {
+    "parameters.initial_liquidity_fraction": {"old": 0.5, "new": 0.25}
+  },
+  "unchanged_count": 15
+}
 ```
 
 ---

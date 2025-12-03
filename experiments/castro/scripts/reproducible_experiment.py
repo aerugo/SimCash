@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS policy_iterations (
     policy_json TEXT NOT NULL,
     policy_hash VARCHAR(64) NOT NULL,
     parameters JSON NOT NULL,
+    changes_from_previous JSON,  -- Structured diff from previous iteration
+    change_summary TEXT,         -- Human-readable summary of changes
     created_at TIMESTAMP NOT NULL,
     created_by VARCHAR NOT NULL,  -- 'init', 'llm', 'manual'
     FOREIGN KEY (experiment_id) REFERENCES experiment_config(experiment_id)
@@ -221,6 +223,108 @@ def extract_parameters(policy: dict) -> dict:
     return policy.get("parameters", {})
 
 
+def compute_policy_diff(
+    old_policy: dict | None,
+    new_policy: dict,
+) -> tuple[dict, str]:
+    """
+    Compute structured diff between two policies.
+
+    Returns:
+        Tuple of (changes_dict, human_readable_summary)
+
+    The changes_dict has structure:
+    {
+        "added": {"key": new_value, ...},
+        "removed": {"key": old_value, ...},
+        "modified": {"key": {"old": old_value, "new": new_value}, ...},
+        "unchanged_count": int
+    }
+    """
+    if old_policy is None:
+        # Initial policy - everything is "added"
+        return {
+            "added": new_policy,
+            "removed": {},
+            "modified": {},
+            "unchanged_count": 0,
+        }, "Initial policy (no previous version)"
+
+    def flatten_dict(d: dict, prefix: str = "") -> dict[str, Any]:
+        """Flatten nested dict to dot-notation keys."""
+        items: dict[str, Any] = {}
+        for k, v in d.items():
+            new_key = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, dict):
+                items.update(flatten_dict(v, new_key))
+            else:
+                items[new_key] = v
+        return items
+
+    old_flat = flatten_dict(old_policy)
+    new_flat = flatten_dict(new_policy)
+
+    all_keys = set(old_flat.keys()) | set(new_flat.keys())
+
+    added: dict[str, Any] = {}
+    removed: dict[str, Any] = {}
+    modified: dict[str, dict[str, Any]] = {}
+    unchanged_count = 0
+
+    for key in all_keys:
+        old_val = old_flat.get(key)
+        new_val = new_flat.get(key)
+
+        if key not in old_flat:
+            added[key] = new_val
+        elif key not in new_flat:
+            removed[key] = old_val
+        elif old_val != new_val:
+            modified[key] = {"old": old_val, "new": new_val}
+        else:
+            unchanged_count += 1
+
+    # Build human-readable summary
+    summary_parts = []
+
+    if modified:
+        for key, change in modified.items():
+            old_v = change["old"]
+            new_v = change["new"]
+            # Format numeric changes nicely
+            if isinstance(old_v, (int, float)) and isinstance(new_v, (int, float)):
+                if old_v != 0:
+                    pct_change = ((new_v - old_v) / abs(old_v)) * 100
+                    direction = "↑" if new_v > old_v else "↓"
+                    summary_parts.append(f"{key}: {old_v} → {new_v} ({direction}{abs(pct_change):.1f}%)")
+                else:
+                    summary_parts.append(f"{key}: {old_v} → {new_v}")
+            else:
+                summary_parts.append(f"{key}: {old_v} → {new_v}")
+
+    if added:
+        for key, val in added.items():
+            summary_parts.append(f"{key}: (new) {val}")
+
+    if removed:
+        for key, val in removed.items():
+            summary_parts.append(f"{key}: (removed, was {val})")
+
+    if not summary_parts:
+        summary = "No changes"
+    else:
+        summary = "; ".join(summary_parts)
+
+    changes = {
+        "added": added,
+        "removed": removed,
+        "modified": modified,
+        "unchanged_count": unchanged_count,
+    }
+
+    return changes, summary
+
+
 # ============================================================================
 # Database Operations
 # ============================================================================
@@ -280,6 +384,28 @@ class ExperimentDatabase:
             notes,
         ])
 
+    def get_previous_policy(
+        self,
+        experiment_id: str,
+        iteration_number: int,
+        agent_id: str,
+    ) -> dict | None:
+        """Get the policy from the previous iteration for an agent."""
+        if iteration_number == 0:
+            return None
+
+        result = self.conn.execute("""
+            SELECT policy_json
+            FROM policy_iterations
+            WHERE experiment_id = ?
+              AND agent_id = ?
+              AND iteration_number = ?
+        """, [experiment_id, agent_id, iteration_number - 1]).fetchone()
+
+        if result:
+            return json.loads(result[0])
+        return None
+
     def record_policy_iteration(
         self,
         experiment_id: str,
@@ -287,14 +413,25 @@ class ExperimentDatabase:
         agent_id: str,
         policy_json: str,
         created_by: str = "init",
+        changes_from_previous: dict | None = None,
+        change_summary: str | None = None,
     ) -> str:
-        """Record a policy iteration."""
+        """Record a policy iteration with change tracking.
+
+        If changes_from_previous and change_summary are not provided,
+        they will be computed automatically by comparing to the previous iteration.
+        """
         iteration_id = str(uuid.uuid4())
         policy_dict = json.loads(policy_json)
         parameters = extract_parameters(policy_dict)
 
+        # Auto-compute diff if not provided
+        if changes_from_previous is None or change_summary is None:
+            prev_policy = self.get_previous_policy(experiment_id, iteration_number, agent_id)
+            changes_from_previous, change_summary = compute_policy_diff(prev_policy, policy_dict)
+
         self.conn.execute("""
-            INSERT INTO policy_iterations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO policy_iterations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             iteration_id,
             experiment_id,
@@ -303,6 +440,8 @@ class ExperimentDatabase:
             policy_json,
             compute_hash(policy_json),
             json.dumps(parameters),
+            json.dumps(changes_from_previous),
+            change_summary,
             datetime.now(),
             created_by,
         ])
@@ -422,6 +561,61 @@ class ExperimentDatabase:
         """, [experiment_id, experiment_id]).fetchall()
 
         return {row[0]: json.loads(row[1]) for row in result}
+
+    def get_policy_evolution(self, experiment_id: str, agent_id: str | None = None) -> list[dict]:
+        """Get the evolution of policies across iterations with change tracking.
+
+        Args:
+            experiment_id: The experiment to query
+            agent_id: Optional filter for specific agent (BANK_A or BANK_B)
+
+        Returns:
+            List of dicts with iteration_number, agent_id, parameters,
+            changes_from_previous, and change_summary
+        """
+        query = """
+            SELECT iteration_number, agent_id, parameters,
+                   changes_from_previous, change_summary, created_by
+            FROM policy_iterations
+            WHERE experiment_id = ?
+        """
+        params: list[Any] = [experiment_id]
+
+        if agent_id:
+            query += " AND agent_id = ?"
+            params.append(agent_id)
+
+        query += " ORDER BY iteration_number, agent_id"
+
+        result = self.conn.execute(query, params).fetchall()
+
+        return [
+            {
+                "iteration_number": row[0],
+                "agent_id": row[1],
+                "parameters": json.loads(row[2]) if row[2] else {},
+                "changes_from_previous": json.loads(row[3]) if row[3] else {},
+                "change_summary": row[4],
+                "created_by": row[5],
+            }
+            for row in result
+        ]
+
+    def get_significant_changes(self, experiment_id: str) -> list[dict]:
+        """Get only iterations where significant changes occurred.
+
+        Filters out iterations with no changes or only minor changes.
+        """
+        evolution = self.get_policy_evolution(experiment_id)
+        significant = []
+
+        for entry in evolution:
+            changes = entry.get("changes_from_previous", {})
+            # Has modified or added/removed fields
+            if changes.get("modified") or changes.get("added") or changes.get("removed"):
+                significant.append(entry)
+
+        return significant
 
     def export_summary(self) -> dict:
         """Export experiment summary for reproducibility."""
