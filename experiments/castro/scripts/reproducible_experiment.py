@@ -51,6 +51,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
 from experiments.castro.parameter_sets import STANDARD_CONSTRAINTS
+from experiments.castro.prompts.context import IterationRecord, compute_policy_diff
 
 
 # ============================================================================
@@ -582,6 +583,110 @@ class ExperimentDatabase:
 
         return {row[0]: json.loads(row[1]) for row in result}
 
+    def get_iteration_history(self, experiment_id: str) -> list[IterationRecord]:
+        """Get complete iteration history with policies and changes.
+
+        Returns a list of IterationRecord objects with:
+        - Metrics for each iteration
+        - Policies for each bank
+        - Policy changes from previous iteration
+        """
+        # Get all metrics
+        metrics_rows = self.conn.execute("""
+            SELECT iteration_number, total_cost_mean, total_cost_std, risk_adjusted_cost,
+                   settlement_rate_mean, failure_rate, best_seed, worst_seed,
+                   best_seed_cost, worst_seed_cost
+            FROM iteration_metrics
+            WHERE experiment_id = ?
+            ORDER BY iteration_number
+        """, [experiment_id]).fetchall()
+
+        # Get all policies
+        policy_rows = self.conn.execute("""
+            SELECT iteration_number, agent_id, policy_json
+            FROM policy_iterations
+            WHERE experiment_id = ?
+            ORDER BY iteration_number
+        """, [experiment_id]).fetchall()
+
+        # Build policy lookup: {iteration: {agent_id: policy}}
+        policies_by_iter: dict[int, dict[str, dict]] = {}
+        for row in policy_rows:
+            iter_num = row[0]
+            agent_id = row[1]
+            policy = json.loads(row[2])
+            if iter_num not in policies_by_iter:
+                policies_by_iter[iter_num] = {}
+            policies_by_iter[iter_num][agent_id] = policy
+
+        # Build iteration records with diffs
+        history: list[IterationRecord] = []
+        prev_policy_a: dict | None = None
+        prev_policy_b: dict | None = None
+
+        for row in metrics_rows:
+            iter_num = row[0]
+            metrics = {
+                "total_cost_mean": row[1],
+                "total_cost_std": row[2],
+                "risk_adjusted_cost": row[3],
+                "settlement_rate_mean": row[4],
+                "failure_rate": row[5],
+                "best_seed": row[6],
+                "worst_seed": row[7],
+                "best_seed_cost": row[8],
+                "worst_seed_cost": row[9],
+            }
+
+            # Get policies for this iteration
+            iter_policies = policies_by_iter.get(iter_num, {})
+            policy_a = iter_policies.get("BANK_A", {})
+            policy_b = iter_policies.get("BANK_B", {})
+
+            # Compute changes from previous iteration
+            changes_a = compute_policy_diff(prev_policy_a, policy_a) if prev_policy_a else []
+            changes_b = compute_policy_diff(prev_policy_b, policy_b) if prev_policy_b else []
+
+            record = IterationRecord(
+                iteration=iter_num,
+                metrics=metrics,
+                policy_a=policy_a,
+                policy_b=policy_b,
+                policy_a_changes=changes_a,
+                policy_b_changes=changes_b,
+            )
+            history.append(record)
+
+            # Update previous policies for next iteration's diff
+            prev_policy_a = policy_a
+            prev_policy_b = policy_b
+
+        return history
+
+    def get_verbose_output_for_seeds(
+        self,
+        experiment_id: str,
+        iteration_number: int,
+        seeds: list[int],
+    ) -> dict[int, str]:
+        """Get verbose output logs for specific seeds.
+
+        Returns: {seed: verbose_log} for seeds that have verbose output.
+        """
+        placeholders = ",".join("?" * len(seeds))
+        params = [experiment_id, iteration_number] + seeds
+
+        rows = self.conn.execute(f"""
+            SELECT seed, verbose_log
+            FROM simulation_runs
+            WHERE experiment_id = ?
+            AND iteration_number = ?
+            AND seed IN ({placeholders})
+            AND verbose_log IS NOT NULL
+        """, params).fetchall()
+
+        return {row[0]: row[1] for row in rows}
+
     def export_summary(self) -> dict:
         """Export experiment summary for reproducibility."""
         experiments = self.conn.execute("""
@@ -829,8 +934,19 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
         current_cost: float = 0,
         settlement_rate: float = 1.0,
         iteration: int = 0,
+        # Extended context parameters
+        iteration_history: list[Any] | None = None,
+        best_seed_output: str | None = None,
+        worst_seed_output: str | None = None,
+        best_seed: int = 0,
+        worst_seed: int = 0,
+        best_seed_cost: int = 0,
+        worst_seed_cost: int = 0,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_rates: dict[str, Any] | None = None,
+        other_bank_policy: dict[str, Any] | None = None,
     ) -> tuple[dict | None, int, float]:
-        """Generate an optimized policy using PydanticAI.
+        """Generate an optimized policy using PydanticAI with extended context.
 
         Returns:
             tuple of (policy_dict or None, tokens_used, latency_seconds)
@@ -844,6 +960,17 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
                 current_cost=current_cost,
                 settlement_rate=settlement_rate,
                 iteration=iteration,
+                # Pass through extended context
+                iteration_history=iteration_history,
+                best_seed_output=best_seed_output,
+                worst_seed_output=worst_seed_output,
+                best_seed=best_seed,
+                worst_seed=worst_seed,
+                best_seed_cost=best_seed_cost,
+                worst_seed_cost=worst_seed_cost,
+                cost_breakdown=cost_breakdown,
+                cost_rates=cost_rates,
+                other_bank_policy=other_bank_policy,
             )
 
             latency = time.time() - start_time
@@ -973,8 +1100,24 @@ class ReproducibleExperiment:
         # Track current iteration config path
         self.current_config_path: Path | None = None
 
-        # History
+        # History (metrics only - for convergence checking)
         self.history: list[dict] = []
+
+        # Full iteration history with policies and changes (for LLM context)
+        self.iteration_records: list[IterationRecord] = []
+
+        # Track policy history for computing diffs
+        self.policy_history_a: list[dict] = [self.policy_a.copy()]
+        self.policy_history_b: list[dict] = [self.policy_b.copy()]
+
+        # Last iteration's verbose output (best/worst seeds)
+        self.last_best_seed_output: str | None = None
+        self.last_worst_seed_output: str | None = None
+        self.last_best_seed: int = 0
+        self.last_worst_seed: int = 0
+        self.last_best_cost: int = 0
+        self.last_worst_cost: int = 0
+        self.last_cost_breakdown: dict[str, int] = {}
 
     def setup(self) -> None:
         """Initialize experiment in database."""
@@ -1049,7 +1192,7 @@ class ReproducibleExperiment:
             iter_config["agents"].append(agent_copy)
 
         # Write iteration config
-        iter_config_path = self.configs_dir / f"iter_{iteration:03d}_config.yaml"
+        iter_config_path = (self.configs_dir / f"iter_{iteration:03d}_config.yaml").absolute()
         with open(iter_config_path, 'w') as f:
             yaml.safe_dump(iter_config, f, default_flow_style=False)
 
@@ -1204,9 +1347,13 @@ Generate a corrected policy that avoids these errors.
         # Create iteration-specific config with current policies
         config_path = self.create_iteration_config(iteration)
 
-        # Run simulations
+        # Run simulations - capture verbose for ALL seeds so we can get best/worst later
         seeds = list(range(1, self.num_seeds + 1))
-        verbose_seeds = [seeds[0], seeds[-1]] if len(seeds) > 1 else seeds
+        # Capture verbose for first, last, and a sample in between
+        if len(seeds) <= 3:
+            verbose_seeds = seeds
+        else:
+            verbose_seeds = [seeds[0], seeds[len(seeds)//2], seeds[-1]]
 
         print(f"  Running {len(seeds)} simulations...")
         results = run_simulations_parallel(
@@ -1252,6 +1399,12 @@ Generate a corrected policy that avoids these errors.
         print(f"  Settlement rate: {metrics['settlement_rate_mean']*100:.1f}%")
         print(f"  Failure rate: {metrics['failure_rate']*100:.0f}%")
 
+        # Extract best/worst seed verbose output for LLM context
+        self._extract_best_worst_context(results, metrics)
+
+        # Build iteration record for history
+        self._record_iteration(iteration, metrics)
+
         # Check convergence
         converged = self.check_convergence(metrics)
 
@@ -1272,22 +1425,109 @@ Generate a corrected policy that avoids these errors.
             "converged": converged,
         }
 
+    def _extract_best_worst_context(self, results: list[dict], metrics: dict) -> None:
+        """Extract verbose output and cost breakdown from best/worst seeds."""
+        valid_results = [r for r in results if "error" not in r]
+        if not valid_results:
+            return
+
+        # Find best and worst by cost
+        best_result = min(valid_results, key=lambda r: r.get("total_cost", float("inf")))
+        worst_result = max(valid_results, key=lambda r: r.get("total_cost", 0))
+
+        # Store verbose output
+        self.last_best_seed_output = best_result.get("verbose_log")
+        self.last_worst_seed_output = worst_result.get("verbose_log")
+        self.last_best_seed = best_result.get("seed", 0)
+        self.last_worst_seed = worst_result.get("seed", 0)
+        self.last_best_cost = int(best_result.get("total_cost", 0))
+        self.last_worst_cost = int(worst_result.get("total_cost", 0))
+
+        # Aggregate cost breakdown from worst seed (to show problem areas)
+        cost_bd = worst_result.get("cost_breakdown", {})
+        self.last_cost_breakdown = {
+            "delay": int(cost_bd.get("delay", 0)),
+            "collateral": int(cost_bd.get("collateral", 0)),
+            "overdraft": int(cost_bd.get("overdraft", 0)),
+            "eod_penalty": int(cost_bd.get("eod_penalty", 0)),
+        }
+
+        # If best seed has no verbose output but worst does, try to get best from DB
+        if self.last_best_seed_output is None and self.last_best_seed != self.last_worst_seed:
+            # Run a separate simulation for best seed with verbose
+            print(f"  Capturing verbose output for best seed #{self.last_best_seed}...")
+            best_results = run_simulations_parallel(
+                config_path=str(self.current_config_path) if self.current_config_path else "",
+                simcash_root=str(self.simcash_root),
+                seeds=[self.last_best_seed],
+                capture_verbose_for=[self.last_best_seed],
+            )
+            if best_results and "error" not in best_results[0]:
+                self.last_best_seed_output = best_results[0].get("verbose_log")
+
+    def _record_iteration(self, iteration: int, metrics: dict) -> None:
+        """Record this iteration in the history with policy changes."""
+        # Compute policy changes from previous iteration
+        prev_policy_a = self.policy_history_a[-1] if self.policy_history_a else {}
+        prev_policy_b = self.policy_history_b[-1] if self.policy_history_b else {}
+
+        changes_a = compute_policy_diff(prev_policy_a, self.policy_a) if prev_policy_a else []
+        changes_b = compute_policy_diff(prev_policy_b, self.policy_b) if prev_policy_b else []
+
+        record = IterationRecord(
+            iteration=iteration,
+            metrics=metrics,
+            policy_a=self.policy_a.copy(),
+            policy_b=self.policy_b.copy(),
+            policy_a_changes=changes_a,
+            policy_b_changes=changes_b,
+        )
+        self.iteration_records.append(record)
+
     def optimize_policies(self, iteration: int, metrics: dict, results: list[dict]) -> bool:
-        """Call LLM to optimize policies using PydanticAI structured output."""
-        print(f"  Calling LLM for optimization...")
+        """Call LLM to optimize policies using PydanticAI structured output.
+
+        Passes rich historical context including:
+        - Full tick-by-tick output from best and worst seeds
+        - Complete iteration history with metrics and policy changes
+        - Cost breakdown for optimization guidance
+        """
+        print(f"  Calling LLM for optimization with extended context...")
+        print(f"    - History: {len(self.iteration_records)} previous iterations")
+        print(f"    - Best seed #{self.last_best_seed}: ${self.last_best_cost:,}")
+        print(f"    - Worst seed #{self.last_worst_seed}: ${self.last_worst_cost:,}")
 
         # Create instruction prompt
         instruction = f"""Optimize policy for iteration {iteration}.
-Current performance: Mean cost ${metrics['total_cost_mean']:,.0f}, Settlement {metrics['settlement_rate_mean']*100:.1f}%
-Goal: Reduce cost while maintaining 100% settlement."""
 
-        # Generate policy for Bank A
+Current performance: Mean cost ${metrics['total_cost_mean']:,.0f}, Settlement {metrics['settlement_rate_mean']*100:.1f}%
+Goal: Reduce cost while maintaining 100% settlement.
+
+IMPORTANT: Review the tick-by-tick simulation output below to understand:
+1. What patterns lead to high costs (worst seed)
+2. What patterns lead to low costs (best seed)
+3. Which cost component dominates (delay vs collateral vs overdraft)
+
+Use this insight to make targeted policy improvements."""
+
+        # Generate policy for Bank A with full context
         policy_a, tokens_a, latency_a = self.optimizer.generate_policy(
             instruction=instruction,
             current_policy=self.policy_a,
             current_cost=metrics['total_cost_mean'] / 2,  # Approximate per-bank cost
             settlement_rate=metrics['settlement_rate_mean'],
             iteration=iteration,
+            # Extended context
+            iteration_history=self.iteration_records,
+            best_seed_output=self.last_best_seed_output,
+            worst_seed_output=self.last_worst_seed_output,
+            best_seed=self.last_best_seed,
+            worst_seed=self.last_worst_seed,
+            best_seed_cost=self.last_best_cost,
+            worst_seed_cost=self.last_worst_cost,
+            cost_breakdown=self.last_cost_breakdown,
+            cost_rates=self.config.get("cost_rates", {}),
+            other_bank_policy=self.policy_b,
         )
 
         # Generate policy for Bank B (may be same or different based on scenario)
@@ -1297,6 +1537,17 @@ Goal: Reduce cost while maintaining 100% settlement."""
             current_cost=metrics['total_cost_mean'] / 2,
             settlement_rate=metrics['settlement_rate_mean'],
             iteration=iteration,
+            # Extended context
+            iteration_history=self.iteration_records,
+            best_seed_output=self.last_best_seed_output,
+            worst_seed_output=self.last_worst_seed_output,
+            best_seed=self.last_best_seed,
+            worst_seed=self.last_worst_seed,
+            best_seed_cost=self.last_best_cost,
+            worst_seed_cost=self.last_worst_cost,
+            cost_breakdown=self.last_cost_breakdown,
+            cost_rates=self.config.get("cost_rates", {}),
+            other_bank_policy=self.policy_a,
         )
 
         total_tokens = tokens_a + tokens_b
@@ -1344,6 +1595,10 @@ Goal: Reduce cost while maintaining 100% settlement."""
         # Update current policies (in-memory only, seed files never modified)
         self.policy_a = new_policy_a
         self.policy_b = new_policy_b
+
+        # Track policy history for computing diffs in next iteration
+        self.policy_history_a.append(new_policy_a.copy())
+        self.policy_history_b.append(new_policy_b.copy())
 
         # Record new policies to database
         self.db.record_policy_iteration(
@@ -1416,7 +1671,10 @@ Goal: Reduce cost while maintaining 100% settlement."""
         print(f"\n{'='*60}")
         print("Experiment Complete")
         print(f"{'='*60}")
-        print(f"  Final mean cost: ${self.history[-1]['total_cost_mean']:,.0f}")
+        if self.history:
+            print(f"  Final mean cost: ${self.history[-1]['total_cost_mean']:,.0f}")
+        else:
+            print("  WARNING: No successful iterations completed")
         print(f"  Database: {self.db.db_path}")
 
         self.db.close()
