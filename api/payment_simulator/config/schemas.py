@@ -428,6 +428,26 @@ class FromJsonPolicy(BaseModel):
     json_path: str = Field(..., description="Path to JSON policy file (relative to project root)")
 
 
+class InlinePolicy(BaseModel):
+    """Inline policy with embedded decision tree DSL.
+
+    This policy type allows embedding decision tree DSL structures directly
+    in configuration dictionaries, complementing the existing FromJson policy
+    that loads from external files.
+
+    Useful for:
+    - Dynamic policy testing without file I/O
+    - LLM policy optimization experiments
+    - Parameter sweeps where policy varies programmatically
+    """
+
+    type: Literal["Inline"] = "Inline"
+    decision_trees: dict[str, Any] = Field(
+        ...,
+        description="Embedded decision tree DSL structure (same format as seed_policy.json)"
+    )
+
+
 # Union type for all policies
 PolicyConfig = (
     FifoPolicy
@@ -436,6 +456,7 @@ PolicyConfig = (
     | LiquiditySplittingPolicy
     | MockSplittingPolicy
     | FromJsonPolicy
+    | InlinePolicy
 )
 
 
@@ -796,7 +817,7 @@ class SimulationConfig(BaseModel):
         return self
 
     def validate_policies_against_toggles(self) -> list[str]:
-        """Validate all FromJson policies against feature toggles.
+        """Validate all FromJson and Inline policies against feature toggles.
 
         Returns:
             List of error messages. Empty list if all policies are valid.
@@ -809,8 +830,10 @@ class SimulationConfig(BaseModel):
         from payment_simulator.policy.validation import validate_policy_for_scenario
 
         for agent in self.agents:
+            policy_json: str | None = None
+
             if isinstance(agent.policy, FromJsonPolicy):
-                # Load the policy JSON
+                # Load the policy JSON from file
                 json_path = Path(agent.policy.json_path)
                 if not json_path.exists():
                     project_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -830,7 +853,12 @@ class SimulationConfig(BaseModel):
                     )
                     continue
 
-                # Validate against toggles
+            elif isinstance(agent.policy, InlinePolicy):
+                # Serialize the inline decision trees to JSON
+                policy_json = json.dumps(agent.policy.decision_trees)
+
+            # Validate against toggles if we have policy JSON
+            if policy_json is not None:
                 result = validate_policy_for_scenario(
                     policy_json, scenario_config=self
                 )
@@ -931,6 +959,9 @@ class SimulationConfig(BaseModel):
                 return {"type": "MockSplitting", "num_splits": num}
             case FromJsonPolicy(json_path=path_str):
                 return self._load_json_policy(path_str)
+            case InlinePolicy(decision_trees=trees):
+                # Serialize decision_trees to JSON and use same format as FromJson
+                return {"type": "FromJson", "json": json.dumps(trees)}
             case _:
                 raise ValueError(f"Unknown policy type: {type(policy)}")
 
