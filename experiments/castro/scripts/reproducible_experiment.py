@@ -784,8 +784,17 @@ def run_single_simulation(args: tuple) -> dict:
         if result.returncode != 0:
             return {"error": f"Simulation failed: {result.stderr}", "seed": seed}
 
-        # Parse JSON output
-        output = json.loads(result.stdout)
+        # Parse JSON output - extract JSON line from output
+        # (persistence messages may precede the JSON on stdout)
+        stdout_lines = result.stdout.strip().split('\n')
+        json_line = None
+        for line in stdout_lines:
+            if line.strip().startswith('{'):
+                json_line = line.strip()
+                break
+        if json_line is None:
+            return {"error": f"No JSON output found in: {result.stdout[:200]}", "seed": seed}
+        output = json.loads(json_line)
 
         costs = output.get("costs", {})
         agents = {a["id"]: a for a in output.get("agents", [])}
@@ -1525,7 +1534,7 @@ Generate a corrected policy that avoids these errors.
             config_path=str(config_path),
             simcash_root=str(self.simcash_root),
             seeds=seeds,
-            work_dir=str(self.sim_db_dir),
+            work_dir=str(self.sim_db_dir.absolute()),  # Must be absolute for subprocess cwd
         )
 
         # Record all runs
