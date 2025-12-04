@@ -30,7 +30,11 @@ from typing import Any
 
 @dataclass
 class IterationRecord:
-    """Record of a single iteration's results and policy changes."""
+    """Record of a single iteration's results and policy changes.
+
+    Tracks both successful improvements and rejected policies to provide
+    the LLM with complete history of what worked and what didn't.
+    """
 
     iteration: int
     metrics: dict[str, Any]
@@ -38,6 +42,10 @@ class IterationRecord:
     policy_b: dict[str, Any]
     policy_a_changes: list[str] = field(default_factory=list)
     policy_b_changes: list[str] = field(default_factory=list)
+    # New fields for tracking policy acceptance
+    was_accepted: bool = True  # False if policy was rejected (worse than best)
+    is_best_so_far: bool = False  # True if this is the best policy discovered
+    comparison_to_best: str = ""  # Human-readable comparison to best policy
 
 
 @dataclass
@@ -377,23 +385,35 @@ TABLE OF CONTENTS:
         return "\n".join(sections)
 
     def _build_iteration_history_section(self) -> str:
-        """Build the complete iteration history section."""
+        """Build the complete iteration history section.
+
+        Includes acceptance status for each policy attempt, highlighting
+        which policies improved performance and which were rejected.
+        """
         sections = ["## 5. FULL ITERATION HISTORY", ""]
 
         if not self.context.iteration_history:
             sections.append("*No previous iterations.*")
             return "\n".join(sections)
 
-        # Summary table
+        # Summary table with acceptance status
         sections.append("### Metrics Summary Table")
         sections.append("")
-        sections.append("| Iter | Mean Cost | Std Dev | Settlement | Best Seed | Worst Seed |")
-        sections.append("|------|-----------|---------|------------|-----------|------------|")
+        sections.append("| Iter | Status | Mean Cost | Std Dev | Settlement | Best Seed | Worst Seed |")
+        sections.append("|------|--------|-----------|---------|------------|-----------|------------|")
 
         for record in self.context.iteration_history:
             m = record.metrics
+            # Status indicator
+            if record.is_best_so_far:
+                status = "⭐ BEST"
+            elif record.was_accepted:
+                status = "✅ KEPT"
+            else:
+                status = "❌ REJECTED"
+
             sections.append(
-                f"| {record.iteration} | "
+                f"| {record.iteration} | {status} | "
                 f"${m.get('total_cost_mean', 0):,.0f} | "
                 f"±${m.get('total_cost_std', 0):,.0f} | "
                 f"{m.get('settlement_rate_mean', 0) * 100:.1f}% | "
@@ -401,16 +421,43 @@ TABLE OF CONTENTS:
                 f"${m.get('worst_seed_cost', 0):,} |"
             )
 
+        # Show best policy summary
+        best_records = [r for r in self.context.iteration_history if r.is_best_so_far]
+        if best_records:
+            best = best_records[-1]  # Most recent best
+            sections.extend([
+                "",
+                "### Current Best Policy",
+                f"The best policy so far was discovered in **iteration {best.iteration}** "
+                f"with mean cost **${best.metrics.get('total_cost_mean', 0):,.0f}**.",
+                "",
+            ])
+
         # Detailed changes per iteration
         sections.extend(["", "### Detailed Changes Per Iteration", ""])
 
         for record in self.context.iteration_history:
-            sections.append(f"#### Iteration {record.iteration}")
+            # Header with status
+            if record.is_best_so_far:
+                status_emoji = "⭐"
+                status_text = "BEST POLICY"
+            elif record.was_accepted:
+                status_emoji = "✅"
+                status_text = "ACCEPTED"
+            else:
+                status_emoji = "❌"
+                status_text = "REJECTED"
+
+            sections.append(f"#### {status_emoji} Iteration {record.iteration} ({status_text})")
             sections.append("")
 
             m = record.metrics
             sections.append(f"**Performance:** Mean cost ${m.get('total_cost_mean', 0):,.0f}, "
                           f"Settlement {m.get('settlement_rate_mean', 0) * 100:.1f}%")
+
+            # Show comparison to best if not accepted
+            if record.comparison_to_best:
+                sections.append(f"**Comparison:** {record.comparison_to_best}")
             sections.append("")
 
             if record.policy_a_changes:
@@ -482,20 +529,42 @@ TABLE OF CONTENTS:
 
     def _build_final_instructions(self) -> str:
         """Build final instructions for the LLM."""
+        # Count rejected policies
+        rejected = [r for r in self.context.iteration_history if not r.was_accepted]
+        best_records = [r for r in self.context.iteration_history if r.is_best_so_far]
+
+        rejected_warning = ""
+        if rejected:
+            rejected_warning = f"""
+⚠️ **IMPORTANT**: {len(rejected)} previous policy attempts were REJECTED because they
+performed worse than the current best. Review the rejected policies in the history
+above and avoid making similar changes.
+"""
+
+        best_context = ""
+        if best_records:
+            best = best_records[-1]
+            best_context = f"""
+📌 **Current Best**: Iteration {best.iteration} with mean cost ${best.metrics.get('total_cost_mean', 0):,.0f}.
+Your goal is to beat this. If your policy is worse, it will be rejected and we will
+continue optimizing from the current best policy.
+"""
+
         return f"""
 ## 7. FINAL INSTRUCTIONS
 
 Based on the above analysis, generate an improved policy that:
 
-1. **Addresses the highest-cost component** identified in the cost breakdown
+1. **Beats the current best policy** - your policy must have LOWER cost than the best
 2. **Maintains 100% settlement rate** - this is non-negotiable
 3. **Makes incremental adjustments** - avoid drastic changes unless clearly needed
-4. **Learns from history** - don't repeat changes that worsened performance
-
+4. **Learns from REJECTED policies** - don't repeat changes that made things worse
+{rejected_warning}{best_context}
 ### What to Consider:
 
 - **Best seed analysis**: What made seed #{self.context.best_seed} perform well?
 - **Worst seed analysis**: What went wrong in seed #{self.context.worst_seed}?
+- **REJECTED policies**: Why did they fail? What changes should you avoid?
 - **Parameter trends**: Which parameters correlate with cost improvements?
 - **Trade-offs**: Balance delay costs vs collateral costs vs overdraft costs
 
@@ -507,7 +576,9 @@ Generate a complete, valid policy JSON that:
 - Includes unique node_id for every node
 - Wraps arithmetic in {{"compute": {{...}}}}
 
-Focus your changes on the areas with highest impact potential.
+Focus your changes on the areas with highest impact potential. Remember: if your
+policy is worse than the current best, it will be REJECTED and you'll need to try
+a different approach.
 """.strip()
 
 

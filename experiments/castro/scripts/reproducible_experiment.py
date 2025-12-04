@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS policy_iterations (
     parameters JSON NOT NULL,
     created_at TIMESTAMP NOT NULL,
     created_by VARCHAR NOT NULL,  -- 'init', 'llm', 'manual'
+    was_accepted BOOLEAN DEFAULT TRUE,  -- Was this policy kept (improved) or rejected?
+    is_best BOOLEAN DEFAULT FALSE,  -- Is this the best policy discovered so far?
     FOREIGN KEY (experiment_id) REFERENCES experiment_config(experiment_id)
 );
 
@@ -155,6 +157,9 @@ CREATE TABLE IF NOT EXISTS iteration_metrics (
     best_seed_cost BIGINT NOT NULL,
     worst_seed_cost BIGINT NOT NULL,
     converged BOOLEAN NOT NULL DEFAULT FALSE,
+    policy_was_accepted BOOLEAN DEFAULT TRUE,  -- Was this iteration's policy accepted?
+    is_best_iteration BOOLEAN DEFAULT FALSE,  -- Is this the best iteration so far?
+    comparison_to_best VARCHAR,  -- Human-readable comparison
     created_at TIMESTAMP NOT NULL,
     FOREIGN KEY (experiment_id) REFERENCES experiment_config(experiment_id)
 );
@@ -327,14 +332,26 @@ class ExperimentDatabase:
         agent_id: str,
         policy_json: str,
         created_by: str = "init",
+        was_accepted: bool = True,
+        is_best: bool = False,
     ) -> str:
-        """Record a policy iteration."""
+        """Record a policy iteration.
+
+        Args:
+            experiment_id: Experiment identifier
+            iteration_number: Iteration number
+            agent_id: Agent identifier (BANK_A or BANK_B)
+            policy_json: JSON string of the policy
+            created_by: Who created this policy (init, llm, manual)
+            was_accepted: Whether this policy was accepted (improved over best)
+            is_best: Whether this is the best policy discovered so far
+        """
         iteration_id = str(uuid.uuid4())
         policy_dict = json.loads(policy_json)
         parameters = extract_parameters(policy_dict)
 
         self.conn.execute("""
-            INSERT INTO policy_iterations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO policy_iterations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             iteration_id,
             experiment_id,
@@ -345,6 +362,8 @@ class ExperimentDatabase:
             json.dumps(parameters),
             datetime.now(),
             created_by,
+            was_accepted,
+            is_best,
         ])
         return iteration_id
 
@@ -426,12 +445,25 @@ class ExperimentDatabase:
         iteration_number: int,
         metrics: dict,
         converged: bool = False,
+        policy_was_accepted: bool = True,
+        is_best_iteration: bool = False,
+        comparison_to_best: str | None = None,
     ) -> str:
-        """Record aggregated iteration metrics."""
+        """Record aggregated iteration metrics.
+
+        Args:
+            experiment_id: Experiment identifier
+            iteration_number: Iteration number
+            metrics: Dictionary of metrics
+            converged: Whether the experiment has converged
+            policy_was_accepted: Whether this iteration's policy was accepted
+            is_best_iteration: Whether this is the best iteration so far
+            comparison_to_best: Human-readable comparison to best policy
+        """
         metric_id = str(uuid.uuid4())
 
         self.conn.execute("""
-            INSERT INTO iteration_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO iteration_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             metric_id,
             experiment_id,
@@ -446,6 +478,9 @@ class ExperimentDatabase:
             int(metrics["best_seed_cost"]),
             int(metrics["worst_seed_cost"]),
             converged,
+            policy_was_accepted,
+            is_best_iteration,
+            comparison_to_best,
             datetime.now(),
         ])
         return metric_id
@@ -1227,6 +1262,13 @@ class ReproducibleExperiment:
         self.last_best_result: dict | None = None
         self.last_worst_result: dict | None = None
 
+        # Best policy tracking - keeps the best discovered policy so far
+        # This is separate from current policy (which may be a candidate being tested)
+        self.best_policy_a: dict = self.seed_policy_a.copy()
+        self.best_policy_b: dict = self.seed_policy_b.copy()
+        self.best_metrics: dict | None = None  # Set after first iteration
+        self.best_iteration: int = 0  # Iteration number where best was found
+
     def _save_experiment_metadata(
         self,
         experiment_key: str,
@@ -1308,6 +1350,53 @@ class ReproducibleExperiment:
             policy_json=json.dumps(self.policy_b),
             created_by="init",
         )
+
+    def is_better_than_best(self, candidate_metrics: dict) -> tuple[bool, str]:
+        """Compare candidate metrics to the current best.
+
+        A policy is considered better if:
+        1. It has 100% settlement rate (required)
+        2. It has lower mean cost than the current best
+
+        Args:
+            candidate_metrics: Metrics from the candidate policy run
+
+        Returns:
+            Tuple of (is_better, comparison_description)
+        """
+        if self.best_metrics is None:
+            # First iteration - automatically becomes best
+            return True, "First iteration - establishing baseline"
+
+        candidate_cost = candidate_metrics["total_cost_mean"]
+        best_cost = self.best_metrics["total_cost_mean"]
+        candidate_settlement = candidate_metrics["settlement_rate_mean"]
+
+        # Settlement rate must be 100% (or very close)
+        if candidate_settlement < 0.999:
+            return False, (
+                f"Settlement rate {candidate_settlement*100:.1f}% < 100%. "
+                f"Cost ${candidate_cost:,.0f} vs best ${best_cost:,.0f}"
+            )
+
+        # Compare costs
+        cost_delta = candidate_cost - best_cost
+        cost_pct = (cost_delta / best_cost) * 100 if best_cost > 0 else 0
+
+        if candidate_cost < best_cost:
+            return True, (
+                f"Improved by ${-cost_delta:,.0f} ({-cost_pct:.1f}%). "
+                f"New: ${candidate_cost:,.0f}, Previous best: ${best_cost:,.0f}"
+            )
+        elif candidate_cost == best_cost:
+            return False, (
+                f"No improvement. Cost ${candidate_cost:,.0f} equals best ${best_cost:,.0f}"
+            )
+        else:
+            return False, (
+                f"Worse by ${cost_delta:,.0f} (+{cost_pct:.1f}%). "
+                f"Candidate: ${candidate_cost:,.0f}, Best: ${best_cost:,.0f}"
+            )
 
     def create_iteration_config(self, iteration: int) -> Path:
         """Create iteration-specific policy files and YAML config.
@@ -1525,7 +1614,14 @@ Generate a corrected policy that avoids these errors.
         return fallback, False
 
     def run_iteration(self, iteration: int) -> dict:
-        """Run a single iteration."""
+        """Run a single iteration and evaluate whether to accept the policy.
+
+        This method:
+        1. Runs simulations with current (candidate) policies
+        2. Compares results to best known policy
+        3. Accepts if better, rejects if worse
+        4. Records full history including rejected attempts
+        """
         print(f"\n{'='*60}")
         print(f"Iteration {iteration}/{self.max_iterations}")
         print(f"{'='*60}")
@@ -1558,12 +1654,10 @@ Generate a corrected policy that avoids these errors.
         metrics = compute_metrics(results)
 
         if metrics is None:
-            print("  ERROR: All simulations failed, reverting to previous policies")
-            # Revert to last known good policies
-            if self.history:
-                last_good = self.history[-1]
-                self.policy_a = last_good.get("policy_a", self.policy_a)
-                self.policy_b = last_good.get("policy_b", self.policy_b)
+            print("  ERROR: All simulations failed")
+            # Revert to best known policies for next iteration
+            self.policy_a = self.best_policy_a.copy()
+            self.policy_b = self.best_policy_b.copy()
             # Return with failure metrics
             return {
                 "iteration": iteration,
@@ -1574,6 +1668,9 @@ Generate a corrected policy that avoids these errors.
                 "results": results,
                 "converged": False,
                 "failed": True,
+                "was_accepted": False,
+                "is_best": False,
+                "comparison": "Simulation failed",
             }
 
         print(f"  Mean cost: ${metrics['total_cost_mean']:,.0f} ± ${metrics['total_cost_std']:,.0f}")
@@ -1583,27 +1680,64 @@ Generate a corrected policy that avoids these errors.
         # Extract best/worst seed verbose output for LLM context
         self._extract_best_worst_context(results, metrics)
 
-        # Build iteration record for history
-        self._record_iteration(iteration, metrics)
+        # Compare to best known policy
+        is_better, comparison = self.is_better_than_best(metrics)
 
-        # Check convergence
+        if is_better:
+            print(f"  ✅ ACCEPTED: {comparison}")
+            # Update best policy
+            self.best_policy_a = self.policy_a.copy()
+            self.best_policy_b = self.policy_b.copy()
+            self.best_metrics = metrics.copy()
+            self.best_iteration = iteration
+            was_accepted = True
+            is_best = True
+        else:
+            print(f"  ❌ REJECTED: {comparison}")
+            print(f"  Reverting to best policy from iteration {self.best_iteration}")
+            # Revert to best policies for next iteration
+            self.policy_a = self.best_policy_a.copy()
+            self.policy_b = self.best_policy_b.copy()
+            was_accepted = False
+            is_best = False
+
+        # Record iteration in history (including rejected attempts)
+        self._record_iteration(
+            iteration=iteration,
+            metrics=metrics,
+            was_accepted=was_accepted,
+            is_best_so_far=is_best,
+            comparison_to_best=comparison,
+        )
+
+        # Check convergence (based on best policy stability)
         converged = self.check_convergence(metrics)
 
-        # Record metrics
+        # Record metrics to database
         self.db.record_iteration_metrics(
             experiment_id=self.experiment_id,
             iteration_number=iteration,
             metrics=metrics,
             converged=converged,
+            policy_was_accepted=was_accepted,
+            is_best_iteration=is_best,
+            comparison_to_best=comparison,
         )
 
         self.history.append(metrics)
+
+        # Track policy history for diffs
+        self.policy_history_a.append(self.policy_a.copy())
+        self.policy_history_b.append(self.policy_b.copy())
 
         return {
             "iteration": iteration,
             "metrics": metrics,
             "results": results,
             "converged": converged,
+            "was_accepted": was_accepted,
+            "is_best": is_best,
+            "comparison": comparison,
         }
 
     def _extract_best_worst_context(self, results: list[dict], metrics: dict) -> None:
@@ -1680,14 +1814,27 @@ Generate a corrected policy that avoids these errors.
             self.last_worst_seed_output_bank_a = None
             self.last_worst_seed_output_bank_b = None
 
-    def _record_iteration(self, iteration: int, metrics: dict) -> None:
-        """Record this iteration in the history with policy changes."""
-        # Compute policy changes from previous iteration
-        prev_policy_a = self.policy_history_a[-1] if self.policy_history_a else {}
-        prev_policy_b = self.policy_history_b[-1] if self.policy_history_b else {}
+    def _record_iteration(
+        self,
+        iteration: int,
+        metrics: dict,
+        was_accepted: bool = True,
+        is_best_so_far: bool = False,
+        comparison_to_best: str = "",
+    ) -> None:
+        """Record this iteration in the history with policy changes.
 
-        changes_a = compute_policy_diff(prev_policy_a, self.policy_a) if prev_policy_a else []
-        changes_b = compute_policy_diff(prev_policy_b, self.policy_b) if prev_policy_b else []
+        Args:
+            iteration: Iteration number
+            metrics: Metrics from this iteration
+            was_accepted: Whether this policy was accepted (improved over best)
+            is_best_so_far: Whether this is the best policy discovered so far
+            comparison_to_best: Human-readable comparison to best
+        """
+        # Compute policy changes from previous best policy (not just previous iteration)
+        # This is more useful for the LLM to understand what changed
+        changes_a = compute_policy_diff(self.best_policy_a, self.policy_a)
+        changes_b = compute_policy_diff(self.best_policy_b, self.policy_b)
 
         record = IterationRecord(
             iteration=iteration,
@@ -1696,27 +1843,44 @@ Generate a corrected policy that avoids these errors.
             policy_b=self.policy_b.copy(),
             policy_a_changes=changes_a,
             policy_b_changes=changes_b,
+            was_accepted=was_accepted,
+            is_best_so_far=is_best_so_far,
+            comparison_to_best=comparison_to_best,
         )
         self.iteration_records.append(record)
 
     def optimize_policies(self, iteration: int, metrics: dict, results: list[dict]) -> bool:
-        """Call LLM to optimize policies using PydanticAI structured output.
+        """Generate candidate policies using LLM, starting from BEST policy.
+
+        IMPORTANT: Always optimizes from the best known policy, not the current
+        (potentially rejected) policy. This ensures the LLM always has the best
+        starting point for generating improvements.
 
         Passes rich historical context including:
         - Full tick-by-tick output from best and worst seeds
         - Complete iteration history with metrics and policy changes
+        - Both accepted AND rejected policies (so LLM learns what didn't work)
         - Cost breakdown for optimization guidance
         """
+        # Count rejected policies to inform the LLM
+        rejected_count = sum(1 for r in self.iteration_records if not r.was_accepted)
+
         print(f"  Calling LLM for optimization with extended context...")
-        print(f"    - History: {len(self.iteration_records)} previous iterations")
+        print(f"    - History: {len(self.iteration_records)} iterations ({rejected_count} rejected)")
+        print(f"    - Starting from best policy (iteration {self.best_iteration})")
         print(f"    - Best seed #{self.last_best_seed}: ${self.last_best_cost:,}")
         print(f"    - Worst seed #{self.last_worst_seed}: ${self.last_worst_cost:,}")
+
+        # Use BEST metrics for optimization, not current (which may be from rejected policy)
+        best_metrics = self.best_metrics or metrics
 
         # Create instruction prompt
         instruction = f"""Optimize policy for iteration {iteration}.
 
-Current performance: Mean cost ${metrics['total_cost_mean']:,.0f}, Settlement {metrics['settlement_rate_mean']*100:.1f}%
-Goal: Reduce cost while maintaining 100% settlement.
+CURRENT BEST (iteration {self.best_iteration}): Mean cost ${best_metrics['total_cost_mean']:,.0f}
+Your goal: Generate a policy that BEATS this cost while maintaining 100% settlement.
+
+{f"WARNING: {rejected_count} previous attempts were REJECTED for being worse. Learn from them!" if rejected_count > 0 else ""}
 
 IMPORTANT: Review the tick-by-tick simulation output below to understand:
 1. What patterns lead to high costs (worst seed)
@@ -1726,15 +1890,15 @@ IMPORTANT: Review the tick-by-tick simulation output below to understand:
 Use this insight to make targeted policy improvements."""
 
         # Generate policy for Bank A with BANK_A-filtered context
-        # CRITICAL: LLM only sees events relevant to BANK_A (information isolation)
+        # CRITICAL: Start from BEST policy, not current (which may be reverted/rejected)
         policy_a, tokens_a, latency_a = self.optimizer.generate_policy(
             instruction=instruction,
-            current_policy=self.policy_a,
-            current_cost=metrics['total_cost_mean'] / 2,  # Approximate per-bank cost
-            settlement_rate=metrics['settlement_rate_mean'],
+            current_policy=self.best_policy_a,  # Always start from BEST
+            current_cost=best_metrics['total_cost_mean'] / 2,  # Approximate per-bank cost
+            settlement_rate=best_metrics['settlement_rate_mean'],
             iteration=iteration,
             # Extended context with BANK_A-filtered outputs
-            iteration_history=self.iteration_records,
+            iteration_history=self.iteration_records,  # Includes rejected policies
             best_seed_output=self.last_best_seed_output_bank_a,
             worst_seed_output=self.last_worst_seed_output_bank_a,
             best_seed=self.last_best_seed,
@@ -1743,19 +1907,19 @@ Use this insight to make targeted policy improvements."""
             worst_seed_cost=self.last_worst_cost,
             cost_breakdown=self.last_cost_breakdown,
             cost_rates=self.config.get("cost_rates", {}),
-            other_bank_policy=self.policy_b,
+            other_bank_policy=self.best_policy_b,  # Always use BEST other bank policy
         )
 
         # Generate policy for Bank B with BANK_B-filtered context
-        # CRITICAL: LLM only sees events relevant to BANK_B (information isolation)
+        # CRITICAL: Start from BEST policy, not current
         policy_b, tokens_b, latency_b = self.optimizer.generate_policy(
             instruction=instruction,
-            current_policy=self.policy_b,
-            current_cost=metrics['total_cost_mean'] / 2,
-            settlement_rate=metrics['settlement_rate_mean'],
+            current_policy=self.best_policy_b,  # Always start from BEST
+            current_cost=best_metrics['total_cost_mean'] / 2,
+            settlement_rate=best_metrics['settlement_rate_mean'],
             iteration=iteration,
             # Extended context with BANK_B-filtered outputs
-            iteration_history=self.iteration_records,
+            iteration_history=self.iteration_records,  # Includes rejected policies
             best_seed_output=self.last_best_seed_output_bank_b,
             worst_seed_output=self.last_worst_seed_output_bank_b,
             best_seed=self.last_best_seed,
@@ -1764,7 +1928,7 @@ Use this insight to make targeted policy improvements."""
             worst_seed_cost=self.last_worst_cost,
             cost_breakdown=self.last_cost_breakdown,
             cost_rates=self.config.get("cost_rates", {}),
-            other_bank_policy=self.policy_a,
+            other_bank_policy=self.best_policy_a,  # Always use BEST other bank policy
         )
 
         total_tokens = tokens_a + tokens_b
@@ -1802,28 +1966,29 @@ Use this insight to make targeted policy improvements."""
 
         # Validate policies with retry logic (NEVER writes to seed files)
         # Log all validation errors to database for analysis
+        # Fallback to BEST policy if validation fails
         new_policy_a, was_valid_a = self.validate_and_fix_policy(
-            policy_a, "Bank A", self.policy_a, iteration=iteration
+            policy_a, "Bank A", self.best_policy_a, iteration=iteration
         )
         new_policy_b, was_valid_b = self.validate_and_fix_policy(
-            policy_b, "Bank B", self.policy_b, iteration=iteration
+            policy_b, "Bank B", self.best_policy_b, iteration=iteration
         )
 
-        # Update current policies (in-memory only, seed files never modified)
+        # Update current policies to CANDIDATE (will be evaluated in next iteration)
+        # Note: These may be rejected if they don't improve over best
         self.policy_a = new_policy_a
         self.policy_b = new_policy_b
 
-        # Track policy history for computing diffs in next iteration
-        self.policy_history_a.append(new_policy_a.copy())
-        self.policy_history_b.append(new_policy_b.copy())
-
-        # Record new policies to database
+        # Record new candidate policies to database (will be marked accepted/rejected after evaluation)
+        # Note: was_accepted and is_best will be updated after run_iteration evaluates
         self.db.record_policy_iteration(
             experiment_id=self.experiment_id,
             iteration_number=iteration + 1,
             agent_id="BANK_A",
             policy_json=json.dumps(new_policy_a),
             created_by="llm",
+            was_accepted=True,  # Will be updated if rejected
+            is_best=False,  # Will be updated if this becomes best
         )
         self.db.record_policy_iteration(
             experiment_id=self.experiment_id,
@@ -1831,12 +1996,14 @@ Use this insight to make targeted policy improvements."""
             agent_id="BANK_B",
             policy_json=json.dumps(new_policy_b),
             created_by="llm",
+            was_accepted=True,  # Will be updated if rejected
+            is_best=False,  # Will be updated if this becomes best
         )
 
         # NOTE: Policies are saved to iteration-specific files in run_iteration()
         # via create_iteration_config(). The seed policy files are NEVER modified.
 
-        print(f"  Policies updated for iteration {iteration + 1}")
+        print(f"  Candidate policies generated for iteration {iteration + 1}")
         return True
 
     def check_convergence(self, current_metrics: dict) -> bool:
@@ -1858,16 +2025,38 @@ Use this insight to make targeted policy improvements."""
         return variation < self.convergence_threshold
 
     def run(self) -> dict:
-        """Run the full experiment."""
+        """Run the full experiment with best-policy continuation.
+
+        The optimization loop:
+        1. Run iteration with current (candidate) policies
+        2. Compare results to best known policy
+        3. If better: Accept candidate as new best
+        4. If worse: Reject candidate, continue from best
+        5. Generate new candidate from best policy
+        6. Repeat until convergence or max iterations
+
+        This ensures we never regress - we always continue from the best
+        discovered policy, not the most recent (potentially worse) one.
+        """
         print(f"\n{'#'*60}")
         print(f"# {self.experiment_def['name']}")
         print(f"# Experiment ID: {self.experiment_id}")
+        print(f"# Best-policy continuation: ENABLED")
         print(f"{'#'*60}")
 
         self.setup()
 
+        accepted_count = 0
+        rejected_count = 0
+
         for iteration in range(1, self.max_iterations + 1):
             result = self.run_iteration(iteration)
+
+            # Track acceptance statistics
+            if result.get("was_accepted"):
+                accepted_count += 1
+            else:
+                rejected_count += 1
 
             # Handle failed iterations (all simulations crashed)
             if result.get("failed"):
@@ -1879,8 +2068,12 @@ Use this insight to make targeted policy improvements."""
                 break
 
             if iteration < self.max_iterations:
+                # Generate new candidate from BEST policy (not current)
                 if not self.optimize_policies(iteration, result["metrics"], result["results"]):
-                    print("  Optimization failed, continuing with current policies")
+                    print("  Optimization failed, continuing with best policy")
+                    # Ensure we're using best policy for next iteration
+                    self.policy_a = self.best_policy_a.copy()
+                    self.policy_b = self.best_policy_b.copy()
 
         # Export summary
         summary = self.db.export_summary()
@@ -1888,8 +2081,10 @@ Use this insight to make targeted policy improvements."""
         print(f"\n{'='*60}")
         print("Experiment Complete")
         print(f"{'='*60}")
-        if self.history:
-            print(f"  Final mean cost: ${self.history[-1]['total_cost_mean']:,.0f}")
+        print(f"  Iterations: {len(self.history)}")
+        print(f"  Accepted: {accepted_count} | Rejected: {rejected_count}")
+        if self.best_metrics:
+            print(f"  Best cost: ${self.best_metrics['total_cost_mean']:,.0f} (iteration {self.best_iteration})")
         else:
             print("  WARNING: No successful iterations completed")
         print(f"  Database: {self.db.db_path}")
