@@ -1129,7 +1129,7 @@ class ReproducibleExperiment:
         self,
         experiment_key: str,
         db_path: str,
-        simcash_root: str = "/home/user/SimCash",
+        simcash_root: str | None = None,
         model: str = "gpt-4o",
         reasoning_effort: str = "high",
     ):
@@ -1137,7 +1137,7 @@ class ReproducibleExperiment:
         # Generate unique experiment ID with timestamp: exp1_2025-12-04-143022
         timestamp = datetime.now().strftime('%Y-%m-%d-%H%M%S')
         self.experiment_id = f"{experiment_key}_{timestamp}"
-        self.simcash_root = Path(simcash_root)
+        self.simcash_root = Path(simcash_root) if simcash_root else PROJECT_ROOT
 
         self.db = ExperimentDatabase(db_path)
         self.optimizer = LLMOptimizer(model=model, reasoning_effort=reasoning_effort)
@@ -1940,7 +1940,7 @@ Examples:
     )
     parser.add_argument(
         "--simcash-root",
-        default="/home/user/SimCash",
+        default=str(PROJECT_ROOT),
         help="SimCash root directory",
     )
 
