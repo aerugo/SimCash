@@ -44,10 +44,17 @@ from typing import Any
 
 import duckdb
 import yaml
+from dotenv import load_dotenv
 
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# Load environment variables from experiments/castro/.env if it exists
+CASTRO_ENV_PATH = Path(__file__).parent.parent / ".env"
+if CASTRO_ENV_PATH.exists():
+    load_dotenv(CASTRO_ENV_PATH)
+    print(f"Loaded environment from {CASTRO_ENV_PATH}")
 
 from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
 from experiments.castro.parameter_sets import STANDARD_CONSTRAINTS
