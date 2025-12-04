@@ -58,7 +58,11 @@ if CASTRO_ENV_PATH.exists():
 
 from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
 from experiments.castro.parameter_sets import STANDARD_CONSTRAINTS
-from experiments.castro.prompts.context import IterationRecord, compute_policy_diff
+from experiments.castro.prompts.context import (
+    IterationRecord,
+    SingleAgentIterationRecord,
+    compute_policy_diff,
+)
 
 
 # ============================================================================
@@ -1541,9 +1545,30 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
         worst_seed_cost: int = 0,
         cost_breakdown: dict[str, int] | None = None,
         cost_rates: dict[str, Any] | None = None,
-        other_bank_policy: dict[str, Any] | None = None,
+        agent_id: str | None = None,
     ) -> tuple[dict | None, int, float]:
         """Generate an optimized policy using PydanticAI with extended context.
+
+        CRITICAL ISOLATION: This method receives ONLY the specified agent's data.
+        The iteration_history must be pre-filtered to contain only this agent's
+        policy history. No cross-agent information should be passed.
+
+        Args:
+            instruction: Natural language instruction for optimization
+            current_policy: This agent's current policy
+            current_cost: Approximate cost for this agent
+            settlement_rate: Current settlement rate
+            iteration: Current iteration number
+            iteration_history: MUST be filtered for this agent only
+            best_seed_output: Simulation output filtered for this agent
+            worst_seed_output: Simulation output filtered for this agent
+            best_seed: Best performing seed number
+            worst_seed: Worst performing seed number
+            best_seed_cost: Cost from best seed
+            worst_seed_cost: Cost from worst seed
+            cost_breakdown: Cost breakdown by type
+            cost_rates: Cost rate configuration
+            agent_id: Identifier of the agent being optimized (e.g., "BANK_A")
 
         Returns:
             tuple of (policy_dict or None, tokens_used, latency_seconds)
@@ -1557,7 +1582,7 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
                 current_cost=current_cost,
                 settlement_rate=settlement_rate,
                 iteration=iteration,
-                # Pass through extended context
+                # Pass through extended context - MUST be filtered for single agent
                 iteration_history=iteration_history,
                 best_seed_output=best_seed_output,
                 worst_seed_output=worst_seed_output,
@@ -1567,7 +1592,7 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
                 worst_seed_cost=worst_seed_cost,
                 cost_breakdown=cost_breakdown,
                 cost_rates=cost_rates,
-                other_bank_policy=other_bank_policy,
+                agent_id=agent_id,
             )
 
             latency = time.time() - start_time
@@ -1643,10 +1668,55 @@ class ReproducibleExperiment:
     2. Creates iteration-specific policy files in output directory
     3. Creates iteration-specific YAML configs pointing to those policies
     4. Stores all policy versions in the database
+
+    CRITICAL ISOLATION: Each agent's LLM optimization call receives ONLY
+    that agent's data. No cross-agent information leakage occurs.
     """
 
     # Maximum retries when LLM produces invalid policy
     MAX_VALIDATION_RETRIES = 3
+
+    @staticmethod
+    def _filter_iteration_history_for_agent(
+        records: list[IterationRecord],
+        agent_id: str,
+    ) -> list[SingleAgentIterationRecord]:
+        """Filter iteration history to contain ONLY the specified agent's data.
+
+        CRITICAL ISOLATION: This function ensures the LLM optimizing one agent
+        never sees any information about other agents.
+
+        Args:
+            records: Full iteration records containing both agents' data
+            agent_id: The agent to filter for ("BANK_A" or "BANK_B")
+
+        Returns:
+            List of SingleAgentIterationRecord containing only this agent's data
+        """
+        filtered: list[SingleAgentIterationRecord] = []
+        for record in records:
+            # Extract only this agent's policy and changes
+            if agent_id == "BANK_A":
+                policy = record.policy_a
+                changes = record.policy_a_changes
+            elif agent_id == "BANK_B":
+                policy = record.policy_b
+                changes = record.policy_b_changes
+            else:
+                # Unknown agent - use Bank A by default
+                policy = record.policy_a
+                changes = record.policy_a_changes
+
+            filtered.append(SingleAgentIterationRecord(
+                iteration=record.iteration,
+                metrics=record.metrics,
+                policy=policy,
+                policy_changes=changes,
+                was_accepted=record.was_accepted,
+                is_best_so_far=record.is_best_so_far,
+                comparison_to_best=record.comparison_to_best,
+            ))
+        return filtered
 
     def __init__(
         self,
@@ -2487,16 +2557,25 @@ IMPORTANT: Review the tick-by-tick simulation output below to understand:
 
 Use this insight to make targeted policy improvements."""
 
-        # Generate policy for Bank A with BANK_A-filtered context
-        # CRITICAL: Start from BEST policy, not current (which may be reverted/rejected)
+        # CRITICAL ISOLATION: Filter iteration history for each agent SEPARATELY
+        # Each agent's LLM call sees ONLY its own policy history - no cross-agent data
+        bank_a_history = self._filter_iteration_history_for_agent(
+            self.iteration_records, "BANK_A"
+        )
+        bank_b_history = self._filter_iteration_history_for_agent(
+            self.iteration_records, "BANK_B"
+        )
+
+        # Generate policy for Bank A with BANK_A-ONLY context
+        # CRITICAL: Start from BEST policy, no cross-agent data
         policy_a, tokens_a, latency_a = self.optimizer.generate_policy(
             instruction=instruction,
             current_policy=self.best_policy_a,  # Always start from BEST
             current_cost=best_metrics['total_cost_mean'] / 2,  # Approximate per-bank cost
             settlement_rate=best_metrics['settlement_rate_mean'],
             iteration=iteration,
-            # Extended context with BANK_A-filtered outputs
-            iteration_history=self.iteration_records,  # Includes rejected policies
+            # ISOLATED context: ONLY BANK_A data, no Bank B information
+            iteration_history=bank_a_history,  # Filtered for BANK_A only
             best_seed_output=self.last_best_seed_output_bank_a,
             worst_seed_output=self.last_worst_seed_output_bank_a,
             best_seed=self.last_best_seed,
@@ -2505,19 +2584,19 @@ Use this insight to make targeted policy improvements."""
             worst_seed_cost=self.last_worst_cost,
             cost_breakdown=self.last_cost_breakdown,
             cost_rates=self.config.get("cost_rates", {}),
-            other_bank_policy=self.best_policy_b,  # Always use BEST other bank policy
+            agent_id="BANK_A",  # Identifies which agent is being optimized
         )
 
-        # Generate policy for Bank B with BANK_B-filtered context
-        # CRITICAL: Start from BEST policy, not current
+        # Generate policy for Bank B with BANK_B-ONLY context
+        # CRITICAL: Start from BEST policy, no cross-agent data
         policy_b, tokens_b, latency_b = self.optimizer.generate_policy(
             instruction=instruction,
             current_policy=self.best_policy_b,  # Always start from BEST
             current_cost=best_metrics['total_cost_mean'] / 2,
             settlement_rate=best_metrics['settlement_rate_mean'],
             iteration=iteration,
-            # Extended context with BANK_B-filtered outputs
-            iteration_history=self.iteration_records,  # Includes rejected policies
+            # ISOLATED context: ONLY BANK_B data, no Bank A information
+            iteration_history=bank_b_history,  # Filtered for BANK_B only
             best_seed_output=self.last_best_seed_output_bank_b,
             worst_seed_output=self.last_worst_seed_output_bank_b,
             best_seed=self.last_best_seed,
@@ -2526,7 +2605,7 @@ Use this insight to make targeted policy improvements."""
             worst_seed_cost=self.last_worst_cost,
             cost_breakdown=self.last_cost_breakdown,
             cost_rates=self.config.get("cost_rates", {}),
-            other_bank_policy=self.best_policy_a,  # Always use BEST other bank policy
+            agent_id="BANK_B",  # Identifies which agent is being optimized
         )
 
         total_tokens = tokens_a + tokens_b
