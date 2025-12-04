@@ -93,8 +93,9 @@ class RobustPolicyDeps:
     cost_breakdown: dict[str, int] = field(default_factory=dict)
     cost_rates: dict[str, Any] = field(default_factory=dict)
 
-    # Policy for the other bank (for joint optimization context)
-    other_bank_policy: dict[str, Any] | None = None
+    # Agent identifier for isolated optimization
+    # CRITICAL: Each agent only sees its own data - no cross-agent information leakage
+    agent_id: str | None = None
 
 
 # ============================================================================
@@ -748,9 +749,13 @@ class RobustPolicyAgent:
         worst_seed_cost: int = 0,
         cost_breakdown: dict[str, int] | None = None,
         cost_rates: dict[str, Any] | None = None,
-        other_bank_policy: dict[str, Any] | None = None,
+        agent_id: str | None = None,
     ) -> dict[str, Any]:
         """Generate a constrained policy with rich historical context.
+
+        CRITICAL ISOLATION: This method generates policy for a SINGLE agent.
+        The iteration_history must be pre-filtered to only contain this agent's
+        data. No cross-agent information should be passed to the LLM.
 
         Args:
             instruction: Natural language instruction for policy
@@ -760,15 +765,18 @@ class RobustPolicyAgent:
             per_bank_costs: Per-bank costs for context (optional)
             iteration: Current optimization iteration (optional)
             iteration_history: List of IterationRecord from previous iterations
+                              MUST be filtered for this agent only
             best_seed_output: Full tick-by-tick verbose output from best seed
+                             MUST be filtered for this agent only
             worst_seed_output: Full tick-by-tick verbose output from worst seed
+                              MUST be filtered for this agent only
             best_seed: Best performing seed number
             worst_seed: Worst performing seed number
             best_seed_cost: Cost from best seed
             worst_seed_cost: Cost from worst seed
             cost_breakdown: Breakdown of costs by type (delay, collateral, etc.)
             cost_rates: Cost rate configuration from simulation
-            other_bank_policy: Policy of the other bank (for joint context)
+            agent_id: Identifier of the agent being optimized (e.g., "BANK_A")
 
         Returns:
             Generated policy as dict (fully validated)
@@ -781,7 +789,8 @@ class RobustPolicyAgent:
         )
 
         if has_extended_context:
-            # Build massive extended context prompt
+            # Build massive extended context prompt for SINGLE AGENT
+            # CRITICAL: Only this agent's data is passed - no cross-agent leakage
             prompt = self._build_extended_prompt(
                 instruction=instruction,
                 current_policy=current_policy,
@@ -797,7 +806,7 @@ class RobustPolicyAgent:
                 worst_seed_cost=worst_seed_cost,
                 cost_breakdown=cost_breakdown,
                 cost_rates=cost_rates,
-                other_bank_policy=other_bank_policy,
+                agent_id=agent_id,
             )
         else:
             # Legacy: Build simple context-aware prompt
@@ -828,7 +837,7 @@ class RobustPolicyAgent:
             worst_seed_cost=worst_seed_cost,
             cost_breakdown=cost_breakdown or {},
             cost_rates=cost_rates or {},
-            other_bank_policy=other_bank_policy,
+            agent_id=agent_id,
         )
 
         # Retry with exponential backoff for transient API errors
@@ -974,17 +983,20 @@ class RobustPolicyAgent:
         worst_seed_cost: int,
         cost_breakdown: dict[str, int] | None,
         cost_rates: dict[str, Any] | None,
-        other_bank_policy: dict[str, Any] | None,
+        agent_id: str | None,
     ) -> str:
-        """Build a massive extended context prompt with full history.
+        """Build a massive extended context prompt with full history for SINGLE AGENT.
+
+        CRITICAL ISOLATION: This prompt contains ONLY the specified agent's data.
+        No other agent's policy, history, or metrics are included.
 
         This prompt includes:
-        - Full tick-by-tick output from best and worst seeds
-        - Complete iteration history with metrics
-        - Policy changes between iterations
+        - Full tick-by-tick output from best and worst seeds (filtered for this agent)
+        - Complete iteration history with metrics (filtered for this agent)
+        - Policy changes between iterations (for this agent only)
         - Cost analysis and optimization guidance
         """
-        from experiments.castro.prompts.context import build_extended_context
+        from experiments.castro.prompts.context import build_single_agent_context
 
         # Build current metrics dict
         current_metrics = {
@@ -999,11 +1011,11 @@ class RobustPolicyAgent:
             "worst_seed_cost": worst_seed_cost,
         }
 
-        # Build extended context
-        extended_context = build_extended_context(
+        # Build extended context for SINGLE AGENT only
+        # CRITICAL: No cross-agent information is passed
+        extended_context = build_single_agent_context(
             current_iteration=iteration,
-            current_policy_a=current_policy or {},
-            current_policy_b=other_bank_policy or {},
+            current_policy=current_policy or {},
             current_metrics=current_metrics,
             iteration_history=iteration_history,
             best_seed_output=best_seed_output,
@@ -1014,6 +1026,7 @@ class RobustPolicyAgent:
             worst_seed_cost=worst_seed_cost,
             cost_breakdown=cost_breakdown,
             cost_rates=cost_rates,
+            agent_id=agent_id,
         )
 
         # Combine instruction with extended context
