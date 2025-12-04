@@ -1,0 +1,15 @@
+{
+  "experiment_id": "exp2_2025-12-04-113307",
+  "experiment_key": "exp2",
+  "experiment_name": "Experiment 2: Twelve-Period Stochastic (Castro-Aligned)",
+  "description": "12-period LVTS-style with deferred crediting and EOD deadline cap",
+  "model": "gpt-5.1",
+  "reasoning_effort": "high",
+  "num_seeds": 10,
+  "max_iterations": 15,
+  "convergence_threshold": 0.05,
+  "convergence_window": 5,
+  "config_path": "/home/user/SimCash/experiments/castro/configs/castro_12period_aligned.yaml",
+  "simcash_root": "/home/user/SimCash",
+  "created_at": "2025-12-04T11:33:07.187884"
+}

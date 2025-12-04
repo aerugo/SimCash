@@ -1,0 +1,163 @@
+{
+  "policy_id": "bank_b_fixed_policy",
+  "version": "2.0",
+  "description": "Corrected Bank B policy: simple, valid JSON, no undefined parameters, maintains strong performance.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 1.0,
+    "initial_collateral_fraction": 0.25
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_past_deadline"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_or_late"
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_liquid"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_insufficient_liquidity"
+      },
+      "node_id": "P3_check_liquidity_with_buffer",
+      "description": "Release if effective_liquidity covers remaining_amount times liquidity_buffer; otherwise hold."
+    },
+    "node_id": "P1_is_urgent_or_past_due",
+    "description": "Release if urgent or past deadline; otherwise check liquidity vs remaining amount with buffer."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_no_dynamic_state",
+    "description": "Bank B uses simple local rules only; no explicit release budget or custom state."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial_fraction",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialAllocation"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_otherwise"
+    },
+    "node_id": "SC1_post_initial_if_capacity",
+    "description": "At the very start of the day, post an initial fraction of available collateral capacity; otherwise hold."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": ">",
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "EC2_post_to_cover_gap",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "min",
+            "values": [
+              {
+                "field": "queue1_liquidity_gap"
+              },
+              {
+                "field": "remaining_collateral_capacity"
+              }
+            ]
+          }
+        },
+        "reason": {
+          "value": "CoverLiquidityGap"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "EC3_hold_if_no_gap"
+    },
+    "node_id": "EC1_adjust_collateral_if_large_gap",
+    "description": "Near end of day, if there is a liquidity gap and remaining capacity, post additional collateral; otherwise hold."
+  }
+}

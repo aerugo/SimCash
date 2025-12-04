@@ -1,0 +1,185 @@
+{
+  "policy_id": "iter_015_targeted_cost_reduction",
+  "version": "2.0",
+  "description": "Slightly more liquidity-sensitive release plus modest initial collateral to reduce overdraft/collateral cost while preserving 100% settlement.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 1.05,
+    "initial_collateral_fraction": 0.18,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "==",
+          "left": {
+            "field": "is_past_deadline"
+          },
+          "right": {
+            "value": 1.0
+          }
+        },
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "compute": {
+              "op": "-",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "compute": {
+                  "op": "*",
+                  "left": {
+                    "param": "eod_urgency_boost"
+                  },
+                  "right": {
+                    "field": "is_eod_rush"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent"
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_with_buffer"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_to_avoid_overdraft"
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, require a small liquidity buffer before releasing."
+    },
+    "node_id": "P1_is_urgent_or_overdue",
+    "description": "Always release if overdue or within urgency window (with EOD boost)."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_no_dynamic_bank_action"
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialDayAllocation"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_rest_of_day"
+    },
+    "node_id": "SC1_start_of_day",
+    "description": "Post a modest amount of collateral at start of day, otherwise hold."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": ">",
+      "left": {
+        "field": "posted_collateral"
+      },
+      "right": {
+        "compute": {
+          "op": "*",
+          "left": {
+            "field": "max_collateral_capacity"
+          },
+          "right": {
+            "param": "initial_collateral_fraction"
+          }
+        }
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "WithdrawCollateral",
+      "node_id": "EC2_withdraw_some",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "posted_collateral"
+            },
+            "right": {
+              "value": 0.2
+            }
+          }
+        },
+        "reason": {
+          "value": "ReduceExcessCollateral"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "EC3_hold_collateral"
+    },
+    "node_id": "EC1_check_excess_collateral",
+    "description": "If unused collateral capacity is high relative to needs, withdraw a small portion; otherwise hold."
+  }
+}

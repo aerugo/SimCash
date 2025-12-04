@@ -1,0 +1,169 @@
+{
+  "policy_id": "iter_008_policy",
+  "version": "2.0",
+  "description": "Iteration 8 policy with slightly lower liquidity buffers to reduce overdraft/collateral while maintaining 100% settlement.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 1.05,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "compute": {
+              "op": "-",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "value": 0.5
+              }
+            }
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_past_deadline"
+          },
+          "right": {
+            "value": 1.0
+          }
+        },
+        {
+          "op": "and",
+          "conditions": [
+            {
+              "op": "<=",
+              "left": {
+                "field": "ticks_remaining_in_day"
+              },
+              "right": {
+                "compute": {
+                  "op": "+",
+                  "left": {
+                    "param": "urgency_threshold"
+                  },
+                  "right": {
+                    "param": "eod_urgency_boost"
+                  }
+                }
+              }
+            },
+            {
+              "op": "==",
+              "left": {
+                "field": "is_eod_rush"
+              },
+              "right": {
+                "value": 1.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent",
+      "description": "Release urgent or EOD-rush payments regardless of buffer to avoid any deadline or EOD risk."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_when_liquid",
+        "description": "Release when there is sufficient effective liquidity with modest buffer."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_nonurgent_when_tight",
+        "description": "Hold non-urgent payments when liquidity is tight to avoid overdraft."
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, require effective liquidity to cover amount times liquidity_buffer."
+    },
+    "node_id": "P1_is_urgent_or_overdue",
+    "description": "Always release urgent or overdue payments; otherwise check liquidity with modest buffer."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_noop",
+    "description": "No explicit bank-level state or budget control in this simple policy."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial_fraction",
+      "description": "Post a fixed fraction of maximum collateral capacity at day start.",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_intraday",
+      "description": "Do not adjust collateral intraday in this iteration to avoid oscillations."
+    },
+    "node_id": "SC1_initial_post",
+    "description": "Post initial collateral at start of day only; otherwise hold collateral steady intraday."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "action": "HoldCollateral",
+    "node_id": "EC1_hold_eod",
+    "description": "Keep collateral level unchanged at end of tick/day to avoid extra collateral costs."
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "policy_id": "iter_12_targeted_tweak",
+  "version": "2.0",
+  "description": "Slightly tighter liquidity usage while preserving 100% settlement; symmetric for both banks.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 0.96,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "compute": {
+              "op": "-",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "value": 0.5
+              }
+            }
+          }
+        },
+        {
+          "op": ">=",
+          "left": {
+            "field": "is_eod_rush"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_eod",
+      "description": "Always release if urgent or in EOD rush to avoid any risk of non-settlement."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_with_buffer",
+        "description": "Release when we have comfortable liquidity for non-urgent flows."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_to_avoid_overdraft",
+        "description": "Hold when liquidity is insufficient for non-urgent items."
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, require effective liquidity to cover amount * liquidity_buffer."
+    },
+    "node_id": "P1_is_urgent_or_eod",
+    "description": "Release when near deadline or during end-of-day rush, otherwise check liquidity buffer."
+  }
+}
