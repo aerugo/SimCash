@@ -1646,28 +1646,24 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
         start_time = time.time()
 
         try:
-            # Run the synchronous generate_policy in a thread pool
-            # to avoid blocking the event loop
-            loop = asyncio.get_event_loop()
-            policy = await loop.run_in_executor(
-                None,  # Use default executor
-                lambda: self.agent.generate_policy(
-                    instruction=instruction,
-                    current_policy=current_policy,
-                    current_cost=current_cost,
-                    settlement_rate=settlement_rate,
-                    iteration=iteration,
-                    iteration_history=iteration_history,
-                    best_seed_output=best_seed_output,
-                    worst_seed_output=worst_seed_output,
-                    best_seed=best_seed,
-                    worst_seed=worst_seed,
-                    best_seed_cost=best_seed_cost,
-                    worst_seed_cost=worst_seed_cost,
-                    cost_breakdown=cost_breakdown,
-                    cost_rates=cost_rates,
-                    agent_id=agent_id,
-                )
+            # Use the native async method from RobustPolicyAgent
+            # This avoids nested asyncio.run() calls which cause "Event loop is closed" errors
+            policy = await self.agent.generate_policy_async(
+                instruction=instruction,
+                current_policy=current_policy,
+                current_cost=current_cost,
+                settlement_rate=settlement_rate,
+                iteration=iteration,
+                iteration_history=iteration_history,
+                best_seed_output=best_seed_output,
+                worst_seed_output=worst_seed_output,
+                best_seed=best_seed,
+                worst_seed=worst_seed,
+                best_seed_cost=best_seed_cost,
+                worst_seed_cost=worst_seed_cost,
+                cost_breakdown=cost_breakdown,
+                cost_rates=cost_rates,
+                agent_id=agent_id,
             )
 
             latency = time.time() - start_time

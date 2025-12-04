@@ -250,7 +250,48 @@ ALLOWED ACTIONS BY TREE:
   "parameters": {{
     "urgency_threshold": 3.0,
     "liquidity_buffer": 1.0,
-    "initial_collateral_fraction": 0.25
+    "initial_collateral_fraction": 0.25,
+    "budget_fraction": 0.5
+  }},
+  "bank_tree": {{
+    "type": "condition",
+    "node_id": "BT1_check_day_progress",
+    "description": "Set release budget based on time of day",
+    "condition": {{
+      "op": ">=",
+      "left": {{"field": "day_progress_fraction"}},
+      "right": {{"value": 0.8}}
+    }},
+    "on_true": {{
+      "type": "action",
+      "node_id": "BT2_eod_budget",
+      "description": "End of day - larger budget to clear queues",
+      "action": "SetReleaseBudget",
+      "parameters": {{
+        "max_value_to_release": {{
+          "compute": {{
+            "op": "*",
+            "left": {{"field": "effective_liquidity"}},
+            "right": {{"value": 0.7}}
+          }}
+        }}
+      }}
+    }},
+    "on_false": {{
+      "type": "action",
+      "node_id": "BT3_normal_budget",
+      "description": "Normal budget during the day",
+      "action": "SetReleaseBudget",
+      "parameters": {{
+        "max_value_to_release": {{
+          "compute": {{
+            "op": "*",
+            "left": {{"field": "effective_liquidity"}},
+            "right": {{"param": "budget_fraction"}}
+          }}
+        }}
+      }}
+    }}
   }},
   "strategic_collateral_tree": {{
     "type": "condition",
@@ -328,10 +369,16 @@ ALLOWED ACTIONS BY TREE:
 
 KEY OBSERVATIONS FROM THE VALIDATED EXAMPLE:
   1. ALL parameters are DEFINED in "parameters" BEFORE any {{"param": "X"}} reference
-  2. strategic_collateral_tree uses HoldCollateral (NOT Hold or NoAction!)
-  3. payment_tree uses Hold (NOT HoldCollateral!)
-  4. Each node has a UNIQUE node_id (SC1, SC2, SC3, P1, P2, P3, P4, P5)
-  5. Arithmetic uses {{"compute": {{...}}}} wrapper
+  2. bank_tree uses SetReleaseBudget with REQUIRED "max_value_to_release" parameter!
+  3. strategic_collateral_tree uses HoldCollateral (NOT Hold or NoAction!)
+  4. payment_tree uses Hold (NOT HoldCollateral!)
+  5. Each node has a UNIQUE node_id (BT1, BT2, BT3, SC1, SC2, SC3, P1, P2, P3, P4, P5)
+  6. Arithmetic uses {{"compute": {{...}}}} wrapper
+
+CRITICAL FOR bank_tree:
+  - SetReleaseBudget action REQUIRES the "max_value_to_release" parameter
+  - The "max_value_to_release" controls how much total value the bank can release this tick
+  - This is NOT optional - missing it causes validation failure!
 
 ################################################################################
 #                         VALUE TYPES REFERENCE                                #
@@ -747,55 +794,32 @@ class RobustPolicyAgent:
         except Exception as e:
             raise ValueError(f"Policy validation failed: {e}") from e
 
-    def generate_policy(
+    # ========================================================================
+    # Shared Helper Methods (used by both sync and async)
+    # ========================================================================
+
+    def _prepare_prompt_and_deps(
         self,
-        instruction: str = "Generate an optimal policy",
-        current_policy: dict[str, Any] | None = None,
-        current_cost: float | None = None,
-        settlement_rate: float | None = None,
-        per_bank_costs: dict[str, float] | None = None,
-        iteration: int = 0,
-        # Extended context parameters
-        iteration_history: list[Any] | None = None,
-        best_seed_output: str | None = None,
-        worst_seed_output: str | None = None,
-        best_seed: int = 0,
-        worst_seed: int = 0,
-        best_seed_cost: int = 0,
-        worst_seed_cost: int = 0,
-        cost_breakdown: dict[str, int] | None = None,
-        cost_rates: dict[str, Any] | None = None,
-        agent_id: str | None = None,
-    ) -> dict[str, Any]:
-        """Generate a constrained policy with rich historical context.
+        instruction: str,
+        current_policy: dict[str, Any] | None,
+        current_cost: float | None,
+        settlement_rate: float | None,
+        per_bank_costs: dict[str, float] | None,
+        iteration: int,
+        iteration_history: list[Any] | None,
+        best_seed_output: str | None,
+        worst_seed_output: str | None,
+        best_seed: int,
+        worst_seed: int,
+        best_seed_cost: int,
+        worst_seed_cost: int,
+        cost_breakdown: dict[str, int] | None,
+        cost_rates: dict[str, Any] | None,
+        agent_id: str | None,
+    ) -> tuple[str, RobustPolicyDeps]:
+        """Prepare prompt and dependencies for policy generation.
 
-        CRITICAL ISOLATION: This method generates policy for a SINGLE agent.
-        The iteration_history must be pre-filtered to only contain this agent's
-        data. No cross-agent information should be passed to the LLM.
-
-        Args:
-            instruction: Natural language instruction for policy
-            current_policy: Current policy to improve (optional)
-            current_cost: Current total cost for context (optional)
-            settlement_rate: Current settlement rate for context (optional)
-            per_bank_costs: Per-bank costs for context (optional)
-            iteration: Current optimization iteration (optional)
-            iteration_history: List of IterationRecord from previous iterations
-                              MUST be filtered for this agent only
-            best_seed_output: Full tick-by-tick verbose output from best seed
-                             MUST be filtered for this agent only
-            worst_seed_output: Full tick-by-tick verbose output from worst seed
-                              MUST be filtered for this agent only
-            best_seed: Best performing seed number
-            worst_seed: Worst performing seed number
-            best_seed_cost: Cost from best seed
-            worst_seed_cost: Cost from worst seed
-            cost_breakdown: Breakdown of costs by type (delay, collateral, etc.)
-            cost_rates: Cost rate configuration from simulation
-            agent_id: Identifier of the agent being optimized (e.g., "BANK_A")
-
-        Returns:
-            Generated policy as dict (fully validated)
+        This shared helper is used by both sync and async generation methods.
         """
         # Determine if we should use extended context
         has_extended_context = (
@@ -805,8 +829,6 @@ class RobustPolicyAgent:
         )
 
         if has_extended_context:
-            # Build massive extended context prompt for SINGLE AGENT
-            # CRITICAL: Only this agent's data is passed - no cross-agent leakage
             prompt = self._build_extended_prompt(
                 instruction=instruction,
                 current_policy=current_policy,
@@ -825,7 +847,6 @@ class RobustPolicyAgent:
                 agent_id=agent_id,
             )
         else:
-            # Legacy: Build simple context-aware prompt
             prompt = self._build_simple_prompt(
                 instruction=instruction,
                 current_policy=current_policy,
@@ -834,9 +855,6 @@ class RobustPolicyAgent:
                 per_bank_costs=per_bank_costs,
                 iteration=iteration,
             )
-
-        # Use PydanticAI agent for all models
-        agent = self._get_agent()
 
         deps = RobustPolicyDeps(
             current_policy=current_policy,
@@ -856,86 +874,132 @@ class RobustPolicyAgent:
             agent_id=agent_id,
         )
 
-        # Retry with exponential backoff for transient API errors
+        return prompt, deps
+
+    def _is_transient_error(self, error: Exception) -> bool:
+        """Check if an error is transient and worth retrying."""
+        error_str = str(error).lower()
+
+        # 400 errors are NOT transient - they indicate bad request
+        if "status_code: 400" in error_str or "400 bad request" in error_str:
+            if self.verbose:
+                print("  [VERBOSE] 400 error detected - NOT retrying (bad request)")
+            return False
+
+        # Check for transient error indicators
+        transient_indicators = [
+            "503", "502", "500",
+            "tls", "ssl", "certificate",
+            "connection", "timeout", "reset",
+            "upstream", "temporarily unavailable",
+            "service unavailable", "bad gateway",
+            "internal server error",
+        ]
+        return any(indicator in error_str for indicator in transient_indicators)
+
+    def _log_error_verbose(self, error: Exception, prompt: str, label: str = "") -> None:
+        """Log detailed error information in verbose mode."""
+        if not self.verbose:
+            return
+
+        suffix = f" ({label})" if label else ""
+        print(f"\n  [VERBOSE] API Error Details{suffix}:")
+        print(f"    Model: {self.model}")
+        print(f"    Prompt length: {len(prompt):,} chars")
+        print(f"    System prompt length: {len(self._system_prompt):,} chars")
+        print(f"    Thinking budget: {self.thinking_budget}")
+        print(f"    Full error:\n{error}")
+        if hasattr(error, "__cause__") and error.__cause__:
+            print(f"    Cause: {error.__cause__}")
+        if hasattr(error, "response"):
+            print(f"    Response: {getattr(error, 'response', 'N/A')}")
+        if hasattr(error, "body"):
+            print(f"    Body: {getattr(error, 'body', 'N/A')}")
+        print()
+
+    def _process_result(self, result: Any) -> dict[str, Any]:
+        """Convert PydanticAI result to dict."""
+        if hasattr(result.output, "model_dump"):
+            return result.output.model_dump(exclude_none=True)
+        return dict(result.output)
+
+    # ========================================================================
+    # Sync Policy Generation
+    # ========================================================================
+
+    def generate_policy(
+        self,
+        instruction: str = "Generate an optimal policy",
+        current_policy: dict[str, Any] | None = None,
+        current_cost: float | None = None,
+        settlement_rate: float | None = None,
+        per_bank_costs: dict[str, float] | None = None,
+        iteration: int = 0,
+        iteration_history: list[Any] | None = None,
+        best_seed_output: str | None = None,
+        worst_seed_output: str | None = None,
+        best_seed: int = 0,
+        worst_seed: int = 0,
+        best_seed_cost: int = 0,
+        worst_seed_cost: int = 0,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_rates: dict[str, Any] | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Generate a constrained policy (synchronous version).
+
+        For async contexts (parallel execution), use generate_policy_async() instead.
+
+        CRITICAL ISOLATION: This method generates policy for a SINGLE agent.
+        The iteration_history must be pre-filtered to only contain this agent's data.
+        """
+        prompt, deps = self._prepare_prompt_and_deps(
+            instruction=instruction,
+            current_policy=current_policy,
+            current_cost=current_cost,
+            settlement_rate=settlement_rate,
+            per_bank_costs=per_bank_costs,
+            iteration=iteration,
+            iteration_history=iteration_history,
+            best_seed_output=best_seed_output,
+            worst_seed_output=worst_seed_output,
+            best_seed=best_seed,
+            worst_seed=worst_seed,
+            best_seed_cost=best_seed_cost,
+            worst_seed_cost=worst_seed_cost,
+            cost_breakdown=cost_breakdown,
+            cost_rates=cost_rates,
+            agent_id=agent_id,
+        )
+
+        agent = self._get_agent()
         last_exception: Exception | None = None
         backoff = INITIAL_BACKOFF_SECONDS
 
         for attempt in range(MAX_RETRIES):
             try:
-                # For Anthropic extended thinking, we MUST use streaming
-                # because max_tokens > 21,333 requires streaming per Anthropic API
                 if self._is_anthropic_thinking_mode():
-                    result = asyncio.run(self._run_with_streaming(agent, prompt, deps))
-                    raw_text = str(result)
+                    # Use a fresh event loop for each call to avoid "event loop closed"
+                    loop = asyncio.new_event_loop()
+                    try:
+                        raw_text = loop.run_until_complete(
+                            self._run_with_streaming(agent, prompt, deps)
+                        )
+                    finally:
+                        loop.close()
                     parsed_policy = self._parse_json_from_thinking_response(raw_text)
                     return self._validate_parsed_policy(parsed_policy)
 
-                # Standard mode: use synchronous call
                 result = agent.run_sync(prompt, deps=deps)
-
-                # Standard mode: convert Pydantic model to dict
-                if hasattr(result.output, "model_dump"):
-                    return result.output.model_dump(exclude_none=True)
-                return dict(result.output)
+                return self._process_result(result)
 
             except Exception as e:
                 last_exception = e
-                error_str = str(e).lower()
+                self._log_error_verbose(e, prompt)
 
-                # Log full error details in verbose mode
-                if self.verbose:
-                    print(f"\n  [VERBOSE] API Error Details:")
-                    print(f"    Model: {self.model}")
-                    print(f"    Prompt length: {len(prompt):,} chars")
-                    print(
-                        f"    System prompt length: {len(self._system_prompt):,} chars"
-                    )
-                    print(f"    Thinking budget: {self.thinking_budget}")
-                    print(f"    Full error:\n{e}")
-                    # Try to extract more details from the exception
-                    if hasattr(e, "__cause__") and e.__cause__:
-                        print(f"    Cause: {e.__cause__}")
-                    if hasattr(e, "response"):
-                        print(f"    Response: {getattr(e, 'response', 'N/A')}")
-                    if hasattr(e, "body"):
-                        print(f"    Body: {getattr(e, 'body', 'N/A')}")
-                    print()
-
-                # Check if this is a transient error worth retrying
-                # Note: 400 errors are NOT transient - they indicate bad request
-                is_transient = any(
-                    indicator in error_str
-                    for indicator in [
-                        "503",
-                        "502",
-                        "500",
-                        "tls",
-                        "ssl",
-                        "certificate",
-                        "connection",
-                        "timeout",
-                        "reset",
-                        "upstream",
-                        "temporarily unavailable",
-                        "service unavailable",
-                        "bad gateway",
-                        "internal server error",
-                    ]
-                )
-
-                # Explicitly check for 400 errors - these are NOT transient
-                if "status_code: 400" in error_str or "400 bad request" in error_str:
-                    is_transient = False
-                    if self.verbose:
-                        print(
-                            f"  [VERBOSE] 400 error detected - NOT retrying (bad request)"
-                        )
-
-                if not is_transient:
-                    # Non-transient error, don't retry
+                if not self._is_transient_error(e):
                     raise
 
-                # Transient error - retry with backoff
                 if attempt < MAX_RETRIES - 1:
                     print(
                         f"  [Retry {attempt + 1}/{MAX_RETRIES}] "
@@ -944,7 +1008,6 @@ class RobustPolicyAgent:
                     time.sleep(backoff)
                     backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_SECONDS)
 
-        # All retries exhausted
         raise RuntimeError(
             f"API call failed after {MAX_RETRIES} retries: {last_exception}"
         ) from last_exception
@@ -1059,100 +1122,76 @@ class RobustPolicyAgent:
 {extended_context}
 """
 
+    # ========================================================================
+    # Async Policy Generation
+    # ========================================================================
+
     async def generate_policy_async(
         self,
         instruction: str = "Generate an optimal policy",
-        **kwargs: Any,
+        current_policy: dict[str, Any] | None = None,
+        current_cost: float | None = None,
+        settlement_rate: float | None = None,
+        per_bank_costs: dict[str, float] | None = None,
+        iteration: int = 0,
+        iteration_history: list[Any] | None = None,
+        best_seed_output: str | None = None,
+        worst_seed_output: str | None = None,
+        best_seed: int = 0,
+        worst_seed: int = 0,
+        best_seed_cost: int = 0,
+        worst_seed_cost: int = 0,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_rates: dict[str, Any] | None = None,
+        agent_id: str | None = None,
     ) -> dict[str, Any]:
-        """Async version of generate_policy with exponential backoff retry."""
-        agent = self._get_agent()
+        """Generate a constrained policy (async version).
 
-        deps = RobustPolicyDeps(
-            current_policy=kwargs.get("current_policy"),
-            current_cost=kwargs.get("current_cost"),
-            settlement_rate=kwargs.get("settlement_rate"),
-            per_bank_costs=kwargs.get("per_bank_costs"),
-            iteration=kwargs.get("iteration", 0),
+        Use this for parallel execution contexts. Avoids nested asyncio.run() issues.
+
+        CRITICAL ISOLATION: This method generates policy for a SINGLE agent.
+        The iteration_history must be pre-filtered to only contain this agent's data.
+        """
+        prompt, deps = self._prepare_prompt_and_deps(
+            instruction=instruction,
+            current_policy=current_policy,
+            current_cost=current_cost,
+            settlement_rate=settlement_rate,
+            per_bank_costs=per_bank_costs,
+            iteration=iteration,
+            iteration_history=iteration_history,
+            best_seed_output=best_seed_output,
+            worst_seed_output=worst_seed_output,
+            best_seed=best_seed,
+            worst_seed=worst_seed,
+            best_seed_cost=best_seed_cost,
+            worst_seed_cost=worst_seed_cost,
+            cost_breakdown=cost_breakdown,
+            cost_rates=cost_rates,
+            agent_id=agent_id,
         )
 
-        # Retry with exponential backoff for transient API errors
+        agent = self._get_agent()
         last_exception: Exception | None = None
         backoff = INITIAL_BACKOFF_SECONDS
 
         for attempt in range(MAX_RETRIES):
             try:
-                # For Anthropic extended thinking, we MUST use streaming
-                # because max_tokens > 21,333 requires streaming per Anthropic API
                 if self._is_anthropic_thinking_mode():
-                    raw_text = await self._run_with_streaming(agent, instruction, deps)
+                    raw_text = await self._run_with_streaming(agent, prompt, deps)
                     parsed_policy = self._parse_json_from_thinking_response(raw_text)
                     return self._validate_parsed_policy(parsed_policy)
 
-                # Standard mode: use regular async call
-                result = await agent.run(instruction, deps=deps)
-
-                # Standard mode: convert Pydantic model to dict
-                if hasattr(result.output, "model_dump"):
-                    return result.output.model_dump(exclude_none=True)
-                return dict(result.output)
+                result = await agent.run(prompt, deps=deps)
+                return self._process_result(result)
 
             except Exception as e:
                 last_exception = e
-                error_str = str(e).lower()
+                self._log_error_verbose(e, prompt, "async")
 
-                # Log full error details in verbose mode
-                if self.verbose:
-                    print(f"\n  [VERBOSE] API Error Details (async):")
-                    print(f"    Model: {self.model}")
-                    print(f"    Instruction length: {len(instruction):,} chars")
-                    print(
-                        f"    System prompt length: {len(self._system_prompt):,} chars"
-                    )
-                    print(f"    Thinking budget: {self.thinking_budget}")
-                    print(f"    Full error:\n{e}")
-                    if hasattr(e, "__cause__") and e.__cause__:
-                        print(f"    Cause: {e.__cause__}")
-                    if hasattr(e, "response"):
-                        print(f"    Response: {getattr(e, 'response', 'N/A')}")
-                    if hasattr(e, "body"):
-                        print(f"    Body: {getattr(e, 'body', 'N/A')}")
-                    print()
-
-                # Check if this is a transient error worth retrying
-                # Note: 400 errors are NOT transient - they indicate bad request
-                is_transient = any(
-                    indicator in error_str
-                    for indicator in [
-                        "503",
-                        "502",
-                        "500",
-                        "tls",
-                        "ssl",
-                        "certificate",
-                        "connection",
-                        "timeout",
-                        "reset",
-                        "upstream",
-                        "temporarily unavailable",
-                        "service unavailable",
-                        "bad gateway",
-                        "internal server error",
-                    ]
-                )
-
-                # Explicitly check for 400 errors - these are NOT transient
-                if "status_code: 400" in error_str or "400 bad request" in error_str:
-                    is_transient = False
-                    if self.verbose:
-                        print(
-                            f"  [VERBOSE] 400 error detected - NOT retrying (bad request)"
-                        )
-
-                if not is_transient:
-                    # Non-transient error, don't retry
+                if not self._is_transient_error(e):
                     raise
 
-                # Transient error - retry with backoff
                 if attempt < MAX_RETRIES - 1:
                     print(
                         f"  [Retry {attempt + 1}/{MAX_RETRIES}] "
@@ -1161,7 +1200,6 @@ class RobustPolicyAgent:
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_SECONDS)
 
-        # All retries exhausted
         raise RuntimeError(
             f"API call failed after {MAX_RETRIES} retries: {last_exception}"
         ) from last_exception
