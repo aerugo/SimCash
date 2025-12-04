@@ -4,6 +4,18 @@ This directory contains archived code and documentation from the Castro experime
 
 ## Directory Structure
 
+### `session-2025-12-04/`
+Archived session from 2025-12-04:
+- `LAB_NOTES.md` - Extensive experimental logs (11 entries)
+- `papers/castro_et_al.md` - Reference paper summary
+- `results/graphs/` - Convergence graphs
+
+**Key results from this session:**
+- Exp 1 (2-period deterministic): 81.9% cost reduction
+- Exp 2 (12-period stochastic): Failed due to race condition bug (invalidated)
+- Exp 3 (3-period joint): 60.0% cost reduction
+- Discovered race condition bug in parallel experiment runs (Entry 11)
+
 ### `docs-2025-12-03/`
 Archived documentation from initial experiment phase:
 - `LAB_NOTES.md` - Extensive experimental logs (116 KB)
