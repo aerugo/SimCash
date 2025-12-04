@@ -1,0 +1,114 @@
+{
+  "policy_id": "iter_11_targeted_tweak",
+  "version": "2.0",
+  "description": "Small liquidity-buffer tightening for BANK_A via payment rules; parameters kept close to iter10 to avoid oscillation. No collateral trees used because costs are zero there.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 0.85,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "compute": {
+              "op": "-",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "value": 0.5
+              }
+            }
+          }
+        },
+        {
+          "op": ">=",
+          "left": {
+            "field": "day_progress_fraction"
+          },
+          "right": {
+            "value": 0.9
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_eod_rush"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_or_eod",
+      "description": "Always release urgent or EOD payments to guarantee deadlines and 100% settlement."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_with_buffer",
+        "description": "Release when liquidity is adequate under the tightened buffer."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_to_avoid_overdraft",
+        "description": "Hold to avoid unnecessary overdraft when payment is non-urgent and liquidity is tight."
+      },
+      "node_id": "P3_check_liquidity_tight",
+      "description": "For non-urgent payments, require slightly more liquidity than amount using bank-specific buffer."
+    },
+    "node_id": "P1_check_urgent_or_eod",
+    "description": "Release if near deadline or in end-of-day rush, otherwise apply tighter liquidity buffer for non-urgent payments."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_no_bank_level_override",
+    "description": "Keep bank-level policy simple and let payment_tree drive behavior; avoids oscillations from changing budgets."
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "action": "HoldCollateral",
+    "node_id": "SC1_hold_all_collateral",
+    "description": "Do not actively manage collateral since collateral costs are currently zero."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "action": "HoldCollateral",
+    "node_id": "EC1_hold_all_collateral_eod",
+    "description": "At end of tick, keep collateral unchanged; no cost benefit to adjusting."
+  }
+}

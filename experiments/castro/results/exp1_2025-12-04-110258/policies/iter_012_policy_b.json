@@ -1,0 +1,287 @@
+{
+  "policy_id": "bank_b_fixed_policy",
+  "version": "2.0",
+  "description": "Corrected policy for Bank B with all parameters defined in the parameters object and valid JSON structure.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 1.0,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "compute": {
+              "op": "+",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "param": "eod_urgency_boost"
+              }
+            }
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_past_deadline"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent"
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_liquid"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_wait"
+      },
+      "node_id": "P3_has_liquidity",
+      "description": "Release if effective liquidity comfortably covers remaining amount; otherwise hold."
+    },
+    "node_id": "P1_is_urgent",
+    "description": "Release if close to deadline or already past it; otherwise check liquidity before releasing."
+  },
+  "bank_tree": {
+    "type": "condition",
+    "condition": {
+      "op": ">",
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "SetReleaseBudget",
+      "node_id": "B2_set_tight_budget",
+      "description": "When there is a liquidity gap, constrain release budget to effective liquidity to avoid overdrafts.",
+      "parameters": {
+        "budget": {
+          "field": "effective_liquidity"
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": "==",
+        "left": {
+          "field": "is_eod_rush"
+        },
+        "right": {
+          "value": 1.0
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "SetReleaseBudget",
+        "node_id": "B4_set_aggressive_budget",
+        "description": "Allow releases up to balance plus full credit headroom during EOD rush.",
+        "parameters": {
+          "budget": {
+            "compute": {
+              "op": "+",
+              "left": {
+                "field": "balance"
+              },
+              "right": {
+                "field": "credit_headroom"
+              }
+            }
+          }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "action": "NoAction",
+        "node_id": "B5_noaction_normal",
+        "description": "In normal conditions without liquidity gap, keep existing budget/state."
+      },
+      "node_id": "B3_is_eod_rush",
+      "description": "During EOD rush, be more aggressive with releases."
+    },
+    "node_id": "B1_check_liquidity_gap",
+    "description": "Adjust release budget based on liquidity gap and end-of-day rush."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialDayCollateral"
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">",
+        "left": {
+          "field": "queue1_liquidity_gap"
+        },
+        "right": {
+          "value": 0.0
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "PostCollateral",
+        "node_id": "SC4_post_for_gap",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "min",
+              "values": [
+                {
+                  "field": "remaining_collateral_capacity"
+                },
+                {
+                  "field": "queue1_liquidity_gap"
+                }
+              ]
+            }
+          },
+          "reason": {
+            "value": "CoverLiquidityGap"
+          }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "action": "HoldCollateral",
+        "node_id": "SC5_hold_collateral",
+        "description": "No strategic change to collateral when no gap."
+      },
+      "node_id": "SC3_check_gap_for_post",
+      "description": "If there is a liquidity gap in queue1 and capacity remains, post more collateral."
+    },
+    "node_id": "SC1_start_day_post",
+    "description": "Post initial collateral at start of day based on capacity and target fraction."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "ticks_remaining_in_day"
+      },
+      "right": {
+        "value": 1.0
+      }
+    },
+    "on_true": {
+      "type": "condition",
+      "condition": {
+        "op": "<=",
+        "left": {
+          "field": "queue1_liquidity_gap"
+        },
+        "right": {
+          "value": 0.0
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "WithdrawCollateral",
+        "node_id": "EC3_withdraw_some",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "*",
+              "left": {
+                "field": "posted_collateral"
+              },
+              "right": {
+                "value": 0.5
+              }
+            }
+          },
+          "reason": {
+            "value": "EndOfDayReturn"
+          }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "action": "HoldCollateral",
+        "node_id": "EC4_hold_due_to_gap",
+        "description": "Keep collateral if there is still a liquidity gap even at EOD."
+      },
+      "node_id": "EC2_check_queue_and_capacity",
+      "description": "If no liquidity gap, we can withdraw some posted collateral."
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "EC5_hold_normal",
+      "description": "During the day, end-of-tick logic keeps collateral unchanged."
+    },
+    "node_id": "EC1_end_of_day_cleanup",
+    "description": "At end of day, release excess collateral if capacity is underused and queues are clear."
+  }
+}

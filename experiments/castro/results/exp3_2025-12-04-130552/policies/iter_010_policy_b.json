@@ -1,0 +1,77 @@
+{
+  "policy_id": "iter_10_optimized",
+  "version": "2.0",
+  "description": "Slightly tighter liquidity use via lower buffer, symmetric for both banks, with same structural trees.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 0.98,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_eod_rush"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_eod",
+      "description": "Always release urgent or EOD-rush payments to avoid deadline/EOD risk."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_liquid"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_insufficient_liquidity"
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "Release if effective_liquidity covers remaining_amount with configured buffer; else hold."
+    },
+    "node_id": "P1_is_urgent_or_eod",
+    "description": "Release if close to deadline or in end-of-day rush, otherwise check liquidity vs amount*buffer."
+  }
+}

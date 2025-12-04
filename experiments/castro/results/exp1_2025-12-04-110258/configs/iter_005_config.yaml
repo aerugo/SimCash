@@ -1,0 +1,62 @@
+agents:
+- id: BANK_A
+  max_collateral_capacity: 10000000
+  opening_balance: 0
+  policy:
+    json_path: /home/user/SimCash/experiments/castro/results/exp1_2025-12-04-110258/policies/iter_005_policy_a.json
+    type: FromJson
+  unsecured_cap: 50000
+- id: BANK_B
+  max_collateral_capacity: 10000000
+  opening_balance: 0
+  policy:
+    json_path: /home/user/SimCash/experiments/castro/results/exp1_2025-12-04-110258/policies/iter_005_policy_b.json
+    type: FromJson
+  unsecured_cap: 50000
+cost_rates:
+  collateral_cost_per_tick_bps: 500
+  deadline_penalty: 0
+  delay_cost_per_tick_per_cent: 0.001
+  eod_penalty_per_transaction: 0
+  overdraft_bps_per_tick: 2000
+  overdue_delay_multiplier: 1.0
+  split_friction_cost: 0
+deadline_cap_at_eod: true
+deferred_crediting: true
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+  max_cycle_length: 3
+  max_cycles_per_tick: 1
+scenario_events:
+- amount: 15000
+  deadline: 2
+  from_agent: BANK_A
+  priority: 5
+  schedule:
+    tick: 1
+    type: OneTime
+  to_agent: BANK_B
+  type: CustomTransactionArrival
+- amount: 15000
+  deadline: 1
+  from_agent: BANK_B
+  priority: 5
+  schedule:
+    tick: 0
+    type: OneTime
+  to_agent: BANK_A
+  type: CustomTransactionArrival
+- amount: 5000
+  deadline: 2
+  from_agent: BANK_B
+  priority: 5
+  schedule:
+    tick: 1
+    type: OneTime
+  to_agent: BANK_A
+  type: CustomTransactionArrival
+simulation:
+  num_days: 1
+  rng_seed: 42
+  ticks_per_day: 2

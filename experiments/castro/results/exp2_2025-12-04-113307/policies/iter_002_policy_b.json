@@ -1,0 +1,142 @@
+{
+  "policy_id": "iter_002_incremental_overdraft_control",
+  "version": "2.0",
+  "description": "Incremental optimization from iter_001: introduce modest liquidity buffer and slightly earlier urgency to reduce overdraft cost while maintaining 100% settlement.",
+  "parameters": {
+    "urgency_threshold": 4.0,
+    "liquidity_buffer": 1.1,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_past_deadline"
+          },
+          "right": {
+            "value": 1
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_eod_rush"
+          },
+          "right": {
+            "value": 1
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_eod",
+      "description": "Always release urgent or EOD-rush payments to avoid deadline/EOD risk."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_with_buffer",
+        "description": "Release when there is enough buffered liquidity to limit overdraft usage."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_to_avoid_overdraft",
+        "description": "Hold non-urgent payments when liquidity is insufficient to reduce overdraft."
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, require effective liquidity to cover amount times buffer to reduce overdraft usage."
+    },
+    "node_id": "P1_is_urgent_or_overdue",
+    "description": "Release if payment is urgent, overdue, or near end of day; otherwise check liquidity vs buffered requirement."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_no_dynamic_budget",
+    "description": "Rely on payment-level logic only; no explicit release budget."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial_fraction",
+      "description": "Post a fraction of max collateral capacity at day start to provide baseline liquidity.",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialDayCollateral"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_collateral",
+      "description": "Do not adjust collateral intraday in this simple, low-cost policy."
+    },
+    "node_id": "SC1_initial_post",
+    "description": "Post modest initial collateral at start of day; otherwise hold collateral steady."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "action": "HoldCollateral",
+    "node_id": "EC1_hold_eod",
+    "description": "Keep collateral position unchanged at end of each tick to avoid churn costs."
+  }
+}
