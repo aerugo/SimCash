@@ -11,7 +11,10 @@ This script provides a fully reproducible experiment framework that:
 Usage:
     python reproducible_experiment.py --experiment exp1 --output results.db
     python reproducible_experiment.py --experiment exp2_fixed --output results.db --max-iter 20
-    python reproducible_experiment.py --replay results.db  # Reproduce from database
+
+Note: The database is automatically created inside the experiment's results folder:
+    results/<exp_id>_<timestamp>/<output_filename>.db
+    e.g., results/exp1_2025-12-04-143022/results.db
 
 The resulting database contains:
 - experiment_config: Full experiment configuration
@@ -1190,10 +1193,7 @@ class ReproducibleExperiment:
         self.experiment_id = f"{experiment_key}_{timestamp}"
         self.simcash_root = Path(simcash_root) if simcash_root else PROJECT_ROOT
 
-        self.db = ExperimentDatabase(db_path)
-        self.optimizer = LLMOptimizer(model=model, reasoning_effort=reasoning_effort)
-
-        # Load configs
+        # Load configs (needed before setting up directories)
         self.config_path = self.simcash_root / self.experiment_def["config_path"]
         self.config = load_yaml_config(str(self.config_path))
 
@@ -1212,7 +1212,11 @@ class ReproducibleExperiment:
 
         # Update db_path to be inside the experiment work directory
         db_filename = Path(db_path).name
-        db_path = str(self.experiment_work_dir / db_filename)
+        self.db_path = str(self.experiment_work_dir / db_filename)
+
+        # Now create the database at the correct location inside results/
+        self.db = ExperimentDatabase(self.db_path)
+        self.optimizer = LLMOptimizer(model=model, reasoning_effort=reasoning_effort)
 
         # Save experiment configuration to work directory root for reproducibility
         self._save_experiment_metadata(experiment_key, model, reasoning_effort)
