@@ -554,11 +554,14 @@ class RobustPolicyAgent:
                 "Install with: pip install 'pydantic-ai[anthropic]'"
             )
 
+        # max_tokens must be greater than budget_tokens for extended thinking
+        # Default to 150000 to allow ample room for both thinking and response
         return AnthropicModelSettings(
             anthropic_thinking={
                 "type": "enabled",
                 "budget_tokens": self.thinking_budget,
-            }
+            },
+            max_tokens=150000,
         )
 
     def _get_agent(self) -> Any:
