@@ -12,6 +12,7 @@ from typing import Annotated, Any
 
 import typer
 
+from payment_simulator.cli.filters import EventFilter
 from payment_simulator.cli.output import (
     log_end_of_day_statistics,
     log_error,
@@ -975,6 +976,34 @@ def replay_simulation(
             help="Output events as JSON lines (one event per line, machine-readable format)",
         ),
     ] = False,
+    filter_event_type: Annotated[
+        str | None,
+        typer.Option(
+            "--filter-event-type",
+            help="Filter events by type (comma-separated, e.g., 'Arrival,Settlement')",
+        ),
+    ] = None,
+    filter_agent: Annotated[
+        str | None,
+        typer.Option(
+            "--filter-agent",
+            help="Filter events by agent ID (shows all events where agent is sender/actor, plus incoming settlements)",
+        ),
+    ] = None,
+    filter_tx: Annotated[
+        str | None,
+        typer.Option(
+            "--filter-tx",
+            help="Filter events by transaction ID",
+        ),
+    ] = None,
+    filter_tick_range: Annotated[
+        str | None,
+        typer.Option(
+            "--filter-tick-range",
+            help="Filter events by tick range (format: 'min-max', 'min-', or '-max')",
+        ),
+    ] = None,
 ) -> None:
     """Replay a simulation from the database with verbose logging for a tick range.
 
@@ -1088,8 +1117,40 @@ def replay_simulation(
             log_error(f"Invalid to_tick: {end_tick} (must be {from_tick} to {total_ticks-1})")
             raise typer.Exit(1)
 
+        # Validate and create event filter
+        has_filters = any(
+            [filter_event_type, filter_agent, filter_tx, filter_tick_range]
+        )
+        if has_filters and not (verbose or event_stream):
+            log_error(
+                "Event filters (--filter-*) require either --verbose or --event-stream mode"
+            )
+            raise typer.Exit(1)
+
+        # Create event filter from CLI args
+        event_filter = None
+        if has_filters:
+            event_filter = EventFilter.from_cli_args(
+                filter_event_type=filter_event_type,
+                filter_agent=filter_agent,
+                filter_tx=filter_tx,
+                filter_tick_range=filter_tick_range,
+            )
+
         if not event_stream:
             log_info(f"Replaying ticks {from_tick} to {end_tick} ({end_tick - from_tick + 1} ticks)", False)
+            # Log filter configuration if active
+            if has_filters:
+                filter_desc = []
+                if filter_event_type:
+                    filter_desc.append(f"types={filter_event_type}")
+                if filter_agent:
+                    filter_desc.append(f"agent={filter_agent}")
+                if filter_tx:
+                    filter_desc.append(f"tx={filter_tx}")
+                if filter_tick_range:
+                    filter_desc.append(f"ticks={filter_tick_range}")
+                log_info(f"Event filtering enabled: {', '.join(filter_desc)}", False)
 
         # Build transaction cache for entire simulation from simulation_events
         # This allows _MockOrchestrator to provide transaction details
@@ -1590,6 +1651,7 @@ def replay_simulation(
                         num_settlements=num_settlements,
                         num_lsm_releases=num_lsm,
                         total_cost=total_cost,
+                        event_filter=event_filter,
                     )
 
                     # ═══════════════════════════════════════════════════════════
