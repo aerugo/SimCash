@@ -608,6 +608,34 @@ class RobustPolicyAgent:
 
         return self._agent
 
+    async def _run_with_streaming(
+        self,
+        agent: Any,
+        prompt: str,
+        deps: RobustPolicyDeps,
+    ) -> str:
+        """Run agent with streaming for Anthropic extended thinking.
+
+        Anthropic requires streaming when max_tokens > 21,333.
+        Since we use max_tokens=150000 for extended thinking, streaming is mandatory.
+
+        This method uses PydanticAI's run_stream() to handle the streaming request,
+        and collects the full response text.
+
+        Args:
+            agent: The PydanticAI Agent instance
+            prompt: The user prompt
+            deps: Dependencies for the agent
+
+        Returns:
+            The complete response text
+        """
+        response_text = ""
+        async with agent.run_stream(prompt, deps=deps) as stream:
+            async for chunk in stream.stream_text(delta=True):
+                response_text += chunk
+        return response_text
+
     def _parse_json_from_thinking_response(self, text: str) -> dict[str, Any]:
         """Parse JSON policy from raw text response (for thinking mode).
 
@@ -806,13 +834,18 @@ class RobustPolicyAgent:
 
         for attempt in range(MAX_RETRIES):
             try:
-                result = agent.run_sync(prompt, deps=deps)
-
-                # Handle thinking mode: parse JSON from raw text response
+                # For Anthropic extended thinking, we MUST use streaming
+                # because max_tokens > 21,333 requires streaming per Anthropic API
                 if self._is_anthropic_thinking_mode():
-                    raw_text = str(result.output)
+                    result = asyncio.run(
+                        self._run_with_streaming(agent, prompt, deps)
+                    )
+                    raw_text = str(result)
                     parsed_policy = self._parse_json_from_thinking_response(raw_text)
                     return self._validate_parsed_policy(parsed_policy)
+
+                # Standard mode: use synchronous call
+                result = agent.run_sync(prompt, deps=deps)
 
                 # Standard mode: convert Pydantic model to dict
                 if hasattr(result.output, "model_dump"):
@@ -986,13 +1019,15 @@ class RobustPolicyAgent:
 
         for attempt in range(MAX_RETRIES):
             try:
-                result = await agent.run(instruction, deps=deps)
-
-                # Handle thinking mode: parse JSON from raw text response
+                # For Anthropic extended thinking, we MUST use streaming
+                # because max_tokens > 21,333 requires streaming per Anthropic API
                 if self._is_anthropic_thinking_mode():
-                    raw_text = str(result.output)
+                    raw_text = await self._run_with_streaming(agent, instruction, deps)
                     parsed_policy = self._parse_json_from_thinking_response(raw_text)
                     return self._validate_parsed_policy(parsed_policy)
+
+                # Standard mode: use regular async call
+                result = await agent.run(instruction, deps=deps)
 
                 # Standard mode: convert Pydantic model to dict
                 if hasattr(result.output, "model_dump"):
