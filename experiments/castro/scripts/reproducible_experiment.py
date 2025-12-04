@@ -27,6 +27,7 @@ IMPORTANT: This runner NEVER modifies the seed policy files.
 """
 
 import argparse
+import asyncio
 import hashlib
 import json
 import os
@@ -1607,6 +1608,189 @@ Focus on optimizing the trade-off between collateral costs and delay costs.
             print(f"  Policy generation error: {e}")
             return None, 0, latency
 
+    async def generate_policy_async(
+        self,
+        instruction: str,
+        current_policy: dict | None = None,
+        current_cost: float = 0,
+        settlement_rate: float = 1.0,
+        iteration: int = 0,
+        iteration_history: list[Any] | None = None,
+        best_seed_output: str | None = None,
+        worst_seed_output: str | None = None,
+        best_seed: int = 0,
+        worst_seed: int = 0,
+        best_seed_cost: int = 0,
+        worst_seed_cost: int = 0,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_rates: dict[str, Any] | None = None,
+        agent_id: str | None = None,
+        stagger_delay: float = 0.0,
+    ) -> tuple[dict | None, int, float]:
+        """Async version of generate_policy for parallel execution.
+
+        CRITICAL ISOLATION: Each agent's call is completely independent.
+        No shared state between parallel calls.
+
+        Args:
+            stagger_delay: Initial delay before starting (for rate limit avoidance)
+            ... (other args same as generate_policy)
+
+        Returns:
+            tuple of (policy_dict or None, tokens_used, latency_seconds)
+        """
+        # Apply staggered delay to avoid rate limits
+        if stagger_delay > 0:
+            await asyncio.sleep(stagger_delay)
+
+        start_time = time.time()
+
+        try:
+            # Run the synchronous generate_policy in a thread pool
+            # to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            policy = await loop.run_in_executor(
+                None,  # Use default executor
+                lambda: self.agent.generate_policy(
+                    instruction=instruction,
+                    current_policy=current_policy,
+                    current_cost=current_cost,
+                    settlement_rate=settlement_rate,
+                    iteration=iteration,
+                    iteration_history=iteration_history,
+                    best_seed_output=best_seed_output,
+                    worst_seed_output=worst_seed_output,
+                    best_seed=best_seed,
+                    worst_seed=worst_seed,
+                    best_seed_cost=best_seed_cost,
+                    worst_seed_cost=worst_seed_cost,
+                    cost_breakdown=cost_breakdown,
+                    cost_rates=cost_rates,
+                    agent_id=agent_id,
+                )
+            )
+
+            latency = time.time() - start_time
+            tokens = 2000  # Rough estimate
+
+            return policy, tokens, latency
+
+        except Exception as e:
+            latency = time.time() - start_time
+            print(f"  Policy generation error for {agent_id}: {e}")
+            return None, 0, latency
+
+    async def generate_policies_parallel(
+        self,
+        agent_configs: list[dict[str, Any]],
+        stagger_interval: float = 0.5,
+    ) -> list[tuple[str, dict | None, int, float]]:
+        """Generate policies for multiple agents in parallel with staggered starts.
+
+        CRITICAL ISOLATION: Each agent runs in complete isolation.
+        - Separate coroutines with no shared state
+        - Staggered starts to avoid rate limits
+        - Independent error handling per agent
+
+        Args:
+            agent_configs: List of dicts, each containing:
+                - agent_id: str (e.g., "BANK_A")
+                - instruction: str
+                - current_policy: dict
+                - ... (all other generate_policy args)
+            stagger_interval: Delay between starting each agent's call (seconds)
+
+        Returns:
+            List of (agent_id, policy, tokens, latency) tuples
+        """
+        tasks = []
+
+        for i, config in enumerate(agent_configs):
+            agent_id = config.pop("agent_id")
+            stagger_delay = i * stagger_interval
+
+            # Create task with staggered start
+            task = asyncio.create_task(
+                self._generate_with_retry(
+                    agent_id=agent_id,
+                    stagger_delay=stagger_delay,
+                    **config,
+                )
+            )
+            tasks.append((agent_id, task))
+
+        # Wait for all tasks to complete
+        results = []
+        for agent_id, task in tasks:
+            try:
+                policy, tokens, latency = await task
+                results.append((agent_id, policy, tokens, latency))
+            except Exception as e:
+                print(f"  Failed to generate policy for {agent_id}: {e}")
+                results.append((agent_id, None, 0, 0.0))
+
+        return results
+
+    async def _generate_with_retry(
+        self,
+        agent_id: str,
+        stagger_delay: float,
+        max_retries: int = 3,
+        base_backoff: float = 2.0,
+        **kwargs: Any,
+    ) -> tuple[dict | None, int, float]:
+        """Generate policy with exponential backoff retry on rate limits.
+
+        Args:
+            agent_id: Agent identifier
+            stagger_delay: Initial delay before first attempt
+            max_retries: Maximum retry attempts
+            base_backoff: Base delay for exponential backoff
+            **kwargs: Arguments for generate_policy_async
+
+        Returns:
+            tuple of (policy, tokens, latency)
+        """
+        last_exception: Exception | None = None
+        total_latency = 0.0
+
+        for attempt in range(max_retries):
+            try:
+                # Add exponential backoff delay for retries
+                if attempt > 0:
+                    backoff_delay = base_backoff * (2 ** (attempt - 1))
+                    print(f"    [{agent_id}] Retry {attempt}/{max_retries}, "
+                          f"waiting {backoff_delay:.1f}s...")
+                    await asyncio.sleep(backoff_delay)
+
+                policy, tokens, latency = await self.generate_policy_async(
+                    agent_id=agent_id,
+                    stagger_delay=stagger_delay if attempt == 0 else 0,
+                    **kwargs,
+                )
+                total_latency += latency
+
+                if policy is not None:
+                    return policy, tokens, total_latency
+
+            except Exception as e:
+                last_exception = e
+                error_str = str(e).lower()
+
+                # Check for rate limit errors
+                if "rate" in error_str or "429" in error_str or "limit" in error_str:
+                    print(f"    [{agent_id}] Rate limit hit, will retry...")
+                    continue
+                else:
+                    # Non-rate-limit error, don't retry
+                    raise
+
+        # All retries exhausted
+        if last_exception:
+            print(f"    [{agent_id}] All retries exhausted: {last_exception}")
+
+        return None, 0, total_latency
+
     def call_llm(self, prompt: str) -> tuple[str, int, float]:
         """Legacy interface for backward compatibility.
 
@@ -2566,50 +2750,71 @@ Use this insight to make targeted policy improvements."""
             self.iteration_records, "BANK_B"
         )
 
-        # Generate policy for Bank A with BANK_A-ONLY context
-        # CRITICAL: Start from BEST policy, no cross-agent data
-        policy_a, tokens_a, latency_a = self.optimizer.generate_policy(
-            instruction=instruction,
-            current_policy=self.best_policy_a,  # Always start from BEST
-            current_cost=best_metrics['total_cost_mean'] / 2,  # Approximate per-bank cost
-            settlement_rate=best_metrics['settlement_rate_mean'],
-            iteration=iteration,
-            # ISOLATED context: ONLY BANK_A data, no Bank B information
-            iteration_history=bank_a_history,  # Filtered for BANK_A only
-            best_seed_output=self.last_best_seed_output_bank_a,
-            worst_seed_output=self.last_worst_seed_output_bank_a,
-            best_seed=self.last_best_seed,
-            worst_seed=self.last_worst_seed,
-            best_seed_cost=self.last_best_cost,
-            worst_seed_cost=self.last_worst_cost,
-            cost_breakdown=self.last_cost_breakdown,
-            cost_rates=self.config.get("cost_rates", {}),
-            agent_id="BANK_A",  # Identifies which agent is being optimized
+        # Build isolated agent configurations for parallel execution
+        # CRITICAL: Each config contains ONLY that agent's data
+        agent_configs = [
+            {
+                "agent_id": "BANK_A",
+                "instruction": instruction,
+                "current_policy": self.best_policy_a,
+                "current_cost": best_metrics['total_cost_mean'] / 2,
+                "settlement_rate": best_metrics['settlement_rate_mean'],
+                "iteration": iteration,
+                "iteration_history": bank_a_history,
+                "best_seed_output": self.last_best_seed_output_bank_a,
+                "worst_seed_output": self.last_worst_seed_output_bank_a,
+                "best_seed": self.last_best_seed,
+                "worst_seed": self.last_worst_seed,
+                "best_seed_cost": self.last_best_cost,
+                "worst_seed_cost": self.last_worst_cost,
+                "cost_breakdown": self.last_cost_breakdown,
+                "cost_rates": self.config.get("cost_rates", {}),
+            },
+            {
+                "agent_id": "BANK_B",
+                "instruction": instruction,
+                "current_policy": self.best_policy_b,
+                "current_cost": best_metrics['total_cost_mean'] / 2,
+                "settlement_rate": best_metrics['settlement_rate_mean'],
+                "iteration": iteration,
+                "iteration_history": bank_b_history,
+                "best_seed_output": self.last_best_seed_output_bank_b,
+                "worst_seed_output": self.last_worst_seed_output_bank_b,
+                "best_seed": self.last_best_seed,
+                "worst_seed": self.last_worst_seed,
+                "best_seed_cost": self.last_best_cost,
+                "worst_seed_cost": self.last_worst_cost,
+                "cost_breakdown": self.last_cost_breakdown,
+                "cost_rates": self.config.get("cost_rates", {}),
+            },
+        ]
+
+        # PARALLEL EXECUTION: Run all agent LLM calls simultaneously
+        # - Staggered starts (0.5s apart) to avoid rate limits
+        # - Exponential backoff retry on rate limit errors
+        # - Complete isolation - no shared state between agents
+        print(f"    Running {len(agent_configs)} agent optimizations in parallel...")
+
+        results = asyncio.run(
+            self.optimizer.generate_policies_parallel(
+                agent_configs=agent_configs,
+                stagger_interval=0.5,  # 0.5s between starts to avoid rate limits
+            )
         )
 
-        # Generate policy for Bank B with BANK_B-ONLY context
-        # CRITICAL: Start from BEST policy, no cross-agent data
-        policy_b, tokens_b, latency_b = self.optimizer.generate_policy(
-            instruction=instruction,
-            current_policy=self.best_policy_b,  # Always start from BEST
-            current_cost=best_metrics['total_cost_mean'] / 2,
-            settlement_rate=best_metrics['settlement_rate_mean'],
-            iteration=iteration,
-            # ISOLATED context: ONLY BANK_B data, no Bank A information
-            iteration_history=bank_b_history,  # Filtered for BANK_B only
-            best_seed_output=self.last_best_seed_output_bank_b,
-            worst_seed_output=self.last_worst_seed_output_bank_b,
-            best_seed=self.last_best_seed,
-            worst_seed=self.last_worst_seed,
-            best_seed_cost=self.last_best_cost,
-            worst_seed_cost=self.last_worst_cost,
-            cost_breakdown=self.last_cost_breakdown,
-            cost_rates=self.config.get("cost_rates", {}),
-            agent_id="BANK_B",  # Identifies which agent is being optimized
-        )
+        # Extract results by agent_id
+        policy_a, tokens_a, latency_a = None, 0, 0.0
+        policy_b, tokens_b, latency_b = None, 0, 0.0
+
+        for agent_id, policy, tokens, latency in results:
+            if agent_id == "BANK_A":
+                policy_a, tokens_a, latency_a = policy, tokens, latency
+            elif agent_id == "BANK_B":
+                policy_b, tokens_b, latency_b = policy, tokens, latency
 
         total_tokens = tokens_a + tokens_b
-        total_latency = latency_a + latency_b
+        # For parallel execution, total latency is the max (not sum)
+        total_latency = max(latency_a, latency_b)
 
         # Record interaction for logging
         prompt_text = instruction
