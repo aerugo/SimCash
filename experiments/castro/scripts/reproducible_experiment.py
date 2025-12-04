@@ -2323,16 +2323,19 @@ Use this insight to make targeted policy improvements."""
             print("  WARNING: No successful iterations completed")
         print(f"  Database: {self.db.db_path}")
 
+        # Close DB connection before chart generation (DuckDB doesn't allow
+        # multiple connections with different configurations)
+        db_path = self.db.db_path
+        self.db.close()
+
         # Generate cost ribbon chart
         chart_path = self.output_dir / "cost_over_iterations.png"
         print(f"\nGenerating cost chart...")
         generate_cost_ribbon_chart(
-            db_path=self.db.db_path,
+            db_path=db_path,
             output_path=chart_path,
             experiment_name=self.experiment_def["name"],
         )
-
-        self.db.close()
 
         return summary
 
