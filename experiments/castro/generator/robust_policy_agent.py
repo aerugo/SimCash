@@ -444,6 +444,7 @@ class RobustPolicyAgent:
         reasoning_summary: Literal["concise", "detailed"] = DEFAULT_REASONING_SUMMARY,
         api_key: str | None = None,
         thinking_budget: int | None = None,
+        verbose: bool = False,
     ) -> None:
         """Initialize robust policy agent.
 
@@ -464,6 +465,7 @@ class RobustPolicyAgent:
                            When set, enables Claude's extended thinking with this
                            many tokens for internal reasoning. Minimum 1024.
                            Only applies to anthropic: models.
+            verbose: Enable verbose error logging for debugging API issues.
         """
         self.constraints = constraints
         self.model = model or DEFAULT_MODEL
@@ -471,6 +473,7 @@ class RobustPolicyAgent:
         self.reasoning_effort = reasoning_effort
         self.reasoning_summary = reasoning_summary
         self._api_key = api_key
+        self.verbose = verbose
 
         # Validate and store thinking budget
         self.thinking_budget: int | None = None
@@ -856,7 +859,25 @@ class RobustPolicyAgent:
                 last_exception = e
                 error_str = str(e).lower()
 
+                # Log full error details in verbose mode
+                if self.verbose:
+                    print(f"\n  [VERBOSE] API Error Details:")
+                    print(f"    Model: {self.model}")
+                    print(f"    Prompt length: {len(prompt):,} chars")
+                    print(f"    System prompt length: {len(self._system_prompt):,} chars")
+                    print(f"    Thinking budget: {self.thinking_budget}")
+                    print(f"    Full error:\n{e}")
+                    # Try to extract more details from the exception
+                    if hasattr(e, '__cause__') and e.__cause__:
+                        print(f"    Cause: {e.__cause__}")
+                    if hasattr(e, 'response'):
+                        print(f"    Response: {getattr(e, 'response', 'N/A')}")
+                    if hasattr(e, 'body'):
+                        print(f"    Body: {getattr(e, 'body', 'N/A')}")
+                    print()
+
                 # Check if this is a transient error worth retrying
+                # Note: 400 errors are NOT transient - they indicate bad request
                 is_transient = any(
                     indicator in error_str
                     for indicator in [
@@ -876,6 +897,12 @@ class RobustPolicyAgent:
                         "internal server error",
                     ]
                 )
+
+                # Explicitly check for 400 errors - these are NOT transient
+                if "status_code: 400" in error_str or "400 bad request" in error_str:
+                    is_transient = False
+                    if self.verbose:
+                        print(f"  [VERBOSE] 400 error detected - NOT retrying (bad request)")
 
                 if not is_transient:
                     # Non-transient error, don't retry
@@ -1038,7 +1065,24 @@ class RobustPolicyAgent:
                 last_exception = e
                 error_str = str(e).lower()
 
+                # Log full error details in verbose mode
+                if self.verbose:
+                    print(f"\n  [VERBOSE] API Error Details (async):")
+                    print(f"    Model: {self.model}")
+                    print(f"    Instruction length: {len(instruction):,} chars")
+                    print(f"    System prompt length: {len(self._system_prompt):,} chars")
+                    print(f"    Thinking budget: {self.thinking_budget}")
+                    print(f"    Full error:\n{e}")
+                    if hasattr(e, '__cause__') and e.__cause__:
+                        print(f"    Cause: {e.__cause__}")
+                    if hasattr(e, 'response'):
+                        print(f"    Response: {getattr(e, 'response', 'N/A')}")
+                    if hasattr(e, 'body'):
+                        print(f"    Body: {getattr(e, 'body', 'N/A')}")
+                    print()
+
                 # Check if this is a transient error worth retrying
+                # Note: 400 errors are NOT transient - they indicate bad request
                 is_transient = any(
                     indicator in error_str
                     for indicator in [
@@ -1058,6 +1102,12 @@ class RobustPolicyAgent:
                         "internal server error",
                     ]
                 )
+
+                # Explicitly check for 400 errors - these are NOT transient
+                if "status_code: 400" in error_str or "400 bad request" in error_str:
+                    is_transient = False
+                    if self.verbose:
+                        print(f"  [VERBOSE] 400 error detected - NOT retrying (bad request)")
 
                 if not is_transient:
                     # Non-transient error, don't retry
@@ -1090,6 +1140,7 @@ def generate_robust_policy(
     reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
     api_key: str | None = None,
     thinking_budget: int | None = None,
+    verbose: bool = False,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate a policy with a single function call.
@@ -1106,6 +1157,7 @@ def generate_robust_policy(
                  GOOGLE_AI_STUDIO_API_KEY or GEMINI_API_KEY env vars.
         thinking_budget: Token budget for Anthropic extended thinking mode.
                         When set, enables Claude's extended thinking. Min 1024.
+        verbose: Enable verbose error logging for debugging API issues.
         **kwargs: Additional context (current_policy, current_cost, etc.)
 
     Returns:
@@ -1153,5 +1205,6 @@ def generate_robust_policy(
         reasoning_effort=reasoning_effort,
         api_key=api_key,
         thinking_budget=thinking_budget,
+        verbose=verbose,
     )
     return agent.generate_policy(instruction, **kwargs)
