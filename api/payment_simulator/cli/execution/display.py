@@ -142,8 +142,12 @@ def display_tick_verbose_output(
         e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"]
         for e in display_events
     ):
+        # Extract filter_agent for incoming liquidity notifications
+        filter_agent = getattr(event_filter, "agent_id", None) if event_filter else None
         # PHASE 5 FIX: Pass num_settlements to ensure header matches summary
-        log_settlement_details(provider, display_events, tick_num, num_settlements)
+        log_settlement_details(
+            provider, display_events, tick_num, num_settlements, filter_agent=filter_agent
+        )
 
     # Visual separator: Transaction flow → Settlement mechanisms
     log_section_separator()
