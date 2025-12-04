@@ -1,0 +1,134 @@
+{
+  "policy_id": "bank_b_fixed_policy",
+  "version": "2.0",
+  "description": "Fixed JSON policy for Bank B using provided parameters; prioritises urgent payments and maintains liquidity buffer while keeping collateral simple.",
+  "parameters": {
+    "urgency_threshold": 3.25,
+    "liquidity_buffer": 1.07,
+    "initial_collateral_fraction": 0.21,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "compute": {
+              "op": "-",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_remaining_in_day"
+          },
+          "right": {
+            "param": "eod_urgency_boost"
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_or_eod"
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_liquid"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_insufficient_liquidity"
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "Release if effective liquidity comfortably covers remaining amount; otherwise hold."
+    },
+    "node_id": "P1_is_urgent_or_eod",
+    "description": "Release if payment is urgent or near end-of-day, otherwise check liquidity buffer."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_no_bank_level_action"
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial_fraction",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          },
+          "reason": {
+            "value": "InitialDayCollateral"
+          }
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_collateral"
+    },
+    "node_id": "SC1_initial_post",
+    "description": "Post a fixed fraction of max capacity at the very start of the day, otherwise hold."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "action": "HoldCollateral",
+    "node_id": "EC1_hold_end_of_tick"
+  }
+}

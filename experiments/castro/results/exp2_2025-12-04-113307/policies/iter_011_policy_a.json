@@ -1,0 +1,231 @@
+{
+  "policy_id": "iter_11_targeted_tweak",
+  "version": "2.0",
+  "description": "Iteration 11 policy with slightly tighter liquidity buffer for Bank B while preserving proven structure. Aims to reduce overdraft/capital costs while keeping 100% settlement and zero delay.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 0.85,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "compute": {
+          "op": "-",
+          "left": {
+            "param": "urgency_threshold"
+          },
+          "right": {
+            "param": "eod_urgency_boost"
+          }
+        }
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent"
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_liquid"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_wait"
+      },
+      "node_id": "P3_check_liquidity",
+      "description": "Release when there is enough effective liquidity relative to payment size, otherwise hold."
+    },
+    "node_id": "P1_is_urgent",
+    "description": "Urgent or EOD-rush payments always release to avoid deadline penalties (none now but keeps robustness)."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_static_budget",
+    "description": "Keep simple static behavior; rely on payment rule + collateral policy to manage liquidity."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialDayAllocation"
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">",
+        "left": {
+          "field": "queue1_liquidity_gap"
+        },
+        "right": {
+          "value": 0
+        }
+      },
+      "on_true": {
+        "type": "condition",
+        "condition": {
+          "op": ">",
+          "left": {
+            "field": "remaining_collateral_capacity"
+          },
+          "right": {
+            "value": 0
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "action": "PostCollateral",
+          "node_id": "SC5_post_for_gap",
+          "parameters": {
+            "amount": {
+              "compute": {
+                "op": "min",
+                "values": [
+                  {
+                    "field": "queue1_liquidity_gap"
+                  },
+                  {
+                    "field": "remaining_collateral_capacity"
+                  }
+                ]
+              }
+            },
+            "reason": {
+              "value": "CoverQueueGap"
+            }
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "action": "HoldCollateral",
+          "node_id": "SC6_hold_no_capacity"
+        },
+        "node_id": "SC4_has_capacity",
+        "description": "Ensure there is remaining capacity before posting."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "HoldCollateral",
+        "node_id": "SC7_hold_no_gap"
+      },
+      "node_id": "SC3_check_gap",
+      "description": "During day, post extra collateral only if there is a positive liquidity gap in queue1 and capacity remains."
+    },
+    "node_id": "SC1_start_of_day",
+    "description": "Post initial collateral at the very start of the day based on configured fraction."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "outgoing_queue_size"
+      },
+      "right": {
+        "value": 0
+      }
+    },
+    "on_true": {
+      "type": "condition",
+      "condition": {
+        "op": ">",
+        "left": {
+          "field": "posted_collateral"
+        },
+        "right": {
+          "value": 0
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "WithdrawCollateral",
+        "node_id": "EC3_withdraw_partial",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "*",
+              "left": {
+                "field": "posted_collateral"
+              },
+              "right": {
+                "value": 0.5
+              }
+            }
+          },
+          "reason": {
+            "value": "EndOfTickExcess"
+          }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "action": "HoldCollateral",
+        "node_id": "EC4_hold_no_posted"
+      },
+      "node_id": "EC2_if_posted_positive",
+      "description": "Withdraw a moderate fraction of posted collateral when nothing is queued."
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "EC5_hold_active_queue"
+    },
+    "node_id": "EC1_check_excess_posted",
+    "description": "At end of tick, withdraw any clearly excess collateral when queues are empty to reduce capital cost."
+  }
+}

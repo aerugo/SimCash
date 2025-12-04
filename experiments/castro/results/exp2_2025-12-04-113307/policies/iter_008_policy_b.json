@@ -1,0 +1,132 @@
+{
+  "policy_id": "iter8_targeted_tweak",
+  "version": "2.0",
+  "description": "Iteration 8: revert to lower-cost parameter region (iter6) with a mild liquidity tightening for Bank B while keeping trees simple and robust.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 0.95,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "compute": {
+          "op": "-",
+          "left": {
+            "param": "urgency_threshold"
+          },
+          "right": {
+            "compute": {
+              "op": "*",
+              "left": {
+                "param": "eod_urgency_boost"
+              },
+              "right": {
+                "field": "is_eod_rush"
+              }
+            }
+          }
+        }
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent",
+      "description": "Release urgent payments even if liquidity is tight."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_liquid",
+        "description": "Release when liquidity is sufficient given buffer."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_insufficient_liquidity",
+        "description": "Hold when liquidity is insufficient and payment not yet urgent."
+      },
+      "node_id": "P3_check_liquidity",
+      "description": "If we have enough effective liquidity (with buffer), release; otherwise hold to avoid overdraft."
+    },
+    "node_id": "P1_is_urgent",
+    "description": "If payment is urgent (deadline close, or EOD rush-adjusted), release regardless of liquidity to avoid deadline/EOD penalties."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_noop",
+    "description": "No additional bank-level state logic for this iteration."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "<=",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial",
+      "description": "Post initial collateral based on configured fraction.",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_rest_of_day",
+      "description": "Do not adjust collateral strategically after the initial post."
+    },
+    "node_id": "SC1_initial_post",
+    "description": "Post a fraction of max collateral at start of day; otherwise hold collateral decisions intra-day."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "action": "HoldCollateral",
+    "node_id": "EC1_hold_eod",
+    "description": "Keep collateral stable at end of each tick to avoid churn costs."
+  }
+}

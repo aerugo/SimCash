@@ -1,0 +1,97 @@
+{
+  "policy_id": "iter_002_incremental_cost_reduction",
+  "version": "2.0",
+  "description": "Incremental improvement aiming to preserve 100% settlement while slightly tightening liquidity usage to reduce costs under zero penalties and no collateral usage.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 1.1,
+    "initial_collateral_fraction": 0.0,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_eod_rush"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_eod",
+      "description": "Always release urgent or EOD-rush payments."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_with_buffer",
+        "description": "Release when there is enough effective liquidity with buffer."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_insufficient_liquidity",
+        "description": "Hold when liquidity is insufficient and payment is not yet urgent or EOD."
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, require a slightly higher liquidity buffer to reduce overdraft risk and unnecessary early releases."
+    },
+    "node_id": "P1_is_urgent_or_eod",
+    "description": "Release payments that are urgent or near end-of-day regardless of liquidity buffer to guarantee settlement."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_no_bank_level_adjustment",
+    "description": "No explicit bank-level budget or state control in this simple iteration."
+  },
+  "strategic_collateral_tree": {
+    "type": "action",
+    "action": "HoldCollateral",
+    "node_id": "SC1_no_strategic_collateral",
+    "description": "Avoid posting strategic collateral in this configuration to keep collateral costs at zero."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "action",
+    "action": "HoldCollateral",
+    "node_id": "EC1_hold_collateral_eod",
+    "description": "Do not adjust collateral at end of tick; maintain zero-collateral stance."
+  }
+}
