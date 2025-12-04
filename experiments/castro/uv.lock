@@ -297,6 +297,12 @@ ollama = [
     { name = "ollama" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'all-providers'", specifier = ">=0.20.0" },
@@ -318,6 +324,12 @@ requires-dist = [
     { name = "seaborn", specifier = ">=0.13.0" },
 ]
 provides-extras = ["dev", "anthropic", "google", "ollama", "all-providers"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.19.0" },
+    { name = "pytest", specifier = ">=9.0.1" },
+]
 
 [[package]]
 name = "certifi"

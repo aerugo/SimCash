@@ -423,6 +423,12 @@ class RobustPolicyAgent:
 
         agent = RobustPolicyAgent(constraints=constraints)
         policy = agent.generate_policy("Minimize delay costs")
+
+        # Using Google Gemini (set GOOGLE_AI_STUDIO_API_KEY env var):
+        agent = RobustPolicyAgent(
+            constraints=constraints,
+            model="google-gla:gemini-2.0-flash",
+        )
     """
 
     def __init__(
@@ -432,21 +438,37 @@ class RobustPolicyAgent:
         retries: int = 3,
         reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
         reasoning_summary: Literal["concise", "detailed"] = DEFAULT_REASONING_SUMMARY,
+        api_key: str | None = None,
     ) -> None:
         """Initialize robust policy agent.
 
         Args:
             constraints: Scenario constraints defining allowed elements
             model: PydanticAI model string. Defaults to GPT-4o.
+                   Supported formats:
+                   - "gpt-4o" or "openai:gpt-4o" for OpenAI
+                   - "anthropic:claude-3-5-sonnet-20241022" for Anthropic
+                   - "google-gla:gemini-2.0-flash" for Google Gemini
             retries: Number of retries on validation failure
             reasoning_effort: Reasoning effort for GPT models
             reasoning_summary: Reasoning summary verbosity
+            api_key: Optional API key (used for Google Gemini models).
+                     If not provided for Google models, reads from
+                     GOOGLE_AI_STUDIO_API_KEY or GEMINI_API_KEY env vars.
         """
         self.constraints = constraints
         self.model = model or DEFAULT_MODEL
         self.retries = retries
         self.reasoning_effort = reasoning_effort
         self.reasoning_summary = reasoning_summary
+        self._api_key = api_key
+
+        # For Google models, resolve API key from environment if not provided
+        if self.model.startswith("google-gla:") and not self._api_key:
+            import os
+            self._api_key = os.environ.get(
+                "GOOGLE_AI_STUDIO_API_KEY"
+            ) or os.environ.get("GEMINI_API_KEY")
 
         # Generate dynamic policy model from constraints
         self.policy_model = create_constrained_policy_model(constraints)
@@ -461,23 +483,51 @@ class RobustPolicyAgent:
         """Get the system prompt for this agent."""
         return self._system_prompt
 
+    def _get_model(self) -> Any:
+        """Create the appropriate model instance for PydanticAI.
+
+        For Google models, creates a GoogleModel with explicit API key configuration.
+        For other models, returns the model string for automatic provider detection.
+        """
+        model_name = self.model
+
+        # Handle Google models with explicit API key
+        if model_name.startswith("google-gla:") and self._api_key:
+            try:
+                from pydantic_ai.models.google import GoogleModel
+                from pydantic_ai.providers.google import GoogleProvider
+            except ImportError:
+                raise ImportError(
+                    "pydantic-ai[google] required. Install with: "
+                    "pip install 'pydantic-ai[google]'"
+                )
+
+            # Extract the model name after 'google-gla:'
+            gemini_model = model_name.split(":", 1)[1]
+            provider = GoogleProvider(api_key=self._api_key)
+            return GoogleModel(gemini_model, provider=provider)
+
+        # Ensure model has openai: prefix for proper routing (legacy behavior)
+        if not model_name.startswith("openai:") and ":" not in model_name:
+            model_name = f"openai:{model_name}"
+
+        return model_name
+
     def _get_agent(self) -> Any:
         """Get or create the PydanticAI agent.
 
         Uses PydanticAI's automatic model detection - it handles GPT-5.x/o1/o3
         models correctly when using the 'openai:model-name' format.
+        For Google models, uses explicit GoogleProvider with API key.
         """
         if self._agent is None:
             try:
                 from pydantic_ai import Agent
 
-                # Ensure model has openai: prefix for proper routing
-                model_name = self.model
-                if not model_name.startswith("openai:") and ":" not in model_name:
-                    model_name = f"openai:{model_name}"
+                model = self._get_model()
 
                 self._agent = Agent(
-                    model_name,
+                    model,
                     output_type=self.policy_model,
                     system_prompt=self._system_prompt,
                     deps_type=RobustPolicyDeps,
@@ -832,6 +882,7 @@ def generate_robust_policy(
     instruction: str = "Generate an optimal policy",
     model: str | None = None,
     reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
+    api_key: str | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate a policy with a single function call.
@@ -839,8 +890,12 @@ def generate_robust_policy(
     Args:
         constraints: Scenario constraints defining allowed elements
         instruction: Natural language instruction
-        model: PydanticAI model string (defaults to GPT-4o)
+        model: PydanticAI model string (defaults to GPT-4o).
+               Use "google-gla:gemini-2.0-flash" for Google Gemini.
         reasoning_effort: Reasoning effort for GPT models
+        api_key: Optional API key (used for Google Gemini models).
+                 If not provided for Google models, reads from
+                 GOOGLE_AI_STUDIO_API_KEY or GEMINI_API_KEY env vars.
         **kwargs: Additional context (current_policy, current_cost, etc.)
 
     Returns:
@@ -859,16 +914,25 @@ def generate_robust_policy(
             allowed_actions=["Release", "Hold"],
         )
 
+        # Using OpenAI (default):
         policy = generate_robust_policy(
             constraints,
             "Minimize delay costs while maintaining 95% settlement",
             current_cost=50000,
             settlement_rate=0.85,
         )
+
+        # Using Google Gemini:
+        policy = generate_robust_policy(
+            constraints,
+            "Minimize delay costs",
+            model="google-gla:gemini-2.0-flash",
+        )
     """
     agent = RobustPolicyAgent(
         constraints=constraints,
         model=model,
         reasoning_effort=reasoning_effort,
+        api_key=api_key,
     )
     return agent.generate_policy(instruction, **kwargs)
