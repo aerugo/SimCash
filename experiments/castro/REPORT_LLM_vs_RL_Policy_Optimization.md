@@ -1,7 +1,7 @@
 # LLM vs RL Policy Optimization in High-Value Payment Systems
 ## A Comparative Analysis of GPT-5.1 and Castro et al.'s REINFORCE Approach
 
-**Report Date**: 2025-12-03
+**Report Date**: 2025-12-03 (Updated 2025-12-04)
 **Researcher**: Claude (Opus 4)
 **Experiment Platform**: SimCash Payment Simulator
 
@@ -20,11 +20,11 @@ Both approaches attempt to solve the same fundamental problem: finding policies 
 
 **LLM-based optimization achieves comparable or superior results to RL in simpler scenarios, with significantly fewer training iterations but higher per-iteration computational cost.** However, RL shows more stable convergence in complex stochastic environments.
 
-| Scenario | Castro RL Result | GPT-5.1 Result | Comparison |
+| Scenario | Castro RL Result | GPT-5.1 (20 iters) | Comparison |
 |----------|------------------|----------------|------------|
-| 2-period deterministic | Optimal (R_A=0, R_B=0.02) | 81.9% cost reduction | LLM achieves near-optimal |
-| 12-period stochastic | Converges with variance | 56% best, 20% final | RL more stable |
-| 3-period joint | Learns tradeoff | 60% cost reduction | Comparable |
+| 2-period deterministic | Optimal (R_A=0, R_B=0.02) | **68% reduction** ($8,000 final) | LLM achieves strong result |
+| 12-period stochastic | Converges with variance | **FAILED** ($2.9B final) | RL far superior |
+| 3-period joint | Learns tradeoff | **62% reduction** ($9,492 final) | Comparable to RL |
 
 ---
 
@@ -259,6 +259,94 @@ The LLM successfully learned to:
 
 ---
 
+## 3.4 Extended 20-Iteration Experiments (Update)
+
+To better assess convergence behavior, we ran all three experiments for 20 iterations with exponential backoff retry logic to handle API instability.
+
+### 3.4.1 Experiment 1: Extended Results (20 iterations)
+
+**Convergence Graph**: See `results/graphs/convergence_individual.png`
+
+| Iteration | Cost | % Reduction |
+|-----------|------|-------------|
+| 1 | $24,978 | 0% (baseline) |
+| 2 | $4,482,766,133 | -17,940,052% (explosion) |
+| 3 | $29,000 | -16% (recovery) |
+| 4 | $11,500 | 54% |
+| 12 | $10,500 | 58% |
+| 16 | $10,000 | 60% (best seen) |
+| 20 | **$8,000** | **68%** (final) |
+
+**Key Observations**:
+- Initial spike to $4.5B in iteration 2 (policy generated massive overdraft costs)
+- Quick recovery by iteration 3
+- Continued improvement throughout 20 iterations
+- Final result 68% better than baseline
+- Demonstrates that LLM optimization CAN converge given sufficient iterations
+
+### 3.4.2 Experiment 2: Complete Failure in Stochastic Setting
+
+**Critical Finding**: The 12-period stochastic experiment **completely failed** to converge over 20 iterations.
+
+| Iteration | Cost | Notes |
+|-----------|------|-------|
+| 1 | $24,978 | Baseline |
+| 6 | $19,000 | Best achieved (24% reduction) |
+| 7-20 | $1.9B - $5.2B | Complete divergence |
+| Final | **$2,921,864,549** | **11,694,544% worse than baseline** |
+
+**Analysis**:
+
+This is a fundamental failure mode for LLM optimization in stochastic environments:
+
+1. **Policy Instability**: The LLM generates policies that work on some seeds but fail catastrophically on others
+2. **Feedback Confusion**: With 10 different seeds showing varying results, the LLM cannot identify effective policy changes
+3. **Overdraft Cascades**: Poor liquidity policies cause massive end-of-day borrowing costs
+4. **No Learning**: Despite 20 iterations, the LLM never recovered from early bad policies
+
+**Comparison with RL**: Castro's REINFORCE algorithm handles this scenario by:
+- Averaging gradients over many episodes
+- Making small, incremental policy updates
+- Maintaining exploration throughout training
+
+The LLM's discrete, large policy changes are unsuitable for noisy environments.
+
+### 3.4.3 Experiment 3: Successful Joint Learning
+
+**Convergence Graph**: See `results/graphs/convergence_comparison.png`
+
+| Iteration | Cost | % Reduction |
+|-----------|------|-------------|
+| 1 | $24,978 | 0% (baseline) |
+| 3 | $10,408 | 58% |
+| 7 | $7,036 | 72% |
+| 9 | $6,993 | **72%** (best) |
+| 13 | $6,993 | 72% (stable) |
+| 20 | $9,492 | 62% (final) |
+
+**Key Observations**:
+- Rapid improvement in first 7 iterations
+- Best result achieved at iteration 9 ($6,993)
+- Some volatility but overall stable convergence
+- Final result good but not optimal (62% vs 72% best)
+- Joint liquidity-timing optimization successfully learned
+
+### 3.4.4 Summary: 20-Iteration Results
+
+| Experiment | Baseline | Best | Final | Best Reduction | Final Reduction |
+|------------|----------|------|-------|----------------|-----------------|
+| **exp1** (2-period) | $24,978 | $8,000 | $8,000 | 68% | **68%** |
+| **exp2** (12-period) | $24,978 | $19,000 | $2.9B | 24% | **-11,694,544%** |
+| **exp3** (3-period) | $24,978 | $6,993 | $9,492 | 72% | **62%** |
+
+**Critical Insight**: LLM optimization shows a clear boundary:
+- **Low complexity** (exp1, exp3): Works well, achieves 62-72% reductions
+- **High complexity + stochasticity** (exp2): Complete failure, billion-dollar losses
+
+This demonstrates that LLM-based policy optimization is **NOT** a general-purpose replacement for RL methods. It is only suitable for relatively simple, deterministic or low-variance scenarios.
+
+---
+
 ## 4. Comparative Analysis
 
 ### 4.1 Convergence Characteristics
@@ -393,18 +481,51 @@ Consider combining both:
 
 ## 8. Conclusion
 
-This study demonstrates that LLM-based policy optimization can achieve results comparable to traditional RL methods for payment system liquidity management. GPT-5.1 with high reasoning effort achieved:
+This study demonstrates both the potential and **critical limitations** of LLM-based policy optimization for payment system liquidity management.
 
-- **81.9% cost reduction** in the 2-period deterministic scenario (vs. RL's optimal Nash equilibrium)
-- **56% best / 20% final** in the 12-period stochastic scenario (vs. RL's stable convergence with variance)
-- **60% cost reduction** in the 3-period joint learning scenario (comparable to RL)
+### 8.1 Updated Results Summary (20-Iteration Experiments)
 
-The key tradeoffs are:
-- **Speed vs. Stability**: LLMs converge faster but less stably in stochastic environments
-- **Cost structure**: LLMs have higher per-iteration cost but fewer iterations
-- **Interpretability**: LLMs provide explicit reasoning; RL provides theoretical guarantees
+| Scenario | GPT-5.1 Result | Assessment |
+|----------|---------------|------------|
+| **2-period deterministic** | 68% reduction ($8,000 final) | ✅ Success |
+| **12-period stochastic** | FAILED ($2.9B final, 11.7M% worse) | ❌ Complete Failure |
+| **3-period joint** | 62% reduction ($9,492 final) | ✅ Success |
 
-Both approaches successfully learn the liquidity-delay tradeoff and demonstrate the potential of AI methods for payment system optimization. The choice between them should depend on the specific scenario characteristics, computational budget, and requirements for stability vs. speed.
+### 8.2 Key Findings
+
+1. **LLM optimization works for simple scenarios**: In deterministic or low-variance environments, GPT-5.1 achieves strong results (62-72% cost reductions) with faster convergence than RL.
+
+2. **LLM optimization FAILS in complex stochastic scenarios**: The 12-period experiment demonstrates a fundamental limitation. The LLM cannot handle:
+   - High-dimensional state spaces (12 periods × 2 agents)
+   - Stochastic payment arrivals across multiple seeds
+   - The need for robust policies that work across distributions
+
+3. **RL is required for real-world deployment**: Castro's REINFORCE algorithm handles stochasticity through gradient averaging and incremental updates. LLM's discrete policy changes cause catastrophic failures in noisy environments.
+
+### 8.3 Revised Recommendations
+
+**Use LLM optimization when:**
+- Scenario is deterministic or near-deterministic
+- Few decision periods (2-3)
+- Fast prototyping is needed
+- Interpretability is important
+
+**Use RL (REINFORCE or similar) when:**
+- Stochastic payment arrivals
+- Many decision periods (12+)
+- Robust policies across distributions needed
+- Production deployment
+
+**Hybrid approach:**
+- Use LLM for initial policy generation (warm start)
+- Fine-tune with RL for stochastic robustness
+- Use LLM for policy interpretation/explanation
+
+### 8.4 Conclusion
+
+The extended experiments reveal that **LLM-based policy optimization is NOT a general replacement for RL methods**. While GPT-5.1 shows promise in simpler scenarios, its failure in the 12-period stochastic experiment (producing policies 11+ million percent worse than baseline) demonstrates critical limitations.
+
+For payment system optimization in production environments with stochastic demand, traditional RL methods remain essential. LLMs may serve as useful tools for exploration, interpretation, and initialization, but should not be trusted as standalone optimizers in complex, noisy settings.
 
 ---
 

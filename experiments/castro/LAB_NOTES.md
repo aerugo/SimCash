@@ -500,3 +500,114 @@ All experiment databases are stored in `results/`:
 
 ---
 
+### Entry 10: Extended 20-Iteration Experiments
+**Date**: 2025-12-04 00:00 UTC
+**Objective**: Run all experiments for 20 iterations to assess convergence stability
+
+**Infrastructure Improvements**:
+1. **Exponential backoff retry** added to `robust_policy_agent.py`:
+   - MAX_RETRIES = 5
+   - Backoff: 2s → 4s → 8s → 16s → 32s
+   - Handles TLS/503 errors gracefully
+2. **Convergence window** increased from 3 to 5 iterations
+
+**Results Summary**:
+
+| Experiment | Baseline | Best | Final | Best % | Final % |
+|------------|----------|------|-------|--------|---------|
+| exp1 (2-period) | $24,978 | $8,000 | $8,000 | 68% | **68%** |
+| exp2 (12-period) | $24,978 | $19,000 | $2.9B | 24% | **-11.7M%** |
+| exp3 (3-period) | $24,978 | $6,993 | $9,492 | 72% | **62%** |
+
+**CRITICAL FINDING: Experiment 2 Complete Failure**
+
+The 12-period stochastic experiment **completely failed** over 20 iterations:
+- Iteration 1: $24,978 (baseline)
+- Iteration 6: $19,000 (best achieved - 24% reduction)
+- Iterations 7-20: $1.9B - $5.2B (catastrophic divergence)
+- Final: $2,921,864,549 (11,694,544% WORSE than baseline)
+
+**Root Cause Analysis**:
+1. LLM generates policies that may work on subset of seeds but fail catastrophically on others
+2. 10-seed averaging masks individual seed failures during iteration
+3. Large policy changes cause overdraft cascades with massive end-of-day borrowing costs
+4. No mechanism to rollback to previous best policy
+
+**Exp1 & Exp3 Success Analysis**:
+- Both converged to good solutions (68% and 62% final reductions)
+- Deterministic/low-variance scenarios allow LLM to reason about cause-effect
+- Fewer decision periods (2-3) reduce search space
+
+**Key Insight**:
+> LLM-based policy optimization is **NOT** suitable for complex stochastic environments.
+> RL methods (REINFORCE) are required for robust policy learning in noisy settings.
+
+**Convergence Graphs Generated**:
+- `results/graphs/convergence_individual.png` - All three experiments
+- `results/graphs/convergence_comparison.png` - exp1 vs exp3
+- `results/graphs/exp2_log_scale.png` - exp2 showing billion-dollar divergence
+
+**Conclusion**:
+The extended experiments reveal a fundamental limitation of LLM optimization. While effective for simple scenarios (exp1, exp3), it fails catastrophically in complex stochastic environments (exp2). For production deployment with stochastic payment demand, traditional RL methods remain essential.
+
+---
+
+### Entry 11: Race Condition Bug Discovery and Fix
+**Date**: 2025-12-04 00:30 UTC
+**Objective**: Investigate anomalous baseline results
+
+**Investigation Summary**:
+
+Upon deeper analysis of Entry 10 results, discovered that **all three experiments had identical baselines ($24,978)** which is impossible given their different configurations:
+- exp1: 2-period, 3 fixed transactions
+- exp2: 12-period, ~14 stochastic transactions
+- exp3: 3-period, 4 fixed transactions
+
+**Root Cause: Race Condition**
+
+Examining verbose logs revealed the smoking gun:
+```
+exp1 iteration 1: ticks_executed=3 (should be 2!)
+exp2 iteration 1: ticks_executed=3 (should be 12!)
+exp3 iteration 1: ticks_executed=3 (correct)
+```
+
+All experiments were **sharing the same config directory** (`results/configs/`). When run in parallel:
+1. exp1 creates `results/configs/iter_001_config.yaml`
+2. exp3 **overwrites** `results/configs/iter_001_config.yaml`
+3. exp2 also **overwrites** the same file
+4. All experiments end up using whichever config was written last
+
+**Impact on Results**:
+- exp1 and exp2's iteration 1 ran with **exp3's config** (3-period deterministic)
+- exp2's LLM learned from wrong baseline, then applied policy to correct 12-period config
+- This explains the catastrophic divergence: policy was trained for wrong problem!
+
+**Fix Applied**:
+
+Modified `reproducible_experiment.py` to use experiment-specific directories:
+```python
+# Before (shared):
+results/configs/iter_001_config.yaml
+results/policies/iter_001_policy_a.json
+
+# After (isolated):
+results/exp1_run/configs/iter_001_config.yaml
+results/exp1_run/policies/iter_001_policy_a.json
+results/exp2_run/configs/iter_001_config.yaml
+results/exp2_run/policies/iter_001_policy_a.json
+```
+
+**Verification**:
+```python
+# Test confirms directories are now isolated
+exp1 configs_dir: results/test_exp1/configs
+exp2 configs_dir: results/test_exp2/configs
+Directories are different: True
+```
+
+**Re-run Required**:
+The Entry 10 results are **invalid** due to this bug. Experiments must be re-run with the fix to obtain valid results. The exp2 "failure" may have been an artifact of the race condition, not a fundamental LLM limitation.
+
+---
+

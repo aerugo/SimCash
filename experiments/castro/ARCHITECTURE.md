@@ -1,7 +1,7 @@
 # Castro Experiments - Architecture Report
 
-**Version:** 1.0
-**Date:** 2025-12-03
+**Version:** 1.1
+**Date:** 2025-12-04
 **Status:** Comprehensive technical documentation
 
 ---
@@ -154,7 +154,18 @@ experiments/castro/
 │
 ├── parameter_sets.py            # Pre-defined constraint sets
 │
-├── results/                     # Output databases (*.db)
+├── results/                     # Output databases and experiment work directories
+│   ├── exp1_2025-12-04-143022/  # Experiment work directory (unique per run)
+│   │   ├── scenario.yaml        # Copy of simulation scenario config
+│   │   ├── parameters.json      # Experiment parameters (model, seeds, etc.)
+│   │   ├── seed_policy_a.json   # Initial Bank A policy
+│   │   ├── seed_policy_b.json   # Initial Bank B policy
+│   │   ├── configs/             # Iteration-specific configs
+│   │   │   └── iter_001_config.yaml
+│   │   └── policies/            # Iteration-specific policies
+│   │       ├── iter_001_policy_a.json
+│   │       └── iter_001_policy_b.json
+│   └── exp1_2025-12-04-143022.db  # DuckDB database
 │
 ├── tests/                       # Test suite (27 files)
 │   ├── conftest.py              # Pytest fixtures
@@ -252,6 +263,9 @@ The main experiment runner with full reproducibility guarantees.
 
 **Key Responsibilities:**
 - Manage experiment lifecycle (setup → iterations → completion)
+- Generate unique experiment ID with timestamp (`exp1_2025-12-04-143022`)
+- Create isolated work directory for each experiment run
+- Save experiment metadata (scenario, parameters, seed policies) for reproducibility
 - Never modify seed policy files (read-only)
 - Create iteration-specific policy/config files
 - Run simulations in parallel (8 workers)
@@ -261,6 +275,14 @@ The main experiment runner with full reproducibility guarantees.
 
 ```python
 class ReproducibleExperiment:
+    def __init__(self, experiment_key: str, db_path: str, ...):
+        """Initialize with unique timestamp ID and isolated work directory."""
+        # Generates: exp1_2025-12-04-143022
+        # Creates: results/exp1_2025-12-04-143022/{configs,policies}/
+
+    def _save_experiment_metadata(self, ...):
+        """Save scenario.yaml, parameters.json, seed policies to work dir."""
+
     def setup(self) -> None:
         """Initialize experiment in database, record seed policies."""
 
@@ -280,21 +302,33 @@ class ReproducibleExperiment:
         """Execute full experiment."""
 ```
 
-**Iteration Isolation Pattern:**
+**Experiment and Iteration Isolation:**
+
+Each experiment run gets a unique work directory based on timestamp:
 
 ```
-Iteration 1:
-  policies/iter_001_policy_a.json  ← Written fresh
-  policies/iter_001_policy_b.json  ← Written fresh
-  configs/iter_001_config.yaml     ← Points to above files
+results/
+├── exp1_2025-12-04-143022/           # Experiment 1, run at 14:30:22
+│   ├── scenario.yaml                  # Scenario config (for reproducibility)
+│   ├── parameters.json                # Experiment parameters
+│   ├── seed_policy_a.json             # Initial Bank A policy
+│   ├── seed_policy_b.json             # Initial Bank B policy
+│   ├── configs/
+│   │   ├── iter_001_config.yaml       # Iteration 1 config
+│   │   └── iter_002_config.yaml       # Iteration 2 config
+│   └── policies/
+│       ├── iter_001_policy_a.json     # Iteration 1 policies
+│       ├── iter_001_policy_b.json
+│       ├── iter_002_policy_a.json     # Iteration 2 policies
+│       └── iter_002_policy_b.json
+├── exp1_2025-12-04-143022.db          # DuckDB database
+└── exp2_2025-12-04-143025/            # Different experiment, different directory
+    └── ...
 
-Iteration 2:
-  policies/iter_002_policy_a.json  ← Written fresh (different)
-  policies/iter_002_policy_b.json  ← Written fresh
-  configs/iter_002_config.yaml     ← Points to above files
-
-(Original seed_policy.json NEVER modified)
+(Original policies/seed_policy.json NEVER modified)
 ```
+
+This ensures parallel experiment runs never interfere with each other.
 
 ### 2. RobustPolicyAgent (generator/robust_policy_agent.py)
 
@@ -520,8 +554,14 @@ def export_summary(...)               # For reproducibility
 │  1. SETUP                                                                 │
 │  ─────────────────────────────────────────────────────────────────────── │
 │  - Load experiment definition (exp1, exp2, exp3)                         │
+│  - Generate unique experiment ID: exp1_2025-12-04-143022                 │
+│  - Create isolated work directory: results/exp1_2025-12-04-143022/       │
 │  - Load config YAML                                                       │
 │  - Load seed policies (READ-ONLY, never modified)                        │
+│  - Save experiment metadata to work directory:                           │
+│      • scenario.yaml (simulation config)                                  │
+│      • parameters.json (model, seeds, iterations, etc.)                  │
+│      • seed_policy_a.json, seed_policy_b.json                            │
 │  - Initialize DuckDB database                                            │
 │  - Record experiment_config to DB                                        │
 │  - Record initial policies (iteration 0) to DB                           │
@@ -675,23 +715,34 @@ TreeNodeL2 = Union[ActionNode, ConditionNodeL2]  # L2 children are L1
 - Supports up to 5 levels of nesting
 - Clear depth limits for LLM guidance
 
-### 3. Iteration Isolation Pattern
+### 3. Experiment Isolation Pattern
 
-**Problem:** Need to track policy evolution without corrupting seed files.
+**Problem:** Need to track policy evolution without corrupting seed files, AND support parallel experiment runs without race conditions.
 
 **Solution:**
 
 ```python
-# Load seed policies ONCE (read-only)
-self.seed_policy_a = load_json_policy(seed_path)
+# Generate unique experiment ID with timestamp
+timestamp = datetime.now().strftime('%Y-%m-%d-%H%M%S')
+self.experiment_id = f"{experiment_key}_{timestamp}"  # e.g., exp1_2025-12-04-143022
 
-# Each iteration creates NEW files
+# Create isolated work directory for this experiment run
+self.experiment_work_dir = self.output_dir / self.experiment_id
+self.policies_dir = self.experiment_work_dir / "policies"
+self.configs_dir = self.experiment_work_dir / "configs"
+
+# Save experiment metadata for reproducibility
+def _save_experiment_metadata(self, ...):
+    shutil.copy(self.config_path, self.experiment_work_dir / "scenario.yaml")
+    with open(self.experiment_work_dir / "parameters.json", "w") as f:
+        json.dump(parameters, f, indent=2)
+    shutil.copy(seed_policy_a_src, self.experiment_work_dir / "seed_policy_a.json")
+    shutil.copy(seed_policy_b_src, self.experiment_work_dir / "seed_policy_b.json")
+
+# Each iteration creates NEW files within the isolated directory
 def create_iteration_config(self, iteration: int) -> Path:
     policy_a_path = self.policies_dir / f"iter_{iteration:03d}_policy_a.json"
-    save_json_policy(str(policy_a_path), self.policy_a)  # Current state
-
-    # Create config pointing to iteration files
-    iter_config_path = self.configs_dir / f"iter_{iteration:03d}_config.yaml"
+    save_json_policy(str(policy_a_path), self.policy_a)
     # ...
 ```
 
@@ -699,6 +750,8 @@ def create_iteration_config(self, iteration: int) -> Path:
 - Seed files are never modified
 - Every iteration is independently reproducible
 - Full history in database
+- **Parallel experiments never interfere** (unique work directories)
+- **Complete reproducibility** (all inputs saved in work directory)
 
 ### 4. Full Reproducibility Pattern
 
@@ -1176,5 +1229,6 @@ uv sync --extra dev --reinstall-package payment-simulator
 ---
 
 *Generated: 2025-12-03*
+*Updated: 2025-12-04 (v1.1 - experiment isolation, unique IDs, metadata saving)*
 *For project-wide patterns, see root `/CLAUDE.md`*
 *For API patterns, see `/api/CLAUDE.md`*
