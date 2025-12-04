@@ -1918,7 +1918,10 @@ class ReproducibleExperiment:
         """Filter iteration history to contain ONLY the specified agent's data.
 
         CRITICAL ISOLATION: This function ensures the LLM optimizing one agent
-        never sees any information about other agents.
+        never sees any information about other agents. This includes:
+        - Only this agent's policy and changes
+        - Filtered metrics (no other bank's per-bank costs)
+        - Only this agent's comparison string
 
         Args:
             records: Full iteration records containing both agents' data
@@ -1941,14 +1944,33 @@ class ReproducibleExperiment:
                 policy = record.policy_a
                 changes = record.policy_a_changes
 
+            # CRITICAL: Filter metrics to remove other bank's per-bank costs
+            # Each bank is selfish and should NOT see the other bank's cost!
+            # Keys to filter: bank_a_cost_mean, bank_a_cost_std, bank_b_cost_mean, bank_b_cost_std
+            other_bank_prefix = "bank_b_cost" if agent_id == "BANK_A" else "bank_a_cost"
+            filtered_metrics = {
+                k: v for k, v in record.metrics.items()
+                if not k.startswith(other_bank_prefix)
+            }
+
+            # CRITICAL: Extract only this agent's comparison string
+            # The combined format is "A: ... | B: ..."
+            comparison = record.comparison_to_best
+            if " | " in comparison:
+                parts = comparison.split(" | ")
+                if agent_id == "BANK_A" and len(parts) >= 1:
+                    comparison = parts[0].replace("A: ", "")
+                elif agent_id == "BANK_B" and len(parts) >= 2:
+                    comparison = parts[1].replace("B: ", "")
+
             filtered.append(SingleAgentIterationRecord(
                 iteration=record.iteration,
-                metrics=record.metrics,
+                metrics=filtered_metrics,
                 policy=policy,
                 policy_changes=changes,
                 was_accepted=record.was_accepted,
                 is_best_so_far=record.is_best_so_far,
-                comparison_to_best=record.comparison_to_best,
+                comparison_to_best=comparison,
             ))
         return filtered
 
