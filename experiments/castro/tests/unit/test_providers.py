@@ -11,20 +11,20 @@ from typing import Any
 
 import pytest
 
+from experiments.castro.generator.client import (
+    GenerationResult,
+    PolicyContext,
+    StructuredPolicyGenerator,
+)
 from experiments.castro.generator.providers import (
-    LLMProvider,
-    StructuredOutputRequest,
-    StructuredOutputResponse,
-    OpenAIProvider,
     AnthropicProvider,
     GoogleProvider,
+    LLMProvider,
     OllamaProvider,
+    OpenAIProvider,
+    StructuredOutputRequest,
+    StructuredOutputResponse,
     get_provider,
-)
-from experiments.castro.generator.client import (
-    StructuredPolicyGenerator,
-    PolicyContext,
-    GenerationResult,
 )
 
 
@@ -44,7 +44,7 @@ class TestStructuredOutputRequest:
         assert request.json_schema == {"type": "object"}
         assert request.schema_name == "policy_tree"  # default
         assert request.temperature == 0.7  # default
-        assert request.max_tokens == 4096  # default
+        assert request.max_tokens == 150000  # default
 
     def test_request_custom_values(self) -> None:
         """Request accepts custom values."""
@@ -54,12 +54,12 @@ class TestStructuredOutputRequest:
             json_schema={},
             schema_name="custom_schema",
             temperature=0.5,
-            max_tokens=2000,
+            max_tokens=150000,
         )
 
         assert request.schema_name == "custom_schema"
         assert request.temperature == 0.5
-        assert request.max_tokens == 2000
+        assert request.max_tokens == 150000
 
 
 class TestStructuredOutputResponse:
@@ -271,12 +271,20 @@ class TestStructuredPolicyGeneratorWithProvider:
                 if call_count == 1:
                     # Invalid action
                     return StructuredOutputResponse(
-                        content={"type": "action", "action": "InvalidAction", "parameters": {}},
+                        content={
+                            "type": "action",
+                            "action": "InvalidAction",
+                            "parameters": {},
+                        },
                     )
                 else:
                     # Valid action
                     return StructuredOutputResponse(
-                        content={"type": "action", "action": "Release", "parameters": {}},
+                        content={
+                            "type": "action",
+                            "action": "Release",
+                            "parameters": {},
+                        },
                     )
 
         provider = RetryMockProvider()

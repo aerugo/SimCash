@@ -36,7 +36,7 @@ class StructuredOutputRequest:
     json_schema: dict[str, Any]
     schema_name: str = "policy_tree"
     temperature: float = 0.7
-    max_tokens: int = 4096
+    max_tokens: int = 150000
 
 
 @dataclass
@@ -134,6 +134,7 @@ class OpenAIProvider:
         if self._client is None:
             try:
                 from openai import OpenAI
+
                 self._client = OpenAI(api_key=self._api_key)
             except ImportError:
                 raise ImportError(
@@ -224,6 +225,7 @@ class AnthropicProvider:
         if self._client is None:
             try:
                 from anthropic import Anthropic
+
                 self._client = Anthropic(api_key=self._api_key)
             except ImportError:
                 raise ImportError(
@@ -277,7 +279,8 @@ class AnthropicProvider:
             usage = {
                 "prompt_tokens": response.usage.input_tokens,
                 "completion_tokens": response.usage.output_tokens,
-                "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                "total_tokens": response.usage.input_tokens
+                + response.usage.output_tokens,
             }
 
         return StructuredOutputResponse(
@@ -322,6 +325,7 @@ class GoogleProvider:
         if self._client is None:
             try:
                 import google.generativeai as genai
+
                 genai.configure(api_key=self._api_key)
                 self._client = genai.GenerativeModel(self.model)
             except ImportError:
@@ -415,6 +419,7 @@ class OllamaProvider:
         if self._client is None:
             try:
                 import ollama
+
                 self._client = ollama.Client(host=self.host)
             except ImportError:
                 raise ImportError(
@@ -459,8 +464,7 @@ class OllamaProvider:
                 "prompt_tokens": response.get("prompt_eval_count", 0),
                 "completion_tokens": response.get("eval_count", 0),
                 "total_tokens": (
-                    response.get("prompt_eval_count", 0)
-                    + response.get("eval_count", 0)
+                    response.get("prompt_eval_count", 0) + response.get("eval_count", 0)
                 ),
             }
 
@@ -502,6 +506,7 @@ def get_provider(
     # Handle pydantic-ai specially since it uses a different model format
     if provider_type == "pydantic-ai":
         from experiments.castro.generator.pydantic_ai_provider import PydanticAIProvider
+
         # For pydantic-ai, model should be in format "provider:model"
         # Default to openai:gpt-4o if not specified
         pydantic_model = model or "openai:gpt-4o"
@@ -516,8 +521,6 @@ def get_provider(
 
     if provider_type not in providers:
         available = ", ".join(list(providers.keys()) + ["pydantic-ai"])
-        raise ValueError(
-            f"Unknown provider: {provider_type}. Available: {available}"
-        )
+        raise ValueError(f"Unknown provider: {provider_type}. Available: {available}")
 
     return providers[provider_type](model=model, **kwargs)
