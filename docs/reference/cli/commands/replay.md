@@ -35,6 +35,19 @@ The configuration is automatically loaded from the database, so you don't need t
 | `--verbose` | `-v` | Boolean | `false` | Show detailed tick-by-tick events. |
 | `--event-stream` | - | Boolean | `false` | Output events as JSON lines (machine-readable). |
 
+## Filter Options
+
+Filter options allow focusing on specific events during replay. See [Event Filtering](../filtering.md) for full details.
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--filter-event-type` | String | Filter by event type(s), comma-separated (e.g., `Arrival,Settlement`). |
+| `--filter-agent` | String | Filter by agent ID. Shows all events where agent is sender/actor, plus incoming settlements. |
+| `--filter-tx` | String | Filter by transaction ID. |
+| `--filter-tick-range` | String | Filter by tick range (format: `min-max`, `min-`, or `-max`). |
+
+**Note:** Filter options require either `--verbose` or `--event-stream` mode.
+
 ## Output Modes
 
 ### Summary Mode (Default)
@@ -147,6 +160,29 @@ payment-sim replay --simulation-id sim-abc123 --event-stream > events.jsonl
 ```bash
 # Use different database
 payment-sim replay --simulation-id sim-abc123 --db-path my_simulations.db --verbose
+```
+
+### Filtered Replay
+
+```bash
+# Replay events for a specific bank (sender/actor events + incoming settlements)
+payment-sim replay --simulation-id sim-abc123 --verbose --filter-agent BANK_A
+
+# Replay only LSM events
+payment-sim replay --simulation-id sim-abc123 --verbose \
+  --filter-event-type LsmBilateralOffset,LsmCycleSettlement
+
+# Track a specific transaction through the simulation
+payment-sim replay --simulation-id sim-abc123 --verbose --filter-tx tx-large-payment
+
+# Combine agent filter with tick range
+payment-sim replay --simulation-id sim-abc123 --verbose \
+  --filter-agent BANK_B \
+  --filter-tick-range 50-100
+
+# Event stream with filters for external processing
+payment-sim replay --simulation-id sim-abc123 --event-stream \
+  --filter-event-type Arrival | jq 'select(.details.amount > 100000)'
 ```
 
 ## Finding Simulation IDs

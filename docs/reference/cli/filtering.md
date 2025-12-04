@@ -85,7 +85,10 @@ payment-sim run --config cfg.yaml --verbose --filter-event-type PolicySubmit,Pol
 
 ## Agent Filter
 
-Filter events by agent ID. Matches both `agent_id` and `sender_id` fields.
+Filter events by agent ID. Provides a comprehensive bank-centric view showing:
+
+1. **All events where the agent is the sender/actor** (outgoing transactions, policy decisions)
+2. **Settlement events where the agent is the receiver** (incoming liquidity)
 
 ### Syntax
 
@@ -93,24 +96,70 @@ Filter events by agent ID. Matches both `agent_id` and `sender_id` fields.
 --filter-agent AGENT_ID
 ```
 
-### Field Matching
+### Field Matching (Sender/Actor)
 
-The filter checks:
+The filter checks all sender field naming conventions used across event types:
 
-1. `agent_id` field (for policy events, cost events)
-2. `sender_id` field (for transaction events)
+| Field | Event Types |
+|-------|-------------|
+| `agent_id` | PolicySubmit, PolicyHold, PolicyDrop, PolicySplit, CostAccrual, CollateralPost/Withdraw |
+| `sender_id` | Arrival, QueuedRtgs, TransactionWentOverdue |
+| `sender` | RtgsImmediateSettlement, Queue2LiquidityRelease |
+| `agent_a` | LsmBilateralOffset (either participant) |
+| `agent_b` | LsmBilateralOffset (either participant) |
+| `agents` / `agent_ids` | LsmCycleSettlement (any participant in the cycle) |
+
+### Receiver Matching (Settlements Only)
+
+For **settlement event types only**, the filter also matches when the agent is the receiver. This shows incoming liquidity notifications:
+
+| Settlement Event Type | Shows When Agent Is... |
+|----------------------|------------------------|
+| `RtgsImmediateSettlement` | Sender OR Receiver |
+| `Queue2LiquidityRelease` | Sender OR Receiver |
+| `LsmBilateralOffset` | Either participant (agent_a or agent_b) |
+| `LsmCycleSettlement` | Any participant in the cycle |
+| `OverdueTransactionSettled` | Sender OR Receiver |
+
+**Important:** Non-settlement events (Arrival, PolicySubmit, etc.) do NOT match when the agent is only the receiver. This prevents showing another bank's transactions just because you're the counterparty.
+
+### Incoming Liquidity Display
+
+When filtering by agent, settlement events where the filtered agent receives money display a special notification:
+
+```
+🔄 Settlements (2)
+──────────────────
+[RtgsImmediate] tx-001: BANK_B → BANK_A $1,000.00 (settled)
+     ↳ 💰 BANK_A receives $1,000.00
+```
 
 ### Examples
 
 ```bash
-# All events for BANK_A
+# All events for BANK_A (outgoing + incoming settlements)
 payment-sim run --config cfg.yaml --verbose --filter-agent BANK_A
 
 # Combined with event type
 payment-sim run --config cfg.yaml --verbose \
   --filter-agent BANK_A \
-  --filter-event-type Arrival,Settlement
+  --filter-event-type Arrival,RtgsImmediateSettlement
+
+# Replay with agent filter - works identically to run
+payment-sim replay --simulation-id sim-abc123 --verbose --filter-agent BANK_A
 ```
+
+### Use Case: Complete Bank View
+
+The agent filter is designed to answer: "What happened from BANK_A's perspective?"
+
+This includes:
+- Transactions BANK_A sent (arrivals)
+- Policy decisions BANK_A made
+- Settlements where BANK_A paid
+- **Settlements where BANK_A received money** (incoming liquidity)
+- Costs accrued by BANK_A
+- Collateral actions by BANK_A
 
 ---
 
@@ -204,9 +253,27 @@ payment-sim run --config cfg.yaml --verbose \
 ### Filter Logic
 
 ```
+# Agent matching checks all sender/actor fields
+agent_is_sender = (
+    event.agent_id == agent_id OR
+    event.sender_id == agent_id OR
+    event.sender == agent_id OR
+    event.agent_a == agent_id OR
+    event.agent_b == agent_id OR
+    agent_id IN event.agents OR
+    agent_id IN event.agent_ids
+)
+
+# Receiver matching only for settlement events
+agent_is_receiver = (
+    event.type IN SETTLEMENT_EVENT_TYPES AND
+    (event.receiver == agent_id OR event.receiver_id == agent_id)
+)
+
+# Combined filter logic
 event_matches = (
     (event_types is None OR event.type IN event_types)
-    AND (agent_id is None OR event.agent_id == agent_id OR event.sender_id == agent_id)
+    AND (agent_id is None OR agent_is_sender OR agent_is_receiver)
     AND (tx_id is None OR event.tx_id == tx_id)
     AND (tick_min is None OR tick >= tick_min)
     AND (tick_max is None OR tick <= tick_max)
@@ -269,16 +336,51 @@ payment-sim run --config scenario.yaml --verbose \
 
 ## Replay Filtering
 
-Filters work with the replay command as well:
+All filter options work identically in both `run` and `replay` commands. This is the **Replay Identity** principle - filtering produces the same output regardless of whether you're running live or replaying from database.
+
+### Available Filters in Replay
 
 ```bash
-# Replay specific agent's activity
 payment-sim replay --simulation-id sim-abc123 --verbose \
-  --filter-agent BANK_A \
-  --filter-tick-range 0-50
+  --filter-event-type TYPE \
+  --filter-agent AGENT_ID \
+  --filter-tx TX_ID \
+  --filter-tick-range MIN-MAX
 ```
 
-Note: Replay tick range is controlled by `--from-tick` and `--to-tick` options, which are separate from the filter. The replay range determines what ticks are processed; the filter determines what events are displayed.
+### Examples
+
+```bash
+# Replay specific agent's activity (outgoing + incoming settlements)
+payment-sim replay --simulation-id sim-abc123 --verbose \
+  --filter-agent BANK_A
+
+# Replay only LSM events
+payment-sim replay --simulation-id sim-abc123 --verbose \
+  --filter-event-type LsmBilateralOffset,LsmCycleSettlement
+
+# Combine filters for targeted analysis
+payment-sim replay --simulation-id sim-abc123 --verbose \
+  --filter-agent BANK_A \
+  --filter-tick-range 50-100
+```
+
+### Replay Range vs Filter Range
+
+There are two ways to limit ticks in replay:
+
+| Option | Purpose |
+|--------|---------|
+| `--from-tick` / `--to-tick` | Controls which ticks are **processed** from database |
+| `--filter-tick-range` | Controls which events are **displayed** |
+
+Example: To process only ticks 50-100 and display events from tick 75-100:
+
+```bash
+payment-sim replay --simulation-id sim-abc123 \
+  --from-tick 50 --to-tick 100 \
+  --verbose --filter-tick-range 75-100
+```
 
 ---
 
@@ -348,7 +450,40 @@ class EventFilter:
 
     def matches(self, event: dict, tick: int) -> bool:
         # AND logic across all filters
+        # Comprehensive sender field matching
+        # Receiver matching for settlement events only
         ...
+
+    @classmethod
+    def from_cli_args(cls, **kwargs) -> "EventFilter":
+        # Factory method for creating filter from CLI options
+        ...
+```
+
+### Helper Functions
+
+The module also provides helper functions for incoming liquidity display:
+
+```python
+# Calculate incoming liquidity for an agent from a settlement event
+def calculate_incoming_liquidity(event: dict, agent_id: str) -> int: ...
+
+# Calculate net liquidity change for an agent in an LSM settlement
+def calculate_lsm_net_change(event: dict, agent_id: str) -> int: ...
+```
+
+### Settlement Event Types
+
+The following event types are considered settlements for receiver matching:
+
+```python
+SETTLEMENT_EVENT_TYPES = frozenset({
+    "RtgsImmediateSettlement",
+    "Queue2LiquidityRelease",
+    "LsmBilateralOffset",
+    "LsmCycleSettlement",
+    "OverdueTransactionSettled",
+})
 ```
 
 ---
