@@ -737,46 +737,55 @@ class ExperimentDatabase:
 # ============================================================================
 
 def run_single_simulation(args: tuple) -> dict:
-    """Run a single simulation (for parallel execution)."""
-    config_path, simcash_root, seed, capture_verbose = args
+    """Run a single simulation with persistence for filtered replay.
+
+    The simulation is run with --persist --full-replay to enable filtered
+    replay of events per agent. This allows the LLM optimizer to see only
+    events relevant to the bank whose policy it is optimizing.
+
+    Args:
+        args: Tuple of (config_path, simcash_root, seed, work_dir)
+            - config_path: Path to simulation config YAML
+            - simcash_root: Path to SimCash root directory
+            - seed: Random seed for this simulation
+            - work_dir: Directory for simulation database files
+
+    Returns:
+        Dict with simulation results including db_path and simulation_id
+        for filtered replay.
+    """
+    config_path, simcash_root, seed, work_dir = args
 
     try:
+        # Generate unique simulation ID for this run
+        sim_id = f"castro_seed{seed}_{uuid.uuid4().hex[:8]}"
+        db_path = Path(work_dir) / f"sim_{seed}.db"
+
         cmd = [
             str(Path(simcash_root) / "api" / ".venv" / "bin" / "payment-sim"),
             "run",
             "--config", str(config_path),
             "--seed", str(seed),
+            "--quiet",  # No verbose during run (we'll get it via replay)
+            "--persist",  # Enable persistence for replay
+            "--full-replay",  # Capture all data for filtered replay
+            "--db-path", str(db_path),
+            "--simulation-id", sim_id,
         ]
-
-        if not capture_verbose:
-            cmd.append("--quiet")
 
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             cwd=str(simcash_root),
-            timeout=60,
+            timeout=120,  # Increased timeout for persistence overhead
         )
 
         if result.returncode != 0:
             return {"error": f"Simulation failed: {result.stderr}", "seed": seed}
 
-        # Parse output
-        if capture_verbose:
-            verbose_output = result.stdout
-            # Run again quiet for JSON
-            quiet_result = subprocess.run(
-                cmd + ["--quiet"],
-                capture_output=True,
-                text=True,
-                cwd=str(simcash_root),
-                timeout=60,
-            )
-            output = json.loads(quiet_result.stdout)
-        else:
-            verbose_output = None
-            output = json.loads(result.stdout)
+        # Parse JSON output
+        output = json.loads(result.stdout)
 
         costs = output.get("costs", {})
         agents = {a["id"]: a for a in output.get("agents", [])}
@@ -798,24 +807,89 @@ def run_single_simulation(args: tuple) -> dict:
                 "eod_penalty": costs.get("total_eod_penalty", 0),
             },
             "raw_output": output,
-            "verbose_log": verbose_output,
+            # NEW: Include db_path and simulation_id for filtered replay
+            "db_path": str(db_path),
+            "simulation_id": sim_id,
         }
     except Exception as e:
         return {"error": str(e), "seed": seed}
+
+
+def get_filtered_replay_output(
+    simcash_root: str,
+    db_path: str,
+    simulation_id: str,
+    agent_id: str,
+) -> str:
+    """Get filtered verbose output for a specific agent via replay.
+
+    Uses the payment-sim replay command with --filter-agent to produce
+    verbose output showing only events relevant to the specified agent.
+    This ensures the LLM optimizer only sees events for the bank whose
+    policy it is optimizing.
+
+    Args:
+        simcash_root: Path to SimCash root directory
+        db_path: Path to simulation database file
+        simulation_id: Simulation ID to replay
+        agent_id: Agent ID to filter for (e.g., "BANK_A")
+
+    Returns:
+        Filtered verbose output string showing only events for the specified agent
+
+    Raises:
+        RuntimeError: If replay command fails
+    """
+    cmd = [
+        str(Path(simcash_root) / "api" / ".venv" / "bin" / "payment-sim"),
+        "replay",
+        "--simulation-id", simulation_id,
+        "--db-path", db_path,
+        "--verbose",
+        "--filter-agent", agent_id,
+    ]
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=str(simcash_root),
+        timeout=60,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"Replay failed for {agent_id}: {result.stderr}")
+
+    return result.stdout
 
 
 def run_simulations_parallel(
     config_path: str,
     simcash_root: str,
     seeds: list[int],
-    capture_verbose_for: list[int] | None = None,
+    work_dir: str | Path,
 ) -> list[dict]:
-    """Run simulations in parallel."""
-    if capture_verbose_for is None:
-        capture_verbose_for = []
+    """Run simulations in parallel with persistence.
+
+    Simulations are run with --persist --full-replay to enable filtered
+    replay per agent. Results include db_path and simulation_id for
+    subsequent filtered replay.
+
+    Args:
+        config_path: Path to simulation config YAML
+        simcash_root: Path to SimCash root directory
+        seeds: List of random seeds to run
+        work_dir: Directory for simulation database files
+
+    Returns:
+        List of result dicts sorted by seed
+    """
+    # Ensure work_dir exists
+    work_dir = Path(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
 
     args_list = [
-        (config_path, simcash_root, seed, seed in capture_verbose_for)
+        (config_path, simcash_root, seed, str(work_dir))
         for seed in seeds
     ]
 
@@ -1118,14 +1192,24 @@ class ReproducibleExperiment:
         self.policy_history_a: list[dict] = [self.policy_a.copy()]
         self.policy_history_b: list[dict] = [self.policy_b.copy()]
 
-        # Last iteration's verbose output (best/worst seeds)
-        self.last_best_seed_output: str | None = None
-        self.last_worst_seed_output: str | None = None
+        # Directory for simulation database files (for filtered replay)
+        self.sim_db_dir = self.experiment_work_dir / "sim_databases"
+        self.sim_db_dir.mkdir(parents=True, exist_ok=True)
+
+        # Last iteration's verbose output (per-agent filtered output)
+        # Each agent sees only events relevant to their bank
+        self.last_best_seed_output_bank_a: str | None = None
+        self.last_best_seed_output_bank_b: str | None = None
+        self.last_worst_seed_output_bank_a: str | None = None
+        self.last_worst_seed_output_bank_b: str | None = None
         self.last_best_seed: int = 0
         self.last_worst_seed: int = 0
         self.last_best_cost: int = 0
         self.last_worst_cost: int = 0
         self.last_cost_breakdown: dict[str, int] = {}
+        # Store best/worst result dicts for replay access
+        self.last_best_result: dict | None = None
+        self.last_worst_result: dict | None = None
 
     def _save_experiment_metadata(
         self,
@@ -1433,20 +1517,15 @@ Generate a corrected policy that avoids these errors.
         # Create iteration-specific config with current policies
         config_path = self.create_iteration_config(iteration)
 
-        # Run simulations - capture verbose for ALL seeds so we can get best/worst later
+        # Run simulations with persistence for filtered replay
         seeds = list(range(1, self.num_seeds + 1))
-        # Capture verbose for first, last, and a sample in between
-        if len(seeds) <= 3:
-            verbose_seeds = seeds
-        else:
-            verbose_seeds = [seeds[0], seeds[len(seeds)//2], seeds[-1]]
 
-        print(f"  Running {len(seeds)} simulations...")
+        print(f"  Running {len(seeds)} simulations with persistence...")
         results = run_simulations_parallel(
             config_path=str(config_path),
             simcash_root=str(self.simcash_root),
             seeds=seeds,
-            capture_verbose_for=verbose_seeds,
+            work_dir=str(self.sim_db_dir),
         )
 
         # Record all runs
@@ -1512,7 +1591,12 @@ Generate a corrected policy that avoids these errors.
         }
 
     def _extract_best_worst_context(self, results: list[dict], metrics: dict) -> None:
-        """Extract verbose output and cost breakdown from best/worst seeds."""
+        """Extract filtered verbose output per agent from best/worst seeds.
+
+        Uses filtered replay to ensure each LLM optimizer only sees events
+        relevant to the bank whose policy it is optimizing. This provides
+        information isolation between competing banks.
+        """
         valid_results = [r for r in results if "error" not in r]
         if not valid_results:
             return
@@ -1521,13 +1605,13 @@ Generate a corrected policy that avoids these errors.
         best_result = min(valid_results, key=lambda r: r.get("total_cost", float("inf")))
         worst_result = max(valid_results, key=lambda r: r.get("total_cost", 0))
 
-        # Store verbose output
-        self.last_best_seed_output = best_result.get("verbose_log")
-        self.last_worst_seed_output = worst_result.get("verbose_log")
+        # Store seed info
         self.last_best_seed = best_result.get("seed", 0)
         self.last_worst_seed = worst_result.get("seed", 0)
         self.last_best_cost = int(best_result.get("total_cost", 0))
         self.last_worst_cost = int(worst_result.get("total_cost", 0))
+        self.last_best_result = best_result
+        self.last_worst_result = worst_result
 
         # Aggregate cost breakdown from worst seed (to show problem areas)
         cost_bd = worst_result.get("cost_breakdown", {})
@@ -1538,18 +1622,47 @@ Generate a corrected policy that avoids these errors.
             "eod_penalty": int(cost_bd.get("eod_penalty", 0)),
         }
 
-        # If best seed has no verbose output but worst does, try to get best from DB
-        if self.last_best_seed_output is None and self.last_best_seed != self.last_worst_seed:
-            # Run a separate simulation for best seed with verbose
-            print(f"  Capturing verbose output for best seed #{self.last_best_seed}...")
-            best_results = run_simulations_parallel(
-                config_path=str(self.current_config_path) if self.current_config_path else "",
+        # Extract filtered verbose output per agent via replay
+        # This ensures each LLM only sees events for its own bank
+        print(f"  Extracting filtered outputs for BANK_A and BANK_B...")
+
+        try:
+            # Get filtered output for BANK_A from best seed
+            self.last_best_seed_output_bank_a = get_filtered_replay_output(
                 simcash_root=str(self.simcash_root),
-                seeds=[self.last_best_seed],
-                capture_verbose_for=[self.last_best_seed],
+                db_path=best_result["db_path"],
+                simulation_id=best_result["simulation_id"],
+                agent_id="BANK_A",
             )
-            if best_results and "error" not in best_results[0]:
-                self.last_best_seed_output = best_results[0].get("verbose_log")
+            # Get filtered output for BANK_B from best seed
+            self.last_best_seed_output_bank_b = get_filtered_replay_output(
+                simcash_root=str(self.simcash_root),
+                db_path=best_result["db_path"],
+                simulation_id=best_result["simulation_id"],
+                agent_id="BANK_B",
+            )
+            # Get filtered output for BANK_A from worst seed
+            self.last_worst_seed_output_bank_a = get_filtered_replay_output(
+                simcash_root=str(self.simcash_root),
+                db_path=worst_result["db_path"],
+                simulation_id=worst_result["simulation_id"],
+                agent_id="BANK_A",
+            )
+            # Get filtered output for BANK_B from worst seed
+            self.last_worst_seed_output_bank_b = get_filtered_replay_output(
+                simcash_root=str(self.simcash_root),
+                db_path=worst_result["db_path"],
+                simulation_id=worst_result["simulation_id"],
+                agent_id="BANK_B",
+            )
+            print(f"    ✓ Filtered outputs extracted successfully")
+        except Exception as e:
+            print(f"    WARNING: Failed to extract filtered outputs: {e}")
+            # Clear outputs to indicate failure
+            self.last_best_seed_output_bank_a = None
+            self.last_best_seed_output_bank_b = None
+            self.last_worst_seed_output_bank_a = None
+            self.last_worst_seed_output_bank_b = None
 
     def _record_iteration(self, iteration: int, metrics: dict) -> None:
         """Record this iteration in the history with policy changes."""
@@ -1596,17 +1709,18 @@ IMPORTANT: Review the tick-by-tick simulation output below to understand:
 
 Use this insight to make targeted policy improvements."""
 
-        # Generate policy for Bank A with full context
+        # Generate policy for Bank A with BANK_A-filtered context
+        # CRITICAL: LLM only sees events relevant to BANK_A (information isolation)
         policy_a, tokens_a, latency_a = self.optimizer.generate_policy(
             instruction=instruction,
             current_policy=self.policy_a,
             current_cost=metrics['total_cost_mean'] / 2,  # Approximate per-bank cost
             settlement_rate=metrics['settlement_rate_mean'],
             iteration=iteration,
-            # Extended context
+            # Extended context with BANK_A-filtered outputs
             iteration_history=self.iteration_records,
-            best_seed_output=self.last_best_seed_output,
-            worst_seed_output=self.last_worst_seed_output,
+            best_seed_output=self.last_best_seed_output_bank_a,
+            worst_seed_output=self.last_worst_seed_output_bank_a,
             best_seed=self.last_best_seed,
             worst_seed=self.last_worst_seed,
             best_seed_cost=self.last_best_cost,
@@ -1616,17 +1730,18 @@ Use this insight to make targeted policy improvements."""
             other_bank_policy=self.policy_b,
         )
 
-        # Generate policy for Bank B (may be same or different based on scenario)
+        # Generate policy for Bank B with BANK_B-filtered context
+        # CRITICAL: LLM only sees events relevant to BANK_B (information isolation)
         policy_b, tokens_b, latency_b = self.optimizer.generate_policy(
             instruction=instruction,
             current_policy=self.policy_b,
             current_cost=metrics['total_cost_mean'] / 2,
             settlement_rate=metrics['settlement_rate_mean'],
             iteration=iteration,
-            # Extended context
+            # Extended context with BANK_B-filtered outputs
             iteration_history=self.iteration_records,
-            best_seed_output=self.last_best_seed_output,
-            worst_seed_output=self.last_worst_seed_output,
+            best_seed_output=self.last_best_seed_output_bank_b,
+            worst_seed_output=self.last_worst_seed_output_bank_b,
             best_seed=self.last_best_seed,
             worst_seed=self.last_worst_seed,
             best_seed_cost=self.last_best_cost,
