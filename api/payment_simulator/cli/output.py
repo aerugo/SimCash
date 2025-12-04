@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
+from payment_simulator.cli.filters import calculate_incoming_liquidity, calculate_lsm_net_change
+
 if TYPE_CHECKING:
     from payment_simulator.cli.execution.state_provider import StateProvider
 
@@ -624,7 +626,14 @@ def log_transaction_arrivals(provider: StateProvider, events: list[dict[str, Any
         console.print(f"     {amount_str} | {priority_str} | ⏰ Tick {deadline}")
 
 
-def log_settlement_details(provider: StateProvider, events: list[dict[str, Any]], tick: int, num_settlements: int | None = None, quiet: bool = False) -> None:
+def log_settlement_details(
+    provider: StateProvider,
+    events: list[dict[str, Any]],
+    tick: int,
+    num_settlements: int | None = None,
+    quiet: bool = False,
+    filter_agent: str | None = None,
+) -> None:
     """Log detailed settlements showing how each transaction settled.
 
     Categorizes settlements by mechanism:
@@ -632,18 +641,24 @@ def log_settlement_details(provider: StateProvider, events: list[dict[str, Any]]
     - LSM Bilateral: Paired with offsetting transaction
     - LSM Cycle: Part of multilateral netting cycle
 
+    When filter_agent is specified and matches a settlement's receiver,
+    an incoming liquidity notification is displayed.
+
     Args:
         provider: StateProvider instance (not currently used, for consistency)
         events: List of events from get_tick_events()
         tick: Current tick number
         num_settlements: Total number of transactions settled (if provided, used in header)
         quiet: Suppress output if True
+        filter_agent: If specified, show incoming liquidity notifications when this agent
+                      is the receiver of a settlement
 
     Example Output:
         ✅ 5 transaction(s) settled:
 
            RTGS Immediate (2):
            • TX a1b2c3d4: BANK_A → BANK_B | $1,000.00
+             ↳ 💰 BANK_B receives $1,000.00
            • TX e5f6g7h8: BANK_C → BANK_D | $500.00
 
            LSM Bilateral Offset (2):
@@ -711,6 +726,12 @@ def log_settlement_details(provider: StateProvider, events: list[dict[str, Any]]
             # Show balance audit trail if available
             if balance_before is not None and balance_after is not None:
                 console.print(f"     [dim]Balance: ${balance_before/100:,.2f} → ${balance_after/100:,.2f}[/dim]")
+
+            # Show incoming liquidity notification if filter_agent matches receiver
+            if filter_agent is not None:
+                incoming = calculate_incoming_liquidity(event, filter_agent)
+                if incoming > 0:
+                    console.print(f"     [cyan]↳ 💰 {filter_agent} receives ${incoming / 100:,.2f}[/cyan]")
         console.print()
 
     # Queue 2 liquidity releases (new specific event type)
@@ -743,6 +764,12 @@ def log_settlement_details(provider: StateProvider, events: list[dict[str, Any]]
 
             console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f} | {priority_str}")
             console.print(f"     [dim]Queued for {wait_ticks} tick(s) | Released: {reason}[/dim]")
+
+            # Show incoming liquidity notification if filter_agent matches receiver
+            if filter_agent is not None:
+                incoming = calculate_incoming_liquidity(event, filter_agent)
+                if incoming > 0:
+                    console.print(f"     [cyan]↳ 💰 {filter_agent} receives ${incoming / 100:,.2f}[/cyan]")
         console.print()
 
     # LSM bilateral offsets
@@ -757,6 +784,13 @@ def log_settlement_details(provider: StateProvider, events: list[dict[str, Any]]
             console.print(
                 f"   • TX {tx_a} ⟷ TX {tx_b}: ${amount / 100:,.2f}"
             )
+
+            # Show net liquidity change if filter_agent is involved
+            if filter_agent is not None:
+                net_change = calculate_lsm_net_change(event, filter_agent)
+                if net_change != 0:
+                    sign = "+" if net_change > 0 else ""
+                    console.print(f"     [cyan]↳ 💰 {filter_agent} net change: {sign}${net_change / 100:,.2f}[/cyan]")
         console.print()
 
     # LSM cycles
@@ -790,6 +824,13 @@ def log_settlement_details(provider: StateProvider, events: list[dict[str, Any]]
                     if liquidity_saved > 0:
                         efficiency = (liquidity_saved / total_value) * 100
                         console.print(f"     [green]✨ Saved: ${liquidity_saved / 100:,.2f} ({efficiency:.1f}%)[/green]")
+
+                # Show net liquidity change if filter_agent is involved
+                if filter_agent is not None:
+                    net_change = calculate_lsm_net_change(event, filter_agent)
+                    if net_change != 0:
+                        sign = "+" if net_change > 0 else ""
+                        console.print(f"     [cyan]↳ 💰 {filter_agent} net change: {sign}${net_change / 100:,.2f}[/cyan]")
         console.print()
 
 
