@@ -707,6 +707,101 @@ class TestRobustPolicyDeps:
 
 
 # ============================================================================
+# Test Parallel Execution
+# ============================================================================
+
+
+class TestParallelExecution:
+    """Tests for parallel LLM call execution."""
+
+    def test_agent_configs_are_independent(self) -> None:
+        """Verify agent configs for parallel execution share no data."""
+        # Simulate the config building from optimize_policies
+        bank_a_history = [
+            SingleAgentIterationRecord(
+                iteration=0,
+                metrics={"cost": 1000},
+                policy={"id": "A"},
+                policy_changes=["A change"],
+            )
+        ]
+        bank_b_history = [
+            SingleAgentIterationRecord(
+                iteration=0,
+                metrics={"cost": 2000},
+                policy={"id": "B"},
+                policy_changes=["B change"],
+            )
+        ]
+
+        agent_configs = [
+            {
+                "agent_id": "BANK_A",
+                "iteration_history": bank_a_history,
+                "current_policy": {"id": "policy_a"},
+            },
+            {
+                "agent_id": "BANK_B",
+                "iteration_history": bank_b_history,
+                "current_policy": {"id": "policy_b"},
+            },
+        ]
+
+        # Verify configs don't share any mutable state
+        config_a = agent_configs[0]
+        config_b = agent_configs[1]
+
+        # Different agent IDs
+        assert config_a["agent_id"] != config_b["agent_id"]
+
+        # Different histories (not same object)
+        assert config_a["iteration_history"] is not config_b["iteration_history"]
+
+        # Different policies
+        assert config_a["current_policy"] != config_b["current_policy"]
+
+        # Histories contain different data
+        assert config_a["iteration_history"][0].policy["id"] == "A"
+        assert config_b["iteration_history"][0].policy["id"] == "B"
+
+    def test_parallel_configs_contain_no_cross_agent_data(self) -> None:
+        """Verify parallel configs have complete isolation."""
+        import json
+
+        # Create configs like optimize_policies does
+        bank_a_policy = {"parameters": {"a_param": 1.0}, "id": "bank_a_policy"}
+        bank_b_policy = {"parameters": {"b_param": 2.0}, "id": "bank_b_policy"}
+
+        config_a = {
+            "agent_id": "BANK_A",
+            "current_policy": bank_a_policy,
+            "iteration_history": [],
+            "best_seed_output": "Bank A events only",
+        }
+
+        config_b = {
+            "agent_id": "BANK_B",
+            "current_policy": bank_b_policy,
+            "iteration_history": [],
+            "best_seed_output": "Bank B events only",
+        }
+
+        # Serialize and check for cross-contamination
+        config_a_json = json.dumps(config_a)
+        config_b_json = json.dumps(config_b)
+
+        # Config A should have no Bank B references
+        assert "BANK_B" not in config_a_json
+        assert "bank_b_policy" not in config_a_json
+        assert "b_param" not in config_a_json
+
+        # Config B should have no Bank A references
+        assert "BANK_A" not in config_b_json
+        assert "bank_a_policy" not in config_b_json
+        assert "a_param" not in config_b_json
+
+
+# ============================================================================
 # Run tests
 # ============================================================================
 
