@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Union, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
 from experiments.castro.schemas.parameter_config import ScenarioConstraints
 
@@ -215,13 +215,24 @@ def create_constrained_policy_model(constraints: ScenarioConstraints) -> type[Ba
         DynamicCollateralActionNode = None  # type: ignore[assignment, misc]
 
     # Payment tree condition node (recursive)
+    # Note: on_true/on_false are nullable to support Gemini's recursive schema requirement
+    # but validated to ensure they're actually provided
     class DynamicPaymentConditionNode(BaseModel):
         type: Literal["condition"]
         condition: DynamicExpression | dict[str, Any]
-        on_true: "DynamicPaymentTreeNode"
-        on_false: "DynamicPaymentTreeNode"
+        on_true: "DynamicPaymentTreeNode | None" = None
+        on_false: "DynamicPaymentTreeNode | None" = None
         node_id: str | None = None
         description: str | None = None
+
+        @model_validator(mode="after")
+        def validate_branches_present(self) -> "DynamicPaymentConditionNode":
+            """Ensure both branches are provided for condition nodes."""
+            if self.on_true is None:
+                raise ValueError("on_true branch is required for condition nodes")
+            if self.on_false is None:
+                raise ValueError("on_false branch is required for condition nodes")
+            return self
 
     # Payment tree node union
     DynamicPaymentTreeNode = DynamicPaymentActionNode | DynamicPaymentConditionNode
@@ -229,13 +240,24 @@ def create_constrained_policy_model(constraints: ScenarioConstraints) -> type[Ba
 
     # Bank tree nodes (only if bank actions defined)
     if has_bank_actions:
+        # Note: on_true/on_false are nullable to support Gemini's recursive schema requirement
+        # but validated to ensure they're actually provided
         class DynamicBankConditionNode(BaseModel):
             type: Literal["condition"]
             condition: DynamicExpression | dict[str, Any]
-            on_true: "DynamicBankTreeNode"
-            on_false: "DynamicBankTreeNode"
+            on_true: "DynamicBankTreeNode | None" = None
+            on_false: "DynamicBankTreeNode | None" = None
             node_id: str | None = None
             description: str | None = None
+
+            @model_validator(mode="after")
+            def validate_branches_present(self) -> "DynamicBankConditionNode":
+                """Ensure both branches are provided for condition nodes."""
+                if self.on_true is None:
+                    raise ValueError("on_true branch is required for condition nodes")
+                if self.on_false is None:
+                    raise ValueError("on_false branch is required for condition nodes")
+                return self
 
         DynamicBankTreeNode = DynamicBankActionNode | DynamicBankConditionNode
         DynamicBankConditionNode.model_rebuild()
@@ -244,13 +266,24 @@ def create_constrained_policy_model(constraints: ScenarioConstraints) -> type[Ba
 
     # Collateral tree nodes (only if collateral actions defined)
     if has_collateral_actions:
+        # Note: on_true/on_false are nullable to support Gemini's recursive schema requirement
+        # but validated to ensure they're actually provided
         class DynamicCollateralConditionNode(BaseModel):
             type: Literal["condition"]
             condition: DynamicExpression | dict[str, Any]
-            on_true: "DynamicCollateralTreeNode"
-            on_false: "DynamicCollateralTreeNode"
+            on_true: "DynamicCollateralTreeNode | None" = None
+            on_false: "DynamicCollateralTreeNode | None" = None
             node_id: str | None = None
             description: str | None = None
+
+            @model_validator(mode="after")
+            def validate_branches_present(self) -> "DynamicCollateralConditionNode":
+                """Ensure both branches are provided for condition nodes."""
+                if self.on_true is None:
+                    raise ValueError("on_true branch is required for condition nodes")
+                if self.on_false is None:
+                    raise ValueError("on_false branch is required for condition nodes")
+                return self
 
         DynamicCollateralTreeNode = DynamicCollateralActionNode | DynamicCollateralConditionNode
         DynamicCollateralConditionNode.model_rebuild()
