@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import matplotlib.pyplot as plt
 import yaml
 from dotenv import load_dotenv
 
@@ -772,6 +773,161 @@ class ExperimentDatabase:
             })
 
         return summary
+
+
+# ============================================================================
+# Chart Generation
+# ============================================================================
+
+def generate_cost_ribbon_chart(db_path: str, output_path: Path, experiment_name: str) -> None:
+    """Generate a ribbon plot showing cost evolution over iterations.
+
+    Creates a chart with:
+    - Mean cost line (center)
+    - Best cost line (lower bound)
+    - Worst cost line (upper bound)
+    - Filled ribbon between best and worst
+
+    Args:
+        db_path: Path to the experiment database
+        output_path: Path where the chart should be saved
+        experiment_name: Name of the experiment for the chart title
+    """
+    conn = duckdb.connect(db_path, read_only=True)
+
+    # Query iteration metrics
+    data = conn.execute("""
+        SELECT
+            iteration_number,
+            total_cost_mean,
+            best_seed_cost,
+            worst_seed_cost
+        FROM iteration_metrics
+        ORDER BY iteration_number
+    """).fetchall()
+    conn.close()
+
+    if not data:
+        print("  No iteration data found for chart generation")
+        return
+
+    # Extract data - deduplicate by taking last entry per iteration
+    seen: dict[int, tuple[float, int, int]] = {}
+    for row in data:
+        iter_num, mean_cost, best_cost, worst_cost = row
+        seen[iter_num] = (mean_cost, best_cost, worst_cost)
+
+    iterations = sorted(seen.keys())
+    mean_costs = [seen[i][0] for i in iterations]
+    best_costs = [seen[i][1] for i in iterations]
+    worst_costs = [seen[i][2] for i in iterations]
+
+    # Create the figure
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    # Plot the ribbon (filled area between best and worst)
+    ax.fill_between(
+        iterations,
+        best_costs,
+        worst_costs,
+        alpha=0.3,
+        color='steelblue',
+        label='Best-Worst Range'
+    )
+
+    # Plot the lines
+    ax.plot(
+        iterations,
+        worst_costs,
+        'o-',
+        color='indianred',
+        linewidth=1.5,
+        markersize=5,
+        label='Worst Cost',
+        alpha=0.8
+    )
+    ax.plot(
+        iterations,
+        mean_costs,
+        'o-',
+        color='steelblue',
+        linewidth=2.5,
+        markersize=7,
+        label='Average Cost'
+    )
+    ax.plot(
+        iterations,
+        best_costs,
+        'o-',
+        color='seagreen',
+        linewidth=1.5,
+        markersize=5,
+        label='Best Cost',
+        alpha=0.8
+    )
+
+    # Find and annotate the best iteration
+    min_mean_cost = min(mean_costs)
+    best_iter_idx = mean_costs.index(min_mean_cost)
+    best_iter = iterations[best_iter_idx]
+
+    ax.annotate(
+        f'Best Avg: ${min_mean_cost:,.0f}',
+        xy=(best_iter, min_mean_cost),
+        xytext=(best_iter + 1, min_mean_cost * 1.15),
+        arrowprops=dict(arrowstyle='->', color='steelblue', lw=1.5),
+        fontsize=11,
+        fontweight='bold',
+        color='steelblue'
+    )
+
+    # Formatting
+    ax.set_xlabel('Iteration', fontsize=13)
+    ax.set_ylabel('Total Cost ($)', fontsize=13)
+    ax.set_title(f'Cost Over Iterations - {experiment_name}', fontsize=14, fontweight='bold')
+
+    # Format y-axis with dollar amounts
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+
+    # Legend
+    ax.legend(loc='upper right', fontsize=11)
+
+    # Grid
+    ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Set axis limits with some padding
+    ax.set_xlim(min(iterations) - 0.5, max(iterations) + 0.5)
+    y_min = min(best_costs) * 0.9
+    y_max = max(worst_costs) * 1.1
+    ax.set_ylim(y_min, y_max)
+
+    # Add summary statistics as text box
+    final_mean = mean_costs[-1]
+    final_best = best_costs[-1]
+    final_worst = worst_costs[-1]
+    improvement = ((mean_costs[0] - min_mean_cost) / mean_costs[0] * 100) if mean_costs[0] > 0 else 0
+
+    stats_text = (
+        f"Final (Iter {iterations[-1]}):\n"
+        f"  Avg: ${final_mean:,.0f}\n"
+        f"  Best: ${final_best:,.0f}\n"
+        f"  Worst: ${final_worst:,.0f}\n"
+        f"Improvement: {improvement:.1f}%"
+    )
+    ax.text(
+        0.02, 0.98, stats_text,
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment='top',
+        fontfamily='monospace',
+        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray')
+    )
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    print(f"  Cost ribbon chart saved to: {output_path}")
 
 
 # ============================================================================
@@ -2095,6 +2251,15 @@ Use this insight to make targeted policy improvements."""
         else:
             print("  WARNING: No successful iterations completed")
         print(f"  Database: {self.db.db_path}")
+
+        # Generate cost ribbon chart
+        chart_path = self.output_dir / "cost_over_iterations.png"
+        print(f"\nGenerating cost chart...")
+        generate_cost_ribbon_chart(
+            db_path=self.db.db_path,
+            output_path=chart_path,
+            experiment_name=self.experiment_def["name"],
+        )
 
         self.db.close()
 
