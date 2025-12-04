@@ -737,8 +737,17 @@ class ExperimentDatabase:
 # ============================================================================
 
 def run_single_simulation(args: tuple) -> dict:
-    """Run a single simulation (for parallel execution)."""
-    config_path, simcash_root, seed, capture_verbose = args
+    """Run a single simulation (for parallel execution).
+
+    Args:
+        args: Tuple of (config_path, simcash_root, seed, capture_verbose, log_save_path)
+            - config_path: Path to simulation config YAML
+            - simcash_root: Root directory of SimCash project
+            - seed: Random seed for simulation
+            - capture_verbose: Whether to capture verbose output in return dict
+            - log_save_path: Optional path to save verbose log to file (always saves if provided)
+    """
+    config_path, simcash_root, seed, capture_verbose, log_save_path = args
 
     try:
         cmd = [
@@ -748,7 +757,12 @@ def run_single_simulation(args: tuple) -> dict:
             "--seed", str(seed),
         ]
 
-        if not capture_verbose:
+        # If we need to save verbose log OR return verbose output, add --verbose flag
+        need_verbose = capture_verbose or log_save_path is not None
+
+        if need_verbose:
+            cmd.append("--verbose")
+        else:
             cmd.append("--quiet")
 
         result = subprocess.run(
@@ -763,17 +777,20 @@ def run_single_simulation(args: tuple) -> dict:
             return {"error": f"Simulation failed: {result.stderr}", "seed": seed}
 
         # Parse output
-        if capture_verbose:
-            verbose_output = result.stdout
-            # Run again quiet for JSON
-            quiet_result = subprocess.run(
-                cmd + ["--quiet"],
-                capture_output=True,
-                text=True,
-                cwd=str(simcash_root),
-                timeout=60,
-            )
-            output = json.loads(quiet_result.stdout)
+        if need_verbose:
+            # Verbose output goes to stderr, JSON summary goes to stdout
+            verbose_output = result.stderr
+            output = json.loads(result.stdout)
+
+            # Save verbose log to file if path provided
+            if log_save_path is not None:
+                log_path = Path(log_save_path)
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text(verbose_output)
+
+            # Only include verbose in return dict if requested
+            if not capture_verbose:
+                verbose_output = None
         else:
             verbose_output = None
             output = json.loads(result.stdout)
@@ -809,13 +826,32 @@ def run_simulations_parallel(
     simcash_root: str,
     seeds: list[int],
     capture_verbose_for: list[int] | None = None,
+    log_dir: str | None = None,
+    iteration: int | None = None,
 ) -> list[dict]:
-    """Run simulations in parallel."""
+    """Run simulations in parallel.
+
+    Args:
+        config_path: Path to simulation config YAML
+        simcash_root: Root directory of SimCash project
+        seeds: List of random seeds to run
+        capture_verbose_for: Seeds to capture verbose output in return dict
+        log_dir: Optional base directory for saving verbose logs
+        iteration: Iteration number (required if log_dir is provided)
+
+    If log_dir and iteration are provided, verbose logs are saved to:
+        {log_dir}/iter-{iteration}/run-{seed}/full-verbose.log
+    """
     if capture_verbose_for is None:
         capture_verbose_for = []
 
+    def get_log_path(seed: int) -> str | None:
+        if log_dir is None or iteration is None:
+            return None
+        return str(Path(log_dir) / f"iter-{iteration}" / f"run-{seed}" / "full-verbose.log")
+
     args_list = [
-        (config_path, simcash_root, seed, seed in capture_verbose_for)
+        (config_path, simcash_root, seed, seed in capture_verbose_for, get_log_path(seed))
         for seed in seeds
     ]
 
@@ -1079,8 +1115,10 @@ class ReproducibleExperiment:
         self.experiment_work_dir = self.output_dir / self.experiment_id
         self.policies_dir = self.experiment_work_dir / "policies"
         self.configs_dir = self.experiment_work_dir / "configs"
+        self.sim_logs_dir = self.experiment_work_dir / "sim-logs"
         self.policies_dir.mkdir(parents=True, exist_ok=True)
         self.configs_dir.mkdir(parents=True, exist_ok=True)
+        self.sim_logs_dir.mkdir(parents=True, exist_ok=True)
 
         # Save experiment configuration to work directory root for reproducibility
         self._save_experiment_metadata(experiment_key, model, reasoning_effort)
@@ -1447,6 +1485,8 @@ Generate a corrected policy that avoids these errors.
             simcash_root=str(self.simcash_root),
             seeds=seeds,
             capture_verbose_for=verbose_seeds,
+            log_dir=str(self.sim_logs_dir),
+            iteration=iteration,
         )
 
         # Record all runs

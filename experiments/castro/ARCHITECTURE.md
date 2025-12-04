@@ -162,9 +162,15 @@ experiments/castro/
 │   │   ├── seed_policy_b.json   # Initial Bank B policy
 │   │   ├── configs/             # Iteration-specific configs
 │   │   │   └── iter_001_config.yaml
-│   │   └── policies/            # Iteration-specific policies
-│   │       ├── iter_001_policy_a.json
-│   │       └── iter_001_policy_b.json
+│   │   ├── policies/            # Iteration-specific policies
+│   │   │   ├── iter_001_policy_a.json
+│   │   │   └── iter_001_policy_b.json
+│   │   └── sim-logs/            # Full verbose simulation logs
+│   │       └── iter-1/          # Logs for iteration 1
+│   │           ├── run-1/       # Logs for seed 1
+│   │           │   └── full-verbose.log
+│   │           └── run-N/       # Logs for seed N
+│   │               └── full-verbose.log
 │   └── exp1_2025-12-04-143022.db  # DuckDB database
 │
 ├── tests/                       # Test suite (27 files)
@@ -316,11 +322,17 @@ results/
 │   ├── configs/
 │   │   ├── iter_001_config.yaml       # Iteration 1 config
 │   │   └── iter_002_config.yaml       # Iteration 2 config
-│   └── policies/
-│       ├── iter_001_policy_a.json     # Iteration 1 policies
-│       ├── iter_001_policy_b.json
-│       ├── iter_002_policy_a.json     # Iteration 2 policies
-│       └── iter_002_policy_b.json
+│   ├── policies/
+│   │   ├── iter_001_policy_a.json     # Iteration 1 policies
+│   │   ├── iter_001_policy_b.json
+│   │   ├── iter_002_policy_a.json     # Iteration 2 policies
+│   │   └── iter_002_policy_b.json
+│   └── sim-logs/                      # Full verbose simulation logs
+│       ├── iter-1/                    # Logs for iteration 1
+│       │   ├── run-1/full-verbose.log
+│       │   └── run-N/full-verbose.log
+│       └── iter-2/                    # Logs for iteration 2
+│           └── ...
 ├── exp1_2025-12-04-143022.db          # DuckDB database
 └── exp2_2025-12-04-143025/            # Different experiment, different directory
     └── ...
@@ -730,6 +742,7 @@ self.experiment_id = f"{experiment_key}_{timestamp}"  # e.g., exp1_2025-12-04-14
 self.experiment_work_dir = self.output_dir / self.experiment_id
 self.policies_dir = self.experiment_work_dir / "policies"
 self.configs_dir = self.experiment_work_dir / "configs"
+self.sim_logs_dir = self.experiment_work_dir / "sim-logs"
 
 # Save experiment metadata for reproducibility
 def _save_experiment_metadata(self, ...):
