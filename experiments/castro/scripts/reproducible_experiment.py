@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS experiment_config (
     max_iterations INTEGER NOT NULL,
     convergence_threshold DOUBLE NOT NULL,
     convergence_window INTEGER NOT NULL,
+    master_seed INTEGER NOT NULL,
+    seed_matrix JSON NOT NULL,
     notes TEXT
 );
 
@@ -303,11 +305,13 @@ class ExperimentDatabase:
         max_iterations: int,
         convergence_threshold: float,
         convergence_window: int,
+        master_seed: int,
+        seed_matrix: dict[int, list[int]],
         notes: str | None = None,
     ) -> None:
         """Record experiment configuration."""
         self.conn.execute("""
-            INSERT INTO experiment_config VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO experiment_config VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             experiment_id,
             experiment_name,
@@ -322,6 +326,8 @@ class ExperimentDatabase:
             max_iterations,
             convergence_threshold,
             convergence_window,
+            master_seed,
+            json.dumps(seed_matrix),
             notes,
         ])
 
@@ -1338,6 +1344,7 @@ class ReproducibleExperiment:
         simcash_root: str | None = None,
         model: str = "gpt-4o",
         reasoning_effort: str = "high",
+        master_seed: int | None = None,
     ):
         self.experiment_def = EXPERIMENTS[experiment_key]
         # Generate unique experiment ID with timestamp: exp1_2025-12-04-143022
@@ -1347,6 +1354,14 @@ class ReproducibleExperiment:
 
         self.db = ExperimentDatabase(db_path)
         self.optimizer = LLMOptimizer(model=model, reasoning_effort=reasoning_effort)
+
+        # Master seed for reproducibility - if not provided, use timestamp-based seed
+        # This ensures different experiments get different seeds by default
+        if master_seed is None:
+            # Use current time as a seed generator (reproducible if timestamp matches)
+            import random
+            master_seed = int(datetime.now().timestamp() * 1000) % (2**31)
+        self.master_seed = master_seed
 
         # Load configs
         self.config_path = self.simcash_root / self.experiment_def["config_path"]
@@ -1369,9 +1384,6 @@ class ReproducibleExperiment:
         db_filename = Path(db_path).name
         db_path = str(self.experiment_work_dir / db_filename)
 
-        # Save experiment configuration to work directory root for reproducibility
-        self._save_experiment_metadata(experiment_key, model, reasoning_effort)
-
         # Load seed policies ONCE (read-only, never modified)
         self.seed_policy_a = load_json_policy(
             str(self.simcash_root / self.experiment_def["policy_a_path"])
@@ -1391,6 +1403,15 @@ class ReproducibleExperiment:
         self.convergence_window = self.experiment_def["convergence_window"]
         self.model = model
         self.reasoning_effort = reasoning_effort
+
+        # Pre-generate all seeds for all iterations using master seed
+        # This ensures each iteration uses different seeds, maintaining determinism
+        # while avoiding identical results when a policy is rejected and re-run
+        self.seed_matrix = self._generate_seed_matrix()
+
+        # Save experiment configuration to work directory root for reproducibility
+        # (must be after seed_matrix is generated so it can be included)
+        self._save_experiment_metadata(experiment_key, model, reasoning_effort)
 
         # Track current iteration config path
         self.current_config_path: Path | None = None
@@ -1452,6 +1473,8 @@ class ReproducibleExperiment:
         shutil.copy(self.config_path, scenario_dest)
 
         # 2. Save experiment parameters
+        # Convert seed_matrix keys to strings for JSON serialization
+        seed_matrix_serializable = {str(k): v for k, v in self.seed_matrix.items()}
         parameters = {
             "experiment_id": self.experiment_id,
             "experiment_key": experiment_key,
@@ -1463,6 +1486,8 @@ class ReproducibleExperiment:
             "max_iterations": self.experiment_def["max_iterations"],
             "convergence_threshold": self.experiment_def["convergence_threshold"],
             "convergence_window": self.experiment_def["convergence_window"],
+            "master_seed": self.master_seed,
+            "seed_matrix": seed_matrix_serializable,
             "config_path": str(self.config_path),
             "simcash_root": str(self.simcash_root),
             "created_at": datetime.now().isoformat(),
@@ -1476,6 +1501,49 @@ class ReproducibleExperiment:
         seed_policy_b_src = self.simcash_root / self.experiment_def["policy_b_path"]
         shutil.copy(seed_policy_a_src, self.experiment_work_dir / "seed_policy_a.json")
         shutil.copy(seed_policy_b_src, self.experiment_work_dir / "seed_policy_b.json")
+
+    def _generate_seed_matrix(self) -> dict[int, list[int]]:
+        """Generate a matrix of unique seeds for all iterations.
+
+        Pre-generates N x Y unique random seeds where:
+        - N = max_iterations
+        - Y = num_seeds (seeds per iteration)
+
+        This ensures:
+        1. Determinism: Same master_seed always produces same seed_matrix
+        2. Uniqueness: Each iteration uses different seeds
+        3. No overlap: When a policy is rejected and we revert, we still use
+           new seeds to get fresh results rather than identical replays
+
+        Returns:
+            Dict mapping iteration number (1-based) to list of seeds for that iteration.
+            Example: {1: [12345, 67890, ...], 2: [11111, 22222, ...], ...}
+        """
+        import random
+
+        # Use master_seed to initialize the RNG for reproducibility
+        rng = random.Random(self.master_seed)
+
+        # Generate unique seeds for all iterations
+        # Use large range to minimize collision probability
+        seed_matrix: dict[int, list[int]] = {}
+
+        # Track all generated seeds to ensure uniqueness
+        all_seeds: set[int] = set()
+
+        for iteration in range(1, self.max_iterations + 1):
+            iteration_seeds: list[int] = []
+            for _ in range(self.num_seeds):
+                # Generate unique seed
+                while True:
+                    seed = rng.randint(1, 2**31 - 1)
+                    if seed not in all_seeds:
+                        all_seeds.add(seed)
+                        iteration_seeds.append(seed)
+                        break
+            seed_matrix[iteration] = iteration_seeds
+
+        return seed_matrix
 
     def setup(self) -> None:
         """Initialize experiment in database."""
@@ -1494,6 +1562,8 @@ class ReproducibleExperiment:
             max_iterations=self.max_iterations,
             convergence_threshold=self.convergence_threshold,
             convergence_window=self.convergence_window,
+            master_seed=self.master_seed,
+            seed_matrix=self.seed_matrix,
             notes=self.experiment_def.get("description"),
         )
 
@@ -1791,8 +1861,9 @@ Generate a corrected policy that avoids these errors.
         # Create iteration-specific config with current policies
         config_path = self.create_iteration_config(iteration)
 
-        # Run simulations with persistence for filtered replay
-        seeds = list(range(1, self.num_seeds + 1))
+        # Use pre-generated seeds for this iteration
+        # This ensures each iteration uses unique seeds, even if policies are reverted
+        seeds = self.seed_matrix[iteration]
 
         print(f"  Running {len(seeds)} simulations with persistence...")
         results = run_simulations_parallel(
@@ -2203,6 +2274,7 @@ Use this insight to make targeted policy improvements."""
         print(f"\n{'#'*60}")
         print(f"# {self.experiment_def['name']}")
         print(f"# Experiment ID: {self.experiment_id}")
+        print(f"# Master seed: {self.master_seed}")
         print(f"# Best-policy continuation: ENABLED")
         print(f"{'#'*60}")
 
@@ -2325,6 +2397,12 @@ Examples:
         default=str(PROJECT_ROOT),
         help="SimCash root directory",
     )
+    parser.add_argument(
+        "--master-seed",
+        type=int,
+        default=None,
+        help="Master seed for reproducibility (pre-generates all iteration seeds)",
+    )
 
     args = parser.parse_args()
 
@@ -2354,6 +2432,7 @@ Examples:
         simcash_root=args.simcash_root,
         model=args.model,
         reasoning_effort=args.reasoning,
+        master_seed=args.master_seed,
     )
 
     experiment.run()
