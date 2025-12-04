@@ -30,7 +30,7 @@ See `ARCHITECTURE.md` for technical documentation of the codebase.
 - Model: GPT-5.1 with high reasoning effort
 - Seeds: 1 (deterministic)
 - Max iterations: 15
-- Database: `results/exp1_gpt51_opus4_session2_run3.db`
+- Database: `results/20251204-1400/exp1_gpt51_opus4_session2_run3.db`
 
 **Results:**
 | Iteration | Cost | Change from Baseline |
@@ -85,7 +85,7 @@ BANK_B: {"urgency_threshold": 3.0, "liquidity_buffer": 1.1, "initial_collateral_
 - Model: GPT-5.1 with high reasoning effort
 - Seeds: 10 (stochastic)
 - Max iterations: 15
-- Database: `results/exp2_gpt51_opus4_session2_run1.db`
+- Database: `results/20251204-1400/exp2_gpt51_opus4_session2_run1.db`
 
 **Results:**
 | Iteration | Mean Cost | Std Dev | Change from Baseline |
@@ -137,7 +137,7 @@ BANK_B: {"urgency_threshold": 3.0, "liquidity_buffer": 0.85, "initial_collateral
 - Model: GPT-5.1 with high reasoning effort
 - Seeds: 10 (stochastic)
 - Max iterations: 15
-- Database: `results/exp3_gpt51_opus4_session2_run2.db`
+- Database: `results/20251204-1400/exp3_gpt51_opus4_session2_run2.db`
 
 **Results:**
 | Iteration | Mean Cost | Std Dev | Change from Baseline |
