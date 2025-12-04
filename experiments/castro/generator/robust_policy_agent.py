@@ -250,7 +250,48 @@ ALLOWED ACTIONS BY TREE:
   "parameters": {{
     "urgency_threshold": 3.0,
     "liquidity_buffer": 1.0,
-    "initial_collateral_fraction": 0.25
+    "initial_collateral_fraction": 0.25,
+    "budget_fraction": 0.5
+  }},
+  "bank_tree": {{
+    "type": "condition",
+    "node_id": "BT1_check_day_progress",
+    "description": "Set release budget based on time of day",
+    "condition": {{
+      "op": ">=",
+      "left": {{"field": "day_progress_fraction"}},
+      "right": {{"value": 0.8}}
+    }},
+    "on_true": {{
+      "type": "action",
+      "node_id": "BT2_eod_budget",
+      "description": "End of day - larger budget to clear queues",
+      "action": "SetReleaseBudget",
+      "parameters": {{
+        "max_value_to_release": {{
+          "compute": {{
+            "op": "*",
+            "left": {{"field": "effective_liquidity"}},
+            "right": {{"value": 0.7}}
+          }}
+        }}
+      }}
+    }},
+    "on_false": {{
+      "type": "action",
+      "node_id": "BT3_normal_budget",
+      "description": "Normal budget during the day",
+      "action": "SetReleaseBudget",
+      "parameters": {{
+        "max_value_to_release": {{
+          "compute": {{
+            "op": "*",
+            "left": {{"field": "effective_liquidity"}},
+            "right": {{"param": "budget_fraction"}}
+          }}
+        }}
+      }}
+    }}
   }},
   "strategic_collateral_tree": {{
     "type": "condition",
@@ -328,10 +369,16 @@ ALLOWED ACTIONS BY TREE:
 
 KEY OBSERVATIONS FROM THE VALIDATED EXAMPLE:
   1. ALL parameters are DEFINED in "parameters" BEFORE any {{"param": "X"}} reference
-  2. strategic_collateral_tree uses HoldCollateral (NOT Hold or NoAction!)
-  3. payment_tree uses Hold (NOT HoldCollateral!)
-  4. Each node has a UNIQUE node_id (SC1, SC2, SC3, P1, P2, P3, P4, P5)
-  5. Arithmetic uses {{"compute": {{...}}}} wrapper
+  2. bank_tree uses SetReleaseBudget with REQUIRED "max_value_to_release" parameter!
+  3. strategic_collateral_tree uses HoldCollateral (NOT Hold or NoAction!)
+  4. payment_tree uses Hold (NOT HoldCollateral!)
+  5. Each node has a UNIQUE node_id (BT1, BT2, BT3, SC1, SC2, SC3, P1, P2, P3, P4, P5)
+  6. Arithmetic uses {{"compute": {{...}}}} wrapper
+
+CRITICAL FOR bank_tree:
+  - SetReleaseBudget action REQUIRES the "max_value_to_release" parameter
+  - The "max_value_to_release" controls how much total value the bank can release this tick
+  - This is NOT optional - missing it causes validation failure!
 
 ################################################################################
 #                         VALUE TYPES REFERENCE                                #
@@ -1062,17 +1109,88 @@ class RobustPolicyAgent:
     async def generate_policy_async(
         self,
         instruction: str = "Generate an optimal policy",
-        **kwargs: Any,
+        current_policy: dict[str, Any] | None = None,
+        current_cost: float | None = None,
+        settlement_rate: float | None = None,
+        per_bank_costs: dict[str, float] | None = None,
+        iteration: int = 0,
+        # Extended context parameters
+        iteration_history: list[Any] | None = None,
+        best_seed_output: str | None = None,
+        worst_seed_output: str | None = None,
+        best_seed: int = 0,
+        worst_seed: int = 0,
+        best_seed_cost: int = 0,
+        worst_seed_cost: int = 0,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_rates: dict[str, Any] | None = None,
+        agent_id: str | None = None,
     ) -> dict[str, Any]:
-        """Async version of generate_policy with exponential backoff retry."""
+        """Async version of generate_policy with exponential backoff retry.
+
+        This mirrors the sync generate_policy() method but is fully async,
+        avoiding nested asyncio.run() calls that cause event loop issues.
+
+        CRITICAL ISOLATION: This method generates policy for a SINGLE agent.
+        The iteration_history must be pre-filtered to only contain this agent's
+        data. No cross-agent information should be passed to the LLM.
+        """
+        # Determine if we should use extended context
+        has_extended_context = (
+            iteration_history is not None
+            or best_seed_output is not None
+            or worst_seed_output is not None
+        )
+
+        if has_extended_context:
+            # Build massive extended context prompt for SINGLE AGENT
+            # CRITICAL: Only this agent's data is passed - no cross-agent leakage
+            prompt = self._build_extended_prompt(
+                instruction=instruction,
+                current_policy=current_policy,
+                current_cost=current_cost,
+                settlement_rate=settlement_rate,
+                iteration=iteration,
+                iteration_history=iteration_history,
+                best_seed_output=best_seed_output,
+                worst_seed_output=worst_seed_output,
+                best_seed=best_seed,
+                worst_seed=worst_seed,
+                best_seed_cost=best_seed_cost,
+                worst_seed_cost=worst_seed_cost,
+                cost_breakdown=cost_breakdown,
+                cost_rates=cost_rates,
+                agent_id=agent_id,
+            )
+        else:
+            # Legacy: Build simple context-aware prompt
+            prompt = self._build_simple_prompt(
+                instruction=instruction,
+                current_policy=current_policy,
+                current_cost=current_cost,
+                settlement_rate=settlement_rate,
+                per_bank_costs=per_bank_costs,
+                iteration=iteration,
+            )
+
         agent = self._get_agent()
 
         deps = RobustPolicyDeps(
-            current_policy=kwargs.get("current_policy"),
-            current_cost=kwargs.get("current_cost"),
-            settlement_rate=kwargs.get("settlement_rate"),
-            per_bank_costs=kwargs.get("per_bank_costs"),
-            iteration=kwargs.get("iteration", 0),
+            current_policy=current_policy,
+            current_cost=current_cost,
+            settlement_rate=settlement_rate,
+            per_bank_costs=per_bank_costs,
+            iteration=iteration,
+            iteration_history=iteration_history or [],
+            best_seed_output=best_seed_output,
+            worst_seed_output=worst_seed_output,
+            best_seed=best_seed,
+            worst_seed=worst_seed,
+            best_seed_cost=best_seed_cost,
+            worst_seed_cost=worst_seed_cost,
+            cost_breakdown=cost_breakdown or {},
+            cost_rates=cost_rates or {},
+            agent_id=agent_id,
         )
 
         # Retry with exponential backoff for transient API errors
@@ -1084,12 +1202,12 @@ class RobustPolicyAgent:
                 # For Anthropic extended thinking, we MUST use streaming
                 # because max_tokens > 21,333 requires streaming per Anthropic API
                 if self._is_anthropic_thinking_mode():
-                    raw_text = await self._run_with_streaming(agent, instruction, deps)
+                    raw_text = await self._run_with_streaming(agent, prompt, deps)
                     parsed_policy = self._parse_json_from_thinking_response(raw_text)
                     return self._validate_parsed_policy(parsed_policy)
 
                 # Standard mode: use regular async call
-                result = await agent.run(instruction, deps=deps)
+                result = await agent.run(prompt, deps=deps)
 
                 # Standard mode: convert Pydantic model to dict
                 if hasattr(result.output, "model_dump"):
@@ -1104,7 +1222,7 @@ class RobustPolicyAgent:
                 if self.verbose:
                     print(f"\n  [VERBOSE] API Error Details (async):")
                     print(f"    Model: {self.model}")
-                    print(f"    Instruction length: {len(instruction):,} chars")
+                    print(f"    Prompt length: {len(prompt):,} chars")
                     print(
                         f"    System prompt length: {len(self._system_prompt):,} chars"
                     )
