@@ -1345,9 +1345,15 @@ def run_single_simulation(args: tuple) -> dict:
 
         # Get actual per-agent costs from database
         # Each bank is selfish and only cares about their own costs!
+        # CRITICAL: Never fall back to total_cost // 2 - that violates the experiment!
         per_agent_costs = get_per_agent_costs_from_db(str(db_path), sim_id)
-        bank_a_cost = per_agent_costs.get("BANK_A", total_cost // 2)
-        bank_b_cost = per_agent_costs.get("BANK_B", total_cost // 2)
+        if "BANK_A" not in per_agent_costs or "BANK_B" not in per_agent_costs:
+            return {
+                "error": f"Failed to get per-agent costs from database: {per_agent_costs}",
+                "seed": seed,
+            }
+        bank_a_cost = per_agent_costs["BANK_A"]
+        bank_b_cost = per_agent_costs["BANK_B"]
 
         return {
             "seed": seed,
