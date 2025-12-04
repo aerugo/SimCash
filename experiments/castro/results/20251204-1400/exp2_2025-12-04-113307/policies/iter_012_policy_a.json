@@ -1,0 +1,129 @@
+{
+  "policy_id": "iter_12_targeted_tweak",
+  "version": "2.0",
+  "description": "Incremental refinement of iter_11 policy: slightly more aggressive liquidity use and modestly higher initial collateral to reduce overdraft without introducing delay, maintaining 100% settlement.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 0.8,
+    "initial_collateral_fraction": 0.3,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "compute": {
+              "op": "-",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "value": 1.0
+              }
+            }
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_eod_rush"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_or_eod",
+      "description": "Always release urgent or EOD-rush payments to avoid any delay risk."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_with_buffer",
+        "description": "Release when we have sufficient buffered liquidity."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_insufficient_liquidity",
+        "description": "Hold if not urgent and liquidity is below buffered requirement."
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, require effective liquidity to cover amount times liquidity_buffer."
+    },
+    "node_id": "P1_is_urgent_or_eod_rush",
+    "description": "Release if close to deadline or in end-of-day rush window; otherwise check liquidity buffer."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial_collateral",
+      "description": "Post a modestly higher fraction of max capacity as starting collateral to reduce overdraft while avoiding excessive collateral cost.",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialAllocation"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_collateral_intraday",
+      "description": "Do not actively adjust collateral intraday in this simple policy."
+    },
+    "node_id": "SC1_initial_post",
+    "description": "Post a higher initial collateral fraction at the very start of day; otherwise hold collateral decisions intraday."
+  }
+}

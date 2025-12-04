@@ -1,0 +1,58 @@
+agents:
+- arrival_config:
+    amount_distribution:
+      mean: 11.51
+      std_dev: 0.9
+      type: LogNormal
+    counterparty_weights:
+      BANK_B: 1.0
+    deadline_range:
+    - 3
+    - 8
+    divisible: false
+    priority: 5
+    rate_per_tick: 0.5
+  id: BANK_A
+  opening_balance: 0
+  policy:
+    json_path: /home/user/SimCash/experiments/castro/results/exp2_2025-12-04-113307/policies/iter_007_policy_a.json
+    type: FromJson
+  unsecured_cap: 10000000000
+- arrival_config:
+    amount_distribution:
+      mean: 11.8
+      std_dev: 1.0
+      type: LogNormal
+    counterparty_weights:
+      BANK_A: 1.0
+    deadline_range:
+    - 2
+    - 6
+    divisible: false
+    priority: 5
+    rate_per_tick: 0.65
+  id: BANK_B
+  opening_balance: 0
+  policy:
+    json_path: /home/user/SimCash/experiments/castro/results/exp2_2025-12-04-113307/policies/iter_007_policy_b.json
+    type: FromJson
+  unsecured_cap: 10000000000
+cost_rates:
+  collateral_cost_per_tick_bps: 83
+  deadline_penalty: 0
+  delay_cost_per_tick_per_cent: 0.00017
+  eod_penalty_per_transaction: 0
+  overdraft_bps_per_tick: 333
+  overdue_delay_multiplier: 1.0
+  split_friction_cost: 0
+deadline_cap_at_eod: true
+deferred_crediting: true
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+  max_cycle_length: 3
+  max_cycles_per_tick: 1
+simulation:
+  num_days: 1
+  rng_seed: 42
+  ticks_per_day: 12
