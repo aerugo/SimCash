@@ -614,26 +614,60 @@ class RobustPolicyAgent:
         prompt: str,
         deps: RobustPolicyDeps,
     ) -> str:
-        """Run agent with streaming for Anthropic extended thinking.
+        """Run with streaming for Anthropic extended thinking using raw SDK.
 
         Anthropic requires streaming when max_tokens > 21,333.
         Since we use max_tokens=150000 for extended thinking, streaming is mandatory.
 
-        This method uses PydanticAI's run_stream() to handle the streaming request,
-        and collects the full response text.
+        PydanticAI's run_stream() doesn't work correctly with Anthropic extended
+        thinking due to tool_choice conflicts (see pydantic-ai issue #2425).
+        This method uses the Anthropic SDK directly to avoid the issue.
 
         Args:
-            agent: The PydanticAI Agent instance
+            agent: The PydanticAI Agent instance (unused, kept for API compat)
             prompt: The user prompt
-            deps: Dependencies for the agent
+            deps: Dependencies for the agent (unused, kept for API compat)
 
         Returns:
             The complete response text
         """
+        try:
+            import anthropic
+        except ImportError:
+            raise ImportError(
+                "anthropic package required for extended thinking streaming. "
+                "Install with: pip install anthropic"
+            )
+
+        # Extract model name from "anthropic:model-name" format
+        model_name = self.model.split(":", 1)[1] if ":" in self.model else self.model
+
+        # Create Anthropic client
+        client = anthropic.AsyncAnthropic()
+
+        # Build the messages for the API call
+        messages = [{"role": "user", "content": prompt}]
+
+        # Stream with extended thinking
         response_text = ""
-        async with agent.run_stream(prompt, deps=deps) as stream:
-            async for chunk in stream.stream_text(delta=True):
-                response_text += chunk
+        async with client.messages.stream(
+            model=model_name,
+            max_tokens=150000,
+            thinking={
+                "type": "enabled",
+                "budget_tokens": self.thinking_budget,
+            },
+            system=self._system_prompt,
+            messages=messages,
+        ) as stream:
+            async for event in stream:
+                # Collect text from text_delta events
+                if hasattr(event, "type"):
+                    if event.type == "content_block_delta":
+                        delta = event.delta
+                        if hasattr(delta, "type") and delta.type == "text_delta":
+                            response_text += delta.text
+
         return response_text
 
     def _parse_json_from_thinking_response(self, text: str) -> dict[str, Any]:
