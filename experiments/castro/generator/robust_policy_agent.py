@@ -52,6 +52,10 @@ DEFAULT_MODEL = "gpt-4o"
 DEFAULT_REASONING_EFFORT: Literal["low", "medium", "high"] = "high"
 DEFAULT_REASONING_SUMMARY: Literal["concise", "detailed"] = "detailed"
 
+# Extended thinking configuration
+MIN_THINKING_BUDGET = 1024  # Anthropic minimum
+MAX_THINKING_BUDGET = 128000  # Reasonable upper limit
+
 # Retry configuration for transient API errors (TLS, 503, etc.)
 MAX_RETRIES = 5
 INITIAL_BACKOFF_SECONDS = 2.0
@@ -439,6 +443,7 @@ class RobustPolicyAgent:
         reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
         reasoning_summary: Literal["concise", "detailed"] = DEFAULT_REASONING_SUMMARY,
         api_key: str | None = None,
+        thinking_budget: int | None = None,
     ) -> None:
         """Initialize robust policy agent.
 
@@ -455,6 +460,10 @@ class RobustPolicyAgent:
             api_key: Optional API key (used for Google Gemini models).
                      If not provided for Google models, reads from
                      GOOGLE_AI_STUDIO_API_KEY or GEMINI_API_KEY env vars.
+            thinking_budget: Token budget for Anthropic extended thinking mode.
+                           When set, enables Claude's extended thinking with this
+                           many tokens for internal reasoning. Minimum 1024.
+                           Only applies to anthropic: models.
         """
         self.constraints = constraints
         self.model = model or DEFAULT_MODEL
@@ -462,6 +471,21 @@ class RobustPolicyAgent:
         self.reasoning_effort = reasoning_effort
         self.reasoning_summary = reasoning_summary
         self._api_key = api_key
+
+        # Validate and store thinking budget
+        self.thinking_budget: int | None = None
+        if thinking_budget is not None:
+            if thinking_budget < MIN_THINKING_BUDGET:
+                raise ValueError(
+                    f"thinking_budget must be at least {MIN_THINKING_BUDGET}, "
+                    f"got {thinking_budget}"
+                )
+            if thinking_budget > MAX_THINKING_BUDGET:
+                raise ValueError(
+                    f"thinking_budget must be at most {MAX_THINKING_BUDGET}, "
+                    f"got {thinking_budget}"
+                )
+            self.thinking_budget = thinking_budget
 
         # For Google models, resolve API key from environment if not provided
         if self.model.startswith("google-gla:") and not self._api_key:
@@ -482,6 +506,13 @@ class RobustPolicyAgent:
     def get_system_prompt(self) -> str:
         """Get the system prompt for this agent."""
         return self._system_prompt
+
+    def _is_anthropic_thinking_mode(self) -> bool:
+        """Check if we're using Anthropic model with thinking enabled."""
+        return (
+            self.model.startswith("anthropic:")
+            and self.thinking_budget is not None
+        )
 
     def _get_model(self) -> Any:
         """Create the appropriate model instance for PydanticAI.
@@ -513,12 +544,31 @@ class RobustPolicyAgent:
 
         return model_name
 
+    def _get_anthropic_thinking_model_settings(self) -> Any:
+        """Create AnthropicModelSettings with extended thinking enabled."""
+        try:
+            from pydantic_ai.models.anthropic import AnthropicModelSettings
+        except ImportError:
+            raise ImportError(
+                "pydantic-ai[anthropic] required for thinking mode. "
+                "Install with: pip install 'pydantic-ai[anthropic]'"
+            )
+
+        return AnthropicModelSettings(
+            anthropic_thinking={
+                "type": "enabled",
+                "budget_tokens": self.thinking_budget,
+            }
+        )
+
     def _get_agent(self) -> Any:
         """Get or create the PydanticAI agent.
 
         Uses PydanticAI's automatic model detection - it handles GPT-5.x/o1/o3
         models correctly when using the 'openai:model-name' format.
         For Google models, uses explicit GoogleProvider with API key.
+        For Anthropic models with thinking_budget, creates an agent without
+        structured output (since thinking + structured output conflict).
         """
         if self._agent is None:
             try:
@@ -526,13 +576,27 @@ class RobustPolicyAgent:
 
                 model = self._get_model()
 
-                self._agent = Agent(
-                    model,
-                    output_type=self.policy_model,
-                    system_prompt=self._system_prompt,
-                    deps_type=RobustPolicyDeps,
-                    retries=self.retries,
-                )
+                # Anthropic with thinking mode: disable structured output
+                # because PydanticAI thinking doesn't work with output_type
+                if self._is_anthropic_thinking_mode():
+                    model_settings = self._get_anthropic_thinking_model_settings()
+                    self._agent = Agent(
+                        model,
+                        output_type=str,  # Raw string output, parse JSON manually
+                        system_prompt=self._system_prompt,
+                        deps_type=RobustPolicyDeps,
+                        retries=self.retries,
+                        model_settings=model_settings,
+                    )
+                else:
+                    # Standard mode: use structured output
+                    self._agent = Agent(
+                        model,
+                        output_type=self.policy_model,
+                        system_prompt=self._system_prompt,
+                        deps_type=RobustPolicyDeps,
+                        retries=self.retries,
+                    )
             except ImportError as e:
                 raise ImportError(
                     "PydanticAI is required for RobustPolicyAgent. "
@@ -540,6 +604,97 @@ class RobustPolicyAgent:
                 ) from e
 
         return self._agent
+
+    def _parse_json_from_thinking_response(self, text: str) -> dict[str, Any]:
+        """Parse JSON policy from raw text response (for thinking mode).
+
+        When using extended thinking, the model returns raw text instead of
+        structured output. This method extracts and parses the JSON policy
+        from the response, handling various formats:
+        - JSON wrapped in ```json ... ``` code blocks
+        - Raw JSON objects
+        - JSON with surrounding explanation text
+
+        Args:
+            text: Raw text response from the model
+
+        Returns:
+            Parsed policy dictionary
+
+        Raises:
+            ValueError: If no valid JSON can be extracted
+        """
+        import json
+        import re
+
+        # Try to find JSON in code blocks first
+        code_block_patterns = [
+            r"```json\s*([\s\S]*?)\s*```",
+            r"```\s*([\s\S]*?)\s*```",
+        ]
+
+        for pattern in code_block_patterns:
+            matches = re.findall(pattern, text)
+            for match in matches:
+                try:
+                    parsed = json.loads(match.strip())
+                    if isinstance(parsed, dict) and "version" in parsed:
+                        return parsed
+                except json.JSONDecodeError:
+                    continue
+
+        # Try to find a JSON object directly (look for { ... } pattern)
+        # Find the outermost braces
+        brace_start = text.find("{")
+        if brace_start != -1:
+            # Find matching closing brace
+            depth = 0
+            for i, char in enumerate(text[brace_start:], start=brace_start):
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        potential_json = text[brace_start : i + 1]
+                        try:
+                            parsed = json.loads(potential_json)
+                            if isinstance(parsed, dict):
+                                return parsed
+                        except json.JSONDecodeError:
+                            pass
+                        break
+
+        # Last resort: try parsing the entire text as JSON
+        try:
+            parsed = json.loads(text.strip())
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        raise ValueError(
+            f"Could not extract valid JSON policy from response. "
+            f"Response preview: {text[:500]}..."
+        )
+
+    def _validate_parsed_policy(self, policy: dict[str, Any]) -> dict[str, Any]:
+        """Validate a parsed policy against the constrained model.
+
+        Args:
+            policy: Parsed policy dictionary
+
+        Returns:
+            Validated and normalized policy dictionary
+
+        Raises:
+            ValueError: If policy fails validation
+        """
+        try:
+            # Validate against the dynamic Pydantic model
+            validated = self.policy_model.model_validate(policy)
+            return validated.model_dump(exclude_none=True)
+        except Exception as e:
+            raise ValueError(f"Policy validation failed: {e}") from e
 
     def generate_policy(
         self,
@@ -650,7 +805,13 @@ class RobustPolicyAgent:
             try:
                 result = agent.run_sync(prompt, deps=deps)
 
-                # Convert Pydantic model to dict
+                # Handle thinking mode: parse JSON from raw text response
+                if self._is_anthropic_thinking_mode():
+                    raw_text = str(result.output)
+                    parsed_policy = self._parse_json_from_thinking_response(raw_text)
+                    return self._validate_parsed_policy(parsed_policy)
+
+                # Standard mode: convert Pydantic model to dict
                 if hasattr(result.output, "model_dump"):
                     return result.output.model_dump(exclude_none=True)
                 return dict(result.output)
@@ -824,6 +985,13 @@ class RobustPolicyAgent:
             try:
                 result = await agent.run(instruction, deps=deps)
 
+                # Handle thinking mode: parse JSON from raw text response
+                if self._is_anthropic_thinking_mode():
+                    raw_text = str(result.output)
+                    parsed_policy = self._parse_json_from_thinking_response(raw_text)
+                    return self._validate_parsed_policy(parsed_policy)
+
+                # Standard mode: convert Pydantic model to dict
                 if hasattr(result.output, "model_dump"):
                     return result.output.model_dump(exclude_none=True)
                 return dict(result.output)
@@ -883,6 +1051,7 @@ def generate_robust_policy(
     model: str | None = None,
     reasoning_effort: Literal["low", "medium", "high"] = DEFAULT_REASONING_EFFORT,
     api_key: str | None = None,
+    thinking_budget: int | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate a policy with a single function call.
@@ -892,10 +1061,13 @@ def generate_robust_policy(
         instruction: Natural language instruction
         model: PydanticAI model string (defaults to GPT-4o).
                Use "google-gla:gemini-2.0-flash" for Google Gemini.
+               Use "anthropic:claude-sonnet-4-5-20250929" for Claude.
         reasoning_effort: Reasoning effort for GPT models
         api_key: Optional API key (used for Google Gemini models).
                  If not provided for Google models, reads from
                  GOOGLE_AI_STUDIO_API_KEY or GEMINI_API_KEY env vars.
+        thinking_budget: Token budget for Anthropic extended thinking mode.
+                        When set, enables Claude's extended thinking. Min 1024.
         **kwargs: Additional context (current_policy, current_cost, etc.)
 
     Returns:
@@ -928,11 +1100,20 @@ def generate_robust_policy(
             "Minimize delay costs",
             model="google-gla:gemini-2.0-flash",
         )
+
+        # Using Claude with extended thinking:
+        policy = generate_robust_policy(
+            constraints,
+            "Minimize delay costs",
+            model="anthropic:claude-sonnet-4-5-20250929",
+            thinking_budget=32000,
+        )
     """
     agent = RobustPolicyAgent(
         constraints=constraints,
         model=model,
         reasoning_effort=reasoning_effort,
         api_key=api_key,
+        thinking_budget=thinking_budget,
     )
     return agent.generate_policy(instruction, **kwargs)
