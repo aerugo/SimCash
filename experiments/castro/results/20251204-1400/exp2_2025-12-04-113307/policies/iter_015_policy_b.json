@@ -1,0 +1,137 @@
+{
+  "policy_id": "iter_015_targeted_tightening",
+  "version": "2.0",
+  "description": "Incremental refinement from iter 14: slightly tighter liquidity buffer and lower initial collateral to reduce overdraft and collateral exposure while preserving 100% settlement.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 0.9,
+    "initial_collateral_fraction": 0.24,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "compute": {
+              "op": "-",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_remaining_in_day"
+          },
+          "right": {
+            "compute": {
+              "op": "+",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "param": "eod_urgency_boost"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_eod",
+      "description": "Always release urgent or near-EOD payments to avoid any risk of non-settlement or deadline penalties."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_with_buffer",
+        "description": "Release when we have at least buffered liquidity relative to payment size."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_to_build_liquidity",
+        "description": "Hold non-urgent payments when liquidity is tight to avoid excessive overdraft usage."
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, require a modest liquidity buffer before releasing to limit overdraft while avoiding unnecessary delay."
+    },
+    "node_id": "P1_is_urgent_or_eod",
+    "description": "Release if payment is urgent or we are near end of day, otherwise check liquidity vs amount."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial_fraction",
+      "description": "Post a bit less initial collateral than iter 14 to reduce collateral cost while still supporting smooth settlement.",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialDayAllocation"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_intraday",
+      "description": "Avoid additional intraday collateral moves; rely on initial posting and payment logic."
+    },
+    "node_id": "SC1_start_of_day_init",
+    "description": "Post a calibrated fraction of max collateral at the very start of the day, otherwise hold collateral decisions intraday."
+  }
+}

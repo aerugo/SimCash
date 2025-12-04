@@ -1,0 +1,245 @@
+{
+  "policy_id": "iter_003_incremental_adjust",
+  "version": "2.0",
+  "description": "Incremental refinement keeping all costs at zero while ensuring 100% settlement. Slightly more conservative liquidity buffer and modest end-of-day urgency boost.",
+  "parameters": {
+    "urgency_threshold": 4.0,
+    "liquidity_buffer": 1.1,
+    "initial_collateral_fraction": 0.25,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
+        },
+        {
+          "op": ">=",
+          "left": {
+            "field": "is_eod_rush"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent_eod",
+      "description": "Always release urgent or EOD-rush payments to avoid any risk of deadline or EOD penalties."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_liquid",
+        "description": "Release when we have enough liquidity plus buffer."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_wait_for_liquidity",
+        "description": "Hold non-urgent, liquidity-constrained payments."
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, require sufficient effective liquidity with a small buffer to remain conservative."
+    },
+    "node_id": "P1_is_urgent_or_eod",
+    "description": "Release if payment is urgent or near end of day; otherwise check liquidity buffer."
+  },
+  "bank_tree": {
+    "type": "action",
+    "action": "NoAction",
+    "node_id": "B1_no_bank_level_adjustments",
+    "description": "Keep bank-level behavior neutral; rely on payment and collateral trees."
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial_collateral",
+      "description": "Post a fraction of max collateral capacity at tick 0 as initial liquidity support.",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialDayCollateral"
+        }
+      }
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">",
+        "left": {
+          "field": "queue1_liquidity_gap"
+        },
+        "right": {
+          "value": 0.0
+        }
+      },
+      "on_true": {
+        "type": "condition",
+        "condition": {
+          "op": ">",
+          "left": {
+            "field": "remaining_collateral_capacity"
+          },
+          "right": {
+            "value": 0.0
+          }
+        },
+        "on_true": {
+          "type": "action",
+          "action": "PostCollateral",
+          "node_id": "SC5_post_top_up_collateral",
+          "description": "Post a small top-up collateral proportional to remaining capacity when there is a liquidity gap.",
+          "parameters": {
+            "amount": {
+              "compute": {
+                "op": "*",
+                "left": {
+                  "field": "remaining_collateral_capacity"
+                },
+                "right": {
+                  "value": 0.25
+                }
+              }
+            },
+            "reason": {
+              "value": "TopUpForQueueGap"
+            }
+          }
+        },
+        "on_false": {
+          "type": "action",
+          "action": "HoldCollateral",
+          "node_id": "SC6_hold_no_capacity",
+          "description": "Hold collateral when there is no remaining capacity."
+        },
+        "node_id": "SC4_has_remaining_capacity",
+        "description": "Only post more if there is remaining collateral capacity."
+      },
+      "on_false": {
+        "type": "action",
+        "action": "HoldCollateral",
+        "node_id": "SC7_hold_no_gap",
+        "description": "Hold collateral when there is no liquidity gap."
+      },
+      "node_id": "SC3_check_queue_liquidity_gap",
+      "description": "If there is a positive liquidity gap in queue1 and remaining capacity, post a bit more collateral; otherwise hold."
+    },
+    "node_id": "SC1_initial_posting",
+    "description": "Post a modest amount of collateral at the start of the day; otherwise hold collateral steady."
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": ">=",
+      "left": {
+        "field": "ticks_remaining_in_day"
+      },
+      "right": {
+        "value": 1.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "EC2_hold_intraday",
+      "description": "During the day, do not adjust collateral reactively at tick end."
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">",
+        "left": {
+          "field": "posted_collateral"
+        },
+        "right": {
+          "value": 0.0
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "WithdrawCollateral",
+        "node_id": "EC4_withdraw_some_collateral",
+        "description": "Withdraw half of posted collateral at end of day to limit overnight collateral usage.",
+        "parameters": {
+          "amount": {
+            "compute": {
+              "op": "*",
+              "left": {
+                "field": "posted_collateral"
+              },
+              "right": {
+                "value": 0.5
+              }
+            }
+          },
+          "reason": {
+            "value": "EODPartialRelease"
+          }
+        }
+      },
+      "on_false": {
+        "type": "action",
+        "action": "HoldCollateral",
+        "node_id": "EC5_hold_no_posted",
+        "description": "If no collateral is posted, nothing to adjust at EOD."
+      },
+      "node_id": "EC3_withdrawable_collateral",
+      "description": "At final tick, if posted collateral exceeds what is needed for current queue plus a buffer, withdraw some."
+    },
+    "node_id": "EC1_eod_collateral_adjust",
+    "description": "Near end of day, withdraw any clearly excess collateral to reduce unnecessary collateral cost, while keeping enough to ensure settlement."
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "policy_id": "iter_005_targeted_overdraft_reduction",
+  "version": "2.0",
+  "description": "Iteration 5: Slightly more conservative release to reduce overdraft-driven costs while preserving 100% settlement. Symmetric policy for both banks.",
+  "parameters": {
+    "urgency_threshold": 3.0,
+    "liquidity_buffer": 1.1,
+    "initial_collateral_fraction": 0.2,
+    "eod_urgency_boost": 2.0
+  },
+  "payment_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "or",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
+        },
+        {
+          "op": "==",
+          "left": {
+            "field": "is_past_deadline"
+          },
+          "right": {
+            "value": 1.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "Release",
+      "node_id": "P2_release_urgent",
+      "description": "Release urgent or overdue payments regardless of liquidity"
+    },
+    "on_false": {
+      "type": "condition",
+      "condition": {
+        "op": ">=",
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "liquidity_buffer"
+            }
+          }
+        }
+      },
+      "on_true": {
+        "type": "action",
+        "action": "Release",
+        "node_id": "P4_release_with_buffer",
+        "description": "Release when we have at least liquidity_buffer \u00d7 payment amount available"
+      },
+      "on_false": {
+        "type": "action",
+        "action": "Hold",
+        "node_id": "P5_hold_to_avoid_overdraft",
+        "description": "Hold non-urgent payments when liquidity is tight to reduce overdraft costs"
+      },
+      "node_id": "P3_check_liquidity_buffer",
+      "description": "For non-urgent payments, only release if effective_liquidity comfortably covers the payment"
+    },
+    "node_id": "P1_is_urgent_or_overdue",
+    "description": "Always release if near deadline or past it to preserve 100% settlement"
+  },
+  "strategic_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "==",
+      "left": {
+        "field": "current_tick"
+      },
+      "right": {
+        "value": 0.0
+      }
+    },
+    "on_true": {
+      "type": "action",
+      "action": "PostCollateral",
+      "node_id": "SC2_post_initial",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "max_collateral_capacity"
+            },
+            "right": {
+              "param": "initial_collateral_fraction"
+            }
+          }
+        },
+        "reason": {
+          "value": "InitialAllocation"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "SC3_hold_collateral_midday",
+      "description": "Do not actively adjust collateral intraday in this iteration"
+    },
+    "node_id": "SC1_tick_zero",
+    "description": "Post a modest amount of collateral at start of day, otherwise hold"
+  },
+  "end_of_tick_collateral_tree": {
+    "type": "condition",
+    "condition": {
+      "op": "and",
+      "conditions": [
+        {
+          "op": "<=",
+          "left": {
+            "field": "ticks_remaining_in_day"
+          },
+          "right": {
+            "compute": {
+              "op": "+",
+              "left": {
+                "param": "urgency_threshold"
+              },
+              "right": {
+                "param": "eod_urgency_boost"
+              }
+            }
+          }
+        },
+        {
+          "op": ">",
+          "left": {
+            "field": "posted_collateral"
+          },
+          "right": {
+            "value": 0.0
+          }
+        }
+      ]
+    },
+    "on_true": {
+      "type": "action",
+      "action": "WithdrawCollateral",
+      "node_id": "EC2_withdraw_some_excess",
+      "parameters": {
+        "amount": {
+          "compute": {
+            "op": "*",
+            "left": {
+              "field": "posted_collateral"
+            },
+            "right": {
+              "value": 0.5
+            }
+          }
+        },
+        "reason": {
+          "value": "EOD_ExcessRelease"
+        }
+      }
+    },
+    "on_false": {
+      "type": "action",
+      "action": "HoldCollateral",
+      "node_id": "EC3_hold_collateral_eod",
+      "description": "Otherwise leave collateral unchanged at tick end"
+    },
+    "node_id": "EC1_eod_release_excess_collateral",
+    "description": "Near end of day, withdraw any clearly excess collateral while ensuring all payments can still settle"
+  }
+}
