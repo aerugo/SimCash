@@ -326,3 +326,342 @@ def test_event_filter_empty_lists_vs_none():
     # Empty list means "match no event types"
     filter_empty = EventFilter(event_types=[])
     assert not filter_empty.matches({"event_type": "Arrival"}, tick=10)
+
+
+# =============================================================================
+# Tests for sender field variants (Problem 1 from feature request)
+# =============================================================================
+
+
+def test_filter_matches_sender_field_not_sender_id():
+    """Filter matches events using 'sender' field (not just 'sender_id').
+
+    Several events use 'sender' instead of 'sender_id':
+    - RtgsImmediateSettlement
+    - RtgsSubmission
+    - RtgsWithdrawal
+    - RtgsResubmission
+    - Queue2LiquidityRelease
+    """
+    f = EventFilter(agent_id="BANK_A")
+
+    # Should match: uses 'sender' (not 'sender_id')
+    assert f.matches(
+        {"event_type": "RtgsImmediateSettlement", "sender": "BANK_A", "receiver": "BANK_B"},
+        tick=1
+    )
+
+    # Should match: RtgsSubmission uses 'sender'
+    assert f.matches(
+        {"event_type": "RtgsSubmission", "sender": "BANK_A", "receiver": "BANK_B"},
+        tick=1
+    )
+
+    # Should ALSO match: BANK_A is receiver of this settlement
+    # (New behavior: settlements match if filtered agent is receiver)
+    assert f.matches(
+        {"event_type": "RtgsImmediateSettlement", "sender": "BANK_B", "receiver": "BANK_A"},
+        tick=1
+    )
+
+    # Should NOT match: BANK_A not involved at all
+    assert not f.matches(
+        {"event_type": "RtgsImmediateSettlement", "sender": "BANK_B", "receiver": "BANK_C"},
+        tick=1
+    )
+
+
+def test_filter_matches_both_sender_and_sender_id():
+    """Filter matches events with either 'sender' or 'sender_id'."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # Match via sender_id (Arrival events)
+    assert f.matches({"event_type": "Arrival", "sender_id": "BANK_A"}, tick=1)
+
+    # Match via sender (RTGS events)
+    assert f.matches({"event_type": "RtgsImmediateSettlement", "sender": "BANK_A"}, tick=1)
+
+
+# =============================================================================
+# Tests for LSM agent matching (Problem 1 from feature request)
+# =============================================================================
+
+
+def test_filter_matches_lsm_bilateral_agent_a():
+    """Filter matches LsmBilateralOffset via agent_a field."""
+    f = EventFilter(agent_id="BANK_A")
+
+    assert f.matches(
+        {
+            "event_type": "LsmBilateralOffset",
+            "agent_a": "BANK_A",
+            "agent_b": "BANK_B",
+            "amount": 10000,
+        },
+        tick=1
+    )
+
+
+def test_filter_matches_lsm_bilateral_agent_b():
+    """Filter matches LsmBilateralOffset via agent_b field."""
+    f = EventFilter(agent_id="BANK_A")
+
+    assert f.matches(
+        {
+            "event_type": "LsmBilateralOffset",
+            "agent_a": "BANK_B",
+            "agent_b": "BANK_A",
+            "amount": 10000,
+        },
+        tick=1
+    )
+
+
+def test_filter_matches_lsm_bilateral_not_involved():
+    """Filter does NOT match LsmBilateralOffset when agent not involved."""
+    f = EventFilter(agent_id="BANK_A")
+
+    assert not f.matches(
+        {
+            "event_type": "LsmBilateralOffset",
+            "agent_a": "BANK_B",
+            "agent_b": "BANK_C",
+            "amount": 10000,
+        },
+        tick=1
+    )
+
+
+def test_filter_matches_lsm_cycle_via_agents_array():
+    """Filter matches LsmCycleSettlement via agents array field."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # BANK_A is in the agents array
+    assert f.matches(
+        {
+            "event_type": "LsmCycleSettlement",
+            "agents": ["BANK_B", "BANK_A", "BANK_C"],
+            "tx_ids": ["tx1", "tx2", "tx3"],
+        },
+        tick=1
+    )
+
+
+def test_filter_matches_lsm_cycle_not_in_agents():
+    """Filter does NOT match LsmCycleSettlement when agent not in cycle."""
+    f = EventFilter(agent_id="BANK_A")
+
+    assert not f.matches(
+        {
+            "event_type": "LsmCycleSettlement",
+            "agents": ["BANK_B", "BANK_C", "BANK_D"],
+            "tx_ids": ["tx1", "tx2", "tx3"],
+        },
+        tick=1
+    )
+
+
+# =============================================================================
+# Tests for receiver matching on settlement events only (Problem 2 from feature request)
+# =============================================================================
+
+
+def test_filter_matches_receiver_for_rtgs_immediate_settlement():
+    """Filter matches receiver on RtgsImmediateSettlement events."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # BANK_A is the receiver - should match for settlement events
+    assert f.matches(
+        {
+            "event_type": "RtgsImmediateSettlement",
+            "sender": "BANK_B",
+            "receiver": "BANK_A",
+            "amount": 10000,
+        },
+        tick=1
+    )
+
+
+def test_filter_matches_receiver_for_queue2_release():
+    """Filter matches receiver on Queue2LiquidityRelease events."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # BANK_A is the receiver - should match for settlement events
+    assert f.matches(
+        {
+            "event_type": "Queue2LiquidityRelease",
+            "sender": "BANK_B",
+            "receiver": "BANK_A",
+            "amount": 10000,
+        },
+        tick=1
+    )
+
+
+def test_filter_matches_receiver_for_overdue_transaction_settled():
+    """Filter matches receiver on OverdueTransactionSettled events."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # BANK_A is the receiver - should match for settlement events
+    assert f.matches(
+        {
+            "event_type": "OverdueTransactionSettled",
+            "sender_id": "BANK_B",
+            "receiver_id": "BANK_A",
+            "amount": 10000,
+        },
+        tick=1
+    )
+
+
+def test_filter_does_not_match_receiver_for_arrival():
+    """Filter does NOT match receiver for non-settlement events like Arrival."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # BANK_A is the receiver but this is NOT a settlement event
+    # (Arrival is the sender's event, not receiver's)
+    assert not f.matches(
+        {
+            "event_type": "Arrival",
+            "sender_id": "BANK_B",
+            "receiver_id": "BANK_A",
+        },
+        tick=1
+    )
+
+
+def test_filter_does_not_match_receiver_for_policy_submit():
+    """Filter does NOT match receiver for PolicySubmit events."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # Even if receiver_id were present, PolicySubmit is not a settlement
+    assert not f.matches(
+        {
+            "event_type": "PolicySubmit",
+            "agent_id": "BANK_B",
+            "receiver_id": "BANK_A",  # Not normally present, but testing edge case
+        },
+        tick=1
+    )
+
+
+def test_filter_does_not_match_receiver_for_queued_rtgs():
+    """Filter does NOT match receiver for QueuedRtgs events."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # QueuedRtgs is about the sender queuing a payment, not settlement
+    assert not f.matches(
+        {
+            "event_type": "QueuedRtgs",
+            "sender_id": "BANK_B",
+            "receiver_id": "BANK_A",
+        },
+        tick=1
+    )
+
+
+def test_filter_matches_receiver_id_variant():
+    """Filter matches receiver_id (not just receiver) for settlements."""
+    f = EventFilter(agent_id="BANK_A")
+
+    # OverdueTransactionSettled uses receiver_id
+    assert f.matches(
+        {
+            "event_type": "OverdueTransactionSettled",
+            "sender_id": "BANK_B",
+            "receiver_id": "BANK_A",
+        },
+        tick=1
+    )
+
+
+# =============================================================================
+# Combined tests - verify complete agent filtering behavior
+# =============================================================================
+
+
+def test_filter_complete_outbound_lifecycle():
+    """Filter captures complete lifecycle for outbound transactions.
+
+    When filtering for BANK_A, should see:
+    - Arrival (as sender)
+    - PolicySubmit (as agent)
+    - RtgsSubmission (as sender)
+    - QueuedRtgs (as sender)
+    - RtgsImmediateSettlement (as sender)
+    - LsmBilateralOffset (as participant)
+    """
+    f = EventFilter(agent_id="BANK_A")
+
+    # All these should match for BANK_A's outbound transaction
+    events = [
+        {"event_type": "Arrival", "sender_id": "BANK_A", "receiver_id": "BANK_B"},
+        {"event_type": "PolicySubmit", "agent_id": "BANK_A", "tx_id": "tx1"},
+        {"event_type": "RtgsSubmission", "sender": "BANK_A", "receiver": "BANK_B"},
+        {"event_type": "QueuedRtgs", "sender_id": "BANK_A", "receiver_id": "BANK_B"},
+        {"event_type": "RtgsImmediateSettlement", "sender": "BANK_A", "receiver": "BANK_B"},
+        {"event_type": "LsmBilateralOffset", "agent_a": "BANK_A", "agent_b": "BANK_B"},
+    ]
+
+    for event in events:
+        assert f.matches(event, tick=1), f"Should match {event['event_type']}"
+
+
+def test_filter_incoming_settlements_only():
+    """Filter shows incoming settlements but not other banks' decisions.
+
+    When filtering for BANK_A (as receiver), should see:
+    - Settlements where BANK_A receives money
+    - NOT: Other bank's policy decisions, arrivals, queueing
+    """
+    f = EventFilter(agent_id="BANK_A")
+
+    # Should match: Settlement where BANK_A receives
+    assert f.matches(
+        {"event_type": "RtgsImmediateSettlement", "sender": "BANK_B", "receiver": "BANK_A"},
+        tick=1
+    )
+
+    # Should NOT match: BANK_B's arrival (not BANK_A's business)
+    assert not f.matches(
+        {"event_type": "Arrival", "sender_id": "BANK_B", "receiver_id": "BANK_A"},
+        tick=1
+    )
+
+    # Should NOT match: BANK_B's policy decision (not BANK_A's business)
+    assert not f.matches(
+        {"event_type": "PolicySubmit", "agent_id": "BANK_B", "tx_id": "tx1"},
+        tick=1
+    )
+
+
+def test_filter_with_lsm_bilateral_as_receiver():
+    """LsmBilateralOffset is matched for both participants regardless of sender/receiver.
+
+    In bilateral offsets, both agents are effectively sender and receiver.
+    """
+    f = EventFilter(agent_id="BANK_A")
+
+    # BANK_A is agent_a (sender of one transaction, receiver of other)
+    assert f.matches(
+        {
+            "event_type": "LsmBilateralOffset",
+            "agent_a": "BANK_A",
+            "agent_b": "BANK_B",
+            "amount_a": 10000,
+            "amount_b": 8000,
+        },
+        tick=1
+    )
+
+    # BANK_A is agent_b (receiver of one transaction, sender of other)
+    assert f.matches(
+        {
+            "event_type": "LsmBilateralOffset",
+            "agent_a": "BANK_B",
+            "agent_b": "BANK_A",
+            "amount_a": 8000,
+            "amount_b": 10000,
+        },
+        tick=1
+    )
