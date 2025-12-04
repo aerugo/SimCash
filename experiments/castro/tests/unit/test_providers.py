@@ -44,7 +44,7 @@ class TestStructuredOutputRequest:
         assert request.json_schema == {"type": "object"}
         assert request.schema_name == "policy_tree"  # default
         assert request.temperature == 0.7  # default
-        assert request.max_tokens == 150000  # default
+        assert request.max_tokens == 50000  # default
 
     def test_request_custom_values(self) -> None:
         """Request accepts custom values."""
@@ -54,12 +54,12 @@ class TestStructuredOutputRequest:
             json_schema={},
             schema_name="custom_schema",
             temperature=0.5,
-            max_tokens=150000,
+            max_tokens=50000,
         )
 
         assert request.schema_name == "custom_schema"
         assert request.temperature == 0.5
-        assert request.max_tokens == 150000
+        assert request.max_tokens == 50000
 
 
 class TestStructuredOutputResponse:

@@ -118,11 +118,15 @@ def generate_system_prompt(constraints: ScenarioConstraints) -> str:
     param_defaults = {}
     if constraints.allowed_parameters:
         for spec in constraints.allowed_parameters:
-            param_vocab.append(f"    {spec.name}: {spec.description} "
-                             f"[range: {spec.min_value}-{spec.max_value}, default: {spec.default}]")
+            param_vocab.append(
+                f"    {spec.name}: {spec.description} "
+                f"[range: {spec.min_value}-{spec.max_value}, default: {spec.default}]"
+            )
             param_defaults[spec.name] = spec.default
 
-    param_list = "\n".join(param_vocab) if param_vocab else "    (No parameters defined)"
+    param_list = (
+        "\n".join(param_vocab) if param_vocab else "    (No parameters defined)"
+    )
 
     # Build field vocabulary organized by category
     field_list = "\n".join([f"    {f}" for f in constraints.allowed_fields])
@@ -134,15 +138,25 @@ def generate_system_prompt(constraints: ScenarioConstraints) -> str:
     bank_actions = constraints.allowed_bank_actions or []
     collateral_actions = constraints.allowed_collateral_actions or []
 
-    bank_action_list = "\n".join([f"      {a}" for a in bank_actions]) if bank_actions else "      (Not enabled)"
-    collateral_action_list = "\n".join([f"      {a}" for a in collateral_actions]) if collateral_actions else "      (Not enabled)"
+    bank_action_list = (
+        "\n".join([f"      {a}" for a in bank_actions])
+        if bank_actions
+        else "      (Not enabled)"
+    )
+    collateral_action_list = (
+        "\n".join([f"      {a}" for a in collateral_actions])
+        if collateral_actions
+        else "      (Not enabled)"
+    )
 
     # Generate parameter defaults JSON for the example
     if param_defaults:
-        defaults_json = ",\n    ".join([f'"{k}": {v}' for k, v in param_defaults.items()])
-        param_defaults_example = f'{{\n    {defaults_json}\n  }}'
+        defaults_json = ",\n    ".join(
+            [f'"{k}": {v}' for k, v in param_defaults.items()]
+        )
+        param_defaults_example = f"{{\n    {defaults_json}\n  }}"
     else:
-        param_defaults_example = '{}'
+        param_defaults_example = "{}"
 
     # Determine which trees are enabled
     has_bank_tree = bool(bank_actions)
@@ -154,11 +168,15 @@ def generate_system_prompt(constraints: ScenarioConstraints) -> str:
     if has_bank_tree:
         tree_info.append("    bank_tree: OPTIONAL (enabled in this scenario)")
     if has_collateral_trees:
-        tree_info.append("    strategic_collateral_tree: OPTIONAL (enabled in this scenario)")
-        tree_info.append("    end_of_tick_collateral_tree: OPTIONAL (enabled in this scenario)")
+        tree_info.append(
+            "    strategic_collateral_tree: OPTIONAL (enabled in this scenario)"
+        )
+        tree_info.append(
+            "    end_of_tick_collateral_tree: OPTIONAL (enabled in this scenario)"
+        )
     tree_enablement = "\n".join(tree_info)
 
-    return f'''You are an expert policy generator for SimCash, a payment settlement simulation.
+    return f"""You are an expert policy generator for SimCash, a payment settlement simulation.
 
 ################################################################################
 #                     MANDATORY PRE-GENERATION CHECKLIST                       #
@@ -398,7 +416,7 @@ RECOMMENDED STARTING PARAMETERS:
 {param_defaults_example}
 
 Keep trees simple (2-4 levels) for robustness.
-'''
+"""
 
 
 # ============================================================================
@@ -494,6 +512,7 @@ class RobustPolicyAgent:
         # For Google models, resolve API key from environment if not provided
         if self.model.startswith("google-gla:") and not self._api_key:
             import os
+
             self._api_key = os.environ.get(
                 "GOOGLE_AI_STUDIO_API_KEY"
             ) or os.environ.get("GEMINI_API_KEY")
@@ -513,10 +532,7 @@ class RobustPolicyAgent:
 
     def _is_anthropic_thinking_mode(self) -> bool:
         """Check if we're using Anthropic model with thinking enabled."""
-        return (
-            self.model.startswith("anthropic:")
-            and self.thinking_budget is not None
-        )
+        return self.model.startswith("anthropic:") and self.thinking_budget is not None
 
     def _get_model(self) -> Any:
         """Create the appropriate model instance for PydanticAI.
@@ -559,13 +575,13 @@ class RobustPolicyAgent:
             )
 
         # max_tokens must be greater than budget_tokens for extended thinking
-        # Default to 150000 to allow ample room for both thinking and response
+        # Default to 50000 to allow ample room for both thinking and response
         return AnthropicModelSettings(
             anthropic_thinking={
                 "type": "enabled",
                 "budget_tokens": self.thinking_budget,
             },
-            max_tokens=150000,
+            max_tokens=50000,
         )
 
     def _get_agent(self) -> Any:
@@ -621,7 +637,7 @@ class RobustPolicyAgent:
         """Run agent with streaming for Anthropic extended thinking.
 
         Anthropic requires streaming when max_tokens > 21,333.
-        Since we use max_tokens=150000 for extended thinking, streaming is mandatory.
+        Since we use max_tokens=50000 for extended thinking, streaming is mandatory.
 
         This method uses PydanticAI's run_stream() to handle the streaming request,
         and collects the full response text.
@@ -849,9 +865,7 @@ class RobustPolicyAgent:
                 # For Anthropic extended thinking, we MUST use streaming
                 # because max_tokens > 21,333 requires streaming per Anthropic API
                 if self._is_anthropic_thinking_mode():
-                    result = asyncio.run(
-                        self._run_with_streaming(agent, prompt, deps)
-                    )
+                    result = asyncio.run(self._run_with_streaming(agent, prompt, deps))
                     raw_text = str(result)
                     parsed_policy = self._parse_json_from_thinking_response(raw_text)
                     return self._validate_parsed_policy(parsed_policy)
@@ -873,15 +887,17 @@ class RobustPolicyAgent:
                     print(f"\n  [VERBOSE] API Error Details:")
                     print(f"    Model: {self.model}")
                     print(f"    Prompt length: {len(prompt):,} chars")
-                    print(f"    System prompt length: {len(self._system_prompt):,} chars")
+                    print(
+                        f"    System prompt length: {len(self._system_prompt):,} chars"
+                    )
                     print(f"    Thinking budget: {self.thinking_budget}")
                     print(f"    Full error:\n{e}")
                     # Try to extract more details from the exception
-                    if hasattr(e, '__cause__') and e.__cause__:
+                    if hasattr(e, "__cause__") and e.__cause__:
                         print(f"    Cause: {e.__cause__}")
-                    if hasattr(e, 'response'):
+                    if hasattr(e, "response"):
                         print(f"    Response: {getattr(e, 'response', 'N/A')}")
-                    if hasattr(e, 'body'):
+                    if hasattr(e, "body"):
                         print(f"    Body: {getattr(e, 'body', 'N/A')}")
                     print()
 
@@ -911,7 +927,9 @@ class RobustPolicyAgent:
                 if "status_code: 400" in error_str or "400 bad request" in error_str:
                     is_transient = False
                     if self.verbose:
-                        print(f"  [VERBOSE] 400 error detected - NOT retrying (bad request)")
+                        print(
+                            f"  [VERBOSE] 400 error detected - NOT retrying (bad request)"
+                        )
 
                 if not is_transient:
                     # Non-transient error, don't retry
@@ -963,7 +981,9 @@ class RobustPolicyAgent:
 
         if iteration > 0:
             prompt_parts.append(f"\n## Iteration: {iteration}")
-            prompt_parts.append("Based on the current performance, suggest improvements.")
+            prompt_parts.append(
+                "Based on the current performance, suggest improvements."
+            )
 
         return "\n".join(prompt_parts)
 
@@ -1004,7 +1024,9 @@ class RobustPolicyAgent:
             "total_cost_std": 0,
             "risk_adjusted_cost": current_cost or 0,
             "settlement_rate_mean": settlement_rate or 1.0,
-            "failure_rate": 0 if (settlement_rate or 1.0) >= 1.0 else 1.0 - (settlement_rate or 1.0),
+            "failure_rate": (
+                0 if (settlement_rate or 1.0) >= 1.0 else 1.0 - (settlement_rate or 1.0)
+            ),
             "best_seed": best_seed,
             "worst_seed": worst_seed,
             "best_seed_cost": best_seed_cost,
@@ -1083,14 +1105,16 @@ class RobustPolicyAgent:
                     print(f"\n  [VERBOSE] API Error Details (async):")
                     print(f"    Model: {self.model}")
                     print(f"    Instruction length: {len(instruction):,} chars")
-                    print(f"    System prompt length: {len(self._system_prompt):,} chars")
+                    print(
+                        f"    System prompt length: {len(self._system_prompt):,} chars"
+                    )
                     print(f"    Thinking budget: {self.thinking_budget}")
                     print(f"    Full error:\n{e}")
-                    if hasattr(e, '__cause__') and e.__cause__:
+                    if hasattr(e, "__cause__") and e.__cause__:
                         print(f"    Cause: {e.__cause__}")
-                    if hasattr(e, 'response'):
+                    if hasattr(e, "response"):
                         print(f"    Response: {getattr(e, 'response', 'N/A')}")
-                    if hasattr(e, 'body'):
+                    if hasattr(e, "body"):
                         print(f"    Body: {getattr(e, 'body', 'N/A')}")
                     print()
 
@@ -1120,7 +1144,9 @@ class RobustPolicyAgent:
                 if "status_code: 400" in error_str or "400 bad request" in error_str:
                     is_transient = False
                     if self.verbose:
-                        print(f"  [VERBOSE] 400 error detected - NOT retrying (bad request)")
+                        print(
+                            f"  [VERBOSE] 400 error detected - NOT retrying (bad request)"
+                        )
 
                 if not is_transient:
                     # Non-transient error, don't retry
