@@ -36,7 +36,7 @@ class StructuredOutputRequest:
     json_schema: dict[str, Any]
     schema_name: str = "policy_tree"
     temperature: float = 0.7
-    max_tokens: int = 150000
+    max_tokens: int = 50000
 
 
 @dataclass
