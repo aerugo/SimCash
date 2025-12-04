@@ -230,8 +230,8 @@ ALLOWED ACTIONS BY TREE:
   "description": "A complete policy showing all tree types with correct actions",
   "parameters": {{
     "urgency_threshold": 3.0,
-    "liquidity_buffer_factor": 1.0,
-    "initial_liquidity_fraction": 0.25
+    "liquidity_buffer": 1.0,
+    "initial_collateral_fraction": 0.25
   }},
   "strategic_collateral_tree": {{
     "type": "condition",
@@ -251,7 +251,7 @@ ALLOWED ACTIONS BY TREE:
           "compute": {{
             "op": "*",
             "left": {{"field": "max_collateral_capacity"}},
-            "right": {{"param": "initial_liquidity_fraction"}}
+            "right": {{"param": "initial_collateral_fraction"}}
           }}
         }},
         "reason": {{"value": "InitialAllocation"}}
@@ -288,7 +288,7 @@ ALLOWED ACTIONS BY TREE:
           "compute": {{
             "op": "*",
             "left": {{"field": "remaining_amount"}},
-            "right": {{"param": "liquidity_buffer_factor"}}
+            "right": {{"param": "liquidity_buffer"}}
           }}
         }}
       }},
