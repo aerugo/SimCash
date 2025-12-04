@@ -1164,13 +1164,20 @@ class ReproducibleExperiment:
 
         # Create experiment-specific output directories using the unique experiment ID
         # This ensures parallel experiments never share config/policy directories
-        db_path_obj = Path(db_path)
-        self.output_dir = db_path_obj.parent
-        self.experiment_work_dir = self.output_dir / self.experiment_id
+        # All experiment outputs go into results/ folder for organization
+        script_dir = Path(__file__).parent.parent  # experiments/castro/
+        self.results_dir = script_dir / "results"
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.experiment_work_dir = self.results_dir / self.experiment_id
+        self.output_dir = self.experiment_work_dir
         self.policies_dir = self.experiment_work_dir / "policies"
         self.configs_dir = self.experiment_work_dir / "configs"
         self.policies_dir.mkdir(parents=True, exist_ok=True)
         self.configs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Update db_path to be inside the experiment work directory
+        db_filename = Path(db_path).name
+        db_path = str(self.experiment_work_dir / db_filename)
 
         # Save experiment configuration to work directory root for reproducibility
         self._save_experiment_metadata(experiment_key, model, reasoning_effort)
