@@ -1060,7 +1060,9 @@ class ReproducibleExperiment:
         reasoning_effort: str = "high",
     ):
         self.experiment_def = EXPERIMENTS[experiment_key]
-        self.experiment_id = f"{experiment_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        # Generate unique experiment ID with timestamp: exp1_2025-12-04-143022
+        timestamp = datetime.now().strftime('%Y-%m-%d-%H%M%S')
+        self.experiment_id = f"{experiment_key}_{timestamp}"
         self.simcash_root = Path(simcash_root)
 
         self.db = ExperimentDatabase(db_path)
@@ -1070,13 +1072,11 @@ class ReproducibleExperiment:
         self.config_path = self.simcash_root / self.experiment_def["config_path"]
         self.config = load_yaml_config(str(self.config_path))
 
-        # Create experiment-specific output directories for iteration-specific files
-        # Each experiment gets its own subdirectory based on DB filename to avoid
-        # race conditions when running multiple experiments in parallel
+        # Create experiment-specific output directories using the unique experiment ID
+        # This ensures parallel experiments never share config/policy directories
         db_path_obj = Path(db_path)
         self.output_dir = db_path_obj.parent
-        experiment_subdir = db_path_obj.stem  # e.g., "exp1_gpt51_20iter" from "exp1_gpt51_20iter.db"
-        self.experiment_work_dir = self.output_dir / experiment_subdir
+        self.experiment_work_dir = self.output_dir / self.experiment_id
         self.policies_dir = self.experiment_work_dir / "policies"
         self.configs_dir = self.experiment_work_dir / "configs"
         self.policies_dir.mkdir(parents=True, exist_ok=True)
