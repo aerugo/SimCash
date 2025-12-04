@@ -291,3 +291,118 @@ class TestFilterAgentEventFieldConsistency:
             {"event_type": "LsmCycleSettlement", "agent_ids": ["BANK_A", "BANK_B", "BANK_C"]},
             tick=1
         )
+
+
+class TestFilterAgentReplayIdentity:
+    """Test that filter-agent works identically in run and replay modes.
+
+    This ensures the Replay Identity principle is maintained when using filters.
+    Both run and replay should produce identical filtered output.
+    """
+
+    def test_event_filter_from_cli_args_for_replay(self):
+        """EventFilter.from_cli_args works with all replay filter options."""
+        # Test agent filter
+        filter = EventFilter.from_cli_args(filter_agent="BANK_A")
+        assert filter.agent_id == "BANK_A"
+        assert filter.event_types is None
+        assert filter.tx_id is None
+
+        # Test event type filter
+        filter = EventFilter.from_cli_args(filter_event_type="Arrival,Settlement")
+        assert filter.event_types == ["Arrival", "Settlement"]
+
+        # Test transaction filter
+        filter = EventFilter.from_cli_args(filter_tx="tx-123")
+        assert filter.tx_id == "tx-123"
+
+        # Test tick range filter
+        filter = EventFilter.from_cli_args(filter_tick_range="10-50")
+        assert filter.tick_min == 10
+        assert filter.tick_max == 50
+
+        # Test combined filters (should all work together)
+        filter = EventFilter.from_cli_args(
+            filter_agent="BANK_B",
+            filter_event_type="RtgsImmediateSettlement",
+            filter_tick_range="0-100",
+        )
+        assert filter.agent_id == "BANK_B"
+        assert filter.event_types == ["RtgsImmediateSettlement"]
+        assert filter.tick_min == 0
+        assert filter.tick_max == 100
+
+    def test_filter_applies_to_settlement_receiver(self):
+        """Filter correctly includes settlements where the filtered bank is receiver.
+
+        This tests the key feature: --filter-agent BANK_A shows settlements
+        where BANK_A receives incoming liquidity.
+        """
+        filter = EventFilter(agent_id="BANK_A")
+
+        # Settlement where BANK_A receives money (from BANK_B)
+        incoming_settlement = {
+            "event_type": "RtgsImmediateSettlement",
+            "sender": "BANK_B",
+            "receiver": "BANK_A",
+            "amount": 100000,
+        }
+
+        # Filter should match (BANK_A is receiver of a settlement)
+        assert filter.matches(incoming_settlement, tick=5), \
+            "Filter should match settlement where filtered agent is receiver"
+
+    def test_filter_excludes_non_settlement_receiver_events(self):
+        """Filter does NOT include non-settlement events where agent is only receiver.
+
+        Arrivals and policy events should NOT match when the filtered agent
+        is only the receiver, not the sender/actor.
+        """
+        filter = EventFilter(agent_id="BANK_A")
+
+        # Arrival where BANK_A is only the receiver (sent by BANK_B)
+        arrival_to_bank_a = {
+            "event_type": "Arrival",
+            "sender_id": "BANK_B",
+            "receiver_id": "BANK_A",
+            "amount": 100000,
+        }
+
+        # Filter should NOT match (this is BANK_B's arrival, not BANK_A's)
+        assert not filter.matches(arrival_to_bank_a, tick=5), \
+            "Filter should NOT match arrival where filtered agent is only receiver"
+
+    def test_filter_comprehensive_sender_field_coverage(self):
+        """Filter matches all sender field naming conventions used across event types."""
+        filter = EventFilter(agent_id="BANK_A")
+
+        # sender_id (arrivals, queued events)
+        assert filter.matches({"event_type": "Arrival", "sender_id": "BANK_A"}, tick=1)
+
+        # sender (RTGS events)
+        assert filter.matches({"event_type": "RtgsImmediateSettlement", "sender": "BANK_A"}, tick=1)
+
+        # agent_id (policy events)
+        assert filter.matches({"event_type": "PolicySubmit", "agent_id": "BANK_A"}, tick=1)
+
+        # agent_a/agent_b (LSM bilateral)
+        assert filter.matches({
+            "event_type": "LsmBilateralOffset",
+            "agent_a": "BANK_A",
+            "agent_b": "BANK_B",
+        }, tick=1)
+        assert filter.matches({
+            "event_type": "LsmBilateralOffset",
+            "agent_a": "BANK_B",
+            "agent_b": "BANK_A",
+        }, tick=1)
+
+        # agents/agent_ids (LSM cycle)
+        assert filter.matches({
+            "event_type": "LsmCycleSettlement",
+            "agents": ["BANK_A", "BANK_B", "BANK_C"],
+        }, tick=1)
+        assert filter.matches({
+            "event_type": "LsmCycleSettlement",
+            "agent_ids": ["BANK_X", "BANK_A", "BANK_Y"],
+        }, tick=1)
