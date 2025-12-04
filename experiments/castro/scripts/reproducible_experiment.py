@@ -1345,7 +1345,9 @@ class ReproducibleExperiment:
         model: str = "gpt-4o",
         reasoning_effort: str = "high",
         master_seed: int | None = None,
+        verbose: bool = False,
     ):
+        self.verbose = verbose
         self.experiment_def = EXPERIMENTS[experiment_key]
         # Generate unique experiment ID with timestamp: exp1_2025-12-04-143022
         timestamp = datetime.now().strftime('%Y-%m-%d-%H%M%S')
@@ -1792,19 +1794,29 @@ Generate a corrected policy that avoids these errors.
         """Validate a policy, attempting to fix it if invalid.
 
         Logs all validation errors to the database for analysis.
+        When verbose mode is enabled, prints all validation errors.
         """
         is_valid, _, errors = self.validate_policy_with_details(policy, agent_name)
         if is_valid:
+            if self.verbose:
+                print(f"  [VERBOSE] {agent_name} policy validated successfully")
             return policy, True
 
         print(f"  {agent_name} policy invalid, attempting LLM fix...")
+        # Always print validation errors (not just in verbose mode) so user can see what's wrong
+        print(f"    Validation errors:")
+        for err in errors:
+            print(f"      - {err}")
 
         # Track all errors for logging
         all_errors: list[tuple[int, dict, list[str]]] = [(0, policy, errors)]
 
         for attempt in range(self.MAX_VALIDATION_RETRIES):
+            if self.verbose:
+                print(f"    [VERBOSE] Fix attempt {attempt + 1}/{self.MAX_VALIDATION_RETRIES}...")
             fixed = self.request_policy_fix_from_llm(policy, agent_name, errors)
             if fixed is None:
+                print(f"    Fix attempt {attempt + 1} failed: LLM returned no policy")
                 continue
 
             is_valid, _, new_errors = self.validate_policy_with_details(fixed, agent_name)
@@ -1823,6 +1835,11 @@ Generate a corrected policy that avoids these errors.
                         fix_attempt_count=attempt + 1,
                     )
                 return fixed, False
+
+            # Print errors for this fix attempt
+            print(f"    Fix attempt {attempt + 1} still invalid:")
+            for err in new_errors:
+                print(f"      - {err}")
 
             # Track this fix attempt's error
             all_errors.append((attempt + 1, fixed, new_errors))
@@ -1866,6 +1883,9 @@ Generate a corrected policy that avoids these errors.
         seeds = self.seed_matrix[iteration]
 
         print(f"  Running {len(seeds)} simulations with persistence...")
+        if self.verbose:
+            print(f"    [VERBOSE] Seeds for this iteration: {seeds}")
+            print(f"    [VERBOSE] Config path: {config_path}")
         results = run_simulations_parallel(
             config_path=str(config_path),
             simcash_root=str(self.simcash_root),
@@ -1882,6 +1902,10 @@ Generate a corrected policy that avoids these errors.
                     seed=result["seed"],
                     result=result,
                 )
+                if self.verbose:
+                    print(f"    [VERBOSE] Seed {result['seed']}: cost=${result['total_cost']:,.0f}, settlement={result['settlement_rate']*100:.1f}%")
+            else:
+                print(f"    [ERROR] Seed {result.get('seed', '?')}: {result['error']}")
 
         # Compute metrics
         metrics = compute_metrics(results)
@@ -1910,6 +1934,21 @@ Generate a corrected policy that avoids these errors.
         print(f"  Settlement rate: {metrics['settlement_rate_mean']*100:.1f}%")
         print(f"  Failure rate: {metrics['failure_rate']*100:.0f}%")
 
+        if self.verbose:
+            # Aggregate cost breakdown from all successful runs
+            valid_results = [r for r in results if "error" not in r]
+            if valid_results:
+                total_delay = sum(r.get("cost_breakdown", {}).get("delay", 0) for r in valid_results)
+                total_collateral = sum(r.get("cost_breakdown", {}).get("collateral", 0) for r in valid_results)
+                total_overdraft = sum(r.get("cost_breakdown", {}).get("overdraft", 0) for r in valid_results)
+                total_eod = sum(r.get("cost_breakdown", {}).get("eod_penalty", 0) for r in valid_results)
+                n = len(valid_results)
+                print(f"    [VERBOSE] Avg cost breakdown:")
+                print(f"      - Delay: ${total_delay/n:,.0f}")
+                print(f"      - Collateral: ${total_collateral/n:,.0f}")
+                print(f"      - Overdraft: ${total_overdraft/n:,.0f}")
+                print(f"      - EOD penalty: ${total_eod/n:,.0f}")
+
         # Extract best/worst seed verbose output for LLM context
         self._extract_best_worst_context(results, metrics)
 
@@ -1925,6 +1964,10 @@ Generate a corrected policy that avoids these errors.
             self.best_iteration = iteration
             was_accepted = True
             is_best = True
+            if self.verbose:
+                print(f"    [VERBOSE] Updated best policy to iteration {iteration}")
+                print(f"    [VERBOSE] Best Bank A parameters: {self.best_policy_a.get('parameters', {})}")
+                print(f"    [VERBOSE] Best Bank B parameters: {self.best_policy_b.get('parameters', {})}")
         else:
             print(f"  ❌ REJECTED: {comparison}")
             print(f"  Reverting to best policy from iteration {self.best_iteration}")
@@ -1933,6 +1976,10 @@ Generate a corrected policy that avoids these errors.
             self.policy_b = self.best_policy_b.copy()
             was_accepted = False
             is_best = False
+            if self.verbose:
+                print(f"    [VERBOSE] Reverted to best policy parameters:")
+                print(f"    [VERBOSE] Bank A: {self.best_policy_a.get('parameters', {})}")
+                print(f"    [VERBOSE] Bank B: {self.best_policy_b.get('parameters', {})}")
 
         # Record iteration in history (including rejected attempts)
         self._record_iteration(
@@ -2193,6 +2240,11 @@ Use this insight to make targeted policy improvements."""
 
         print(f"  LLM response: ~{total_tokens} tokens, {total_latency:.1f}s")
 
+        if self.verbose and policy_a is not None:
+            print(f"    [VERBOSE] Bank A policy parameters: {policy_a.get('parameters', {})}")
+        if self.verbose and policy_b is not None:
+            print(f"    [VERBOSE] Bank B policy parameters: {policy_b.get('parameters', {})}")
+
         if policy_a is None or policy_b is None:
             print("  ERROR: Policy generation failed")
             return False
@@ -2200,9 +2252,13 @@ Use this insight to make targeted policy improvements."""
         # Validate policies with retry logic (NEVER writes to seed files)
         # Log all validation errors to database for analysis
         # Fallback to BEST policy if validation fails
+        if self.verbose:
+            print(f"  [VERBOSE] Validating Bank A policy...")
         new_policy_a, was_valid_a = self.validate_and_fix_policy(
             policy_a, "Bank A", self.best_policy_a, iteration=iteration
         )
+        if self.verbose:
+            print(f"  [VERBOSE] Validating Bank B policy...")
         new_policy_b, was_valid_b = self.validate_and_fix_policy(
             policy_b, "Bank B", self.best_policy_b, iteration=iteration
         )
@@ -2211,6 +2267,22 @@ Use this insight to make targeted policy improvements."""
         # Note: These may be rejected if they don't improve over best
         self.policy_a = new_policy_a
         self.policy_b = new_policy_b
+
+        # Check if policies were actually changed or fell back to best
+        a_changed = new_policy_a != self.best_policy_a
+        b_changed = new_policy_b != self.best_policy_b
+        if not a_changed and not b_changed:
+            # This is a serious issue - both policies failed validation and reverted
+            # Always print this warning since it explains stalls
+            print(f"  ⚠️  WARNING: Both policies fell back to previous best (validation failed)")
+            print(f"      Next iteration will likely produce identical results (stall)")
+        elif self.verbose:
+            if not a_changed:
+                print(f"  [VERBOSE] Bank A policy unchanged (validation fallback), Bank B changed")
+            elif not b_changed:
+                print(f"  [VERBOSE] Bank A changed, Bank B policy unchanged (validation fallback)")
+            else:
+                print(f"  [VERBOSE] Both policies successfully changed")
 
         # Record new candidate policies to database (will be marked accepted/rejected after evaluation)
         # Note: was_accepted and is_best will be updated after run_iteration evaluates
@@ -2276,7 +2348,26 @@ Use this insight to make targeted policy improvements."""
         print(f"# Experiment ID: {self.experiment_id}")
         print(f"# Master seed: {self.master_seed}")
         print(f"# Best-policy continuation: ENABLED")
+        if self.verbose:
+            print(f"# Verbose mode: ENABLED")
         print(f"{'#'*60}")
+
+        if self.verbose:
+            print(f"\n[VERBOSE] Configuration:")
+            print(f"  Model: {self.model}")
+            print(f"  Reasoning effort: {self.reasoning_effort}")
+            print(f"  Max iterations: {self.max_iterations}")
+            print(f"  Seeds per iteration: {self.num_seeds}")
+            print(f"  Convergence threshold: {self.convergence_threshold}")
+            print(f"  Convergence window: {self.convergence_window}")
+            print(f"  Output dir: {self.output_dir}")
+            print(f"  Config path: {self.config_path}")
+            print(f"\n[VERBOSE] Cost rates:")
+            for key, value in self.config.get("cost_rates", {}).items():
+                print(f"    {key}: {value}")
+            print(f"\n[VERBOSE] Initial policies loaded from:")
+            print(f"    Bank A: {self.experiment_def['policy_a_path']}")
+            print(f"    Bank B: {self.experiment_def['policy_b_path']}")
 
         self.setup()
 
@@ -2403,6 +2494,11 @@ Examples:
         default=None,
         help="Master seed for reproducibility (pre-generates all iteration seeds)",
     )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Verbose mode: output detailed progress and all validation errors",
+    )
 
     args = parser.parse_args()
 
@@ -2433,6 +2529,7 @@ Examples:
         model=args.model,
         reasoning_effort=args.reasoning,
         master_seed=args.master_seed,
+        verbose=args.verbose,
     )
 
     experiment.run()
