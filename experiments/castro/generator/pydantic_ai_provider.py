@@ -50,6 +50,9 @@ class PydanticAIConfig:
     retries: int = 3
     """Number of retries on validation failure"""
 
+    api_key: str | None = None
+    """Optional API key (provider-specific). If not provided, uses environment variables."""
+
     @classmethod
     def openai(cls, model: str = "gpt-4o") -> "PydanticAIConfig":
         """Create config for OpenAI."""
@@ -61,9 +64,25 @@ class PydanticAIConfig:
         return cls(model=f"anthropic:{model}")
 
     @classmethod
-    def google(cls, model: str = "gemini-1.5-pro") -> "PydanticAIConfig":
-        """Create config for Google."""
-        return cls(model=f"google-gla:{model}")
+    def google(
+        cls,
+        model: str = "gemini-1.5-pro",
+        api_key: str | None = None,
+    ) -> "PydanticAIConfig":
+        """Create config for Google Gemini (Google AI Studio / GLA).
+
+        Args:
+            model: Gemini model name (e.g., 'gemini-1.5-pro', 'gemini-2.0-flash')
+            api_key: API key for Google AI Studio. If not provided, reads from
+                     GOOGLE_AI_STUDIO_API_KEY or GEMINI_API_KEY environment variables.
+
+        Returns:
+            PydanticAIConfig for Google Gemini model
+        """
+        resolved_api_key = api_key or os.environ.get(
+            "GOOGLE_AI_STUDIO_API_KEY"
+        ) or os.environ.get("GEMINI_API_KEY")
+        return cls(model=f"google-gla:{model}", api_key=resolved_api_key)
 
     @classmethod
     def ollama(cls, model: str = "llama3.1:8b") -> "PydanticAIConfig":
@@ -83,6 +102,7 @@ class PydanticAIProvider:
         - anthropic:claude-3-5-sonnet-20241022
         - anthropic:claude-3-opus-20240229
         - google-gla:gemini-1.5-pro
+        - google-gla:gemini-2.0-flash
         - ollama:llama3.1:8b
         - groq:llama-3.1-70b-versatile
 
@@ -90,32 +110,73 @@ class PydanticAIProvider:
         provider = PydanticAIProvider(model="anthropic:claude-3-5-sonnet-20241022")
         generator = StructuredPolicyGenerator(provider=provider)
         policy = generator.generate_policy("payment_tree")
+
+        # Using Google Gemini with explicit API key:
+        provider = PydanticAIProvider(
+            model="google-gla:gemini-2.0-flash",
+            api_key=os.environ.get("GOOGLE_AI_STUDIO_API_KEY"),
+        )
     """
 
     def __init__(
         self,
         model: str = "openai:gpt-4o",
         retries: int = 3,
+        api_key: str | None = None,
     ) -> None:
         """Initialize PydanticAI provider.
 
         Args:
             model: Model identifier in 'provider:model' format
             retries: Number of retries on validation failure
+            api_key: Optional API key (used for Google Gemini models).
+                     If not provided for Google models, reads from
+                     GOOGLE_AI_STUDIO_API_KEY or GEMINI_API_KEY env vars.
         """
         self.model = model
         self.retries = retries
+        self._api_key = api_key
         self._agent: Any | None = None
+
+        # For Google models, resolve API key from environment if not provided
+        if model.startswith("google-gla:") and not self._api_key:
+            self._api_key = os.environ.get(
+                "GOOGLE_AI_STUDIO_API_KEY"
+            ) or os.environ.get("GEMINI_API_KEY")
 
     @classmethod
     def from_config(cls, config: PydanticAIConfig) -> "PydanticAIProvider":
         """Create provider from config."""
-        return cls(model=config.model, retries=config.retries)
+        return cls(model=config.model, retries=config.retries, api_key=config.api_key)
 
     @property
     def name(self) -> str:
         """Provider name for logging."""
         return f"pydantic-ai:{self.model}"
+
+    def _get_model(self) -> Any:
+        """Create the appropriate model instance for PydanticAI.
+
+        For Google models, creates a GoogleModel with explicit API key configuration.
+        For other models, returns the model string for automatic provider detection.
+        """
+        if self.model.startswith("google-gla:") and self._api_key:
+            try:
+                from pydantic_ai.models.google import GoogleModel
+                from pydantic_ai.providers.google import GoogleProvider
+            except ImportError:
+                raise ImportError(
+                    "pydantic-ai[google] required. Install with: "
+                    "pip install 'pydantic-ai[google]'"
+                )
+
+            # Extract the model name after 'google-gla:'
+            model_name = self.model.split(":", 1)[1]
+            provider = GoogleProvider(api_key=self._api_key)
+            return GoogleModel(model_name, provider=provider)
+
+        # For other providers, use the string format for automatic detection
+        return self.model
 
     def _get_agent(self, output_type: type[T], system_prompt: str) -> Any:
         """Create a PydanticAI Agent for the given output type."""
@@ -126,8 +187,9 @@ class PydanticAIProvider:
                 "pydantic-ai package required. Install with: pip install pydantic-ai"
             )
 
+        model = self._get_model()
         return Agent(
-            self.model,
+            model,
             output_type=output_type,
             system_prompt=system_prompt,
             retries=self.retries,
@@ -167,9 +229,12 @@ class PydanticAIProvider:
         # Get the appropriate tree model
         TreeModel = get_tree_model(max_depth)
 
+        # Get the model instance (handles Google API key configuration)
+        model = self._get_model()
+
         # Create agent with the tree model as output type
         agent = Agent(
-            self.model,
+            model,
             output_type=TreeModel,  # type: ignore
             system_prompt=request.system_prompt,
             retries=self.retries,
@@ -227,8 +292,11 @@ class PydanticAIProvider:
                 "pydantic-ai package required. Install with: pip install pydantic-ai"
             )
 
+        # Get the model instance (handles Google API key configuration)
+        model = self._get_model()
+
         agent = Agent(
-            self.model,
+            model,
             output_type=output_type,
             system_prompt=system_prompt,
             retries=self.retries,
@@ -297,9 +365,29 @@ def anthropic_provider(model: str = "claude-3-5-sonnet-20241022") -> PydanticAIP
     return PydanticAIProvider(model=f"anthropic:{model}")
 
 
-def google_provider(model: str = "gemini-1.5-pro") -> PydanticAIProvider:
-    """Create PydanticAI provider for Google."""
-    return PydanticAIProvider(model=f"google-gla:{model}")
+def google_provider(
+    model: str = "gemini-1.5-pro",
+    api_key: str | None = None,
+) -> PydanticAIProvider:
+    """Create PydanticAI provider for Google Gemini (Google AI Studio / GLA).
+
+    Args:
+        model: Gemini model name (e.g., 'gemini-1.5-pro', 'gemini-2.0-flash')
+        api_key: API key for Google AI Studio. If not provided, reads from
+                 GOOGLE_AI_STUDIO_API_KEY or GEMINI_API_KEY environment variables.
+
+    Returns:
+        Configured PydanticAIProvider for Google Gemini
+
+    Example:
+        # Using environment variable (recommended):
+        # Set GOOGLE_AI_STUDIO_API_KEY=your-api-key
+        provider = google_provider("gemini-2.0-flash")
+
+        # Using explicit API key:
+        provider = google_provider("gemini-2.0-flash", api_key="your-api-key")
+    """
+    return PydanticAIProvider(model=f"google-gla:{model}", api_key=api_key)
 
 
 def ollama_provider(model: str = "llama3.1:8b") -> PydanticAIProvider:

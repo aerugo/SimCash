@@ -6,6 +6,9 @@ without requiring actual API calls.
 
 from __future__ import annotations
 
+import os
+from unittest import mock
+
 import pytest
 
 
@@ -202,3 +205,188 @@ class TestLLMProviderProtocolCompliance:
         # Check it matches the protocol (duck typing)
         assert hasattr(provider, "name")
         assert hasattr(provider, "generate_structured")
+
+
+class TestGoogleGeminiApiKey:
+    """Tests for Google Gemini API key configuration."""
+
+    def test_config_google_with_explicit_api_key(self) -> None:
+        """Config accepts explicit API key for Google."""
+        from experiments.castro.generator.pydantic_ai_provider import PydanticAIConfig
+
+        config = PydanticAIConfig.google("gemini-2.0-flash", api_key="test-api-key")
+        assert config.model == "google-gla:gemini-2.0-flash"
+        assert config.api_key == "test-api-key"
+
+    def test_config_google_reads_google_ai_studio_env_var(self) -> None:
+        """Config reads GOOGLE_AI_STUDIO_API_KEY environment variable."""
+        from experiments.castro.generator.pydantic_ai_provider import PydanticAIConfig
+
+        with mock.patch.dict(os.environ, {"GOOGLE_AI_STUDIO_API_KEY": "env-api-key"}):
+            config = PydanticAIConfig.google("gemini-2.0-flash")
+            assert config.api_key == "env-api-key"
+
+    def test_config_google_reads_gemini_env_var_fallback(self) -> None:
+        """Config reads GEMINI_API_KEY as fallback."""
+        from experiments.castro.generator.pydantic_ai_provider import PydanticAIConfig
+
+        with mock.patch.dict(
+            os.environ,
+            {"GEMINI_API_KEY": "gemini-env-key"},
+            clear=True,
+        ):
+            # Remove GOOGLE_AI_STUDIO_API_KEY if present
+            os.environ.pop("GOOGLE_AI_STUDIO_API_KEY", None)
+            config = PydanticAIConfig.google("gemini-2.0-flash")
+            assert config.api_key == "gemini-env-key"
+
+    def test_config_google_prefers_google_ai_studio_over_gemini_key(self) -> None:
+        """GOOGLE_AI_STUDIO_API_KEY takes precedence over GEMINI_API_KEY."""
+        from experiments.castro.generator.pydantic_ai_provider import PydanticAIConfig
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "GOOGLE_AI_STUDIO_API_KEY": "studio-key",
+                "GEMINI_API_KEY": "gemini-key",
+            },
+        ):
+            config = PydanticAIConfig.google("gemini-2.0-flash")
+            assert config.api_key == "studio-key"
+
+    def test_provider_google_with_explicit_api_key(self) -> None:
+        """Provider accepts explicit API key for Google models."""
+        from experiments.castro.generator.pydantic_ai_provider import PydanticAIProvider
+
+        provider = PydanticAIProvider(
+            model="google-gla:gemini-2.0-flash",
+            api_key="test-provider-key",
+        )
+        assert provider.model == "google-gla:gemini-2.0-flash"
+        assert provider._api_key == "test-provider-key"
+
+    def test_provider_google_reads_env_var(self) -> None:
+        """Provider reads GOOGLE_AI_STUDIO_API_KEY for Google models."""
+        from experiments.castro.generator.pydantic_ai_provider import PydanticAIProvider
+
+        with mock.patch.dict(os.environ, {"GOOGLE_AI_STUDIO_API_KEY": "env-provider-key"}):
+            provider = PydanticAIProvider(model="google-gla:gemini-2.0-flash")
+            assert provider._api_key == "env-provider-key"
+
+    def test_provider_non_google_ignores_api_key(self) -> None:
+        """Non-Google providers don't use the Google API key env var."""
+        from experiments.castro.generator.pydantic_ai_provider import PydanticAIProvider
+
+        with mock.patch.dict(os.environ, {"GOOGLE_AI_STUDIO_API_KEY": "should-not-use"}):
+            provider = PydanticAIProvider(model="openai:gpt-4o")
+            # Should not have picked up the Google API key
+            assert provider._api_key is None
+
+    def test_google_provider_factory_with_api_key(self) -> None:
+        """google_provider factory accepts API key."""
+        from experiments.castro.generator.pydantic_ai_provider import google_provider
+
+        provider = google_provider("gemini-2.0-flash", api_key="factory-key")
+        assert "google-gla:" in provider.model
+        assert provider._api_key == "factory-key"
+
+    def test_google_provider_factory_reads_env_var(self) -> None:
+        """google_provider factory reads env var when no key provided."""
+        from experiments.castro.generator.pydantic_ai_provider import google_provider
+
+        with mock.patch.dict(os.environ, {"GOOGLE_AI_STUDIO_API_KEY": "factory-env-key"}):
+            provider = google_provider("gemini-2.0-flash")
+            assert provider._api_key == "factory-env-key"
+
+
+class TestRobustPolicyAgentGoogleSupport:
+    """Tests for Google Gemini support in RobustPolicyAgent."""
+
+    def test_agent_accepts_google_model(self) -> None:
+        """RobustPolicyAgent accepts Google model string."""
+        from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
+        from experiments.castro.schemas.parameter_config import (
+            ParameterSpec,
+            ScenarioConstraints,
+        )
+
+        constraints = ScenarioConstraints(
+            allowed_parameters=[
+                ParameterSpec(
+                    name="urgency",
+                    min_value=0,
+                    max_value=20,
+                    default=3,
+                    description="Urgency",
+                )
+            ],
+            allowed_fields=["balance"],
+            allowed_actions=["Release", "Hold"],
+        )
+
+        agent = RobustPolicyAgent(
+            constraints=constraints,
+            model="google-gla:gemini-2.0-flash",
+            api_key="test-agent-key",
+        )
+        assert agent.model == "google-gla:gemini-2.0-flash"
+        assert agent._api_key == "test-agent-key"
+
+    def test_agent_reads_google_env_var(self) -> None:
+        """RobustPolicyAgent reads GOOGLE_AI_STUDIO_API_KEY env var."""
+        from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
+        from experiments.castro.schemas.parameter_config import (
+            ParameterSpec,
+            ScenarioConstraints,
+        )
+
+        constraints = ScenarioConstraints(
+            allowed_parameters=[
+                ParameterSpec(
+                    name="urgency",
+                    min_value=0,
+                    max_value=20,
+                    default=3,
+                    description="Urgency",
+                )
+            ],
+            allowed_fields=["balance"],
+            allowed_actions=["Release", "Hold"],
+        )
+
+        with mock.patch.dict(os.environ, {"GOOGLE_AI_STUDIO_API_KEY": "agent-env-key"}):
+            agent = RobustPolicyAgent(
+                constraints=constraints,
+                model="google-gla:gemini-2.0-flash",
+            )
+            assert agent._api_key == "agent-env-key"
+
+    def test_agent_non_google_ignores_api_key(self) -> None:
+        """RobustPolicyAgent with non-Google model ignores Google API key."""
+        from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
+        from experiments.castro.schemas.parameter_config import (
+            ParameterSpec,
+            ScenarioConstraints,
+        )
+
+        constraints = ScenarioConstraints(
+            allowed_parameters=[
+                ParameterSpec(
+                    name="urgency",
+                    min_value=0,
+                    max_value=20,
+                    default=3,
+                    description="Urgency",
+                )
+            ],
+            allowed_fields=["balance"],
+            allowed_actions=["Release", "Hold"],
+        )
+
+        with mock.patch.dict(os.environ, {"GOOGLE_AI_STUDIO_API_KEY": "should-not-use"}):
+            agent = RobustPolicyAgent(
+                constraints=constraints,
+                model="openai:gpt-4o",
+            )
+            # Should not have picked up the Google API key automatically
+            assert agent._api_key is None
