@@ -1248,6 +1248,36 @@ def generate_all_charts(db_path: str, output_dir: Path | None = None) -> None:
 # Simulation Runner
 # ============================================================================
 
+
+def get_per_agent_costs_from_db(db_path: str, simulation_id: str) -> dict[str, int]:
+    """Query per-agent total costs from the simulation database.
+
+    Each bank is selfish and only cares about their own costs, so we need
+    to extract per-agent costs from the daily_agent_metrics table.
+
+    Args:
+        db_path: Path to simulation database file
+        simulation_id: Simulation ID to query
+
+    Returns:
+        Dict mapping agent_id to their total_cost (in cents)
+    """
+    try:
+        conn = duckdb.connect(db_path, read_only=True)
+        query = """
+            SELECT agent_id, SUM(total_cost) as total_cost
+            FROM daily_agent_metrics
+            WHERE simulation_id = ?
+            GROUP BY agent_id
+        """
+        result = conn.execute(query, [simulation_id]).fetchall()
+        conn.close()
+        return {row[0]: int(row[1]) for row in result}
+    except Exception:
+        # If database query fails, return empty dict
+        return {}
+
+
 def run_single_simulation(args: tuple) -> dict:
     """Run a single simulation with persistence for filtered replay.
 
@@ -1313,11 +1343,23 @@ def run_single_simulation(args: tuple) -> dict:
 
         total_cost = costs.get("total_cost", 0)
 
+        # Get actual per-agent costs from database
+        # Each bank is selfish and only cares about their own costs!
+        # CRITICAL: Never fall back to total_cost // 2 - that violates the experiment!
+        per_agent_costs = get_per_agent_costs_from_db(str(db_path), sim_id)
+        if "BANK_A" not in per_agent_costs or "BANK_B" not in per_agent_costs:
+            return {
+                "error": f"Failed to get per-agent costs from database: {per_agent_costs}",
+                "seed": seed,
+            }
+        bank_a_cost = per_agent_costs["BANK_A"]
+        bank_b_cost = per_agent_costs["BANK_B"]
+
         return {
             "seed": seed,
             "total_cost": total_cost,
-            "bank_a_cost": total_cost / 2,
-            "bank_b_cost": total_cost / 2,
+            "bank_a_cost": bank_a_cost,
+            "bank_b_cost": bank_b_cost,
             "settlement_rate": output.get("metrics", {}).get("settlement_rate", 0),
             "bank_a_balance_end": agents.get("BANK_A", {}).get("final_balance", 0),
             "bank_b_balance_end": agents.get("BANK_B", {}).get("final_balance", 0),
@@ -1328,7 +1370,7 @@ def run_single_simulation(args: tuple) -> dict:
                 "eod_penalty": costs.get("total_eod_penalty", 0),
             },
             "raw_output": output,
-            # NEW: Include db_path and simulation_id for filtered replay
+            # Include db_path and simulation_id for filtered replay
             "db_path": str(db_path),
             "simulation_id": sim_id,
         }
@@ -1427,6 +1469,9 @@ def compute_metrics(results: list[dict]) -> dict | None:
     """Compute aggregated metrics from simulation results.
 
     Returns None if all simulations failed, allowing caller to handle gracefully.
+
+    IMPORTANT: Each bank is selfish and only cares about their own costs!
+    This function computes per-bank cost metrics for independent policy evaluation.
     """
     valid_results = [r for r in results if "error" not in r]
 
@@ -1436,9 +1481,19 @@ def compute_metrics(results: list[dict]) -> dict | None:
     costs = [r["total_cost"] for r in valid_results]
     settlements = [r["settlement_rate"] for r in valid_results]
 
+    # Per-bank costs for selfish evaluation
+    bank_a_costs = [r["bank_a_cost"] for r in valid_results]
+    bank_b_costs = [r["bank_b_cost"] for r in valid_results]
+
     import statistics
     mean_cost = statistics.mean(costs)
     std_cost = statistics.stdev(costs) if len(costs) > 1 else 0
+
+    # Per-bank cost statistics
+    bank_a_mean = statistics.mean(bank_a_costs)
+    bank_a_std = statistics.stdev(bank_a_costs) if len(bank_a_costs) > 1 else 0
+    bank_b_mean = statistics.mean(bank_b_costs)
+    bank_b_std = statistics.stdev(bank_b_costs) if len(bank_b_costs) > 1 else 0
 
     best_idx = costs.index(min(costs))
     worst_idx = costs.index(max(costs))
@@ -1455,6 +1510,11 @@ def compute_metrics(results: list[dict]) -> dict | None:
         "worst_seed": valid_results[worst_idx]["seed"],
         "best_seed_cost": min(costs),
         "worst_seed_cost": max(costs),
+        # Per-bank metrics for selfish policy evaluation
+        "bank_a_cost_mean": bank_a_mean,
+        "bank_a_cost_std": bank_a_std,
+        "bank_b_cost_mean": bank_b_mean,
+        "bank_b_cost_std": bank_b_std,
     }
 
 
@@ -1864,7 +1924,10 @@ class ReproducibleExperiment:
         """Filter iteration history to contain ONLY the specified agent's data.
 
         CRITICAL ISOLATION: This function ensures the LLM optimizing one agent
-        never sees any information about other agents.
+        never sees any information about other agents. This includes:
+        - Only this agent's policy and changes
+        - Filtered metrics (no other bank's per-bank costs)
+        - Only this agent's comparison string
 
         Args:
             records: Full iteration records containing both agents' data
@@ -1887,14 +1950,33 @@ class ReproducibleExperiment:
                 policy = record.policy_a
                 changes = record.policy_a_changes
 
+            # CRITICAL: Filter metrics to remove other bank's per-bank costs
+            # Each bank is selfish and should NOT see the other bank's cost!
+            # Keys to filter: bank_a_cost_mean, bank_a_cost_std, bank_b_cost_mean, bank_b_cost_std
+            other_bank_prefix = "bank_b_cost" if agent_id == "BANK_A" else "bank_a_cost"
+            filtered_metrics = {
+                k: v for k, v in record.metrics.items()
+                if not k.startswith(other_bank_prefix)
+            }
+
+            # CRITICAL: Extract only this agent's comparison string
+            # The combined format is "A: ... | B: ..."
+            comparison = record.comparison_to_best
+            if " | " in comparison:
+                parts = comparison.split(" | ")
+                if agent_id == "BANK_A" and len(parts) >= 1:
+                    comparison = parts[0].replace("A: ", "")
+                elif agent_id == "BANK_B" and len(parts) >= 2:
+                    comparison = parts[1].replace("B: ", "")
+
             filtered.append(SingleAgentIterationRecord(
                 iteration=record.iteration,
-                metrics=record.metrics,
+                metrics=filtered_metrics,
                 policy=policy,
                 policy_changes=changes,
                 was_accepted=record.was_accepted,
                 is_best_so_far=record.is_best_so_far,
-                comparison_to_best=record.comparison_to_best,
+                comparison_to_best=comparison,
             ))
         return filtered
 
@@ -2153,8 +2235,69 @@ class ReproducibleExperiment:
             created_by="init",
         )
 
+    def is_better_for_agent(
+        self, agent_id: str, candidate_metrics: dict
+    ) -> tuple[bool, str]:
+        """Compare candidate metrics for a specific agent (selfish evaluation).
+
+        IMPORTANT: Each bank is selfish and only cares about their own costs!
+        A policy is considered better for an agent if:
+        1. It has 100% settlement rate (required for system stability)
+        2. It has lower mean cost FOR THAT AGENT than the current best
+
+        Args:
+            agent_id: The agent to evaluate ("BANK_A" or "BANK_B")
+            candidate_metrics: Metrics from the candidate policy run
+
+        Returns:
+            Tuple of (is_better, comparison_description)
+        """
+        if self.best_metrics is None:
+            # First iteration - automatically becomes best
+            return True, f"{agent_id}: First iteration - establishing baseline"
+
+        # Get per-agent cost metrics
+        if agent_id == "BANK_A":
+            candidate_cost = candidate_metrics["bank_a_cost_mean"]
+            best_cost = self.best_metrics["bank_a_cost_mean"]
+        else:  # BANK_B
+            candidate_cost = candidate_metrics["bank_b_cost_mean"]
+            best_cost = self.best_metrics["bank_b_cost_mean"]
+
+        candidate_settlement = candidate_metrics["settlement_rate_mean"]
+
+        # Settlement rate must be 100% (or very close) for system stability
+        if candidate_settlement < 0.999:
+            return False, (
+                f"{agent_id}: Settlement rate {candidate_settlement*100:.1f}% < 100%. "
+                f"Cost ${candidate_cost:,.0f} vs best ${best_cost:,.0f}"
+            )
+
+        # Compare agent's own costs (selfish evaluation)
+        cost_delta = candidate_cost - best_cost
+        cost_pct = (cost_delta / best_cost) * 100 if best_cost > 0 else 0
+
+        if candidate_cost < best_cost:
+            return True, (
+                f"{agent_id}: Improved by ${-cost_delta:,.0f} ({-cost_pct:.1f}%). "
+                f"New: ${candidate_cost:,.0f}, Previous best: ${best_cost:,.0f}"
+            )
+        elif candidate_cost == best_cost:
+            return False, (
+                f"{agent_id}: No improvement. "
+                f"Cost ${candidate_cost:,.0f} equals best ${best_cost:,.0f}"
+            )
+        else:
+            return False, (
+                f"{agent_id}: Worse by ${cost_delta:,.0f} (+{cost_pct:.1f}%). "
+                f"Candidate: ${candidate_cost:,.0f}, Best: ${best_cost:,.0f}"
+            )
+
     def is_better_than_best(self, candidate_metrics: dict) -> tuple[bool, str]:
-        """Compare candidate metrics to the current best.
+        """Compare candidate metrics to the current best (LEGACY - uses total cost).
+
+        NOTE: This method is deprecated for policy acceptance decisions.
+        Use is_better_for_agent() instead for selfish per-bank evaluation.
 
         A policy is considered better if:
         1. It has 100% settlement rate (required)
@@ -2483,13 +2626,18 @@ Generate a corrected policy that avoids these errors.
             # Revert to best known policies for next iteration
             self.policy_a = self.best_policy_a.copy()
             self.policy_b = self.best_policy_b.copy()
-            # Return with failure metrics
+            # Return with failure metrics (including per-bank costs)
             return {
                 "iteration": iteration,
-                "metrics": {"total_cost_mean": float("inf"), "total_cost_std": 0,
-                           "settlement_rate_mean": 0, "failure_rate": 1.0,
-                           "best_seed_cost": float("inf"), "worst_seed_cost": float("inf"),
-                           "best_seed": 0, "worst_seed": 0, "risk_adjusted_cost": float("inf")},
+                "metrics": {
+                    "total_cost_mean": float("inf"), "total_cost_std": 0,
+                    "settlement_rate_mean": 0, "failure_rate": 1.0,
+                    "best_seed_cost": float("inf"), "worst_seed_cost": float("inf"),
+                    "best_seed": 0, "worst_seed": 0, "risk_adjusted_cost": float("inf"),
+                    # Per-bank metrics for selfish evaluation
+                    "bank_a_cost_mean": float("inf"), "bank_a_cost_std": 0,
+                    "bank_b_cost_mean": float("inf"), "bank_b_cost_std": 0,
+                },
                 "results": results,
                 "converged": False,
                 "failed": True,
@@ -2520,34 +2668,55 @@ Generate a corrected policy that avoids these errors.
         # Extract best/worst seed verbose output for LLM context
         self._extract_best_worst_context(results, metrics)
 
-        # Compare to best known policy
-        is_better, comparison = self.is_better_than_best(metrics)
+        # SELFISH EVALUATION: Each bank only cares about their own costs!
+        # Evaluate each bank's policy independently
+        is_better_a, comparison_a = self.is_better_for_agent("BANK_A", metrics)
+        is_better_b, comparison_b = self.is_better_for_agent("BANK_B", metrics)
 
-        if is_better:
-            print(f"  ✅ ACCEPTED: {comparison}")
-            # Update best policy
+        # Print per-bank cost breakdown
+        print(f"  Per-bank costs:")
+        print(f"    BANK_A: ${metrics['bank_a_cost_mean']:,.0f} ± ${metrics['bank_a_cost_std']:,.0f}")
+        print(f"    BANK_B: ${metrics['bank_b_cost_mean']:,.0f} ± ${metrics['bank_b_cost_std']:,.0f}")
+
+        # Handle Bank A's policy independently
+        if is_better_a:
+            print(f"  ✅ BANK_A ACCEPTED: {comparison_a}")
             self.best_policy_a = self.policy_a.copy()
-            self.best_policy_b = self.policy_b.copy()
-            self.best_metrics = metrics.copy()
-            self.best_iteration = iteration
-            was_accepted = True
-            is_best = True
             if self.verbose:
-                print(f"    [VERBOSE] Updated best policy to iteration {iteration}")
+                print(f"    [VERBOSE] Updated BANK_A best policy to iteration {iteration}")
                 print(f"    [VERBOSE] Best Bank A parameters: {self.best_policy_a.get('parameters', {})}")
+        else:
+            print(f"  ❌ BANK_A REJECTED: {comparison_a}")
+            # Revert Bank A policy to its best
+            self.policy_a = self.best_policy_a.copy()
+            if self.verbose:
+                print(f"    [VERBOSE] BANK_A reverted to best policy")
+
+        # Handle Bank B's policy independently
+        if is_better_b:
+            print(f"  ✅ BANK_B ACCEPTED: {comparison_b}")
+            self.best_policy_b = self.policy_b.copy()
+            if self.verbose:
+                print(f"    [VERBOSE] Updated BANK_B best policy to iteration {iteration}")
                 print(f"    [VERBOSE] Best Bank B parameters: {self.best_policy_b.get('parameters', {})}")
         else:
-            print(f"  ❌ REJECTED: {comparison}")
-            print(f"  Reverting to best policy from iteration {self.best_iteration}")
-            # Revert to best policies for next iteration
-            self.policy_a = self.best_policy_a.copy()
+            print(f"  ❌ BANK_B REJECTED: {comparison_b}")
+            # Revert Bank B policy to its best
             self.policy_b = self.best_policy_b.copy()
-            was_accepted = False
-            is_best = False
             if self.verbose:
-                print(f"    [VERBOSE] Reverted to best policy parameters:")
-                print(f"    [VERBOSE] Bank A: {self.best_policy_a.get('parameters', {})}")
-                print(f"    [VERBOSE] Bank B: {self.best_policy_b.get('parameters', {})}")
+                print(f"    [VERBOSE] BANK_B reverted to best policy")
+
+        # Update best metrics if any bank improved (for tracking purposes)
+        # Note: best_metrics tracks the overall state, not per-bank
+        was_accepted = is_better_a or is_better_b
+        is_best = is_better_a and is_better_b
+
+        if was_accepted:
+            self.best_metrics = metrics.copy()
+            self.best_iteration = iteration
+
+        # Build combined comparison string for logging
+        comparison = f"A: {comparison_a} | B: {comparison_b}"
 
         # Record iteration in history (including rejected attempts)
         self._record_iteration(
@@ -2748,12 +2917,13 @@ Use this insight to make targeted policy improvements."""
 
         # Build isolated agent configurations for parallel execution
         # CRITICAL: Each config contains ONLY that agent's data
+        # Each bank is selfish - use their actual per-bank cost!
         agent_configs = [
             {
                 "agent_id": "BANK_A",
                 "instruction": instruction,
                 "current_policy": self.best_policy_a,
-                "current_cost": best_metrics['total_cost_mean'] / 2,
+                "current_cost": best_metrics['bank_a_cost_mean'],  # Use actual BANK_A cost
                 "settlement_rate": best_metrics['settlement_rate_mean'],
                 "iteration": iteration,
                 "iteration_history": bank_a_history,
@@ -2770,7 +2940,7 @@ Use this insight to make targeted policy improvements."""
                 "agent_id": "BANK_B",
                 "instruction": instruction,
                 "current_policy": self.best_policy_b,
-                "current_cost": best_metrics['total_cost_mean'] / 2,
+                "current_cost": best_metrics['bank_b_cost_mean'],  # Use actual BANK_B cost
                 "settlement_rate": best_metrics['settlement_rate_mean'],
                 "iteration": iteration,
                 "iteration_history": bank_b_history,
