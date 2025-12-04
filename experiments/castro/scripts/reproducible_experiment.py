@@ -1473,10 +1473,12 @@ class LLMOptimizer:
         model: str = "gpt-4o",
         reasoning_effort: str = "high",
         thinking_budget: int | None = None,
+        verbose: bool = False,
     ):
         self.model = model
         self.reasoning_effort = reasoning_effort
         self.thinking_budget = thinking_budget
+        self.verbose = verbose
 
         # Create RobustPolicyAgent with constraints
         # Use "high" reasoning for GPT-5.1, map string to literal
@@ -1488,6 +1490,7 @@ class LLMOptimizer:
             model=model,
             reasoning_effort=effort,  # type: ignore
             thinking_budget=thinking_budget,
+            verbose=verbose,
         )
 
         # Track last prompt for logging
@@ -1686,6 +1689,7 @@ class ReproducibleExperiment:
             model=model,
             reasoning_effort=reasoning_effort,
             thinking_budget=thinking_budget,
+            verbose=self.verbose,
         )
 
         # Master seed for reproducibility - if not provided, use timestamp-based seed
