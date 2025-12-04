@@ -1656,6 +1656,23 @@ class ReproducibleExperiment:
         self.experiment_id = f"{experiment_key}_{timestamp}"
         self.simcash_root = Path(simcash_root) if simcash_root else PROJECT_ROOT
 
+        # Create experiment-specific output directories using the unique experiment ID
+        # This ensures parallel experiments never share config/policy directories
+        # All experiment outputs go into results/ folder for organization
+        script_dir = Path(__file__).parent.parent  # experiments/castro/
+        self.results_dir = script_dir / "results"
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.experiment_work_dir = self.results_dir / self.experiment_id
+        self.output_dir = self.experiment_work_dir
+        self.policies_dir = self.experiment_work_dir / "policies"
+        self.configs_dir = self.experiment_work_dir / "configs"
+        self.policies_dir.mkdir(parents=True, exist_ok=True)
+        self.configs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Put database inside the experiment work directory
+        db_filename = Path(db_path).name
+        db_path = str(self.experiment_work_dir / db_filename)
+
         self.db = ExperimentDatabase(db_path)
         self.optimizer = LLMOptimizer(model=model, reasoning_effort=reasoning_effort)
 
@@ -1670,23 +1687,6 @@ class ReproducibleExperiment:
         # Load configs
         self.config_path = self.simcash_root / self.experiment_def["config_path"]
         self.config = load_yaml_config(str(self.config_path))
-
-        # Create experiment-specific output directories using the unique experiment ID
-        # This ensures parallel experiments never share config/policy directories
-        # All experiment outputs go into results/ folder for organization
-        script_dir = Path(__file__).parent.parent  # experiments/castro/
-        self.results_dir = script_dir / "results"
-        self.results_dir.mkdir(parents=True, exist_ok=True)
-        self.experiment_work_dir = self.results_dir / self.experiment_id
-        self.output_dir = self.experiment_work_dir
-        self.policies_dir = self.experiment_work_dir / "policies"
-        self.configs_dir = self.experiment_work_dir / "configs"
-        self.policies_dir.mkdir(parents=True, exist_ok=True)
-        self.configs_dir.mkdir(parents=True, exist_ok=True)
-
-        # Update db_path to be inside the experiment work directory
-        db_filename = Path(db_path).name
-        db_path = str(self.experiment_work_dir / db_filename)
 
         # Load seed policies ONCE (read-only, never modified)
         self.seed_policy_a = load_json_policy(
