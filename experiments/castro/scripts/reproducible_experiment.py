@@ -1070,10 +1070,15 @@ class ReproducibleExperiment:
         self.config_path = self.simcash_root / self.experiment_def["config_path"]
         self.config = load_yaml_config(str(self.config_path))
 
-        # Create output directories for iteration-specific files
-        self.output_dir = Path(db_path).parent
-        self.policies_dir = self.output_dir / "policies"
-        self.configs_dir = self.output_dir / "configs"
+        # Create experiment-specific output directories for iteration-specific files
+        # Each experiment gets its own subdirectory based on DB filename to avoid
+        # race conditions when running multiple experiments in parallel
+        db_path_obj = Path(db_path)
+        self.output_dir = db_path_obj.parent
+        experiment_subdir = db_path_obj.stem  # e.g., "exp1_gpt51_20iter" from "exp1_gpt51_20iter.db"
+        self.experiment_work_dir = self.output_dir / experiment_subdir
+        self.policies_dir = self.experiment_work_dir / "policies"
+        self.configs_dir = self.experiment_work_dir / "configs"
         self.policies_dir.mkdir(parents=True, exist_ok=True)
         self.configs_dir.mkdir(parents=True, exist_ok=True)
 

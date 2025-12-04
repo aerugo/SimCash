@@ -552,3 +552,62 @@ The extended experiments reveal a fundamental limitation of LLM optimization. Wh
 
 ---
 
+### Entry 11: Race Condition Bug Discovery and Fix
+**Date**: 2025-12-04 00:30 UTC
+**Objective**: Investigate anomalous baseline results
+
+**Investigation Summary**:
+
+Upon deeper analysis of Entry 10 results, discovered that **all three experiments had identical baselines ($24,978)** which is impossible given their different configurations:
+- exp1: 2-period, 3 fixed transactions
+- exp2: 12-period, ~14 stochastic transactions
+- exp3: 3-period, 4 fixed transactions
+
+**Root Cause: Race Condition**
+
+Examining verbose logs revealed the smoking gun:
+```
+exp1 iteration 1: ticks_executed=3 (should be 2!)
+exp2 iteration 1: ticks_executed=3 (should be 12!)
+exp3 iteration 1: ticks_executed=3 (correct)
+```
+
+All experiments were **sharing the same config directory** (`results/configs/`). When run in parallel:
+1. exp1 creates `results/configs/iter_001_config.yaml`
+2. exp3 **overwrites** `results/configs/iter_001_config.yaml`
+3. exp2 also **overwrites** the same file
+4. All experiments end up using whichever config was written last
+
+**Impact on Results**:
+- exp1 and exp2's iteration 1 ran with **exp3's config** (3-period deterministic)
+- exp2's LLM learned from wrong baseline, then applied policy to correct 12-period config
+- This explains the catastrophic divergence: policy was trained for wrong problem!
+
+**Fix Applied**:
+
+Modified `reproducible_experiment.py` to use experiment-specific directories:
+```python
+# Before (shared):
+results/configs/iter_001_config.yaml
+results/policies/iter_001_policy_a.json
+
+# After (isolated):
+results/exp1_run/configs/iter_001_config.yaml
+results/exp1_run/policies/iter_001_policy_a.json
+results/exp2_run/configs/iter_001_config.yaml
+results/exp2_run/policies/iter_001_policy_a.json
+```
+
+**Verification**:
+```python
+# Test confirms directories are now isolated
+exp1 configs_dir: results/test_exp1/configs
+exp2 configs_dir: results/test_exp2/configs
+Directories are different: True
+```
+
+**Re-run Required**:
+The Entry 10 results are **invalid** due to this bug. Experiments must be re-run with the fix to obtain valid results. The exp2 "failure" may have been an artifact of the race condition, not a fundamental LLM limitation.
+
+---
+
