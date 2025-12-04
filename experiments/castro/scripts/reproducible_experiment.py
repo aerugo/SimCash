@@ -194,7 +194,7 @@ EXPERIMENTS = {
         "num_seeds": 1,  # Deterministic - only need 1 seed
         "max_iterations": 25,
         "convergence_threshold": 0.05,
-        "convergence_window": 3,
+        "convergence_window": 5,  # Require 5 stable iterations before converging
     },
     "exp2": {
         "name": "Experiment 2: Twelve-Period Stochastic (Castro-Aligned)",
@@ -205,7 +205,7 @@ EXPERIMENTS = {
         "num_seeds": 10,
         "max_iterations": 25,
         "convergence_threshold": 0.05,
-        "convergence_window": 3,
+        "convergence_window": 5,  # Require 5 stable iterations before converging
     },
     "exp3": {
         "name": "Experiment 3: Joint Liquidity and Timing (Castro-Aligned)",
@@ -216,7 +216,7 @@ EXPERIMENTS = {
         "num_seeds": 10,
         "max_iterations": 25,
         "convergence_threshold": 0.05,
-        "convergence_window": 3,
+        "convergence_window": 5,  # Require 5 stable iterations before converging
     },
 }
 
@@ -1060,7 +1060,9 @@ class ReproducibleExperiment:
         reasoning_effort: str = "high",
     ):
         self.experiment_def = EXPERIMENTS[experiment_key]
-        self.experiment_id = f"{experiment_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        # Generate unique experiment ID with timestamp: exp1_2025-12-04-143022
+        timestamp = datetime.now().strftime('%Y-%m-%d-%H%M%S')
+        self.experiment_id = f"{experiment_key}_{timestamp}"
         self.simcash_root = Path(simcash_root)
 
         self.db = ExperimentDatabase(db_path)
@@ -1070,12 +1072,18 @@ class ReproducibleExperiment:
         self.config_path = self.simcash_root / self.experiment_def["config_path"]
         self.config = load_yaml_config(str(self.config_path))
 
-        # Create output directories for iteration-specific files
-        self.output_dir = Path(db_path).parent
-        self.policies_dir = self.output_dir / "policies"
-        self.configs_dir = self.output_dir / "configs"
+        # Create experiment-specific output directories using the unique experiment ID
+        # This ensures parallel experiments never share config/policy directories
+        db_path_obj = Path(db_path)
+        self.output_dir = db_path_obj.parent
+        self.experiment_work_dir = self.output_dir / self.experiment_id
+        self.policies_dir = self.experiment_work_dir / "policies"
+        self.configs_dir = self.experiment_work_dir / "configs"
         self.policies_dir.mkdir(parents=True, exist_ok=True)
         self.configs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save experiment configuration to work directory root for reproducibility
+        self._save_experiment_metadata(experiment_key, model, reasoning_effort)
 
         # Load seed policies ONCE (read-only, never modified)
         self.seed_policy_a = load_json_policy(
@@ -1118,6 +1126,52 @@ class ReproducibleExperiment:
         self.last_best_cost: int = 0
         self.last_worst_cost: int = 0
         self.last_cost_breakdown: dict[str, int] = {}
+
+    def _save_experiment_metadata(
+        self,
+        experiment_key: str,
+        model: str,
+        reasoning_effort: str,
+    ) -> None:
+        """Save experiment configuration and parameters to the work directory root.
+
+        Creates the following files in experiment_work_dir:
+        - scenario.yaml: Copy of the simulation scenario config
+        - parameters.json: Experiment parameters (model, seeds, iterations, etc.)
+        - seed_policy_a.json: Initial policy for Bank A
+        - seed_policy_b.json: Initial policy for Bank B
+        """
+        import shutil
+
+        # 1. Copy scenario config
+        scenario_dest = self.experiment_work_dir / "scenario.yaml"
+        shutil.copy(self.config_path, scenario_dest)
+
+        # 2. Save experiment parameters
+        parameters = {
+            "experiment_id": self.experiment_id,
+            "experiment_key": experiment_key,
+            "experiment_name": self.experiment_def["name"],
+            "description": self.experiment_def.get("description", ""),
+            "model": model,
+            "reasoning_effort": reasoning_effort,
+            "num_seeds": self.experiment_def["num_seeds"],
+            "max_iterations": self.experiment_def["max_iterations"],
+            "convergence_threshold": self.experiment_def["convergence_threshold"],
+            "convergence_window": self.experiment_def["convergence_window"],
+            "config_path": str(self.config_path),
+            "simcash_root": str(self.simcash_root),
+            "created_at": datetime.now().isoformat(),
+        }
+        params_dest = self.experiment_work_dir / "parameters.json"
+        with open(params_dest, "w") as f:
+            json.dump(parameters, f, indent=2)
+
+        # 3. Copy seed policies
+        seed_policy_a_src = self.simcash_root / self.experiment_def["policy_a_path"]
+        seed_policy_b_src = self.simcash_root / self.experiment_def["policy_b_path"]
+        shutil.copy(seed_policy_a_src, self.experiment_work_dir / "seed_policy_a.json")
+        shutil.copy(seed_policy_b_src, self.experiment_work_dir / "seed_policy_b.json")
 
     def setup(self) -> None:
         """Initialize experiment in database."""
