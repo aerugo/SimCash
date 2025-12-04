@@ -1465,15 +1465,18 @@ class LLMOptimizer:
     - Correct API usage for reasoning models (GPT-5.1, o1, etc.)
     - Structured JSON output with validation
     - Proper retry logic on validation failures
+    - Extended thinking support for Anthropic Claude models
     """
 
     def __init__(
         self,
         model: str = "gpt-4o",
         reasoning_effort: str = "high",
+        thinking_budget: int | None = None,
     ):
         self.model = model
         self.reasoning_effort = reasoning_effort
+        self.thinking_budget = thinking_budget
 
         # Create RobustPolicyAgent with constraints
         # Use "high" reasoning for GPT-5.1, map string to literal
@@ -1484,6 +1487,7 @@ class LLMOptimizer:
             constraints=STANDARD_CONSTRAINTS,
             model=model,
             reasoning_effort=effort,  # type: ignore
+            thinking_budget=thinking_budget,
         )
 
         # Track last prompt for logging
@@ -1650,8 +1654,10 @@ class ReproducibleExperiment:
         reasoning_effort: str = "high",
         master_seed: int | None = None,
         verbose: bool = False,
+        thinking_budget: int | None = None,
     ):
         self.verbose = verbose
+        self.thinking_budget = thinking_budget
         self.experiment_def = EXPERIMENTS[experiment_key]
         # Generate unique experiment ID with timestamp: exp1_2025-12-04-143022
         timestamp = datetime.now().strftime('%Y-%m-%d-%H%M%S')
@@ -1676,7 +1682,11 @@ class ReproducibleExperiment:
         db_path = str(self.experiment_work_dir / db_filename)
 
         self.db = ExperimentDatabase(db_path)
-        self.optimizer = LLMOptimizer(model=model, reasoning_effort=reasoning_effort)
+        self.optimizer = LLMOptimizer(
+            model=model,
+            reasoning_effort=reasoning_effort,
+            thinking_budget=thinking_budget,
+        )
 
         # Master seed for reproducibility - if not provided, use timestamp-based seed
         # This ensures different experiments get different seeds by default
@@ -2749,6 +2759,15 @@ Examples:
   # Run Experiment 3 (Joint Learning, Castro-Aligned)
   python reproducible_experiment.py --experiment exp3 --output exp3.db
 
+  # Run with Claude Sonnet 4.5 and extended thinking (32K token budget)
+  python reproducible_experiment.py --experiment exp2 \\
+      --model anthropic:claude-sonnet-4-5-20250929 \\
+      --thinking-budget 32000
+
+  # Run with Claude without thinking (standard mode)
+  python reproducible_experiment.py --experiment exp2 \\
+      --model anthropic:claude-sonnet-4-5-20250929
+
   # Generate charts from an existing database
   python reproducible_experiment.py --charts experiment.db
 
@@ -2780,6 +2799,15 @@ Examples:
         default="high",
         choices=["none", "low", "medium", "high"],
         help="Reasoning effort level (default: high)",
+    )
+    parser.add_argument(
+        "--thinking-budget",
+        type=int,
+        default=None,
+        help="Token budget for Anthropic Claude extended thinking mode. "
+             "Enables deep reasoning when using anthropic: models. "
+             "Minimum 1024, recommended 10000-32000. "
+             "Example: --thinking-budget 32000",
     )
     parser.add_argument(
         "--max-iter",
@@ -2845,6 +2873,15 @@ Examples:
     if args.max_iter:
         EXPERIMENTS[args.experiment]["max_iterations"] = args.max_iter
 
+    # Validate thinking_budget with model
+    if args.thinking_budget is not None and not args.model.startswith("anthropic:"):
+        print(
+            f"Warning: --thinking-budget is only supported for Anthropic models "
+            f"(anthropic:*). Current model: {args.model}"
+        )
+        print("Ignoring --thinking-budget.")
+        args.thinking_budget = None
+
     # Run experiment
     experiment = ReproducibleExperiment(
         experiment_key=args.experiment,
@@ -2854,6 +2891,7 @@ Examples:
         reasoning_effort=args.reasoning,
         master_seed=args.master_seed,
         verbose=args.verbose,
+        thinking_budget=args.thinking_budget,
     )
 
     experiment.run()
