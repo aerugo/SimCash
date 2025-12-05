@@ -3,15 +3,17 @@
 This module provides ready-to-use ScenarioConstraints configurations
 at different levels of complexity:
 
+- CASTRO_CONSTRAINTS: Aligned with Castro et al. (2025) paper rules
 - MINIMAL_CONSTRAINTS: Bare minimum for simple policies
 - STANDARD_CONSTRAINTS: Common parameters for typical experiments
 - FULL_CONSTRAINTS: All SimCash capabilities for maximum flexibility
 
 Usage:
-    from experiments.castro.parameter_sets import STANDARD_CONSTRAINTS
+    from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
     from experiments.castro.generator import RobustPolicyAgent
 
-    agent = RobustPolicyAgent(constraints=STANDARD_CONSTRAINTS)
+    # For Castro-aligned experiments:
+    agent = RobustPolicyAgent(constraints=CASTRO_CONSTRAINTS)
     policy = agent.generate_policy("Optimize for low delay costs")
 """
 
@@ -24,6 +26,99 @@ from experiments.castro.schemas.registry import (
     COLLATERAL_ACTIONS,
     PAYMENT_ACTIONS,
     PAYMENT_TREE_FIELDS,
+)
+
+
+# ============================================================================
+# CASTRO_CONSTRAINTS - Aligned with Castro et al. (2025) paper
+# ============================================================================
+#
+# This constraint set enforces the rules from "Estimating Policy Functions
+# in Payment Systems Using Reinforcement Learning" (Castro et al., 2025):
+#
+# 1. Initial liquidity decision at t=0 ONLY (no mid-day collateral changes)
+# 2. Payment decisions are Release (x_t=1) or Hold (x_t=0) - no splitting
+# 3. No interbank credit lines (no ReleaseWithCredit)
+# 4. No LSM/netting (disabled at scenario level)
+# 5. Cost structure: r_c (collateral) < r_d (delay) < r_b (EOD borrowing)
+#
+# The LLM is constrained to generate policies matching Castro's model:
+# - strategic_collateral_tree: Post at tick 0, hold otherwise
+# - payment_tree: Release/Hold based on liquidity and urgency
+# - No bank_tree complexity (simple NoAction)
+# - No end_of_tick_collateral_tree (no reactive collateral)
+
+CASTRO_CONSTRAINTS = ScenarioConstraints(
+    allowed_parameters=[
+        ParameterSpec(
+            name="initial_liquidity_fraction",
+            min_value=0.0,
+            max_value=1.0,
+            default=0.25,
+            description=(
+                "Fraction x_0 of collateral B to post as initial liquidity. "
+                "Castro notation: ℓ₀ = x₀ · B. This is the ONLY collateral decision."
+            ),
+        ),
+        ParameterSpec(
+            name="urgency_threshold",
+            min_value=0,
+            max_value=20,
+            default=3.0,
+            description=(
+                "Ticks before deadline when payment becomes urgent and must be released. "
+                "Maps to Castro's intraday payment fraction x_t decision."
+            ),
+        ),
+        ParameterSpec(
+            name="liquidity_buffer",
+            min_value=0.5,
+            max_value=3.0,
+            default=1.0,
+            description=(
+                "Multiplier for required liquidity before releasing. "
+                "Helps enforce Castro's constraint: P_t · x_t ≤ ℓ_{t-1}."
+            ),
+        ),
+    ],
+    allowed_fields=[
+        # Time context (critical for Castro's t=0 decision)
+        "system_tick_in_day",
+        "ticks_remaining_in_day",
+        "day_progress_fraction",
+        "current_tick",
+        # Agent liquidity state (ℓ_t in Castro notation)
+        "balance",
+        "effective_liquidity",
+        # Transaction context (P_t in Castro notation)
+        "ticks_to_deadline",
+        "remaining_amount",
+        "amount",
+        "priority",
+        "is_past_deadline",
+        # Queue state (accumulated demand Σ P_t)
+        "queue1_total_value",
+        "queue1_liquidity_gap",
+        "outgoing_queue_size",
+        # Collateral (B in Castro notation - for initial allocation)
+        "max_collateral_capacity",
+        "posted_collateral",
+        "remaining_collateral_capacity",
+        # EXCLUDED: credit_*, lsm_*, throughput_*, state_register_*
+        # These features don't exist in Castro's model
+    ],
+    allowed_actions=[
+        "Release",  # x_t = 1: send payment in full
+        "Hold",     # x_t = 0: delay payment to next period
+        # EXCLUDED: Split, ReleaseWithCredit, PaceAndRelease, StaggerSplit,
+        #           Drop, Reprioritize, WithdrawFromRtgs, ResubmitToRtgs
+    ],
+    allowed_bank_actions=["NoAction"],  # Disable bank-level budgeting complexity
+    allowed_collateral_actions=[
+        "PostCollateral",   # For initial allocation at t=0
+        "HoldCollateral",   # For all other ticks (no changes)
+        # EXCLUDED: WithdrawCollateral (no mid-day collateral reduction in Castro)
+    ],
 )
 
 
@@ -223,6 +318,7 @@ FULL_CONSTRAINTS = ScenarioConstraints(
 # ============================================================================
 
 ALL_CONSTRAINT_SETS = {
+    "castro": CASTRO_CONSTRAINTS,
     "minimal": MINIMAL_CONSTRAINTS,
     "standard": STANDARD_CONSTRAINTS,
     "full": FULL_CONSTRAINTS,
