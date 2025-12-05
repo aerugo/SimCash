@@ -113,6 +113,30 @@ experiments/castro/
 ├── LAB_NOTES.md                 # Experiment log
 ├── pyproject.toml               # UV/pip configuration
 ├── uv.lock                      # Locked dependencies
+├── cli.py                       # NEW: Typer CLI entry point
+│
+├── castro/                      # NEW: Modular library package
+│   ├── __init__.py              # Package exports
+│   ├── core/                    # Core types and protocols
+│   │   ├── __init__.py
+│   │   ├── types.py             # TypedDicts, dataclasses
+│   │   └── protocols.py         # Repository, SimulationExecutor protocols
+│   ├── db/                      # Database layer
+│   │   ├── __init__.py
+│   │   ├── schema.py            # SQL schema definitions
+│   │   └── repository.py        # ExperimentRepository implementation
+│   ├── simulation/              # Simulation execution
+│   │   ├── __init__.py
+│   │   ├── executor.py          # ParallelSimulationExecutor
+│   │   └── metrics.py           # compute_metrics()
+│   ├── visualization/           # Chart generation
+│   │   ├── __init__.py
+│   │   └── charts.py            # All chart generators
+│   └── experiment/              # Experiment execution
+│       ├── __init__.py
+│       ├── definitions.py       # EXPERIMENTS registry
+│       ├── optimizer.py         # LLMOptimizer class
+│       └── runner.py            # ReproducibleExperiment
 │
 ├── configs/                     # Experiment configurations
 │   ├── castro_2period_aligned.yaml    # Exp1: 2-period deterministic
@@ -122,9 +146,9 @@ experiments/castro/
 ├── policies/                    # Policy definitions
 │   └── seed_policy.json         # Starting policy (READ-ONLY)
 │
-├── scripts/                     # Experiment runners
+├── scripts/                     # Legacy experiment runners (being migrated)
 │   ├── README.md                # Script documentation
-│   ├── reproducible_experiment.py     # Main runner
+│   ├── reproducible_experiment.py     # Main runner (legacy)
 │   └── analyze_validation_errors.py   # Analysis tool
 │
 ├── generator/                   # LLM policy generation
@@ -1122,34 +1146,53 @@ uv sync --extra dev
 # Set API key
 export OPENAI_API_KEY="your-key"
 
-# Run Experiment 1 (2-period deterministic)
-.venv/bin/python scripts/reproducible_experiment.py \
-    --experiment exp1 \
-    --output results/exp1.db
+# Run Experiment 1 (2-period deterministic) - NEW CLI
+.venv/bin/python cli.py run exp1
 
-# Run Experiment 2 (12-period stochastic)
-.venv/bin/python scripts/reproducible_experiment.py \
-    --experiment exp2 \
-    --output results/exp2.db \
-    --max-iter 30
+# Run Experiment 2 (12-period stochastic) with options
+.venv/bin/python cli.py run exp2 --max-iter 30
+
+# Run with Claude and extended thinking
+.venv/bin/python cli.py run exp2 \
+    --model anthropic:claude-sonnet-4-5-20250929 \
+    --thinking-budget 32000
 
 # List available experiments
-.venv/bin/python scripts/reproducible_experiment.py --list
+.venv/bin/python cli.py list
+
+# Generate charts from existing database
+.venv/bin/python cli.py charts results/exp1_2025-12-04-143022/experiment.db
+
+# Show experiment summary
+.venv/bin/python cli.py summary results/exp1_2025-12-04-143022/experiment.db
+
+# Legacy CLI (still supported)
+.venv/bin/python scripts/reproducible_experiment.py --experiment exp1 --output exp1.db
 ```
 
-### CLI Options
+### CLI Commands (New Typer CLI)
 
-```
-python reproducible_experiment.py [OPTIONS]
+```bash
+# Run an experiment
+python cli.py run EXPERIMENT [OPTIONS]
+  EXPERIMENT           Experiment key (exp1, exp2, exp3)
+  -o, --output         Output database filename (default: experiment.db)
+  -m, --model          LLM model (default: gpt-4o)
+  --reasoning          Reasoning effort: none|low|medium|high
+  --thinking-budget    Token budget for Claude extended thinking
+  --max-iter           Override max iterations
+  --master-seed        Master seed for reproducibility
+  --simcash-root       SimCash root directory
+  -v, --verbose        Enable verbose output
 
-Options:
-  -e, --experiment    Experiment key (exp1, exp2, exp3)
-  -o, --output        Output database path
-  -m, --model         LLM model (default: gpt-4o)
-  --reasoning         Reasoning effort: none|low|medium|high
-  --max-iter          Override max iterations
-  --simcash-root      SimCash root directory
-  -l, --list          List available experiments
+# List experiments
+python cli.py list
+
+# Generate charts
+python cli.py charts DB_PATH [--output DIR]
+
+# Show experiment summary
+python cli.py summary DB_PATH
 ```
 
 ### Analyzing Results
