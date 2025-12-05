@@ -34,16 +34,26 @@ simulation:
 deferred_crediting: true      # Credits applied at end of tick (Castro-compatible)
 deadline_cap_at_eod: true     # All deadlines capped at day end
 
-# Castro cost structure: r_c = 0.1, r_d = 0.2, r_b = 0.4 (per day, so per-tick for T=2)
+# Castro cost structure (see paper Section 6.2):
+#   r_c = 0.1 (collateral opportunity cost, PER DAY - charged across all ticks)
+#   r_d = 0.2 (delay cost, PER PERIOD - charged each tick a payment is held)
+#   r_b = 0.4 (EOD borrowing cost, PER DAY - charged once at day end)
+#
+# CRITICAL: r_d is per-period, NOT per-day! Each tick a payment is held incurs
+# 20% of its value as delay cost. This makes delay expensive to incentivize
+# early payment.
 cost_rates:
-  # Collateral/liquidity opportunity cost: 10% per tick (since T=2)
-  # Castro's r_c = 0.1/day = 5% per tick for 2-period day
+  # r_c: Collateral opportunity cost = 0.1/day
+  # Divided across ticks: 0.1/2 = 0.05 = 500 bps per tick
   collateral_cost_per_tick_bps: 500
 
-  # Delay cost: 20% of held value per day = 10% per tick for 2-period day
-  delay_cost_per_tick_per_cent: 0.001
+  # r_d: Delay cost = 0.2 PER PERIOD (per tick)
+  # NOT divided by ticks - each period of delay costs 20% of payment value
+  delay_cost_per_tick_per_cent: 0.2
 
-  # EOD/borrowing penalty: 40% of unsettled per day = 20% per tick
+  # r_b: EOD borrowing = 0.4/day
+  # Modeled as overdraft cost; divided by ticks: 0.4/2 = 0.2 = 2000 bps per tick
+  # Note: Castro applies r_b once at EOD; SimCash charges per-tick while in overdraft
   overdraft_bps_per_tick: 2000
 
   # Disable non-Castro features

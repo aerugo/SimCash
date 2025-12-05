@@ -153,12 +153,16 @@ class TestLsmDisabled:
 class TestCostRates:
     """Verify cost rates match Castro paper derivations.
 
-    Castro uses daily rates:
-    - r_c = 0.1 (10% per day collateral opportunity cost)
-    - r_d = 0.2 (20% per day delay cost)
-    - r_b = 0.4 (40% per day borrowing/overdraft cost)
+    Castro uses three cost rates (see Section 6.2):
+    - r_c = 0.1 (10% per DAY collateral opportunity cost) - divided by ticks
+    - r_d = 0.2 (20% per PERIOD delay cost) - NOT divided by ticks!
+    - r_b = 0.4 (40% per DAY borrowing/overdraft cost) - divided by ticks
 
-    These must be divided by ticks_per_day for per-tick rates.
+    CRITICAL: r_d is a PER-PERIOD rate, not a per-day rate!
+    This means each tick a payment is delayed costs 20% of its value.
+    This is documented in the paper's cost equation on page 6:
+        "Cost of delay in period t: r_d × P_t(1 - x_t)"
+    The delay cost is applied fresh each period, not amortized across the day.
     """
 
     def test_exp1_collateral_cost_rate(
@@ -179,13 +183,18 @@ class TestCostRates:
         self,
         exp1_config_dict: dict[str, Any],
     ) -> None:
-        """Exp1 delay cost: 0.2/day / 2 ticks = 0.1/tick per cent = 0.001."""
+        """Exp1 delay cost: r_d = 0.2 PER PERIOD (not divided by ticks!).
+
+        Castro's delay cost is per-period, meaning each tick of delay
+        costs 20% of the payment value. This makes delay very expensive
+        to incentivize early settlement.
+        """
         cost_rates = exp1_config_dict.get("cost_rates", {})
         actual = cost_rates.get("delay_cost_per_tick_per_cent")
-        expected = 0.001  # 0.2 / 2 / 100 = 0.001
+        expected = 0.2  # r_d = 0.2 per period, NOT divided by ticks
         assert actual == pytest.approx(expected, rel=0.01), (
             f"Delay cost mismatch: got {actual}, expected {expected}. "
-            f"Formula: 0.2/day / 2 ticks = 0.1/tick, scaled per cent = 0.001"
+            f"Castro's r_d = 0.2 is per-period, NOT per-day!"
         )
 
     def test_exp1_overdraft_cost_rate(
@@ -207,7 +216,7 @@ class TestCostRates:
         exp2_config_dict: dict[str, Any],
         exp2_expected_rates: dict[str, float],
     ) -> None:
-        """Exp2 costs must be divided by 12 (ticks_per_day)."""
+        """Exp2 costs: r_c and r_b divided by 12, but r_d is per-period (0.2)."""
         cost_rates = exp2_config_dict.get("cost_rates", {})
 
         # Collateral: 0.1 / 12 * 10000 = 83.33 -> 83
@@ -215,10 +224,10 @@ class TestCostRates:
             "Collateral cost should be 83 bps (0.1/12 * 10000)"
         )
 
-        # Delay: 0.2 / 12 / 100 = 0.000167
+        # Delay: r_d = 0.2 per period (NOT divided by ticks!)
         assert cost_rates.get("delay_cost_per_tick_per_cent") == pytest.approx(
-            0.00017, rel=0.1
-        )
+            0.2, rel=0.01
+        ), "Delay cost should be 0.2 (per-period rate, not divided by ticks)"
 
         # Overdraft: 0.4 / 12 * 10000 = 333.33 -> 333
         assert cost_rates.get("overdraft_bps_per_tick") == 333, (
@@ -230,7 +239,7 @@ class TestCostRates:
         exp3_config_dict: dict[str, Any],
         exp3_expected_rates: dict[str, float],
     ) -> None:
-        """Exp3 costs must be divided by 3 (ticks_per_day)."""
+        """Exp3 costs: r_c and r_b divided by 3, but r_d is per-period (0.2)."""
         cost_rates = exp3_config_dict.get("cost_rates", {})
 
         # Collateral: 0.1 / 3 * 10000 = 333.33 -> 333
@@ -238,10 +247,10 @@ class TestCostRates:
             "Collateral cost should be 333 bps (0.1/3 * 10000)"
         )
 
-        # Delay: 0.2 / 3 / 100 = 0.000667
+        # Delay: r_d = 0.2 per period (NOT divided by ticks!)
         assert cost_rates.get("delay_cost_per_tick_per_cent") == pytest.approx(
-            0.00067, rel=0.1
-        )
+            0.2, rel=0.01
+        ), "Delay cost should be 0.2 (per-period rate, not divided by ticks)"
 
         # Overdraft: 0.4 / 3 * 10000 = 1333.33 -> 1333
         assert cost_rates.get("overdraft_bps_per_tick") == 1333, (
