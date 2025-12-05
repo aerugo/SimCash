@@ -4,6 +4,13 @@
 # CASTRO ALIGNMENT FEATURES ENABLED:
 #   - deferred_crediting: true  (credits applied at end of tick)
 #   - deadline_cap_at_eod: true (all deadlines capped at day end)
+#   - LSM disabled (RTGS without netting, as per Castro model)
+#
+# CASTRO POLICY CONSTRAINTS (enforced by castro_mode=True in experiment script):
+#   - Initial liquidity decision at t=0 ONLY (no mid-day collateral changes)
+#   - Payment actions: Only Release (x_t=1) or Hold (x_t=0), no Split
+#   - No ReleaseWithCredit (no interbank credit lines in Castro model)
+#   - No reactive collateral tree (end_of_tick_collateral_tree)
 #
 # Symmetric payment profile: P = [20000, 20000, 0] for both banks
 # Tests the liquidity-delay tradeoff in a balanced setting

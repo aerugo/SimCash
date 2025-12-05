@@ -144,6 +144,95 @@ class TestFullConstraints:
             assert action in FULL_CONSTRAINTS.allowed_actions
 
 
+class TestCastroConstraints:
+    """Tests for CASTRO_CONSTRAINTS - Castro paper alignment."""
+
+    def test_castro_constraints_is_valid(self) -> None:
+        """CASTRO_CONSTRAINTS is a valid ScenarioConstraints."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+        from experiments.castro.schemas.parameter_config import ScenarioConstraints
+
+        assert isinstance(CASTRO_CONSTRAINTS, ScenarioConstraints)
+
+    def test_castro_only_release_hold_actions(self) -> None:
+        """CASTRO_CONSTRAINTS only allows Release and Hold."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        assert set(CASTRO_CONSTRAINTS.allowed_actions) == {"Release", "Hold"}
+
+    def test_castro_no_split(self) -> None:
+        """CASTRO_CONSTRAINTS excludes Split (continuous payments in Castro)."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        assert "Split" not in CASTRO_CONSTRAINTS.allowed_actions
+
+    def test_castro_no_release_with_credit(self) -> None:
+        """CASTRO_CONSTRAINTS excludes ReleaseWithCredit (no interbank credit)."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        assert "ReleaseWithCredit" not in CASTRO_CONSTRAINTS.allowed_actions
+
+    def test_castro_collateral_restricted(self) -> None:
+        """CASTRO_CONSTRAINTS only allows PostCollateral and HoldCollateral."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        assert CASTRO_CONSTRAINTS.allowed_collateral_actions is not None
+        assert set(CASTRO_CONSTRAINTS.allowed_collateral_actions) == {
+            "PostCollateral",
+            "HoldCollateral",
+        }
+
+    def test_castro_no_withdraw_collateral(self) -> None:
+        """CASTRO_CONSTRAINTS excludes WithdrawCollateral (no mid-day reduction)."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        assert CASTRO_CONSTRAINTS.allowed_collateral_actions is not None
+        assert "WithdrawCollateral" not in CASTRO_CONSTRAINTS.allowed_collateral_actions
+
+    def test_castro_bank_actions_minimal(self) -> None:
+        """CASTRO_CONSTRAINTS bank actions restricted to NoAction."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        assert CASTRO_CONSTRAINTS.allowed_bank_actions == ["NoAction"]
+
+    def test_castro_has_initial_liquidity_fraction(self) -> None:
+        """CASTRO_CONSTRAINTS has initial_liquidity_fraction parameter."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        param_names = CASTRO_CONSTRAINTS.get_parameter_names()
+        assert "initial_liquidity_fraction" in param_names
+
+    def test_castro_initial_liquidity_fraction_range(self) -> None:
+        """initial_liquidity_fraction is in [0, 1] range."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        param = CASTRO_CONSTRAINTS.get_parameter_by_name("initial_liquidity_fraction")
+        assert param is not None
+        assert param.min_value == 0.0
+        assert param.max_value == 1.0
+
+    def test_castro_has_tick_field(self) -> None:
+        """CASTRO_CONSTRAINTS has system_tick_in_day field."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+
+        assert "system_tick_in_day" in CASTRO_CONSTRAINTS.allowed_fields
+
+    def test_castro_can_create_agent(self) -> None:
+        """CASTRO_CONSTRAINTS can be used to create RobustPolicyAgent."""
+        from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS
+        from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
+
+        agent = RobustPolicyAgent(constraints=CASTRO_CONSTRAINTS, castro_mode=True)
+        assert agent.policy_model is not None
+
+    def test_castro_in_all_constraint_sets(self) -> None:
+        """CASTRO_CONSTRAINTS is available via get_constraints."""
+        from experiments.castro.parameter_sets import get_constraints
+
+        castro = get_constraints("castro")
+        assert castro is not None
+
+
 class TestParameterSetHierarchy:
     """Tests for parameter set hierarchy and relationships."""
 
@@ -180,16 +269,18 @@ class TestParameterSetHierarchy:
     def test_all_sets_can_create_agent(self) -> None:
         """All parameter sets can be used to create RobustPolicyAgent."""
         from experiments.castro.parameter_sets import (
+            CASTRO_CONSTRAINTS,
             MINIMAL_CONSTRAINTS,
             STANDARD_CONSTRAINTS,
             FULL_CONSTRAINTS,
         )
         from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
 
-        for name, constraints in [
-            ("minimal", MINIMAL_CONSTRAINTS),
-            ("standard", STANDARD_CONSTRAINTS),
-            ("full", FULL_CONSTRAINTS),
+        for name, constraints, castro_mode in [
+            ("castro", CASTRO_CONSTRAINTS, True),
+            ("minimal", MINIMAL_CONSTRAINTS, False),
+            ("standard", STANDARD_CONSTRAINTS, False),
+            ("full", FULL_CONSTRAINTS, False),
         ]:
-            agent = RobustPolicyAgent(constraints=constraints)
+            agent = RobustPolicyAgent(constraints=constraints, castro_mode=castro_mode)
             assert agent.policy_model is not None, f"Failed to create agent for {name}"
