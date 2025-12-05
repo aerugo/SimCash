@@ -58,7 +58,8 @@ if CASTRO_ENV_PATH.exists():
     load_dotenv(CASTRO_ENV_PATH)
 
 from experiments.castro.generator.robust_policy_agent import RobustPolicyAgent
-from experiments.castro.parameter_sets import STANDARD_CONSTRAINTS
+from experiments.castro.generator.validation import validate_castro_policy
+from experiments.castro.parameter_sets import CASTRO_CONSTRAINTS, STANDARD_CONSTRAINTS
 from experiments.castro.prompts.context import (
     IterationRecord,
     SingleAgentIterationRecord,
@@ -204,6 +205,11 @@ CREATE INDEX IF NOT EXISTS idx_validation_errors_category ON validation_errors(e
 
 EXPERIMENTS = {
     # Castro-aligned experiments (with deferred_crediting and deadline_cap_at_eod)
+    # castro_mode=True enforces Castro paper constraints:
+    # - Only Release/Hold actions (no Split, ReleaseWithCredit)
+    # - Collateral posting only at tick 0 (no mid-day changes)
+    # - No reactive end-of-tick collateral tree
+    # - No bank-level budgeting (only NoAction)
     "exp1": {
         "name": "Experiment 1: Two-Period Deterministic (Castro-Aligned)",
         "description": "2-period Nash equilibrium validation with deferred crediting",
@@ -214,6 +220,7 @@ EXPERIMENTS = {
         "max_iterations": 25,
         "convergence_threshold": 0.05,
         "convergence_window": 5,  # Require 5 stable iterations before converging
+        "castro_mode": True,  # Enforce Castro paper constraints
     },
     "exp2": {
         "name": "Experiment 2: Twelve-Period Stochastic (Castro-Aligned)",
@@ -225,6 +232,7 @@ EXPERIMENTS = {
         "max_iterations": 25,
         "convergence_threshold": 0.05,
         "convergence_window": 5,  # Require 5 stable iterations before converging
+        "castro_mode": True,  # Enforce Castro paper constraints
     },
     "exp3": {
         "name": "Experiment 3: Joint Liquidity and Timing (Castro-Aligned)",
@@ -236,6 +244,7 @@ EXPERIMENTS = {
         "max_iterations": 25,
         "convergence_threshold": 0.05,
         "convergence_window": 5,  # Require 5 stable iterations before converging
+        "castro_mode": True,  # Enforce Castro paper constraints
     },
 }
 
@@ -1531,6 +1540,7 @@ class LLMOptimizer:
     - Structured JSON output with validation
     - Proper retry logic on validation failures
     - Extended thinking support for Anthropic Claude models
+    - Castro paper alignment when castro_mode=True
     """
 
     def __init__(
@@ -1539,11 +1549,22 @@ class LLMOptimizer:
         reasoning_effort: str = "high",
         thinking_budget: int | None = None,
         verbose: bool = False,
+        castro_mode: bool = False,
     ):
         self.model = model
         self.reasoning_effort = reasoning_effort
         self.thinking_budget = thinking_budget
         self.verbose = verbose
+        self.castro_mode = castro_mode
+
+        # Select constraints based on mode
+        # CASTRO_CONSTRAINTS enforces Castro paper rules:
+        # - Only Release/Hold actions (no Split, ReleaseWithCredit)
+        # - Collateral posting only at tick 0
+        # - No reactive collateral changes
+        constraints = CASTRO_CONSTRAINTS if castro_mode else STANDARD_CONSTRAINTS
+        if verbose and castro_mode:
+            print("[Castro Mode] Using CASTRO_CONSTRAINTS for policy generation")
 
         # Create RobustPolicyAgent with constraints
         # Use "high" reasoning for GPT-5.1, map string to literal
@@ -1551,11 +1572,12 @@ class LLMOptimizer:
         effort = effort_mapping.get(reasoning_effort, "high")
 
         self.agent = RobustPolicyAgent(
-            constraints=STANDARD_CONSTRAINTS,
+            constraints=constraints,
             model=model,
             reasoning_effort=effort,  # type: ignore
             thinking_budget=thinking_budget,
             verbose=verbose,
+            castro_mode=castro_mode,
         )
 
         # Track last prompt for logging
@@ -2017,11 +2039,21 @@ class ReproducibleExperiment:
         db_path = str(self.experiment_work_dir / db_filename)
 
         self.db = ExperimentDatabase(db_path)
+
+        # Check if this is a Castro-aligned experiment
+        self.castro_mode = self.experiment_def.get("castro_mode", False)
+        if self.castro_mode and verbose:
+            print(f"[Castro Mode] Enabled for experiment {experiment_key}")
+            print("  - Only Release/Hold actions allowed")
+            print("  - Collateral posting restricted to tick 0")
+            print("  - No Split, ReleaseWithCredit, or reactive collateral")
+
         self.optimizer = LLMOptimizer(
             model=model,
             reasoning_effort=reasoning_effort,
             thinking_budget=thinking_budget,
             verbose=self.verbose,
+            castro_mode=self.castro_mode,
         )
 
         # Master seed for reproducibility - if not provided, use timestamp-based seed
@@ -2394,7 +2426,14 @@ class ReproducibleExperiment:
         - --scenario: Validates against scenario's feature toggles
         - --functional-tests: Catches runtime errors (e.g., wrong action types
           in collateral trees) that schema validation alone would miss.
+        - Castro-specific validation (when castro_mode=True): Ensures policies
+          conform to Castro paper constraints (tick-0 collateral only, etc.)
         """
+        # Castro-specific pre-validation
+        if self.castro_mode:
+            castro_result = validate_castro_policy(policy, strict=True)
+            if not castro_result.is_valid:
+                return False, "", castro_result.errors
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode='w') as f:
             json.dump(policy, f)
             f.flush()
