@@ -103,7 +103,10 @@ class RobustPolicyDeps:
 # ============================================================================
 
 
-def generate_system_prompt(constraints: ScenarioConstraints) -> str:
+def generate_system_prompt(
+    constraints: ScenarioConstraints,
+    castro_mode: bool = False,
+) -> str:
     """Generate an improved system prompt with few-shot examples.
 
     The prompt includes:
@@ -112,6 +115,11 @@ def generate_system_prompt(constraints: ScenarioConstraints) -> str:
     - Explicit action-to-tree mapping table
     - Pre-generation checklist
     - Structured vocabulary of allowed elements
+    - Castro paper alignment rules (when castro_mode=True)
+
+    Args:
+        constraints: Scenario constraints defining allowed elements
+        castro_mode: If True, include Castro paper alignment rules
     """
     # Build parameter vocabulary with defaults
     param_vocab = []
@@ -176,7 +184,77 @@ def generate_system_prompt(constraints: ScenarioConstraints) -> str:
         )
     tree_enablement = "\n".join(tree_info)
 
+    # Castro paper alignment section (only included when castro_mode=True)
+    castro_section = ""
+    if castro_mode:
+        castro_section = """
+################################################################################
+#                    CASTRO PAPER ALIGNMENT MODE                               #
+#           (Replicating Castro et al. 2025 Payment System Game)               #
+################################################################################
+
+This experiment follows the rules from:
+"Estimating Policy Functions in Payment Systems Using Reinforcement Learning"
+
+CASTRO MODEL CONSTRAINTS:
+
+1. INITIAL LIQUIDITY DECISION (t=0 ONLY):
+   - Choose fraction x₀ ∈ [0,1] of collateral B at day start: ℓ₀ = x₀ · B
+   - This is the ONLY collateral decision allowed
+   - strategic_collateral_tree MUST guard PostCollateral with tick == 0
+
+2. INTRADAY PAYMENT DECISIONS (t=1,...,T-1):
+   - Each period, choose x_t ∈ [0,1] of payments to send
+   - Release = send in full (x_t = 1)
+   - Hold = delay to next period (x_t = 0)
+   - Constraint: Can only send what liquidity covers: P_t · x_t ≤ ℓ_{t-1}
+
+3. COST STRUCTURE (r_c < r_d < r_b):
+   - r_c: Collateral opportunity cost (initial liquidity)
+   - r_d: Delay cost per tick (waiting payments)
+   - r_b: End-of-day borrowing cost (shortfall)
+
+4. LIQUIDITY EVOLUTION:
+   - ℓ_t = ℓ_{t-1} - (outflows) + (inflows)
+   - With deferred crediting: inflows available NEXT period only
+
+PROHIBITED IN CASTRO MODE:
+  ✗ Split, PaceAndRelease, StaggerSplit (continuous payments assumed)
+  ✗ ReleaseWithCredit (no interbank credit)
+  ✗ WithdrawCollateral (no mid-day collateral reduction)
+  ✗ PostCollateral after tick 0 (initial decision only)
+  ✗ SetReleaseBudget, SetState, AddState (no complex bank logic)
+
+REQUIRED STRATEGIC_COLLATERAL_TREE STRUCTURE:
+```json
+{
+  "type": "condition",
+  "node_id": "SC1",
+  "condition": {"op": "==", "left": {"field": "system_tick_in_day"}, "right": {"value": 0}},
+  "on_true": {
+    "type": "action",
+    "node_id": "SC2",
+    "action": "PostCollateral",
+    "parameters": {
+      "amount": {
+        "compute": {
+          "op": "*",
+          "left": {"field": "max_collateral_capacity"},
+          "right": {"param": "initial_liquidity_fraction"}
+        }
+      }
+    }
+  },
+  "on_false": {"type": "action", "node_id": "SC3", "action": "HoldCollateral"}
+}
+```
+
+################################################################################
+
+"""
+
     return f"""You are an expert policy generator for SimCash, a payment settlement simulation.
+{castro_section}
 
 ################################################################################
 #                     MANDATORY PRE-GENERATION CHECKLIST                       #
@@ -511,6 +589,7 @@ class RobustPolicyAgent:
         api_key: str | None = None,
         thinking_budget: int | None = None,
         verbose: bool = False,
+        castro_mode: bool = False,
     ) -> None:
         """Initialize robust policy agent.
 
@@ -532,6 +611,11 @@ class RobustPolicyAgent:
                            many tokens for internal reasoning. Minimum 1024.
                            Only applies to anthropic: models.
             verbose: Enable verbose error logging for debugging API issues.
+            castro_mode: Enable Castro paper alignment mode. Uses specialized
+                        prompts that emphasize Castro's model constraints:
+                        - Initial liquidity decision at t=0 only
+                        - Only Release/Hold actions for payments
+                        - No mid-day collateral changes
         """
         self.constraints = constraints
         self.model = model or DEFAULT_MODEL
@@ -540,6 +624,7 @@ class RobustPolicyAgent:
         self.reasoning_summary = reasoning_summary
         self._api_key = api_key
         self.verbose = verbose
+        self.castro_mode = castro_mode
 
         # Validate and store thinking budget
         self.thinking_budget: int | None = None
@@ -568,7 +653,8 @@ class RobustPolicyAgent:
         self.policy_model = create_constrained_policy_model(constraints)
 
         # Generate system prompt from constraints
-        self._system_prompt = generate_system_prompt(constraints)
+        # Use Castro-specific prompts when castro_mode is True
+        self._system_prompt = generate_system_prompt(constraints, castro_mode=castro_mode)
 
         # Lazy-initialized PydanticAI agent
         self._agent: Any | None = None
