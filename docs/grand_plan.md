@@ -2466,7 +2466,7 @@ How was this tested? (steps to reproduce)
 #### Option 1: Standalone Service (Development)
 ```bash
 # Build Rust core
-cd backend && cargo build --release
+cd simulator && cargo build --release
 
 # Install Python package
 cd .. && maturin develop --release
@@ -3041,7 +3041,7 @@ cd payment-simulator
 cd api && pip install -e ".[dev]"
 
 # Build Rust core
-cd ../backend && cargo build --release
+cd ../simulator && cargo build --release
 cd .. && maturin develop --release
 
 # Run tests

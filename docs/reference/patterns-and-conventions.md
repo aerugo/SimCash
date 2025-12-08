@@ -480,7 +480,7 @@ diff <(grep -v "Duration:" run.txt) <(grep -v "Duration:" replay.txt)
 
 ```bash
 # Rust tests (--no-default-features required)
-cd backend
+cd simulator
 cargo test --no-default-features
 
 # Python tests
