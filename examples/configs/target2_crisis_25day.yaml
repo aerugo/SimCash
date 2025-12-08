@@ -68,7 +68,7 @@ agents:
     multilateral_limit: 12000000  # $120k total daily outflow
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_priority_aware.json"
+      json_path: "simulator/policies/target2_priority_aware.json"
     arrival_config:
       rate_per_tick: 0.65
       amount_distribution: { type: "LogNormal", mean: 11.51, std_dev: 0.9 }
@@ -87,7 +87,7 @@ agents:
     multilateral_limit: 11000000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_limit_aware.json"
+      json_path: "simulator/policies/target2_limit_aware.json"
     arrival_config:
       rate_per_tick: 0.60
       amount_distribution: { type: "LogNormal", mean: 11.51, std_dev: 0.85 }
@@ -106,8 +106,8 @@ agents:
     multilateral_limit: 8500000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_crisis_proactive_manager.json"  # GOOD POLICY
-      # json_path: "backend/policies/target2_crisis_risk_denier.json"      # BAD POLICY
+      json_path: "simulator/policies/target2_crisis_proactive_manager.json"  # GOOD POLICY
+      # json_path: "simulator/policies/target2_crisis_risk_denier.json"      # BAD POLICY
     arrival_config:
       rate_per_tick: 0.55
       amount_distribution: { type: "Uniform", min: 80000, max: 350000 }
@@ -127,8 +127,8 @@ agents:
     # POLICY IS THE VARIABLE - switch between good/bad policy to see difference
     policy:
       type: "FromJson"
-      # json_path: "backend/policies/target2_crisis_proactive_manager.json"  # GOOD POLICY
-      json_path: "backend/policies/target2_crisis_risk_denier.json"      # BAD POLICY
+      # json_path: "simulator/policies/target2_crisis_proactive_manager.json"  # GOOD POLICY
+      json_path: "simulator/policies/target2_crisis_risk_denier.json"      # BAD POLICY
     arrival_config:
       rate_per_tick: 0.58
       amount_distribution: { type: "Uniform", min: 100000, max: 400000 }

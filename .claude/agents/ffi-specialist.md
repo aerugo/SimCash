@@ -299,11 +299,11 @@ def test_top_agents():
 
 When adding a new event type:
 
-1. **Define enriched event in Rust** (`backend/src/models/event.rs`)
+1. **Define enriched event in Rust** (`simulator/src/models/event.rs`)
    - Include ALL fields needed for display
    - Don't store just IDs - store full display data
 
-2. **Serialize via FFI** (`backend/src/ffi/orchestrator.rs`)
+2. **Serialize via FFI** (`simulator/src/ffi/orchestrator.rs`)
    ```rust
    Event::MyNewEvent { tick, agent_id, amount, reason } => {
        let mut dict = HashMap::new();
