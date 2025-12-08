@@ -41,7 +41,7 @@ cd payment-simulator
 cd api && uv sync --extra dev && cd ..
 
 # Verify installation
-cargo test --manifest-path backend/Cargo.toml --no-default-features
+cargo test --manifest-path simulator/Cargo.toml --no-default-features
 uv run --directory api pytest tests/
 ```
 
@@ -117,7 +117,7 @@ uv run --directory api uvicorn payment_simulator.api.main:app --reload
 
 ```bash
 # Rust tests
-cargo test --manifest-path backend/Cargo.toml --no-default-features
+cargo test --manifest-path simulator/Cargo.toml --no-default-features
 
 # Python tests
 uv run --directory api pytest tests/
