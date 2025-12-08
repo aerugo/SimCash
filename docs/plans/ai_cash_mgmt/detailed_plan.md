@@ -1,6 +1,6 @@
 # AI Cash Management Module - Detailed Implementation Plan
 
-> **Document Version**: 1.0
+> **Document Version**: 1.1
 > **Date**: 2025-12-08
 > **Status**: Planning
 > **Authors**: SimCash Engineering Team
@@ -11,24 +11,25 @@
 
 This document outlines the implementation plan for `ai_cash_mgmt`, a new Python module that enables LLM-based policy optimization for the SimCash payment settlement simulator. The module provides an "AI Cash Manager" game where multiple agents can have their payment policies automatically optimized by an LLM to minimize costs while maintaining settlement throughput.
 
-### Key Differentiators from Castro Experiments
+### Key Features
 
-| Aspect | Castro Experiments | ai_cash_mgmt Module |
-|--------|-------------------|---------------------|
-| **Transaction Source** | New random transactions each run | Resample from REAL historical transactions |
-| **Optimization Timing** | End of simulation only | Intra-simulation (every X tick, EoD, or sim end) |
-| **Database** | Separate experiment database | Shared with main SimCash database |
-| **Monte Carlo Data** | Persisted | NOT persisted (ephemeral evaluation) |
-| **Scope** | Research experiments | Production feature |
-| **Reference** | Castro paper specific | Generalized (no paper reference) |
+| Feature | Description |
+|---------|-------------|
+| **Transaction Source** | Resample from REAL historical transactions seen during simulation |
+| **Optimization Timing** | Intra-simulation (every X tick, EoD, or sim end) |
+| **Database** | Shared with main SimCash database |
+| **Monte Carlo Data** | NOT persisted (ephemeral evaluation only) |
+| **Per-Agent LLM Config** | Different agents can use different LLM models/providers |
+| **Determinism** | Same master seed produces identical optimization trajectories |
 
 ### Goals
 
 1. **Generalized LLM Policy Optimization** - A production-ready module for AI-driven cash management
 2. **Historical Transaction Resampling** - Monte Carlo evaluation using real transaction patterns
 3. **Flexible Optimization Schedules** - Support intra-simulation, end-of-day, and inter-simulation optimization
-4. **Strict Determinism** - Same master seed produces identical optimization trajectories
-5. **Full Observability** - All policy iterations, diffs, and metrics saved to database
+4. **Per-Agent Model Configuration** - Different banks can use different LLMs for research comparisons
+5. **Strict Determinism** - Same master seed produces identical optimization trajectories
+6. **Full Observability** - All policy iterations, diffs, and metrics saved to database
 
 ---
 
@@ -39,15 +40,15 @@ This document outlines the implementation plan for `ai_cash_mgmt`, a new Python 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         User Configuration                               │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐  │
-│  │ scenario.yaml   │  │ seed_policies/  │  │ game_config.yaml        │  │
-│  │ (agents, costs, │  │ (initial JSON   │  │ (optimization settings, │  │
-│  │  arrivals, etc) │  │  policies)      │  │  LLM config, sampling)  │  │
-│  └────────┬────────┘  └────────┬────────┘  └────────────┬────────────┘  │
-│           │                    │                        │               │
-│           └────────────────────┼────────────────────────┘               │
-│                                │                                        │
-│                                ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │ scenario.yaml                    │  game_config.yaml                ││
+│  │ (agents, costs, arrivals,        │  (optimization settings,         ││
+│  │  seed policies for all agents)   │   per-agent LLM config, sampling)││
+│  └────────────────┬─────────────────┴────────────────┬─────────────────┘│
+│                   │                                  │                  │
+│                   └──────────────┬───────────────────┘                  │
+│                                  │                                      │
+│                                  ▼                                      │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
 │  │                    ai_cash_mgmt Module                            │   │
 │  │  ┌────────────────┐  ┌────────────────┐  ┌─────────────────────┐ │   │
@@ -114,6 +115,11 @@ This document outlines the implementation plan for `ai_cash_mgmt`, a new Python 
    - Configurable max retries before falling back to best-known policy
    - All validation errors logged for debugging
 
+5. **Per-Agent LLM Configuration**
+   - Each optimized agent can use a different LLM model/provider
+   - Enables research comparing model performance on same scenario
+   - Default config applies to agents without explicit config
+
 ---
 
 ## Part II: Module Structure
@@ -126,6 +132,7 @@ ai_cash_mgmt/
 ├── config/
 │   ├── __init__.py
 │   ├── game_config.py             # GameConfig Pydantic model
+│   ├── agent_llm_config.py        # Per-agent LLM configuration
 │   ├── optimization_schedule.py   # Schedule configuration (tick/eod/sim-end)
 │   └── convergence.py             # Convergence criteria definitions
 ├── core/
@@ -149,6 +156,11 @@ ai_cash_mgmt/
 │   ├── models.py                  # Database models (GameSession, PolicyIteration, etc.)
 │   ├── repository.py              # Database operations
 │   └── schema.py                  # DDL for ai_cash_mgmt tables
+├── constraints/
+│   ├── __init__.py
+│   ├── scenario_constraints.py    # ScenarioConstraints model
+│   ├── parameter_spec.py          # ParameterSpec for allowed params
+│   └── registry.py                # Action/field registries
 ├── protocols.py                   # Abstract interfaces (Protocol classes)
 ├── exceptions.py                  # Custom exception types
 └── cli.py                         # CLI commands (ai-game run, ai-game replay, etc.)
@@ -158,6 +170,7 @@ tests/
 ├── conftest.py                    # Shared fixtures, mocked LLM responses
 ├── unit/
 │   ├── test_game_config.py
+│   ├── test_agent_llm_config.py
 │   ├── test_transaction_sampler.py
 │   ├── test_constraint_validator.py
 │   ├── test_convergence_detector.py
@@ -179,15 +192,22 @@ tests/
 ```python
 # ai_cash_mgmt/__init__.py
 
-from ai_cash_mgmt.config import GameConfig, OptimizationSchedule, ConvergenceCriteria
+from ai_cash_mgmt.config import (
+    GameConfig,
+    AgentOptimizationConfig,
+    OptimizationSchedule,
+    ConvergenceCriteria,
+)
 from ai_cash_mgmt.core import GameOrchestrator, GameSession, GameMode
 from ai_cash_mgmt.optimization import PolicyOptimizer, PolicyEvaluator
 from ai_cash_mgmt.sampling import TransactionSampler
 from ai_cash_mgmt.persistence import GameRepository
+from ai_cash_mgmt.constraints import ScenarioConstraints, ParameterSpec
 
 __all__ = [
     # Configuration
     "GameConfig",
+    "AgentOptimizationConfig",
     "OptimizationSchedule",
     "ConvergenceCriteria",
     # Core
@@ -201,6 +221,9 @@ __all__ = [
     "TransactionSampler",
     # Persistence
     "GameRepository",
+    # Constraints
+    "ScenarioConstraints",
+    "ParameterSpec",
 ]
 ```
 
@@ -210,41 +233,58 @@ __all__ = [
 
 ### 3.1 Game Configuration (game_config.yaml)
 
+The game configuration references a scenario config (which already contains seed policies for all agents) and specifies optimization settings including per-agent LLM configurations.
+
 ```yaml
 # game_config.yaml - Configuration for AI Cash Management Game
 
 # Metadata
 game_id: "experiment_2024_q4_001"
-description: "Multi-agent policy optimization with 4 banks"
+description: "Multi-agent policy optimization comparing GPT-5.1 vs Claude"
 
-# Scenario reference
+# Scenario reference (contains agents, costs, arrivals, AND seed policies)
 scenario_config: "scenarios/4bank_high_volume.yaml"
-
-# Seed policies for each agent (paths to JSON files)
-seed_policies:
-  BANK_A: "policies/conservative_seed.json"
-  BANK_B: "policies/aggressive_seed.json"
-  BANK_C: "policies/balanced_seed.json"
-  BANK_D: "policies/balanced_seed.json"
 
 # Master seed for determinism
 master_seed: 42
 
-# Agents to optimize (others keep seed policy)
+# Per-agent optimization configuration
+# Only agents listed here will be optimized; others keep their seed policies
 optimized_agents:
-  - BANK_A
-  - BANK_B
-  # BANK_C and BANK_D keep their seed policies
+  BANK_A:
+    # BANK_A uses GPT-5.1 with high reasoning
+    llm_config:
+      provider: "openai"
+      model: "gpt-5.1"
+      reasoning_effort: "high"
+      temperature: 0.0
+      max_retries: 3
+      timeout_seconds: 120
 
-# LLM configuration
-llm_config:
-  provider: "openai"               # openai, anthropic, google
-  model: "gpt-5.1"                 # Model identifier
-  reasoning_effort: "high"         # low, medium, high (for reasoning models)
-  thinking_budget: null            # Token budget for Claude extended thinking
-  temperature: 0.0                 # Deterministic output (derived from master_seed if > 0)
-  max_retries: 3                   # Retries on validation failure
-  timeout_seconds: 120             # Per-request timeout
+  BANK_B:
+    # BANK_B uses Claude for comparison
+    llm_config:
+      provider: "anthropic"
+      model: "claude-sonnet-4-5-20250929"
+      thinking_budget: 10000
+      temperature: 0.0
+      max_retries: 3
+      timeout_seconds: 180
+
+  BANK_C:
+    # BANK_C uses default LLM config (inherits from default_llm_config)
+    # No llm_config specified = uses default
+
+  # BANK_D not listed = keeps seed policy, not optimized
+
+# Default LLM config (used when agent doesn't specify llm_config)
+default_llm_config:
+  provider: "openai"
+  model: "gpt-5.1"
+  reasoning_effort: "high"
+  temperature: 0.0
+  max_retries: 3
+  timeout_seconds: 120
 
 # Optimization schedule
 optimization_schedule:
@@ -273,7 +313,7 @@ convergence:
 
 # Policy constraints (derived from scenario, can be overridden)
 policy_constraints:
-  # If null, derived from scenario config
+  # If null, derived from scenario config's policy_feature_toggles
   allowed_parameters: null
   allowed_fields: null
   allowed_actions: null
@@ -334,13 +374,13 @@ class LLMConfig(BaseModel):
         default="gpt-5.1",
         description="Model identifier",
     )
-    reasoning_effort: str = Field(
-        default="high",
-        description="Reasoning effort for compatible models",
+    reasoning_effort: str | None = Field(
+        default=None,
+        description="Reasoning effort for OpenAI reasoning models (low, medium, high)",
     )
     thinking_budget: int | None = Field(
         default=None,
-        description="Token budget for extended thinking (Claude only)",
+        description="Token budget for extended thinking (Anthropic Claude only)",
     )
     temperature: float = Field(
         default=0.0,
@@ -360,6 +400,21 @@ class LLMConfig(BaseModel):
         le=600,
         description="Request timeout in seconds",
     )
+
+
+class AgentOptimizationConfig(BaseModel):
+    """Per-agent optimization configuration.
+
+    Allows different agents to use different LLM models/providers,
+    enabling research comparing model performance on the same scenario.
+    """
+
+    llm_config: LLMConfig | None = Field(
+        default=None,
+        description="LLM config for this agent. If None, uses default_llm_config.",
+    )
+
+    # Future: per-agent convergence criteria, constraints, etc.
 
 
 class OptimizationSchedule(BaseModel):
@@ -460,7 +515,7 @@ class ConvergenceCriteria(BaseModel):
 
 
 class PolicyConstraints(BaseModel):
-    """Policy generation constraints (from ScenarioConstraints)."""
+    """Policy generation constraints."""
 
     allowed_parameters: list[dict[str, Any]] | None = Field(
         default=None,
@@ -506,7 +561,16 @@ class OutputConfig(BaseModel):
 
 
 class GameConfig(BaseModel):
-    """Complete game configuration."""
+    """Complete game configuration.
+
+    The game config references a scenario config which already contains:
+    - Agent definitions (IDs, opening balances, credit limits)
+    - Cost rate configurations
+    - Arrival configurations
+    - Seed policies for all agents
+
+    This avoids redundancy - seed policies are defined in ONE place (scenario config).
+    """
 
     # Metadata
     game_id: str = Field(
@@ -519,17 +583,10 @@ class GameConfig(BaseModel):
         description="Human-readable description",
     )
 
-    # Scenario
+    # Scenario reference (contains agents AND their seed policies)
     scenario_config: str = Field(
         ...,
-        description="Path to scenario configuration file",
-    )
-
-    # Seed policies
-    seed_policies: dict[str, str] = Field(
-        ...,
-        min_length=1,
-        description="Agent ID to seed policy path mapping",
+        description="Path to scenario configuration file (includes seed policies)",
     )
 
     # Master seed
@@ -539,18 +596,20 @@ class GameConfig(BaseModel):
         description="Master seed for determinism",
     )
 
-    # Optimized agents
-    optimized_agents: list[str] = Field(
+    # Per-agent optimization config (only listed agents are optimized)
+    optimized_agents: dict[str, AgentOptimizationConfig] = Field(
         ...,
         min_length=1,
-        description="Agent IDs to optimize with LLM",
+        description="Agent ID to optimization config mapping. Only these agents are optimized.",
+    )
+
+    # Default LLM config (used when agent doesn't specify llm_config)
+    default_llm_config: LLMConfig = Field(
+        default_factory=LLMConfig,
+        description="Default LLM configuration for agents without explicit config",
     )
 
     # Components
-    llm_config: LLMConfig = Field(
-        default_factory=LLMConfig,
-        description="LLM configuration",
-    )
     optimization_schedule: OptimizationSchedule = Field(
         ...,
         description="When to run optimization",
@@ -572,19 +631,19 @@ class GameConfig(BaseModel):
         description="Output configuration",
     )
 
-    @field_validator("optimized_agents")
-    @classmethod
-    def validate_optimized_agents_in_seed_policies(
-        cls, v: list[str], info
-    ) -> list[str]:
-        """Ensure optimized agents have seed policies."""
-        seed_policies = info.data.get("seed_policies", {})
-        for agent_id in v:
-            if agent_id not in seed_policies:
-                raise ValueError(
-                    f"Optimized agent '{agent_id}' must have a seed policy"
-                )
-        return v
+    def get_llm_config_for_agent(self, agent_id: str) -> LLMConfig:
+        """Get the LLM config for a specific agent.
+
+        Returns agent's specific config if defined, otherwise default.
+        """
+        agent_config = self.optimized_agents.get(agent_id)
+        if agent_config and agent_config.llm_config:
+            return agent_config.llm_config
+        return self.default_llm_config
+
+    def get_optimized_agent_ids(self) -> list[str]:
+        """Get list of agent IDs that will be optimized."""
+        return list(self.optimized_agents.keys())
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "GameConfig":
@@ -610,7 +669,7 @@ class GameConfig(BaseModel):
 │                    RL-Policy-Optimization Mode                       │
 └─────────────────────────────────────────────────────────────────────┘
 
-1. Load scenario + seed policies
+1. Load scenario config (includes seed policies for all agents)
 2. Initialize simulation
 3. Run simulation until optimization trigger:
 
@@ -622,12 +681,13 @@ class GameConfig(BaseModel):
    │     - Filter by agent if intra-simulation                   │
    │                                                              │
    │  b. For each optimized agent (in parallel):                 │
-   │     i.   Sample Monte Carlo scenarios from historical txns  │
-   │     ii.  Evaluate CURRENT policy on samples                 │
-   │     iii. Generate NEW policy via LLM                        │
-   │     iv.  Validate NEW policy against constraints            │
-   │     v.   Evaluate NEW policy on SAME samples                │
-   │     vi.  Compare: If NEW better → adopt, else → keep        │
+   │     i.   Get agent's LLM config (may differ per agent)      │
+   │     ii.  Sample Monte Carlo scenarios from historical txns  │
+   │     iii. Evaluate CURRENT policy on samples                 │
+   │     iv.  Generate NEW policy via agent's LLM                │
+   │     v.   Validate NEW policy against constraints            │
+   │     vi.  Evaluate NEW policy on SAME samples                │
+   │     vii. Compare: If NEW better → adopt, else → keep        │
    │                                                              │
    │  c. Save iteration metrics to database                      │
    │  d. Check convergence                                       │
@@ -642,6 +702,7 @@ class GameConfig(BaseModel):
 - Policies take effect immediately after optimization
 - Historical transactions grow as simulation progresses
 - Useful for studying adaptation dynamics
+- Each agent can use a different LLM model
 
 ### 4.2 Mode 2: Campaign-Learning
 
@@ -653,7 +714,7 @@ class GameConfig(BaseModel):
 │                      Campaign-Learning Mode                          │
 └─────────────────────────────────────────────────────────────────────┘
 
-Iteration 0: Run full simulation with seed policies
+Iteration 0: Run full simulation with seed policies (from scenario config)
              Record all transactions and outcomes
 
 ┌──────────────────────────────────────────────────────────────────┐
@@ -665,12 +726,13 @@ Iteration 0: Run full simulation with seed policies
 │     - Cost breakdowns (delay, overdraft, penalty)               │
 │                                                                  │
 │  2. For each optimized agent (in parallel):                     │
-│     a. Create Monte Carlo samples from iteration N-1 txns       │
-│     b. Evaluate current policy on samples                       │
-│     c. Generate improved policy via LLM with full history       │
-│     d. Validate policy against scenario constraints             │
-│     e. Evaluate new policy on SAME samples                      │
-│     f. Accept if improved, else keep best-known                 │
+│     a. Get agent's LLM config (may differ per agent)            │
+│     b. Create Monte Carlo samples from iteration N-1 txns       │
+│     c. Evaluate current policy on samples                       │
+│     d. Generate improved policy via agent's LLM with history    │
+│     e. Validate policy against scenario constraints             │
+│     f. Evaluate new policy on SAME samples                      │
+│     g. Accept if improved, else keep best-known                 │
 │                                                                  │
 │  3. Run full simulation with updated policies                   │
 │     - Fresh simulation state                                    │
@@ -688,6 +750,7 @@ Repeat until convergence or max iterations
 - Full simulation history available for optimization
 - Policies only change between campaigns
 - Better for studying converged equilibria
+- Enables comparing different LLMs on same scenario
 
 ---
 
@@ -1003,6 +1066,7 @@ class OptimizationResult:
     validation_errors: list[str]
     llm_latency_seconds: float
     tokens_used: int
+    llm_model: str  # Track which model was used
 
 
 class LLMClient(Protocol):
@@ -1019,17 +1083,17 @@ class LLMClient(Protocol):
 
 
 class PolicyOptimizer:
-    """LLM-based policy optimizer with constraint validation.
+    """LLM-based policy optimizer with per-agent LLM configuration.
 
     Key Responsibilities:
-    - Generate improved policies via LLM
+    - Generate improved policies via LLM (different LLM per agent supported)
     - Validate policies against scenario constraints
     - Handle retries on validation failure
     - Ensure agent isolation (no cross-agent information leakage)
 
     Usage:
         optimizer = PolicyOptimizer(
-            llm_config=config.llm_config,
+            game_config=config,
             constraints=scenario_constraints,
         )
 
@@ -1044,20 +1108,22 @@ class PolicyOptimizer:
 
     def __init__(
         self,
-        llm_config: LLMConfig,
+        game_config: GameConfig,
         constraints: "ScenarioConstraints",
         verbose: bool = False,
     ) -> None:
-        self.llm_config = llm_config
+        self.game_config = game_config
         self.validator = ConstraintValidator(constraints)
         self.verbose = verbose
-        self._client = self._create_client()
+        self._clients: dict[str, LLMClient] = {}  # Cache per-agent clients
 
-    def _create_client(self) -> LLMClient:
-        """Create appropriate LLM client based on config."""
-        # Implementation uses PydanticAI with provider-specific setup
-        from ai_cash_mgmt.optimization._llm_clients import create_llm_client
-        return create_llm_client(self.llm_config)
+    def _get_client_for_agent(self, agent_id: str) -> LLMClient:
+        """Get or create LLM client for specific agent."""
+        if agent_id not in self._clients:
+            llm_config = self.game_config.get_llm_config_for_agent(agent_id)
+            from ai_cash_mgmt.optimization._llm_clients import create_llm_client
+            self._clients[agent_id] = create_llm_client(llm_config)
+        return self._clients[agent_id]
 
     async def optimize_agent(
         self,
@@ -1068,7 +1134,7 @@ class PolicyOptimizer:
         iteration_history: list[dict[str, Any]],
         monte_carlo_context: dict[str, Any],
     ) -> OptimizationResult:
-        """Optimize policy for a single agent.
+        """Optimize policy for a single agent using agent's configured LLM.
 
         CRITICAL: iteration_history must be pre-filtered to only contain
         this agent's data. No cross-agent information leakage!
@@ -1086,9 +1152,12 @@ class PolicyOptimizer:
         """
         import time
 
+        llm_config = self.game_config.get_llm_config_for_agent(agent_id)
+        client = self._get_client_for_agent(agent_id)
+
         all_errors: list[str] = []
 
-        for attempt in range(self.llm_config.max_retries):
+        for attempt in range(llm_config.max_retries):
             start_time = time.time()
 
             try:
@@ -1102,8 +1171,8 @@ class PolicyOptimizer:
                     previous_errors=all_errors if attempt > 0 else None,
                 )
 
-                # Generate policy via LLM
-                new_policy = await self._client.generate_policy(
+                # Generate policy via agent's LLM
+                new_policy = await client.generate_policy(
                     instruction=instruction,
                     current_policy=current_policy,
                     context={"agent_id": agent_id, "iteration": iteration},
@@ -1117,7 +1186,10 @@ class PolicyOptimizer:
                 if not validation.is_valid:
                     all_errors.extend(validation.errors)
                     if self.verbose:
-                        print(f"  [{agent_id}] Validation failed (attempt {attempt + 1}): {validation.errors}")
+                        print(
+                            f"  [{agent_id}] Validation failed (attempt {attempt + 1}, "
+                            f"model={llm_config.model}): {validation.errors}"
+                        )
                     continue
 
                 # Success!
@@ -1131,13 +1203,17 @@ class PolicyOptimizer:
                     was_accepted=False,  # Determined after evaluation
                     validation_errors=[],
                     llm_latency_seconds=latency,
-                    tokens_used=2000,  # Estimate
+                    tokens_used=2000,  # Estimate, update with actual
+                    llm_model=f"{llm_config.provider.value}/{llm_config.model}",
                 )
 
             except Exception as e:
                 all_errors.append(str(e))
                 if self.verbose:
-                    print(f"  [{agent_id}] LLM error (attempt {attempt + 1}): {e}")
+                    print(
+                        f"  [{agent_id}] LLM error (attempt {attempt + 1}, "
+                        f"model={llm_config.model}): {e}"
+                    )
 
         # All retries exhausted
         return OptimizationResult(
@@ -1151,6 +1227,7 @@ class PolicyOptimizer:
             validation_errors=all_errors,
             llm_latency_seconds=0,
             tokens_used=0,
+            llm_model=f"{llm_config.provider.value}/{llm_config.model}",
         )
 
     async def optimize_agents_parallel(
@@ -1159,6 +1236,9 @@ class PolicyOptimizer:
         stagger_interval: float = 0.5,
     ) -> list[OptimizationResult]:
         """Optimize multiple agents in parallel.
+
+        Each agent uses its own configured LLM, enabling research
+        comparing different models on the same scenario.
 
         Args:
             agent_contexts: List of dicts with agent optimization context
@@ -1240,7 +1320,7 @@ from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from experiments.castro.schemas.parameter_config import ScenarioConstraints
+    from ai_cash_mgmt.constraints import ScenarioConstraints
 
 
 @dataclass
@@ -1914,7 +1994,9 @@ CREATE TABLE IF NOT EXISTS game_policy_iterations (
     is_best_so_far BOOLEAN NOT NULL,
     acceptance_reason VARCHAR,
 
-    -- LLM metadata
+    -- LLM metadata (per-agent tracking)
+    llm_provider VARCHAR,                       -- Which provider was used
+    llm_model VARCHAR,                          -- Which model was used
     llm_latency_seconds DOUBLE,
     llm_tokens_used INTEGER,
     validation_errors_json TEXT,
@@ -1966,6 +2048,8 @@ CREATE INDEX IF NOT EXISTS idx_game_policy_iter_session
     ON game_policy_iterations(game_session_id, iteration_number);
 CREATE INDEX IF NOT EXISTS idx_game_policy_iter_agent
     ON game_policy_iterations(game_session_id, agent_id);
+CREATE INDEX IF NOT EXISTS idx_game_policy_iter_model
+    ON game_policy_iterations(llm_provider, llm_model);
 CREATE INDEX IF NOT EXISTS idx_game_metrics_session
     ON game_iteration_metrics(game_session_id, iteration_number);
 CREATE INDEX IF NOT EXISTS idx_game_sessions_status
@@ -1982,18 +2066,21 @@ CREATE INDEX IF NOT EXISTS idx_game_sessions_status
 
 **Tasks**:
 1. Create module directory structure
-2. Implement `GameConfig` Pydantic models
+2. Implement `GameConfig` Pydantic models with per-agent LLM config
 3. Implement `SeedManager` for deterministic seed derivation
-4. Implement `ConstraintValidator` (reuse Castro's `ScenarioConstraints`)
-5. Set up database schema and migrations
-6. Write TDD tests for all foundation components
+4. Implement `ScenarioConstraints` and `ParameterSpec` models
+5. Implement `ConstraintValidator`
+6. Set up database schema and migrations
+7. Write TDD tests for all foundation components
 
 **Tests** (write FIRST):
 ```python
 # tests/unit/test_game_config.py
 def test_game_config_loads_from_yaml(): ...
-def test_game_config_validates_optimized_agents_have_seed_policies(): ...
+def test_game_config_validates_optimized_agents(): ...
 def test_optimization_schedule_validates_required_params(): ...
+def test_get_llm_config_for_agent_returns_specific_config(): ...
+def test_get_llm_config_for_agent_returns_default_when_not_specified(): ...
 
 # tests/unit/test_seed_manager.py
 def test_same_master_seed_produces_same_derived_seeds(): ...
@@ -2010,6 +2097,7 @@ def test_validator_rejects_invalid_actions_for_tree_type(): ...
 **Deliverables**:
 - [ ] `ai_cash_mgmt/config/` module complete
 - [ ] `ai_cash_mgmt/sampling/seed_manager.py` complete
+- [ ] `ai_cash_mgmt/constraints/` module complete
 - [ ] `ai_cash_mgmt/optimization/constraint_validator.py` complete
 - [ ] `ai_cash_mgmt/persistence/schema.py` and migrations
 - [ ] 100% test coverage for foundation
@@ -2047,13 +2135,13 @@ def test_sampler_produces_valid_monte_carlo_inputs(): ...
 
 ### Phase 3: Policy Optimization (Week 3-4)
 
-**Goal**: LLM-based policy generation with PydanticAI
+**Goal**: LLM-based policy generation with PydanticAI and per-agent config
 
 **Tasks**:
-1. Implement `PolicyOptimizer` with LLM client abstraction
-2. Create LLM clients for OpenAI, Anthropic, Google (reuse Castro patterns)
+1. Implement `PolicyOptimizer` with per-agent LLM client support
+2. Create LLM clients for OpenAI, Anthropic, Google
 3. Implement retry logic with error feedback
-4. Implement parallel agent optimization
+4. Implement parallel agent optimization (each with own LLM)
 5. Create comprehensive mock LLM responses for testing
 
 **Tests** (write FIRST, with mocks):
@@ -2069,6 +2157,7 @@ def test_optimizer_retries_on_validation_failure(mock_llm): ...
 def test_optimizer_returns_none_after_max_retries(mock_llm): ...
 def test_optimizer_includes_error_feedback_in_retry(mock_llm): ...
 def test_optimizer_maintains_agent_isolation(mock_llm): ...
+def test_optimizer_uses_correct_llm_per_agent(mock_llm): ...
 
 # tests/integration/test_policy_optimizer_integration.py
 def test_optimizer_with_real_llm_generates_valid_policy(): ...  # Uses actual API
@@ -2133,6 +2222,7 @@ def test_rl_optimization_mode_runs_to_convergence(mock_llm): ...
 def test_campaign_learning_mode_runs_multiple_campaigns(mock_llm): ...
 def test_optimization_at_every_x_ticks(mock_llm): ...
 def test_optimization_after_eod(mock_llm): ...
+def test_different_llms_per_agent(mock_llm): ...
 
 # tests/integration/test_determinism.py
 def test_same_master_seed_produces_identical_game_trajectory(): ...
@@ -2161,6 +2251,7 @@ def test_same_master_seed_produces_identical_game_trajectory(): ...
 # tests/integration/test_database_integration.py
 def test_game_session_persisted_to_database(): ...
 def test_policy_iterations_tracked_correctly(): ...
+def test_policy_iterations_track_llm_model_used(): ...
 def test_policy_diffs_computed_and_stored(): ...
 def test_game_shares_database_with_simcash(): ...
 def test_monte_carlo_results_not_persisted(): ...
@@ -2274,6 +2365,11 @@ For CI/CD, we include a single integration test that calls the real LLM:
 
 import os
 import pytest
+import asyncio
+
+from ai_cash_mgmt.optimization import PolicyOptimizer
+from ai_cash_mgmt.config import GameConfig, LLMConfig, AgentOptimizationConfig
+from ai_cash_mgmt.constraints import ScenarioConstraints
 
 @pytest.mark.skipif(
     not os.getenv("OPENAI_API_KEY"),
@@ -2286,16 +2382,26 @@ def test_real_llm_generates_valid_policy():
     This test is skipped in normal CI runs.
     Run with: pytest -m slow
     """
-    from ai_cash_mgmt.optimization import PolicyOptimizer
-    from ai_cash_mgmt.config import LLMConfig
-    from experiments.castro.parameter_sets import STANDARD_CONSTRAINTS
+    # Create minimal game config with per-agent LLM config
+    game_config = GameConfig(
+        game_id="test_real_llm",
+        scenario_config="tests/fixtures/sample_scenario.yaml",
+        master_seed=42,
+        optimized_agents={
+            "BANK_A": AgentOptimizationConfig(
+                llm_config=LLMConfig(
+                    provider="openai",
+                    model="gpt-5.1",
+                    reasoning_effort="high",
+                )
+            )
+        },
+        default_llm_config=LLMConfig(),
+        optimization_schedule={"type": "on_simulation_end"},
+    )
 
     optimizer = PolicyOptimizer(
-        llm_config=LLMConfig(
-            provider="openai",
-            model="gpt-5.1",
-            reasoning_effort="high",
-        ),
+        game_config=game_config,
         constraints=STANDARD_CONSTRAINTS,
     )
 
@@ -2312,6 +2418,7 @@ def test_real_llm_generates_valid_policy():
 
     assert result.new_policy is not None
     assert len(result.validation_errors) == 0
+    assert result.llm_model == "openai/gpt-5.1"
 ```
 
 ### 10.3 Determinism Tests
@@ -2369,6 +2476,7 @@ docs/reference/ai_cash_mgmt/
 ├── configuration.md            # GameConfig schema reference
 ├── game-modes.md               # RL-optimization vs campaign-learning
 ├── optimization.md             # Policy optimizer details
+├── per-agent-llm.md            # Per-agent LLM configuration guide
 ├── sampling.md                 # Transaction sampling methods
 ├── convergence.md              # Convergence detection
 ├── database.md                 # Database schema and queries
@@ -2376,6 +2484,7 @@ docs/reference/ai_cash_mgmt/
 └── examples/
     ├── basic-2-agent.md        # Simple 2-agent example
     ├── multi-agent-campaign.md # Full campaign example
+    ├── llm-comparison.md       # Comparing different LLMs
     └── custom-constraints.md   # Custom constraint definition
 ```
 
@@ -2405,6 +2514,7 @@ Following the existing SimCash documentation patterns:
 
 - [ ] Two game modes working (RL-optimization, campaign-learning)
 - [ ] All three optimization schedules (every_x_ticks, after_eod, on_simulation_end)
+- [ ] Per-agent LLM configuration (different models for different agents)
 - [ ] Monte Carlo sampling from historical transactions
 - [ ] Policy validation against scenario constraints
 - [ ] Convergence detection with configurable criteria
@@ -2433,6 +2543,7 @@ Following the existing SimCash documentation patterns:
 
 - [ ] Reference docs for all public APIs
 - [ ] User guide with examples
+- [ ] Per-agent LLM configuration guide
 - [ ] CLI help text
 - [ ] Inline docstrings (Google style)
 
@@ -2448,7 +2559,8 @@ Following the existing SimCash documentation patterns:
 | **Policy Constraint** | Restriction on allowed parameters/fields/actions |
 | **Convergence** | State where policy cost has stabilized |
 | **Campaign** | A full simulation run in campaign-learning mode |
-| **Seed Policy** | Initial policy before optimization begins |
+| **Seed Policy** | Initial policy before optimization begins (from scenario config) |
+| **Per-Agent LLM** | Different LLM model/provider configured for each agent |
 
 ---
 
@@ -2462,6 +2574,7 @@ Following the existing SimCash documentation patterns:
 | Database contention | Low | Separate game tables, connection pooling |
 | LLM API rate limits | Medium | Staggered requests, exponential backoff |
 | Large transaction sets causing memory issues | Medium | Streaming collection, batch processing |
+| Different LLMs producing incomparable results | Medium | Track model used per iteration, control experiments |
 
 ---
 
@@ -2482,12 +2595,14 @@ ai_cash_mgmt = [
 ]
 ```
 
-### Reused Components from Castro
+### Self-Contained Constraints Module
 
-- `ScenarioConstraints` and `ParameterSpec` from `experiments/castro/schemas/parameter_config.py`
-- `RobustPolicyAgent` patterns from `experiments/castro/generator/robust_policy_agent.py`
-- Dynamic schema generation from `experiments/castro/schemas/dynamic.py`
-- Validation logic from `experiments/castro/generator/validation.py`
+The `ai_cash_mgmt/constraints/` module will be self-contained, providing:
+- `ScenarioConstraints` - Defines allowed parameters, fields, actions
+- `ParameterSpec` - Defines parameter bounds and defaults
+- Action/field registries for validation
+
+This module is independent and does not depend on external experiment code.
 
 ---
 
