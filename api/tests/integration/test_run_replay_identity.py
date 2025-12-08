@@ -81,7 +81,7 @@ class TestRunReplayIdentity:
         """
         config = {
             "rng_seed": 42,
-            "ticks_per_day": 10,
+            "ticks_per_day": 50,  # 50 ticks per day to avoid deadline capping
             "num_days": 1,
             "agent_configs": [
                 {
@@ -103,11 +103,12 @@ class TestRunReplayIdentity:
         orch = Orchestrator.new(config)
 
         # Submit a transaction with specific priority and divisibility
+        # Note: deadline is capped at episode end (ticks_per_day * num_days = 50)
         tx_id = orch.submit_transaction(
             sender="BANK_A",
             receiver="BANK_B",
             amount=10000,
-            deadline_tick=20,  # Deadline at tick 20
+            deadline_tick=20,  # Deadline at tick 20 (within episode bounds)
             priority=7,  # High priority
             divisible=False,  # Not divisible
         )
