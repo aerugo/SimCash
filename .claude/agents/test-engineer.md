@@ -52,7 +52,7 @@ The main Claude should delegate to you when:
 
 ### 1. Rust Unit Tests
 
-**Location**: `backend/src/**/*.rs` (in `#[cfg(test)]` modules)
+**Location**: `simulator/src/**/*.rs` (in `#[cfg(test)]` modules)
 
 **Purpose**: Test individual functions and modules in isolation
 
@@ -106,7 +106,7 @@ mod tests {
 
 ### 2. Property-Based Tests
 
-**Location**: `backend/tests/property_*.rs`
+**Location**: `simulator/tests/property_*.rs`
 
 **Purpose**: Test invariants across many random inputs
 
@@ -158,7 +158,7 @@ proptest! {
 
 ### 3. Rust Integration Tests
 
-**Location**: `backend/tests/*.rs`
+**Location**: `simulator/tests/*.rs`
 
 **Purpose**: Test interactions between modules (orchestrator + settlement + arrivals)
 
@@ -575,7 +575,7 @@ def stress_test_config():
 ### Test Helpers (Rust)
 
 ```rust
-// backend/tests/helpers.rs
+// simulator/tests/helpers.rs
 pub fn create_test_agent(id: &str, balance: i64) -> Agent {
     Agent::new(id.to_string(), balance, balance / 2)
 }

@@ -60,7 +60,7 @@ agents:
     multilateral_limit: 8000000   # Max $80,000 total outflow
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_priority_aware.json"
+      json_path: "simulator/policies/target2_priority_aware.json"
     arrival_config:
       rate_per_tick: 0.5
       amount_distribution: { type: "Uniform", min: 100000, max: 500000 }
@@ -79,7 +79,7 @@ agents:
     multilateral_limit: 6000000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_aggressive_settler.json"
+      json_path: "simulator/policies/target2_aggressive_settler.json"
     arrival_config:
       rate_per_tick: 0.5
       amount_distribution: { type: "Uniform", min: 100000, max: 500000 }
@@ -98,7 +98,7 @@ agents:
     multilateral_limit: 5000000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_conservative_offsetter.json"
+      json_path: "simulator/policies/target2_conservative_offsetter.json"
     arrival_config:
       rate_per_tick: 0.4
       amount_distribution: { type: "Uniform", min: 80000, max: 400000 }
@@ -117,7 +117,7 @@ agents:
     multilateral_limit: 4000000
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_limit_aware.json"
+      json_path: "simulator/policies/target2_limit_aware.json"
     arrival_config:
       rate_per_tick: 0.35
       amount_distribution: { type: "Uniform", min: 50000, max: 300000 }

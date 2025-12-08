@@ -227,7 +227,7 @@ pub fn range_slow(&mut self, min: i64, max: i64) -> i64 {
 
 ### Criterion Benchmarks
 
-**Location**: `backend/benches/`
+**Location**: `simulator/benches/`
 
 **Setup**:
 ```rust
