@@ -682,7 +682,7 @@ See [Settlement Engines](./06-settlement-engines.md#rtgs-settlement) for details
 
 Include code snippets from actual codebase:
 ```markdown
-**Source**: `backend/src/models/agent.rs:15-30`
+**Source**: `simulator/src/models/agent.rs:15-30`
 ```
 
 ---

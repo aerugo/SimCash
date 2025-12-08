@@ -529,10 +529,10 @@ Error: deadline_range max must be >= min
 | Python ArrivalConfig | `api/payment_simulator/config/schemas.py` | 126-199 |
 | Python ArrivalBandConfig | `api/payment_simulator/config/schemas.py` | 205-249 |
 | Python ArrivalBandsConfig | `api/payment_simulator/config/schemas.py` | 251-282 |
-| Rust ArrivalConfig | `backend/src/arrivals/mod.rs` | 63-82 |
-| Rust ArrivalBandConfig | `backend/src/arrivals/mod.rs` | 110-130 |
-| Rust ArrivalBandsConfig | `backend/src/arrivals/mod.rs` | 144-151 |
-| FFI Parsing | `backend/src/ffi/types.rs` | 464-634 |
+| Rust ArrivalConfig | `simulator/src/arrivals/mod.rs` | 63-82 |
+| Rust ArrivalBandConfig | `simulator/src/arrivals/mod.rs` | 110-130 |
+| Rust ArrivalBandsConfig | `simulator/src/arrivals/mod.rs` | 144-151 |
+| FFI Parsing | `simulator/src/ffi/types.rs` | 464-634 |
 
 ---
 

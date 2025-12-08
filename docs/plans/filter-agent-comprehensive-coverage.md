@@ -342,6 +342,6 @@ Long-term, consider normalizing all sender fields to `sender_id` in Rust event d
 ## References
 
 - Current filter implementation: `api/payment_simulator/cli/filters.py`
-- Event definitions: `backend/src/models/event.rs`
+- Event definitions: `simulator/src/models/event.rs`
 - Display logic: `api/payment_simulator/cli/execution/display.py`
 - CLI flags: `api/payment_simulator/cli/commands/run.py:422-461`

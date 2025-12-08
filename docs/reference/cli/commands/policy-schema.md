@@ -262,7 +262,7 @@ Submit the transaction to RTGS for immediate settlement.
 {"action": "submit"}
 ```
 
-*Source: backend/src/policy/actions.rs:45*
+*Source: simulator/src/policy/actions.rs:45*
 
 ...
 ```
@@ -288,7 +288,7 @@ Submit the transaction to RTGS for immediate settlement.
       "valid_in_trees": ["payment_tree"],
       "parameters": [],
       "example_json": {"action": "submit"},
-      "source_location": "backend/src/policy/actions.rs:45"
+      "source_location": "simulator/src/policy/actions.rs:45"
     }
   ],
   "fields": [...]

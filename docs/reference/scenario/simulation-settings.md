@@ -248,8 +248,8 @@ Error: Input should be greater than 0
 | Component | File | Lines |
 |:----------|:-----|:------|
 | Python Schema | `api/payment_simulator/config/schemas.py` | 569-575 |
-| Rust Config | `backend/src/orchestrator/engine.rs` | 102-114 |
-| FFI Parsing | `backend/src/ffi/types.rs` | 130-145 |
+| Rust Config | `simulator/src/orchestrator/engine.rs` | 102-114 |
+| FFI Parsing | `simulator/src/ffi/types.rs` | 130-145 |
 
 ---
 

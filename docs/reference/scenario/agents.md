@@ -533,7 +533,7 @@ agents:
       multilateral_limit: 7500000
     policy:
       type: FromJson
-      json_path: "backend/policies/limit_aware.json"
+      json_path: "simulator/policies/limit_aware.json"
 ```
 
 ### BIS Model Agent (Enhancement 11.2)
@@ -592,9 +592,9 @@ Error: At least one agent required
 | Component | File | Lines |
 |:----------|:-----|:------|
 | Python AgentConfig | `api/payment_simulator/config/schemas.py` | 447-494 |
-| Rust AgentConfig | `backend/src/orchestrator/engine.rs` | 244-321 |
-| FFI Parsing | `backend/src/ffi/types.rs` | 260-322 |
-| Limits Struct | `backend/src/orchestrator/engine.rs` | 329-339 |
+| Rust AgentConfig | `simulator/src/orchestrator/engine.rs` | 244-321 |
+| FFI Parsing | `simulator/src/ffi/types.rs` | 260-322 |
+| Limits Struct | `simulator/src/orchestrator/engine.rs` | 329-339 |
 
 ---
 

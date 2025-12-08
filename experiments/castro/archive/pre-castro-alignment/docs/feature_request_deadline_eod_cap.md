@@ -102,17 +102,17 @@ fn generate_deadline(
 
 ### Files to Modify
 
-1. **`backend/src/arrivals/mod.rs`**
+1. **`simulator/src/arrivals/mod.rs`**
    - Add `deadline_cap_at_eod: bool` and `ticks_per_day: usize` to `ArrivalGenerator`
    - Modify `generate_deadline()` to apply EOD cap when enabled
 
-2. **`backend/src/orchestrator/engine.rs`**
+2. **`simulator/src/orchestrator/engine.rs`**
    - Pass `deadline_cap_at_eod` flag from config to `ArrivalGenerator`
 
 3. **`api/payment_simulator/config/schemas.py`**
    - Add `deadline_cap_at_eod: bool = False` to simulation config schema
 
-4. **`backend/src/ffi/types.rs`**
+4. **`simulator/src/ffi/types.rs`**
    - Add field to FFI config if needed
 
 ### Test Cases
@@ -196,5 +196,5 @@ Medium - Important for research paper alignment but not blocking current experim
 ## References
 
 - Castro et al. (2025), Section 3: "At the end of the day, banks must settle all payment demands."
-- `backend/src/arrivals/mod.rs:515-527` - Current deadline generation logic
+- `simulator/src/arrivals/mod.rs:515-527` - Current deadline generation logic
 - `experiments/castro/docs/experiment_2d_design.md` - Castro equivalence analysis

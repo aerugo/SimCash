@@ -171,7 +171,7 @@ agents:
 
     policy:
       type: FromJson
-      json_path: "backend/policies/liquidity_aware.json"
+      json_path: "simulator/policies/liquidity_aware.json"
       params:
         urgency_threshold: 10.0    # Override default
         target_buffer: 200000.0    # Override default
@@ -198,7 +198,7 @@ agents:
 ```yaml
 policy:
   type: FromJson
-  json_path: "backend/policies/my_policy.json"
+  json_path: "simulator/policies/my_policy.json"
   params:
     threshold: 5.0
 ```
@@ -258,7 +258,7 @@ policy:
 
 ## Available Policy Files
 
-Located in `backend/policies/`:
+Located in `simulator/policies/`:
 
 | File | Description | Key Parameters |
 |------|-------------|----------------|
@@ -325,7 +325,7 @@ agents:
 
     policy:
       type: FromJson
-      json_path: "backend/policies/liquidity_aware.json"
+      json_path: "simulator/policies/liquidity_aware.json"
       params:
         urgency_threshold: 10.0
         target_buffer: 500000.0
@@ -355,7 +355,7 @@ agents:
 
     policy:
       type: FromJson
-      json_path: "backend/policies/balanced_cost_optimizer.json"
+      json_path: "simulator/policies/balanced_cost_optimizer.json"
 
     arrival_config:
       rate_per_tick: 0.4
@@ -498,5 +498,5 @@ def create(policy_type, json_path, params):
 | AgentConfig | `api/payment_simulator/config/schemas.py` | 150-190 |
 | PolicyConfig | `api/payment_simulator/config/schemas.py` | 80-100 |
 | ArrivalConfig | `api/payment_simulator/config/schemas.py` | 110-145 |
-| PolicyFactory | `backend/src/policy/tree/factory.rs` | 1-100 |
-| DecisionTreeDef | `backend/src/policy/tree/types.rs` | 22-58 |
+| PolicyFactory | `simulator/src/policy/tree/factory.rs` | 1-100 |
+| DecisionTreeDef | `simulator/src/policy/tree/types.rs` | 22-58 |

@@ -132,7 +132,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "priority"},
                     "right": {"value": 10}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:117".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:117".to_string(),
                 see_also: vec!["NotEqual".to_string()],
                 data_type: None,
                 unit: None,
@@ -151,7 +151,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "is_split"},
                     "right": {"value": 1}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:121".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:121".to_string(),
                 see_also: vec!["Equal".to_string()],
                 data_type: None,
                 unit: None,
@@ -170,7 +170,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "ticks_to_deadline"},
                     "right": {"value": 5}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:125".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:125".to_string(),
                 see_also: vec!["LessOrEqual".to_string(), "GreaterThan".to_string()],
                 data_type: None,
                 unit: None,
@@ -189,7 +189,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "queue_age"},
                     "right": {"param": "max_wait_ticks"}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:129".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:129".to_string(),
                 see_also: vec!["LessThan".to_string(), "GreaterOrEqual".to_string()],
                 data_type: None,
                 unit: None,
@@ -208,7 +208,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "effective_liquidity"},
                     "right": {"field": "remaining_amount"}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:133".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:133".to_string(),
                 see_also: vec!["GreaterOrEqual".to_string(), "LessThan".to_string()],
                 data_type: None,
                 unit: None,
@@ -227,7 +227,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "balance"},
                     "right": {"field": "amount"}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:137".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:137".to_string(),
                 see_also: vec!["GreaterThan".to_string(), "LessOrEqual".to_string()],
                 data_type: None,
                 unit: None,
@@ -249,7 +249,7 @@ impl SchemaDocumented for Expression {
                         {"op": "<", "left": {"field": "amount"}, "right": {"value": 1000000}}
                     ]
                 })),
-                source_location: "backend/src/policy/tree/types.rs:142".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:142".to_string(),
                 see_also: vec!["Or".to_string(), "Not".to_string()],
                 data_type: None,
                 unit: None,
@@ -270,7 +270,7 @@ impl SchemaDocumented for Expression {
                         {"op": "<", "left": {"field": "ticks_to_deadline"}, "right": {"value": 3}}
                     ]
                 })),
-                source_location: "backend/src/policy/tree/types.rs:146".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:146".to_string(),
                 see_also: vec!["And".to_string(), "Not".to_string()],
                 data_type: None,
                 unit: None,
@@ -288,7 +288,7 @@ impl SchemaDocumented for Expression {
                     "op": "not",
                     "condition": {"op": "==", "left": {"field": "is_split"}, "right": {"value": 1}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:150".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:150".to_string(),
                 see_also: vec!["And".to_string(), "Or".to_string()],
                 data_type: None,
                 unit: None,
@@ -313,7 +313,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "+", "left": {"field": "balance"}, "right": {"field": "credit_limit"}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:210".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:210".to_string(),
                 see_also: vec!["Subtract".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -330,7 +330,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "-", "left": {"field": "balance"}, "right": {"field": "amount"}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:214".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:214".to_string(),
                 see_also: vec!["Add".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -347,7 +347,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "*", "left": {"field": "amount"}, "right": {"value": 0.5}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:218".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:218".to_string(),
                 see_also: vec!["Divide".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -364,7 +364,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "/", "left": {"field": "amount"}, "right": {"param": "num_splits"}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:222".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:222".to_string(),
                 see_also: vec!["SafeDiv".to_string(), "Multiply".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -382,7 +382,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "max", "values": [{"field": "balance"}, {"value": 0}]}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:227".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:227".to_string(),
                 see_also: vec!["Min".to_string(), "Clamp".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -399,7 +399,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "min", "values": [{"field": "amount"}, {"field": "balance"}]}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:231".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:231".to_string(),
                 see_also: vec!["Max".to_string(), "Clamp".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -417,7 +417,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "ceil", "value": {"field": "ratio"}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:236".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:236".to_string(),
                 see_also: vec!["Floor".to_string(), "Round".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -434,7 +434,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "floor", "value": {"field": "ratio"}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:240".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:240".to_string(),
                 see_also: vec!["Ceil".to_string(), "Round".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -451,7 +451,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "round", "value": {"field": "ratio"}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:244".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:244".to_string(),
                 see_also: vec!["Ceil".to_string(), "Floor".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -468,7 +468,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "abs", "value": {"field": "net_position"}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:248".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:248".to_string(),
                 see_also: vec![],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -486,7 +486,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "clamp", "value": {"field": "priority"}, "min": {"value": 1}, "max": {"value": 10}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:252".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:252".to_string(),
                 see_also: vec!["Min".to_string(), "Max".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -503,7 +503,7 @@ impl SchemaDocumented for Computation {
                 example_json: Some(serde_json::json!({
                     "compute": {"op": "div0", "numerator": {"field": "amount"}, "denominator": {"field": "count"}, "default": {"value": 0}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:260".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:260".to_string(),
                 see_also: vec!["Divide".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -525,7 +525,7 @@ impl SchemaDocumented for Value {
                 parameters: vec![],
                 valid_in_trees: all_trees(),
                 example_json: Some(serde_json::json!({"field": "balance"})),
-                source_location: "backend/src/policy/tree/types.rs:166".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:166".to_string(),
                 see_also: vec!["Param".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -540,7 +540,7 @@ impl SchemaDocumented for Value {
                 parameters: vec![],
                 valid_in_trees: all_trees(),
                 example_json: Some(serde_json::json!({"param": "urgency_threshold"})),
-                source_location: "backend/src/policy/tree/types.rs:170".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:170".to_string(),
                 see_also: vec!["Field".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -555,7 +555,7 @@ impl SchemaDocumented for Value {
                 parameters: vec![],
                 valid_in_trees: all_trees(),
                 example_json: Some(serde_json::json!({"value": 100000})),
-                source_location: "backend/src/policy/tree/types.rs:173".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:173".to_string(),
                 see_also: vec![],
                 data_type: Some("any".to_string()),
                 unit: None,
@@ -570,7 +570,7 @@ impl SchemaDocumented for Value {
                 parameters: vec![],
                 valid_in_trees: all_trees(),
                 example_json: Some(serde_json::json!({"compute": {"op": "+", "left": {"field": "balance"}, "right": {"field": "credit_limit"}}})),
-                source_location: "backend/src/policy/tree/types.rs:176".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:176".to_string(),
                 see_also: vec!["Add".to_string(), "Subtract".to_string(), "Multiply".to_string(), "Divide".to_string()],
                 data_type: Some("f64".to_string()),
                 unit: None,
@@ -609,7 +609,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "A1", "action": "Release"})),
-                source_location: "backend/src/policy/tree/types.rs:279".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:279".to_string(),
                 see_also: vec!["ReleaseWithCredit".to_string(), "Hold".to_string()],
                 data_type: None,
                 unit: None,
@@ -624,7 +624,7 @@ impl SchemaDocumented for ActionType {
                 parameters: vec![],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "A2", "action": "ReleaseWithCredit"})),
-                source_location: "backend/src/policy/tree/types.rs:282".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:282".to_string(),
                 see_also: vec!["Release".to_string()],
                 data_type: None,
                 unit: None,
@@ -648,7 +648,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "A3", "action": "PaceAndRelease", "parameters": {"num_splits": {"value": 4}}})),
-                source_location: "backend/src/policy/tree/types.rs:285".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:285".to_string(),
                 see_also: vec!["Split".to_string(), "StaggerSplit".to_string()],
                 data_type: None,
                 unit: None,
@@ -672,7 +672,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "A4", "action": "Split", "parameters": {"num_splits": {"value": 4}}})),
-                source_location: "backend/src/policy/tree/types.rs:288".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:288".to_string(),
                 see_also: vec!["StaggerSplit".to_string(), "PaceAndRelease".to_string()],
                 data_type: None,
                 unit: None,
@@ -704,7 +704,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "A5", "action": "StaggerSplit", "parameters": {"num_splits": {"value": 4}, "interval_ticks": {"value": 2}}})),
-                source_location: "backend/src/policy/tree/types.rs:291".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:291".to_string(),
                 see_also: vec!["Split".to_string()],
                 data_type: None,
                 unit: None,
@@ -719,7 +719,7 @@ impl SchemaDocumented for ActionType {
                 parameters: vec![],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "A6", "action": "Hold"})),
-                source_location: "backend/src/policy/tree/types.rs:294".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:294".to_string(),
                 see_also: vec!["Release".to_string(), "Drop".to_string()],
                 data_type: None,
                 unit: None,
@@ -734,7 +734,7 @@ impl SchemaDocumented for ActionType {
                 parameters: vec![],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "A7", "action": "Drop"})),
-                source_location: "backend/src/policy/tree/types.rs:297".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:297".to_string(),
                 see_also: vec!["Hold".to_string()],
                 data_type: None,
                 unit: None,
@@ -758,7 +758,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "A8", "action": "Reprioritize", "parameters": {"new_priority": {"value": 8}}})),
-                source_location: "backend/src/policy/tree/types.rs:301".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:301".to_string(),
                 see_also: vec!["Hold".to_string()],
                 data_type: None,
                 unit: None,
@@ -783,7 +783,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: bank_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "B1", "action": "SetReleaseBudget", "parameters": {"budget": {"field": "balance"}}})),
-                source_location: "backend/src/policy/tree/types.rs:307".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:307".to_string(),
                 see_also: vec!["SetState".to_string()],
                 data_type: None,
                 unit: None,
@@ -815,7 +815,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: bank_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "B2", "action": "SetState", "parameters": {"key": {"value": "bank_state_counter"}, "value": {"value": 0}}})),
-                source_location: "backend/src/policy/tree/types.rs:315".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:315".to_string(),
                 see_also: vec!["AddState".to_string()],
                 data_type: None,
                 unit: None,
@@ -847,7 +847,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: bank_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "B3", "action": "AddState", "parameters": {"key": {"value": "bank_state_counter"}, "delta": {"value": 1}}})),
-                source_location: "backend/src/policy/tree/types.rs:321".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:321".to_string(),
                 see_also: vec!["SetState".to_string()],
                 data_type: None,
                 unit: None,
@@ -872,7 +872,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: collateral_trees.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "C1", "action": "PostCollateral", "parameters": {"amount": {"value": 500000}}})),
-                source_location: "backend/src/policy/tree/types.rs:325".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:325".to_string(),
                 see_also: vec!["WithdrawCollateral".to_string(), "HoldCollateral".to_string()],
                 data_type: None,
                 unit: None,
@@ -896,7 +896,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: collateral_trees.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "C2", "action": "WithdrawCollateral", "parameters": {"amount": {"value": 200000}}})),
-                source_location: "backend/src/policy/tree/types.rs:328".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:328".to_string(),
                 see_also: vec!["PostCollateral".to_string(), "HoldCollateral".to_string()],
                 data_type: None,
                 unit: None,
@@ -911,7 +911,7 @@ impl SchemaDocumented for ActionType {
                 parameters: vec![],
                 valid_in_trees: collateral_trees.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "C3", "action": "HoldCollateral"})),
-                source_location: "backend/src/policy/tree/types.rs:331".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:331".to_string(),
                 see_also: vec!["PostCollateral".to_string(), "WithdrawCollateral".to_string()],
                 data_type: None,
                 unit: None,
@@ -927,7 +927,7 @@ impl SchemaDocumented for ActionType {
                 parameters: vec![],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "R1", "action": "WithdrawFromRtgs"})),
-                source_location: "backend/src/policy/tree/types.rs:339".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:339".to_string(),
                 see_also: vec!["ResubmitToRtgs".to_string(), "Release".to_string()],
                 data_type: None,
                 unit: None,
@@ -951,7 +951,7 @@ impl SchemaDocumented for ActionType {
                 ],
                 valid_in_trees: payment_tree.clone(),
                 example_json: Some(serde_json::json!({"type": "action", "node_id": "R2", "action": "ResubmitToRtgs", "parameters": {"rtgs_priority": {"value": "HighlyUrgent"}}})),
-                source_location: "backend/src/policy/tree/types.rs:346".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:346".to_string(),
                 see_also: vec!["WithdrawFromRtgs".to_string()],
                 data_type: None,
                 unit: None,

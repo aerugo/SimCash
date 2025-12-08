@@ -68,7 +68,7 @@ Fields starting with `bank_state_` are state registers:
 
 ### Implementation
 ```rust
-// backend/src/policy/tree/interpreter.rs:100-103
+// simulator/src/policy/tree/interpreter.rs:100-103
 Value::Field { field } => context
     .get_field(field)
     .map_err(|_| EvalError::FieldNotFound(field.clone()))
@@ -118,7 +118,7 @@ agents:
   - id: BANK_A
     policy:
       type: FromJson
-      json_path: "backend/policies/liquidity_aware.json"
+      json_path: "simulator/policies/liquidity_aware.json"
       params:
         urgency_threshold: 10.0   # Override default
         target_buffer: 200000.0   # Override default
@@ -142,7 +142,7 @@ Parameters are always stored and evaluated as `f64`:
 
 ### Implementation
 ```rust
-// backend/src/policy/tree/interpreter.rs:105-109
+// simulator/src/policy/tree/interpreter.rs:105-109
 Value::Param { param } => params
     .get(param)
     .copied()
@@ -204,7 +204,7 @@ Represents a constant value directly in the expression. Supports numbers, boolea
 
 ### Implementation
 ```rust
-// backend/src/policy/tree/interpreter.rs:112-124
+// simulator/src/policy/tree/interpreter.rs:112-124
 Value::Literal { value: json_value } => {
     if let Some(num) = json_value.as_f64() {
         Ok(num)
@@ -295,7 +295,7 @@ See [computations.md](computations.md) for full details:
 
 ### Implementation
 ```rust
-// backend/src/policy/tree/interpreter.rs:127-128
+// simulator/src/policy/tree/interpreter.rs:127-128
 Value::Compute { compute } => evaluate_computation(compute, context, params)
 ```
 
@@ -336,7 +336,7 @@ Action parameters use `ValueOrCompute`, which is similar to `Value` but with sli
 
 ### Implementation
 ```rust
-// backend/src/policy/tree/types.rs:182-196
+// simulator/src/policy/tree/types.rs:182-196
 pub enum ValueOrCompute {
     Direct { value: serde_json::Value },
     Field { field: String },
@@ -376,7 +376,7 @@ All paths return f64 (or error)
 
 | Component | File | Line |
 |-----------|------|------|
-| Value enum | `backend/src/policy/tree/types.rs` | 161-177 |
-| ValueOrCompute enum | `backend/src/policy/tree/types.rs` | 182-196 |
-| evaluate_value() | `backend/src/policy/tree/interpreter.rs` | 94-129 |
-| evaluate_action_parameter() | `backend/src/policy/tree/interpreter.rs` | 1316-1358 |
+| Value enum | `simulator/src/policy/tree/types.rs` | 161-177 |
+| ValueOrCompute enum | `simulator/src/policy/tree/types.rs` | 182-196 |
+| evaluate_value() | `simulator/src/policy/tree/interpreter.rs` | 94-129 |
+| evaluate_action_parameter() | `simulator/src/policy/tree/interpreter.rs` | 1316-1358 |

@@ -37,7 +37,7 @@ payment-sim = "payment_simulator.cli.main:app"
 
 [tool.maturin]
 module-name = "payment_simulator_core_rs"
-manifest-path = "../backend/Cargo.toml"
+manifest-path = "../simulator/Cargo.toml"
 features = ["pyo3"]
 bindings = "pyo3"
 python-packages = ["payment_simulator"]

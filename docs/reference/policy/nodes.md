@@ -124,8 +124,8 @@ Evaluates a boolean expression and branches to either `on_true` or `on_false` ch
 4. Recursively continue until an Action node is reached
 
 ### Implementation Location
-- Rust enum: `backend/src/policy/tree/types.rs:71-89`
-- Traversal: `backend/src/policy/tree/interpreter.rs:518-532`
+- Rust enum: `simulator/src/policy/tree/types.rs:71-89`
+- Traversal: `simulator/src/policy/tree/interpreter.rs:518-532`
 
 ---
 
@@ -222,8 +222,8 @@ Parameters use `ValueOrCompute` type, which can be:
 | Computation | `{"compute": <Computation>}` | `{"compute": {"op": "+", ...}}` |
 
 ### Implementation Location
-- Rust enum: `backend/src/policy/tree/types.rs:91-103`
-- Decision builder: `backend/src/policy/tree/interpreter.rs:622-933`
+- Rust enum: `simulator/src/policy/tree/types.rs:91-103`
+- Decision builder: `simulator/src/policy/tree/interpreter.rs:622-933`
 
 ---
 
@@ -318,9 +318,9 @@ N1_CheckUrgent(true) → N2_CheckLiquidity(false) → A3_Hold
 
 | Component | File | Line |
 |-----------|------|------|
-| TreeNode enum | `backend/src/policy/tree/types.rs` | 69-103 |
-| node_id() method | `backend/src/policy/tree/types.rs` | 354-360 |
-| is_condition() method | `backend/src/policy/tree/types.rs` | 363-365 |
-| is_action() method | `backend/src/policy/tree/types.rs` | 368-370 |
-| traverse_node() | `backend/src/policy/tree/interpreter.rs` | 501-532 |
-| Node ID validation | `backend/src/policy/tree/validation.rs` | 141-186 |
+| TreeNode enum | `simulator/src/policy/tree/types.rs` | 69-103 |
+| node_id() method | `simulator/src/policy/tree/types.rs` | 354-360 |
+| is_condition() method | `simulator/src/policy/tree/types.rs` | 363-365 |
+| is_action() method | `simulator/src/policy/tree/types.rs` | 368-370 |
+| traverse_node() | `simulator/src/policy/tree/interpreter.rs` | 501-532 |
+| Node ID validation | `simulator/src/policy/tree/validation.rs` | 141-186 |

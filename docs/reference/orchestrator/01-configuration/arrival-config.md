@@ -1,6 +1,6 @@
 # ArrivalConfig
 
-**Location:** `backend/src/arrivals/mod.rs`
+**Location:** `simulator/src/arrivals/mod.rs`
 
 Configuration for automatic transaction generation. Defines how agents generate outgoing payments based on Poisson arrival processes with configurable amounts, counterparties, deadlines, and priorities.
 

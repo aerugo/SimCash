@@ -573,7 +573,7 @@ Using these in bank_tree or collateral trees will cause validation error.
 
 ## Validation Implementation
 
-See `backend/src/policy/tree/validation.rs`:
+See `simulator/src/policy/tree/validation.rs`:
 - `is_transaction_only_field()` - lines 327-353
 - `is_bank_level_field()` - lines 355-418
 - `validate_field_references()` - lines 244-324
@@ -584,9 +584,9 @@ See `backend/src/policy/tree/validation.rs`:
 
 | Component | File | Line |
 |-----------|------|------|
-| EvalContext struct | `backend/src/policy/tree/context.rs` | 114-117 |
-| EvalContext::build() | `backend/src/policy/tree/context.rs` | 152-611 |
-| EvalContext::bank_level() | `backend/src/policy/tree/context.rs` | 646-869 |
-| get_field() | `backend/src/policy/tree/context.rs` | 920-927 |
-| Transaction field validation | `backend/src/policy/tree/validation.rs` | 327-353 |
-| Bank-level field validation | `backend/src/policy/tree/validation.rs` | 355-418 |
+| EvalContext struct | `simulator/src/policy/tree/context.rs` | 114-117 |
+| EvalContext::build() | `simulator/src/policy/tree/context.rs` | 152-611 |
+| EvalContext::bank_level() | `simulator/src/policy/tree/context.rs` | 646-869 |
+| get_field() | `simulator/src/policy/tree/context.rs` | 920-927 |
+| Transaction field validation | `simulator/src/policy/tree/validation.rs` | 327-353 |
+| Bank-level field validation | `simulator/src/policy/tree/validation.rs` | 355-418 |

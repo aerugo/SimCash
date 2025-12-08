@@ -53,7 +53,7 @@ flowchart LR
     Advance --> After["current_tick = 50"]
 ```
 
-**Source**: `backend/src/orchestrator/engine.rs`
+**Source**: `simulator/src/orchestrator/engine.rs`
 
 ```rust
 fn tick(&mut self) -> Result<TickResult, SimulationError> {
@@ -93,7 +93,7 @@ flowchart TB
     Skip --> Next
 ```
 
-**Source**: `backend/src/orchestrator/engine.rs`
+**Source**: `simulator/src/orchestrator/engine.rs`
 
 ```rust
 if self.time.is_last_tick_of_day() {
@@ -145,7 +145,7 @@ flowchart TB
     MoreAgents -->|No| Done["Done"]
 ```
 
-**Source**: `backend/src/arrivals/mod.rs`
+**Source**: `simulator/src/arrivals/mod.rs`
 
 **Sampling Process**:
 1. **Count**: Poisson(λ = rate_per_tick)
@@ -182,7 +182,7 @@ flowchart TB
     Event --> Next
 ```
 
-**Source**: `backend/src/settlement/lsm.rs`
+**Source**: `simulator/src/settlement/lsm.rs`
 
 **Purpose**: Check for bilateral offset opportunity at the moment of RTGS submission, before queueing.
 
@@ -227,7 +227,7 @@ flowchart TB
     MoreTx -->|No| NextAgent["Next agent"]
 ```
 
-**Source**: `backend/src/policy/tree/executor.rs`
+**Source**: `simulator/src/policy/tree/executor.rs`
 
 **Policy Trees Evaluated**:
 1. `bank_tree` - Bank-level decisions (budget, state)
@@ -278,7 +278,7 @@ flowchart TB
     More -->|No| Return["Return result"]
 ```
 
-**Source**: `backend/src/settlement/rtgs.rs`
+**Source**: `simulator/src/settlement/rtgs.rs`
 
 **Process**:
 1. Iterate through Queue 2 in FIFO order
@@ -315,7 +315,7 @@ flowchart TB
     LSM --> Done["Return LsmPassResult"]
 ```
 
-**Source**: `backend/src/settlement/lsm.rs`
+**Source**: `simulator/src/settlement/lsm.rs`
 
 **Algorithm Sequence**:
 1. **Algorithm 1 (FIFO)**: Retry queue in order
@@ -359,7 +359,7 @@ flowchart TB
     Skip --> Done
 ```
 
-**Source**: `backend/src/orchestrator/engine.rs` (STEP 5.7)
+**Source**: `simulator/src/orchestrator/engine.rs` (STEP 5.7)
 
 **Purpose**: In deferred crediting mode, credits from settlements are accumulated during the tick and applied here, before cost accrual. This prevents "within-tick recycling" of liquidity.
 
@@ -422,7 +422,7 @@ flowchart TB
     NextAgent --> EndTick
 ```
 
-**Source**: `backend/src/orchestrator/engine.rs`
+**Source**: `simulator/src/orchestrator/engine.rs`
 
 **Cost Types**:
 
@@ -464,7 +464,7 @@ flowchart LR
     end
 ```
 
-**Source**: `backend/src/orchestrator/engine.rs`
+**Source**: `simulator/src/orchestrator/engine.rs`
 
 ```rust
 Ok(TickResult {

@@ -19,7 +19,7 @@ Add a configuration option to defer crediting receivers until the end of a tick,
 SimCash credits receivers **immediately** during RTGS queue processing:
 
 ```rust
-// backend/src/settlement/rtgs.rs - process_queue()
+// simulator/src/settlement/rtgs.rs - process_queue()
 for tx_id in tx_ids {
     if can_pay {
         sender.debit(amount)?;

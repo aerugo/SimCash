@@ -114,10 +114,10 @@ state.rng_seed = new_seed;  // CRITICAL: Always persist new seed
 All new events follow the standard pattern for replay identity:
 
 ```rust
-// 1. Define in backend/src/models/event.rs
+// 1. Define in simulator/src/models/event.rs
 Event::NewEventType { tick, field1, field2, ... }
 
-// 2. Serialize in backend/src/ffi/orchestrator.rs
+// 2. Serialize in simulator/src/ffi/orchestrator.rs
 // 3. Display in api/payment_simulator/cli/execution/display.py
 // 4. Test replay identity
 ```
@@ -244,7 +244,7 @@ class TestFeatureConfigParsing:
 
 **Purpose:** Verify the core algorithm/logic is correct.
 
-**Location:** `backend/tests/<feature>_tests.rs`
+**Location:** `simulator/tests/<feature>_tests.rs`
 
 **Required Scenarios:**
 
@@ -475,7 +475,7 @@ api/tests/
 │   ├── test_replay_identity_per_band.py          # Enhancement 3 replay
 │   └── test_bis_scenarios.py                # All BIS scenarios
 │
-backend/tests/
+simulator/tests/
 ├── priority_delay_costs_tests.rs    # Enhancement 1 Rust
 ├── liquidity_allocation_tests.rs    # Enhancement 2 Rust
 └── per_band_arrivals_tests.rs       # Enhancement 3 Rust
@@ -597,7 +597,7 @@ def test_priority_band_boundaries():
 
 #### Phase 1.2: Rust Implementation
 
-**File:** `backend/tests/priority_delay_costs.rs`
+**File:** `simulator/tests/priority_delay_costs.rs`
 
 ```rust
 #[test]
@@ -637,20 +637,20 @@ fn test_priority_band_classification() {
 
 ### Implementation Steps
 
-1. **Define Types** (`backend/src/orchestrator/engine.rs`)
+1. **Define Types** (`simulator/src/orchestrator/engine.rs`)
    - Add `PriorityDelayMultipliers` struct
    - Add `priority_delay_multipliers: Option<PriorityDelayMultipliers>` to `CostRates`
    - Add `PriorityBand` enum (Urgent, Normal, Low)
    - Add `get_priority_band(priority: u8) -> PriorityBand` function
 
-2. **Update Cost Calculation** (`backend/src/settlement/costs.rs` or appropriate module)
+2. **Update Cost Calculation** (`simulator/src/settlement/costs.rs` or appropriate module)
    - Modify delay cost calculation to use priority multiplier
    - Formula: `delay_cost = amount * base_rate * ticks * priority_multiplier`
 
-3. **FFI Parsing** (`backend/src/ffi/types.rs`)
+3. **FFI Parsing** (`simulator/src/ffi/types.rs`)
    - Parse `priority_delay_multipliers` from Python dict
 
-4. **Policy Context** (`backend/src/policy/tree/context.rs`)
+4. **Policy Context** (`simulator/src/policy/tree/context.rs`)
    - Add `priority_delay_multiplier_for_this_tx` field to EvalContext
 
 5. **Documentation**
@@ -2087,7 +2087,7 @@ class TestInteractionWithOtherFeatures:
 
 ### Rust Unit Tests
 
-**File:** `backend/tests/liquidity_allocation.rs`
+**File:** `simulator/tests/liquidity_allocation.rs`
 
 ```rust
 //! Unit tests for liquidity pool and allocation feature.
@@ -2286,7 +2286,7 @@ mod policy_context {
 
 #### Step 1: Define Types and Validation
 
-**File:** `backend/src/orchestrator/engine.rs`
+**File:** `simulator/src/orchestrator/engine.rs`
 
 ```rust
 /// Liquidity pool configuration for an agent
@@ -2325,7 +2325,7 @@ impl LiquidityPoolConfig {
 
 #### Step 2: Extend Agent Model
 
-**File:** `backend/src/models/agent.rs`
+**File:** `simulator/src/models/agent.rs`
 
 Add fields:
 ```rust
@@ -2341,7 +2341,7 @@ pub struct Agent {
 
 #### Step 3: Define Event
 
-**File:** `backend/src/models/event.rs`
+**File:** `simulator/src/models/event.rs`
 
 ```rust
 Event::LiquidityAllocation {
@@ -2358,7 +2358,7 @@ Event::LiquidityAllocation {
 
 #### Step 4: Implement Day-Start Allocation
 
-**File:** `backend/src/orchestrator/engine.rs`
+**File:** `simulator/src/orchestrator/engine.rs`
 
 Add new step at tick 0 (and start of each day):
 ```rust
@@ -2396,13 +2396,13 @@ fn allocate_liquidity_at_day_start(&mut self) -> Vec<Event> {
 
 #### Step 5: FFI Serialization
 
-**File:** `backend/src/ffi/types.rs`
+**File:** `simulator/src/ffi/types.rs`
 
 Parse config and serialize event.
 
 #### Step 6: Policy Context Fields
 
-**File:** `backend/src/policy/tree/context.rs`
+**File:** `simulator/src/policy/tree/context.rs`
 
 ```rust
 // In EvalContext::build()
@@ -2974,7 +2974,7 @@ class TestArrivalBandsDeterminism:
 
 #### Step 1: Define Types
 
-**File:** `backend/src/arrivals/config.rs`
+**File:** `simulator/src/arrivals/config.rs`
 
 ```rust
 /// Per-band arrival configuration
@@ -3008,7 +3008,7 @@ impl ArrivalBandsConfig {
 
 #### Step 2: Update Arrival Generator
 
-**File:** `backend/src/arrivals/generator.rs`
+**File:** `simulator/src/arrivals/generator.rs`
 
 ```rust
 impl ArrivalGenerator {
@@ -3100,7 +3100,7 @@ fn sample_priority_in_band(band: PriorityBand, seed: u64) -> (u8, u64) {
 
 #### Step 3: FFI Parsing
 
-**File:** `backend/src/ffi/types.rs`
+**File:** `simulator/src/ffi/types.rs`
 
 Add parsing for `arrival_bands` configuration from Python dict.
 

@@ -1,6 +1,6 @@
 # OrchestratorConfig
 
-**Location:** `backend/src/orchestrator/engine.rs:102-168`
+**Location:** `simulator/src/orchestrator/engine.rs:102-168`
 
 The main configuration struct for initializing an Orchestrator instance. Controls all aspects of simulation behavior including time management, cost calculations, and settlement optimization.
 
@@ -137,7 +137,7 @@ Ensures reproducible simulation results. The same seed with the same configurati
 
 **Implementation:**
 ```rust
-// Uses xorshift64* RNG (backend/src/rng/xorshift.rs)
+// Uses xorshift64* RNG (simulator/src/rng/xorshift.rs)
 let mut rng = RngManager::new(seed);
 // 0 is converted to 1 internally (0 would cause infinite loop)
 ```

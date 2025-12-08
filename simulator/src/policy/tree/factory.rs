@@ -146,17 +146,27 @@ pub fn create_policy(config: &PolicyConfig) -> Result<TreePolicy, TreePolicyErro
 
 /// Get the policies directory path
 ///
-/// Resolves to `backend/policies/` relative to project root.
-/// When running tests from backend/, this is just `policies/`.
+/// Resolves to `simulator/policies/` relative to project root.
+/// Handles multiple working directory scenarios:
+/// - From project root: simulator/policies
+/// - From simulator/: policies
+/// - From api/: ../simulator/policies
 fn policies_dir() -> PathBuf {
-    // First try backend/policies (when running from project root)
-    let backend_policies = PathBuf::from("backend/policies");
-    if backend_policies.exists() {
-        return backend_policies;
+    // Try these paths in order of preference
+    let candidates = [
+        PathBuf::from("simulator/policies"),    // From project root
+        PathBuf::from("policies"),              // From simulator/ directory
+        PathBuf::from("../simulator/policies"), // From api/ directory
+    ];
+
+    for path in &candidates {
+        if path.exists() {
+            return path.clone();
+        }
     }
 
-    // Fall back to policies/ (when running tests from backend/ directory)
-    PathBuf::from("policies")
+    // Default to project root path (will produce clear error if not found)
+    PathBuf::from("simulator/policies")
 }
 
 #[cfg(test)]

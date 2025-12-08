@@ -99,7 +99,7 @@ flowchart TB
 
 ### Python → Rust
 
-**Source**: `backend/src/ffi/types.rs`
+**Source**: `simulator/src/ffi/types.rs`
 
 ```mermaid
 flowchart LR
@@ -140,7 +140,7 @@ flowchart LR
 
 ### Rust → Python
 
-**Source**: `backend/src/ffi/orchestrator.rs`
+**Source**: `simulator/src/ffi/orchestrator.rs`
 
 ```mermaid
 flowchart LR
@@ -189,7 +189,7 @@ fn event_to_py_dict(event: &Event, py: Python) -> PyResult<PyObject> {
 
 ## PyOrchestrator Wrapper
 
-**Source**: `backend/src/ffi/orchestrator.rs`
+**Source**: `simulator/src/ffi/orchestrator.rs`
 
 ```mermaid
 classDiagram
@@ -412,7 +412,7 @@ for agent in state['agents']:
 
 ### Orchestrator Config
 
-**Source**: `backend/src/ffi/types.rs`
+**Source**: `simulator/src/ffi/types.rs`
 
 ```mermaid
 flowchart TB

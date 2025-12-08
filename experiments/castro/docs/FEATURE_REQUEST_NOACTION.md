@@ -6,7 +6,7 @@
 
 ## Summary
 
-Add a `NoAction` variant to the `ActionType` enum in `backend/src/policy/tree/types.rs` to allow bank-level decision trees to explicitly take no action on a given tick.
+Add a `NoAction` variant to the `ActionType` enum in `simulator/src/policy/tree/types.rs` to allow bank-level decision trees to explicitly take no action on a given tick.
 
 ## Current Behavior
 
@@ -58,7 +58,7 @@ This mismatch causes 100% of `INVALID_ACTION` errors in the Castro experiments.
 
 ## Proposed Change
 
-In `backend/src/policy/tree/types.rs`, add to the `ActionType` enum:
+In `simulator/src/policy/tree/types.rs`, add to the `ActionType` enum:
 
 ```rust
 /// Action type for terminal nodes
@@ -76,7 +76,7 @@ pub enum ActionType {
 }
 ```
 
-In the executor (`backend/src/policy/tree/executor.rs` or similar), handle `NoAction`:
+In the executor (`simulator/src/policy/tree/executor.rs` or similar), handle `NoAction`:
 
 ```rust
 ActionType::NoAction => {
@@ -119,8 +119,8 @@ This is verbose and semantically misleading.
 
 ## Related Files
 
-- `backend/src/policy/tree/types.rs` - ActionType enum definition
-- `backend/src/policy/tree/executor.rs` - Action execution logic
+- `simulator/src/policy/tree/types.rs` - ActionType enum definition
+- `simulator/src/policy/tree/executor.rs` - Action execution logic
 - `experiments/castro/schemas/actions.py` - Python action definitions (already has NoAction)
 - `experiments/castro/schemas/registry.py` - Re-exports BANK_ACTIONS
 

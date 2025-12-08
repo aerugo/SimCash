@@ -213,7 +213,7 @@ flowchart TB
 
 ### Event Enum (Rust)
 
-**Source**: `backend/src/models/event.rs`
+**Source**: `simulator/src/models/event.rs`
 
 ```rust
 pub enum Event {
@@ -447,8 +447,8 @@ impl EventLog {
 
 ### Workflow
 
-1. **Define in Rust** (`backend/src/models/event.rs`)
-2. **Add FFI serialization** (`backend/src/ffi/orchestrator.rs`)
+1. **Define in Rust** (`simulator/src/models/event.rs`)
+2. **Add FFI serialization** (`simulator/src/ffi/orchestrator.rs`)
 3. **Add display logic** (`api/payment_simulator/cli/execution/display.py`)
 4. **Write tests** (`api/tests/integration/test_replay_identity*.py`)
 5. **Verify replay identity** (`run --verbose` = `replay --verbose`)
