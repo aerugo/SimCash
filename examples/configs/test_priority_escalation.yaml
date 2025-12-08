@@ -28,7 +28,7 @@ agents:
     unsecured_cap: 0            # No credit - will need to wait for settlement
     policy:
       type: "FromJson"
-      json_path: "backend/policies/target2_priority_escalator.json"
+      json_path: "simulator/policies/target2_priority_escalator.json"
     # No automatic arrivals - we'll use scenario events
 
   # BANK_B: Simple counterparty with high liquidity
