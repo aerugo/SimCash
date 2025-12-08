@@ -159,7 +159,7 @@ Time management and initialization utilities.
 
 ### TimeManager
 
-**Source**: `backend/src/core/time.rs`
+**Source**: `simulator/src/core/time.rs`
 
 ```rust
 pub struct TimeManager {
@@ -275,7 +275,7 @@ classDiagram
 
 ### Agent Fields (Key Subset)
 
-**Source**: `backend/src/models/agent.rs`
+**Source**: `simulator/src/models/agent.rs`
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -320,7 +320,7 @@ Main simulation loop and state coordination.
 
 ### Orchestrator Structure
 
-**Source**: `backend/src/orchestrator/engine.rs`
+**Source**: `simulator/src/orchestrator/engine.rs`
 
 ```mermaid
 classDiagram
@@ -416,7 +416,7 @@ RTGS settlement and LSM optimization algorithms.
 
 ### RTGS Settlement Flow
 
-**Source**: `backend/src/settlement/rtgs.rs`
+**Source**: `simulator/src/settlement/rtgs.rs`
 
 ```mermaid
 flowchart TB
@@ -437,7 +437,7 @@ flowchart TB
 
 ### LSM Algorithm Sequence
 
-**Source**: `backend/src/settlement/lsm.rs`
+**Source**: `simulator/src/settlement/lsm.rs`
 
 ```mermaid
 flowchart LR
@@ -520,7 +520,7 @@ Deterministic random number generation for reproducible simulations.
 
 ### RngManager
 
-**Source**: `backend/src/rng/xorshift.rs`
+**Source**: `simulator/src/rng/xorshift.rs`
 
 ```mermaid
 classDiagram
@@ -579,7 +579,7 @@ Decision tree policies for cash management.
 
 ### Policy Trait
 
-**Source**: `backend/src/policy/mod.rs`
+**Source**: `simulator/src/policy/mod.rs`
 
 ```mermaid
 classDiagram
@@ -697,7 +697,7 @@ Transaction generation with configurable distributions.
 
 ### Arrival Configuration
 
-**Source**: `backend/src/arrivals/mod.rs`
+**Source**: `simulator/src/arrivals/mod.rs`
 
 ```mermaid
 classDiagram
@@ -778,7 +778,7 @@ Scenario event handling for external interventions.
 
 ### Scenario Event Types
 
-**Source**: `backend/src/events/types.rs`
+**Source**: `simulator/src/events/types.rs`
 
 ```mermaid
 classDiagram
@@ -828,7 +828,7 @@ See [04-ffi-boundary.md](./04-ffi-boundary.md) for detailed FFI patterns.
 
 ### PyOrchestrator
 
-**Source**: `backend/src/ffi/orchestrator.rs`
+**Source**: `simulator/src/ffi/orchestrator.rs`
 
 ```mermaid
 classDiagram
@@ -953,7 +953,7 @@ flowchart TB
 ### Test Organization
 
 ```
-backend/tests/
+simulator/tests/
 ├── integration/
 │   ├── test_determinism.rs
 │   ├── test_settlement.rs

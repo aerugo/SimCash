@@ -632,10 +632,10 @@ When payment_tree returns `Release`:
 
 | Component | File | Line |
 |-----------|------|------|
-| ActionType enum | `backend/src/policy/tree/types.rs` | 275-347 |
-| ReleaseDecision enum | `backend/src/policy/mod.rs` | 82-294 |
-| BankDecision enum | `backend/src/policy/mod.rs` | 412-506 |
-| CollateralDecision enum | `backend/src/policy/mod.rs` | 321-349 |
-| build_decision() | `backend/src/policy/tree/interpreter.rs` | 622-933 |
-| build_bank_decision() | `backend/src/policy/tree/interpreter.rs` | 1107-1276 |
-| build_collateral_decision() | `backend/src/policy/tree/interpreter.rs` | 949-1044 |
+| ActionType enum | `simulator/src/policy/tree/types.rs` | 275-347 |
+| ReleaseDecision enum | `simulator/src/policy/mod.rs` | 82-294 |
+| BankDecision enum | `simulator/src/policy/mod.rs` | 412-506 |
+| CollateralDecision enum | `simulator/src/policy/mod.rs` | 321-349 |
+| build_decision() | `simulator/src/policy/tree/interpreter.rs` | 622-933 |
+| build_bank_decision() | `simulator/src/policy/tree/interpreter.rs` | 1107-1276 |
+| build_collateral_decision() | `simulator/src/policy/tree/interpreter.rs` | 949-1044 |

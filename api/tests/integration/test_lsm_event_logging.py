@@ -120,7 +120,7 @@ class TestLsmEventLogging:
             if e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"]
         ]
 
-        # THIS WILL FAIL because LSM events are NOT logged in backend/src/settlement/lsm.rs
+        # THIS WILL FAIL because LSM events are NOT logged in simulator/src/settlement/lsm.rs
         assert len(lsm_events) > 0, (
             f"Expected at least 1 LSM event in event log, but found {len(lsm_events)}. "
             f"LSM bilateral offset occurred (queues are empty), but no events were logged. "

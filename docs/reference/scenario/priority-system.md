@@ -467,10 +467,10 @@ agents:
 | Component | File | Lines |
 |:----------|:-----|:------|
 | Priority Distributions | `api/payment_simulator/config/schemas.py` | 60-111 |
-| Queue1Ordering | `backend/src/orchestrator/engine.rs` | 230-237 |
-| PriorityEscalationConfig | `backend/src/orchestrator/engine.rs` | 188-214 |
-| PriorityBand | `backend/src/orchestrator/engine.rs` | 427-435 |
-| FFI Parsing | `backend/src/ffi/types.rs` | 637-701 |
+| Queue1Ordering | `simulator/src/orchestrator/engine.rs` | 230-237 |
+| PriorityEscalationConfig | `simulator/src/orchestrator/engine.rs` | 188-214 |
+| PriorityBand | `simulator/src/orchestrator/engine.rs` | 427-435 |
+| FFI Parsing | `simulator/src/ffi/types.rs` | 637-701 |
 
 ---
 

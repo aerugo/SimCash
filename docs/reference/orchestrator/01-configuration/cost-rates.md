@@ -1,6 +1,6 @@
 # CostRates
 
-**Location:** `backend/src/orchestrator/engine.rs:522-599`
+**Location:** `simulator/src/orchestrator/engine.rs:522-599`
 
 Configuration for all cost calculations in the simulation. Defines rates for overdraft costs, delay penalties, collateral opportunity costs, and other simulation expenses.
 

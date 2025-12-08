@@ -262,7 +262,7 @@ agents:
       multilateral_limit: 12000000      # $120k total daily
     policy:
       type: FromJson
-      json_path: "backend/policies/target2_priority_aware.json"
+      json_path: "simulator/policies/target2_priority_aware.json"
     arrival_config:
       rate_per_tick: 0.65
       amount_distribution:
@@ -288,7 +288,7 @@ agents:
       multilateral_limit: 11000000
     policy:
       type: FromJson
-      json_path: "backend/policies/target2_limit_aware.json"
+      json_path: "simulator/policies/target2_limit_aware.json"
     arrival_config:
       rate_per_tick: 0.60
       amount_distribution:
@@ -314,7 +314,7 @@ agents:
       multilateral_limit: 8500000
     policy:
       type: FromJson
-      json_path: "backend/policies/target2_limit_aware.json"
+      json_path: "simulator/policies/target2_limit_aware.json"
     arrival_config:
       rate_per_tick: 0.55
       amount_distribution:
@@ -340,7 +340,7 @@ agents:
       multilateral_limit: 7500000       # Tight limit
     policy:
       type: FromJson
-      json_path: "backend/policies/target2_crisis_proactive_manager.json"
+      json_path: "simulator/policies/target2_crisis_proactive_manager.json"
     arrival_config:
       rate_per_tick: 0.58
       amount_distribution:
@@ -439,7 +439,7 @@ agents:
     unsecured_cap: 5000000
     policy:
       type: FromJson
-      json_path: "backend/policies/priority_aware.json"
+      json_path: "simulator/policies/priority_aware.json"
     arrival_bands:
       # Urgent band (priority 8-10)
       # Few, large, tight deadline

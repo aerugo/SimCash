@@ -1,6 +1,6 @@
 # Agent Model
 
-**Location:** `backend/src/models/agent.rs`
+**Location:** `simulator/src/models/agent.rs`
 
 Represents a bank participating in the payment system with settlement account, credit facilities, internal queue management, and policy state.
 

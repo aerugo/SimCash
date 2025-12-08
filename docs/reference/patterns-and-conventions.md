@@ -234,14 +234,14 @@ Replay Mode:  simulation_events table → Python → Display
 
 When adding a new event type that should appear in verbose output:
 
-1. **Define enriched event in Rust** (`backend/src/models/event.rs`)
+1. **Define enriched event in Rust** (`simulator/src/models/event.rs`)
    - Include ALL fields needed for display
    - Don't store just IDs - store full display data
 
 2. **Generate event at source** (wherever event occurs)
    - Create with ALL data at creation time
 
-3. **Serialize via FFI** (`backend/src/ffi/orchestrator.rs`)
+3. **Serialize via FFI** (`simulator/src/ffi/orchestrator.rs`)
    - Serialize EVERY field to dict
 
 4. **Verify persistence** (usually automatic via EventWriter)
@@ -575,9 +575,9 @@ git commit -m "feat: Add --foo option to run command"
 
 | Area | Rust | Python |
 |------|------|--------|
-| State | `backend/src/models/state.rs` | N/A |
-| Events | `backend/src/models/event.rs` | `cli/execution/stats.py` |
-| FFI | `backend/src/lib.rs` | `_core.py` |
+| State | `simulator/src/models/state.rs` | N/A |
+| Events | `simulator/src/models/event.rs` | `cli/execution/stats.py` |
+| FFI | `simulator/src/lib.rs` | `_core.py` |
 | StateProvider | N/A | `cli/execution/state_provider.py` |
 | OutputStrategy | N/A | `cli/execution/strategies.py` |
 | Display | N/A | `cli/display/verbose_output.py` |

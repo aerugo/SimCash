@@ -15,13 +15,13 @@ mod test_phase_9_5_integration {
 
     /// Get the policies directory path (matches factory.rs pattern)
     fn policies_dir() -> PathBuf {
-        // First try backend/policies (when running from project root)
-        let backend_policies = PathBuf::from("backend/policies");
-        if backend_policies.exists() {
-            return backend_policies;
+        // First try simulator/policies (when running from project root)
+        let simulator_policies = PathBuf::from("simulator/policies");
+        if simulator_policies.exists() {
+            return simulator_policies;
         }
 
-        // Fall back to policies/ (when running tests from backend/ directory)
+        // Fall back to policies/ (when running tests from simulator/ directory)
         PathBuf::from("policies")
     }
 

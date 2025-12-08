@@ -46,14 +46,14 @@ Each tree consists of:
 
 | Component | File |
 |-----------|------|
-| Type definitions | `backend/src/policy/tree/types.rs` |
-| Evaluation context | `backend/src/policy/tree/context.rs` |
-| Interpreter | `backend/src/policy/tree/interpreter.rs` |
-| Validation | `backend/src/policy/tree/validation.rs` |
-| Executor | `backend/src/policy/tree/executor.rs` |
-| Factory | `backend/src/policy/tree/factory.rs` |
-| Policy trait | `backend/src/policy/mod.rs` |
-| Example policies | `backend/policies/*.json` |
+| Type definitions | `simulator/src/policy/tree/types.rs` |
+| Evaluation context | `simulator/src/policy/tree/context.rs` |
+| Interpreter | `simulator/src/policy/tree/interpreter.rs` |
+| Validation | `simulator/src/policy/tree/validation.rs` |
+| Executor | `simulator/src/policy/tree/executor.rs` |
+| Factory | `simulator/src/policy/tree/factory.rs` |
+| Policy trait | `simulator/src/policy/mod.rs` |
+| Example policies | `simulator/policies/*.json` |
 
 ## Key Design Principles
 

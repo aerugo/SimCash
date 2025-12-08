@@ -12,7 +12,7 @@
 When a payment settles in SimCash, the receiver's balance is credited **immediately** during queue processing:
 
 ```rust
-// backend/src/settlement/rtgs.rs:130-131
+// simulator/src/settlement/rtgs.rs:130-131
 sender.debit(amount)?;
 receiver.credit(amount);  // Immediate!
 ```
@@ -360,7 +360,7 @@ def test_deferred_crediting_config_default_false():
 
 ### Phase 1: Configuration (Rust + Python)
 
-**Rust (`backend/src/orchestrator/engine.rs`):**
+**Rust (`simulator/src/orchestrator/engine.rs`):**
 ```rust
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OrchestratorConfig {
@@ -386,7 +386,7 @@ class SimulationConfig(BaseModel):
 
 ### Phase 2: DeferredCredits Accumulator
 
-**New struct (`backend/src/settlement/deferred.rs`):**
+**New struct (`simulator/src/settlement/deferred.rs`):**
 ```rust
 /// Accumulator for deferred credits during a tick
 #[derive(Debug, Default)]
@@ -440,7 +440,7 @@ impl DeferredCredits {
 
 ### Phase 3: Event Definition
 
-**Rust (`backend/src/models/event.rs`):**
+**Rust (`simulator/src/models/event.rs`):**
 ```rust
 pub enum Event {
     // ... existing variants ...

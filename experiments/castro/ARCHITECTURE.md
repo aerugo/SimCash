@@ -77,7 +77,7 @@ The Castro experiments depend on the SimCash payment simulator:
 ```
 experiments/castro/
     └── depends on ──→ api/payment_simulator/
-                           └── depends on ──→ backend/ (Rust)
+                           └── depends on ──→ simulator/ (Rust)
 ```
 
 **Specific dependencies:**
@@ -87,7 +87,7 @@ experiments/castro/
 | Policy validation | `payment-sim validate-policy` | Validate LLM-generated policies |
 | Simulation execution | `payment-sim run` | Run experiments with policies |
 | Configuration schemas | `api/payment_simulator/config/` | YAML config structure |
-| Policy DSL | Rust `backend/src/models/policy.rs` | Policy structure/evaluation |
+| Policy DSL | Rust `simulator/src/models/policy.rs` | Policy structure/evaluation |
 
 ### Installation
 

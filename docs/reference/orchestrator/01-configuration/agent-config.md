@@ -1,6 +1,6 @@
 # AgentConfig
 
-**Location:** `backend/src/orchestrator/engine.rs:244-321`
+**Location:** `simulator/src/orchestrator/engine.rs:244-321`
 
 Configuration for a single agent (bank) in the simulation. Defines initial state, cash manager policy, transaction generation patterns, collateral, and payment limits.
 

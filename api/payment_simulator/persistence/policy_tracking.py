@@ -166,7 +166,7 @@ def load_policy_templates(
 
     Args:
         policy_dir: Directory containing policy template JSON files.
-                   Defaults to backend/policies/
+                   Defaults to simulator/policies/
 
     Returns:
         List of policy snapshot dicts ready for database insertion
@@ -181,9 +181,9 @@ def load_policy_templates(
         True
     """
     if policy_dir is None:
-        # Default to backend/policies/ (from project root)
+        # Default to simulator/policies/ (from project root)
         # policy_tracking.py -> persistence -> payment_simulator -> api -> cashman (project root)
-        policy_dir = Path(__file__).parent.parent.parent.parent / "backend" / "policies"
+        policy_dir = Path(__file__).parent.parent.parent.parent / "simulator" / "policies"
 
     templates = []
 

@@ -1,6 +1,6 @@
-# Rust Backend - Payment Simulator Core
+# Rust Simulator - Payment Simulator Core
 
-## You Are Here: `/backend`
+## You Are Here: `/simulator`
 
 This is the **Rust simulation engine** - the performance-critical core of the payment simulator. Everything here prioritizes correctness, safety, and speed.
 
@@ -14,7 +14,7 @@ This is the **Rust simulation engine** - the performance-critical core of the pa
 
 ### Project Structure
 ```
-backend/
+simulator/
 ├── src/
 │   ├── lib.rs              ← PyO3 FFI exports (what Python sees)
 │   ├── core/               ← Time management, initialization
@@ -616,7 +616,7 @@ fn test_rng_determinism() {
 
 ```bash
 # Search for any float usage in money code
-rg "f32|f64" backend/src/ --type rust | grep -v "test"
+rg "f32|f64" simulator/src/ --type rust | grep -v "test"
 ```
 
 ---
@@ -995,7 +995,7 @@ See `/docs/phase3_rtgs_analysis.md` for:
 
 **Status**: ✅ Complete (Phase 4a)
 
-**Location**: `/backend/src/policy/`
+**Location**: `/simulator/src/policy/`
 
 Cash manager policies control **Queue 1** (internal bank queues) - deciding **when** to submit transactions to the central RTGS system (Queue 2). This is where strategic decision-making happens.
 

@@ -8,9 +8,9 @@ use std::path::PathBuf;
 
 /// Helper function to locate policies directory
 fn policies_dir() -> PathBuf {
-    let backend_policies = PathBuf::from("backend/policies");
-    if backend_policies.exists() {
-        return backend_policies;
+    let simulator_policies = PathBuf::from("simulator/policies");
+    if simulator_policies.exists() {
+        return simulator_policies;
     }
     PathBuf::from("policies")
 }

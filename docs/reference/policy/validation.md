@@ -342,7 +342,7 @@ match validate_tree(&tree, &sample_ctx) {
 ### 3. CLI Validation
 ```bash
 # Validate policy file
-payment-sim validate-policy backend/policies/my_policy.json
+payment-sim validate-policy simulator/policies/my_policy.json
 ```
 
 ---
@@ -404,12 +404,12 @@ Validate policies work when:
 
 | Component | File | Line |
 |-----------|------|------|
-| ValidationError enum | `backend/src/policy/tree/validation.rs` | 19-38 |
-| validate_tree() | `backend/src/policy/tree/validation.rs` | 95-134 |
-| Node ID uniqueness | `backend/src/policy/tree/validation.rs` | 141-186 |
-| Tree depth | `backend/src/policy/tree/validation.rs` | 193-232 |
-| Field references | `backend/src/policy/tree/validation.rs` | 244-324 |
-| is_transaction_only_field() | `backend/src/policy/tree/validation.rs` | 327-353 |
-| is_bank_level_field() | `backend/src/policy/tree/validation.rs` | 355-418 |
-| Parameter references | `backend/src/policy/tree/validation.rs` | 455-523 |
-| Division safety | `backend/src/policy/tree/validation.rs` | 556-633 |
+| ValidationError enum | `simulator/src/policy/tree/validation.rs` | 19-38 |
+| validate_tree() | `simulator/src/policy/tree/validation.rs` | 95-134 |
+| Node ID uniqueness | `simulator/src/policy/tree/validation.rs` | 141-186 |
+| Tree depth | `simulator/src/policy/tree/validation.rs` | 193-232 |
+| Field references | `simulator/src/policy/tree/validation.rs` | 244-324 |
+| is_transaction_only_field() | `simulator/src/policy/tree/validation.rs` | 327-353 |
+| is_bank_level_field() | `simulator/src/policy/tree/validation.rs` | 355-418 |
+| Parameter references | `simulator/src/policy/tree/validation.rs` | 455-523 |
+| Division safety | `simulator/src/policy/tree/validation.rs` | 556-633 |

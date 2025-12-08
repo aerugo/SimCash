@@ -95,14 +95,14 @@ let value = rng.range(1, 100);  // Deterministic!
 
 | Component | Rust Location | Python Location |
 |-----------|---------------|-----------------|
-| Orchestrator | `backend/src/orchestrator/engine.rs` | `api/payment_simulator/_core.py` |
-| Transaction | `backend/src/models/transaction.rs` | - |
-| Agent | `backend/src/models/agent.rs` | - |
-| State | `backend/src/models/state.rs` | - |
-| Events | `backend/src/models/event.rs` | - |
-| Arrivals | `backend/src/arrivals/mod.rs` | - |
-| Settlement | `backend/src/settlement/` | - |
-| RNG | `backend/src/rng/xorshift.rs` | - |
+| Orchestrator | `simulator/src/orchestrator/engine.rs` | `api/payment_simulator/_core.py` |
+| Transaction | `simulator/src/models/transaction.rs` | - |
+| Agent | `simulator/src/models/agent.rs` | - |
+| State | `simulator/src/models/state.rs` | - |
+| Events | `simulator/src/models/event.rs` | - |
+| Arrivals | `simulator/src/arrivals/mod.rs` | - |
+| Settlement | `simulator/src/settlement/` | - |
+| RNG | `simulator/src/rng/xorshift.rs` | - |
 
 ## Critical Invariants
 

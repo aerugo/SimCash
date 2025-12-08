@@ -18,7 +18,7 @@ class TestFFICollateralEventRetrieval:
 
         RED: This test will FAIL because:
         - FFI method get_collateral_events_for_day() doesn't exist in Rust
-        - Need to implement in backend/src/ffi/orchestrator.rs
+        - Need to implement in simulator/src/ffi/orchestrator.rs
         """
         from payment_simulator._core import Orchestrator
         from payment_simulator.persistence.connection import DatabaseManager
