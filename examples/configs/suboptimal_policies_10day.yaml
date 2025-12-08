@@ -38,7 +38,7 @@ agents:
     unsecured_cap: 4000000            # $40,000 (increased)
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "simulator/policies/cautious_liquidity_preserver.json"
       params:
         buffer_multiplier: 2.0        # Well-tuned
         urgency_threshold: 2.5
@@ -63,7 +63,7 @@ agents:
     unsecured_cap: 4500000            # $45,000 (increased again)
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "simulator/policies/cautious_liquidity_preserver.json"
       params:
         buffer_multiplier: 2.0        # Well-tuned
         urgency_threshold: 2.5
@@ -88,7 +88,7 @@ agents:
     unsecured_cap: 4500000            # $45,000 (increased)
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "simulator/policies/cautious_liquidity_preserver.json"
       params:
         buffer_multiplier: 3.5        # SUBOPTIMAL but not terrible (should be ~2.0)
         urgency_threshold: 1.8        # SUBOPTIMAL (waits a bit too long)
@@ -113,7 +113,7 @@ agents:
     unsecured_cap: 4500000            # $45,000 (increased again)
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "simulator/policies/cautious_liquidity_preserver.json"
       params:
         buffer_multiplier: 1.7        # SUBOPTIMAL (should be ~2.0)
         urgency_threshold: 2.8        # SUBOPTIMAL (threshold a bit high)

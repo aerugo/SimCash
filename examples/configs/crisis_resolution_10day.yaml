@@ -38,7 +38,7 @@ agents:
     unsecured_cap: 2000000            # $20,000 unsecured overdraft capacity
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "simulator/policies/cautious_liquidity_preserver.json"
       params:
         buffer_multiplier: 2.5
         urgency_threshold: 3.0
@@ -63,7 +63,7 @@ agents:
     unsecured_cap: 1800000            # $18,000 unsecured overdraft capacity
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "simulator/policies/cautious_liquidity_preserver.json"
       params:
         buffer_multiplier: 2.5
         urgency_threshold: 3.0
@@ -88,7 +88,7 @@ agents:
     unsecured_cap: 1900000            # $19,000 unsecured overdraft capacity
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "simulator/policies/cautious_liquidity_preserver.json"
       params:
         buffer_multiplier: 2.5
         urgency_threshold: 3.0
@@ -113,7 +113,7 @@ agents:
     unsecured_cap: 2200000            # $22,000 unsecured overdraft capacity
     policy:
       type: "FromJson"
-      json_path: "backend/policies/cautious_liquidity_preserver.json"
+      json_path: "simulator/policies/cautious_liquidity_preserver.json"
       params:
         buffer_multiplier: 2.5
         urgency_threshold: 3.0
