@@ -354,7 +354,7 @@ class TestPolicyTemplateLoading:
     """Test loading policy templates from disk into database."""
 
     def test_load_policy_templates_from_disk(self):
-        """Should load policy template files from backend/policies/."""
+        """Should load policy template files from simulator/policies/."""
         from payment_simulator.persistence.policy_tracking import load_policy_templates
 
         templates = load_policy_templates()

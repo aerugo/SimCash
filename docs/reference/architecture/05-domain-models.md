@@ -33,7 +33,7 @@ erDiagram
 
 ## 1. Agent (Bank)
 
-**Source**: `backend/src/models/agent.rs`
+**Source**: `simulator/src/models/agent.rs`
 
 Represents a participating bank with settlement account, queues, and policy state.
 
@@ -158,7 +158,7 @@ pub fn credit_limit(&self) -> i64 {
 
 ## 2. Transaction
 
-**Source**: `backend/src/models/transaction.rs`
+**Source**: `simulator/src/models/transaction.rs`
 
 Represents a payment instruction with lifecycle tracking.
 
@@ -296,7 +296,7 @@ flowchart TB
 
 ## 3. SimulationState
 
-**Source**: `backend/src/models/state.rs`
+**Source**: `simulator/src/models/state.rs`
 
 Container holding all simulation state.
 
@@ -369,7 +369,7 @@ flowchart TB
 
 ## 4. TimeManager
 
-**Source**: `backend/src/core/time.rs`
+**Source**: `simulator/src/core/time.rs`
 
 Manages simulation time progression.
 
@@ -438,7 +438,7 @@ pub fn ticks_until_eod(&self) -> usize {
 
 ### CollateralEvent
 
-**Source**: `backend/src/models/collateral_event.rs`
+**Source**: `simulator/src/models/collateral_event.rs`
 
 ```mermaid
 classDiagram
@@ -475,7 +475,7 @@ classDiagram
 
 ### EventLog
 
-**Source**: `backend/src/models/event.rs`
+**Source**: `simulator/src/models/event.rs`
 
 ```mermaid
 classDiagram

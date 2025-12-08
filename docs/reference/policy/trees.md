@@ -341,10 +341,10 @@ All trees are **optional**. A valid policy file can have:
 
 | Component | File | Line |
 |-----------|------|------|
-| DecisionTreeDef struct | `backend/src/policy/tree/types.rs` | 22-58 |
-| bank_tree field | `backend/src/policy/tree/types.rs` | 37-38 |
-| payment_tree field | `backend/src/policy/tree/types.rs` | 40-43 |
-| strategic_collateral_tree field | `backend/src/policy/tree/types.rs` | 45-48 |
-| end_of_tick_collateral_tree field | `backend/src/policy/tree/types.rs` | 50-53 |
-| EvalContext::build() | `backend/src/policy/tree/context.rs` | 152-611 |
-| EvalContext::bank_level() | `backend/src/policy/tree/context.rs` | 646-869 |
+| DecisionTreeDef struct | `simulator/src/policy/tree/types.rs` | 22-58 |
+| bank_tree field | `simulator/src/policy/tree/types.rs` | 37-38 |
+| payment_tree field | `simulator/src/policy/tree/types.rs` | 40-43 |
+| strategic_collateral_tree field | `simulator/src/policy/tree/types.rs` | 45-48 |
+| end_of_tick_collateral_tree field | `simulator/src/policy/tree/types.rs` | 50-53 |
+| EvalContext::build() | `simulator/src/policy/tree/context.rs` | 152-611 |
+| EvalContext::bank_level() | `simulator/src/policy/tree/context.rs` | 646-869 |

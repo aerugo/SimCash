@@ -12,7 +12,7 @@
 When transactions are generated via the arrival system, their deadlines are calculated as:
 
 ```rust
-// backend/src/arrivals/mod.rs:515-527
+// simulator/src/arrivals/mod.rs:515-527
 fn generate_deadline(&self, arrival_tick: usize, range: (usize, usize), rng: &mut RngManager) -> usize {
     let (min_offset, max_offset) = range;
     let offset = rng.range(min_offset as i64, max_offset as i64 + 1) as usize;
@@ -360,10 +360,10 @@ fn test_determinism_with_eod_cap() {
 
 ### 3.2 Test Files to Create/Modify
 
-1. **New test file**: `backend/tests/test_deadline_eod_cap.rs`
+1. **New test file**: `simulator/tests/test_deadline_eod_cap.rs`
    - All core Rust tests for the feature
 
-2. **Modify**: `backend/tests/arrival_bands_tests.rs`
+2. **Modify**: `simulator/tests/arrival_bands_tests.rs`
    - Add tests for band-specific EOD cap behavior
 
 3. **Python integration**: `api/tests/integration/test_deadline_eod_cap.py`
@@ -376,7 +376,7 @@ fn test_determinism_with_eod_cap() {
 
 ### Phase 1: Configuration (Rust)
 
-**File: `backend/src/orchestrator/engine.rs`**
+**File: `simulator/src/orchestrator/engine.rs`**
 
 ```rust
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -392,7 +392,7 @@ pub struct OrchestratorConfig {
 
 ### Phase 2: ArrivalGenerator Modification
 
-**File: `backend/src/arrivals/mod.rs`**
+**File: `simulator/src/arrivals/mod.rs`**
 
 Add new fields to `ArrivalGenerator`:
 
@@ -468,7 +468,7 @@ fn generate_deadline(
 
 ### Phase 3: Orchestrator Integration
 
-**File: `backend/src/orchestrator/engine.rs`**
+**File: `simulator/src/orchestrator/engine.rs`**
 
 Pass new parameters when creating ArrivalGenerator:
 
@@ -520,7 +520,7 @@ def to_ffi_dict(self) -> dict[str, Any]:
 
 ### Phase 5: FFI Types (if needed)
 
-**File: `backend/src/ffi/types.rs`**
+**File: `simulator/src/ffi/types.rs`**
 
 Ensure `deadline_cap_at_eod` is parsed from the config dict:
 
@@ -664,7 +664,7 @@ agents:
 
 ## 9. Implementation Order
 
-1. Write failing tests in `backend/tests/test_deadline_eod_cap.rs`
+1. Write failing tests in `simulator/tests/test_deadline_eod_cap.rs`
 2. Add `deadline_cap_at_eod` to `OrchestratorConfig`
 3. Add fields to `ArrivalGenerator`
 4. Update `ArrivalGenerator::new*` constructors

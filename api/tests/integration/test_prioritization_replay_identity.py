@@ -294,7 +294,7 @@ class TestTransactionReprioritizedEventStructure:
     def test_ffi_serialization_includes_all_required_fields(self):
         """Verify FFI serialization structure for TransactionReprioritized.
 
-        Based on backend/src/ffi/orchestrator.rs, TransactionReprioritized is serialized with:
+        Based on simulator/src/ffi/orchestrator.rs, TransactionReprioritized is serialized with:
         - agent_id
         - tx_id
         - old_priority

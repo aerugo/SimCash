@@ -210,7 +210,7 @@ costs:
 
 ### Rust Structure
 
-**Source**: `backend/src/orchestrator/engine.rs`
+**Source**: `simulator/src/orchestrator/engine.rs`
 
 ```rust
 pub struct CostRates {

@@ -188,7 +188,7 @@ uv sync --extra dev
 
 ### After Rust Backend Changes
 
-If you modify the Rust code in `/backend/`, rebuild:
+If you modify the Rust code in `/simulator/`, rebuild:
 
 ```bash
 # From experiments/castro directory

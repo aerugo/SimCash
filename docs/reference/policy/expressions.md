@@ -443,8 +443,8 @@ Many context fields are boolean-encoded as `0.0` or `1.0`:
 
 | Component | File | Line |
 |-----------|------|------|
-| Expression enum | `backend/src/policy/tree/types.rs` | 112-152 |
-| evaluate_expression() | `backend/src/policy/tree/interpreter.rs` | 307-378 |
-| FLOAT_EPSILON constant | `backend/src/policy/tree/interpreter.rs` | 268 |
-| Short-circuit AND | `backend/src/policy/tree/interpreter.rs` | 351-360 |
-| Short-circuit OR | `backend/src/policy/tree/interpreter.rs` | 362-371 |
+| Expression enum | `simulator/src/policy/tree/types.rs` | 112-152 |
+| evaluate_expression() | `simulator/src/policy/tree/interpreter.rs` | 307-378 |
+| FLOAT_EPSILON constant | `simulator/src/policy/tree/interpreter.rs` | 268 |
+| Short-circuit AND | `simulator/src/policy/tree/interpreter.rs` | 351-360 |
+| Short-circuit OR | `simulator/src/policy/tree/interpreter.rs` | 362-371 |

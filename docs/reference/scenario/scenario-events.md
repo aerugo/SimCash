@@ -671,7 +671,7 @@ Error: amount must be > 0
 | Python Schedule Types | `api/payment_simulator/config/schemas.py` | 288-301 |
 | Python Event Types | `api/payment_simulator/config/schemas.py` | 304-393 |
 | Python ScenarioEvent Union | `api/payment_simulator/config/schemas.py` | 432-443 |
-| FFI Event Parsing | `backend/src/ffi/types.rs` | 1183-1406 |
+| FFI Event Parsing | `simulator/src/ffi/types.rs` | 1183-1406 |
 
 ---
 

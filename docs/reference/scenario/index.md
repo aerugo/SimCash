@@ -162,8 +162,8 @@ simulation:
 
 | Component | Python | Rust |
 |-----------|--------|------|
-| Schema Definitions | `api/payment_simulator/config/schemas.py` | `backend/src/orchestrator/engine.rs` |
-| FFI Conversion | N/A | `backend/src/ffi/types.rs` |
+| Schema Definitions | `api/payment_simulator/config/schemas.py` | `simulator/src/orchestrator/engine.rs` |
+| FFI Conversion | N/A | `simulator/src/ffi/types.rs` |
 | Config Loader | `api/payment_simulator/config/loader.py` | N/A |
 
 ## Related Documentation

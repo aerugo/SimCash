@@ -323,9 +323,9 @@ lsm_config:
 | Component | File | Lines |
 |:----------|:-----|:------|
 | Python LsmConfig | `api/payment_simulator/config/schemas.py` | 556-563 |
-| Rust LsmConfig | `backend/src/settlement/lsm.rs` | 84-107 |
-| FFI Parsing | `backend/src/ffi/types.rs` | 872-898 |
-| LSM Engine | `backend/src/settlement/lsm.rs` | - |
+| Rust LsmConfig | `simulator/src/settlement/lsm.rs` | 84-107 |
+| FFI Parsing | `simulator/src/ffi/types.rs` | 872-898 |
+| LSM Engine | `simulator/src/settlement/lsm.rs` | - |
 
 ---
 

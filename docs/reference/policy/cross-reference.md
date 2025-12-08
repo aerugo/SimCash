@@ -160,10 +160,10 @@
 ### Policy Files
 | File | Description |
 |------|-------------|
-| `backend/policies/fifo.json` | Simple FIFO |
-| `backend/policies/liquidity_aware.json` | Liquidity buffer |
-| `backend/policies/liquidity_splitting.json` | Auto-splitting |
-| `backend/policies/balanced_cost_optimizer.json` | Cost optimization |
+| `simulator/policies/fifo.json` | Simple FIFO |
+| `simulator/policies/liquidity_aware.json` | Liquidity buffer |
+| `simulator/policies/liquidity_splitting.json` | Auto-splitting |
+| `simulator/policies/balanced_cost_optimizer.json` | Cost optimization |
 
 ---
 

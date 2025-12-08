@@ -824,5 +824,5 @@ balance: int = 100050  # $1,000.50
 
 *Last updated: 2025-11-29*
 *For consolidated patterns and invariants, see `docs/reference/patterns-and-conventions.md`*
-*For Rust patterns, see `/backend/CLAUDE.md`*
+*For Rust patterns, see `/simulator/CLAUDE.md`*
 *For project overview, see root `/CLAUDE.md`*

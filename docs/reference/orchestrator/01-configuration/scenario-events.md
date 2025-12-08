@@ -1,6 +1,6 @@
 # Scenario Events
 
-**Location:** `backend/src/events/mod.rs`
+**Location:** `simulator/src/events/mod.rs`
 
 Scheduled events that modify simulation state at specific ticks. Enable dynamic interventions like balance transfers, arrival rate changes, and custom transactions during simulation.
 

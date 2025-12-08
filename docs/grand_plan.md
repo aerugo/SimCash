@@ -445,7 +445,7 @@ scenario_events:
 ### 3.1 What's Complete: Foundation Phases 1-6
 
 #### Phase 1-2: Core Domain Models ✅
-**Modules**: `backend/src/core/`, `backend/src/models/`
+**Modules**: `simulator/src/core/`, `simulator/src/models/`
 
 **Implemented**:
 - `TimeManager`: Discrete tick/day system with advancement
@@ -462,7 +462,7 @@ scenario_events:
 - Transaction IDs as strings (UUID support ready)
 
 #### Phase 3: RTGS Settlement Engine + LSM ✅
-**Modules**: `backend/src/settlement/rtgs.rs`, `backend/src/settlement/lsm.rs`
+**Modules**: `simulator/src/settlement/rtgs.rs`, `simulator/src/settlement/lsm.rs`
 
 **Implemented**:
 - **RTGS**: Immediate settlement when balance + credit sufficient, else Queue 2
@@ -481,7 +481,7 @@ scenario_events:
 - Four-bank ring scenario from Game Design Doc passes
 
 #### Phase 3.5: T2-Realistic LSM with Unequal Payment Values ✅ **COMPLETE**
-**Modules**: `backend/src/settlement/lsm.rs` (enhancement)
+**Modules**: `simulator/src/settlement/lsm.rs` (enhancement)
 
 **Status**: Implemented and tested (2025-11-05)
 
@@ -542,7 +542,7 @@ scenario_events:
 **Enables**: Better policy learning in Phase 11 (LLM can optimize for LSM with realistic net position requirements)
 
 #### Phase 4a: Queue 1 + Cash Manager Policies ✅
-**Modules**: `backend/src/policy/`, extended `backend/src/models/agent.rs`
+**Modules**: `simulator/src/policy/`, extended `simulator/src/models/agent.rs`
 
 **Implemented**:
 - **Queue 1 infrastructure**: Per-agent outgoing queues with analytics
@@ -558,7 +558,7 @@ scenario_events:
 **Documentation**: 3200+ line guide at `docs/queue_architecture.md`
 
 #### Phase 4b: Orchestrator Integration ✅
-**Module**: `backend/src/orchestrator/engine.rs`
+**Module**: `simulator/src/orchestrator/engine.rs`
 
 **Implemented**:
 - Complete 9-step tick loop integrating all subsystems
@@ -571,7 +571,7 @@ scenario_events:
 **Validation**: End-to-end flows confirmed (arrival → policy → submission → settlement)
 
 #### Phase 5: Transaction Splitting ✅
-**Module**: Integrated into `backend/src/orchestrator/engine.rs`
+**Module**: Integrated into `simulator/src/orchestrator/engine.rs`
 
 **Implemented**:
 - Voluntary splitting at Queue 1 decision point
@@ -582,7 +582,7 @@ scenario_events:
 **Tests**: Covered in orchestrator tests
 
 #### Phase 6: Arrival Generation ✅
-**Module**: `backend/src/orchestrator/engine.rs` (ArrivalGenerator)
+**Module**: `simulator/src/orchestrator/engine.rs` (ArrivalGenerator)
 
 **Implemented**:
 - Poisson process for arrival timing (inter-arrival exponential)
@@ -738,7 +738,7 @@ payment-sim run --config scenario.yaml --event-stream \
 
 #### What's Complete ✅
 
-**Cost Structures** (backend/src/orchestrator/engine.rs):
+**Cost Structures** (simulator/src/orchestrator/engine.rs):
 - ✅ `CostRates` struct with all 5 cost type configurations (lines 188-224)
 - ✅ `CostBreakdown` struct for per-agent cost tracking (lines 227-254)
 - ✅ `CostAccumulator` maintaining cumulative totals (lines 257-300)
@@ -757,7 +757,7 @@ payment-sim run --config scenario.yaml --event-stream \
 - ✅ `total_cost` returned in tick response
 
 **Collateral Management** (Phase 1 of collateral_management_plan.md - Policy Layer):
-- ✅ Agent model has `posted_collateral` field (backend/src/models/agent.rs)
+- ✅ Agent model has `posted_collateral` field (simulator/src/models/agent.rs)
 - ✅ `available_liquidity()` includes collateral: `balance + credit_limit + posted_collateral`
 - ✅ Collateral cost accrues every tick (opportunity cost basis points)
 - ✅ `CollateralDecision` and `CollateralReason` enums in policy layer
@@ -803,8 +803,8 @@ payment-sim run --config scenario.yaml --event-stream \
 **Files Created/Modified**:
 - Created: `api/tests/integration/test_cost_ffi.py` (518 lines)
 - Created: `api/tests/integration/test_cost_api.py` (600+ lines)
-- Modified: `backend/src/orchestrator/engine.rs` (+115 lines)
-- Modified: `backend/src/ffi/orchestrator.rs` (+99 lines)
+- Modified: `simulator/src/orchestrator/engine.rs` (+115 lines)
+- Modified: `simulator/src/ffi/orchestrator.rs` (+99 lines)
 - Modified: `api/payment_simulator/api/main.py` (+180 lines)
 
 **Critical Invariants Preserved**:
@@ -827,7 +827,7 @@ payment-sim run --config scenario.yaml --event-stream \
 
 #### Implementation Status: 100% Complete
 
-**Module**: backend/src/policy/tree/ (~4,880 lines of production code)
+**Module**: simulator/src/policy/tree/ (~4,880 lines of production code)
 
 **Components Implemented** ✅:
 
@@ -880,7 +880,7 @@ payment-sim run --config scenario.yaml --event-stream \
 
 **Documentation** ✅:
 - policy_dsl_design.md (2,700+ lines): Complete specification
-- backend/CLAUDE.md: Development guidance
+- simulator/CLAUDE.md: Development guidance
 - Rustdoc comments on all public APIs
 
 **What You Can Do Now**:
@@ -1142,7 +1142,7 @@ $ payment-sim db validate
 
 **Remaining Tasks** (2-3 days):
 
-1. **Rust FFI Additions** (backend/src/ffi/orchestrator.rs):
+1. **Rust FFI Additions** (simulator/src/ffi/orchestrator.rs):
    ```rust
    // Add these methods to PyOrchestrator
    fn get_agent_costs(&self, agent_id: String) -> PyResult<HashMap<String, i64>>
@@ -1225,13 +1225,13 @@ This is **not optional** - persistence is required for research reproducibility 
 **Phase 10.2: Transaction Batch Writes** ✅ COMPLETE (9 tests passing)
 
 **Deliverables**:
-- ✅ Rust FFI method: `get_transactions_for_day(day: usize) -> Vec<Dict>` - implemented in `backend/src/ffi/orchestrator.rs`
+- ✅ Rust FFI method: `get_transactions_for_day(day: usize) -> Vec<Dict>` - implemented in `simulator/src/ffi/orchestrator.rs`
 - ✅ Python batch write integration using Polars DataFrames
 - ✅ End-of-day persistence hook in simulation loop
 - ✅ Zero-copy Arrow integration (Polars → DuckDB)
 
 **Completed Implementation**:
-1. ✅ **Rust FFI** (`backend/src/ffi/orchestrator.rs:313-329`):
+1. ✅ **Rust FFI** (`simulator/src/ffi/orchestrator.rs:313-329`):
    ```rust
    fn get_transactions_for_day(&self, py: Python, day: usize) -> PyResult<Py<PyList>> {
        let transactions = self.inner.get_transactions_for_day(day);
@@ -1284,7 +1284,7 @@ This is **not optional** - persistence is required for research reproducibility 
 - ✅ Comprehensive collateral tracking (posted, capacity, costs)
 
 **Completed Implementation**:
-1. ✅ **Rust FFI** (`backend/src/ffi/orchestrator.rs:331-369`):
+1. ✅ **Rust FFI** (`simulator/src/ffi/orchestrator.rs:331-369`):
    - ✅ `DailyMetricsCollector` tracks during tick loop:
      - ✅ `min_balance` / `max_balance` (updated on every balance change)
      - ✅ `peak_overdraft` (max negative balance)
@@ -1435,7 +1435,7 @@ This is **not optional** - persistence is required for research reproducibility 
 - ✅ CLI integration (`payment-sim checkpoint save/load/list`)
 
 **Completed Implementation**:
-- ✅ **FFI Methods** (`backend/src/ffi/orchestrator.rs`):
+- ✅ **FFI Methods** (`simulator/src/ffi/orchestrator.rs`):
   - ✅ `save_checkpoint()` - Serialize full orchestrator state
   - ✅ `from_checkpoint()` - Restore orchestrator from checkpoint
 - ✅ **Persistence Layer** (`api/payment_simulator/persistence/checkpoint.py`):
@@ -1798,7 +1798,7 @@ cost_rates:
 ```
 
 **Implementation**:
-1. Add `PriorityDelayMultipliers` struct to `CostRates` (backend/src/orchestrator/engine.rs)
+1. Add `PriorityDelayMultipliers` struct to `CostRates` (simulator/src/orchestrator/engine.rs)
 2. Add `PriorityBand` enum with `get_priority_band(priority: u8)` helper
 3. Modify delay cost calculation to apply priority multiplier
 4. Add `priority_delay_multiplier_for_this_tx` to policy EvalContext
@@ -3064,7 +3064,7 @@ cd cli
 **Step 3: Explore the Codebase**
 - Read `docs/architecture.md` (high-level design)
 - Read `docs/queue_architecture.md` (two-queue system)
-- Review `backend/tests/` (see how components work)
+- Review `simulator/tests/` (see how components work)
 - Check `CLAUDE.md` in each module (AI assistant docs)
 
 ### 12.2 Development Workflow
@@ -3076,7 +3076,7 @@ git pull
 cargo test && pytest
 
 # Develop: Write test first
-# 1. Add test in `backend/tests/test_feature.rs`
+# 1. Add test in `simulator/tests/test_feature.rs`
 # 2. Run `cargo test test_feature` (fails)
 # 3. Implement feature
 # 4. Run `cargo test test_feature` (passes)

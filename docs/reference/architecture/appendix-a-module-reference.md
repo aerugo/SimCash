@@ -5,7 +5,7 @@
 
 ---
 
-## Rust Backend (`backend/src/`)
+## Rust Backend (`simulator/src/`)
 
 ### Statistics
 - **Total Files**: 31

@@ -93,7 +93,7 @@ cp archive/pre-castro-alignment/docs/*.md docs/
 
 - Castro et al. (2025): "Estimating Policy Functions in Payment Systems Using Reinforcement Learning"
 - Feature implementations:
-  - `backend/src/orchestrator/engine.rs` - deferred_crediting logic
-  - `backend/src/arrivals/mod.rs` - deadline_cap_at_eod logic
+  - `simulator/src/orchestrator/engine.rs` - deferred_crediting logic
+  - `simulator/src/arrivals/mod.rs` - deadline_cap_at_eod logic
 - Documentation:
   - `docs/reference/scenario/advanced-settings.md`

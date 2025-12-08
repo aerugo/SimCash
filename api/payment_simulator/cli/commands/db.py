@@ -350,7 +350,7 @@ def _extract_policy_names(config_json: str) -> dict[str, str]:
         Dictionary mapping agent_id to policy name (extracted from json_path)
 
     Examples:
-        >>> config = '{"agents": [{"id": "BANK_A", "policy": {"json_path": "backend/policies/efficient.json"}}]}'
+        >>> config = '{"agents": [{"id": "BANK_A", "policy": {"json_path": "simulator/policies/efficient.json"}}]}'
         >>> _extract_policy_names(config)
         {'BANK_A': 'efficient'}
     """
@@ -370,7 +370,7 @@ def _extract_policy_names(config_json: str) -> dict[str, str]:
             if "json_path" in policy:
                 json_path = policy["json_path"]
                 # Get filename without extension
-                # e.g., "backend/policies/efficient_proactive.json" -> "efficient_proactive"
+                # e.g., "simulator/policies/efficient_proactive.json" -> "efficient_proactive"
                 policy_name = Path(json_path).stem
                 policy_names[agent_id] = policy_name
             elif policy.get("type") in ["AlwaysSubmit", "SimpleThreshold", "BasicBalancePreserver"]:

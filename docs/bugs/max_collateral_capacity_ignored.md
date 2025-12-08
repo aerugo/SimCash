@@ -49,7 +49,7 @@ agents:
 
 ## Root Cause
 
-In `backend/src/models/agent.rs:1262-1266`:
+In `simulator/src/models/agent.rs:1262-1266`:
 
 ```rust
 pub fn max_collateral_capacity(&self) -> i64 {
@@ -62,7 +62,7 @@ The `max_collateral_capacity` is computed from `unsecured_cap` rather than store
 
 ### FFI Gap
 
-Checking `backend/src/ffi/types.rs`, the agent parsing extracts:
+Checking `simulator/src/ffi/types.rs`, the agent parsing extracts:
 - `unsecured_cap` ✓
 - `posted_collateral` ✓
 - `collateral_haircut` ✓
@@ -98,7 +98,7 @@ This bug caused research experiments to show $40M costs instead of expected $50k
 
 Add `max_collateral_capacity` as a configurable field on Agent:
 
-**In `backend/src/models/agent.rs`:**
+**In `simulator/src/models/agent.rs`:**
 ```rust
 pub struct Agent {
     // ... existing fields ...
@@ -117,7 +117,7 @@ impl Agent {
 }
 ```
 
-**In `backend/src/ffi/types.rs`:**
+**In `simulator/src/ffi/types.rs`:**
 ```rust
 // Add to agent parsing
 let max_collateral_capacity: Option<i64> = extract_optional(py_agent, "max_collateral_capacity")?;
@@ -151,8 +151,8 @@ Until fixed, users can work around by:
 
 ## Files Affected
 
-- `backend/src/models/agent.rs` - `max_collateral_capacity()` method
-- `backend/src/ffi/types.rs` - Agent parsing (missing field)
+- `simulator/src/models/agent.rs` - `max_collateral_capacity()` method
+- `simulator/src/ffi/types.rs` - Agent parsing (missing field)
 - `api/payment_simulator/config/schemas.py` - Schema allows field but it's unused
 
 ---
@@ -182,29 +182,29 @@ fn test_explicit_max_collateral_capacity() {
 
 The fix was implemented by:
 
-1. **Added `max_collateral_capacity: Option<i64>` field to `Agent` struct** (`backend/src/models/agent.rs`)
+1. **Added `max_collateral_capacity: Option<i64>` field to `Agent` struct** (`simulator/src/models/agent.rs`)
    - New field stores the explicit configuration value
    - `max_collateral_capacity()` method uses stored value or falls back to heuristic (10 × unsecured_cap)
    - New `set_max_collateral_capacity()` setter method
    - New `max_collateral_capacity_setting()` getter for checkpoint serialization
 
-2. **Added field to `AgentConfig` struct** (`backend/src/orchestrator/engine.rs`)
+2. **Added field to `AgentConfig` struct** (`simulator/src/orchestrator/engine.rs`)
    - `max_collateral_capacity: Option<i64>` with serde default
    - Wired through to agent initialization in `Orchestrator::new()`
 
-3. **Added FFI parsing** (`backend/src/ffi/types.rs`)
+3. **Added FFI parsing** (`simulator/src/ffi/types.rs`)
    - `extract_optional(py_agent, "max_collateral_capacity")?` to parse from Python config
 
-4. **Added FFI export** (`backend/src/ffi/orchestrator.rs`)
+4. **Added FFI export** (`simulator/src/ffi/orchestrator.rs`)
    - `get_agent_state()` now returns `max_collateral_capacity` and `remaining_collateral_capacity`
 
 5. **Updated Python schema** (`api/payment_simulator/config/schemas.py`)
    - Added `max_collateral_capacity: int | None` field to `AgentConfig`
 
-6. **Updated checkpoint serialization** (`backend/src/orchestrator/checkpoint.rs`)
+6. **Updated checkpoint serialization** (`simulator/src/orchestrator/checkpoint.rs`)
    - `AgentSnapshot` now includes `max_collateral_capacity` for proper state save/restore
 
-7. **Added tests** (`backend/src/models/agent.rs`)
+7. **Added tests** (`simulator/src/models/agent.rs`)
    - `test_explicit_max_collateral_capacity` verifies the fix works correctly
 
 ### Verification

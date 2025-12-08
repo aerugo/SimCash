@@ -10,7 +10,7 @@ TDD Workflow:
 3. REFACTOR: Clean up policy JSON
 4. DOCUMENT: Record findings
 
-Test Policies Location: backend/policies/test_policies/
+Test Policies Location: simulator/policies/test_policies/
 """
 
 import json
@@ -26,10 +26,10 @@ from policy_scenario import (
 
 
 def load_test_policy(policy_name: str) -> dict:
-    """Load a test policy file from backend/policies/test_policies/ directory."""
+    """Load a test policy file from simulator/policies/test_policies/ directory."""
     policy_path = (
         Path(__file__).parent.parent.parent.parent
-        / "backend"
+        / "simulator"
         / "policies"
         / "test_policies"
         / f"{policy_name}.json"

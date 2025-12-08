@@ -56,7 +56,7 @@
 //!
 //! # Example Usage
 //!
-//! See integration tests in `/backend/tests/` for complete examples of using
+//! See integration tests in `/simulator/tests/` for complete examples of using
 //! PolicyConfig with the orchestrator.
 //!
 //! Policies are loaded automatically via the factory pattern:
