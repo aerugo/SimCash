@@ -18,7 +18,7 @@ Create a self-documenting policy schema system that generates up-to-date documen
 
 ```bash
 # Rust tests (from simulator/)
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 
 # Python tests (from api/)
 cd api && .venv/bin/python -m pytest
@@ -264,13 +264,13 @@ mod tests {
 
 **Run tests - they should PASS (data structures only):**
 ```bash
-cd backend && cargo test --no-default-features schema_docs
+cd simulator && cargo test --no-default-features schema_docs
 ```
 
 ### 🔴 CHECKPOINT 1: Data Structures
 
 ```bash
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 # All tests must pass before continuing
 ```
 
@@ -355,7 +355,7 @@ Add to `schema_docs.rs` tests:
 
 **Run tests - they should FAIL (not implemented yet):**
 ```bash
-cd backend && cargo test --no-default-features expression_schema
+cd simulator && cargo test --no-default-features expression_schema
 # Expected: compilation error - Expression::schema_docs() doesn't exist
 ```
 
@@ -559,13 +559,13 @@ impl SchemaDocumented for Expression {
 
 **Run tests - they should PASS:**
 ```bash
-cd backend && cargo test --no-default-features expression_schema
+cd simulator && cargo test --no-default-features expression_schema
 ```
 
 ### 🔴 CHECKPOINT 2: Expression Documentation
 
 ```bash
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 # All tests must pass before continuing
 ```
 
@@ -633,7 +633,7 @@ cd backend && cargo test --no-default-features
 ### 🔴 CHECKPOINT 3: Computation Documentation
 
 ```bash
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 ```
 
 ---
@@ -710,7 +710,7 @@ cd backend && cargo test --no-default-features
 ### 🔴 CHECKPOINT 4: ActionType Documentation
 
 ```bash
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 ```
 
 ---
@@ -778,7 +778,7 @@ cd backend && cargo test --no-default-features
 ### 🔴 CHECKPOINT 5: Field Documentation
 
 ```bash
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 ```
 
 ---
@@ -846,7 +846,7 @@ pub fn get_policy_schema() -> String {
 ### 🔴 CHECKPOINT 6: Complete Rust Schema Module
 
 ```bash
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 # ALL Rust tests must pass
 ```
 
@@ -969,7 +969,7 @@ cd api && .venv/bin/python -m pytest tests/unit/test_policy_schema_ffi.py -v
 
 ```bash
 # Full Rust test suite
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 
 # Full Python test suite
 cd api && uv sync --extra dev --reinstall-package payment-simulator
@@ -1422,7 +1422,7 @@ cd api && .venv/bin/python -m pytest tests/unit/test_policy_schema_cli.py -v
 
 ```bash
 # Full Rust test suite
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 
 # Full Python test suite
 cd api && .venv/bin/python -m pytest
@@ -1515,7 +1515,7 @@ class TestPolicySchemaE2E:
 
 ```bash
 # Full Rust test suite
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 
 # Full Python test suite (includes integration)
 cd api && .venv/bin/python -m pytest
@@ -1541,7 +1541,7 @@ cd api && .venv/bin/python -m pytest
 
 ```bash
 # Run after every code change
-cd backend && cargo test --no-default-features
+cd simulator && cargo test --no-default-features
 
 # Run after Rust FFI changes
 cd api && uv sync --extra dev --reinstall-package payment-simulator

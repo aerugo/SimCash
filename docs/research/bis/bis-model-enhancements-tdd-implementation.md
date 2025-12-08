@@ -181,7 +181,7 @@ cd api
 # Expected: FAIL (test not found or assertion fails)
 
 # Step 2: Implement MINIMAL code
-cd ../backend
+cd ../simulator
 # Edit Rust code...
 cargo test --no-default-features  # Rust unit tests
 
