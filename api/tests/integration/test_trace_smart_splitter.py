@@ -26,10 +26,10 @@ from policy_scenario import (
 
 
 def load_json_policy(policy_name: str) -> dict:
-    """Load a production policy file from backend/policies/ directory."""
+    """Load a production policy file from simulator/policies/ directory."""
     policy_path = (
         Path(__file__).parent.parent.parent.parent
-        / "backend"
+        / "simulator"
         / "policies"
         / f"{policy_name}.json"
     )

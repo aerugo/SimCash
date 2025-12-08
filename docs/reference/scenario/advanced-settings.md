@@ -515,8 +515,8 @@ Already covered in [priority-system.md](priority-system.md).
 
 | Component | File | Lines |
 |:----------|:-----|:------|
-| OrchestratorConfig | `backend/src/orchestrator/engine.rs` | 102-168 |
-| FFI Config Parsing | `backend/src/ffi/types.rs` | 112-257 |
+| OrchestratorConfig | `simulator/src/orchestrator/engine.rs` | 102-168 |
+| FFI Config Parsing | `simulator/src/ffi/types.rs` | 112-257 |
 
 ---
 

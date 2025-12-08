@@ -499,10 +499,10 @@ arrival_config:
 |:----------|:-----|:------|
 | Python Amount Distributions | `api/payment_simulator/config/schemas.py` | 12-44 |
 | Python Priority Distributions | `api/payment_simulator/config/schemas.py` | 60-111 |
-| Rust Amount Distributions | `backend/src/arrivals/mod.rs` | 86-99 |
-| Rust Priority Distributions | `backend/src/arrivals/mod.rs` | 41-53 |
-| FFI Amount Parsing | `backend/src/ffi/types.rs` | 704-779 |
-| FFI Priority Parsing | `backend/src/ffi/types.rs` | 637-701 |
+| Rust Amount Distributions | `simulator/src/arrivals/mod.rs` | 86-99 |
+| Rust Priority Distributions | `simulator/src/arrivals/mod.rs` | 41-53 |
+| FFI Amount Parsing | `simulator/src/ffi/types.rs` | 704-779 |
+| FFI Priority Parsing | `simulator/src/ffi/types.rs` | 637-701 |
 
 ---
 

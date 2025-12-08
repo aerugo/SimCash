@@ -1572,7 +1572,7 @@ Given the simulation output:
 
 **Discovery**: The `max_collateral_capacity` config field is **IGNORED**.
 
-From `backend/src/models/agent.rs:1262`:
+From `simulator/src/models/agent.rs:1262`:
 ```rust
 pub fn max_collateral_capacity(&self) -> i64 {
     // Heuristic: 10x unsecured overdraft capacity
@@ -1818,7 +1818,7 @@ Two new features were added to SimCash to achieve Castro compatibility:
 
 #### 1. `deferred_crediting: true`
 
-**Implementation**: `backend/src/orchestrator/engine.rs`
+**Implementation**: `simulator/src/orchestrator/engine.rs`
 
 When enabled:
 - Credits from settlements are accumulated during the tick
@@ -1829,7 +1829,7 @@ When enabled:
 
 #### 2. `deadline_cap_at_eod: true`
 
-**Implementation**: `backend/src/arrivals/mod.rs`
+**Implementation**: `simulator/src/arrivals/mod.rs`
 
 When enabled:
 - All generated deadlines are capped at end of current business day

@@ -543,9 +543,9 @@ Derived fields for current transaction:
 |:----------|:-----|:------|
 | Python CostRates | `api/payment_simulator/config/schemas.py` | 520-550 |
 | Python PriorityMultipliers | `api/payment_simulator/config/schemas.py` | 500-517 |
-| Rust CostRates | `backend/src/orchestrator/engine.rs` | 522-599 |
-| Rust PriorityMultipliers | `backend/src/orchestrator/engine.rs` | 480-515 |
-| FFI Parsing | `backend/src/ffi/types.rs` | 782-869 |
+| Rust CostRates | `simulator/src/orchestrator/engine.rs` | 522-599 |
+| Rust PriorityMultipliers | `simulator/src/orchestrator/engine.rs` | 480-515 |
+| FFI Parsing | `simulator/src/ffi/types.rs` | 782-869 |
 
 ---
 

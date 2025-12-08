@@ -17,7 +17,7 @@ Create a self-documenting policy schema system that generates up-to-date documen
 ### Test Commands (Run Frequently)
 
 ```bash
-# Rust tests (from backend/)
+# Rust tests (from simulator/)
 cd backend && cargo test --no-default-features
 
 # Python tests (from api/)
@@ -33,7 +33,7 @@ cd api && .venv/bin/python -c "from payment_simulator.backends import Orchestrat
 ### Checkpoint Protocol
 
 At each checkpoint marked with 🔴 **CHECKPOINT**, you MUST:
-1. Run `cargo test --no-default-features` in `backend/`
+1. Run `cargo test --no-default-features` in `simulator/`
 2. Run `uv sync --extra dev --reinstall-package payment-simulator` in `api/`
 3. Run `pytest` in `api/`
 4. Only proceed if ALL tests pass
@@ -74,10 +74,10 @@ At each checkpoint marked with 🔴 **CHECKPOINT**, you MUST:
 
 **🔴 RED: Write tests first**
 
-Create test file: `backend/src/policy/tree/schema_docs.rs`
+Create test file: `simulator/src/policy/tree/schema_docs.rs`
 
 ```rust
-// backend/src/policy/tree/schema_docs.rs
+// simulator/src/policy/tree/schema_docs.rs
 
 //! Policy Schema Documentation
 //!
@@ -390,7 +390,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "priority"},
                     "right": {"value": 10}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:117".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:117".to_string(),
                 see_also: vec!["NotEqual".to_string()],
                 data_type: None,
                 unit: None,
@@ -409,7 +409,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "is_split"},
                     "right": {"value": 1}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:121".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:121".to_string(),
                 see_also: vec!["Equal".to_string()],
                 data_type: None,
                 unit: None,
@@ -428,7 +428,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "ticks_to_deadline"},
                     "right": {"value": 5}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:125".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:125".to_string(),
                 see_also: vec!["LessOrEqual".to_string(), "GreaterThan".to_string()],
                 data_type: None,
                 unit: None,
@@ -447,7 +447,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "queue_age"},
                     "right": {"param": "max_wait_ticks"}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:129".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:129".to_string(),
                 see_also: vec!["LessThan".to_string(), "GreaterOrEqual".to_string()],
                 data_type: None,
                 unit: None,
@@ -466,7 +466,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "effective_liquidity"},
                     "right": {"field": "remaining_amount"}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:133".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:133".to_string(),
                 see_also: vec!["GreaterOrEqual".to_string(), "LessThan".to_string()],
                 data_type: None,
                 unit: None,
@@ -485,7 +485,7 @@ impl SchemaDocumented for Expression {
                     "left": {"field": "balance"},
                     "right": {"field": "amount"}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:137".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:137".to_string(),
                 see_also: vec!["GreaterThan".to_string(), "LessOrEqual".to_string()],
                 data_type: None,
                 unit: None,
@@ -507,7 +507,7 @@ impl SchemaDocumented for Expression {
                         {"op": "<", "left": {"field": "amount"}, "right": {"value": 1000000}}
                     ]
                 })),
-                source_location: "backend/src/policy/tree/types.rs:142".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:142".to_string(),
                 see_also: vec!["Or".to_string(), "Not".to_string()],
                 data_type: None,
                 unit: None,
@@ -528,7 +528,7 @@ impl SchemaDocumented for Expression {
                         {"op": "<", "left": {"field": "ticks_to_deadline"}, "right": {"value": 3}}
                     ]
                 })),
-                source_location: "backend/src/policy/tree/types.rs:146".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:146".to_string(),
                 see_also: vec!["And".to_string(), "Not".to_string()],
                 data_type: None,
                 unit: None,
@@ -546,7 +546,7 @@ impl SchemaDocumented for Expression {
                     "op": "not",
                     "condition": {"op": "==", "left": {"field": "is_split"}, "right": {"value": 1}}
                 })),
-                source_location: "backend/src/policy/tree/types.rs:150".to_string(),
+                source_location: "simulator/src/policy/tree/types.rs:150".to_string(),
                 see_also: vec!["And".to_string(), "Or".to_string()],
                 data_type: None,
                 unit: None,
@@ -935,7 +935,7 @@ cd api && .venv/bin/python -m pytest tests/unit/test_policy_schema_ffi.py -v
 
 **🟢 GREEN: Add FFI export**
 
-1. Update `backend/src/ffi/orchestrator.rs`:
+1. Update `simulator/src/ffi/orchestrator.rs`:
 
 ```rust
 use crate::policy::tree::schema_docs::get_policy_schema;
@@ -947,7 +947,7 @@ pub fn py_get_policy_schema() -> PyResult<String> {
 }
 ```
 
-2. Update `backend/src/lib.rs` to export:
+2. Update `simulator/src/lib.rs` to export:
 
 ```rust
 #[pymodule]
@@ -1558,14 +1558,14 @@ payment-sim policy-schema -f json | head -20
 ## Files to Create/Modify
 
 ### New Files
-- `backend/src/policy/tree/schema_docs.rs`
+- `simulator/src/policy/tree/schema_docs.rs`
 - `api/payment_simulator/cli/commands/policy_schema.py`
 - `api/tests/unit/test_policy_schema_ffi.py`
 - `api/tests/unit/test_policy_schema_cli.py`
 - `api/tests/integration/test_policy_schema_e2e.py`
 
 ### Modified Files
-- `backend/src/policy/tree/mod.rs` (add `pub mod schema_docs;`)
-- `backend/src/ffi/orchestrator.rs` (add FFI export)
-- `backend/src/lib.rs` (export schema function)
+- `simulator/src/policy/tree/mod.rs` (add `pub mod schema_docs;`)
+- `simulator/src/ffi/orchestrator.rs` (add FFI export)
+- `simulator/src/lib.rs` (export schema function)
 - `api/payment_simulator/cli/main.py` (register command)

@@ -48,7 +48,7 @@ flowchart TB
 
 ## 1. RTGS Settlement
 
-**Source**: `backend/src/settlement/rtgs.rs`
+**Source**: `simulator/src/settlement/rtgs.rs`
 
 ### Core Functions
 
@@ -160,7 +160,7 @@ flowchart TB
 
 ## 2. LSM (Liquidity-Saving Mechanisms)
 
-**Source**: `backend/src/settlement/lsm.rs`
+**Source**: `simulator/src/settlement/lsm.rs`
 
 ### Algorithm Sequence (TARGET2 Style)
 
@@ -203,7 +203,7 @@ pub struct LsmConfig {
 
 ## 3. Bilateral Offsetting
 
-**Source**: `backend/src/settlement/lsm.rs`
+**Source**: `simulator/src/settlement/lsm.rs`
 
 ### Concept
 
@@ -282,7 +282,7 @@ flowchart TB
 
 ## 4. Cycle Detection
 
-**Source**: `backend/src/settlement/lsm/graph.rs`
+**Source**: `simulator/src/settlement/lsm/graph.rs`
 
 ### Concept
 
@@ -415,7 +415,7 @@ flowchart TB
 
 ## 5. Entry Disposition Offsetting
 
-**Source**: `backend/src/settlement/lsm.rs`
+**Source**: `simulator/src/settlement/lsm.rs`
 
 ### Concept
 
@@ -508,7 +508,7 @@ flowchart TB
 
 ## 8. Deferred Crediting Mode
 
-**Source**: `backend/src/settlement/deferred.rs`
+**Source**: `simulator/src/settlement/deferred.rs`
 
 ### Overview
 

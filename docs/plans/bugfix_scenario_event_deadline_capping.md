@@ -29,7 +29,7 @@ scenario_events:
 
 ## Root Cause
 
-**File:** `backend/src/orchestrator/engine.rs` lines 1496-1501
+**File:** `simulator/src/orchestrator/engine.rs` lines 1496-1501
 
 ```rust
 // CustomTransactionArrival: create transaction through normal arrival path
@@ -46,7 +46,7 @@ ScenarioEvent::CustomTransactionArrival { ... } => {
 }
 ```
 
-The `deadline_cap_at_eod` logic exists in `ArrivalGenerator::generate_deadline()` (lines 540-561 of `backend/src/arrivals/mod.rs`), but this is never called for scenario events.
+The `deadline_cap_at_eod` logic exists in `ArrivalGenerator::generate_deadline()` (lines 540-561 of `simulator/src/arrivals/mod.rs`), but this is never called for scenario events.
 
 ## Proposed Fix
 
@@ -142,7 +142,7 @@ The following tests in `experiments/castro/tests/` currently fail and should pas
 
 ### New Rust Unit Test
 
-Add to `backend/tests/test_deadline_eod_cap.rs`:
+Add to `simulator/tests/test_deadline_eod_cap.rs`:
 
 ```rust
 #[test]
@@ -177,7 +177,7 @@ fn test_scenario_event_deadline_respects_eod_cap() {
 ## Related Documentation
 
 - **Feature Spec:** `docs/plans/deadline_eod_cap.md` (Section 2.10 mentions this as intended behavior)
-- **Existing Implementation:** `backend/src/arrivals/mod.rs` lines 535-561
+- **Existing Implementation:** `simulator/src/arrivals/mod.rs` lines 535-561
 - **Castro Alignment:** This is required for experiments where all payments must settle same-day
 
 ## Additional Test Fix Required

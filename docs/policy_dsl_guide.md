@@ -37,7 +37,7 @@ This guide covers the **JSON Decision Tree DSL** - a declarative language for de
 
 ### Your First Policy
 
-Create a file `backend/policies/my_first_policy.json`:
+Create a file `simulator/policies/my_first_policy.json`:
 
 ```json
 {
@@ -83,7 +83,7 @@ agents:
       path: "my_first_policy.json"
 ```
 
-The system automatically loads JSON files from `backend/policies/`.
+The system automatically loads JSON files from `simulator/policies/`.
 
 ---
 
@@ -1806,7 +1806,7 @@ Compute action parameters based on context instead of using fixed values.
 
 ### Example 1: Simple Urgency-Based Policy
 
-**File:** `backend/policies/simple_urgency.json`
+**File:** `simulator/policies/simple_urgency.json`
 
 ```json
 {
@@ -1843,7 +1843,7 @@ Compute action parameters based on context instead of using fixed values.
 
 ### Example 2: Liquidity-Aware Policy
 
-**File:** `backend/policies/liquidity_aware.json`
+**File:** `simulator/policies/liquidity_aware.json`
 
 ```json
 {
@@ -1903,7 +1903,7 @@ Compute action parameters based on context instead of using fixed values.
 
 ### Example 3: Splitting Policy
 
-**File:** `backend/policies/liquidity_splitting.json`
+**File:** `simulator/policies/liquidity_splitting.json`
 
 ```json
 {
@@ -1960,7 +1960,7 @@ Compute action parameters based on context instead of using fixed values.
 
 ### Example 4: Cost-Optimizing Policy
 
-**File:** `backend/policies/cost_optimizer.json`
+**File:** `simulator/policies/cost_optimizer.json`
 
 ```json
 {
@@ -2025,7 +2025,7 @@ Compute action parameters based on context instead of using fixed values.
 
 ### Example 5: Comprehensive Adaptive Policy
 
-**File:** `backend/policies/adaptive_liquidity_manager.json`
+**File:** `simulator/policies/adaptive_liquidity_manager.json`
 
 This is a full 370-line policy demonstrating all Phase 9.5 features. Key sections:
 
@@ -2043,7 +2043,7 @@ This is a full 370-line policy demonstrating all Phase 9.5 features. Key section
 - Withdraws excess collateral when headroom detected
 - Cost-benefit analysis (collateral cost vs. benefit)
 
-**See the full file at:** `backend/policies/adaptive_liquidity_manager.json`
+**See the full file at:** `simulator/policies/adaptive_liquidity_manager.json`
 
 ---
 
@@ -2348,7 +2348,7 @@ Before running your policy:
 
 1. **Syntax validation:**
 ```bash
-jq empty backend/policies/my_policy.json
+jq empty simulator/policies/my_policy.json
 # No output = valid JSON
 ```
 
@@ -2427,15 +2427,15 @@ python -m payment_simulator.cli run --config test_config.yaml --ticks 100
 - Project guidelines: `CLAUDE.md`
 
 **Example Policies:**
-- `backend/policies/liquidity_aware.json` - Simple buffer management
-- `backend/policies/liquidity_splitting.json` - Payment splitting
-- `backend/policies/adaptive_liquidity_manager.json` - Full Phase 9.5 example
+- `simulator/policies/liquidity_aware.json` - Simple buffer management
+- `simulator/policies/liquidity_splitting.json` - Payment splitting
+- `simulator/policies/adaptive_liquidity_manager.json` - Full Phase 9.5 example
 
 **Source Code:**
-- DSL types: `backend/src/policy/tree/types.rs`
-- Context builder: `backend/src/policy/tree/context.rs`
-- Tree executor: `backend/src/policy/tree/executor.rs`
-- Policy factory: `backend/src/policy/tree/factory.rs`
+- DSL types: `simulator/src/policy/tree/types.rs`
+- Context builder: `simulator/src/policy/tree/context.rs`
+- Tree executor: `simulator/src/policy/tree/executor.rs`
+- Policy factory: `simulator/src/policy/tree/factory.rs`
 
 ---
 

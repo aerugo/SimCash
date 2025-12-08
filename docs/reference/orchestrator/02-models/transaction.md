@@ -1,6 +1,6 @@
 # Transaction Model
 
-**Location:** `backend/src/models/transaction.rs`
+**Location:** `simulator/src/models/transaction.rs`
 
 Represents a payment between two agents with complete lifecycle tracking, dual priority system, and split transaction support.
 

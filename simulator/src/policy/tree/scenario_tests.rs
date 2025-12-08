@@ -210,7 +210,7 @@ mod tests {
 
     // NOTE: Scenario comparison tests disabled after trait removal (Phase 8)
     // These tests compared trait-based policies (FifoPolicy, DeadlinePolicy) vs DSL policies
-    // The DSL policies are now tested via integration tests in /backend/tests/
+    // The DSL policies are now tested via integration tests in /simulator/tests/
 
     #[test]
     #[ignore = "Disabled after trait removal - comparison tests no longer applicable"]

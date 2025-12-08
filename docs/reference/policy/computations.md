@@ -571,17 +571,17 @@ Computations can be nested arbitrarily:
 
 | Component | File | Line |
 |-----------|------|------|
-| Computation enum | `backend/src/policy/tree/types.rs` | 205-266 |
-| evaluate_computation() | `backend/src/policy/tree/interpreter.rs` | 146-261 |
-| Add | `backend/src/policy/tree/interpreter.rs` | 152-156 |
-| Subtract | `backend/src/policy/tree/interpreter.rs` | 158-162 |
-| Multiply | `backend/src/policy/tree/interpreter.rs` | 164-168 |
-| Divide | `backend/src/policy/tree/interpreter.rs` | 170-180 |
-| Max | `backend/src/policy/tree/interpreter.rs` | 182-195 |
-| Min | `backend/src/policy/tree/interpreter.rs` | 197-210 |
-| Ceil | `backend/src/policy/tree/interpreter.rs` | 213-216 |
-| Floor | `backend/src/policy/tree/interpreter.rs` | 218-221 |
-| Round | `backend/src/policy/tree/interpreter.rs` | 223-226 |
-| Abs | `backend/src/policy/tree/interpreter.rs` | 228-231 |
-| Clamp | `backend/src/policy/tree/interpreter.rs` | 233-240 |
-| SafeDiv (div0) | `backend/src/policy/tree/interpreter.rs` | 242-259 |
+| Computation enum | `simulator/src/policy/tree/types.rs` | 205-266 |
+| evaluate_computation() | `simulator/src/policy/tree/interpreter.rs` | 146-261 |
+| Add | `simulator/src/policy/tree/interpreter.rs` | 152-156 |
+| Subtract | `simulator/src/policy/tree/interpreter.rs` | 158-162 |
+| Multiply | `simulator/src/policy/tree/interpreter.rs` | 164-168 |
+| Divide | `simulator/src/policy/tree/interpreter.rs` | 170-180 |
+| Max | `simulator/src/policy/tree/interpreter.rs` | 182-195 |
+| Min | `simulator/src/policy/tree/interpreter.rs` | 197-210 |
+| Ceil | `simulator/src/policy/tree/interpreter.rs` | 213-216 |
+| Floor | `simulator/src/policy/tree/interpreter.rs` | 218-221 |
+| Round | `simulator/src/policy/tree/interpreter.rs` | 223-226 |
+| Abs | `simulator/src/policy/tree/interpreter.rs` | 228-231 |
+| Clamp | `simulator/src/policy/tree/interpreter.rs` | 233-240 |
+| SafeDiv (div0) | `simulator/src/policy/tree/interpreter.rs` | 242-259 |

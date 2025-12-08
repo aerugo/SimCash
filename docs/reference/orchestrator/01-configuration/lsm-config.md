@@ -1,6 +1,6 @@
 # LsmConfig
 
-**Location:** `backend/src/settlement/lsm.rs:84-107`
+**Location:** `simulator/src/settlement/lsm.rs:84-107`
 
 Configuration for the Liquidity Saving Mechanism (LSM), which optimizes settlement by finding offsetting payments and cycles to reduce liquidity needs.
 

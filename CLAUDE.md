@@ -76,7 +76,7 @@ orchestrator.process(my_python_dataclass)
 └──────────────────┬──────────────────────────────┘
                    │ FFI (PyO3)
 ┌──────────────────▼──────────────────────────────┐
-│  Rust Simulation Engine (/backend)              │
+│  Rust Simulation Engine (/simulator)            │
 │  - Tick loop & time management                  │
 │  - Settlement engine (RTGS + LSM)               │
 │  - Transaction processing                       │
@@ -144,7 +144,7 @@ Each agent has a configuration controlling automatic transaction generation:
 ```
 /
 ├── CLAUDE.md                    ← You are here
-├── backend/
+├── simulator/
 │   ├── CLAUDE.md                ← Rust-specific guidance
 │   ├── src/
 │   │   ├── lib.rs               ← PyO3 FFI exports
@@ -234,7 +234,7 @@ Follow this **strictly enforced workflow** when adding a new event that should a
 
 #### Step 1: Define Enriched Event in Rust
 
-**File:** `backend/src/models/event.rs`
+**File:** `simulator/src/models/event.rs`
 
 ```rust
 pub enum Event {
@@ -256,7 +256,7 @@ pub enum Event {
 
 #### Step 2: Generate Event at Source
 
-**File:** Wherever the event happens (e.g., `backend/src/settlement/lsm.rs`)
+**File:** Wherever the event happens (e.g., `simulator/src/settlement/lsm.rs`)
 
 ```rust
 // When event occurs, create it with ALL data
@@ -274,7 +274,7 @@ self.events.push(event);
 
 #### Step 3: Serialize via FFI
 
-**File:** `backend/src/ffi/orchestrator.rs`
+**File:** `simulator/src/ffi/orchestrator.rs`
 
 In `get_tick_events()` and `get_all_events()`, add serialization:
 
@@ -583,7 +583,7 @@ When implementing replay identity for a new event:
 3. **Check existing patterns**: Look at similar code in the codebase
 4. **Write tests first**: TDD when possible
 5. **Implement in appropriate layer**:
-   - Performance-critical? → Rust (`/backend`)
+   - Performance-critical? → Rust (`/simulator`)
    - API/orchestration? → Python (`/api`)
 6. **Test across FFI boundary**: Integration tests in `/api/tests/integration/`
 7. **Commit often**: Small, atomic commits with clear messages
@@ -596,7 +596,7 @@ When implementing replay identity for a new event:
 5. **Verify determinism**: Run test 10 times with same seed
 
 ### Working on FFI
-1. **Read `backend/CLAUDE.md`** for Rust patterns
+1. **Read `simulator/CLAUDE.md`** for Rust patterns
 2. **Read `api/CLAUDE.md`** for Python FFI patterns  
 3. **Keep it simple**: Pass primitives, not complex types
 4. **Validate at boundary**: Check inputs before crossing
@@ -668,7 +668,7 @@ current_balance = orchestrator.get_balance("BANK_A")
 
 ## Testing Strategy
 
-### Rust Tests (`/backend/tests/`)
+### Rust Tests (`/simulator/tests/`)
 ```rust
 #[test]
 fn test_rtgs_settles_with_sufficient_liquidity() {
@@ -800,7 +800,7 @@ When starting work on this project:
 
 1. ✅ Read this file (you're doing it!)
 2. ✅ Read `docs/reference/patterns-and-conventions.md` for all invariants and patterns
-3. ✅ Scan `backend/CLAUDE.md` for Rust patterns
+3. ✅ Scan `simulator/CLAUDE.md` for Rust patterns
 4. ✅ Scan `api/CLAUDE.md` for Python patterns
 5. ✅ Review `docs/architecture.md` for system design
 6. ✅ Look at example configs to understand domain
@@ -832,7 +832,7 @@ When starting work on this project:
 
 ### Context Management
 - **Clear after each feature**: Don't carry old context
-- **Use @-mentions**: `@backend/src/settlement/rtgs.rs` to pull specific files
+- **Use @-mentions**: `@simulator/src/settlement/rtgs.rs` to pull specific files
 - **Proactive compaction**: Manually `/compact` at natural breakpoints
 - **Subagents for research**: Let them handle noisy investigations
 

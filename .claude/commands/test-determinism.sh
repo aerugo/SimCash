@@ -10,7 +10,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # Check for float contamination in Rust code
 echo ""
 echo "1️⃣ Checking for float contamination in money code..."
-if rg "f32|f64" backend/src/ --type rust | grep -v "test" | grep -v "debug" | grep -v "log"; then
+if rg "f32|f64" simulator/src/ --type rust | grep -v "test" | grep -v "debug" | grep -v "log"; then
     echo "❌ FAIL: Found float usage in production code!"
     echo "   Money must always be i64 (cents)"
     exit 1
@@ -21,7 +21,7 @@ fi
 # Run Rust determinism tests
 echo ""
 echo "2️⃣ Running Rust determinism tests..."
-cd backend
+cd simulator
 if cargo test determinism --quiet; then
     echo "✅ PASS: Rust determinism tests passed"
 else

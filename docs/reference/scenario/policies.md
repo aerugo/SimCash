@@ -388,7 +388,7 @@ policy:
 **Required**: Yes
 **Constraint**: Valid file path
 
-Path to JSON policy file, relative to `backend/policies/` or absolute.
+Path to JSON policy file, relative to `simulator/policies/` or absolute.
 
 ### Implementation Details
 
@@ -458,7 +458,7 @@ agents:
   - id: AGGRESSIVE_BANK
     policy:
       type: FromJson
-      json_path: "backend/policies/liquidity_aware.json"
+      json_path: "simulator/policies/liquidity_aware.json"
       params:                    # Override JSON defaults
         urgency_threshold: 3.0   # More aggressive than default
         target_buffer: 50000.0   # Smaller buffer
@@ -488,7 +488,7 @@ agents:
   - id: SOPHISTICATED_BANK
     policy:
       type: FromJson
-      json_path: "backend/policies/adaptive_liquidity_manager.json"
+      json_path: "simulator/policies/adaptive_liquidity_manager.json"
       params:
         urgency_threshold: 5.0
         target_buffer: 200000.0
@@ -652,10 +652,10 @@ MockStaggerSplit {
 |:----------|:-----|:------|
 | Python Policies | `api/payment_simulator/config/schemas.py` | 395-460 |
 | InlinePolicy Schema | `api/payment_simulator/config/schemas.py` | 431-446 |
-| Rust PolicyConfig | `backend/src/orchestrator/engine.rs` | 345-416 |
-| FFI Parsing | `backend/src/ffi/types.rs` | 350-399 |
-| JSON DSL Types | `backend/src/policy/tree/types.rs` | - |
-| JSON Executor | `backend/src/policy/tree/executor.rs` | - |
+| Rust PolicyConfig | `simulator/src/orchestrator/engine.rs` | 345-416 |
+| FFI Parsing | `simulator/src/ffi/types.rs` | 350-399 |
+| JSON DSL Types | `simulator/src/policy/tree/types.rs` | - |
+| JSON Executor | `simulator/src/policy/tree/executor.rs` | - |
 
 ---
 

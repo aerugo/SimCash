@@ -90,7 +90,7 @@ pub trait CashManagerPolicy: Send + Sync {
 }
 ```
 
-**Implementation**: `backend/src/policy/mod.rs:560-678`
+**Implementation**: `simulator/src/policy/mod.rs:560-678`
 
 ---
 
@@ -165,7 +165,7 @@ fn evaluate_end_of_tick_collateral(&mut self, agent, state, tick, cost_rates, ti
 }
 ```
 
-**Implementation**: `backend/src/policy/tree/executor.rs`
+**Implementation**: `simulator/src/policy/tree/executor.rs`
 
 ---
 
@@ -500,11 +500,11 @@ impl DecisionPath {
 
 | Component | File | Line |
 |-----------|------|------|
-| CashManagerPolicy trait | `backend/src/policy/mod.rs` | 560-678 |
-| TreePolicy struct | `backend/src/policy/tree/executor.rs` | 50-100 |
-| TreePolicy::evaluate_queue() | `backend/src/policy/tree/executor.rs` | 150-300 |
-| BudgetState | `backend/src/policy/tree/executor.rs` | 30-45 |
-| DecisionPath | `backend/src/policy/tree/types.rs` | 360-400 |
-| Agent.state_registers | `backend/src/models/agent.rs` | 45-50 |
-| Orchestrator tick flow | `backend/src/orchestrator/mod.rs` | 200-400 |
-| FFI exports | `backend/src/ffi/orchestrator.rs` | 100-300 |
+| CashManagerPolicy trait | `simulator/src/policy/mod.rs` | 560-678 |
+| TreePolicy struct | `simulator/src/policy/tree/executor.rs` | 50-100 |
+| TreePolicy::evaluate_queue() | `simulator/src/policy/tree/executor.rs` | 150-300 |
+| BudgetState | `simulator/src/policy/tree/executor.rs` | 30-45 |
+| DecisionPath | `simulator/src/policy/tree/types.rs` | 360-400 |
+| Agent.state_registers | `simulator/src/models/agent.rs` | 45-50 |
+| Orchestrator tick flow | `simulator/src/orchestrator/mod.rs` | 200-400 |
+| FFI exports | `simulator/src/ffi/orchestrator.rs` | 100-300 |
