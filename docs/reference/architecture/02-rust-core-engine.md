@@ -969,7 +969,7 @@ simulator/tests/
 
 ```bash
 # Run all Rust tests (must use --no-default-features)
-cd backend
+cd simulator
 cargo test --no-default-features
 
 # Run specific test
