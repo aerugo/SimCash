@@ -173,7 +173,10 @@ class ExperimentRunner:
             console.print(f"\n[bold cyan]Starting {self._experiment.name}[/bold cyan]")
             console.print(f"  Description: {self._experiment.description}")
             console.print(f"  Max iterations: {self._convergence_config.max_iterations}")
-            console.print(f"  Monte Carlo samples: {self._monte_carlo_config.num_samples}")
+            if self._monte_carlo_config.deterministic:
+                console.print("  Evaluation mode: [cyan]Deterministic[/cyan] (single evaluation)")
+            else:
+                console.print(f"  Monte Carlo samples: {self._monte_carlo_config.num_samples}")
             console.print(f"  LLM model: {self._model_config.model}")
             console.print()
 
@@ -205,6 +208,7 @@ class ExperimentRunner:
                         seed_results=seed_results,
                         mean_cost=mean_cost,
                         std_cost=std_cost,
+                        deterministic=self._monte_carlo_config.deterministic,
                     )
 
                 # Track best
