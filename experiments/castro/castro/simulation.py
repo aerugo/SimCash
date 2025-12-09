@@ -5,6 +5,7 @@ Wraps the SimCash Orchestrator for running simulations with given policies.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -151,10 +152,10 @@ class CastroSimulationRunner:
         else:
             base["simulation"] = {"rng_seed": seed}
 
-        # Inject policy into all agents using InlinePolicy type
+        # Inject policy into all agents using FromJson policy type
         agents = base.get("agents", [])
         for agent in agents:
-            agent["policy"] = {"type": "Inline", "decision_trees": policy}
+            agent["policy"] = {"type": "FromJson", "json": json.dumps(policy)}
 
         # Use SimulationConfig for proper conversion to FFI format
         sim_config = SimulationConfig.from_dict(base)
