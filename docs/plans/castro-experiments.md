@@ -1,24 +1,27 @@
-# Clean-Slate Castro Experiments with ai_cash_mgmt
+# Castro Experiments with ai_cash_mgmt
 
 **Status**: Implemented
 **Created**: 2025-12-09
 **Completed**: 2025-12-09
-**Goal**: Rewrite Castro experiments from scratch using only the `ai_cash_mgmt` module. No legacy code, no backwards compatibility.
+**Location**: `experiments/castro/`
+**Goal**: Castro experiments using only the `ai_cash_mgmt` module.
+
+> **Note**: Old legacy castro code has been deleted. This is the canonical castro implementation.
 
 ---
 
 ## Overview
 
-The Castro experiments replicate "Estimating Policy Functions in Payment Systems Using Reinforcement Learning" (Castro et al., 2025). We'll implement these experiments using the new `ai_cash_mgmt` module exclusively.
+The Castro experiments replicate "Estimating Policy Functions in Payment Systems Using Reinforcement Learning" (Castro et al., 2025). These experiments use the `ai_cash_mgmt` module exclusively.
 
-**What we're building**:
+**What we built**:
 - Three experiments (2-period, 12-period, joint optimization)
 - LLM-based policy optimization using `PolicyOptimizer`
 - Monte Carlo evaluation using `PolicyEvaluator` and `TransactionSampler`
 - Deterministic execution via `SeedManager`
 - Persistence via `GameRepository`
 
-**What we're NOT doing**:
+**Design principles**:
 - No adapters or wrappers around legacy code
 - No PydanticAI dependency (use standard LLM calls)
 - No backwards compatibility with legacy Castro database
@@ -28,7 +31,7 @@ The Castro experiments replicate "Estimating Policy Functions in Payment Systems
 ## Architecture
 
 ```
-experiments/new-castro/
+experiments/castro/
 ├── pyproject.toml              # Minimal deps: ai_cash_mgmt, anthropic/openai
 ├── castro/
 │   ├── __init__.py

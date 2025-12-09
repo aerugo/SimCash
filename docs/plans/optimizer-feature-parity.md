@@ -462,38 +462,26 @@ result = await self._optimizer.optimize(
 
 ## 4. Code References
 
-### 4.1 Old Castro Implementation Files
+### 4.1 Current Implementation (ai_cash_mgmt)
 
 | Component | File Path | Key Functions/Classes |
 |-----------|-----------|----------------------|
-| Extended Context Builder | [`experiments/castro/prompts/context.py`](../../../experiments/castro/prompts/context.py) | `ExtendedContextBuilder`, `SimulationContext` |
-| Single-Agent Context | [`experiments/castro/prompts/context.py#L650`](../../../experiments/castro/prompts/context.py#L650) | `SingleAgentContextBuilder`, `SingleAgentContext` |
-| Policy Diff | [`experiments/castro/prompts/context.py#L85`](../../../experiments/castro/prompts/context.py#L85) | `compute_policy_diff()` |
-| Parameter Trajectories | [`experiments/castro/prompts/context.py#L131`](../../../experiments/castro/prompts/context.py#L131) | `compute_parameter_trajectory()` |
-| Metrics Computation | [`experiments/castro/castro/simulation/metrics.py`](../../../experiments/castro/castro/simulation/metrics.py) | `compute_metrics()` |
-| LLM Optimizer | [`experiments/castro/castro/experiment/optimizer.py`](../../../experiments/castro/castro/experiment/optimizer.py) | `LLMOptimizer`, `generate_policy()` |
-| Robust Policy Agent | [`experiments/castro/generator/robust_policy_agent.py`](../../../experiments/castro/generator/robust_policy_agent.py) | `RobustPolicyAgent` |
-| Prompt Templates | [`experiments/castro/prompts/templates.py`](../../../experiments/castro/prompts/templates.py) | Tree-specific context |
+| Context Builder | `api/payment_simulator/ai_cash_mgmt/prompts/single_agent_context.py` | `SingleAgentContextBuilder`, `build_single_agent_context()` |
+| Context Types | `api/payment_simulator/ai_cash_mgmt/prompts/context_types.py` | `SingleAgentContext`, `SingleAgentIterationRecord` |
+| Policy Diff | `api/payment_simulator/ai_cash_mgmt/prompts/policy_diff.py` | `compute_policy_diff()`, `compute_parameter_trajectory()` |
+| Metrics Aggregation | `api/payment_simulator/ai_cash_mgmt/metrics/aggregation.py` | `compute_metrics()`, `AggregatedMetrics` |
+| Policy Optimizer | `api/payment_simulator/ai_cash_mgmt/optimization/policy_optimizer.py` | `PolicyOptimizer.optimize()` |
 
-### 4.2 New Implementation Files to Modify
+### 4.2 Experiment Runner (experiments/castro)
 
-| Component | File Path | Changes Needed |
-|-----------|-----------|----------------|
-| LLM Client | `experiments/new-castro/castro/llm_client.py` | Add extended context support |
-| Runner | `experiments/new-castro/castro/runner.py` | Collect rich metrics, pass to optimizer |
-| Simulation | `experiments/new-castro/castro/simulation.py` | Capture verbose output |
-| Policy Optimizer | `api/payment_simulator/ai_cash_mgmt/optimization/policy_optimizer.py` | Accept rich context params |
+| Component | File Path | Description |
+|-----------|-----------|-------------|
+| Runner | `experiments/castro/castro/runner.py` | Uses new PolicyOptimizer API with SingleAgentIterationRecord |
+| LLM Client | `experiments/castro/castro/llm_client.py` | LLMClientProtocol implementation |
+| Simulation | `experiments/castro/castro/simulation.py` | SimulationRunnerProtocol implementation |
+| Constraints | `experiments/castro/castro/constraints.py` | Castro-specific ScenarioConstraints |
 
-### 4.3 New Files to Create
-
-```
-api/payment_simulator/ai_cash_mgmt/
-├── context/
-│   ├── __init__.py
-│   ├── extended_context.py      # Port from castro/prompts/context.py
-│   ├── single_agent_context.py  # Port SingleAgentContextBuilder
-│   └── policy_diff.py           # Port compute_policy_diff()
-```
+> **Note**: Old castro code has been deleted. All optimizer functionality now lives in `ai_cash_mgmt`.
 
 ---
 
