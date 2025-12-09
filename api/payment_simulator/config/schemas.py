@@ -934,6 +934,10 @@ class SimulationConfig(BaseModel):
         if agent.liquidity_allocation_fraction is not None:
             result["liquidity_allocation_fraction"] = agent.liquidity_allocation_fraction
 
+        # Collateral capacity
+        if agent.max_collateral_capacity is not None:
+            result["max_collateral_capacity"] = agent.max_collateral_capacity
+
         return result
 
     def _policy_to_ffi_dict(self, policy: PolicyConfig) -> dict[str, str | int]:

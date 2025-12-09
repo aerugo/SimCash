@@ -96,7 +96,12 @@ class ExperimentRunner:
 
         # Core components
         self._seed_manager = SeedManager(experiment.master_seed)
-        self._convergence = ConvergenceDetector(self._convergence_config)
+        self._convergence = ConvergenceDetector(
+            stability_threshold=self._convergence_config.stability_threshold,
+            stability_window=self._convergence_config.stability_window,
+            max_iterations=self._convergence_config.max_iterations,
+            improvement_threshold=self._convergence_config.improvement_threshold,
+        )
         self._validator = ConstraintValidator(CASTRO_CONSTRAINTS)
         self._optimizer = PolicyOptimizer(
             constraints=CASTRO_CONSTRAINTS,
@@ -189,13 +194,41 @@ class ExperimentRunner:
                         current_cost=float(per_agent_costs.get(agent_id, 0)),
                     )
 
+                    # Evaluate new policy cost BEFORE accepting
+                    actually_accepted = False
+                    new_cost = result.old_cost
+
+                    if result.was_accepted and result.new_policy:
+                        # Temporarily apply new policy and evaluate
+                        old_policy = self._policies[agent_id]
+                        self._policies[agent_id] = result.new_policy
+
+                        eval_total, eval_per_agent = await self._evaluate_policies(iteration)
+                        new_cost = eval_per_agent.get(agent_id, result.old_cost)
+
+                        # Only accept if cost improved
+                        if new_cost < result.old_cost:
+                            actually_accepted = True
+                            console.print(
+                                f"    [green]Policy improved: "
+                                f"${result.old_cost/100:.2f} → ${new_cost/100:.2f}[/green]"
+                            )
+                        else:
+                            # Revert to old policy
+                            self._policies[agent_id] = old_policy
+                            console.print(
+                                f"    [yellow]Rejected: cost not improved "
+                                f"(${result.old_cost/100:.2f} → ${new_cost/100:.2f})[/yellow]"
+                            )
+
+                    # Update result for database record
+                    result.was_accepted = actually_accepted
+                    result.new_cost = new_cost
+
                     # Save iteration record
                     self._save_iteration(repo, result, iteration)
 
-                    if result.was_accepted and result.new_policy:
-                        self._policies[agent_id] = result.new_policy
-                        console.print("    [green]Policy updated[/green]")
-                    else:
+                    if not actually_accepted and result.validation_errors:
                         errors_str = ", ".join(result.validation_errors[:2])
                         console.print(f"    [yellow]Rejected: {errors_str}[/yellow]")
 
@@ -248,36 +281,54 @@ class ExperimentRunner:
     def _load_seed_policies(self) -> None:
         """Load initial seed policies for all agents."""
         # Default seed policy - release urgent, hold otherwise
+        # Note: Each node requires a node_id field for the Rust parser
+        #
+        # Use remaining_collateral_capacity instead of max_collateral_capacity
+        # for the compute expression, as it correctly accounts for the agent's
+        # configured capacity at runtime.
         seed_policy: dict[str, Any] = {
             "version": "2.0",
+            "policy_id": "seed_policy",
             "parameters": {
                 "initial_liquidity_fraction": 0.25,
-                "urgency_threshold": 3,
-                "liquidity_buffer": 1.0,
+                "urgency_threshold": 3.0,
+                "liquidity_buffer_factor": 1.0,
             },
             "payment_tree": {
                 "type": "condition",
+                "node_id": "urgency_check",
                 "condition": {
                     "op": "<=",
                     "left": {"field": "ticks_to_deadline"},
                     "right": {"param": "urgency_threshold"},
                 },
-                "on_true": {"type": "action", "action": "Release"},
-                "on_false": {"type": "action", "action": "Hold"},
+                "on_true": {"type": "action", "node_id": "release", "action": "Release"},
+                "on_false": {"type": "action", "node_id": "hold", "action": "Hold"},
             },
             "strategic_collateral_tree": {
                 "type": "condition",
+                "node_id": "tick_zero_check",
                 "condition": {
                     "op": "==",
                     "left": {"field": "system_tick_in_day"},
-                    "right": {"value": 0},
+                    "right": {"value": 0.0},
                 },
                 "on_true": {
                     "type": "action",
+                    "node_id": "post_initial",
                     "action": "PostCollateral",
-                    "params": {"fraction": {"param": "initial_liquidity_fraction"}},
+                    "parameters": {
+                        "amount": {
+                            "compute": {
+                                "op": "*",
+                                "left": {"field": "remaining_collateral_capacity"},
+                                "right": {"param": "initial_liquidity_fraction"},
+                            }
+                        },
+                        "reason": {"value": "InitialAllocation"},
+                    },
                 },
-                "on_false": {"type": "action", "action": "HoldCollateral"},
+                "on_false": {"type": "action", "node_id": "hold_collateral", "action": "HoldCollateral"},
             },
         }
 
