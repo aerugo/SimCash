@@ -82,8 +82,9 @@ class TestExperiments:
         exp = create_exp1()
 
         assert exp.name == "exp1"
-        assert exp.num_samples == 1  # Deterministic
-        assert exp.evaluation_ticks == 2
+        # Minimum values for MonteCarloConfig validation
+        assert exp.num_samples == 5  # Deterministic gives identical results
+        assert exp.evaluation_ticks == 10  # Ticks 2-9 are idle
         assert "BANK_A" in exp.optimized_agents
         assert "BANK_B" in exp.optimized_agents
 
@@ -94,14 +95,17 @@ class TestExperiments:
         assert exp.name == "exp2"
         assert exp.num_samples == 10  # Monte Carlo
         assert exp.evaluation_ticks == 12
-        assert exp.llm_provider.value == "anthropic"
+        # llm_provider is auto-detected from model name
+        llm_config = exp.get_llm_config()
+        assert llm_config.provider.value == "anthropic"
 
     def test_exp3_configuration(self) -> None:
         """Exp3 should have correct configuration."""
         exp = create_exp3()
 
         assert exp.name == "exp3"
-        assert exp.evaluation_ticks == 3
+        # Minimum evaluation_ticks for MonteCarloConfig validation
+        assert exp.evaluation_ticks == 10  # Ticks 3-9 are idle
 
     def test_experiments_registry(self) -> None:
         """EXPERIMENTS registry should contain all experiments."""

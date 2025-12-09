@@ -1,7 +1,7 @@
 [project]
-name = "new-castro"
-version = "0.1.0"
-description = "Castro experiments using ai_cash_mgmt module"
+name = "castro-experiments"
+version = "0.2.0"
+description = "Castro experiments using ai_cash_mgmt module (optimizer feature parity)"
 requires-python = ">=3.11"
 dependencies = [
     "payment-simulator",  # Includes ai_cash_mgmt
