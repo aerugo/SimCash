@@ -125,3 +125,78 @@ def compute_parameter_trajectory(
             trajectory.append((record.iteration, params[param_name]))
 
     return trajectory
+
+
+def compute_parameter_changes(
+    old_policy: dict[str, Any],
+    new_policy: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Compute structured parameter changes between two policies.
+
+    Returns a list of change dictionaries suitable for JSON serialization
+    and storage in the audit trail. Unlike compute_policy_diff which returns
+    human-readable strings, this returns structured data for programmatic analysis.
+
+    Args:
+        old_policy: The previous policy.
+        new_policy: The new policy to compare.
+
+    Returns:
+        List of change dictionaries with structure:
+        {
+            "param": str,      # Parameter name
+            "old": Any | None, # Old value (None if added)
+            "new": Any | None, # New value (None if removed)
+            "delta": float | None  # Numeric delta (None if non-numeric or add/remove)
+        }
+
+    Example:
+        >>> old = {"parameters": {"threshold": 5.0}}
+        >>> new = {"parameters": {"threshold": 3.0}}
+        >>> changes = compute_parameter_changes(old, new)
+        >>> print(changes)
+        [{"param": "threshold", "old": 5.0, "new": 3.0, "delta": -2.0}]
+    """
+    changes: list[dict[str, Any]] = []
+
+    old_params = old_policy.get("parameters", {})
+    new_params = new_policy.get("parameters", {})
+
+    # Added parameters
+    for key in set(new_params.keys()) - set(old_params.keys()):
+        changes.append({
+            "param": key,
+            "old": None,
+            "new": new_params[key],
+            "delta": None,
+        })
+
+    # Removed parameters
+    for key in set(old_params.keys()) - set(new_params.keys()):
+        changes.append({
+            "param": key,
+            "old": old_params[key],
+            "new": None,
+            "delta": None,
+        })
+
+    # Changed parameters
+    for key in set(old_params.keys()) & set(new_params.keys()):
+        if old_params[key] != new_params[key]:
+            old_val = old_params[key]
+            new_val = new_params[key]
+
+            # Calculate delta for numeric values
+            try:
+                delta = float(new_val) - float(old_val)
+            except (TypeError, ValueError):
+                delta = None
+
+            changes.append({
+                "param": key,
+                "old": old_val,
+                "new": new_val,
+                "delta": delta,
+            })
+
+    return changes
