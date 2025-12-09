@@ -1,309 +1,235 @@
-#!/usr/bin/env python3
 """CLI for Castro experiments.
 
-A modern Typer-based CLI for running Castro et al. replication experiments.
-
-Usage:
-    # Run an experiment
-    python cli.py run exp1
-
-    # Run with specific model and extended thinking
-    python cli.py run exp2 --model anthropic:claude-sonnet-4-5-20250929 --thinking-budget 32000
-
-    # List available experiments
-    python cli.py list
-
-    # Generate charts from existing database
-    python cli.py charts results/exp1/experiment.db
+Run Castro experiments using the ai_cash_mgmt module.
 """
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
-from experiments.castro.castro.experiment.definitions import EXPERIMENTS, get_experiment_summary
-from experiments.castro.castro.visualization import generate_all_charts
+from castro.experiments import EXPERIMENTS, CastroExperiment
+from castro.runner import ExperimentRunner
 
-# Create the CLI app
 app = typer.Typer(
     name="castro",
-    help="Castro et al. replication experiments for payment system optimization",
-    add_completion=False,
-    rich_markup_mode="rich",
+    help="Castro experiments using ai_cash_mgmt",
+    no_args_is_help=True,
 )
-
-
-# ============================================================================
-# Type Definitions for CLI Arguments
-# ============================================================================
-
-
-ExperimentArg = Annotated[
-    str,
-    typer.Argument(
-        help="Experiment key to run (e.g., exp1, exp2, exp3)",
-    ),
-]
-
-OutputOption = Annotated[
-    str,
-    typer.Option(
-        "--output", "-o",
-        help="Output database filename (will be created in results/{experiment_id}/)",
-    ),
-]
-
-ModelOption = Annotated[
-    str,
-    typer.Option(
-        "--model", "-m",
-        help="LLM model to use (e.g., gpt-4o, anthropic:claude-sonnet-4-5-20250929)",
-    ),
-]
-
-ReasoningOption = Annotated[
-    str,
-    typer.Option(
-        "--reasoning",
-        help="Reasoning effort level (none, low, medium, high)",
-    ),
-]
-
-ThinkingBudgetOption = Annotated[
-    int | None,
-    typer.Option(
-        "--thinking-budget",
-        help="Token budget for Anthropic Claude extended thinking (min 1024, recommended 10000-32000)",
-    ),
-]
-
-MaxIterOption = Annotated[
-    int | None,
-    typer.Option(
-        "--max-iter",
-        help="Override maximum iterations",
-    ),
-]
-
-MasterSeedOption = Annotated[
-    int | None,
-    typer.Option(
-        "--master-seed",
-        help="Master seed for reproducibility (pre-generates all iteration seeds)",
-    ),
-]
-
-SimcashRootOption = Annotated[
-    Path | None,
-    typer.Option(
-        "--simcash-root",
-        help="SimCash root directory (default: auto-detected)",
-    ),
-]
-
-VerboseOption = Annotated[
-    bool,
-    typer.Option(
-        "--verbose", "-v",
-        help="Enable verbose output with detailed progress and validation errors",
-    ),
-]
-
-DbPathArg = Annotated[
-    Path,
-    typer.Argument(
-        help="Path to experiment database file",
-        exists=True,
-    ),
-]
-
-ChartOutputOption = Annotated[
-    Path | None,
-    typer.Option(
-        "--output", "-o",
-        help="Output directory for charts (default: same as database directory)",
-    ),
-]
-
-
-# ============================================================================
-# Commands
-# ============================================================================
+console = Console()
 
 
 @app.command()
 def run(
-    experiment: ExperimentArg,
-    output: OutputOption = "experiment.db",
-    model: ModelOption = "gpt-4o",
-    reasoning: ReasoningOption = "high",
-    thinking_budget: ThinkingBudgetOption = None,
-    max_iter: MaxIterOption = None,
-    master_seed: MasterSeedOption = None,
-    simcash_root: SimcashRootOption = None,
-    verbose: VerboseOption = False,
+    experiment: Annotated[
+        str,
+        typer.Argument(help="Experiment key: exp1, exp2, or exp3"),
+    ],
+    model: Annotated[
+        str,
+        typer.Option("--model", "-m", help="LLM model to use"),
+    ] = "claude-sonnet-4-5-20250929",
+    max_iter: Annotated[
+        int,
+        typer.Option("--max-iter", "-i", help="Maximum optimization iterations"),
+    ] = 25,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Output directory for results"),
+    ] = None,
+    seed: Annotated[
+        int,
+        typer.Option("--seed", "-s", help="Master seed for determinism"),
+    ] = 42,
 ) -> None:
-    """Run a Castro replication experiment.
+    """Run a Castro experiment.
 
     Examples:
-        # Run Experiment 1 (Two-Period, Castro-Aligned)
-        python cli.py run exp1
-
-        # Run with Claude and extended thinking
-        python cli.py run exp2 --model anthropic:claude-sonnet-4-5-20250929 --thinking-budget 32000
-
-        # Run with specific master seed for reproducibility
-        python cli.py run exp1 --master-seed 42
+        castro run exp1
+        castro run exp2 --model gpt-4o --max-iter 50
+        castro run exp3 --output ./my_results --seed 123
     """
-    # Validate experiment key
     if experiment not in EXPERIMENTS:
-        available = ", ".join(sorted(EXPERIMENTS.keys()))
-        typer.echo(f"Error: Unknown experiment '{experiment}'. Available: {available}", err=True)
+        console.print(f"[red]Unknown experiment: {experiment}[/red]")
+        console.print(f"Available: {', '.join(EXPERIMENTS.keys())}")
         raise typer.Exit(1)
 
-    # Validate reasoning choice
-    valid_reasoning = {"none", "low", "medium", "high"}
-    if reasoning not in valid_reasoning:
-        typer.echo(f"Error: Invalid reasoning level '{reasoning}'. Use: {valid_reasoning}", err=True)
-        raise typer.Exit(1)
+    # Create experiment configuration
+    output_dir = output or Path("results")
+    exp = EXPERIMENTS[experiment](output_dir=output_dir, model=model)
 
-    # Validate thinking_budget with model
-    if thinking_budget is not None and not model.startswith("anthropic:"):
-        typer.echo(
-            f"Warning: --thinking-budget is only supported for Anthropic models (anthropic:*). "
-            f"Current model: {model}"
-        )
-        typer.echo("Ignoring --thinking-budget.")
-        thinking_budget = None
+    # Override settings if specified
+    if max_iter != 25:
+        exp.max_iterations = max_iter
+    if seed != 42:
+        exp.master_seed = seed
 
-    # Override max_iter if specified
-    if max_iter is not None:
-        EXPERIMENTS[experiment]["max_iterations"] = max_iter
+    # Run the experiment
+    console.print(f"[bold]Running {experiment}...[/bold]")
+    runner = ExperimentRunner(exp)
 
-    # Determine SimCash root
-    if simcash_root is None:
-        # Default: 4 levels up from this file
-        simcash_root = Path(__file__).parent.parent.parent
+    try:
+        result = asyncio.run(runner.run())
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted by user[/yellow]")
+        raise typer.Exit(130)
+    except Exception as e:
+        console.print(f"\n[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
 
-    # Import here to avoid circular imports and slow startup
-    from experiments.castro.castro.experiment.runner import ReproducibleExperiment
+    # Print results table
+    console.print()
+    table = Table(title=f"Results: {exp.name}")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
 
-    typer.echo(f"\n[bold]Starting {EXPERIMENTS[experiment]['name']}[/bold]\n")
+    table.add_row("Final Cost", f"${result.final_cost / 100:.2f}")
+    table.add_row("Best Cost", f"${result.best_cost / 100:.2f}")
+    table.add_row("Iterations", str(result.num_iterations))
+    table.add_row("Converged", "Yes" if result.converged else "No")
+    table.add_row("Convergence Reason", result.convergence_reason)
+    table.add_row("Duration", f"{result.duration_seconds:.1f}s")
 
-    # Run experiment
-    exp = ReproducibleExperiment(
-        experiment_key=experiment,
-        db_path=output,
-        simcash_root=str(simcash_root),
-        model=model,
-        reasoning_effort=reasoning,
-        master_seed=master_seed,
-        verbose=verbose,
-        thinking_budget=thinking_budget,
-    )
+    console.print(table)
 
-    exp.run()
+    # Print per-agent costs
+    if result.per_agent_costs:
+        console.print("\n[bold]Per-Agent Costs:[/bold]")
+        for agent_id, cost in result.per_agent_costs.items():
+            console.print(f"  {agent_id}: ${cost / 100:.2f}")
 
 
 @app.command("list")
 def list_experiments() -> None:
     """List available experiments."""
-    typer.echo("\n[bold]Available Experiments[/bold]")
-    typer.echo("=" * 60)
+    table = Table(title="Castro Experiments")
+    table.add_column("Key", style="cyan")
+    table.add_column("Name", style="green")
+    table.add_column("Description")
 
-    for key, exp in sorted(EXPERIMENTS.items()):
-        typer.echo(f"\n[cyan]{key}[/cyan]:")
-        typer.echo(f"  Name: {exp['name']}")
-        typer.echo(f"  Description: {exp.get('description', 'N/A')}")
-        typer.echo(f"  Config: {exp['config_path']}")
-        typer.echo(f"  Seeds: {exp['num_seeds']}")
-        typer.echo(f"  Max iterations: {exp['max_iterations']}")
-        castro_mode = exp.get("castro_mode", False)
-        typer.echo(f"  Castro mode: {'Yes' if castro_mode else 'No'}")
+    for key, factory in EXPERIMENTS.items():
+        exp = factory()
+        table.add_row(key, exp.name, exp.description)
+
+    console.print(table)
 
 
 @app.command()
-def charts(
-    db_path: DbPathArg,
-    output: ChartOutputOption = None,
+def info(
+    experiment: Annotated[
+        str,
+        typer.Argument(help="Experiment key to show details for"),
+    ],
 ) -> None:
-    """Generate charts from an existing experiment database.
+    """Show detailed experiment configuration."""
+    if experiment not in EXPERIMENTS:
+        console.print(f"[red]Unknown experiment: {experiment}[/red]")
+        console.print(f"Available: {', '.join(EXPERIMENTS.keys())}")
+        raise typer.Exit(1)
 
-    Examples:
-        # Generate charts in same directory as database
-        python cli.py charts results/exp1_2024-01-01/experiment.db
+    exp = EXPERIMENTS[experiment]()
 
-        # Generate charts to specific directory
-        python cli.py charts results/exp1/experiment.db --output ./charts
-    """
-    generate_all_charts(str(db_path), output_dir=output)
+    console.print(f"[bold cyan]{exp.name}[/bold cyan]")
+    console.print(f"Description: {exp.description}")
+    console.print()
+
+    # Configuration table
+    table = Table(title="Configuration")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("Scenario Path", str(exp.scenario_path))
+    table.add_row("Master Seed", str(exp.master_seed))
+    table.add_row("Output Directory", str(exp.output_dir))
+    table.add_row("", "")
+    table.add_row("[bold]Monte Carlo[/bold]", "")
+    table.add_row("  Samples", str(exp.num_samples))
+    table.add_row("  Evaluation Ticks", str(exp.evaluation_ticks))
+    table.add_row("", "")
+    table.add_row("[bold]Convergence[/bold]", "")
+    table.add_row("  Max Iterations", str(exp.max_iterations))
+    table.add_row("  Stability Threshold", f"{exp.stability_threshold:.1%}")
+    table.add_row("  Stability Window", str(exp.stability_window))
+    table.add_row("", "")
+    table.add_row("[bold]LLM[/bold]", "")
+    llm_config = exp.get_llm_config()
+    table.add_row("  Provider", llm_config.provider.value)
+    table.add_row("  Model", exp.llm_model)
+    table.add_row("  Temperature", str(exp.llm_temperature))
+    table.add_row("", "")
+    table.add_row("[bold]Agents[/bold]", "")
+    table.add_row("  Optimized", ", ".join(exp.optimized_agents))
+
+    console.print(table)
 
 
 @app.command()
-def summary(
-    db_path: DbPathArg,
+def validate(
+    experiment: Annotated[
+        str,
+        typer.Argument(help="Experiment key to validate"),
+    ],
 ) -> None:
-    """Show summary of an existing experiment database.
+    """Validate experiment configuration.
 
-    Displays:
-    - Experiment configuration
-    - Iteration metrics
-    - Best policy found
-    - Validation error summary
+    Checks that scenario config exists and is valid.
     """
-    from experiments.castro.castro.db.repository import ExperimentRepository
+    if experiment not in EXPERIMENTS:
+        console.print(f"[red]Unknown experiment: {experiment}[/red]")
+        raise typer.Exit(1)
 
-    repo = ExperimentRepository(str(db_path))
+    exp = EXPERIMENTS[experiment]()
+    base_dir = Path(__file__).parent
+    scenario_path = base_dir / exp.scenario_path
 
+    console.print(f"[bold]Validating {exp.name}...[/bold]")
+
+    # Check scenario file exists
+    if not scenario_path.exists():
+        console.print(f"[red]Scenario config not found: {scenario_path}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"  [green]Scenario config exists[/green]: {scenario_path}")
+
+    # Try to load it
     try:
-        summary_data = repo.export_summary()
-        typer.echo("\n[bold]Experiment Summary[/bold]")
-        typer.echo("=" * 60)
+        import yaml
 
-        for exp in summary_data.get("experiments", []):
-            typer.echo(f"\nExperiment: {exp['experiment_name']}")
-            typer.echo(f"  ID: {exp['experiment_id']}")
-            typer.echo(f"  Created: {exp['created_at']}")
-            typer.echo(f"  Model: {exp['model_name']}")
-            typer.echo(f"  Seeds: {exp['num_seeds']}")
-            typer.echo(f"  Iterations: {len(exp['iterations'])}")
+        with open(scenario_path) as f:
+            config = yaml.safe_load(f)
 
-            if exp["iterations"]:
-                last = exp["iterations"][-1]
-                typer.echo(f"\n  Final Iteration ({last['iteration']}):")
-                typer.echo(f"    Mean Cost: ${last['mean_cost']:,.0f}")
-                typer.echo(f"    Settlement Rate: {last['settlement_rate']*100:.1f}%")
-                typer.echo(f"    Converged: {'Yes' if last['converged'] else 'No'}")
+        # Check required fields
+        required_fields = ["simulation", "agents"]
+        missing = [f for f in required_fields if f not in config]
+        if missing:
+            console.print(f"  [red]Missing required fields: {missing}[/red]")
+            raise typer.Exit(1)
 
-        # Validation error summary
-        error_summary = repo.get_validation_error_summary()
-        if error_summary["total_errors"] > 0:
-            typer.echo("\n[yellow]Validation Errors[/yellow]")
-            typer.echo(f"  Total: {error_summary['total_errors']}")
-            typer.echo(f"  Fixed: {error_summary['fixed_count']} ({error_summary['fix_rate']:.1f}%)")
-            typer.echo(f"  Avg fix attempts: {error_summary['avg_fix_attempts']:.1f}")
+        console.print(f"  [green]Config structure valid[/green]")
 
-            if error_summary["by_category"]:
-                typer.echo("  By category:")
-                for cat, count in sorted(error_summary["by_category"].items()):
-                    typer.echo(f"    {cat}: {count}")
+        # Check agents
+        agents = config.get("agents", [])
+        agent_ids = [a.get("id", "?") for a in agents]
+        console.print(f"  [green]Agents found[/green]: {', '.join(agent_ids)}")
 
-    finally:
-        repo.close()
+        # Verify optimized agents exist
+        missing_agents = [a for a in exp.optimized_agents if a not in agent_ids]
+        if missing_agents:
+            console.print(f"  [yellow]Warning: Optimized agents not in config: {missing_agents}[/yellow]")
+        else:
+            console.print(f"  [green]All optimized agents present[/green]")
 
+    except Exception as e:
+        console.print(f"  [red]Failed to parse config: {e}[/red]")
+        raise typer.Exit(1) from e
 
-# ============================================================================
-# Entry Point
-# ============================================================================
-
-
-def main() -> None:
-    """Main entry point for the CLI."""
-    app()
+    console.print("\n[green]Validation passed![/green]")
 
 
 if __name__ == "__main__":
-    main()
+    app()
