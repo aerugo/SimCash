@@ -62,7 +62,7 @@ class ModelConfig:
     """
     model: str  # "provider:model" format
     temperature: float = 0.0
-    max_tokens: int = 4096
+    max_tokens: int = 30000
 
     # Provider-specific settings
     thinking_budget: int | None = None  # Anthropic extended thinking
