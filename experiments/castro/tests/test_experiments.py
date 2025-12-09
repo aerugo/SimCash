@@ -313,3 +313,155 @@ class TestDeterminism:
         # This is more of a smoke test
         assert isinstance(result1.total_cost, int)
         assert isinstance(result2.total_cost, int)
+
+
+class TestPolicyFormatConversion:
+    """TDD Tests for policy format conversion to FFI-compatible format.
+
+    The Rust FFI requires policies in a specific format:
+    - Policy type must be "FromJson" (not "Inline")
+    - The policy JSON must include "policy_id" and "version" at root
+    - TreeNodes must include "node_id" field
+
+    These tests verify that CastroSimulationRunner properly converts
+    Castro-style policies to FFI-compatible format.
+    """
+
+    @pytest.fixture
+    def simple_config(self) -> dict:
+        """Create a simple test configuration."""
+        return {
+            "simulation": {
+                "ticks_per_day": 2,
+                "num_days": 1,
+                "rng_seed": 42,
+            },
+            "agents": [
+                {"id": "BANK_A", "opening_balance": 100000, "unsecured_cap": 50000},
+                {"id": "BANK_B", "opening_balance": 100000, "unsecured_cap": 50000},
+            ],
+        }
+
+    @pytest.fixture
+    def valid_policy(self) -> dict:
+        """Create a valid Castro policy with all required fields."""
+        return {
+            "version": "1.0",
+            "policy_id": "test_policy",
+            "parameters": {"urgency_threshold": 3},
+            "payment_tree": {
+                "type": "action",
+                "node_id": "root",
+                "action": "Release",
+            },
+        }
+
+    def test_valid_policy_runs_successfully(
+        self, simple_config: dict, valid_policy: dict
+    ) -> None:
+        """A properly formatted policy should run without errors."""
+        runner = CastroSimulationRunner(simple_config)
+        result = runner.run_simulation(policy=valid_policy, seed=42, ticks=2)
+
+        assert isinstance(result, SimulationResult)
+        assert isinstance(result.total_cost, int)
+        assert "BANK_A" in result.per_agent_costs
+        assert "BANK_B" in result.per_agent_costs
+
+    def test_policy_requires_policy_id(self, simple_config: dict) -> None:
+        """Policy missing policy_id should fail with clear error."""
+        invalid_policy = {
+            "version": "1.0",
+            # Missing policy_id
+            "parameters": {"urgency_threshold": 3},
+            "payment_tree": {
+                "type": "action",
+                "node_id": "root",
+                "action": "Release",
+            },
+        }
+
+        runner = CastroSimulationRunner(simple_config)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            runner.run_simulation(policy=invalid_policy, seed=42, ticks=2)
+
+        assert "policy_id" in str(exc_info.value).lower()
+
+    def test_policy_requires_node_id(self, simple_config: dict) -> None:
+        """Policy TreeNode missing node_id should fail with clear error."""
+        invalid_policy = {
+            "version": "1.0",
+            "policy_id": "test",
+            "parameters": {},
+            "payment_tree": {
+                "type": "action",
+                # Missing node_id
+                "action": "Release",
+            },
+        }
+
+        runner = CastroSimulationRunner(simple_config)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            runner.run_simulation(policy=invalid_policy, seed=42, ticks=2)
+
+        assert "node_id" in str(exc_info.value).lower()
+
+    def test_conditional_policy_runs_successfully(self, simple_config: dict) -> None:
+        """A conditional policy with proper structure should work."""
+        conditional_policy = {
+            "version": "1.0",
+            "policy_id": "conditional_test",
+            "parameters": {"urgency_threshold": 3},
+            "payment_tree": {
+                "type": "condition",
+                "node_id": "check_urgency",
+                "description": "Check if urgent",
+                "condition": {
+                    "op": "<",
+                    "left": {"field": "ticks_to_deadline"},
+                    "right": {"param": "urgency_threshold"},
+                },
+                "on_true": {
+                    "type": "action",
+                    "node_id": "release_urgent",
+                    "action": "Release",
+                },
+                "on_false": {
+                    "type": "action",
+                    "node_id": "hold_non_urgent",
+                    "action": "Hold",
+                },
+            },
+        }
+
+        runner = CastroSimulationRunner(simple_config)
+        result = runner.run_simulation(policy=conditional_policy, seed=42, ticks=2)
+
+        assert isinstance(result, SimulationResult)
+
+    def test_multiple_runs_with_same_seed_deterministic(
+        self, simple_config: dict, valid_policy: dict
+    ) -> None:
+        """Same policy and seed should produce identical results."""
+        runner = CastroSimulationRunner(simple_config)
+
+        result1 = runner.run_simulation(policy=valid_policy, seed=12345, ticks=2)
+        result2 = runner.run_simulation(policy=valid_policy, seed=12345, ticks=2)
+
+        assert result1.total_cost == result2.total_cost
+        assert result1.per_agent_costs == result2.per_agent_costs
+        assert result1.transactions_settled == result2.transactions_settled
+
+    def test_verbose_capture_works_with_valid_policy(
+        self, simple_config: dict, valid_policy: dict
+    ) -> None:
+        """Verbose capture should work with properly formatted policy."""
+        runner = CastroSimulationRunner(simple_config)
+        result = runner.run_simulation(
+            policy=valid_policy, seed=42, ticks=2, capture_verbose=True
+        )
+
+        assert result.verbose_output is not None
+        assert result.verbose_output.total_ticks == 2
