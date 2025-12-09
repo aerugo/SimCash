@@ -5,13 +5,17 @@ Wraps the SimCash Orchestrator for running simulations with given policies.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from payment_simulator._core import Orchestrator
 from payment_simulator.config import SimulationConfig
+
+if TYPE_CHECKING:
+    from castro.verbose_capture import VerboseOutput
 
 
 @dataclass
@@ -19,6 +23,14 @@ class SimulationResult:
     """Result of a single simulation run.
 
     All costs are in cents (integer).
+
+    Attributes:
+        total_cost: Sum of all agents' costs.
+        per_agent_costs: Dict mapping agent_id to total cost.
+        settlement_rate: Fraction of transactions settled (0.0 to 1.0).
+        transactions_settled: Number of successfully settled transactions.
+        transactions_failed: Number of failed transactions.
+        verbose_output: Optional VerboseOutput with tick-by-tick events.
 
     Example:
         >>> result = SimulationResult(
@@ -35,6 +47,7 @@ class SimulationResult:
     settlement_rate: float
     transactions_settled: int
     transactions_failed: int
+    verbose_output: VerboseOutput | None = None
 
 
 class CastroSimulationRunner:
@@ -75,6 +88,7 @@ class CastroSimulationRunner:
         policy: dict[str, Any],
         seed: int,
         ticks: int | None = None,
+        capture_verbose: bool = False,
     ) -> SimulationResult:
         """Run a single simulation with the given policy.
 
@@ -82,14 +96,15 @@ class CastroSimulationRunner:
             policy: Policy to evaluate (applied to all agents).
             seed: RNG seed for determinism.
             ticks: Number of ticks to run (default: full day).
+            capture_verbose: If True, capture tick-by-tick events for verbose output.
 
         Returns:
-            SimulationResult with costs and metrics.
+            SimulationResult with costs, metrics, and optional verbose output.
         """
         # Build config with policy and seed
         config = self._build_config(policy, seed)
 
-        # Create and run orchestrator
+        # Create orchestrator
         orch = Orchestrator.new(config)
 
         # Calculate total ticks (config is now flat format)
@@ -97,12 +112,20 @@ class CastroSimulationRunner:
         num_days = config.get("num_days", 1)
         total_ticks = ticks if ticks is not None else (ticks_per_day * num_days)
 
-        # Run simulation
-        for _ in range(total_ticks):
-            orch.tick()
+        # Run simulation with or without verbose capture
+        verbose_output = None
+        if capture_verbose:
+            from castro.verbose_capture import VerboseOutputCapture
+
+            capture = VerboseOutputCapture()
+            verbose_output = capture.run_and_capture(orch, total_ticks)
+        else:
+            # Run simulation without capturing
+            for _ in range(total_ticks):
+                orch.tick()
 
         # Extract metrics
-        return self._extract_metrics(orch)
+        return self._extract_metrics(orch, verbose_output)
 
     def _build_config(
         self,
@@ -129,20 +152,25 @@ class CastroSimulationRunner:
         else:
             base["simulation"] = {"rng_seed": seed}
 
-        # Inject policy into all agents using InlinePolicy type
+        # Inject policy into all agents using FromJson policy type
         agents = base.get("agents", [])
         for agent in agents:
-            agent["policy"] = {"type": "Inline", "decision_trees": policy}
+            agent["policy"] = {"type": "FromJson", "json": json.dumps(policy)}
 
         # Use SimulationConfig for proper conversion to FFI format
         sim_config = SimulationConfig.from_dict(base)
         return sim_config.to_ffi_dict()
 
-    def _extract_metrics(self, orch: Orchestrator) -> SimulationResult:
+    def _extract_metrics(
+        self,
+        orch: Orchestrator,
+        verbose_output: VerboseOutput | None = None,
+    ) -> SimulationResult:
         """Extract metrics from completed orchestrator.
 
         Args:
             orch: Completed Orchestrator instance.
+            verbose_output: Optional captured verbose output.
 
         Returns:
             SimulationResult with extracted metrics.
@@ -174,6 +202,7 @@ class CastroSimulationRunner:
             settlement_rate=settlement_rate,
             transactions_settled=settled,
             transactions_failed=failed,
+            verbose_output=verbose_output,
         )
 
     def _deep_copy(self, obj: dict[str, Any]) -> dict[str, Any]:
