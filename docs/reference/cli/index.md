@@ -10,6 +10,7 @@ The `payment-sim` CLI is the primary interface for running simulations, replayin
 |----------|-------------|
 | [run](commands/run.md) | Execute a simulation from a configuration file |
 | [replay](commands/replay.md) | Replay a persisted simulation from database |
+| [ai-game](commands/ai-game.md) | AI Cash Management commands |
 | [validate-policy](commands/validate-policy.md) | Validate a policy tree JSON file |
 | [policy-schema](commands/policy-schema.md) | Generate policy schema documentation |
 | [checkpoint](commands/checkpoint.md) | Manage simulation checkpoints |
@@ -54,6 +55,11 @@ payment-sim
 ├── replay                 # Database replay
 ├── validate-policy        # Policy validation
 ├── policy-schema          # Schema documentation
+├── ai-game                # AI Cash Management subcommands
+│   ├── validate           # Validate game config
+│   ├── info               # Module information
+│   ├── config-template    # Generate config template
+│   └── schema             # Output JSON schemas
 ├── checkpoint             # Checkpoint subcommands
 │   ├── save
 │   ├── load
@@ -89,7 +95,8 @@ payment-sim
 - [Scenario Configuration](../scenario/index.md) - YAML configuration format
 - [Policy Reference](../policy/index.md) - Policy DSL documentation
 - [Architecture](../architecture/index.md) - System architecture
+- [AI Cash Management](../ai_cash_mgmt/index.md) - LLM-based policy optimization
 
 ---
 
-*Last updated: 2025-11-28*
+*Last updated: 2025-12-09*
