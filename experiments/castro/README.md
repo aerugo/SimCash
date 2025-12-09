@@ -78,21 +78,38 @@ uv run castro run exp3
 experiments/castro/
 ├── castro/
 │   ├── __init__.py              # Public API
+│   ├── audit_display.py         # Audit mode display functions
 │   ├── constraints.py           # CASTRO_CONSTRAINTS
+│   ├── display.py               # Unified display functions (StateProvider pattern)
+│   ├── events.py                # Event model for replay identity
 │   ├── experiments.py           # Experiment definitions
 │   ├── model_config.py          # ModelConfig for PydanticAI settings
+│   ├── persistence/
+│   │   ├── models.py            # Database models (ExperimentRunRecord)
+│   │   └── repository.py        # DuckDB persistence operations
 │   ├── pydantic_llm_client.py   # PydanticAI LLM client (multi-provider)
+│   ├── run_id.py                # Run ID generation
 │   ├── runner.py                # ExperimentRunner (uses SingleAgentIterationRecord)
 │   ├── simulation.py            # CastroSimulationRunner
+│   ├── state_provider.py        # StateProvider pattern implementation
 │   └── verbose_logging.py       # Verbose output (VerboseConfig, VerboseLogger)
 ├── configs/
 │   ├── exp1_2period.yaml        # 2-period scenario
 │   ├── exp2_12period.yaml       # 12-period scenario
 │   └── exp3_joint.yaml          # Joint optimization scenario
 ├── tests/
+│   ├── test_audit_display.py    # Audit display tests
+│   ├── test_cli_audit.py        # CLI audit flag tests
+│   ├── test_cli_commands.py     # CLI command tests
+│   ├── test_display.py          # Display function tests
+│   ├── test_events.py           # Event model tests
+│   ├── test_event_persistence.py # Event persistence tests
 │   ├── test_experiments.py      # Experiment unit tests
 │   ├── test_model_config.py     # Model configuration tests
 │   ├── test_pydantic_llm_client.py  # PydanticAI client tests
+│   ├── test_replay_audit_integration.py  # End-to-end audit tests
+│   ├── test_run_id.py           # Run ID generation tests
+│   ├── test_state_provider.py   # StateProvider tests
 │   └── test_verbose_logging.py  # Verbose logging tests
 ├── cli.py                       # Typer CLI
 ├── pyproject.toml               # Package config
@@ -151,6 +168,104 @@ The verbose flags provide granular control over experiment output:
 | `--verbose-monte-carlo` | Per-seed results with best/worst seed identification |
 | `--verbose-llm` | Model name, token counts, latency, context summary |
 | `--verbose-rejections` | Validation errors, rejection reasons, retry counts |
+
+### `replay` - Replay experiment output
+
+```bash
+uv run castro replay <run_id> [OPTIONS]
+
+Arguments:
+  run_id    Run ID to replay (e.g., exp1-20251209-143022-a1b2c3)
+
+Options:
+  -d, --db PATH                Database path [default: results/castro.db]
+  -v, --verbose                Enable all verbose output
+  --verbose-iterations         Show iteration starts
+  --verbose-monte-carlo        Show Monte Carlo evaluations
+  --verbose-llm                Show LLM call details
+  --verbose-policy             Show policy changes
+
+Audit Mode:
+  --audit                      Show detailed audit trail for each iteration
+  --start N                    Start iteration for audit output (inclusive)
+  --end M                      End iteration for audit output (inclusive)
+```
+
+#### Replay Examples
+
+```bash
+# Replay a specific run
+uv run castro replay exp1-20251209-143022-a1b2c3
+
+# Replay with verbose output
+uv run castro replay exp1-20251209-143022-a1b2c3 --verbose
+
+# Show audit trail for all iterations
+uv run castro replay exp1-20251209-143022-a1b2c3 --audit
+
+# Show audit trail for iterations 2-3 only
+uv run castro replay exp1-20251209-143022-a1b2c3 --audit --start 2 --end 3
+```
+
+#### Audit Mode
+
+The `--audit` flag provides a detailed audit trail for LLM interactions, useful for:
+- **Debugging**: Inspect exact prompts and responses
+- **Research**: Analyze LLM decision-making process
+- **Compliance**: Audit trail for policy optimization decisions
+
+Audit output includes for each iteration:
+- Full system and user prompts sent to the LLM optimizer
+- Raw LLM responses before parsing
+- Validation results (success or parsing errors)
+- Token counts and latency metrics
+- Per-agent breakdown
+
+Example audit output:
+```
+══════════════════════════════════════════════════════════════════════
+ AUDIT: Iteration 2
+══════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────
+ Agent: BANK_A
+────────────────────────────────────────────────────────────
+Model: anthropic:claude-sonnet-4-5
+Tokens: 1,500 prompt + 200 completion = 1,700 total
+Latency: 2.34s
+
+System Prompt
+┌────────────────────────────────────────────────────────────┐
+│ You are optimizing payment timing policies for BANK_A...   │
+└────────────────────────────────────────────────────────────┘
+
+User Prompt
+┌────────────────────────────────────────────────────────────┐
+│ Current cost: $150.00. Previous best: $145.00...           │
+└────────────────────────────────────────────────────────────┘
+
+Raw Response
+┌────────────────────────────────────────────────────────────┐
+│ {                                                          │
+│   "initial_liquidity_fraction": 0.15,                      │
+│   "urgency_threshold": 8                                   │
+│ }                                                          │
+└────────────────────────────────────────────────────────────┘
+
+Validation
+  Policy valid
+```
+
+### `results` - List experiment runs
+
+```bash
+uv run castro results [OPTIONS]
+
+Options:
+  -d, --db PATH            Database path [default: results/castro.db]
+  -e, --experiment TEXT    Filter by experiment name
+  -n, --limit INT          Maximum number of results [default: 20]
+```
 
 ### `list` - List experiments
 
