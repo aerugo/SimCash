@@ -300,7 +300,8 @@ experiments/castro/
 │   ├── __init__.py              # Package exports
 │   ├── constraints.py           # Castro-aligned constraints
 │   ├── experiments.py           # Experiment definitions
-│   ├── llm_client.py            # LLM client implementation
+│   ├── model_config.py          # ModelConfig for PydanticAI settings
+│   ├── pydantic_llm_client.py   # PydanticAI LLM client (multi-provider)
 │   ├── runner.py                # Experiment runner
 │   ├── simulation.py            # Simulation wrapper
 │   └── verbose_logging.py       # Verbose output logging
@@ -309,7 +310,9 @@ experiments/castro/
 │   ├── exp2_12period.yaml
 │   └── exp3_joint.yaml
 ├── tests/
-│   ├── test_experiments.py
+│   ├── test_experiments.py      # Experiment unit tests
+│   ├── test_model_config.py     # Model configuration tests
+│   ├── test_pydantic_llm_client.py  # PydanticAI client tests
 │   └── test_verbose_logging.py  # Verbose logging tests
 └── results/                     # Output directory
 ```
