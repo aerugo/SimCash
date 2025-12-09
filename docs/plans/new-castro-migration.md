@@ -1,7 +1,8 @@
 # Clean-Slate Castro Experiments with ai_cash_mgmt
 
-**Status**: Planning
+**Status**: Implemented
 **Created**: 2025-12-09
+**Completed**: 2025-12-09
 **Goal**: Rewrite Castro experiments from scratch using only the `ai_cash_mgmt` module. No legacy code, no backwards compatibility.
 
 ---
