@@ -1,21 +1,19 @@
-"""LLM client for policy generation.
+"""PydanticAI-based LLM client for policy generation.
 
-Implements LLMClientProtocol for Anthropic and OpenAI providers.
+Implements LLMClientProtocol using PydanticAI for unified multi-provider support.
 """
 
 from __future__ import annotations
 
 import json
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from payment_simulator.ai_cash_mgmt import LLMConfig, LLMProviderType
+from pydantic_ai import Agent
 
-if TYPE_CHECKING:
-    from anthropic import AsyncAnthropic
-    from openai import AsyncOpenAI
+from castro.model_config import ModelConfig
 
-
+# System prompt for policy generation
 SYSTEM_PROMPT = """You are an expert in payment system optimization.
 Generate valid JSON policies for the SimCash payment simulator.
 
@@ -72,40 +70,47 @@ Rules:
 - Output ONLY valid JSON, no markdown or explanation"""
 
 
-class CastroLLMClient:
-    """LLM client implementing ai_cash_mgmt's LLMClientProtocol.
+class PydanticAILLMClient:
+    """LLM client using PydanticAI.
 
-    Supports Anthropic (Claude) and OpenAI (GPT) models.
+    Implements LLMClientProtocol for compatibility with ai_cash_mgmt's
+    PolicyOptimizer. Uses PydanticAI Agent for unified multi-provider support.
+
+    Supported Providers:
+        - anthropic: Claude models with optional extended thinking
+        - openai: GPT models with optional reasoning effort
+        - google: Gemini models with optional thinking config
 
     Example:
-        >>> config = LLMConfig(
-        ...     provider=LLMProviderType.ANTHROPIC,
-        ...     model="claude-sonnet-4-5-20250929",
-        ... )
-        >>> client = CastroLLMClient(config)
+        >>> config = ModelConfig("anthropic:claude-sonnet-4-5")
+        >>> client = PydanticAILLMClient(config)
         >>> policy = await client.generate_policy(prompt, current, context)
+
+        >>> # With extended thinking
+        >>> config = ModelConfig("anthropic:claude-sonnet-4-5", thinking_budget=8000)
+        >>> client = PydanticAILLMClient(config)
+
+        >>> # With high reasoning
+        >>> config = ModelConfig("openai:gpt-5.1", reasoning_effort="high")
+        >>> client = PydanticAILLMClient(config)
     """
 
-    def __init__(self, config: LLMConfig) -> None:
-        """Initialize the LLM client.
+    def __init__(self, config: ModelConfig) -> None:
+        """Initialize the PydanticAI LLM client.
 
         Args:
-            config: LLM configuration specifying provider and model.
+            config: Model configuration with provider:model string.
         """
         self._config = config
-        self._client: AsyncAnthropic | AsyncOpenAI
+        self._agent = Agent(
+            config.full_model_string,
+            system_prompt=SYSTEM_PROMPT,
+        )
 
-        if config.provider == LLMProviderType.ANTHROPIC:
-            from anthropic import AsyncAnthropic
-
-            self._client = AsyncAnthropic()
-        elif config.provider == LLMProviderType.OPENAI:
-            from openai import AsyncOpenAI
-
-            self._client = AsyncOpenAI()
-        else:
-            msg = f"Unsupported provider: {config.provider}"
-            raise ValueError(msg)
+    @property
+    def model(self) -> str:
+        """Get the model string for tracking."""
+        return self._config.model
 
     async def generate_policy(
         self,
@@ -128,12 +133,15 @@ class CastroLLMClient:
         """
         user_prompt = self._build_user_prompt(prompt, current_policy, context)
 
-        if self._config.provider == LLMProviderType.ANTHROPIC:
-            response = await self._call_anthropic(SYSTEM_PROMPT, user_prompt)
-        else:
-            response = await self._call_openai(SYSTEM_PROMPT, user_prompt)
+        # Run the agent with provider-specific settings
+        result = await self._agent.run(
+            user_prompt,
+            model_settings=self._config.to_model_settings(),  # type: ignore[call-overload]
+        )
 
-        return self._parse_policy(response)
+        # Parse the response
+        response_text = str(result.output)
+        return self._parse_policy(response_text)
 
     def _build_user_prompt(
         self,
@@ -160,62 +168,6 @@ Performance history:
 
 Generate an improved policy that reduces total cost.
 Output ONLY the JSON policy, no explanation."""
-
-    async def _call_anthropic(self, system: str, user: str) -> str:
-        """Call Anthropic API."""
-        from anthropic import AsyncAnthropic
-
-        # Type narrowing: we know self._client is AsyncAnthropic here
-        client = self._client
-        assert isinstance(client, AsyncAnthropic)
-
-        response = await client.messages.create(
-            model=self._config.model,
-            max_tokens=4096,
-            temperature=self._config.temperature,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-        )
-
-        # Extract text from response
-        content = response.content[0]
-        if hasattr(content, "text"):
-            return str(content.text)
-        msg = f"Unexpected response type: {type(content)}"
-        raise ValueError(msg)
-
-    async def _call_openai(self, system: str, user: str) -> str:
-        """Call OpenAI API with high reasoning for GPT-5.1."""
-        from openai import AsyncOpenAI
-
-        # Type narrowing: we know self._client is AsyncOpenAI here
-        client = self._client
-        assert isinstance(client, AsyncOpenAI)
-
-        # Build request parameters
-        params: dict[str, Any] = {
-            "model": self._config.model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        }
-
-        # For GPT-5.1, use high reasoning effort
-        if "gpt-5" in self._config.model:
-            params["reasoning_effort"] = "high"
-            params["max_completion_tokens"] = 16384  # More tokens for verbose output
-        else:
-            params["temperature"] = self._config.temperature
-            params["max_tokens"] = 4096
-
-        response = await client.chat.completions.create(**params)
-
-        content = response.choices[0].message.content
-        if content is None:
-            msg = "Empty response from OpenAI"
-            raise ValueError(msg)
-        return str(content)
 
     def _parse_policy(self, response: str) -> dict[str, Any]:
         """Parse LLM response as JSON policy.
@@ -265,6 +217,7 @@ Output ONLY the JSON policy, no explanation."""
             policy["version"] = "2.0"
         if "policy_id" not in policy:
             import uuid
+
             policy["policy_id"] = f"llm_policy_{uuid.uuid4().hex[:8]}"
 
     def _ensure_node_ids(self, policy: dict[str, Any]) -> None:
@@ -298,3 +251,37 @@ Output ONLY the JSON policy, no explanation."""
             add_node_id(policy["payment_tree"], "payment")
         if "strategic_collateral_tree" in policy:
             add_node_id(policy["strategic_collateral_tree"], "collateral")
+
+
+# Convenience function for creating a client
+def create_llm_client(
+    model: str,
+    *,
+    temperature: float = 0.0,
+    thinking_budget: int | None = None,
+    reasoning_effort: str | None = None,
+) -> PydanticAILLMClient:
+    """Create a PydanticAI LLM client.
+
+    Convenience function for creating an LLM client with common options.
+
+    Args:
+        model: Model string in provider:model format.
+        temperature: Sampling temperature.
+        thinking_budget: Anthropic thinking token budget.
+        reasoning_effort: OpenAI reasoning effort level.
+
+    Returns:
+        Configured PydanticAILLMClient instance.
+
+    Examples:
+        >>> client = create_llm_client("anthropic:claude-sonnet-4-5")
+        >>> client = create_llm_client("openai:gpt-5.1", reasoning_effort="high")
+    """
+    config = ModelConfig(
+        model=model,
+        temperature=temperature,
+        thinking_budget=thinking_budget,
+        reasoning_effort=reasoning_effort,
+    )
+    return PydanticAILLMClient(config)

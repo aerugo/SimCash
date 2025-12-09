@@ -1,12 +1,11 @@
 [project]
 name = "castro-experiments"
-version = "0.2.0"
-description = "Castro experiments using ai_cash_mgmt module (optimizer feature parity)"
+version = "0.3.0"
+description = "Castro experiments using ai_cash_mgmt module with PydanticAI"
 requires-python = ">=3.11"
 dependencies = [
     "payment-simulator",  # Includes ai_cash_mgmt
-    "anthropic>=0.18",
-    "openai>=1.0",
+    "pydantic-ai>=0.2",  # Unified LLM interface
     "typer>=0.9",
     "rich>=13.0",
     "pyyaml>=6.0",
@@ -60,7 +59,7 @@ ignore_missing_imports = true
 
 # Ignore missing LLM library stubs
 [[tool.mypy.overrides]]
-module = ["anthropic", "anthropic.*", "openai", "openai.*"]
+module = ["anthropic", "anthropic.*", "openai", "openai.*", "pydantic_ai", "pydantic_ai.*"]
 ignore_missing_imports = true
 
 # =============================================================================
