@@ -25,6 +25,9 @@ dev = [
 [project.scripts]
 castro = "cli:app"
 
+[tool.uv.sources]
+payment-simulator = { path = "../../api" }
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
