@@ -96,7 +96,12 @@ class ExperimentRunner:
 
         # Core components
         self._seed_manager = SeedManager(experiment.master_seed)
-        self._convergence = ConvergenceDetector(self._convergence_config)
+        self._convergence = ConvergenceDetector(
+            stability_threshold=self._convergence_config.stability_threshold,
+            stability_window=self._convergence_config.stability_window,
+            max_iterations=self._convergence_config.max_iterations,
+            improvement_threshold=self._convergence_config.improvement_threshold,
+        )
         self._validator = ConstraintValidator(CASTRO_CONSTRAINTS)
         self._optimizer = PolicyOptimizer(
             constraints=CASTRO_CONSTRAINTS,
@@ -248,36 +253,54 @@ class ExperimentRunner:
     def _load_seed_policies(self) -> None:
         """Load initial seed policies for all agents."""
         # Default seed policy - release urgent, hold otherwise
+        # Note: Each node requires a node_id field for the Rust parser
+        #
+        # Use remaining_collateral_capacity instead of max_collateral_capacity
+        # for the compute expression, as it correctly accounts for the agent's
+        # configured capacity at runtime.
         seed_policy: dict[str, Any] = {
             "version": "2.0",
+            "policy_id": "seed_policy",
             "parameters": {
                 "initial_liquidity_fraction": 0.25,
-                "urgency_threshold": 3,
-                "liquidity_buffer": 1.0,
+                "urgency_threshold": 3.0,
+                "liquidity_buffer_factor": 1.0,
             },
             "payment_tree": {
                 "type": "condition",
+                "node_id": "urgency_check",
                 "condition": {
                     "op": "<=",
                     "left": {"field": "ticks_to_deadline"},
                     "right": {"param": "urgency_threshold"},
                 },
-                "on_true": {"type": "action", "action": "Release"},
-                "on_false": {"type": "action", "action": "Hold"},
+                "on_true": {"type": "action", "node_id": "release", "action": "Release"},
+                "on_false": {"type": "action", "node_id": "hold", "action": "Hold"},
             },
             "strategic_collateral_tree": {
                 "type": "condition",
+                "node_id": "tick_zero_check",
                 "condition": {
                     "op": "==",
                     "left": {"field": "system_tick_in_day"},
-                    "right": {"value": 0},
+                    "right": {"value": 0.0},
                 },
                 "on_true": {
                     "type": "action",
+                    "node_id": "post_initial",
                     "action": "PostCollateral",
-                    "params": {"fraction": {"param": "initial_liquidity_fraction"}},
+                    "parameters": {
+                        "amount": {
+                            "compute": {
+                                "op": "*",
+                                "left": {"field": "remaining_collateral_capacity"},
+                                "right": {"param": "initial_liquidity_fraction"},
+                            }
+                        },
+                        "reason": {"value": "InitialAllocation"},
+                    },
                 },
-                "on_false": {"type": "action", "action": "HoldCollateral"},
+                "on_false": {"type": "action", "node_id": "hold_collateral", "action": "HoldCollateral"},
             },
         }
 
