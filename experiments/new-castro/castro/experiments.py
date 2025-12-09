@@ -25,6 +25,20 @@ from payment_simulator.ai_cash_mgmt import (
 )
 
 
+def _detect_provider(model: str) -> LLMProviderType:
+    """Detect the LLM provider from model name.
+
+    Args:
+        model: Model name string.
+
+    Returns:
+        LLMProviderType based on model name prefix.
+    """
+    if model.startswith("gpt-") or model.startswith("o1") or model.startswith("o3"):
+        return LLMProviderType.OPENAI
+    return LLMProviderType.ANTHROPIC
+
+
 @dataclass
 class CastroExperiment:
     """Definition of a Castro experiment.
@@ -59,7 +73,7 @@ class CastroExperiment:
     stability_window: int = 5
 
     # LLM settings
-    llm_provider: LLMProviderType = LLMProviderType.ANTHROPIC
+    llm_provider: LLMProviderType | None = None  # Auto-detected from model
     llm_model: str = "claude-sonnet-4-5-20250929"
     llm_temperature: float = 0.0
 
@@ -97,11 +111,14 @@ class CastroExperiment:
     def get_llm_config(self) -> LLMConfig:
         """Get LLM configuration for this experiment.
 
+        Auto-detects provider from model name if not explicitly set.
+
         Returns:
             LLMConfig instance.
         """
+        provider = self.llm_provider or _detect_provider(self.llm_model)
         return LLMConfig(
-            provider=self.llm_provider,
+            provider=provider,
             model=self.llm_model,
             temperature=self.llm_temperature,
             max_retries=3,
@@ -151,6 +168,10 @@ def create_exp1(
     - Deterministic payment arrivals
     - Expected: Bank A posts 0, Bank B posts 20000
 
+    Note: Uses minimum values for Monte Carlo config (5 samples, 10 ticks)
+    even though the scenario is deterministic. Extra ticks are idle,
+    and all samples will produce identical results.
+
     Args:
         output_dir: Output directory for results.
         model: LLM model to use.
@@ -162,8 +183,8 @@ def create_exp1(
         name="exp1",
         description="2-Period Deterministic Nash Equilibrium",
         scenario_path=Path("configs/exp1_2period.yaml"),
-        num_samples=1,  # Deterministic - single seed
-        evaluation_ticks=2,
+        num_samples=5,  # Minimum for MonteCarloConfig (deterministic gives same results)
+        evaluation_ticks=10,  # Minimum for MonteCarloConfig (ticks 2-9 are idle)
         max_iterations=25,
         stability_threshold=0.05,
         stability_window=5,
@@ -219,8 +240,11 @@ def create_exp3(
     Optimizes both initial collateral AND payment timing jointly.
 
     Setup:
-    - 3 ticks per day
+    - 3 ticks per day (evaluated over 10 ticks minimum)
     - Tests interaction between liquidity and timing decisions
+
+    Note: Uses minimum evaluation_ticks of 10 for MonteCarloConfig validation.
+    The scenario runs 3 ticks per day, remaining ticks are idle.
 
     Args:
         output_dir: Output directory for results.
@@ -234,7 +258,7 @@ def create_exp3(
         description="Joint Liquidity & Timing Optimization",
         scenario_path=Path("configs/exp3_joint.yaml"),
         num_samples=10,  # Monte Carlo with 10 seeds
-        evaluation_ticks=3,
+        evaluation_ticks=10,  # Minimum for MonteCarloConfig (ticks 3-9 are idle)
         max_iterations=25,
         stability_threshold=0.05,
         stability_window=5,

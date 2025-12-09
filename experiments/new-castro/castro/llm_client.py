@@ -22,34 +22,51 @@ Generate valid JSON policies for the SimCash payment simulator.
 Policy structure:
 {
   "version": "2.0",
+  "policy_id": "<unique_policy_name>",
   "parameters": {
     "initial_liquidity_fraction": <float 0.0-1.0>,
-    "urgency_threshold": <int 0-20>,
-    "liquidity_buffer": <float 0.5-3.0>
+    "urgency_threshold": <float 0-20>,
+    "liquidity_buffer_factor": <float 0.5-3.0>
   },
   "payment_tree": { decision tree for payment actions },
   "strategic_collateral_tree": { decision tree for collateral at t=0 }
 }
 
+CRITICAL: Every node MUST have a unique "node_id" string field!
+
 Decision tree node types:
-1. Action node: {"type": "action", "action": "Release" or "Hold"}
+1. Action node: {"type": "action", "node_id": "<unique_id>", "action": "Release" or "Hold"}
 2. Condition node: {
      "type": "condition",
+     "node_id": "<unique_id>",
      "condition": {"op": "<operator>", "left": {...}, "right": {...}},
      "on_true": <node>,
      "on_false": <node>
    }
+3. Collateral action node: {
+     "type": "action",
+     "node_id": "<unique_id>",
+     "action": "PostCollateral" or "HoldCollateral",
+     "parameters": {
+       "amount": {"compute": {...} or "value": <number>},
+       "reason": {"value": "InitialAllocation" or "LiquidityTopup"}
+     }
+   }
 
 Condition operands:
-- {"field": "<field_name>"} - context field
-- {"param": "<param_name>"} - policy parameter
-- {"value": <literal>} - literal value
+- {"field": "<field_name>"} - context fields: ticks_to_deadline, system_tick_in_day, remaining_collateral_capacity
+- {"param": "<param_name>"} - policy parameter reference
+- {"value": <literal>} - literal number value
 
 Operators: "<", "<=", ">", ">=", "==", "!="
 
+Compute expressions: {"compute": {"op": "*", "left": {...}, "right": {...}}}
+
 Rules:
+- EVERY node must have a unique node_id field (REQUIRED by parser)
 - payment_tree actions: "Release" or "Hold" only
-- collateral_tree actions: "PostCollateral" at tick 0, "HoldCollateral" otherwise
+- strategic_collateral_tree: Post collateral at tick 0, hold otherwise
+- Use remaining_collateral_capacity field for collateral amount calculations
 - All numeric values must respect parameter bounds
 - Output ONLY valid JSON, no markdown or explanation"""
 
@@ -216,7 +233,55 @@ Output ONLY the JSON policy, no explanation."""
 
         try:
             policy: dict[str, Any] = json.loads(text)
+            # Ensure required fields
+            self._ensure_required_fields(policy)
+            # Ensure all nodes have node_ids
+            self._ensure_node_ids(policy)
             return policy
         except json.JSONDecodeError as e:
             msg = f"Failed to parse policy JSON: {e}"
             raise ValueError(msg) from e
+
+    def _ensure_required_fields(self, policy: dict[str, Any]) -> None:
+        """Ensure policy has required top-level fields.
+
+        Args:
+            policy: Policy dict to modify in place.
+        """
+        if "version" not in policy:
+            policy["version"] = "2.0"
+        if "policy_id" not in policy:
+            import uuid
+            policy["policy_id"] = f"llm_policy_{uuid.uuid4().hex[:8]}"
+
+    def _ensure_node_ids(self, policy: dict[str, Any]) -> None:
+        """Ensure all tree nodes have node_id fields.
+
+        Adds missing node_ids with auto-generated unique names.
+
+        Args:
+            policy: Policy dict to modify in place.
+        """
+        counter = [0]  # Use list to allow mutation in nested function
+
+        def add_node_id(node: dict[str, Any], prefix: str) -> None:
+            """Recursively add node_ids to a tree."""
+            if not isinstance(node, dict):
+                return
+
+            # Add node_id if missing
+            if "type" in node and "node_id" not in node:
+                counter[0] += 1
+                node["node_id"] = f"{prefix}_node_{counter[0]}"
+
+            # Recurse into child nodes
+            if "on_true" in node:
+                add_node_id(node["on_true"], prefix)
+            if "on_false" in node:
+                add_node_id(node["on_false"], prefix)
+
+        # Process both trees
+        if "payment_tree" in policy:
+            add_node_id(policy["payment_tree"], "payment")
+        if "strategic_collateral_tree" in policy:
+            add_node_id(policy["strategic_collateral_tree"], "collateral")
