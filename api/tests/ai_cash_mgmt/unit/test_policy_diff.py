@@ -283,3 +283,171 @@ class TestComputeParameterTrajectory:
 
         # Should preserve list order, not sort by iteration
         assert trajectory == [(3, 3.0), (1, 1.0), (2, 2.0)]
+
+
+class TestComputeParameterChanges:
+    """Tests for compute_parameter_changes function.
+
+    This function returns structured parameter changes for audit persistence,
+    as opposed to compute_policy_diff which returns human-readable strings.
+    """
+
+    def test_returns_list_of_change_dicts(self) -> None:
+        """Returns list of structured change dictionaries."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {"parameters": {"threshold": 5.0}}
+        new = {"parameters": {"threshold": 3.0}}
+
+        changes = compute_parameter_changes(old, new)
+
+        assert isinstance(changes, list)
+        assert len(changes) == 1
+        assert isinstance(changes[0], dict)
+
+    def test_change_dict_has_required_fields(self) -> None:
+        """Each change dict has param, old, new, delta fields."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {"parameters": {"threshold": 5.0}}
+        new = {"parameters": {"threshold": 3.0}}
+
+        changes = compute_parameter_changes(old, new)
+
+        change = changes[0]
+        assert "param" in change
+        assert "old" in change
+        assert "new" in change
+        assert "delta" in change
+
+    def test_calculates_delta_for_numeric_decrease(self) -> None:
+        """Delta is calculated correctly for numeric decrease."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {"parameters": {"threshold": 5.0}}
+        new = {"parameters": {"threshold": 3.0}}
+
+        changes = compute_parameter_changes(old, new)
+
+        assert changes[0]["param"] == "threshold"
+        assert changes[0]["old"] == 5.0
+        assert changes[0]["new"] == 3.0
+        assert changes[0]["delta"] == -2.0
+
+    def test_calculates_delta_for_numeric_increase(self) -> None:
+        """Delta is calculated correctly for numeric increase."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {"parameters": {"threshold": 3.0}}
+        new = {"parameters": {"threshold": 5.0}}
+
+        changes = compute_parameter_changes(old, new)
+
+        assert changes[0]["delta"] == 2.0
+
+    def test_added_parameter_has_none_old(self) -> None:
+        """Added parameters have old=None and delta=None."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {"parameters": {}}
+        new = {"parameters": {"threshold": 5.0}}
+
+        changes = compute_parameter_changes(old, new)
+
+        added = [c for c in changes if c["param"] == "threshold"][0]
+        assert added["old"] is None
+        assert added["new"] == 5.0
+        assert added["delta"] is None
+
+    def test_removed_parameter_has_none_new(self) -> None:
+        """Removed parameters have new=None and delta=None."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {"parameters": {"threshold": 5.0}}
+        new = {"parameters": {}}
+
+        changes = compute_parameter_changes(old, new)
+
+        removed = [c for c in changes if c["param"] == "threshold"][0]
+        assert removed["old"] == 5.0
+        assert removed["new"] is None
+        assert removed["delta"] is None
+
+    def test_multiple_changes_returns_all(self) -> None:
+        """Multiple parameter changes are all returned."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {"parameters": {"threshold": 5.0, "buffer": 1.0}}
+        new = {"parameters": {"threshold": 4.0, "buffer": 1.5}}
+
+        changes = compute_parameter_changes(old, new)
+
+        assert len(changes) == 2
+        param_names = {c["param"] for c in changes}
+        assert param_names == {"threshold", "buffer"}
+
+    def test_no_changes_returns_empty_list(self) -> None:
+        """No changes returns empty list."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        policy = {"parameters": {"threshold": 5.0}}
+
+        changes = compute_parameter_changes(policy, policy)
+
+        assert changes == []
+
+    def test_non_numeric_values_have_none_delta(self) -> None:
+        """Non-numeric parameter changes have delta=None."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {"parameters": {"mode": "aggressive"}}
+        new = {"parameters": {"mode": "conservative"}}
+
+        changes = compute_parameter_changes(old, new)
+
+        assert changes[0]["old"] == "aggressive"
+        assert changes[0]["new"] == "conservative"
+        assert changes[0]["delta"] is None
+
+    def test_empty_policies_returns_empty_list(self) -> None:
+        """Empty policies return empty list."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        changes = compute_parameter_changes({}, {})
+
+        assert changes == []
+
+    def test_missing_parameters_key_handled(self) -> None:
+        """Handles policies without 'parameters' key."""
+        from payment_simulator.ai_cash_mgmt.prompts.policy_diff import (
+            compute_parameter_changes,
+        )
+
+        old = {}
+        new = {"parameters": {"threshold": 5.0}}
+
+        changes = compute_parameter_changes(old, new)
+
+        assert len(changes) == 1
+        assert changes[0]["param"] == "threshold"
+        assert changes[0]["old"] is None
