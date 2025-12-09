@@ -10,8 +10,7 @@ Tests cover:
 from __future__ import annotations
 
 import pytest
-
-from castro.model_config import ModelConfig, create_model_config, _infer_provider
+from castro.model_config import ModelConfig, _infer_provider, create_model_config
 
 
 class TestModelConfigBasics:
@@ -49,7 +48,7 @@ class TestModelConfigBasics:
         """Default values should be sensible."""
         config = ModelConfig("anthropic:claude-sonnet-4-5")
         assert config.temperature == 0.0
-        assert config.max_tokens == 4096
+        assert config.max_tokens == 30000
         assert config.thinking_budget is None
         assert config.reasoning_effort is None
         assert config.max_retries == 3
@@ -93,12 +92,12 @@ class TestModelSettingsConversion:
         config = ModelConfig(
             "anthropic:claude-sonnet-4-5",
             temperature=0.5,
-            max_tokens=2048,
+            max_tokens=30000,
         )
         settings = config.to_model_settings()
 
         assert settings["temperature"] == 0.5
-        assert settings["max_tokens"] == 2048
+        assert settings["max_tokens"] == 30000
         assert "timeout" in settings
 
     def test_anthropic_thinking_budget(self) -> None:
@@ -127,11 +126,11 @@ class TestModelSettingsConversion:
         config = ModelConfig(
             "openai:gpt-5.1",
             reasoning_effort="high",
-            max_tokens=4096,
+            max_tokens=30000,
         )
         settings = config.to_model_settings()
 
-        assert settings["max_tokens"] >= 16384
+        assert settings["max_tokens"] >= 30000
 
     def test_openai_low_reasoning_preserves_tokens(self) -> None:
         """Low reasoning effort should preserve max_tokens."""

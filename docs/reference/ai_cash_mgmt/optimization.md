@@ -213,7 +213,7 @@ class AnthropicLLMClient:
     ) -> dict[str, Any]:
         response = await self._client.messages.create(
             model=self._model,
-            max_tokens=4096,
+            max_tokens=30000,
             system="Generate valid JSON policies for SimCash...",
             messages=[{"role": "user", "content": prompt}],
         )

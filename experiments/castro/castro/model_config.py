@@ -48,7 +48,7 @@ class ModelConfig:
     temperature: float = 0.0
     """Sampling temperature (0.0 = deterministic, higher = more creative)."""
 
-    max_tokens: int = 4096
+    max_tokens: int = 30000
     """Maximum tokens in the response."""
 
     # Provider-specific settings
@@ -137,7 +137,7 @@ class ModelConfig:
             settings["openai_reasoning_effort"] = self.reasoning_effort
             # Reasoning models need more tokens for verbose output
             if self.reasoning_effort == "high":
-                settings["max_tokens"] = max(self.max_tokens, 16384)
+                settings["max_tokens"] = max(self.max_tokens, 30000)
         elif provider == "google" and self.thinking_config:
             # Google Gemini thinking config
             settings["google_thinking_config"] = self.thinking_config

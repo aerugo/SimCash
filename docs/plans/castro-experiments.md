@@ -212,7 +212,7 @@ Generate an improved policy that reduces total cost."""
     async def _call_anthropic(self, system: str, user: str) -> str:
         response = await self._client.messages.create(
             model=self._config.model,
-            max_tokens=4096,
+            max_tokens=30000,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
