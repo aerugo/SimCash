@@ -16,18 +16,18 @@ This module replicates the experiments from "Estimating Policy Functions in Paym
 ## Quick Start
 
 ```bash
-# Install dependencies
+# Install dependencies (ALWAYS use UV, never pip!)
 cd experiments/castro
-pip install -e .
+uv sync --extra dev
 
 # List available experiments
-python cli.py list
+uv run castro list
 
 # Run experiment 1 (2-period deterministic)
-python cli.py run exp1
+uv run castro run exp1
 
 # Run with custom settings
-python cli.py run exp2 --model gpt-4o --max-iter 50 --output ./results
+uv run castro run exp2 --model gpt-4o --max-iter 50 --output ./results
 ```
 
 ## Experiments
@@ -45,7 +45,7 @@ Validates Nash equilibrium with deferred crediting. Two banks exchange payments 
 **Expected Outcome**: Bank A posts 0 collateral, Bank B posts 20,000.
 
 ```bash
-python cli.py run exp1
+uv run castro run exp1
 ```
 
 ### Experiment 2: 12-Period Stochastic
@@ -53,7 +53,7 @@ python cli.py run exp1
 LVTS-style realistic scenario with Poisson arrivals and LogNormal payment amounts.
 
 ```bash
-python cli.py run exp2 --seed 42
+uv run castro run exp2 --seed 42
 ```
 
 ### Experiment 3: Joint Optimization
@@ -61,7 +61,7 @@ python cli.py run exp2 --seed 42
 Tests interaction between initial liquidity decisions and payment timing strategies.
 
 ```bash
-python cli.py run exp3
+uv run castro run exp3
 ```
 
 ## Architecture
@@ -91,7 +91,7 @@ experiments/castro/
 ### `run` - Run an experiment
 
 ```bash
-python cli.py run <experiment> [OPTIONS]
+uv run castro run <experiment> [OPTIONS]
 
 Arguments:
   experiment    Experiment key: exp1, exp2, or exp3
@@ -106,19 +106,19 @@ Options:
 ### `list` - List experiments
 
 ```bash
-python cli.py list
+uv run castro list
 ```
 
 ### `info` - Show experiment details
 
 ```bash
-python cli.py info exp1
+uv run castro info exp1
 ```
 
 ### `validate` - Validate configuration
 
 ```bash
-python cli.py validate exp2
+uv run castro validate exp2
 ```
 
 ## Configuration
@@ -147,10 +147,10 @@ Supports both Anthropic and OpenAI:
 
 ```bash
 # Anthropic (default)
-python cli.py run exp1 --model claude-sonnet-4-5-20250929
+uv run castro run exp1 --model claude-sonnet-4-5-20250929
 
 # OpenAI
-python cli.py run exp1 --model gpt-4o
+uv run castro run exp1 --model gpt-4o
 ```
 
 Set API keys via environment variables:
@@ -219,7 +219,7 @@ conn.execute("""
 
 ```bash
 cd experiments/castro
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ## Dependencies

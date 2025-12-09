@@ -54,7 +54,8 @@ Decision tree node types:
    }
 
 Condition operands:
-- {"field": "<field_name>"} - context fields: ticks_to_deadline, system_tick_in_day, remaining_collateral_capacity
+- {"field": "<field_name>"} - context fields: ticks_to_deadline, system_tick_in_day,
+  remaining_collateral_capacity
 - {"param": "<param_name>"} - policy parameter reference
 - {"value": <literal>} - literal number value
 
@@ -164,8 +165,9 @@ Output ONLY the JSON policy, no explanation."""
         """Call Anthropic API."""
         from anthropic import AsyncAnthropic
 
-        # Type narrowing for mypy
-        client: AsyncAnthropic = self._client  # type: ignore[assignment]
+        # Type narrowing: we know self._client is AsyncAnthropic here
+        client = self._client
+        assert isinstance(client, AsyncAnthropic)
 
         response = await client.messages.create(
             model=self._config.model,
@@ -178,7 +180,7 @@ Output ONLY the JSON policy, no explanation."""
         # Extract text from response
         content = response.content[0]
         if hasattr(content, "text"):
-            return content.text  # type: ignore[no-any-return]
+            return str(content.text)
         msg = f"Unexpected response type: {type(content)}"
         raise ValueError(msg)
 
@@ -186,8 +188,9 @@ Output ONLY the JSON policy, no explanation."""
         """Call OpenAI API with high reasoning for GPT-5.1."""
         from openai import AsyncOpenAI
 
-        # Type narrowing for mypy
-        client: AsyncOpenAI = self._client  # type: ignore[assignment]
+        # Type narrowing: we know self._client is AsyncOpenAI here
+        client = self._client
+        assert isinstance(client, AsyncOpenAI)
 
         # Build request parameters
         params: dict[str, Any] = {
@@ -212,7 +215,7 @@ Output ONLY the JSON policy, no explanation."""
         if content is None:
             msg = "Empty response from OpenAI"
             raise ValueError(msg)
-        return content
+        return str(content)
 
     def _parse_policy(self, response: str) -> dict[str, Any]:
         """Parse LLM response as JSON policy.
