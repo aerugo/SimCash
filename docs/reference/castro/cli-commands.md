@@ -184,6 +184,14 @@ flowchart LR
 | `--verbose-llm` | | False | Show LLM call details |
 | `--verbose-policy` | | False | Show policy changes |
 
+#### Audit Mode Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--audit` | | False | Show detailed audit trail for each iteration |
+| `--start` | | None | Start iteration for audit output (inclusive) |
+| `--end` | | None | End iteration for audit output (inclusive) |
+
 #### Examples
 
 ```bash
@@ -198,7 +206,104 @@ castro replay exp1-20251209-143022-a1b2c3 --db results/custom.db
 
 # Replay with specific verbose modes
 castro replay exp1-20251209-143022-a1b2c3 --verbose-monte-carlo --verbose-policy
+
+# Show audit trail for all iterations
+castro replay exp1-20251209-143022-a1b2c3 --audit
+
+# Show audit trail for iterations 2-3 only
+castro replay exp1-20251209-143022-a1b2c3 --audit --start 2 --end 3
 ```
+
+#### Audit Mode
+
+The `--audit` flag switches replay to **audit mode**, which displays detailed LLM interaction information for debugging, research, and compliance purposes.
+
+```mermaid
+flowchart LR
+    subgraph Input
+        RunID["run_id"]
+        Audit["--audit"]
+        Range["--start / --end"]
+    end
+
+    subgraph Provider
+        DBP["DatabaseExperiment<br/>Provider"]
+    end
+
+    subgraph AuditDisplay["Audit Display"]
+        Filter["Filter by<br/>iteration range"]
+        LLMEvents["llm_interaction<br/>events"]
+        AuditOut["display_audit<br/>_output()"]
+    end
+
+    subgraph Output
+        Console[/"Console Output"/]
+    end
+
+    Input --> DBP
+    DBP --> Filter
+    Filter --> LLMEvents
+    LLMEvents --> AuditOut
+    AuditOut --> Console
+
+    style AuditDisplay fill:#fff3e0
+    style Output fill:#e8f5e9
+```
+
+**Audit Output Contents:**
+
+| Section | Description |
+|---------|-------------|
+| **Model Info** | Model name, token counts, latency |
+| **System Prompt** | Full system prompt sent to the LLM |
+| **User Prompt** | Full user prompt with context and constraints |
+| **Raw Response** | Raw LLM response before parsing (JSON pretty-printed) |
+| **Validation** | Success status or parsing error message |
+
+**Example Audit Output:**
+
+```
+══════════════════════════════════════════════════════════════════════
+ AUDIT: Iteration 2
+══════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────
+ Agent: BANK_A
+────────────────────────────────────────────────────────────
+Model: anthropic:claude-sonnet-4-5
+Tokens: 1,500 prompt + 200 completion = 1,700 total
+Latency: 2.34s
+
+System Prompt
+┌────────────────────────────────────────────────────────────┐
+│ You are optimizing payment timing policies for BANK_A...   │
+└────────────────────────────────────────────────────────────┘
+
+User Prompt
+┌────────────────────────────────────────────────────────────┐
+│ Current cost: $150.00. Previous best: $145.00...           │
+└────────────────────────────────────────────────────────────┘
+
+Raw Response
+┌────────────────────────────────────────────────────────────┐
+│ {                                                          │
+│   "initial_liquidity_fraction": 0.15,                      │
+│   "urgency_threshold": 8                                   │
+│ }                                                          │
+└────────────────────────────────────────────────────────────┘
+
+Validation
+  Policy valid
+```
+
+**Use Cases:**
+
+- **Debugging**: Inspect prompts when policies aren't improving
+- **Research**: Analyze LLM reasoning and decision patterns
+- **Compliance**: Full audit trail for policy optimization decisions
+- **Prompt Engineering**: Iterate on prompt design by reviewing what was sent
+
+---
 
 #### Replay Identity Guarantee
 

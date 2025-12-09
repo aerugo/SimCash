@@ -147,6 +147,7 @@ flowchart LR
         IterStart["iteration_start"]
         MC["monte_carlo_evaluation"]
         LLM["llm_call"]
+        LLMInt["llm_interaction<br/>(audit)"]
         Policy["policy_change"]
         Reject["policy_rejected"]
         End["experiment_end"]
@@ -155,7 +156,8 @@ flowchart LR
     Start --> IterStart
     IterStart --> MC
     MC --> LLM
-    LLM --> Policy
+    LLM --> LLMInt
+    LLMInt --> Policy
     Policy --> Reject
     Reject --> IterStart
     Policy --> End
@@ -164,6 +166,7 @@ flowchart LR
     style End fill:#ffcdd2
     style Policy fill:#fff3e0
     style Reject fill:#ffcdd2
+    style LLMInt fill:#e3f2fd
 ```
 
 ### Event Type Constants
@@ -173,6 +176,7 @@ EVENT_EXPERIMENT_START = "experiment_start"
 EVENT_ITERATION_START = "iteration_start"
 EVENT_MONTE_CARLO_EVALUATION = "monte_carlo_evaluation"
 EVENT_LLM_CALL = "llm_call"
+EVENT_LLM_INTERACTION = "llm_interaction"  # Full audit data for replay
 EVENT_POLICY_CHANGE = "policy_change"
 EVENT_POLICY_REJECTED = "policy_rejected"
 EVENT_EXPERIMENT_END = "experiment_end"
@@ -288,6 +292,49 @@ create_llm_call_event(
 | `completion_tokens` | int | Output token count |
 | `latency_seconds` | float | API call latency |
 | `context_summary` | dict | Key context provided to LLM |
+
+---
+
+### llm_interaction (Audit)
+
+Emitted during LLM calls to capture full interaction details for audit replay. This event contains the complete prompt/response data needed for the `--audit` mode.
+
+```python
+create_llm_interaction_event(
+    run_id="exp1-20251209-143022-a1b2c3",
+    iteration=1,
+    agent_id="BANK_A",
+    system_prompt="You are optimizing payment policies...",
+    user_prompt="Current cost: $150.00. Propose a new policy...",
+    raw_response='{"initial_liquidity_fraction": 0.15, "urgency_threshold": 8}',
+    parsed_policy={"initial_liquidity_fraction": 0.15, "urgency_threshold": 8},
+    parsing_error=None,
+    model="anthropic:claude-sonnet-4-5",
+    prompt_tokens=1500,
+    completion_tokens=200,
+    latency_seconds=2.5,
+)
+```
+
+**Details fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | str | Agent being optimized |
+| `system_prompt` | str | Full system prompt sent to LLM |
+| `user_prompt` | str | Full user prompt with context and constraints |
+| `raw_response` | str | Raw LLM response text before parsing |
+| `parsed_policy` | dict | None | Parsed policy dict if successful, None if failed |
+| `parsing_error` | str | None | Error message if parsing failed, None if successful |
+| `model` | str | LLM model used |
+| `prompt_tokens` | int | Number of input tokens |
+| `completion_tokens` | int | Number of output tokens |
+| `latency_seconds` | float | API call latency |
+
+**Usage Notes:**
+- This event is used exclusively by the `castro replay --audit` mode
+- It captures the FULL interaction for debugging and compliance
+- Both `parsed_policy` and `parsing_error` are stored to show validation outcomes
+- The `raw_response` is displayed with JSON pretty-printing when possible
 
 ---
 

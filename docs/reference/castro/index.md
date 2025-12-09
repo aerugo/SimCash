@@ -20,6 +20,7 @@ This documentation covers the **Replay Identity System** that ensures experiment
 | `castro run exp1` | Run experiment 1 |
 | `castro results` | List all experiment runs |
 | `castro replay <RUN_ID>` | Replay experiment output |
+| `castro replay <RUN_ID> --audit` | Replay with detailed LLM audit trail |
 | `castro list` | List available experiments |
 | `castro info exp1` | Show experiment configuration |
 
@@ -105,6 +106,21 @@ castro replay <RUN_ID>       →  Output A  (identical!)
 
 All verbose output is driven by self-contained events stored in the database. No reconstruction required.
 
+### Audit Mode
+
+The replay command supports an **audit mode** (`--audit`) that displays detailed LLM interaction information:
+
+```bash
+# Show full audit trail for iterations 2-3
+castro replay <RUN_ID> --audit --start 2 --end 3
+```
+
+Audit mode displays:
+- Full system and user prompts sent to the LLM
+- Raw LLM responses before parsing
+- Validation results (success or parsing errors)
+- Token counts and latency metrics
+
 ---
 
 ## Documentation Contents
@@ -160,9 +176,10 @@ uv run castro replay exp1-20251209-143022-a1b2c3 --verbose
 experiments/castro/
 ├── castro/
 │   ├── run_id.py           # Run ID generation
-│   ├── events.py           # Event model
+│   ├── events.py           # Event model (incl. llm_interaction)
 │   ├── state_provider.py   # StateProvider pattern
 │   ├── display.py          # Unified display functions
+│   ├── audit_display.py    # Audit mode display functions
 │   ├── persistence/
 │   │   ├── models.py       # Database models
 │   │   └── repository.py   # Database operations
@@ -174,6 +191,9 @@ experiments/castro/
     ├── test_events.py
     ├── test_state_provider.py
     ├── test_display.py
+    ├── test_audit_display.py     # Audit display tests
+    ├── test_cli_audit.py         # CLI audit flag tests
+    ├── test_replay_audit_integration.py  # E2E audit tests
     └── test_cli_commands.py
 ```
 
