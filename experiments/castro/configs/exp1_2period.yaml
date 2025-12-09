@@ -15,15 +15,21 @@ deferred_crediting: true
 deadline_cap_at_eod: true
 
 cost_rates:
-  # Collateral cost: 500 bps per day
+  # Castro paper requires: r_c < r_d < r_b
+  # r_c = collateral cost, r_d = delay cost, r_b = EOD borrowing cost
+  #
+  # Collateral cost: 500 bps per tick (r_c = 0.05 per tick)
   collateral_cost_per_tick_bps: 500
-  # Delay cost: 0.1 cents per tick per cent
-  delay_cost_per_tick_per_cent: 0.001
-  # Overdraft penalty: high to discourage
+  # Delay cost: 0.1 per tick per cent (r_d = 0.10, must be > r_c)
+  # This makes delaying a payment more expensive than posting collateral
+  delay_cost_per_tick_per_cent: 0.1
+  # Overdraft penalty: high to discourage negative balances
   overdraft_bps_per_tick: 2000
-  # No EOD penalty for this experiment
-  eod_penalty_per_transaction: 0
-  deadline_penalty: 0
+  # EOD penalty: must be > delay cost (r_b > r_d)
+  # Large penalty for each unsettled transaction at end of day
+  eod_penalty_per_transaction: 100000
+  # Deadline penalty: penalty when transaction becomes overdue
+  deadline_penalty: 50000
   split_friction_cost: 0
 
 # Disable LSM for Castro experiments
