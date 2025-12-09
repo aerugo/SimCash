@@ -448,6 +448,37 @@ class InlinePolicy(BaseModel):
     )
 
 
+class InlineJsonPolicy(BaseModel):
+    """Policy from inline JSON string.
+
+    This policy type allows passing a raw JSON policy string directly,
+    enabling policy injection from databases, LLM responses, and
+    programmatic sources without file I/O.
+
+    Unlike InlinePolicy (which takes a dict), this takes a raw JSON string,
+    useful when policies are stored or transmitted as strings.
+
+    Useful for:
+    - LLM-generated policies (JSON string output)
+    - Database-stored policies
+    - API-submitted policies
+    - Castro experiment policy injection
+    """
+
+    type: Literal["InlineJson"] = "InlineJson"
+    json_string: str = Field(..., description="JSON policy string")
+
+    @field_validator("json_string")
+    @classmethod
+    def validate_json(cls, v: str) -> str:
+        """Validate JSON is parseable."""
+        try:
+            json.loads(v)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON: {e}") from e
+        return v
+
+
 # Union type for all policies
 PolicyConfig = (
     FifoPolicy
@@ -457,6 +488,7 @@ PolicyConfig = (
     | MockSplittingPolicy
     | FromJsonPolicy
     | InlinePolicy
+    | InlineJsonPolicy
 )
 
 
@@ -966,6 +998,9 @@ class SimulationConfig(BaseModel):
             case InlinePolicy(decision_trees=trees):
                 # Serialize decision_trees to JSON and use same format as FromJson
                 return {"type": "FromJson", "json": json.dumps(trees)}
+            case InlineJsonPolicy(json_string=json_str):
+                # Pass the JSON string directly to FFI
+                return {"type": "FromJson", "json": json_str}
             case _:
                 raise ValueError(f"Unknown policy type: {type(policy)}")
 

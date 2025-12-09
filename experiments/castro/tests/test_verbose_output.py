@@ -25,9 +25,6 @@ from payment_simulator._core import Orchestrator
 from payment_simulator.cli.filters import EventFilter
 
 
-@pytest.mark.skip(
-    reason="Requires proper FFI policy conversion - covered by TestVerboseOutput with mocks"
-)
 class TestEventCaptureFromOrchestrator:
     """Test capturing events from the Rust Orchestrator.
 
@@ -171,9 +168,6 @@ class TestEventCaptureFromOrchestrator:
                 assert e1["agent_id"] == e2["agent_id"], f"Event {i} agent_id mismatch"
 
 
-@pytest.mark.skip(
-    reason="Requires proper FFI policy conversion - covered by TestVerboseOutput with mocks"
-)
 class TestEventFiltering:
     """Test event filtering for agent isolation (INV-1).
 
@@ -519,9 +513,6 @@ class TestVerboseOutputFormatting:
         assert "delay" in formatted
 
 
-@pytest.mark.skip(
-    reason="Requires proper FFI policy conversion - covered by TestVerboseOutput with mocks"
-)
 class TestFilteredEventsForContext:
     """Test collecting filtered events for LLM context building.
 
@@ -666,9 +657,6 @@ class TestFilteredEventsForContext:
                     )
 
 
-@pytest.mark.skip(
-    reason="Requires proper FFI policy conversion - covered by TestExperimentRunnerVerboseIntegration"
-)
 class TestVerboseOutputCapture:
     """Test the VerboseOutputCapture class implementation.
 
