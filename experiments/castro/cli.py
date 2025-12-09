@@ -1,6 +1,8 @@
 """CLI for Castro experiments.
 
 Run Castro experiments using the ai_cash_mgmt module.
+
+Uses PydanticAI for unified LLM support with provider:model string format.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
-from castro.experiments import EXPERIMENTS
+from castro.experiments import DEFAULT_MODEL, EXPERIMENTS
 from castro.runner import ExperimentRunner
 
 # Load environment variables from .env file (if present)
@@ -23,7 +25,7 @@ load_dotenv()
 
 app = typer.Typer(
     name="castro",
-    help="Castro experiments using ai_cash_mgmt",
+    help="Castro experiments using ai_cash_mgmt with PydanticAI",
     no_args_is_help=True,
 )
 console = Console()
@@ -37,8 +39,28 @@ def run(
     ],
     model: Annotated[
         str,
-        typer.Option("--model", "-m", help="LLM model to use"),
-    ] = "claude-sonnet-4-5-20250929",
+        typer.Option(
+            "--model",
+            "-m",
+            help="LLM model in provider:model format (e.g., anthropic:claude-sonnet-4-5)",
+        ),
+    ] = DEFAULT_MODEL,
+    thinking_budget: Annotated[
+        int | None,
+        typer.Option(
+            "--thinking-budget",
+            "-t",
+            help="Token budget for Anthropic extended thinking (Claude only)",
+        ),
+    ] = None,
+    reasoning_effort: Annotated[
+        str | None,
+        typer.Option(
+            "--reasoning-effort",
+            "-r",
+            help="OpenAI reasoning effort: low, medium, or high (GPT models only)",
+        ),
+    ] = None,
     max_iter: Annotated[
         int,
         typer.Option("--max-iter", "-i", help="Maximum optimization iterations"),
@@ -78,21 +100,41 @@ def run(
 ) -> None:
     """Run a Castro experiment.
 
+    Model format: provider:model-name
+
+    Supported providers:
+        - anthropic: Claude models (claude-sonnet-4-5, etc.)
+        - openai: GPT models (gpt-5.1, gpt-4.1, o1, o3, etc.)
+        - google: Gemini models (gemini-2.5-flash, etc.)
+
     Examples:
+        # Default (Anthropic Claude)
         castro run exp1
-        castro run exp2 --model gpt-4o --max-iter 50
-        castro run exp3 --output ./my_results --seed 123
+
+        # OpenAI with high reasoning effort
+        castro run exp1 --model openai:gpt-5.1 --reasoning-effort high
+
+        # Anthropic with extended thinking
+        castro run exp1 --model anthropic:claude-sonnet-4-5 --thinking-budget 8000
+
+        # Google Gemini
+        castro run exp1 --model google:gemini-2.5-flash
 
         # All verbose output
         castro run exp1 --verbose
 
         # Specific verbose modes
         castro run exp1 --verbose-policy --verbose-monte-carlo
-
-        # Quiet mode (current behavior)
-        castro run exp1 --quiet
     """
     from castro.verbose_logging import VerboseConfig
+
+    # Validate reasoning_effort if provided
+    if reasoning_effort and reasoning_effort not in ("low", "medium", "high"):
+        console.print(
+            f"[red]Invalid reasoning effort: {reasoning_effort}. "
+            "Must be low, medium, or high.[/red]"
+        )
+        raise typer.Exit(1)
 
     # Build verbose configuration
     if quiet:
@@ -111,9 +153,14 @@ def run(
         console.print(f"Available: {', '.join(EXPERIMENTS.keys())}")
         raise typer.Exit(1)
 
-    # Create experiment configuration
+    # Create experiment configuration with new model format
     output_dir = output or Path("results")
-    exp = EXPERIMENTS[experiment](output_dir=output_dir, model=model)
+    exp = EXPERIMENTS[experiment](
+        output_dir=output_dir,
+        model=model,
+        thinking_budget=thinking_budget,
+        reasoning_effort=reasoning_effort,
+    )
 
     # Override settings if specified
     if max_iter != 25:
@@ -209,16 +256,14 @@ def info(
     table.add_row("  Stability Window", str(exp.stability_window))
     table.add_row("", "")
     table.add_row("[bold]LLM[/bold]", "")
-    llm_config = exp.get_llm_config()
-    # Provider can be enum or string
-    provider_str = (
-        llm_config.provider.value
-        if hasattr(llm_config.provider, "value")
-        else str(llm_config.provider)
-    )
-    table.add_row("  Provider", provider_str)
-    table.add_row("  Model", exp.llm_model)
-    table.add_row("  Temperature", str(exp.llm_temperature))
+    model_config = exp.get_model_config()
+    table.add_row("  Model", model_config.model)
+    table.add_row("  Provider", model_config.provider)
+    table.add_row("  Temperature", str(model_config.temperature))
+    if model_config.thinking_budget:
+        table.add_row("  Thinking Budget", str(model_config.thinking_budget))
+    if model_config.reasoning_effort:
+        table.add_row("  Reasoning Effort", model_config.reasoning_effort)
     table.add_row("", "")
     table.add_row("[bold]Agents[/bold]", "")
     table.add_row("  Optimized", ", ".join(exp.optimized_agents))

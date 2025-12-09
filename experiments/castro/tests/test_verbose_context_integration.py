@@ -719,9 +719,7 @@ class TestLLMClientVerboseContext:
     def test_llm_client_prompt_includes_verbose_output(self) -> None:
         """LLM client receives prompt with verbose output."""
         from castro.context_builder import MonteCarloContextBuilder
-        from castro.llm_client import CastroLLMClient
         from castro.verbose_capture import VerboseOutput
-        from payment_simulator.ai_cash_mgmt import LLMConfig, LLMProviderType
 
         # Create verbose output with events
         events: dict[int, list[dict[str, Any]]] = {

@@ -36,7 +36,7 @@ from rich.console import Console
 from castro.constraints import CASTRO_CONSTRAINTS
 from castro.context_builder import MonteCarloContextBuilder
 from castro.experiments import CastroExperiment
-from castro.llm_client import CastroLLMClient
+from castro.pydantic_llm_client import PydanticAILLMClient
 from castro.simulation import CastroSimulationRunner, SimulationResult
 from castro.verbose_logging import (
     LLMCallMetadata,
@@ -113,7 +113,7 @@ class ExperimentRunner:
         self._verbose_logger = VerboseLogger(self._verbose_config, console)
         self._convergence_config = experiment.get_convergence_criteria()
         self._monte_carlo_config = experiment.get_monte_carlo_config()
-        self._llm_config = experiment.get_llm_config()
+        self._model_config = experiment.get_model_config()
 
         # Core components
         self._seed_manager = SeedManager(experiment.master_seed)
@@ -126,11 +126,11 @@ class ExperimentRunner:
         self._validator = ConstraintValidator(CASTRO_CONSTRAINTS)
         self._optimizer = PolicyOptimizer(
             constraints=CASTRO_CONSTRAINTS,
-            max_retries=self._llm_config.max_retries,
+            max_retries=self._model_config.max_retries,
         )
 
-        # LLM client
-        self._llm_client = CastroLLMClient(self._llm_config)
+        # LLM client - using PydanticAI
+        self._llm_client = PydanticAILLMClient(self._model_config)
 
         # Simulation runner (initialized lazily)
         self._sim_runner: CastroSimulationRunner | None = None
@@ -174,7 +174,7 @@ class ExperimentRunner:
             console.print(f"  Description: {self._experiment.description}")
             console.print(f"  Max iterations: {self._convergence_config.max_iterations}")
             console.print(f"  Monte Carlo samples: {self._monte_carlo_config.num_samples}")
-            console.print(f"  LLM model: {self._llm_config.model}")
+            console.print(f"  LLM model: {self._model_config.model}")
             console.print()
 
             # Optimization loop
@@ -242,7 +242,7 @@ class ExperimentRunner:
                         current_iteration=iteration,
                         current_metrics=current_metrics,
                         llm_client=self._llm_client,
-                        llm_model=self._llm_config.model,
+                        llm_model=self._model_config.model,
                         current_cost=float(agent_cost),
                         iteration_history=self._iteration_history.get(agent_id, []),
                         # Pass verbose context from MonteCarloContextBuilder
@@ -259,7 +259,7 @@ class ExperimentRunner:
                         self._verbose_logger.log_llm_call(
                             LLMCallMetadata(
                                 agent_id=agent_id,
-                                model=result.llm_model or self._llm_config.model,
+                                model=result.llm_model or self._model_config.model,
                                 prompt_tokens=result.tokens_used or 0,
                                 completion_tokens=0,  # Not tracked separately currently
                                 latency_seconds=result.llm_latency_seconds,

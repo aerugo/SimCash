@@ -15,8 +15,6 @@ from pathlib import Path
 from payment_simulator.ai_cash_mgmt import (
     AgentOptimizationConfig,
     ConvergenceCriteria,
-    LLMConfig,
-    LLMProviderType,
     MonteCarloConfig,
     OptimizationSchedule,
     OptimizationScheduleType,
@@ -24,19 +22,10 @@ from payment_simulator.ai_cash_mgmt import (
     SampleMethod,
 )
 
+from castro.model_config import ModelConfig
 
-def _detect_provider(model: str) -> LLMProviderType:
-    """Detect the LLM provider from model name.
-
-    Args:
-        model: Model name string.
-
-    Returns:
-        LLMProviderType based on model name prefix.
-    """
-    if model.startswith("gpt-") or model.startswith("o1") or model.startswith("o3"):
-        return LLMProviderType.OPENAI
-    return LLMProviderType.ANTHROPIC
+# Default model for experiments
+DEFAULT_MODEL = "anthropic:claude-sonnet-4-5"
 
 
 @dataclass
@@ -46,13 +35,32 @@ class CastroExperiment:
     Encapsulates all configuration needed to run an experiment:
     scenario path, optimization settings, and output configuration.
 
+    Uses unified model string format (provider:model) for LLM configuration.
+
     Example:
         >>> exp = CastroExperiment(
         ...     name="exp1",
         ...     description="2-Period Deterministic",
         ...     scenario_path=Path("configs/exp1_2period.yaml"),
-        ...     num_samples=1,
-        ...     evaluation_ticks=2,
+        ...     model="anthropic:claude-sonnet-4-5",
+        ... )
+
+        >>> # With extended thinking (Anthropic)
+        >>> exp = CastroExperiment(
+        ...     name="exp1",
+        ...     description="2-Period Deterministic",
+        ...     scenario_path=Path("configs/exp1_2period.yaml"),
+        ...     model="anthropic:claude-sonnet-4-5",
+        ...     thinking_budget=8000,
+        ... )
+
+        >>> # With high reasoning (OpenAI)
+        >>> exp = CastroExperiment(
+        ...     name="exp1",
+        ...     description="2-Period Deterministic",
+        ...     scenario_path=Path("configs/exp1_2period.yaml"),
+        ...     model="openai:gpt-5.1",
+        ...     reasoning_effort="high",
         ... )
     """
 
@@ -72,10 +80,18 @@ class CastroExperiment:
     stability_threshold: float = 0.05
     stability_window: int = 5
 
-    # LLM settings
-    llm_provider: LLMProviderType | None = None  # Auto-detected from model
-    llm_model: str = "claude-sonnet-4-5-20250929"
-    llm_temperature: float = 0.0
+    # LLM settings - unified model string format
+    model: str = DEFAULT_MODEL
+    """Model string in provider:model format (e.g., 'anthropic:claude-sonnet-4-5')."""
+
+    temperature: float = 0.0
+    """Sampling temperature (0.0 = deterministic)."""
+
+    thinking_budget: int | None = None
+    """Token budget for Anthropic extended thinking (Claude only)."""
+
+    reasoning_effort: str | None = None
+    """OpenAI reasoning effort: 'low', 'medium', or 'high' (GPT models only)."""
 
     # Agent settings
     optimized_agents: list[str] = field(default_factory=lambda: ["BANK_A", "BANK_B"])
@@ -108,20 +124,17 @@ class CastroExperiment:
             max_iterations=self.max_iterations,
         )
 
-    def get_llm_config(self) -> LLMConfig:
-        """Get LLM configuration for this experiment.
-
-        Auto-detects provider from model name if not explicitly set.
+    def get_model_config(self) -> ModelConfig:
+        """Get unified model configuration for this experiment.
 
         Returns:
-            LLMConfig instance.
+            ModelConfig instance with all LLM settings.
         """
-        provider = self.llm_provider or _detect_provider(self.llm_model)
-        return LLMConfig(
-            provider=provider,
-            model=self.llm_model,
-            temperature=self.llm_temperature,
-            max_retries=3,
+        return ModelConfig(
+            model=self.model,
+            temperature=self.temperature,
+            thinking_budget=self.thinking_budget,
+            reasoning_effort=self.reasoning_effort,
         )
 
     def get_output_config(self) -> OutputConfig:
@@ -157,7 +170,9 @@ class CastroExperiment:
 
 def create_exp1(
     output_dir: Path | None = None,
-    model: str = "claude-sonnet-4-5-20250929",
+    model: str = DEFAULT_MODEL,
+    thinking_budget: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> CastroExperiment:
     """Experiment 1: 2-Period Deterministic.
 
@@ -174,7 +189,9 @@ def create_exp1(
 
     Args:
         output_dir: Output directory for results.
-        model: LLM model to use.
+        model: LLM model in provider:model format (e.g., 'anthropic:claude-sonnet-4-5').
+        thinking_budget: Anthropic extended thinking budget (optional).
+        reasoning_effort: OpenAI reasoning effort 'low'/'medium'/'high' (optional).
 
     Returns:
         CastroExperiment configuration.
@@ -188,7 +205,9 @@ def create_exp1(
         max_iterations=25,
         stability_threshold=0.05,
         stability_window=5,
-        llm_model=model,
+        model=model,
+        thinking_budget=thinking_budget,
+        reasoning_effort=reasoning_effort,
         optimized_agents=["BANK_A", "BANK_B"],
         output_dir=output_dir or Path("results"),
         master_seed=42,
@@ -197,7 +216,9 @@ def create_exp1(
 
 def create_exp2(
     output_dir: Path | None = None,
-    model: str = "claude-sonnet-4-5-20250929",
+    model: str = DEFAULT_MODEL,
+    thinking_budget: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> CastroExperiment:
     """Experiment 2: 12-Period Stochastic.
 
@@ -210,7 +231,9 @@ def create_exp2(
 
     Args:
         output_dir: Output directory for results.
-        model: LLM model to use.
+        model: LLM model in provider:model format (e.g., 'anthropic:claude-sonnet-4-5').
+        thinking_budget: Anthropic extended thinking budget (optional).
+        reasoning_effort: OpenAI reasoning effort 'low'/'medium'/'high' (optional).
 
     Returns:
         CastroExperiment configuration.
@@ -224,7 +247,9 @@ def create_exp2(
         max_iterations=25,
         stability_threshold=0.05,
         stability_window=5,
-        llm_model=model,
+        model=model,
+        thinking_budget=thinking_budget,
+        reasoning_effort=reasoning_effort,
         optimized_agents=["BANK_A", "BANK_B"],
         output_dir=output_dir or Path("results"),
         master_seed=42,
@@ -233,7 +258,9 @@ def create_exp2(
 
 def create_exp3(
     output_dir: Path | None = None,
-    model: str = "claude-sonnet-4-5-20250929",
+    model: str = DEFAULT_MODEL,
+    thinking_budget: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> CastroExperiment:
     """Experiment 3: Joint Liquidity & Timing.
 
@@ -248,7 +275,9 @@ def create_exp3(
 
     Args:
         output_dir: Output directory for results.
-        model: LLM model to use.
+        model: LLM model in provider:model format (e.g., 'anthropic:claude-sonnet-4-5').
+        thinking_budget: Anthropic extended thinking budget (optional).
+        reasoning_effort: OpenAI reasoning effort 'low'/'medium'/'high' (optional).
 
     Returns:
         CastroExperiment configuration.
@@ -262,7 +291,9 @@ def create_exp3(
         max_iterations=25,
         stability_threshold=0.05,
         stability_window=5,
-        llm_model=model,
+        model=model,
+        thinking_budget=thinking_budget,
+        reasoning_effort=reasoning_effort,
         optimized_agents=["BANK_A", "BANK_B"],
         output_dir=output_dir or Path("results"),
         master_seed=42,
