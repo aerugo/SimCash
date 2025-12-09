@@ -370,11 +370,28 @@ def replay(
         bool,
         typer.Option("--verbose-policy", help="Show policy changes"),
     ] = False,
+    audit: Annotated[
+        bool,
+        typer.Option("--audit", help="Show detailed audit trail for each iteration"),
+    ] = False,
+    start: Annotated[
+        int | None,
+        typer.Option("--start", help="Start iteration for audit output (inclusive)"),
+    ] = None,
+    end: Annotated[
+        int | None,
+        typer.Option("--end", help="End iteration for audit output (inclusive)"),
+    ] = None,
 ) -> None:
     """Replay experiment output from database.
 
     Displays the same output that was shown during the original run,
     using the unified display function (StateProvider pattern).
+
+    With --audit flag, shows detailed audit trail including:
+    - Raw LLM prompts and responses
+    - Validation errors and retry attempts
+    - Evaluation results for each agent
 
     Examples:
         # Replay a specific run
@@ -385,12 +402,29 @@ def replay(
 
         # Replay from a specific database
         castro replay exp1-20251209-143022-a1b2c3 --db results/custom.db
+
+        # Show audit trail for iterations 2-3
+        castro replay exp1-20251209-143022-a1b2c3 --audit --start 2 --end 3
     """
     import duckdb
 
     from castro.display import VerboseConfig, display_experiment_output
-    from castro.persistence import ExperimentEventRepository
     from castro.state_provider import DatabaseExperimentProvider
+
+    # Validate audit options
+    if start is not None and start < 0:
+        console.print("[red]Error: --start must be a non-negative integer[/red]")
+        raise typer.Exit(1)
+
+    if end is not None and end < 0:
+        console.print("[red]Error: --end must be a non-negative integer[/red]")
+        raise typer.Exit(1)
+
+    if start is not None and end is not None and start > end:
+        console.print(
+            f"[red]Error: --start ({start}) cannot be greater than --end ({end})[/red]"
+        )
+        raise typer.Exit(1)
 
     # Check database exists
     if not db.exists():
@@ -414,17 +448,29 @@ def replay(
         conn.close()
         raise typer.Exit(1)
 
-    # Build verbose config
-    verbose_config = VerboseConfig.from_flags(
-        verbose=verbose,
-        verbose_iterations=verbose_iterations,
-        verbose_monte_carlo=verbose_monte_carlo,
-        verbose_llm=verbose_llm,
-        verbose_policy=verbose_policy,
-    )
+    # Handle audit mode
+    if audit:
+        from castro.audit_display import display_audit_output
 
-    # Display output using unified function
-    display_experiment_output(provider, console, verbose_config)
+        display_audit_output(
+            provider=provider,
+            console=console,
+            start_iteration=start,
+            end_iteration=end,
+        )
+    else:
+        # Standard replay mode
+        # Build verbose config
+        verbose_config = VerboseConfig.from_flags(
+            verbose=verbose,
+            verbose_iterations=verbose_iterations,
+            verbose_monte_carlo=verbose_monte_carlo,
+            verbose_llm=verbose_llm,
+            verbose_policy=verbose_policy,
+        )
+
+        # Display output using unified function
+        display_experiment_output(provider, console, verbose_config)
 
     conn.close()
 
