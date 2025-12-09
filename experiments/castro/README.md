@@ -17,7 +17,7 @@ This module replicates the experiments from "Estimating Policy Functions in Paym
 
 ```bash
 # Install dependencies
-cd experiments/new-castro
+cd experiments/castro
 pip install -e .
 
 # List available experiments
@@ -67,13 +67,13 @@ python cli.py run exp3
 ## Architecture
 
 ```
-new-castro/
+experiments/castro/
 ├── castro/
 │   ├── __init__.py          # Public API
 │   ├── constraints.py       # CASTRO_CONSTRAINTS
 │   ├── experiments.py       # Experiment definitions
 │   ├── llm_client.py        # LLM client (Anthropic/OpenAI)
-│   ├── runner.py            # ExperimentRunner
+│   ├── runner.py            # ExperimentRunner (uses SingleAgentIterationRecord)
 │   └── simulation.py        # CastroSimulationRunner
 ├── configs/
 │   ├── exp1_2period.yaml    # 2-period scenario
@@ -218,7 +218,7 @@ conn.execute("""
 ## Testing
 
 ```bash
-cd experiments/new-castro
+cd experiments/castro
 pytest tests/ -v
 ```
 
