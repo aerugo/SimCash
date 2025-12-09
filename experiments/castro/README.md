@@ -8,7 +8,9 @@ This module replicates the experiments from "Estimating Policy Functions in Paym
 
 **Key Features**:
 - Three experiments matching the paper's scenarios
-- LLM-based policy generation (Anthropic Claude, OpenAI GPT)
+- LLM-based policy generation via **PydanticAI** (unified multi-provider support)
+- Support for Anthropic Claude, OpenAI GPT, and Google Gemini
+- Provider-specific reasoning features (thinking tokens, reasoning effort)
 - Monte Carlo policy evaluation
 - Deterministic execution via seeded RNG
 - Full persistence to DuckDB
@@ -26,8 +28,14 @@ uv run castro list
 # Run experiment 1 (2-period deterministic)
 uv run castro run exp1
 
-# Run with custom settings
-uv run castro run exp2 --model gpt-4o --max-iter 50 --output ./results
+# Run with custom model (provider:model format)
+uv run castro run exp2 --model openai:gpt-4o --max-iter 50 --output ./results
+
+# Run with Anthropic extended thinking
+uv run castro run exp1 --model anthropic:claude-sonnet-4-5 --thinking-budget 8000
+
+# Run with OpenAI high reasoning
+uv run castro run exp1 --model openai:gpt-5.1 --reasoning-effort high
 ```
 
 ## Experiments
@@ -69,23 +77,26 @@ uv run castro run exp3
 ```
 experiments/castro/
 ├── castro/
-│   ├── __init__.py          # Public API
-│   ├── constraints.py       # CASTRO_CONSTRAINTS
-│   ├── experiments.py       # Experiment definitions
-│   ├── llm_client.py        # LLM client (Anthropic/OpenAI)
-│   ├── runner.py            # ExperimentRunner (uses SingleAgentIterationRecord)
-│   ├── simulation.py        # CastroSimulationRunner
-│   └── verbose_logging.py   # Verbose output (VerboseConfig, VerboseLogger)
+│   ├── __init__.py              # Public API
+│   ├── constraints.py           # CASTRO_CONSTRAINTS
+│   ├── experiments.py           # Experiment definitions
+│   ├── model_config.py          # ModelConfig for PydanticAI settings
+│   ├── pydantic_llm_client.py   # PydanticAI LLM client (multi-provider)
+│   ├── runner.py                # ExperimentRunner (uses SingleAgentIterationRecord)
+│   ├── simulation.py            # CastroSimulationRunner
+│   └── verbose_logging.py       # Verbose output (VerboseConfig, VerboseLogger)
 ├── configs/
-│   ├── exp1_2period.yaml    # 2-period scenario
-│   ├── exp2_12period.yaml   # 12-period scenario
-│   └── exp3_joint.yaml      # Joint optimization scenario
+│   ├── exp1_2period.yaml        # 2-period scenario
+│   ├── exp2_12period.yaml       # 12-period scenario
+│   └── exp3_joint.yaml          # Joint optimization scenario
 ├── tests/
-│   ├── test_experiments.py  # Unit tests
+│   ├── test_experiments.py      # Experiment unit tests
+│   ├── test_model_config.py     # Model configuration tests
+│   ├── test_pydantic_llm_client.py  # PydanticAI client tests
 │   └── test_verbose_logging.py  # Verbose logging tests
-├── cli.py                   # Typer CLI
-├── pyproject.toml           # Package config
-└── README.md                # This file
+├── cli.py                       # Typer CLI
+├── pyproject.toml               # Package config
+└── README.md                    # This file
 ```
 
 ## CLI Commands
@@ -99,10 +110,13 @@ Arguments:
   experiment    Experiment key: exp1, exp2, or exp3
 
 Options:
-  -m, --model TEXT      LLM model [default: claude-sonnet-4-5-20250929]
-  -i, --max-iter INT    Max iterations [default: 25]
-  -o, --output PATH     Output directory [default: results]
-  -s, --seed INT        Master seed [default: 42]
+  -m, --model TEXT              LLM model in provider:model format
+                                [default: anthropic:claude-sonnet-4-5]
+  -t, --thinking-budget INT     Token budget for Anthropic extended thinking
+  -r, --reasoning-effort TEXT   OpenAI reasoning effort: low, medium, high
+  -i, --max-iter INT            Max iterations [default: 25]
+  -o, --output PATH             Output directory [default: results]
+  -s, --seed INT                Master seed [default: 42]
 
 Verbose Output:
   -v, --verbose              Enable all verbose output
@@ -178,20 +192,37 @@ from castro.constraints import CASTRO_CONSTRAINTS
 
 ### LLM Providers
 
-Supports both Anthropic and OpenAI:
+Supports multiple providers via PydanticAI with unified `provider:model` format:
 
 ```bash
-# Anthropic (default)
-uv run castro run exp1 --model claude-sonnet-4-5-20250929
+# Anthropic Claude (default)
+uv run castro run exp1 --model anthropic:claude-sonnet-4-5
 
-# OpenAI
-uv run castro run exp1 --model gpt-4o
+# Anthropic with extended thinking
+uv run castro run exp1 --model anthropic:claude-sonnet-4-5 --thinking-budget 8000
+
+# OpenAI GPT
+uv run castro run exp1 --model openai:gpt-4o
+
+# OpenAI with high reasoning effort
+uv run castro run exp1 --model openai:gpt-5.1 --reasoning-effort high
+
+# Google Gemini
+uv run castro run exp1 --model google:gemini-2.5-flash
 ```
 
-Set API keys via environment variables:
+**Supported Providers:**
+| Provider | Model Examples | Special Features |
+|----------|----------------|------------------|
+| `anthropic` | `claude-sonnet-4-5`, `claude-opus-4` | `--thinking-budget` for extended thinking |
+| `openai` | `gpt-4o`, `gpt-5.1`, `o1`, `o3` | `--reasoning-effort` (low/medium/high) |
+| `google` | `gemini-2.5-flash`, `gemini-pro` | Google AI thinking config |
+
+Set API keys via environment variables or `.env` file:
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
+export GOOGLE_API_KEY=...
 ```
 
 ## Programmatic Usage
@@ -200,8 +231,20 @@ export OPENAI_API_KEY=sk-...
 import asyncio
 from castro import create_exp1, ExperimentRunner
 
-# Create experiment
-exp = create_exp1(model="claude-sonnet-4-5-20250929")
+# Create experiment with default Anthropic model
+exp = create_exp1(model="anthropic:claude-sonnet-4-5")
+
+# Or with OpenAI and reasoning effort
+exp = create_exp1(
+    model="openai:gpt-5.1",
+    reasoning_effort="high",
+)
+
+# Or with Anthropic extended thinking
+exp = create_exp1(
+    model="anthropic:claude-sonnet-4-5",
+    thinking_budget=8000,
+)
 
 # Run optimization
 runner = ExperimentRunner(exp)
@@ -260,11 +303,11 @@ uv run pytest tests/ -v
 ## Dependencies
 
 - `payment-simulator` - SimCash core with ai_cash_mgmt module
-- `anthropic` - Anthropic API client
-- `openai` - OpenAI API client
+- `pydantic-ai` - Unified LLM interface (supports Anthropic, OpenAI, Google)
 - `typer` - CLI framework
 - `rich` - Terminal formatting
 - `pyyaml` - YAML parsing
+- `python-dotenv` - Environment variable loading from .env files
 
 ## Design Principles
 
