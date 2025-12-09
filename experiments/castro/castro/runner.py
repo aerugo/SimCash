@@ -36,7 +36,9 @@ from rich.console import Console
 from castro.constraints import CASTRO_CONSTRAINTS
 from castro.context_builder import MonteCarloContextBuilder
 from castro.experiments import CastroExperiment
+from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
 from castro.pydantic_llm_client import PydanticAILLMClient
+from castro.run_id import generate_run_id
 from castro.simulation import CastroSimulationRunner, SimulationResult
 from castro.verbose_logging import (
     LLMCallMetadata,
@@ -57,6 +59,7 @@ class ExperimentResult:
 
     Example:
         >>> result = ExperimentResult(
+        ...     run_id="exp1-20251209-143022-a1b2c3",
         ...     experiment_name="exp1",
         ...     final_cost=15000,
         ...     best_cost=14500,
@@ -68,6 +71,7 @@ class ExperimentResult:
         ... )
     """
 
+    run_id: str
     experiment_name: str
     final_cost: int
     best_cost: int
@@ -101,14 +105,17 @@ class ExperimentRunner:
         self,
         experiment: CastroExperiment,
         verbose_config: VerboseConfig | None = None,
+        run_id: str | None = None,
     ) -> None:
         """Initialize the experiment runner.
 
         Args:
             experiment: CastroExperiment configuration.
             verbose_config: Optional verbose logging configuration.
+            run_id: Optional run ID. If not provided, one will be generated.
         """
         self._experiment = experiment
+        self._run_id = run_id or generate_run_id(experiment.name)
         self._verbose_config = verbose_config or VerboseConfig()
         self._verbose_logger = VerboseLogger(self._verbose_config, console)
         self._convergence_config = experiment.get_convergence_criteria()
@@ -170,7 +177,27 @@ class ExperimentRunner:
             session_record = self._create_session_record()
             repo.save_game_session(session_record)
 
+            # Initialize experiment event database (for replay)
+            import duckdb
+
+            castro_db_path = db_path.parent / "castro.db"
+            castro_conn = duckdb.connect(str(castro_db_path))
+            exp_repo = ExperimentEventRepository(castro_conn)
+            exp_repo.initialize_schema()
+
+            # Create experiment run record
+            exp_run_record = ExperimentRunRecord(
+                run_id=self._run_id,
+                experiment_name=self._experiment.name,
+                started_at=start_time,
+                status="running",
+                model=self._model_config.model,
+                master_seed=self._experiment.master_seed,
+            )
+            exp_repo.save_run_record(exp_run_record)
+
             console.print(f"\n[bold cyan]Starting {self._experiment.name}[/bold cyan]")
+            console.print(f"  [bold]Run ID: {self._run_id}[/bold]")
             console.print(f"  Description: {self._experiment.description}")
             console.print(f"  Max iterations: {self._convergence_config.max_iterations}")
             console.print(f"  Monte Carlo samples: {self._monte_carlo_config.num_samples}")
@@ -388,6 +415,7 @@ class ExperimentRunner:
             # Finalize
             duration = (datetime.now() - start_time).total_seconds()
             converged = self._convergence.is_converged
+            convergence_reason = self._convergence.convergence_reason or "max_iterations"
 
             # Update session record
             repo.update_game_session_status(
@@ -399,13 +427,29 @@ class ExperimentRunner:
                 final_cost=self._best_cost,
             )
 
+            # Update experiment run record for replay
+            exp_repo.update_run_status(
+                run_id=self._run_id,
+                status="completed",
+                completed_at=datetime.now(),
+                final_cost=int(self._best_cost),
+                best_cost=int(self._best_cost),
+                num_iterations=iteration,
+                converged=converged,
+                convergence_reason=convergence_reason,
+            )
+
+            # Close experiment event database connection
+            castro_conn.close()
+
             return ExperimentResult(
+                run_id=self._run_id,
                 experiment_name=self._experiment.name,
                 final_cost=int(self._best_cost),
                 best_cost=int(self._best_cost),
                 num_iterations=iteration,
                 converged=converged,
-                convergence_reason=self._convergence.convergence_reason or "max_iterations",
+                convergence_reason=convergence_reason,
                 per_agent_costs={k: int(v) for k, v in per_agent_costs.items()},
                 duration_seconds=duration,
                 best_policies=self._best_policies,

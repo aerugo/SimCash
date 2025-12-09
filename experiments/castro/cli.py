@@ -187,6 +187,7 @@ def run(
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
 
+    table.add_row("Run ID", result.run_id)
     table.add_row("Final Cost", f"${result.final_cost / 100:.2f}")
     table.add_row("Best Cost", f"${result.best_cost / 100:.2f}")
     table.add_row("Iterations", str(result.num_iterations))
@@ -333,6 +334,209 @@ def validate(
         raise typer.Exit(1) from e
 
     console.print("\n[green]Validation passed![/green]")
+
+
+# Default database path for results storage
+DEFAULT_DB_PATH = Path("results/castro.db")
+
+
+@app.command()
+def replay(
+    run_id: Annotated[
+        str,
+        typer.Argument(help="Run ID to replay (e.g., exp1-20251209-143022-a1b2c3)"),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", "-d", help="Path to database file"),
+    ] = DEFAULT_DB_PATH,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Enable all verbose output"),
+    ] = False,
+    verbose_iterations: Annotated[
+        bool,
+        typer.Option("--verbose-iterations", help="Show iteration starts"),
+    ] = False,
+    verbose_monte_carlo: Annotated[
+        bool,
+        typer.Option("--verbose-monte-carlo", help="Show Monte Carlo evaluations"),
+    ] = False,
+    verbose_llm: Annotated[
+        bool,
+        typer.Option("--verbose-llm", help="Show LLM call details"),
+    ] = False,
+    verbose_policy: Annotated[
+        bool,
+        typer.Option("--verbose-policy", help="Show policy changes"),
+    ] = False,
+) -> None:
+    """Replay experiment output from database.
+
+    Displays the same output that was shown during the original run,
+    using the unified display function (StateProvider pattern).
+
+    Examples:
+        # Replay a specific run
+        castro replay exp1-20251209-143022-a1b2c3
+
+        # Replay with verbose output
+        castro replay exp1-20251209-143022-a1b2c3 --verbose
+
+        # Replay from a specific database
+        castro replay exp1-20251209-143022-a1b2c3 --db results/custom.db
+    """
+    import duckdb
+
+    from castro.display import VerboseConfig, display_experiment_output
+    from castro.persistence import ExperimentEventRepository
+    from castro.state_provider import DatabaseExperimentProvider
+
+    # Check database exists
+    if not db.exists():
+        console.print(f"[red]Database not found: {db}[/red]")
+        raise typer.Exit(1)
+
+    # Connect to database
+    try:
+        conn = duckdb.connect(str(db), read_only=True)
+    except Exception as e:
+        console.print(f"[red]Failed to open database: {e}[/red]")
+        raise typer.Exit(1) from e
+
+    # Create provider
+    provider = DatabaseExperimentProvider(conn=conn, run_id=run_id)
+
+    # Check run exists
+    metadata = provider.get_run_metadata()
+    if metadata is None:
+        console.print(f"[red]Run not found: {run_id}[/red]")
+        conn.close()
+        raise typer.Exit(1)
+
+    # Build verbose config
+    verbose_config = VerboseConfig.from_flags(
+        verbose=verbose,
+        verbose_iterations=verbose_iterations,
+        verbose_monte_carlo=verbose_monte_carlo,
+        verbose_llm=verbose_llm,
+        verbose_policy=verbose_policy,
+    )
+
+    # Display output using unified function
+    display_experiment_output(provider, console, verbose_config)
+
+    conn.close()
+
+
+@app.command()
+def results(
+    db: Annotated[
+        Path,
+        typer.Option("--db", "-d", help="Path to database file"),
+    ] = DEFAULT_DB_PATH,
+    experiment: Annotated[
+        str | None,
+        typer.Option("--experiment", "-e", help="Filter by experiment name"),
+    ] = None,
+    limit: Annotated[
+        int,
+        typer.Option("--limit", "-n", help="Maximum number of results to show"),
+    ] = 20,
+) -> None:
+    """List experiment runs from database.
+
+    Shows run IDs, dates, status, and metrics for all recorded experiments.
+
+    Examples:
+        # List all runs
+        castro results
+
+        # Filter by experiment
+        castro results --experiment exp1
+
+        # Use a specific database
+        castro results --db results/custom.db
+    """
+    import duckdb
+
+    from castro.persistence import ExperimentEventRepository
+
+    # Check database exists
+    if not db.exists():
+        console.print(f"[red]Database not found: {db}[/red]")
+        raise typer.Exit(1)
+
+    # Connect to database
+    try:
+        conn = duckdb.connect(str(db), read_only=True)
+    except Exception as e:
+        console.print(f"[red]Failed to open database: {e}[/red]")
+        raise typer.Exit(1) from e
+
+    # Get runs
+    repo = ExperimentEventRepository(conn)
+    runs = repo.list_runs(experiment_filter=experiment, limit=limit)
+
+    conn.close()
+
+    if not runs:
+        if experiment:
+            console.print(f"[yellow]No runs found for experiment: {experiment}[/yellow]")
+        else:
+            console.print("[yellow]No experiment runs found in database.[/yellow]")
+        return
+
+    # Create results table
+    table = Table(title="Experiment Runs")
+    table.add_column("Run ID", style="cyan")
+    table.add_column("Experiment", style="green")
+    table.add_column("Status")
+    table.add_column("Final Cost", justify="right")
+    table.add_column("Best Cost", justify="right")
+    table.add_column("Iterations", justify="right")
+    table.add_column("Converged")
+    table.add_column("Model")
+    table.add_column("Started", style="dim")
+
+    for run in runs:
+        # Format costs
+        final_cost = f"${run.final_cost / 100:.2f}" if run.final_cost else "-"
+        best_cost = f"${run.best_cost / 100:.2f}" if run.best_cost else "-"
+        iterations = str(run.num_iterations) if run.num_iterations else "-"
+        converged = "Yes" if run.converged else "No" if run.converged is False else "-"
+
+        # Format status with color
+        status = run.status
+        if status == "completed":
+            status = "[green]completed[/green]"
+        elif status == "running":
+            status = "[yellow]running[/yellow]"
+        elif status == "failed":
+            status = "[red]failed[/red]"
+
+        # Format date
+        started = run.started_at.strftime("%Y-%m-%d %H:%M") if run.started_at else "-"
+
+        # Format model (truncate if long)
+        model = run.model or "-"
+        if len(model) > 25:
+            model = model[:22] + "..."
+
+        table.add_row(
+            run.run_id,
+            run.experiment_name,
+            status,
+            final_cost,
+            best_cost,
+            iterations,
+            converged,
+            model,
+            started,
+        )
+
+    console.print(table)
+    console.print(f"\n[dim]Showing {len(runs)} run(s)[/dim]")
 
 
 if __name__ == "__main__":
