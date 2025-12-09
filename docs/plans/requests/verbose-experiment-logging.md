@@ -69,25 +69,7 @@ Monte Carlo Evaluation (5 samples):
   Worst seed: 0x2f1c... (for debugging)
 ```
 
-### 3. Tick-by-Tick Event Stream (`--verbose-events`)
-
-Show what happened during simulation:
-
-```
-Sample 0 (seed=0x7a3b...):
-  Tick 0:
-    [COLLATERAL] BANK_B posted $20,000 (InitialAllocation)
-    [TX_ARRIVE] B→A: $15,000 (deadline: tick 1)
-    [POLICY] BANK_B: Hold (ticks_to_deadline=1, threshold=2)
-  Tick 1:
-    [TX_ARRIVE] A→B: $15,000 (deadline: tick 2)
-    [TX_ARRIVE] B→A: $5,000 (deadline: tick 2)
-    [POLICY] BANK_B: Release (ticks_to_deadline=0 <= threshold=2)
-    [SETTLE] B→A: $15,000 settled via RTGS
-    ...
-```
-
-### 4. LLM Interaction Logging (`--verbose-llm`)
+### 3. LLM Interaction Logging (`--verbose-llm`)
 
 Show prompt and response details:
 
@@ -100,14 +82,13 @@ LLM Call for BANK_A:
 
   Key context provided:
     - Performance history (5 iterations)
-    - Best seed output (tick-by-tick)
-    - Worst seed output (tick-by-tick)
+    - Best/worst seed costs
     - Current cost: $6723.20
 
   LLM reasoning summary: [if available from model]
 ```
 
-### 5. Rejection Analysis (`--verbose-rejections`)
+### 4. Rejection Analysis (`--verbose-rejections`)
 
 When policies are rejected, explain why:
 
@@ -147,7 +128,7 @@ castro run exp1 --quiet
 ### Code Changes
 
 1. **runner.py**: Add logging calls at key decision points
-2. **simulation.py**: Return tick-by-tick event data when verbose
+2. **simulation.py**: Return summary metrics when verbose
 3. **llm_client.py**: Log prompt/response metadata
 4. **cli.py**: Add `--verbose` flags and pass to runner
 
