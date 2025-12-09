@@ -38,6 +38,13 @@ from castro.context_builder import MonteCarloContextBuilder
 from castro.experiments import CastroExperiment
 from castro.llm_client import CastroLLMClient
 from castro.simulation import CastroSimulationRunner, SimulationResult
+from castro.verbose_logging import (
+    LLMCallMetadata,
+    MonteCarloSeedResult,
+    RejectionDetail,
+    VerboseConfig,
+    VerboseLogger,
+)
 
 console = Console()
 
@@ -90,13 +97,20 @@ class ExperimentRunner:
         >>> print(f"Final cost: ${result.final_cost / 100:.2f}")
     """
 
-    def __init__(self, experiment: CastroExperiment) -> None:
+    def __init__(
+        self,
+        experiment: CastroExperiment,
+        verbose_config: VerboseConfig | None = None,
+    ) -> None:
         """Initialize the experiment runner.
 
         Args:
             experiment: CastroExperiment configuration.
+            verbose_config: Optional verbose logging configuration.
         """
         self._experiment = experiment
+        self._verbose_config = verbose_config or VerboseConfig()
+        self._verbose_logger = VerboseLogger(self._verbose_config, console)
         self._convergence_config = experiment.get_convergence_criteria()
         self._monte_carlo_config = experiment.get_monte_carlo_config()
         self._llm_config = experiment.get_llm_config()
@@ -172,10 +186,26 @@ class ExperimentRunner:
                 console.print(f"[cyan]Iteration {iteration}[/cyan]")
 
                 # 1. Evaluate current policies with verbose capture
-                total_cost, per_agent_costs, context_builder = await self._evaluate_policies(
-                    iteration, capture_verbose=True
-                )
+                (
+                    total_cost,
+                    per_agent_costs,
+                    context_builder,
+                    seed_results,
+                ) = await self._evaluate_policies(iteration, capture_verbose=True)
                 console.print(f"  Total cost: ${total_cost / 100:.2f}")
+
+                # Verbose: Log Monte Carlo results
+                if seed_results:
+                    import math
+                    costs = [r.cost for r in seed_results]
+                    mean_cost = sum(costs) // len(costs) if costs else 0
+                    variance = sum((c - mean_cost) ** 2 for c in costs) / len(costs) if costs else 0
+                    std_cost = int(math.sqrt(variance))
+                    self._verbose_logger.log_monte_carlo_evaluation(
+                        seed_results=seed_results,
+                        mean_cost=mean_cost,
+                        std_cost=std_cost,
+                    )
 
                 # Track best
                 if total_cost < self._best_cost:
@@ -224,9 +254,30 @@ class ExperimentRunner:
                         worst_seed_cost=agent_sim_context.worst_seed_cost,
                     )
 
+                    # Verbose: Log LLM call metadata
+                    if result.llm_latency_seconds is not None:
+                        self._verbose_logger.log_llm_call(
+                            LLMCallMetadata(
+                                agent_id=agent_id,
+                                model=result.llm_model or self._llm_config.model,
+                                prompt_tokens=result.tokens_used or 0,
+                                completion_tokens=0,  # Not tracked separately currently
+                                latency_seconds=result.llm_latency_seconds,
+                                context_summary={
+                                    "iteration_history_count": len(
+                                        self._iteration_history.get(agent_id, [])
+                                    ),
+                                    "current_cost": int(agent_cost),
+                                    "best_seed_cost": agent_sim_context.best_seed_cost,
+                                    "worst_seed_cost": agent_sim_context.worst_seed_cost,
+                                },
+                            )
+                        )
+
                     # Evaluate new policy cost BEFORE accepting
                     actually_accepted = False
                     new_cost = result.old_cost
+                    old_policy_for_logging = self._policies[agent_id].copy()
 
                     if result.was_accepted and result.new_policy:
                         # Temporarily apply new policy and evaluate
@@ -234,7 +285,7 @@ class ExperimentRunner:
                         self._policies[agent_id] = result.new_policy
 
                         # Re-evaluate without verbose capture (performance optimization)
-                        _eval_total, eval_per_agent, _ = await self._evaluate_policies(
+                        _eval_total, eval_per_agent, _, _ = await self._evaluate_policies(
                             iteration, capture_verbose=False
                         )
                         new_cost = eval_per_agent.get(agent_id, result.old_cost)
@@ -246,12 +297,42 @@ class ExperimentRunner:
                                 f"    [green]Policy improved: "
                                 f"${result.old_cost/100:.2f} → ${new_cost/100:.2f}[/green]"
                             )
+
+                            # Verbose: Log accepted policy change
+                            self._verbose_logger.log_policy_change(
+                                agent_id=agent_id,
+                                old_policy=old_policy_for_logging,
+                                new_policy=result.new_policy,
+                                old_cost=int(result.old_cost),
+                                new_cost=int(new_cost),
+                                accepted=True,
+                            )
                         else:
                             # Revert to old policy
                             self._policies[agent_id] = old_policy
                             console.print(
                                 f"    [yellow]Rejected: cost not improved "
                                 f"(${result.old_cost/100:.2f} → ${new_cost/100:.2f})[/yellow]"
+                            )
+
+                            # Verbose: Log cost-rejected policy change
+                            self._verbose_logger.log_policy_change(
+                                agent_id=agent_id,
+                                old_policy=old_policy_for_logging,
+                                new_policy=result.new_policy,
+                                old_cost=int(result.old_cost),
+                                new_cost=int(new_cost),
+                                accepted=False,
+                            )
+                            self._verbose_logger.log_rejection(
+                                RejectionDetail(
+                                    agent_id=agent_id,
+                                    proposed_policy=result.new_policy,
+                                    validation_errors=[],
+                                    rejection_reason="cost_not_improved",
+                                    old_cost=int(result.old_cost),
+                                    new_cost=int(new_cost),
+                                )
                             )
 
                     # Update result for database record
@@ -264,6 +345,15 @@ class ExperimentRunner:
                     if not actually_accepted and result.validation_errors:
                         errors_str = ", ".join(result.validation_errors[:2])
                         console.print(f"    [yellow]Rejected: {errors_str}[/yellow]")
+
+                        # Verbose: Log validation rejection
+                        self._verbose_logger.log_rejection(
+                            RejectionDetail(
+                                agent_id=agent_id,
+                                proposed_policy=result.new_policy or {},
+                                validation_errors=result.validation_errors,
+                            )
+                        )
 
                     # Track if this is the best cost for this agent
                     is_best_so_far = agent_cost < self._best_agent_costs.get(
@@ -397,7 +487,7 @@ class ExperimentRunner:
         self,
         iteration: int,
         capture_verbose: bool = True,
-    ) -> tuple[int, dict[str, int], MonteCarloContextBuilder]:
+    ) -> tuple[int, dict[str, int], MonteCarloContextBuilder, list[MonteCarloSeedResult]]:
         """Evaluate current policies across Monte Carlo samples.
 
         Runs Monte Carlo simulations with different seeds, captures verbose
@@ -408,7 +498,7 @@ class ExperimentRunner:
             capture_verbose: If True, capture tick-by-tick events for LLM context.
 
         Returns:
-            Tuple of (total_cost, per_agent_costs, context_builder).
+            Tuple of (total_cost, per_agent_costs, context_builder, seed_results).
         """
         if self._sim_runner is None:
             msg = "Simulation runner not initialized"
@@ -454,7 +544,20 @@ class ExperimentRunner:
         # Build context builder for per-agent context
         context_builder = MonteCarloContextBuilder(results=results, seeds=seeds)
 
-        return mean_total, mean_per_agent, context_builder
+        # Build MonteCarloSeedResult list for verbose logging
+        seed_results: list[MonteCarloSeedResult] = []
+        for seed, result in zip(seeds, results, strict=True):
+            seed_results.append(
+                MonteCarloSeedResult(
+                    seed=seed,
+                    cost=result.total_cost,
+                    settled=result.transactions_settled,
+                    total=result.transactions_settled + result.transactions_failed,
+                    settlement_rate=result.settlement_rate,
+                )
+            )
+
+        return mean_total, mean_per_agent, context_builder, seed_results
 
     def _create_session_record(self) -> GameSessionRecord:
         """Create initial session record.

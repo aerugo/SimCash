@@ -46,6 +46,30 @@ def run(
         int,
         typer.Option("--seed", "-s", help="Master seed for determinism"),
     ] = 42,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Enable all verbose output"),
+    ] = False,
+    verbose_policy: Annotated[
+        bool,
+        typer.Option("--verbose-policy", help="Show policy parameter changes"),
+    ] = False,
+    verbose_monte_carlo: Annotated[
+        bool,
+        typer.Option("--verbose-monte-carlo", help="Show per-seed Monte Carlo results"),
+    ] = False,
+    verbose_llm: Annotated[
+        bool,
+        typer.Option("--verbose-llm", help="Show LLM call metadata"),
+    ] = False,
+    verbose_rejections: Annotated[
+        bool,
+        typer.Option("--verbose-rejections", help="Show rejection analysis"),
+    ] = False,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Suppress verbose output"),
+    ] = False,
 ) -> None:
     """Run a Castro experiment.
 
@@ -53,7 +77,30 @@ def run(
         castro run exp1
         castro run exp2 --model gpt-4o --max-iter 50
         castro run exp3 --output ./my_results --seed 123
+
+        # All verbose output
+        castro run exp1 --verbose
+
+        # Specific verbose modes
+        castro run exp1 --verbose-policy --verbose-monte-carlo
+
+        # Quiet mode (current behavior)
+        castro run exp1 --quiet
     """
+    from castro.verbose_logging import VerboseConfig
+
+    # Build verbose configuration
+    if quiet:
+        verbose_config = VerboseConfig()  # All disabled
+    else:
+        verbose_config = VerboseConfig.from_flags(
+            verbose=verbose,
+            verbose_policy=verbose_policy if verbose_policy else None,
+            verbose_monte_carlo=verbose_monte_carlo if verbose_monte_carlo else None,
+            verbose_llm=verbose_llm if verbose_llm else None,
+            verbose_rejections=verbose_rejections if verbose_rejections else None,
+        )
+
     if experiment not in EXPERIMENTS:
         console.print(f"[red]Unknown experiment: {experiment}[/red]")
         console.print(f"Available: {', '.join(EXPERIMENTS.keys())}")
@@ -71,7 +118,7 @@ def run(
 
     # Run the experiment
     console.print(f"[bold]Running {experiment}...[/bold]")
-    runner = ExperimentRunner(exp)
+    runner = ExperimentRunner(exp, verbose_config=verbose_config)
 
     try:
         result = asyncio.run(runner.run())
