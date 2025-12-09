@@ -212,41 +212,43 @@ This can replace manual JSON parsing and validation in future iterations.
 
 ## Implementation Steps
 
+**Status: ✅ COMPLETED (2025-12-09)**
+
 ### Phase 1: Add Dependency
-- [ ] Add `pydantic-ai` to `experiments/castro/pyproject.toml`
-- [ ] Verify mypy/pyright compatibility
+- [x] Add `pydantic-ai` to `experiments/castro/pyproject.toml`
+- [x] Verify mypy/pyright compatibility
 
 ### Phase 2: Create Model Configuration
-- [ ] Create `castro/model_config.py` with `ModelConfig` dataclass
-- [ ] Add provider detection and settings conversion
-- [ ] Write unit tests for ModelConfig
+- [x] Create `castro/model_config.py` with `ModelConfig` dataclass
+- [x] Add provider detection and settings conversion
+- [x] Write unit tests for ModelConfig (22 tests in `test_model_config.py`)
 
 ### Phase 3: Implement PydanticAI Client
-- [ ] Create `castro/pydantic_llm_client.py`
-- [ ] Implement `generate_policy()` using PydanticAI Agent
-- [ ] Preserve JSON parsing logic from current client
-- [ ] Write unit tests (mock PydanticAI)
+- [x] Create `castro/pydantic_llm_client.py`
+- [x] Implement `generate_policy()` using PydanticAI Agent
+- [x] Preserve JSON parsing logic from current client
+- [x] Write unit tests (mock PydanticAI - 22 tests in `test_pydantic_llm_client.py`)
 
 ### Phase 4: Update CastroExperiment
-- [ ] Update dataclass to use `model: str` with provider:model format
-- [ ] Replace `get_llm_config()` with `get_model_config()`
-- [ ] Update factory functions
-- [ ] Update tests
+- [x] Update dataclass to use `model: str` with provider:model format
+- [x] Replace `get_llm_config()` with `get_model_config()`
+- [x] Update factory functions
+- [x] Update tests
 
 ### Phase 5: Update Runner
-- [ ] Update `ExperimentRunner` to use new ModelConfig
-- [ ] Replace `CastroLLMClient` instantiation
-- [ ] Verify LLMClientProtocol compatibility
+- [x] Update `ExperimentRunner` to use new ModelConfig
+- [x] Replace `CastroLLMClient` instantiation with `PydanticAILLMClient`
+- [x] Verify LLMClientProtocol compatibility
 
 ### Phase 6: Update CLI
-- [ ] Update `--model` option to accept provider:model format
-- [ ] Add optional `--thinking-budget` and `--reasoning-effort` flags
-- [ ] Update help text and examples
+- [x] Update `--model` option to accept provider:model format
+- [x] Add optional `--thinking-budget` and `--reasoning-effort` flags
+- [x] Update help text and examples
 
 ### Phase 7: Cleanup
-- [ ] Remove `castro/llm_client.py` (old implementation)
-- [ ] Remove `LLMConfig` usage from castro (keep in ai_cash_mgmt)
-- [ ] Update documentation
+- [x] Remove `castro/llm_client.py` (old implementation)
+- [x] Remove `LLMConfig` usage from castro (keep in ai_cash_mgmt)
+- [x] Update documentation (README.md, CLAUDE.md, architecture.md)
 
 ## Testing Strategy
 

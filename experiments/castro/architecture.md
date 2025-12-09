@@ -145,7 +145,8 @@ experiments/castro/
 │   ├── __init__.py                  # Public API with lazy imports
 │   ├── constraints.py               # CASTRO_CONSTRAINTS definition
 │   ├── experiments.py               # CastroExperiment + factory functions
-│   ├── llm_client.py               # LLM integration (Anthropic/OpenAI)
+│   ├── model_config.py             # ModelConfig for PydanticAI settings
+│   ├── pydantic_llm_client.py      # PydanticAI LLM client (multi-provider)
 │   ├── runner.py                   # ExperimentRunner orchestration
 │   ├── simulation.py               # CastroSimulationRunner wrapper
 │   └── verbose_logging.py          # Structured verbose output
@@ -156,7 +157,9 @@ experiments/castro/
 │   └── exp3_joint.yaml             # 3-tick joint optimization
 │
 ├── tests/                           # Pytest test suite
-│   ├── test_experiments.py         # Comprehensive tests
+│   ├── test_experiments.py         # Experiment unit tests
+│   ├── test_model_config.py        # Model configuration tests
+│   ├── test_pydantic_llm_client.py # PydanticAI client tests
 │   └── test_verbose_logging.py     # Verbose logging tests
 │
 ├── papers/                          # Research documentation
@@ -200,9 +203,11 @@ class CastroExperiment:
     stability_threshold: float = 0.05      # Cost variance threshold
     stability_window: int = 5              # Consecutive stable iterations
 
-    # LLM Settings
-    llm_model: str = "claude-sonnet-4-5-20250929"
-    llm_temperature: float = 0.0           # Deterministic generation
+    # LLM Settings (PydanticAI unified format)
+    model: str = "anthropic:claude-sonnet-4-5"  # provider:model format
+    temperature: float = 0.0               # Deterministic generation
+    thinking_budget: int | None = None     # Anthropic extended thinking
+    reasoning_effort: str | None = None    # OpenAI: "low", "medium", "high"
 
     # Agent Settings
     optimized_agents: list[str] = ["BANK_A", "BANK_B"]
@@ -210,6 +215,15 @@ class CastroExperiment:
     # Output Settings
     output_dir: Path = Path("results")
     master_seed: int = 42                  # RNG seed for reproducibility
+
+    def get_model_config(self) -> ModelConfig:
+        """Get PydanticAI model configuration."""
+        return ModelConfig(
+            model=self.model,
+            temperature=self.temperature,
+            thinking_budget=self.thinking_budget,
+            reasoning_effort=self.reasoning_effort,
+        )
 ```
 
 **Factory Functions:**
@@ -230,7 +244,8 @@ ExperimentRunner
 │   └── PolicyOptimizer       → LLM-based policy improvement
 │
 ├── Castro-Specific Components
-│   ├── CastroLLMClient       → LLM API wrapper
+│   ├── PydanticAILLMClient   → PydanticAI LLM client (multi-provider)
+│   ├── ModelConfig           → Model configuration settings
 │   └── CastroSimulationRunner → Simulation executor
 │
 └── State Management
@@ -281,21 +296,32 @@ class SimulationResult:
     transactions_failed: int
 ```
 
-### 3.4 CastroLLMClient (llm_client.py)
+### 3.4 PydanticAILLMClient (pydantic_llm_client.py)
 
-Wraps LLM APIs for policy generation:
+Unified LLM client using PydanticAI for multi-provider support:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        CastroLLMClient                               │
+│                     PydanticAILLMClient                              │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────────┐                                               │
-│  │  Configuration   │                                               │
-│  │  - Provider      │◀──── LLMProviderType.ANTHROPIC / OPENAI      │
-│  │  - Model name    │                                               │
-│  │  - Temperature   │                                               │
+│  │  ModelConfig     │                                               │
+│  │  - model         │◀──── "anthropic:claude-sonnet-4-5"           │
+│  │  - temperature   │      "openai:gpt-5.1"                         │
+│  │  - thinking_budget (Anthropic)                                   │
+│  │  - reasoning_effort (OpenAI)                                     │
 │  └────────┬─────────┘                                               │
+│           │                                                          │
+│           ▼                                                          │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                 PydanticAI Agent                              │   │
+│  │                                                               │   │
+│  │  Agent(                                                       │   │
+│  │      config.full_model_string,  # e.g. "anthropic:claude..."  │   │
+│  │      system_prompt=SYSTEM_PROMPT,                             │   │
+│  │  )                                                            │   │
+│  └────────┬─────────────────────────────────────────────────────┘   │
 │           │                                                          │
 │           ▼                                                          │
 │  ┌──────────────────────────────────────────────────────────────┐   │
@@ -306,7 +332,10 @@ Wraps LLM APIs for policy generation:
 │  │     - Current policy JSON                                     │   │
 │  │     - Performance history (last 5 iterations)                │   │
 │  │                                                               │   │
-│  │  2. Call LLM API (Anthropic or OpenAI)                       │   │
+│  │  2. Call agent.run() with provider-specific model_settings:  │   │
+│  │     - anthropic_thinking: {"budget_tokens": N}               │   │
+│  │     - openai_reasoning_effort: "high"                        │   │
+│  │     - google_thinking_config: {...}                          │   │
 │  │                                                               │   │
 │  │  3. Parse response:                                           │   │
 │  │     - Strip markdown code blocks                              │   │
@@ -319,6 +348,13 @@ Wraps LLM APIs for policy generation:
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+**Supported Providers:**
+| Provider | Model Format | Special Settings |
+|----------|--------------|------------------|
+| Anthropic | `anthropic:claude-sonnet-4-5` | `anthropic_thinking` |
+| OpenAI | `openai:gpt-5.1` | `openai_reasoning_effort` |
+| Google | `google:gemini-2.5-flash` | `google_thinking_config` |
 
 **System Prompt (condensed):**
 ```
@@ -382,7 +418,7 @@ User: python cli.py run exp1 --model claude-sonnet-4-5-20250929 --max-iter 25
 │    │  • ConvergenceDetector(threshold=0.05, window=5)                     │   │
 │    │  • ConstraintValidator(CASTRO_CONSTRAINTS)                           │   │
 │    │  • PolicyOptimizer(constraints, max_retries=3)                       │   │
-│    │  • CastroLLMClient(provider=ANTHROPIC, model=claude-sonnet-4-5)      │   │
+│    │  • PydanticAILLMClient(ModelConfig("anthropic:claude-sonnet-4-5"))   │   │
 │    └──────────────────────────────────────────────────────────────────────┘   │
 └───────────────────────────────────────────────────────────────────────────────┘
                     │
@@ -546,7 +582,7 @@ Current Policy (JSON):
          │
          ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ LLM CLIENT                                                                   │
+│ PydanticAI LLM CLIENT                                                        │
 │                                                                              │
 │ User Prompt:                                                                 │
 │ ┌──────────────────────────────────────────────────────────────────────────┐│
@@ -564,15 +600,18 @@ Current Policy (JSON):
 │ └──────────────────────────────────────────────────────────────────────────┘│
 │                                         │                                    │
 │                     ┌───────────────────┴───────────────────┐                │
-│                     │                                       │                │
-│                     ▼                                       ▼                │
-│           ┌─────────────────┐                   ┌─────────────────┐          │
-│           │ Anthropic API   │                   │ OpenAI API      │          │
-│           │ Claude          │                   │ GPT-4o          │          │
-│           └────────┬────────┘                   └────────┬────────┘          │
-│                    │                                     │                   │
-│                    └─────────────┬───────────────────────┘                   │
-│                                  ▼                                           │
+│                     │      PydanticAI Agent                 │                │
+│                     │ (unified multi-provider interface)    │                │
+│                     └───────────────────┬───────────────────┘                │
+│                                         │                                    │
+│         ┌───────────────────────────────┼───────────────────────────────┐    │
+│         ▼                               ▼                               ▼    │
+│   ┌──────────────┐              ┌──────────────┐              ┌──────────────┐
+│   │ Anthropic    │              │ OpenAI       │              │ Google       │
+│   │ Claude       │              │ GPT/o1/o3    │              │ Gemini       │
+│   └──────────────┘              └──────────────┘              └──────────────┘
+│                                         │                                    │
+│                                         ▼                                    │
 │ ┌──────────────────────────────────────────────────────────────────────────┐│
 │ │ Raw LLM Response:                                                        ││
 │ │ ```json                                                                  ││
@@ -1093,29 +1132,42 @@ The `results/charts/` directory contains visualizations:
 
 ```bash
 # List available experiments
-python cli.py list
+uv run castro list
 
 # Show experiment details
-python cli.py info exp1
+uv run castro info exp1
 
 # Validate configuration
-python cli.py validate exp2
+uv run castro validate exp2
 
 # Run experiment with defaults
-python cli.py run exp1
+uv run castro run exp1
 
-# Run with custom settings
-python cli.py run exp2 \
-    --model claude-sonnet-4-5-20250929 \
+# Run with custom model (provider:model format)
+uv run castro run exp2 \
+    --model anthropic:claude-sonnet-4-5 \
     --max-iter 50 \
     --seed 12345 \
     --output ./my_results
 
+# Run with Anthropic extended thinking
+uv run castro run exp1 \
+    --model anthropic:claude-sonnet-4-5 \
+    --thinking-budget 8000
+
+# Run with OpenAI high reasoning effort
+uv run castro run exp1 \
+    --model openai:gpt-5.1 \
+    --reasoning-effort high
+
+# Run with Google Gemini
+uv run castro run exp1 --model google:gemini-2.5-flash
+
 # Run with verbose output
-python cli.py run exp1 --verbose
+uv run castro run exp1 --verbose
 
 # Run with specific verbose flags
-python cli.py run exp2 --verbose-policy --verbose-monte-carlo
+uv run castro run exp2 --verbose-policy --verbose-monte-carlo
 ```
 
 ### 9.2 Verbose Logging
@@ -1193,8 +1245,20 @@ Monte Carlo Evaluation (5 samples):
 import asyncio
 from castro import create_exp1, ExperimentRunner
 
-# Create experiment configuration
-exp = create_exp1(model="claude-sonnet-4-5-20250929")
+# Create experiment with default Anthropic model
+exp = create_exp1(model="anthropic:claude-sonnet-4-5")
+
+# Or with OpenAI and reasoning effort
+exp = create_exp1(
+    model="openai:gpt-5.1",
+    reasoning_effort="high",
+)
+
+# Or with Anthropic extended thinking
+exp = create_exp1(
+    model="anthropic:claude-sonnet-4-5",
+    thinking_budget=8000,
+)
 
 # Run optimization
 runner = ExperimentRunner(exp)
@@ -1239,7 +1303,10 @@ The Castro experiments framework provides a robust, reproducible system for LLM-
 3. **Constraint-Driven**: All policies validated against Castro paper rules
 4. **Monte Carlo Evaluation**: Robust cost estimation across multiple samples
 5. **Full Persistence**: DuckDB storage for analysis and debugging
-6. **Multi-Provider**: Supports Anthropic Claude and OpenAI GPT models
+6. **Multi-Provider via PydanticAI**: Unified interface supporting:
+   - **Anthropic Claude** with extended thinking (`--thinking-budget`)
+   - **OpenAI GPT/o1/o3** with reasoning effort (`--reasoning-effort`)
+   - **Google Gemini** with thinking config
 
 The framework successfully demonstrates that LLMs can learn optimal payment system strategies, converging to Nash equilibria in simple cases and finding effective policies in complex stochastic environments.
 
