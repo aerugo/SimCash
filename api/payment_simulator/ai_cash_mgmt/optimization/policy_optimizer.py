@@ -1,14 +1,18 @@
 """LLM-based policy optimizer.
 
 Generates improved policies using LLM with retry logic and validation.
+
+Uses rich 50k+ token context with verbose output, cost breakdown,
+iteration history with acceptance status, and optimization guidance.
+This provides the LLM full visibility into what went right and wrong
+in simulations for better optimization results.
 """
 
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import (
     ScenarioConstraints,
@@ -16,6 +20,14 @@ from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import (
 from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import (
     ConstraintValidator,
 )
+from payment_simulator.ai_cash_mgmt.prompts.single_agent_context import (
+    build_single_agent_context,
+)
+
+if TYPE_CHECKING:
+    from payment_simulator.ai_cash_mgmt.prompts.context_types import (
+        SingleAgentIterationRecord,
+    )
 
 
 @dataclass
@@ -80,60 +92,12 @@ class LLMClientProtocol(Protocol):
         ...
 
 
-def build_optimization_prompt(
-    agent_id: str,
-    current_policy: dict[str, Any],
-    performance_history: list[dict[str, Any]],
-    validation_errors: list[str] | None = None,
-) -> str:
-    """Build an optimization prompt for the LLM.
-
-    Args:
-        agent_id: The agent being optimized.
-        current_policy: Current policy configuration.
-        performance_history: History of costs per iteration.
-        validation_errors: Errors from previous attempt (for retries).
-
-    Returns:
-        Prompt string for the LLM.
-    """
-    lines = [
-        f"Optimize the payment policy for agent {agent_id}.",
-        "",
-        "Current Policy:",
-        json.dumps(current_policy, indent=2),
-        "",
-    ]
-
-    if performance_history:
-        lines.append("Performance History:")
-        for entry in performance_history[-5:]:  # Last 5 entries
-            iteration = entry.get("iteration", "?")
-            cost = entry.get("cost", "?")
-            lines.append(f"  - Iteration {iteration}: cost = {cost}")
-        lines.append("")
-
-    if validation_errors:
-        lines.append("PREVIOUS ATTEMPT FAILED with these errors:")
-        for error in validation_errors:
-            lines.append(f"  - {error}")
-        lines.append("")
-        lines.append("Please fix these issues in your response.")
-        lines.append("")
-
-    lines.extend([
-        "Generate an improved policy that reduces total cost.",
-        "The policy must be valid JSON matching the decision tree schema.",
-    ])
-
-    return "\n".join(lines)
-
-
 class PolicyOptimizer:
     """LLM-based policy optimizer with retry logic.
 
-    Generates improved policies via LLM, validates them against
-    scenario constraints, and retries on validation failure.
+    Generates improved policies via LLM using rich extended context,
+    validates them against scenario constraints, and retries on
+    validation failure.
 
     Example:
         >>> optimizer = PolicyOptimizer(
@@ -143,7 +107,8 @@ class PolicyOptimizer:
         >>> result = await optimizer.optimize(
         ...     agent_id="BANK_A",
         ...     current_policy=current,
-        ...     performance_history=history,
+        ...     current_iteration=5,
+        ...     current_metrics={"total_cost_mean": 12500},
         ...     llm_client=client,
         ...     llm_model="gpt-5.1",
         ... )
@@ -168,23 +133,43 @@ class PolicyOptimizer:
         self,
         agent_id: str,
         current_policy: dict[str, Any],
-        performance_history: list[dict[str, Any]],
+        current_iteration: int,
+        current_metrics: dict[str, Any],
         llm_client: LLMClientProtocol,
         llm_model: str,
         current_cost: float = 0.0,
+        iteration_history: list[SingleAgentIterationRecord] | None = None,
+        best_seed_output: str | None = None,
+        worst_seed_output: str | None = None,
+        best_seed: int = 0,
+        worst_seed: int = 0,
+        best_seed_cost: int = 0,
+        worst_seed_cost: int = 0,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_rates: dict[str, Any] | None = None,
     ) -> OptimizationResult:
         """Generate an optimized policy via LLM.
 
-        Attempts to generate a valid policy, retrying on validation
-        failure up to max_retries times.
+        Attempts to generate a valid policy using rich extended context,
+        retrying on validation failure up to max_retries times.
 
         Args:
             agent_id: The agent being optimized.
             current_policy: Current policy configuration.
-            performance_history: History of costs per iteration.
+            current_iteration: Current iteration number.
+            current_metrics: Aggregated metrics from current iteration.
             llm_client: LLM client for policy generation.
             llm_model: Model identifier for tracking.
             current_cost: Current policy's cost.
+            iteration_history: Full iteration records for context.
+            best_seed_output: Verbose output from best performing seed.
+            worst_seed_output: Verbose output from worst performing seed.
+            best_seed: Best performing seed number.
+            worst_seed: Worst performing seed number.
+            best_seed_cost: Cost from best seed.
+            worst_seed_cost: Cost from worst seed.
+            cost_breakdown: Breakdown of costs by type (delay, collateral, etc).
+            cost_rates: Cost rate configuration from simulation.
 
         Returns:
             OptimizationResult with new policy or None if failed.
@@ -194,20 +179,37 @@ class PolicyOptimizer:
         start_time = time.monotonic()
 
         for attempt in range(self._max_retries):
-            # Build prompt (include errors on retry)
-            prompt = build_optimization_prompt(
-                agent_id=agent_id,
+            # Build rich extended context prompt
+            prompt = build_single_agent_context(
+                current_iteration=current_iteration,
                 current_policy=current_policy,
-                performance_history=performance_history,
-                validation_errors=validation_errors if attempt > 0 else None,
+                current_metrics=current_metrics,
+                iteration_history=iteration_history,
+                best_seed_output=best_seed_output,
+                worst_seed_output=worst_seed_output,
+                best_seed=best_seed,
+                worst_seed=worst_seed,
+                best_seed_cost=best_seed_cost,
+                worst_seed_cost=worst_seed_cost,
+                cost_breakdown=cost_breakdown,
+                cost_rates=cost_rates,
+                agent_id=agent_id,
             )
+
+            # Add validation errors for retry
+            if attempt > 0 and validation_errors:
+                prompt += "\n\n## VALIDATION ERROR - PLEASE FIX\n\n"
+                prompt += "Your previous attempt failed validation:\n"
+                for error in validation_errors:
+                    prompt += f"  - {error}\n"
+                prompt += "\nPlease fix these issues in your response."
 
             # Generate policy from LLM
             try:
                 new_policy = await llm_client.generate_policy(
                     prompt=prompt,
                     current_policy=current_policy,
-                    context={"history": performance_history},
+                    context={"iteration": current_iteration},
                 )
             except Exception as e:
                 validation_errors = [f"LLM error: {e!s}"]
@@ -221,7 +223,7 @@ class PolicyOptimizer:
                 elapsed = time.monotonic() - start_time
                 return OptimizationResult(
                     agent_id=agent_id,
-                    iteration=len(performance_history),
+                    iteration=current_iteration,
                     old_policy=current_policy,
                     new_policy=new_policy,
                     old_cost=current_cost,
@@ -240,7 +242,7 @@ class PolicyOptimizer:
         elapsed = time.monotonic() - start_time
         return OptimizationResult(
             agent_id=agent_id,
-            iteration=len(performance_history),
+            iteration=current_iteration,
             old_policy=current_policy,
             new_policy=None,
             old_cost=current_cost,

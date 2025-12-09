@@ -7,7 +7,7 @@ All tests use mocked LLM responses for determinism and speed.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -93,7 +93,6 @@ class TestPolicyOptimizer:
 
     def test_optimizer_creation(self) -> None:
         """PolicyOptimizer should be creatable."""
-        from payment_simulator.ai_cash_mgmt.config.game_config import GameConfig
         from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import (
             ScenarioConstraints,
         )
@@ -146,7 +145,8 @@ class TestPolicyOptimizer:
         result = await optimizer.optimize(
             agent_id="BANK_A",
             current_policy={"payment_tree": {"root": {"action": "queue"}}},
-            performance_history=[{"iteration": 0, "cost": 1000}],
+            current_iteration=1,
+            current_metrics={"total_cost_mean": 1000},
             llm_client=mock_llm_client,
             llm_model="gpt-5.1",
         )
@@ -196,7 +196,8 @@ class TestPolicyOptimizer:
         result = await optimizer.optimize(
             agent_id="BANK_A",
             current_policy={},
-            performance_history=[],
+            current_iteration=1,
+            current_metrics={},
             llm_client=mock_llm_client,
             llm_model="gpt-5.1",
         )
@@ -241,7 +242,8 @@ class TestPolicyOptimizer:
         result = await optimizer.optimize(
             agent_id="BANK_A",
             current_policy={},
-            performance_history=[],
+            current_iteration=1,
+            current_metrics={},
             llm_client=mock_llm_client,
             llm_model="gpt-5.1",
         )
@@ -292,19 +294,82 @@ class TestPolicyOptimizer:
         await optimizer.optimize(
             agent_id="BANK_A",
             current_policy={},
-            performance_history=[],
+            current_iteration=1,
+            current_metrics={},
             llm_client=mock_llm_client,
             llm_model="gpt-5.1",
         )
 
-        # Check second call includes error context
+        # Check second call includes error context in prompt
         second_call = mock_llm_client.generate_policy.call_args_list[1]
-        call_kwargs = second_call[1] if second_call[1] else {}
-        call_args = second_call[0] if second_call[0] else ()
+        prompt = second_call[1].get("prompt", second_call[0][0] if second_call[0] else "")
 
-        # The retry should include error feedback somehow
-        # (implementation detail - just verify retry happened)
+        # Retry prompt should contain validation error info
+        assert "VALIDATION ERROR" in prompt
         assert mock_llm_client.generate_policy.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_optimizer_uses_extended_context(
+        self,
+        mock_llm_client: MagicMock,
+        valid_policy_response: dict[str, Any],
+    ) -> None:
+        """Optimizer should build extended context with all sections."""
+        from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import (
+            ScenarioConstraints,
+        )
+        from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
+            PolicyOptimizer,
+        )
+        from payment_simulator.ai_cash_mgmt.prompts.context_types import (
+            SingleAgentIterationRecord,
+        )
+
+        constraints = ScenarioConstraints(
+            allowed_parameters=[
+                {"name": "threshold", "param_type": "int", "min_value": 0},
+            ],
+            allowed_fields=["amount"],
+            allowed_actions={"payment_tree": ["submit", "queue"]},
+        )
+
+        mock_llm_client.generate_policy.return_value = valid_policy_response
+
+        optimizer = PolicyOptimizer(
+            constraints=constraints,
+            max_retries=3,
+        )
+
+        iteration_history = [
+            SingleAgentIterationRecord(
+                iteration=1,
+                metrics={"total_cost_mean": 15000},
+                policy={"parameters": {"threshold": 5.0}},
+            ),
+        ]
+
+        await optimizer.optimize(
+            agent_id="BANK_A",
+            current_policy={"parameters": {"threshold": 4.0}},
+            current_iteration=2,
+            current_metrics={"total_cost_mean": 12000},
+            llm_client=mock_llm_client,
+            llm_model="gpt-5.1",
+            iteration_history=iteration_history,
+            cost_breakdown={"delay": 6000, "collateral": 4000},
+            best_seed=42,
+            best_seed_cost=11000,
+        )
+
+        # Verify prompt contains extended context sections
+        call_args = mock_llm_client.generate_policy.call_args
+        prompt = call_args[1].get("prompt", call_args[0][0] if call_args[0] else "")
+
+        assert "BANK_A" in prompt
+        assert "ITERATION 2" in prompt
+        assert "COST ANALYSIS" in prompt
+        assert "delay" in prompt
+        assert "$6,000" in prompt
 
 
 class TestLLMClientProtocol:
@@ -317,46 +382,3 @@ class TestLLMClientProtocol:
         )
 
         assert hasattr(LLMClientProtocol, "generate_policy")
-
-
-class TestOptimizationPromptBuilder:
-    """Test prompt building for LLM."""
-
-    def test_build_optimization_prompt(self) -> None:
-        """Should build a prompt from current policy and history."""
-        from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
-            build_optimization_prompt,
-        )
-
-        current_policy = {"payment_tree": {"root": {"action": "queue"}}}
-        history = [
-            {"iteration": 0, "cost": 1000},
-            {"iteration": 1, "cost": 900},
-        ]
-
-        prompt = build_optimization_prompt(
-            agent_id="BANK_A",
-            current_policy=current_policy,
-            performance_history=history,
-            validation_errors=None,
-        )
-
-        assert "BANK_A" in prompt
-        assert "queue" in prompt or "current" in prompt.lower()
-        assert "1000" in prompt or "cost" in prompt.lower()
-
-    def test_build_retry_prompt_includes_errors(self) -> None:
-        """Retry prompt should include validation errors."""
-        from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
-            build_optimization_prompt,
-        )
-
-        prompt = build_optimization_prompt(
-            agent_id="BANK_A",
-            current_policy={},
-            performance_history=[],
-            validation_errors=["Unknown parameter: foo", "Invalid action: bar"],
-        )
-
-        assert "foo" in prompt or "error" in prompt.lower()
-        assert "bar" in prompt or "invalid" in prompt.lower()
