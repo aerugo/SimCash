@@ -1,0 +1,79 @@
+# Experiment 1: 2-Period Deterministic
+#
+# Validates Nash equilibrium with deferred crediting.
+# Expected outcome: Bank A posts 0, Bank B posts 20000
+#
+# From Castro et al. (2025) Section 4.1
+
+simulation:
+  ticks_per_day: 2
+  num_days: 1
+  rng_seed: 42
+
+# Castro paper rules
+deferred_crediting: true
+deadline_cap_at_eod: true
+
+cost_rates:
+  # Collateral cost: 500 bps per day
+  collateral_cost_per_tick_bps: 500
+  # Delay cost: 0.1 cents per tick per cent
+  delay_cost_per_tick_per_cent: 0.001
+  # Overdraft penalty: high to discourage
+  overdraft_bps_per_tick: 2000
+  # No EOD penalty for this experiment
+  eod_penalty_per_transaction: 0
+  deadline_penalty: 0
+  split_friction_cost: 0
+
+# Disable LSM for Castro experiments
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 50000
+    max_collateral_capacity: 10000000
+    # Seed policy will be injected by runner
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 50000
+    max_collateral_capacity: 10000000
+
+# Deterministic transaction schedule
+scenario_events:
+  # Bank A -> Bank B: 15000 at tick 1, deadline 2
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 15000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 1
+
+  # Bank B -> Bank A: 15000 at tick 0, deadline 1
+  - type: CustomTransactionArrival
+    from_agent: BANK_B
+    to_agent: BANK_A
+    amount: 15000
+    priority: 5
+    deadline: 1
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # Bank B -> Bank A: 5000 at tick 1, deadline 2
+  - type: CustomTransactionArrival
+    from_agent: BANK_B
+    to_agent: BANK_A
+    amount: 5000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 1
