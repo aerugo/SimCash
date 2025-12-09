@@ -183,20 +183,30 @@ Output ONLY the JSON policy, no explanation."""
         raise ValueError(msg)
 
     async def _call_openai(self, system: str, user: str) -> str:
-        """Call OpenAI API."""
+        """Call OpenAI API with high reasoning for GPT-5.1."""
         from openai import AsyncOpenAI
 
         # Type narrowing for mypy
         client: AsyncOpenAI = self._client  # type: ignore[assignment]
 
-        response = await client.chat.completions.create(
-            model=self._config.model,
-            temperature=self._config.temperature,
-            messages=[
+        # Build request parameters
+        params: dict[str, Any] = {
+            "model": self._config.model,
+            "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-        )
+        }
+
+        # For GPT-5.1, use high reasoning effort
+        if "gpt-5" in self._config.model:
+            params["reasoning_effort"] = "high"
+            params["max_completion_tokens"] = 16384  # More tokens for verbose output
+        else:
+            params["temperature"] = self._config.temperature
+            params["max_tokens"] = 4096
+
+        response = await client.chat.completions.create(**params)
 
         content = response.choices[0].message.content
         if content is None:

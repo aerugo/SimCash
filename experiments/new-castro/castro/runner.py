@@ -194,13 +194,41 @@ class ExperimentRunner:
                         current_cost=float(per_agent_costs.get(agent_id, 0)),
                     )
 
+                    # Evaluate new policy cost BEFORE accepting
+                    actually_accepted = False
+                    new_cost = result.old_cost
+
+                    if result.was_accepted and result.new_policy:
+                        # Temporarily apply new policy and evaluate
+                        old_policy = self._policies[agent_id]
+                        self._policies[agent_id] = result.new_policy
+
+                        eval_total, eval_per_agent = await self._evaluate_policies(iteration)
+                        new_cost = eval_per_agent.get(agent_id, result.old_cost)
+
+                        # Only accept if cost improved
+                        if new_cost < result.old_cost:
+                            actually_accepted = True
+                            console.print(
+                                f"    [green]Policy improved: "
+                                f"${result.old_cost/100:.2f} → ${new_cost/100:.2f}[/green]"
+                            )
+                        else:
+                            # Revert to old policy
+                            self._policies[agent_id] = old_policy
+                            console.print(
+                                f"    [yellow]Rejected: cost not improved "
+                                f"(${result.old_cost/100:.2f} → ${new_cost/100:.2f})[/yellow]"
+                            )
+
+                    # Update result for database record
+                    result.was_accepted = actually_accepted
+                    result.new_cost = new_cost
+
                     # Save iteration record
                     self._save_iteration(repo, result, iteration)
 
-                    if result.was_accepted and result.new_policy:
-                        self._policies[agent_id] = result.new_policy
-                        console.print("    [green]Policy updated[/green]")
-                    else:
+                    if not actually_accepted and result.validation_errors:
                         errors_str = ", ".join(result.validation_errors[:2])
                         console.print(f"    [yellow]Rejected: {errors_str}[/yellow]")
 
