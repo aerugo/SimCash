@@ -1,0 +1,68 @@
+# Experiment 2: 12-Period Stochastic (LVTS-Style)
+#
+# Realistic scenario with stochastic payment arrivals.
+# Uses Poisson arrivals with LogNormal amounts.
+#
+# From Castro et al. (2025) Section 4.2
+
+simulation:
+  ticks_per_day: 12
+  num_days: 1
+  rng_seed: 42
+
+# Castro paper rules
+deferred_crediting: true
+deadline_cap_at_eod: true
+
+cost_rates:
+  # Collateral cost: 500 bps per day (scaled to 12 ticks)
+  collateral_cost_per_tick_bps: 42  # ~500/12 bps per tick
+  # Delay cost: 0.1 cents per tick per cent
+  delay_cost_per_tick_per_cent: 0.001
+  # Overdraft penalty
+  overdraft_bps_per_tick: 167  # ~2000/12 bps per tick
+  # No EOD penalty
+  eod_penalty_per_transaction: 0
+  deadline_penalty: 0
+  split_friction_cost: 0
+
+# Disable LSM for Castro experiments
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 100000
+    max_collateral_capacity: 10000000
+    # Stochastic arrivals
+    arrivals:
+      rate_per_tick: 2.0  # Poisson lambda
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_B: 1.0
+      deadline_distribution:
+        type: Uniform
+        min_ticks: 3
+        max_ticks: 8
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 100000
+    max_collateral_capacity: 10000000
+    arrivals:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_distribution:
+        type: Uniform
+        min_ticks: 3
+        max_ticks: 8
