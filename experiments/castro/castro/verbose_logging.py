@@ -309,21 +309,39 @@ class VerboseLogger:
         seed_results: list[MonteCarloSeedResult],
         mean_cost: int,
         std_cost: int,
+        deterministic: bool = False,
     ) -> None:
         """Log Monte Carlo evaluation results.
 
         Shows per-seed breakdown with best/worst identification.
+        In deterministic mode, shows single evaluation result without statistics.
 
         Args:
             seed_results: Results from each seed.
             mean_cost: Mean cost across seeds.
             std_cost: Standard deviation of costs.
+            deterministic: If True, show deterministic mode output (no statistics).
         """
         if not self._config.monte_carlo:
             return
 
         num_samples = len(seed_results)
 
+        # Deterministic mode: simplified output
+        if deterministic and num_samples == 1:
+            result = seed_results[0]
+            cost_str = f"${result.cost / 100:,.2f}"
+            settled_str = f"{result.settled}/{result.total}"
+            rate_str = f"{result.settlement_rate * 100:.1f}%"
+
+            self._console.print(f"\n[bold]Deterministic Evaluation:[/bold]")
+            self._console.print(f"  Cost: {cost_str}")
+            self._console.print(f"  Settled: {settled_str} ({rate_str})")
+            self._console.print(f"  Seed: 0x{result.seed:08x} (for debugging)")
+            self._console.print()
+            return
+
+        # Monte Carlo mode: full statistics
         self._console.print(f"\n[bold]Monte Carlo Evaluation ({num_samples} samples):[/bold]")
 
         # Find best and worst seeds

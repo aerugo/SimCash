@@ -82,9 +82,9 @@ class TestExperiments:
         exp = create_exp1()
 
         assert exp.name == "exp1"
-        # Minimum values for MonteCarloConfig validation
-        assert exp.num_samples == 5  # Deterministic gives identical results
-        assert exp.evaluation_ticks == 10  # Ticks 2-9 are idle
+        # Exp1 uses deterministic mode (single evaluation, no Monte Carlo)
+        assert exp.deterministic is True
+        assert exp.evaluation_ticks == 2  # Only 2 ticks in scenario
         assert "BANK_A" in exp.optimized_agents
         assert "BANK_B" in exp.optimized_agents
 

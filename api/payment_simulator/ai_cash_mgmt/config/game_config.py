@@ -99,11 +99,18 @@ class MonteCarloConfig(BaseModel):
         ...     sample_method="bootstrap",
         ...     evaluation_ticks=200,
         ... )
+
+        >>> # Deterministic mode (single evaluation, no sampling)
+        >>> config = MonteCarloConfig(deterministic=True)
     """
 
+    deterministic: bool = Field(
+        default=False,
+        description="Skip Monte Carlo sampling; run single deterministic evaluation",
+    )
     num_samples: int = Field(
         default=20,
-        ge=5,
+        ge=1,
         le=1000,
         description="Number of resampled scenarios",
     )
@@ -113,8 +120,8 @@ class MonteCarloConfig(BaseModel):
     )
     evaluation_ticks: int = Field(
         default=100,
-        ge=10,
-        description="Ticks to simulate per sample",
+        ge=1,
+        description="Ticks to simulate per sample (minimum 10 unless deterministic)",
     )
     parallel_workers: int = Field(
         default=8,
@@ -124,6 +131,22 @@ class MonteCarloConfig(BaseModel):
     )
 
     model_config = {"use_enum_values": True}
+
+    @model_validator(mode="after")
+    def validate_deterministic_samples(self) -> MonteCarloConfig:
+        """Validate and enforce sample constraints based on deterministic mode."""
+        if self.deterministic:
+            # Force num_samples to 1 in deterministic mode
+            object.__setattr__(self, "num_samples", 1)
+            # No minimum evaluation_ticks in deterministic mode
+        else:
+            if self.num_samples < 5:
+                msg = "num_samples must be >= 5 when not in deterministic mode"
+                raise ValueError(msg)
+            if self.evaluation_ticks < 10:
+                msg = "evaluation_ticks must be >= 10 when not in deterministic mode"
+                raise ValueError(msg)
+        return self
 
 
 class ConvergenceCriteria(BaseModel):
