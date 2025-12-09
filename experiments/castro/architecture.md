@@ -147,7 +147,8 @@ experiments/castro/
 │   ├── experiments.py               # CastroExperiment + factory functions
 │   ├── llm_client.py               # LLM integration (Anthropic/OpenAI)
 │   ├── runner.py                   # ExperimentRunner orchestration
-│   └── simulation.py               # CastroSimulationRunner wrapper
+│   ├── simulation.py               # CastroSimulationRunner wrapper
+│   └── verbose_logging.py          # Structured verbose output
 │
 ├── configs/                         # YAML scenario configurations
 │   ├── exp1_2period.yaml           # 2-tick deterministic scenario
@@ -155,7 +156,8 @@ experiments/castro/
 │   └── exp3_joint.yaml             # 3-tick joint optimization
 │
 ├── tests/                           # Pytest test suite
-│   └── test_experiments.py         # Comprehensive tests
+│   ├── test_experiments.py         # Comprehensive tests
+│   └── test_verbose_logging.py     # Verbose logging tests
 │
 ├── papers/                          # Research documentation
 │   └── castro_et_al.md             # Full paper summary
@@ -1108,9 +1110,84 @@ python cli.py run exp2 \
     --max-iter 50 \
     --seed 12345 \
     --output ./my_results
+
+# Run with verbose output
+python cli.py run exp1 --verbose
+
+# Run with specific verbose flags
+python cli.py run exp2 --verbose-policy --verbose-monte-carlo
 ```
 
-### 9.2 Programmatic Usage
+### 9.2 Verbose Logging
+
+The verbose logging system provides granular visibility into experiment execution via CLI flags:
+
+| Flag | Shows |
+|------|-------|
+| `--verbose` / `-v` | Enable all verbose output |
+| `--quiet` / `-q` | Suppress all verbose output |
+| `--verbose-policy` | Policy parameter changes (before/after with deltas) |
+| `--verbose-monte-carlo` | Per-seed Monte Carlo results with best/worst identification |
+| `--verbose-llm` | LLM call metadata (model, tokens, latency) |
+| `--verbose-rejections` | Policy rejection analysis (validation errors, retry counts) |
+
+**Components (`verbose_logging.py`):**
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                       VerboseLogger                                │
+├───────────────────────────────────────────────────────────────────┤
+│  Configuration:                                                    │
+│    VerboseConfig(policy, monte_carlo, llm, rejections)           │
+│                                                                    │
+│  Log Methods:                                                      │
+│    log_iteration_start(iteration, total_cost)                     │
+│    log_policy_change(agent, old, new, old_cost, new_cost, accept) │
+│    log_monte_carlo_evaluation(seed_results, mean, std)            │
+│    log_llm_call(LLMCallMetadata)                                  │
+│    log_rejection(RejectionDetail)                                  │
+│                                                                    │
+│  Data Types:                                                       │
+│    MonteCarloSeedResult(seed, cost, settled, total, rate)        │
+│    LLMCallMetadata(agent_id, model, tokens, latency, context)    │
+│    RejectionDetail(agent_id, policy, errors, reason, costs)      │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+**Example Output (`--verbose-policy`):**
+
+```
+Iteration 3
+  Total cost: $150.00
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃ Policy Change: BANK_A      ┃ Old   ┃ New   ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.25  │ 0.20  │ -20%  │
+│ urgency_threshold          │ 3.0   │ 2.0   │ -33%  │
+└────────────────────────────┴───────┴───────┴───────┘
+  Evaluation: $150.00 → $135.00 (-10.0%)
+  Decision: ACCEPTED
+```
+
+**Example Output (`--verbose-monte-carlo`):**
+
+```
+Monte Carlo Evaluation (5 samples):
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃ Seed         ┃ Cost      ┃ Settled  ┃ Rate  ┃ Note  ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0x7a3b2c1d   │ $152.00   │ 95/100   │ 95.0% │       │
+│ 0x2f1c3e4d   │ $148.00   │ 97/100   │ 97.0% │ Best  │
+│ 0x8e4d5f6a   │ $155.00   │ 93/100   │ 93.0% │ Worst │
+│ 0x1a9f0b2c   │ $150.00   │ 96/100   │ 96.0% │       │
+│ 0x5c2e3d4f   │ $149.00   │ 96/100   │ 96.0% │       │
+└──────────────┴───────────┴──────────┴───────┴───────┘
+  Mean: $150.80 (std: $2.50)
+  Best seed: 0x2f1c3e4d (for debugging)
+```
+
+### 9.3 Programmatic Usage
 
 ```python
 import asyncio
@@ -1136,19 +1213,19 @@ for agent_id, policy in result.best_policies.items():
     print(f"  {agent_id} liquidity fraction: {liquidity:.2%}")
 ```
 
-### 9.3 Environment Setup
+### 9.4 Environment Setup
 
 ```bash
-# Install dependencies
+# Install dependencies (ALWAYS use UV, never pip!)
 cd experiments/castro
-pip install -e .
+uv sync --extra dev
 
 # Set API keys
 export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 
 # Run tests
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ---

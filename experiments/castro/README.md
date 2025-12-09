@@ -74,13 +74,15 @@ experiments/castro/
 │   ├── experiments.py       # Experiment definitions
 │   ├── llm_client.py        # LLM client (Anthropic/OpenAI)
 │   ├── runner.py            # ExperimentRunner (uses SingleAgentIterationRecord)
-│   └── simulation.py        # CastroSimulationRunner
+│   ├── simulation.py        # CastroSimulationRunner
+│   └── verbose_logging.py   # Verbose output (VerboseConfig, VerboseLogger)
 ├── configs/
 │   ├── exp1_2period.yaml    # 2-period scenario
 │   ├── exp2_12period.yaml   # 12-period scenario
 │   └── exp3_joint.yaml      # Joint optimization scenario
 ├── tests/
-│   └── test_experiments.py  # Unit tests
+│   ├── test_experiments.py  # Unit tests
+│   └── test_verbose_logging.py  # Verbose logging tests
 ├── cli.py                   # Typer CLI
 ├── pyproject.toml           # Package config
 └── README.md                # This file
@@ -101,7 +103,40 @@ Options:
   -i, --max-iter INT    Max iterations [default: 25]
   -o, --output PATH     Output directory [default: results]
   -s, --seed INT        Master seed [default: 42]
+
+Verbose Output:
+  -v, --verbose              Enable all verbose output
+  -q, --quiet                Suppress verbose output
+  --verbose-policy           Show policy parameter changes (before/after)
+  --verbose-monte-carlo      Show per-seed Monte Carlo results
+  --verbose-llm              Show LLM call metadata (tokens, latency)
+  --verbose-rejections       Show rejection analysis details
 ```
+
+#### Verbose Output Examples
+
+```bash
+# Enable all verbose output
+uv run castro run exp1 --verbose
+
+# Show only policy changes
+uv run castro run exp2 --verbose-policy
+
+# Show Monte Carlo details and LLM metadata
+uv run castro run exp2 --verbose-monte-carlo --verbose-llm
+
+# Enable all verbose but suppress Monte Carlo details
+uv run castro run exp2 --verbose --no-verbose-monte-carlo
+```
+
+The verbose flags provide granular control over experiment output:
+
+| Flag | Shows |
+|------|-------|
+| `--verbose-policy` | Before/after policy parameters with percentage deltas |
+| `--verbose-monte-carlo` | Per-seed results with best/worst seed identification |
+| `--verbose-llm` | Model name, token counts, latency, context summary |
+| `--verbose-rejections` | Validation errors, rejection reasons, retry counts |
 
 ### `list` - List experiments
 
