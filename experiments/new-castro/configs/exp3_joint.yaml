@@ -1,0 +1,68 @@
+# Experiment 3: Joint Liquidity & Timing Optimization
+#
+# Optimizes both initial collateral decision AND payment timing jointly.
+# Tests interaction between liquidity and timing decisions.
+#
+# From Castro et al. (2025) Section 4.3
+
+simulation:
+  ticks_per_day: 3
+  num_days: 1
+  rng_seed: 42
+
+# Castro paper rules
+deferred_crediting: true
+deadline_cap_at_eod: true
+
+cost_rates:
+  # Collateral cost: 500 bps per day (scaled to 3 ticks)
+  collateral_cost_per_tick_bps: 167  # ~500/3 bps per tick
+  # Delay cost: higher to make timing important
+  delay_cost_per_tick_per_cent: 0.005
+  # Overdraft penalty
+  overdraft_bps_per_tick: 667  # ~2000/3 bps per tick
+  # No EOD penalty
+  eod_penalty_per_transaction: 0
+  deadline_penalty: 0
+  split_friction_cost: 0
+
+# Disable LSM for Castro experiments
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 75000
+    max_collateral_capacity: 10000000
+    # Stochastic arrivals
+    arrivals:
+      rate_per_tick: 1.5
+      amount_distribution:
+        type: LogNormal
+        mean: 15000
+        std_dev: 7500
+      counterparty_weights:
+        BANK_B: 1.0
+      deadline_distribution:
+        type: Uniform
+        min_ticks: 1
+        max_ticks: 3
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 75000
+    max_collateral_capacity: 10000000
+    arrivals:
+      rate_per_tick: 1.5
+      amount_distribution:
+        type: LogNormal
+        mean: 15000
+        std_dev: 7500
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_distribution:
+        type: Uniform
+        min_ticks: 1
+        max_ticks: 3
