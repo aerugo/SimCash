@@ -34,9 +34,10 @@ from payment_simulator.persistence.connection import DatabaseManager
 from rich.console import Console
 
 from castro.constraints import CASTRO_CONSTRAINTS
+from castro.context_builder import MonteCarloContextBuilder
 from castro.experiments import CastroExperiment
 from castro.llm_client import CastroLLMClient
-from castro.simulation import CastroSimulationRunner
+from castro.simulation import CastroSimulationRunner, SimulationResult
 
 console = Console()
 
@@ -170,8 +171,10 @@ class ExperimentRunner:
                 iteration += 1
                 console.print(f"[cyan]Iteration {iteration}[/cyan]")
 
-                # 1. Evaluate current policies
-                total_cost, per_agent_costs = await self._evaluate_policies(iteration)
+                # 1. Evaluate current policies with verbose capture
+                total_cost, per_agent_costs, context_builder = await self._evaluate_policies(
+                    iteration, capture_verbose=True
+                )
                 console.print(f"  Total cost: ${total_cost / 100:.2f}")
 
                 # Track best
@@ -193,9 +196,14 @@ class ExperimentRunner:
                     console.print(f"  Optimizing {agent_id}...")
 
                     agent_cost = per_agent_costs.get(agent_id, 0)
+
+                    # Get per-agent context from MonteCarloContextBuilder
+                    agent_sim_context = context_builder.get_agent_simulation_context(agent_id)
+
                     current_metrics = {
-                        "total_cost_mean": float(agent_cost),
-                        "settlement_rate_mean": 1.0,  # Assume full settlement for now
+                        "total_cost_mean": agent_sim_context.mean_cost,
+                        "total_cost_std": agent_sim_context.cost_std,
+                        "settlement_rate_mean": context_builder._compute_mean_settlement_rate(),
                     }
 
                     result = await self._optimizer.optimize(
@@ -207,6 +215,13 @@ class ExperimentRunner:
                         llm_model=self._llm_config.model,
                         current_cost=float(agent_cost),
                         iteration_history=self._iteration_history.get(agent_id, []),
+                        # Pass verbose context from MonteCarloContextBuilder
+                        best_seed_output=agent_sim_context.best_seed_output,
+                        worst_seed_output=agent_sim_context.worst_seed_output,
+                        best_seed=agent_sim_context.best_seed,
+                        worst_seed=agent_sim_context.worst_seed,
+                        best_seed_cost=agent_sim_context.best_seed_cost,
+                        worst_seed_cost=agent_sim_context.worst_seed_cost,
                     )
 
                     # Evaluate new policy cost BEFORE accepting
@@ -218,7 +233,10 @@ class ExperimentRunner:
                         old_policy = self._policies[agent_id]
                         self._policies[agent_id] = result.new_policy
 
-                        _eval_total, eval_per_agent = await self._evaluate_policies(iteration)
+                        # Re-evaluate without verbose capture (performance optimization)
+                        _eval_total, eval_per_agent, _ = await self._evaluate_policies(
+                            iteration, capture_verbose=False
+                        )
                         new_cost = eval_per_agent.get(agent_id, result.old_cost)
 
                         # Only accept if cost improved
@@ -376,15 +394,21 @@ class ExperimentRunner:
             self._policies[agent_id] = json.loads(json.dumps(seed_policy))
 
     async def _evaluate_policies(
-        self, iteration: int
-    ) -> tuple[int, dict[str, int]]:
+        self,
+        iteration: int,
+        capture_verbose: bool = True,
+    ) -> tuple[int, dict[str, int], MonteCarloContextBuilder]:
         """Evaluate current policies across Monte Carlo samples.
+
+        Runs Monte Carlo simulations with different seeds, captures verbose
+        output, and builds a MonteCarloContextBuilder for per-agent context.
 
         Args:
             iteration: Current iteration number.
+            capture_verbose: If True, capture tick-by-tick events for LLM context.
 
         Returns:
-            Tuple of (total_cost, per_agent_costs).
+            Tuple of (total_cost, per_agent_costs, context_builder).
         """
         if self._sim_runner is None:
             msg = "Simulation runner not initialized"
@@ -396,9 +420,14 @@ class ExperimentRunner:
             agent_id: [] for agent_id in self._experiment.optimized_agents
         }
 
+        # Store all results and seeds for MonteCarloContextBuilder
+        results: list[SimulationResult] = []
+        seeds: list[int] = []
+
         # Run Monte Carlo evaluation
         for sample_idx in range(num_samples):
             seed = self._seed_manager.simulation_seed(iteration * 1000 + sample_idx)
+            seeds.append(seed)
 
             # Use first agent's policy (in full implementation, would inject per-agent)
             policy = next(iter(self._policies.values()))
@@ -406,8 +435,10 @@ class ExperimentRunner:
                 policy=policy,
                 seed=seed,
                 ticks=self._monte_carlo_config.evaluation_ticks,
+                capture_verbose=capture_verbose,
             )
 
+            results.append(result)
             total_costs.append(result.total_cost)
             for agent_id, cost in result.per_agent_costs.items():
                 if agent_id in per_agent_totals:
@@ -420,7 +451,10 @@ class ExperimentRunner:
             for agent_id, costs in per_agent_totals.items()
         }
 
-        return mean_total, mean_per_agent
+        # Build context builder for per-agent context
+        context_builder = MonteCarloContextBuilder(results=results, seeds=seeds)
+
+        return mean_total, mean_per_agent, context_builder
 
     def _create_session_record(self) -> GameSessionRecord:
         """Create initial session record.
