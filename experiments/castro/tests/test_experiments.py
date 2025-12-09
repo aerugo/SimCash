@@ -95,11 +95,9 @@ class TestExperiments:
         assert exp.name == "exp2"
         assert exp.num_samples == 10  # Monte Carlo
         assert exp.evaluation_ticks == 12
-        # llm_provider is auto-detected from model name
-        llm_config = exp.get_llm_config()
-        # provider may be an enum or string depending on version
-        provider_str = getattr(llm_config.provider, "value", llm_config.provider)
-        assert str(provider_str) == "anthropic"
+        # Model config uses provider:model format
+        model_config = exp.get_model_config()
+        assert model_config.provider == "anthropic"
 
     def test_exp3_configuration(self) -> None:
         """Exp3 should have correct configuration."""
@@ -122,9 +120,10 @@ class TestExperiments:
             assert exp.name == key
 
     def test_custom_model(self) -> None:
-        """Experiments should accept custom model."""
-        exp = create_exp1(model="gpt-4o")
-        assert exp.llm_model == "gpt-4o"
+        """Experiments should accept custom model in provider:model format."""
+        exp = create_exp1(model="openai:gpt-4o")
+        assert exp.model == "openai:gpt-4o"
+        assert exp.get_model_config().provider == "openai"
 
     def test_custom_output_dir(self) -> None:
         """Experiments should accept custom output directory."""
