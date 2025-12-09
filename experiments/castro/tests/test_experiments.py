@@ -262,9 +262,6 @@ class TestSimulationRunner:
         assert result.settlement_rate == 0.95
 
 
-@pytest.mark.skip(
-    reason="Requires policy with node_id fields - INV-2 is tested by MonteCarloContextBuilder"
-)
 class TestDeterminism:
     """Tests for deterministic behavior.
 
@@ -283,8 +280,9 @@ class TestDeterminism:
         """Create seed policy for determinism test."""
         return {
             "version": "2.0",
+            "policy_id": "test_determinism_policy",
             "parameters": {"urgency_threshold": 3},
-            "payment_tree": {"type": "action", "action": "Release"},
+            "payment_tree": {"type": "action", "node_id": "A_Release", "action": "Release"},
         }
 
     def test_same_seed_same_result(self, exp1_config: dict, seed_policy: dict) -> None:

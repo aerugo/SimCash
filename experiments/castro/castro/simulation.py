@@ -152,10 +152,10 @@ class CastroSimulationRunner:
         else:
             base["simulation"] = {"rng_seed": seed}
 
-        # Inject policy into all agents using FromJson policy type
+        # Inject policy into all agents using InlineJson policy type
         agents = base.get("agents", [])
         for agent in agents:
-            agent["policy"] = {"type": "FromJson", "json": json.dumps(policy)}
+            agent["policy"] = {"type": "InlineJson", "json_string": json.dumps(policy)}
 
         # Use SimulationConfig for proper conversion to FFI format
         sim_config = SimulationConfig.from_dict(base)

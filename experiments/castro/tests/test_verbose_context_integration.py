@@ -37,9 +37,6 @@ from payment_simulator.cli.filters import EventFilter
 from castro.simulation import CastroSimulationRunner, SimulationResult
 
 
-@pytest.mark.skip(
-    reason="Requires proper FFI policy conversion - covered by TestExperimentRunnerVerboseIntegration"
-)
 class TestVerboseContextIntegration:
     """Integration tests for full verbose context flow.
 
@@ -294,9 +291,6 @@ class TestVerboseContextIntegration:
         assert "SIMULATION OUTPUT" in prompt
 
 
-@pytest.mark.skip(
-    reason="Requires proper FFI policy conversion - covered by TestExperimentRunnerVerboseIntegration"
-)
 class TestLLMPromptContent:
     """Test the actual content sent to the LLM.
 
