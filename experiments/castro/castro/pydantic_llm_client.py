@@ -7,11 +7,133 @@ from __future__ import annotations
 
 import json
 import re
+import time
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic_ai import Agent
 
 from castro.model_config import ModelConfig
+
+
+@dataclass
+class LLMInteractionResult:
+    """Full LLM interaction result for audit purposes.
+
+    Captures all data needed for audit replay:
+    - Complete prompts sent to the LLM
+    - Raw response received
+    - Parsed policy or error
+
+    Attributes:
+        system_prompt: Full system prompt sent to LLM
+        user_prompt: Full user prompt sent to LLM
+        raw_response: Raw LLM response text before parsing
+        parsed_policy: Parsed policy dict if successful
+        parsing_error: Error message if parsing failed
+        prompt_tokens: Number of input tokens (estimated)
+        completion_tokens: Number of output tokens (estimated)
+        latency_seconds: API call latency
+    """
+
+    system_prompt: str
+    user_prompt: str
+    raw_response: str
+    parsed_policy: dict[str, Any] | None = None
+    parsing_error: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    latency_seconds: float = 0.0
+
+
+class AuditCaptureLLMClient:
+    """Wrapper LLM client that captures full interaction data for audit.
+
+    Wraps a PydanticAILLMClient and records each interaction for later
+    retrieval. Used by ExperimentRunner to capture audit data.
+
+    Example:
+        >>> base_client = PydanticAILLMClient(config)
+        >>> audit_client = AuditCaptureLLMClient(base_client)
+        >>> # Pass audit_client to PolicyOptimizer
+        >>> policy = await audit_client.generate_policy(...)
+        >>> # Retrieve captured interaction
+        >>> interaction = audit_client.get_last_interaction()
+    """
+
+    def __init__(self, base_client: PydanticAILLMClient) -> None:
+        """Initialize the audit capture wrapper.
+
+        Args:
+            base_client: The underlying PydanticAILLMClient to wrap.
+        """
+        self._base_client = base_client
+        self._last_interaction: LLMInteractionResult | None = None
+        self._interactions: list[LLMInteractionResult] = []
+
+    @property
+    def model(self) -> str:
+        """Get the model string for tracking."""
+        return self._base_client.model
+
+    async def generate_policy(
+        self,
+        prompt: str,
+        current_policy: dict[str, Any],
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Generate improved policy via LLM, capturing full interaction data.
+
+        This method captures the full interaction and stores it for later
+        retrieval via get_last_interaction().
+
+        Args:
+            prompt: The optimization prompt.
+            current_policy: The current policy being optimized.
+            context: Additional context (performance history, etc).
+
+        Returns:
+            Generated policy dict.
+
+        Raises:
+            ValueError: If response cannot be parsed as valid JSON.
+        """
+        # Use the audit-enabled method from the base client
+        interaction = await self._base_client.generate_policy_with_audit(
+            prompt, current_policy, context
+        )
+
+        # Store the interaction for later retrieval
+        self._last_interaction = interaction
+        self._interactions.append(interaction)
+
+        # Return the parsed policy or raise if parsing failed
+        if interaction.parsed_policy is not None:
+            return interaction.parsed_policy
+        else:
+            msg = interaction.parsing_error or "Failed to parse policy"
+            raise ValueError(msg)
+
+    def get_last_interaction(self) -> LLMInteractionResult | None:
+        """Get the most recent interaction result.
+
+        Returns:
+            The last LLMInteractionResult, or None if no calls have been made.
+        """
+        return self._last_interaction
+
+    def get_all_interactions(self) -> list[LLMInteractionResult]:
+        """Get all recorded interactions.
+
+        Returns:
+            List of all LLMInteractionResult objects in order.
+        """
+        return self._interactions.copy()
+
+    def clear_interactions(self) -> None:
+        """Clear all recorded interactions."""
+        self._last_interaction = None
+        self._interactions.clear()
 
 # System prompt for policy generation
 SYSTEM_PROMPT = """You are an expert in payment system optimization.
@@ -142,6 +264,66 @@ class PydanticAILLMClient:
         # Parse the response
         response_text = str(result.output)
         return self._parse_policy(response_text)
+
+    async def generate_policy_with_audit(
+        self,
+        prompt: str,
+        current_policy: dict[str, Any],
+        context: dict[str, Any],
+    ) -> LLMInteractionResult:
+        """Generate improved policy via LLM with full audit data.
+
+        Like generate_policy(), but returns complete interaction data
+        for audit replay purposes.
+
+        Args:
+            prompt: The optimization prompt.
+            current_policy: The current policy being optimized.
+            context: Additional context (performance history, etc).
+
+        Returns:
+            LLMInteractionResult with complete interaction data.
+        """
+        user_prompt = self._build_user_prompt(prompt, current_policy, context)
+
+        # Track timing
+        start_time = time.time()
+
+        # Run the agent with provider-specific settings
+        result = await self._agent.run(
+            user_prompt,
+            model_settings=self._config.to_model_settings(),  # type: ignore[call-overload]
+        )
+
+        latency = time.time() - start_time
+
+        # Get raw response
+        raw_response = str(result.output)
+
+        # Estimate token counts (simple approximation)
+        # A more accurate count would require the actual token counter from the provider
+        prompt_tokens = len(SYSTEM_PROMPT.split()) + len(user_prompt.split())
+        completion_tokens = len(raw_response.split())
+
+        # Try to parse the response
+        parsed_policy: dict[str, Any] | None = None
+        parsing_error: str | None = None
+
+        try:
+            parsed_policy = self._parse_policy(raw_response)
+        except ValueError as e:
+            parsing_error = str(e)
+
+        return LLMInteractionResult(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            raw_response=raw_response,
+            parsed_policy=parsed_policy,
+            parsing_error=parsing_error,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            latency_seconds=latency,
+        )
 
     def _build_user_prompt(
         self,
