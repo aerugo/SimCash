@@ -5,13 +5,11 @@ Wraps the SimCash Orchestrator for running simulations with given policies.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 from payment_simulator._core import Orchestrator
 from payment_simulator.config import SimulationConfig
 
@@ -160,8 +158,7 @@ class CastroSimulationRunner:
             per_agent_costs[agent_id] = agent_cost
             total_cost += agent_cost
 
-        # Get system metrics for settlement info
-        system_metrics = orch.get_system_metrics()
+        # Get transaction counts for settlement metrics
         tx_counts = orch.get_transaction_counts_debug()
 
         # Calculate settlement metrics
@@ -199,8 +196,8 @@ class CastroSimulationRunner:
             Total ticks per simulation.
         """
         sim_config = self._base_config.get("simulation", {})
-        ticks_per_day = sim_config.get("ticks_per_day", 100)
-        num_days = sim_config.get("num_days", 1)
+        ticks_per_day: int = sim_config.get("ticks_per_day", 100)
+        num_days: int = sim_config.get("num_days", 1)
         return ticks_per_day * num_days
 
     def get_agent_ids(self) -> list[str]:

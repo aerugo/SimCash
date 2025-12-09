@@ -13,7 +13,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from castro.experiments import EXPERIMENTS, CastroExperiment
+from castro.experiments import EXPERIMENTS
 from castro.runner import ExperimentRunner
 
 app = typer.Typer(
@@ -77,7 +77,7 @@ def run(
         result = asyncio.run(runner.run())
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user[/yellow]")
-        raise typer.Exit(130)
+        raise typer.Exit(130) from None
     except Exception as e:
         console.print(f"\n[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
@@ -158,7 +158,13 @@ def info(
     table.add_row("", "")
     table.add_row("[bold]LLM[/bold]", "")
     llm_config = exp.get_llm_config()
-    table.add_row("  Provider", llm_config.provider.value)
+    # Provider can be enum or string
+    provider_str = (
+        llm_config.provider.value
+        if hasattr(llm_config.provider, "value")
+        else str(llm_config.provider)
+    )
+    table.add_row("  Provider", provider_str)
     table.add_row("  Model", exp.llm_model)
     table.add_row("  Temperature", str(exp.llm_temperature))
     table.add_row("", "")
@@ -210,7 +216,7 @@ def validate(
             console.print(f"  [red]Missing required fields: {missing}[/red]")
             raise typer.Exit(1)
 
-        console.print(f"  [green]Config structure valid[/green]")
+        console.print("  [green]Config structure valid[/green]")
 
         # Check agents
         agents = config.get("agents", [])
@@ -220,9 +226,10 @@ def validate(
         # Verify optimized agents exist
         missing_agents = [a for a in exp.optimized_agents if a not in agent_ids]
         if missing_agents:
-            console.print(f"  [yellow]Warning: Optimized agents not in config: {missing_agents}[/yellow]")
+            msg = f"Optimized agents not in config: {missing_agents}"
+            console.print(f"  [yellow]Warning: {msg}[/yellow]")
         else:
-            console.print(f"  [green]All optimized agents present[/green]")
+            console.print("  [green]All optimized agents present[/green]")
 
     except Exception as e:
         console.print(f"  [red]Failed to parse config: {e}[/red]")
