@@ -62,6 +62,14 @@ class CastroExperiment:
         ...     model="openai:gpt-5.1",
         ...     reasoning_effort="high",
         ... )
+
+        >>> # Deterministic mode (single evaluation, no Monte Carlo sampling)
+        >>> exp = CastroExperiment(
+        ...     name="exp1",
+        ...     description="2-Period Deterministic",
+        ...     scenario_path=Path("configs/exp1_2period.yaml"),
+        ...     deterministic=True,
+        ... )
     """
 
     # Identity
@@ -71,7 +79,11 @@ class CastroExperiment:
     # Scenario
     scenario_path: Path
 
-    # Monte Carlo settings
+    # Deterministic mode - skip Monte Carlo sampling
+    deterministic: bool = False
+    """When True, run single deterministic evaluation instead of Monte Carlo sampling."""
+
+    # Monte Carlo settings (ignored if deterministic=True)
     num_samples: int = 1
     evaluation_ticks: int = 100
 
@@ -107,6 +119,7 @@ class CastroExperiment:
             MonteCarloConfig instance.
         """
         return MonteCarloConfig(
+            deterministic=self.deterministic,
             num_samples=self.num_samples,
             sample_method=SampleMethod.BOOTSTRAP,
             evaluation_ticks=self.evaluation_ticks,
@@ -183,9 +196,8 @@ def create_exp1(
     - Deterministic payment arrivals
     - Expected: Bank A posts 0, Bank B posts 20000
 
-    Note: Uses minimum values for Monte Carlo config (5 samples, 10 ticks)
-    even though the scenario is deterministic. Extra ticks are idle,
-    and all samples will produce identical results.
+    Uses deterministic mode (single evaluation) since the scenario has
+    no stochastic elements - all transactions are fixed at specific ticks.
 
     Args:
         output_dir: Output directory for results.
@@ -200,8 +212,8 @@ def create_exp1(
         name="exp1",
         description="2-Period Deterministic Nash Equilibrium",
         scenario_path=Path("configs/exp1_2period.yaml"),
-        num_samples=5,  # Minimum for MonteCarloConfig (deterministic gives same results)
-        evaluation_ticks=10,  # Minimum for MonteCarloConfig (ticks 2-9 are idle)
+        deterministic=True,  # No Monte Carlo - scenario is deterministic
+        evaluation_ticks=2,  # Only 2 ticks in scenario
         max_iterations=25,
         stability_threshold=0.05,
         stability_window=5,
