@@ -38,6 +38,7 @@ def main(
 
 
 # Import commands after app is defined to avoid circular imports
+from payment_simulator.cli.commands.ai_game import ai_game_app
 from payment_simulator.cli.commands.checkpoint import checkpoint_app
 from payment_simulator.cli.commands.db import db_app
 from payment_simulator.cli.commands.policy_schema import policy_schema
@@ -49,6 +50,7 @@ app.command(name="run", help="Run a simulation from a configuration file")(run_s
 app.command(name="replay", help="Replay a persisted simulation with verbose output for a tick range")(replay_simulation)
 app.command(name="policy-schema", help="Generate policy schema documentation")(policy_schema)
 app.command(name="validate-policy", help="Validate a policy tree JSON file")(validate_policy)
+app.add_typer(ai_game_app, name="ai-game")
 app.add_typer(checkpoint_app, name="checkpoint")
 app.add_typer(db_app, name="db")
 
