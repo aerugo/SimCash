@@ -197,6 +197,98 @@ class ExperimentResult:
 
 ---
 
+## Verbose Logging Module
+
+The `verbose_logging.py` module provides structured verbose output for experiment runs. It uses dataclasses for type-safe data transfer and Rich for formatted console output.
+
+### Configuration
+
+```python
+from castro.verbose_logging import VerboseConfig, VerboseLogger
+
+# Enable all verbose output
+config = VerboseConfig.all()
+
+# Enable specific flags
+config = VerboseConfig(policy=True, monte_carlo=True)
+
+# Create from CLI flags (--verbose enables all)
+config = VerboseConfig.from_flags(
+    verbose=True,           # Enables all if no individual flags
+    verbose_policy=None,    # Individual override
+    verbose_monte_carlo=None,
+    verbose_llm=None,
+    verbose_rejections=None,
+)
+```
+
+### Data Types
+
+```python
+from castro.verbose_logging import (
+    MonteCarloSeedResult,
+    LLMCallMetadata,
+    RejectionDetail,
+)
+
+# Monte Carlo result per seed
+result = MonteCarloSeedResult(
+    seed=12345,
+    cost=150000,  # cents!
+    settled=95,
+    total=100,
+    settlement_rate=0.95,
+)
+
+# LLM call metadata
+metadata = LLMCallMetadata(
+    agent_id="BANK_A",
+    model="claude-sonnet-4-5-20250929",
+    prompt_tokens=1500,
+    completion_tokens=200,
+    latency_seconds=2.3,
+    context_summary={"current_cost": 150000, "iteration": 5},
+)
+
+# Rejection details
+rejection = RejectionDetail(
+    agent_id="BANK_A",
+    proposed_policy={"parameters": {"threshold": -1.0}},  # Invalid
+    validation_errors=["threshold must be >= 0"],
+    rejection_reason="validation_failed",
+)
+```
+
+### Usage in Runner
+
+```python
+from castro.verbose_logging import VerboseConfig, VerboseLogger
+
+class ExperimentRunner:
+    def __init__(self, experiment, verbose_config: VerboseConfig | None = None):
+        self._verbose = VerboseLogger(verbose_config or VerboseConfig())
+
+    async def run(self) -> ExperimentResult:
+        # Log iteration start
+        self._verbose.log_iteration_start(iteration, total_cost)
+
+        # Log Monte Carlo results
+        self._verbose.log_monte_carlo_evaluation(seed_results, mean, std)
+
+        # Log LLM call
+        self._verbose.log_llm_call(metadata)
+
+        # Log policy change
+        self._verbose.log_policy_change(
+            agent_id, old_policy, new_policy, old_cost, new_cost, accepted
+        )
+
+        # Log rejection
+        self._verbose.log_rejection(rejection_detail)
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -210,13 +302,15 @@ experiments/castro/
 │   ├── experiments.py           # Experiment definitions
 │   ├── llm_client.py            # LLM client implementation
 │   ├── runner.py                # Experiment runner
-│   └── simulation.py            # Simulation wrapper
+│   ├── simulation.py            # Simulation wrapper
+│   └── verbose_logging.py       # Verbose output logging
 ├── configs/                     # YAML scenario configs
 │   ├── exp1_2period.yaml
 │   ├── exp2_12period.yaml
 │   └── exp3_joint.yaml
 ├── tests/
-│   └── test_experiments.py
+│   ├── test_experiments.py
+│   └── test_verbose_logging.py  # Verbose logging tests
 └── results/                     # Output directory
 ```
 
