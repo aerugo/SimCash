@@ -20,6 +20,7 @@ dev = [
     "pyright>=1.1.0",  # Pylance CLI - same engine as VS Code Pylance
     "ruff>=0.3",
     "types-PyYAML",  # Type stubs for PyYAML
+    "duckdb>=1.0",  # For persistence tests
 ]
 
 [project.scripts]

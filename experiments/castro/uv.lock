@@ -279,6 +279,7 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "duckdb" },
     { name = "mypy" },
     { name = "pyright" },
     { name = "pytest" },
@@ -289,6 +290,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "payment-simulator", directory = "../../api" },
     { name = "pydantic-ai", specifier = ">=0.2" },
