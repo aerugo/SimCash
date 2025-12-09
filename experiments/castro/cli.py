@@ -10,11 +10,16 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
 from castro.experiments import EXPERIMENTS
 from castro.runner import ExperimentRunner
+
+# Load environment variables from .env file (if present)
+# This must happen before any LLM client initialization
+load_dotenv()
 
 app = typer.Typer(
     name="castro",
