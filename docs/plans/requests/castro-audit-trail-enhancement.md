@@ -6,7 +6,7 @@
 
 ## Summary
 
-Enhance the Castro experiment persistence layer to store complete audit trails for LLM-driven policy optimization. Currently, only the final parsed policies are stored. We need full traceability of the optimization process for research reproducibility, debugging, and compliance auditing.
+Enhance the Castro experiment persistence layer to store complete audit trails for LLM-driven policy optimization. This enables research reproducibility, debugging, and compliance auditing by capturing the full context of every optimization decision.
 
 ## Current State
 
@@ -17,66 +17,47 @@ The `policy_iterations` table stores:
 - `validation_errors` - Rejection reasons
 - `llm_model` / `tokens_used` / `llm_latency_seconds` - LLM metadata
 
-## What's Missing
+## Requirements
 
-### 1. LLM Interaction Audit Trail
+### Must Store
 
-| Field | Description | Use Case |
-|-------|-------------|----------|
-| `prompt_sent` | Full prompt sent to LLM | Debug prompt engineering, reproduce results |
-| `raw_llm_response` | Complete LLM response before parsing | Debug parsing failures, analyze LLM behavior |
-| `llm_reasoning` | LLM's explanation for changes (if provided) | Understand optimization decisions |
+1. **Full LLM interaction** - Complete prompt sent, raw response received, any parsing errors
+2. **Policy diffs** - Human-readable diff and structured parameter changes at every iteration
+3. **Simulation context** - What the LLM "saw" (best/worst seed verbose output, Monte Carlo seeds)
+4. **Policy evolution** - Parameter trajectories across all iterations for trend analysis
 
-### 2. Policy Diff Persistence
+### Use Cases
 
-| Field | Description | Use Case |
-|-------|-------------|----------|
-| `policy_diff` | Human-readable diff between old/new policy | Quick audit without recomputing |
-| `parameter_changes` | Structured list of parameter changes | Trend analysis, visualization |
-| `tree_structure_changed` | Boolean flags for tree modifications | Filter structural vs. parameter changes |
+- **Debugging**: Why did the LLM make this change? What context did it have?
+- **Research**: How do policies evolve? What parameter patterns emerge?
+- **Compliance**: Full audit trail of every decision for regulatory review
+- **Reproducibility**: Re-run any iteration with exact same context
 
-### 3. Simulation Context
+## Schema Design
 
-| Field | Description | Use Case |
-|-------|-------------|----------|
-| `best_seed_verbose_output` | Verbose output from best-performing seed | Understand what LLM saw |
-| `worst_seed_verbose_output` | Verbose output from worst-performing seed | Understand failure modes |
-| `monte_carlo_seeds` | List of seeds used in evaluation | Full reproducibility |
+Three new audit tables, foreign-keyed to the existing `policy_iterations` table:
 
-## Proposed Schema Changes
+### Table 1: `llm_interaction_log`
 
-### Option A: Extend `policy_iterations` Table
+Captures the complete LLM request/response cycle.
 
 ```sql
-ALTER TABLE policy_iterations ADD COLUMN prompt_sent TEXT;
-ALTER TABLE policy_iterations ADD COLUMN raw_llm_response TEXT;
-ALTER TABLE policy_iterations ADD COLUMN llm_reasoning TEXT;
-ALTER TABLE policy_iterations ADD COLUMN policy_diff_json VARCHAR;  -- JSON array of change descriptions
-ALTER TABLE policy_iterations ADD COLUMN best_seed_context TEXT;
-ALTER TABLE policy_iterations ADD COLUMN worst_seed_context TEXT;
-ALTER TABLE policy_iterations ADD COLUMN monte_carlo_seeds VARCHAR;  -- JSON array
-```
-
-### Option B: Separate Audit Tables (Recommended)
-
-Better for query performance and storage management:
-
-```sql
--- Detailed LLM interaction log
 CREATE TABLE llm_interaction_log (
     interaction_id VARCHAR PRIMARY KEY,
     game_id VARCHAR NOT NULL,
     agent_id VARCHAR NOT NULL,
     iteration_number INTEGER NOT NULL,
 
-    -- Full LLM context
+    -- Full prompts
     system_prompt TEXT NOT NULL,
     user_prompt TEXT NOT NULL,
-    raw_response TEXT NOT NULL,
-    parsed_policy_json TEXT,  -- NULL if parsing failed
-    parsing_error TEXT,       -- Error message if parsing failed
 
-    -- LLM reasoning (extracted or explicit)
+    -- Full response
+    raw_response TEXT NOT NULL,
+    parsed_policy_json TEXT,      -- NULL if parsing failed
+    parsing_error TEXT,           -- Error message if parsing failed
+
+    -- LLM reasoning (if extractable from response)
     llm_reasoning TEXT,
 
     -- Timing
@@ -87,44 +68,69 @@ CREATE TABLE llm_interaction_log (
         REFERENCES policy_iterations(game_id, agent_id, iteration_number)
 );
 
--- Policy evolution tracking
+CREATE INDEX idx_llm_log_game ON llm_interaction_log(game_id);
+CREATE INDEX idx_llm_log_agent ON llm_interaction_log(game_id, agent_id);
+CREATE INDEX idx_llm_log_errors ON llm_interaction_log(game_id) WHERE parsing_error IS NOT NULL;
+```
+
+### Table 2: `policy_diffs`
+
+Stores computed diffs and parameter snapshots for evolution tracking.
+
+```sql
 CREATE TABLE policy_diffs (
     game_id VARCHAR NOT NULL,
     agent_id VARCHAR NOT NULL,
     iteration_number INTEGER NOT NULL,
 
-    -- Computed diff
-    diff_summary TEXT NOT NULL,           -- Human-readable summary
-    parameter_changes_json VARCHAR,       -- Structured parameter changes
-    payment_tree_changed BOOLEAN,
-    collateral_tree_changed BOOLEAN,
+    -- Human-readable diff
+    diff_summary TEXT NOT NULL,
 
-    -- For trend analysis
-    parameters_snapshot_json VARCHAR,     -- All parameter values at this iteration
+    -- Structured changes for programmatic analysis
+    parameter_changes_json VARCHAR,   -- [{"param": "x", "old": 1, "new": 2, "delta": 1}]
+
+    -- Tree modification flags
+    payment_tree_changed BOOLEAN NOT NULL DEFAULT FALSE,
+    collateral_tree_changed BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Full parameter snapshot at this iteration (for trajectory queries)
+    parameters_snapshot_json VARCHAR NOT NULL,
 
     PRIMARY KEY (game_id, agent_id, iteration_number),
     FOREIGN KEY (game_id, agent_id, iteration_number)
         REFERENCES policy_iterations(game_id, agent_id, iteration_number)
 );
 
--- Simulation context provided to LLM
+CREATE INDEX idx_diffs_game ON policy_diffs(game_id);
+CREATE INDEX idx_diffs_tree_changes ON policy_diffs(game_id, agent_id)
+    WHERE payment_tree_changed OR collateral_tree_changed;
+```
+
+### Table 3: `iteration_context`
+
+Stores the simulation context provided to the LLM for each optimization.
+
+```sql
 CREATE TABLE iteration_context (
     game_id VARCHAR NOT NULL,
     agent_id VARCHAR NOT NULL,
     iteration_number INTEGER NOT NULL,
 
-    -- Monte Carlo context
-    monte_carlo_seeds VARCHAR NOT NULL,   -- JSON array of seeds
+    -- Monte Carlo evaluation details
+    monte_carlo_seeds VARCHAR NOT NULL,   -- JSON array: [123, 456, 789]
+    num_samples INTEGER NOT NULL,
+
+    -- Best/worst seed identification
     best_seed INTEGER NOT NULL,
     worst_seed INTEGER NOT NULL,
     best_seed_cost DOUBLE NOT NULL,
     worst_seed_cost DOUBLE NOT NULL,
 
-    -- Verbose output provided to LLM
+    -- Verbose output provided to LLM (can be large)
     best_seed_verbose_output TEXT,
     worst_seed_verbose_output TEXT,
 
-    -- Aggregated metrics
+    -- Aggregated metrics shown to LLM
     cost_mean DOUBLE NOT NULL,
     cost_std DOUBLE NOT NULL,
     settlement_rate_mean DOUBLE NOT NULL,
@@ -133,91 +139,203 @@ CREATE TABLE iteration_context (
     FOREIGN KEY (game_id, agent_id, iteration_number)
         REFERENCES policy_iterations(game_id, agent_id, iteration_number)
 );
+
+CREATE INDEX idx_context_game ON iteration_context(game_id);
 ```
 
-## Implementation Requirements
+## Pydantic Models
 
-### 1. Model Updates
-
-Add new Pydantic models in `api/payment_simulator/ai_cash_mgmt/persistence/models.py`:
+Add to `api/payment_simulator/ai_cash_mgmt/persistence/models.py`:
 
 ```python
 class LLMInteractionRecord(BaseModel):
     """Full LLM interaction for audit trail."""
-    interaction_id: str
-    game_id: str
-    agent_id: str
-    iteration_number: int
-    system_prompt: str
-    user_prompt: str
-    raw_response: str
-    parsed_policy_json: str | None
-    parsing_error: str | None
-    llm_reasoning: str | None
-    request_timestamp: datetime
-    response_timestamp: datetime
+
+    model_config = ConfigDict(
+        table_name="llm_interaction_log",
+        primary_key=["interaction_id"],
+    )
+
+    interaction_id: str = Field(..., description="Unique interaction ID")
+    game_id: str = Field(..., description="Foreign key to game_sessions")
+    agent_id: str = Field(..., description="Agent being optimized")
+    iteration_number: int = Field(..., description="Iteration number")
+
+    system_prompt: str = Field(..., description="System prompt sent to LLM")
+    user_prompt: str = Field(..., description="User prompt sent to LLM")
+    raw_response: str = Field(..., description="Raw LLM response text")
+    parsed_policy_json: str | None = Field(None, description="Parsed policy if successful")
+    parsing_error: str | None = Field(None, description="Error if parsing failed")
+    llm_reasoning: str | None = Field(None, description="Extracted LLM reasoning")
+
+    request_timestamp: datetime = Field(..., description="When request was sent")
+    response_timestamp: datetime = Field(..., description="When response was received")
+
 
 class PolicyDiffRecord(BaseModel):
     """Policy diff for evolution tracking."""
-    game_id: str
-    agent_id: str
-    iteration_number: int
-    diff_summary: str
-    parameter_changes_json: str | None
-    payment_tree_changed: bool
-    collateral_tree_changed: bool
-    parameters_snapshot_json: str | None
+
+    model_config = ConfigDict(
+        table_name="policy_diffs",
+        primary_key=["game_id", "agent_id", "iteration_number"],
+    )
+
+    game_id: str = Field(..., description="Foreign key to game_sessions")
+    agent_id: str = Field(..., description="Agent being optimized")
+    iteration_number: int = Field(..., description="Iteration number")
+
+    diff_summary: str = Field(..., description="Human-readable diff summary")
+    parameter_changes_json: str | None = Field(None, description="Structured parameter changes")
+    payment_tree_changed: bool = Field(False, description="Whether payment tree was modified")
+    collateral_tree_changed: bool = Field(False, description="Whether collateral tree was modified")
+    parameters_snapshot_json: str = Field(..., description="All parameters at this iteration")
+
 
 class IterationContextRecord(BaseModel):
     """Simulation context provided to LLM."""
-    game_id: str
-    agent_id: str
-    iteration_number: int
-    monte_carlo_seeds: list[int]
-    best_seed: int
-    worst_seed: int
-    best_seed_cost: float
-    worst_seed_cost: float
-    best_seed_verbose_output: str | None
-    worst_seed_verbose_output: str | None
-    cost_mean: float
-    cost_std: float
-    settlement_rate_mean: float
+
+    model_config = ConfigDict(
+        table_name="iteration_context",
+        primary_key=["game_id", "agent_id", "iteration_number"],
+    )
+
+    game_id: str = Field(..., description="Foreign key to game_sessions")
+    agent_id: str = Field(..., description="Agent being optimized")
+    iteration_number: int = Field(..., description="Iteration number")
+
+    monte_carlo_seeds: list[int] = Field(..., description="Seeds used in Monte Carlo evaluation")
+    num_samples: int = Field(..., description="Number of Monte Carlo samples")
+
+    best_seed: int = Field(..., description="Seed with lowest cost for this agent")
+    worst_seed: int = Field(..., description="Seed with highest cost for this agent")
+    best_seed_cost: float = Field(..., description="Cost at best seed")
+    worst_seed_cost: float = Field(..., description="Cost at worst seed")
+
+    best_seed_verbose_output: str | None = Field(None, description="Verbose output from best seed")
+    worst_seed_verbose_output: str | None = Field(None, description="Verbose output from worst seed")
+
+    cost_mean: float = Field(..., description="Mean cost across samples")
+    cost_std: float = Field(..., description="Std dev of cost across samples")
+    settlement_rate_mean: float = Field(..., description="Mean settlement rate")
 ```
 
-### 2. Repository Updates
+## Repository Methods
 
-Add methods to `GameRepository`:
+Add to `GameRepository`:
 
 ```python
+# Save methods
 def save_llm_interaction(self, record: LLMInteractionRecord) -> None: ...
 def save_policy_diff(self, record: PolicyDiffRecord) -> None: ...
 def save_iteration_context(self, record: IterationContextRecord) -> None: ...
 
 # Query methods for analysis
-def get_policy_evolution(self, game_id: str, agent_id: str) -> list[PolicyDiffRecord]: ...
-def get_parameter_trajectory(self, game_id: str, agent_id: str, param: str) -> list[tuple[int, float]]: ...
-def get_llm_interactions(self, game_id: str) -> list[LLMInteractionRecord]: ...
+def get_llm_interactions(
+    self, game_id: str, agent_id: str | None = None
+) -> list[LLMInteractionRecord]: ...
+
+def get_policy_diffs(
+    self, game_id: str, agent_id: str | None = None
+) -> list[PolicyDiffRecord]: ...
+
+def get_iteration_contexts(
+    self, game_id: str, agent_id: str | None = None
+) -> list[IterationContextRecord]: ...
+
+def get_parameter_trajectory(
+    self, game_id: str, agent_id: str, param_name: str
+) -> list[tuple[int, float]]:
+    """Extract parameter values across iterations for trend analysis."""
+    ...
+
+def get_failed_parsing_attempts(
+    self, game_id: str | None = None
+) -> list[LLMInteractionRecord]:
+    """Get all iterations where LLM response failed to parse."""
+    ...
 ```
 
-### 3. Integration Points
+## Integration Points
 
-Update `ExperimentRunner` and `PolicyOptimizer` to capture and persist:
+### 1. `CastroLLMClient` (castro/llm_client.py)
 
-1. **Before LLM call**: Capture full prompt (system + user)
-2. **After LLM call**: Capture raw response, timing
-3. **After parsing**: Capture parsed policy or error
-4. **After evaluation**: Capture diff, context
+Modify to return raw response alongside parsed policy:
 
-### 4. Castro-Specific Updates
+```python
+@dataclass
+class LLMResponse:
+    """Full LLM response for audit."""
+    raw_response: str
+    parsed_policy: dict[str, Any] | None
+    parsing_error: str | None
+    request_timestamp: datetime
+    response_timestamp: datetime
 
-In `experiments/castro/castro/`:
+async def generate_policy_with_audit(
+    self,
+    prompt: str,
+    current_policy: dict[str, Any],
+    context: dict[str, Any],
+) -> LLMResponse:
+    """Generate policy with full audit information."""
+    ...
+```
 
-- `runner.py`: Persist iteration context after each Monte Carlo evaluation
-- `llm_client.py`: Return raw response alongside parsed policy
-- New `audit.py`: Centralize audit record creation
+### 2. `ExperimentRunner` (castro/runner.py)
 
-## Query Examples
+After each optimization iteration:
+
+```python
+# After LLM call
+llm_interaction = LLMInteractionRecord(
+    interaction_id=f"{game_id}_{agent_id}_{iteration}",
+    game_id=game_id,
+    agent_id=agent_id,
+    iteration_number=iteration,
+    system_prompt=SYSTEM_PROMPT,
+    user_prompt=user_prompt,
+    raw_response=llm_response.raw_response,
+    parsed_policy_json=json.dumps(llm_response.parsed_policy) if llm_response.parsed_policy else None,
+    parsing_error=llm_response.parsing_error,
+    request_timestamp=llm_response.request_timestamp,
+    response_timestamp=llm_response.response_timestamp,
+)
+repo.save_llm_interaction(llm_interaction)
+
+# After policy evaluation
+diff_record = PolicyDiffRecord(
+    game_id=game_id,
+    agent_id=agent_id,
+    iteration_number=iteration,
+    diff_summary="\n".join(compute_policy_diff(old_policy, new_policy)),
+    parameter_changes_json=json.dumps(compute_parameter_changes(old_policy, new_policy)),
+    payment_tree_changed=old_policy.get("payment_tree") != new_policy.get("payment_tree"),
+    collateral_tree_changed=old_policy.get("strategic_collateral_tree") != new_policy.get("strategic_collateral_tree"),
+    parameters_snapshot_json=json.dumps(new_policy.get("parameters", {})),
+)
+repo.save_policy_diff(diff_record)
+
+# Save context
+context_record = IterationContextRecord(
+    game_id=game_id,
+    agent_id=agent_id,
+    iteration_number=iteration,
+    monte_carlo_seeds=seeds,
+    num_samples=len(seeds),
+    best_seed=agent_context.best_seed,
+    worst_seed=agent_context.worst_seed,
+    best_seed_cost=agent_context.best_seed_cost,
+    worst_seed_cost=agent_context.worst_seed_cost,
+    best_seed_verbose_output=agent_context.best_seed_output,
+    worst_seed_verbose_output=agent_context.worst_seed_output,
+    cost_mean=agent_context.mean_cost,
+    cost_std=agent_context.cost_std,
+    settlement_rate_mean=settlement_rate,
+)
+repo.save_iteration_context(context_record)
+```
+
+## Example Queries
 
 ### Policy Evolution Report
 
@@ -227,9 +345,12 @@ SELECT
     pd.diff_summary,
     pi.old_cost,
     pi.new_cost,
-    pi.was_accepted
+    pi.was_accepted,
+    ic.best_seed,
+    ic.worst_seed
 FROM policy_iterations pi
 JOIN policy_diffs pd USING (game_id, agent_id, iteration_number)
+JOIN iteration_context ic USING (game_id, agent_id, iteration_number)
 WHERE pi.game_id = ? AND pi.agent_id = ?
 ORDER BY pi.iteration_number;
 ```
@@ -239,7 +360,8 @@ ORDER BY pi.iteration_number;
 ```sql
 SELECT
     iteration_number,
-    json_extract(parameters_snapshot_json, '$.urgency_threshold') as urgency_threshold
+    json_extract(parameters_snapshot_json, '$.urgency_threshold') as urgency_threshold,
+    json_extract(parameters_snapshot_json, '$.liquidity_buffer_factor') as liquidity_buffer
 FROM policy_diffs
 WHERE game_id = ? AND agent_id = ?
 ORDER BY iteration_number;
@@ -250,40 +372,121 @@ ORDER BY iteration_number;
 ```sql
 SELECT
     game_id,
+    agent_id,
     iteration_number,
     parsing_error,
-    raw_response
+    LEFT(raw_response, 500) as response_preview
 FROM llm_interaction_log
-WHERE parsing_error IS NOT NULL;
+WHERE parsing_error IS NOT NULL
+ORDER BY request_timestamp DESC;
+```
+
+### LLM Reasoning Review
+
+```sql
+SELECT
+    iteration_number,
+    llm_reasoning,
+    pd.diff_summary,
+    pi.was_accepted
+FROM llm_interaction_log lil
+JOIN policy_diffs pd USING (game_id, agent_id, iteration_number)
+JOIN policy_iterations pi USING (game_id, agent_id, iteration_number)
+WHERE lil.game_id = ? AND lil.agent_id = ?
+ORDER BY iteration_number;
 ```
 
 ## Storage Considerations
 
-- **Verbose output**: Can be large (10-100KB per seed). Consider compression or separate blob storage for production.
-- **Retention policy**: Define how long to keep detailed audit logs vs. summary data.
-- **Indexing**: Index on `(game_id, agent_id)` for evolution queries.
+| Table | Estimated Row Size | Notes |
+|-------|-------------------|-------|
+| `llm_interaction_log` | 10-50 KB | Prompts and responses can be large |
+| `policy_diffs` | 1-5 KB | Mostly small JSON |
+| `iteration_context` | 10-100 KB | Verbose output can be large |
+
+**Recommendations:**
+- Consider TEXT compression for verbose output columns
+- Implement retention policy (e.g., keep detailed audit for 90 days, then archive)
+- Index only necessary columns to balance write performance
+
+## Migration
+
+```sql
+-- Migration: 004_add_audit_tables.sql
+
+-- Table 1: LLM Interaction Log
+CREATE TABLE IF NOT EXISTS llm_interaction_log (
+    interaction_id VARCHAR PRIMARY KEY,
+    game_id VARCHAR NOT NULL,
+    agent_id VARCHAR NOT NULL,
+    iteration_number INTEGER NOT NULL,
+    system_prompt TEXT NOT NULL,
+    user_prompt TEXT NOT NULL,
+    raw_response TEXT NOT NULL,
+    parsed_policy_json TEXT,
+    parsing_error TEXT,
+    llm_reasoning TEXT,
+    request_timestamp TIMESTAMP NOT NULL,
+    response_timestamp TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_log_game ON llm_interaction_log(game_id);
+CREATE INDEX IF NOT EXISTS idx_llm_log_agent ON llm_interaction_log(game_id, agent_id);
+
+-- Table 2: Policy Diffs
+CREATE TABLE IF NOT EXISTS policy_diffs (
+    game_id VARCHAR NOT NULL,
+    agent_id VARCHAR NOT NULL,
+    iteration_number INTEGER NOT NULL,
+    diff_summary TEXT NOT NULL,
+    parameter_changes_json VARCHAR,
+    payment_tree_changed BOOLEAN NOT NULL DEFAULT FALSE,
+    collateral_tree_changed BOOLEAN NOT NULL DEFAULT FALSE,
+    parameters_snapshot_json VARCHAR NOT NULL,
+    PRIMARY KEY (game_id, agent_id, iteration_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_diffs_game ON policy_diffs(game_id);
+
+-- Table 3: Iteration Context
+CREATE TABLE IF NOT EXISTS iteration_context (
+    game_id VARCHAR NOT NULL,
+    agent_id VARCHAR NOT NULL,
+    iteration_number INTEGER NOT NULL,
+    monte_carlo_seeds VARCHAR NOT NULL,
+    num_samples INTEGER NOT NULL,
+    best_seed INTEGER NOT NULL,
+    worst_seed INTEGER NOT NULL,
+    best_seed_cost DOUBLE NOT NULL,
+    worst_seed_cost DOUBLE NOT NULL,
+    best_seed_verbose_output TEXT,
+    worst_seed_verbose_output TEXT,
+    cost_mean DOUBLE NOT NULL,
+    cost_std DOUBLE NOT NULL,
+    settlement_rate_mean DOUBLE NOT NULL,
+    PRIMARY KEY (game_id, agent_id, iteration_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_context_game ON iteration_context(game_id);
+```
 
 ## Acceptance Criteria
 
-1. Every LLM interaction is logged with full prompt and response
-2. Policy diffs are computed and persisted at each iteration
-3. Simulation context (best/worst seed output) is persisted
-4. Query API exists for policy evolution analysis
-5. Existing `policy_iterations` functionality unchanged
-6. Migration script for schema changes
-7. Unit tests for new persistence methods
+- [ ] All three audit tables created with proper indexes
+- [ ] Every LLM call logs full prompt/response to `llm_interaction_log`
+- [ ] Every iteration stores diff in `policy_diffs`
+- [ ] Every iteration stores context in `iteration_context`
+- [ ] Repository methods for saving and querying audit data
+- [ ] Parameter trajectory query works correctly
+- [ ] Migration script tested and documented
+- [ ] Unit tests for all new persistence methods
+- [ ] Existing `policy_iterations` functionality unchanged
 
-## Open Questions
+## Files to Modify
 
-1. Should we store the verbose output compressed (gzip)?
-2. What's the retention policy for detailed audit data?
-3. Should we add a CLI command to export policy evolution as a report?
-4. Do we need real-time streaming of audit data, or batch persistence is sufficient?
-
-## Related Files
-
-- `api/payment_simulator/ai_cash_mgmt/persistence/models.py` - Current models
-- `api/payment_simulator/ai_cash_mgmt/persistence/repository.py` - Current repository
-- `api/payment_simulator/ai_cash_mgmt/prompts/policy_diff.py` - Diff computation (runtime only)
-- `experiments/castro/castro/runner.py` - Main experiment runner
-- `experiments/castro/castro/llm_client.py` - LLM interaction
+- `api/payment_simulator/ai_cash_mgmt/persistence/models.py` - Add new models
+- `api/payment_simulator/ai_cash_mgmt/persistence/repository.py` - Add save/query methods
+- `api/migrations/004_add_audit_tables.sql` - Migration script
+- `experiments/castro/castro/llm_client.py` - Return full response for audit
+- `experiments/castro/castro/runner.py` - Persist audit records after each iteration
+- `api/payment_simulator/ai_cash_mgmt/prompts/policy_diff.py` - Add structured diff output
