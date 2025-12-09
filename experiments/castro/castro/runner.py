@@ -5,15 +5,14 @@ Orchestrates the optimization loop for Castro experiments.
 
 from __future__ import annotations
 
-import asyncio
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
+if TYPE_CHECKING:
+    pass  # Add any TYPE_CHECKING imports here as needed
 
 from payment_simulator.ai_cash_mgmt import (
     ConstraintValidator,
@@ -25,10 +24,14 @@ from payment_simulator.ai_cash_mgmt import (
     PolicyOptimizer,
     SeedManager,
 )
+from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
+    OptimizationResult,
+)
 from payment_simulator.ai_cash_mgmt.prompts import (
     SingleAgentIterationRecord,
 )
 from payment_simulator.persistence.connection import DatabaseManager
+from rich.console import Console
 
 from castro.constraints import CASTRO_CONSTRAINTS
 from castro.experiments import CastroExperiment
@@ -215,7 +218,7 @@ class ExperimentRunner:
                         old_policy = self._policies[agent_id]
                         self._policies[agent_id] = result.new_policy
 
-                        eval_total, eval_per_agent = await self._evaluate_policies(iteration)
+                        _eval_total, eval_per_agent = await self._evaluate_policies(iteration)
                         new_cost = eval_per_agent.get(agent_id, result.old_cost)
 
                         # Only accept if cost improved
@@ -255,17 +258,20 @@ class ExperimentRunner:
                     if agent_id not in self._iteration_history:
                         self._iteration_history[agent_id] = []
 
+                    # Build comparison message
+                    comparison_msg = ""
+                    if is_best_so_far and agent_cost > 0:
+                        best = self._best_agent_costs[agent_id]
+                        pct = (best - agent_cost) / agent_cost * 100
+                        comparison_msg = f"Cost improved by {pct:.1f}%"
+
                     iteration_record = SingleAgentIterationRecord(
                         iteration=iteration,
                         metrics=current_metrics,
                         policy=self._policies[agent_id].copy(),
                         was_accepted=actually_accepted,
                         is_best_so_far=is_best_so_far,
-                        comparison_to_best=(
-                            f"Cost improved by {((self._best_agent_costs[agent_id] - agent_cost) / agent_cost * 100):.1f}%"
-                            if is_best_so_far and agent_cost > 0
-                            else ""
-                        ),
+                        comparison_to_best=comparison_msg,
                     )
                     self._iteration_history[agent_id].append(iteration_record)
 
@@ -357,7 +363,11 @@ class ExperimentRunner:
                         "reason": {"value": "InitialAllocation"},
                     },
                 },
-                "on_false": {"type": "action", "node_id": "hold_collateral", "action": "HoldCollateral"},
+                "on_false": {
+                    "type": "action",
+                    "node_id": "hold_collateral",
+                    "action": "HoldCollateral",
+                },
             },
         }
 
@@ -391,7 +401,7 @@ class ExperimentRunner:
             seed = self._seed_manager.simulation_seed(iteration * 1000 + sample_idx)
 
             # Use first agent's policy (in full implementation, would inject per-agent)
-            policy = list(self._policies.values())[0]
+            policy = next(iter(self._policies.values()))
             result = self._sim_runner.run_simulation(
                 policy=policy,
                 seed=seed,
@@ -431,12 +441,17 @@ class ExperimentRunner:
             started_at=datetime.now(),
             status=GameStatus.RUNNING.value,
             optimized_agents=self._experiment.optimized_agents,
+            # These are populated on completion
+            completed_at=None,
+            total_iterations=0,
+            converged=False,
+            final_cost=None,
         )
 
     def _save_iteration(
         self,
         repo: GameRepository,
-        result: Any,
+        result: OptimizationResult,
         iteration: int,
     ) -> None:
         """Save iteration record to database.
