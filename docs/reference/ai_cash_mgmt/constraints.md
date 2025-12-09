@@ -493,7 +493,7 @@ else:
 | ScenarioConstraints | `api/payment_simulator/ai_cash_mgmt/constraints/scenario_constraints.py` |
 | ParameterSpec | `api/payment_simulator/ai_cash_mgmt/constraints/parameter_spec.py` |
 | ConstraintValidator | `api/payment_simulator/ai_cash_mgmt/optimization/constraint_validator.py` |
-| Constraint Sets | `experiments/castro/parameter_sets.py` |
+| Castro Constraints | `experiments/castro/castro/constraints.py` |
 
 ---
 
