@@ -35,9 +35,13 @@ from rich.console import Console
 
 from castro.constraints import CASTRO_CONSTRAINTS
 from castro.context_builder import MonteCarloContextBuilder
+from castro.events import create_llm_interaction_event
 from castro.experiments import CastroExperiment
 from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
-from castro.pydantic_llm_client import PydanticAILLMClient
+from castro.pydantic_llm_client import (
+    AuditCaptureLLMClient,
+    PydanticAILLMClient,
+)
 from castro.run_id import generate_run_id
 from castro.simulation import CastroSimulationRunner, SimulationResult
 from castro.verbose_logging import (
@@ -136,8 +140,9 @@ class ExperimentRunner:
             max_retries=self._model_config.max_retries,
         )
 
-        # LLM client - using PydanticAI
-        self._llm_client = PydanticAILLMClient(self._model_config)
+        # LLM client - using PydanticAI with audit capture wrapper
+        self._base_llm_client = PydanticAILLMClient(self._model_config)
+        self._llm_client = AuditCaptureLLMClient(self._base_llm_client)
 
         # Simulation runner (initialized lazily)
         self._sim_runner: CastroSimulationRunner | None = None
@@ -304,6 +309,25 @@ class ExperimentRunner:
                                 },
                             )
                         )
+
+                    # Emit LLM interaction event for audit replay
+                    last_interaction = self._llm_client.get_last_interaction()
+                    if last_interaction is not None:
+                        llm_event = create_llm_interaction_event(
+                            run_id=self._run_id,
+                            iteration=iteration,
+                            agent_id=agent_id,
+                            system_prompt=last_interaction.system_prompt,
+                            user_prompt=last_interaction.user_prompt,
+                            raw_response=last_interaction.raw_response,
+                            parsed_policy=last_interaction.parsed_policy,
+                            parsing_error=last_interaction.parsing_error,
+                            model=result.llm_model or self._model_config.model,
+                            prompt_tokens=last_interaction.prompt_tokens,
+                            completion_tokens=last_interaction.completion_tokens,
+                            latency_seconds=last_interaction.latency_seconds,
+                        )
+                        exp_repo.save_event(llm_event)
 
                     # Evaluate new policy cost BEFORE accepting
                     actually_accepted = False

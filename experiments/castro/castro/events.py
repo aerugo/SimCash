@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-
 # =============================================================================
 # Event Type Constants
 # =============================================================================
@@ -19,6 +18,7 @@ EVENT_EXPERIMENT_START = "experiment_start"
 EVENT_ITERATION_START = "iteration_start"
 EVENT_MONTE_CARLO_EVALUATION = "monte_carlo_evaluation"
 EVENT_LLM_CALL = "llm_call"
+EVENT_LLM_INTERACTION = "llm_interaction"  # Full audit data for replay
 EVENT_POLICY_CHANGE = "policy_change"
 EVENT_POLICY_REJECTED = "policy_rejected"
 EVENT_EXPERIMENT_END = "experiment_end"
@@ -28,6 +28,7 @@ ALL_EVENT_TYPES: list[str] = [
     EVENT_ITERATION_START,
     EVENT_MONTE_CARLO_EVALUATION,
     EVENT_LLM_CALL,
+    EVENT_LLM_INTERACTION,
     EVENT_POLICY_CHANGE,
     EVENT_POLICY_REJECTED,
     EVENT_EXPERIMENT_END,
@@ -354,5 +355,63 @@ def create_experiment_end_event(
             "converged": converged,
             "convergence_reason": convergence_reason,
             "duration_seconds": duration_seconds,
+        },
+    )
+
+
+def create_llm_interaction_event(
+    run_id: str,
+    iteration: int,
+    agent_id: str,
+    system_prompt: str,
+    user_prompt: str,
+    raw_response: str,
+    parsed_policy: dict[str, Any] | None,
+    parsing_error: str | None,
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    latency_seconds: float,
+) -> ExperimentEvent:
+    """Create an LLM interaction event for audit replay.
+
+    This event captures the FULL LLM interaction for audit purposes:
+    - Complete system and user prompts sent to the LLM
+    - Raw response received (before parsing)
+    - Parsed policy or parsing error
+
+    Args:
+        run_id: Unique run identifier
+        iteration: Current iteration number
+        agent_id: Agent being optimized
+        system_prompt: Full system prompt sent to LLM
+        user_prompt: Full user prompt sent to LLM
+        raw_response: Raw LLM response text before parsing
+        parsed_policy: Parsed policy dict if successful, None if failed
+        parsing_error: Error message if parsing failed, None if successful
+        model: LLM model used
+        prompt_tokens: Number of input tokens
+        completion_tokens: Number of output tokens
+        latency_seconds: API call latency
+
+    Returns:
+        ExperimentEvent for LLM interaction audit
+    """
+    return ExperimentEvent(
+        event_type=EVENT_LLM_INTERACTION,
+        run_id=run_id,
+        iteration=iteration,
+        timestamp=datetime.now(),
+        details={
+            "agent_id": agent_id,
+            "system_prompt": system_prompt,
+            "user_prompt": user_prompt,
+            "raw_response": raw_response,
+            "parsed_policy": parsed_policy,
+            "parsing_error": parsing_error,
+            "model": model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "latency_seconds": latency_seconds,
         },
     )
