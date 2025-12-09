@@ -646,5 +646,159 @@ class TestFilteredEventsForContext:
                     )
 
 
+class TestVerboseOutputCapture:
+    """Test the VerboseOutputCapture class implementation."""
+
+    @pytest.fixture
+    def capture_config(self) -> dict:
+        """Create config for capture testing."""
+        return {
+            "rng_seed": 77777,
+            "ticks_per_day": 15,
+            "num_days": 1,
+            "agent_configs": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 400000,
+                    "unsecured_cap": 150000,
+                    "policy": {"type": "Fifo"},
+                    "arrival_config": {
+                        "rate_per_tick": 0.9,
+                        "amount_distribution": {
+                            "type": "Normal",
+                            "mean": 10000,
+                            "std_dev": 2500,
+                        },
+                        "counterparty_weights": {"BANK_B": 1.0},
+                        "priority_weights": {5: 0.7, 8: 0.3},
+                        "deadline_window": {"min": 4, "max": 12},
+                    },
+                },
+                {
+                    "id": "BANK_B",
+                    "opening_balance": 400000,
+                    "unsecured_cap": 150000,
+                    "policy": {"type": "Fifo"},
+                    "arrival_config": {
+                        "rate_per_tick": 0.9,
+                        "amount_distribution": {
+                            "type": "Normal",
+                            "mean": 10000,
+                            "std_dev": 2500,
+                        },
+                        "counterparty_weights": {"BANK_A": 1.0},
+                        "priority_weights": {5: 0.7, 8: 0.3},
+                        "deadline_window": {"min": 4, "max": 12},
+                    },
+                },
+            ],
+        }
+
+    def test_capture_run_and_capture(self, capture_config: dict) -> None:
+        """VerboseOutputCapture.run_and_capture() captures events."""
+        from castro.verbose_capture import VerboseOutputCapture
+
+        orch = Orchestrator.new(capture_config)
+        capture = VerboseOutputCapture()
+
+        output = capture.run_and_capture(orch, ticks=10)
+
+        # Should have captured events
+        assert output.total_ticks == 10
+        assert len(output.events_by_tick) > 0
+        assert len(output.agent_ids) == 2
+        assert "BANK_A" in output.agent_ids
+        assert "BANK_B" in output.agent_ids
+
+    def test_capture_get_all_events(self, capture_config: dict) -> None:
+        """VerboseOutput.get_all_events() returns events in tick order."""
+        from castro.verbose_capture import VerboseOutputCapture
+
+        orch = Orchestrator.new(capture_config)
+        capture = VerboseOutputCapture()
+
+        output = capture.run_and_capture(orch, ticks=10)
+        all_events = output.get_all_events()
+
+        # Should have events
+        assert len(all_events) > 0
+
+        # Events should be in tick order
+        prev_tick = -1
+        for event in all_events:
+            tick = event.get("tick", 0)
+            assert tick >= prev_tick, "Events should be in tick order"
+            prev_tick = tick
+
+    def test_capture_filter_for_agent(self, capture_config: dict) -> None:
+        """VerboseOutput.filter_for_agent() returns filtered string."""
+        from castro.verbose_capture import VerboseOutputCapture
+
+        orch = Orchestrator.new(capture_config)
+        capture = VerboseOutputCapture()
+
+        output = capture.run_and_capture(orch, ticks=15)
+        filtered_a = output.filter_for_agent("BANK_A")
+        filtered_b = output.filter_for_agent("BANK_B")
+
+        # Both should have content
+        assert len(filtered_a) > 0, "BANK_A should have filtered output"
+        assert len(filtered_b) > 0, "BANK_B should have filtered output"
+
+        # Should be different (different arrivals, policies)
+        # (Could be same length but different content)
+        assert filtered_a != filtered_b or len(filtered_a) == 0
+
+    def test_capture_filter_contains_tick_headers(self, capture_config: dict) -> None:
+        """Filtered output should contain tick headers."""
+        from castro.verbose_capture import VerboseOutputCapture
+
+        orch = Orchestrator.new(capture_config)
+        capture = VerboseOutputCapture()
+
+        output = capture.run_and_capture(orch, ticks=10)
+        filtered = output.filter_for_agent("BANK_A")
+
+        # Should contain tick headers
+        assert "=== TICK" in filtered
+
+    def test_capture_filter_formats_events(self, capture_config: dict) -> None:
+        """Filtered output should format events readably."""
+        from castro.verbose_capture import VerboseOutputCapture
+
+        orch = Orchestrator.new(capture_config)
+        capture = VerboseOutputCapture()
+
+        output = capture.run_and_capture(orch, ticks=15)
+        filtered = output.filter_for_agent("BANK_A")
+
+        # Should contain formatted event indicators
+        # At minimum should have arrivals or settlements
+        has_events = (
+            "[Arrival]" in filtered
+            or "[Settlement]" in filtered
+            or "[Policy" in filtered
+            or "[Cost]" in filtered
+        )
+        assert has_events, f"Should have formatted events, got: {filtered[:500]}"
+
+    def test_capture_from_existing(self, capture_config: dict) -> None:
+        """capture_from_existing() works on already-run orchestrator."""
+        from castro.verbose_capture import VerboseOutputCapture
+
+        # Run orchestrator manually first
+        orch = Orchestrator.new(capture_config)
+        for _ in range(10):
+            orch.tick()
+
+        # Now capture from existing
+        capture = VerboseOutputCapture()
+        output = capture.capture_from_existing(orch, ticks=10)
+
+        # Should have captured events
+        assert output.total_ticks == 10
+        assert len(output.events_by_tick) > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
