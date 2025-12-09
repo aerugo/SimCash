@@ -33,9 +33,6 @@ from payment_simulator.ai_cash_mgmt.prompts.single_agent_context import (
 from payment_simulator.cli.filters import EventFilter
 
 
-@pytest.mark.skip(
-    reason="Requires proper FFI policy conversion - covered by TestMonteCarloContextBuilder"
-)
 class TestBestWorstSeedSelection:
     """Test selection of best/worst seeds per agent (INV-3).
 
@@ -48,7 +45,7 @@ class TestBestWorstSeedSelection:
     def multi_seed_config(self) -> dict:
         """Create config for multi-seed testing.
 
-        Uses built-in FIFO policy (string format) for direct FFI compatibility.
+        Uses built-in FIFO policy for direct FFI compatibility.
         """
         return {
             "ticks_per_day": 15,
@@ -58,7 +55,7 @@ class TestBestWorstSeedSelection:
                     "id": "BANK_A",
                     "opening_balance": 300000,
                     "unsecured_cap": 100000,
-                    "policy": "FIFO",  # Built-in policy as string
+                    "policy": {"type": "Fifo"},
                     "arrival_config": {
                         "rate_per_tick": 1.0,
                         "amount_distribution": {
@@ -67,15 +64,15 @@ class TestBestWorstSeedSelection:
                             "std_dev": 5000,
                         },
                         "counterparty_weights": {"BANK_B": 1.0},
-                        "priority_weights": {5: 0.7, 8: 0.3},
-                        "deadline_window": {"min": 3, "max": 10},
+                        "priority_distribution": {"type": "Fixed", "value": 5},
+                        "deadline_range": [3, 10],
                     },
                 },
                 {
                     "id": "BANK_B",
                     "opening_balance": 300000,
                     "unsecured_cap": 100000,
-                    "policy": "FIFO",  # Built-in policy as string
+                    "policy": {"type": "Fifo"},
                     "arrival_config": {
                         "rate_per_tick": 1.0,
                         "amount_distribution": {
@@ -84,8 +81,8 @@ class TestBestWorstSeedSelection:
                             "std_dev": 5000,
                         },
                         "counterparty_weights": {"BANK_A": 1.0},
-                        "priority_weights": {5: 0.7, 8: 0.3},
-                        "deadline_window": {"min": 3, "max": 10},
+                        "priority_distribution": {"type": "Fixed", "value": 5},
+                        "deadline_range": [3, 10],
                     },
                 },
             ],

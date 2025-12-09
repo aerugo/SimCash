@@ -151,12 +151,14 @@ pub fn create_policy(config: &PolicyConfig) -> Result<TreePolicy, TreePolicyErro
 /// - From project root: simulator/policies
 /// - From simulator/: policies
 /// - From api/: ../simulator/policies
+/// - From experiments/castro/: ../../simulator/policies
 fn policies_dir() -> PathBuf {
     // Try these paths in order of preference
     let candidates = [
-        PathBuf::from("simulator/policies"),    // From project root
-        PathBuf::from("policies"),              // From simulator/ directory
-        PathBuf::from("../simulator/policies"), // From api/ directory
+        PathBuf::from("simulator/policies"),      // From project root
+        PathBuf::from("policies"),                // From simulator/ directory
+        PathBuf::from("../simulator/policies"),   // From api/ directory
+        PathBuf::from("../../simulator/policies"), // From experiments/castro/ directory
     ];
 
     for path in &candidates {
