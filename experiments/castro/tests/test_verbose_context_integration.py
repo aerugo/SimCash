@@ -713,5 +713,266 @@ class TestExperimentRunnerVerboseIntegration:
         assert "SIMULATION OUTPUT" in prompt
 
 
+class TestLLMClientVerboseContext:
+    """Phase 8 Tests: LLM client properly receives verbose context.
+
+    Verifies that the verbose output flows through to the LLM prompt:
+    1. CastroLLMClient receives full context prompt
+    2. Prompt includes tick-by-tick verbose output
+    3. Prompt includes best/worst seed analysis
+    """
+
+    def test_llm_client_prompt_includes_verbose_output(self) -> None:
+        """LLM client receives prompt with verbose output."""
+        from castro.context_builder import MonteCarloContextBuilder
+        from castro.llm_client import CastroLLMClient
+        from castro.verbose_capture import VerboseOutput
+        from payment_simulator.ai_cash_mgmt import LLMConfig, LLMProviderType
+
+        # Create verbose output with events
+        events: dict[int, list[dict[str, Any]]] = {
+            0: [
+                {
+                    "event_type": "Arrival",
+                    "tick": 0,
+                    "sender_id": "BANK_A",
+                    "receiver_id": "BANK_B",
+                    "amount": 10000,
+                    "priority": 5,
+                    "deadline": 10,
+                }
+            ],
+            1: [
+                {
+                    "event_type": "RtgsImmediateSettlement",
+                    "tick": 1,
+                    "sender": "BANK_A",
+                    "receiver": "BANK_B",
+                    "amount": 10000,
+                }
+            ],
+        }
+
+        verbose = VerboseOutput(
+            events_by_tick=events,
+            total_ticks=2,
+            agent_ids=["BANK_A", "BANK_B"],
+        )
+
+        from dataclasses import dataclass
+
+        @dataclass
+        class MockResult:
+            total_cost: int
+            per_agent_costs: dict[str, int]
+            settlement_rate: float
+            transactions_settled: int
+            transactions_failed: int
+            verbose_output: VerboseOutput | None
+
+        results = [
+            MockResult(
+                total_cost=5000,
+                per_agent_costs={"BANK_A": 2500, "BANK_B": 2500},
+                settlement_rate=1.0,
+                transactions_settled=1,
+                transactions_failed=0,
+                verbose_output=verbose,
+            ),
+        ]
+
+        builder = MonteCarloContextBuilder(results=results, seeds=[42])
+
+        # Build context using same method as ExperimentRunner
+        context = builder.build_context_for_agent(
+            agent_id="BANK_A",
+            iteration=1,
+            current_policy={"parameters": {"urgency_threshold": 3}},
+            iteration_history=[],
+            cost_rates={},
+        )
+
+        # Build the prompt that would be sent to LLM
+        prompt_builder = SingleAgentContextBuilder(context)
+        prompt = prompt_builder.build()
+
+        # Verify verbose output is included
+        assert "SIMULATION OUTPUT" in prompt
+        # The prompt should contain tick markers from verbose output
+        assert "TICK" in prompt or "Arrival" in prompt or "Settlement" in prompt
+
+    def test_verbose_output_contains_tick_by_tick_events(self) -> None:
+        """Verbose output in prompt contains tick-by-tick event details."""
+        from castro.verbose_capture import VerboseOutput
+
+        # Create verbose output with multiple tick events
+        events: dict[int, list[dict[str, Any]]] = {
+            0: [
+                {
+                    "event_type": "Arrival",
+                    "tick": 0,
+                    "sender_id": "BANK_A",
+                    "receiver_id": "BANK_B",
+                    "amount": 5000,
+                    "priority": 5,
+                    "deadline": 8,
+                }
+            ],
+            2: [
+                {
+                    "event_type": "RtgsImmediateSettlement",
+                    "tick": 2,
+                    "sender": "BANK_A",
+                    "receiver": "BANK_B",
+                    "amount": 5000,
+                }
+            ],
+            5: [
+                {
+                    "event_type": "CostAccrual",
+                    "tick": 5,
+                    "agent_id": "BANK_A",
+                    "cost_type": "delay",
+                    "amount": 100,
+                }
+            ],
+        }
+
+        verbose = VerboseOutput(
+            events_by_tick=events,
+            total_ticks=10,
+            agent_ids=["BANK_A", "BANK_B"],
+        )
+
+        # Filter for BANK_A
+        filtered = verbose.filter_for_agent("BANK_A")
+
+        # Should contain tick markers
+        assert "=== TICK 0 ===" in filtered or "TICK" in filtered
+        # Should contain event details
+        assert "Arrival" in filtered or "[Arrival]" in filtered
+
+    def test_end_to_end_prompt_flow(self) -> None:
+        """Full flow from verbose capture to LLM prompt includes verbose context."""
+        from castro.context_builder import MonteCarloContextBuilder
+        from castro.verbose_capture import VerboseOutput
+        from payment_simulator.ai_cash_mgmt.prompts import (
+            build_single_agent_context,
+        )
+
+        # Create verbose outputs for best and worst seeds
+        best_events: dict[int, list[dict[str, Any]]] = {
+            0: [
+                {
+                    "event_type": "Arrival",
+                    "tick": 0,
+                    "sender_id": "BANK_A",
+                    "receiver_id": "BANK_B",
+                    "amount": 3000,
+                    "priority": 5,
+                    "deadline": 10,
+                }
+            ],
+            1: [
+                {
+                    "event_type": "RtgsImmediateSettlement",
+                    "tick": 1,
+                    "sender": "BANK_A",
+                    "receiver": "BANK_B",
+                    "amount": 3000,
+                }
+            ],
+        }
+
+        worst_events: dict[int, list[dict[str, Any]]] = {
+            0: [
+                {
+                    "event_type": "Arrival",
+                    "tick": 0,
+                    "sender_id": "BANK_A",
+                    "receiver_id": "BANK_B",
+                    "amount": 50000,
+                    "priority": 8,
+                    "deadline": 2,
+                }
+            ],
+            3: [
+                {
+                    "event_type": "TransactionWentOverdue",
+                    "tick": 3,
+                    "sender_id": "BANK_A",
+                    "tx_id": "overdue_tx",
+                }
+            ],
+        }
+
+        verbose_best = VerboseOutput(
+            events_by_tick=best_events,
+            total_ticks=5,
+            agent_ids=["BANK_A", "BANK_B"],
+        )
+
+        verbose_worst = VerboseOutput(
+            events_by_tick=worst_events,
+            total_ticks=5,
+            agent_ids=["BANK_A", "BANK_B"],
+        )
+
+        from dataclasses import dataclass
+
+        @dataclass
+        class MockResult:
+            total_cost: int
+            per_agent_costs: dict[str, int]
+            settlement_rate: float
+            transactions_settled: int
+            transactions_failed: int
+            verbose_output: VerboseOutput | None
+
+        results = [
+            MockResult(
+                total_cost=1500,  # Best
+                per_agent_costs={"BANK_A": 750, "BANK_B": 750},
+                settlement_rate=1.0,
+                transactions_settled=1,
+                transactions_failed=0,
+                verbose_output=verbose_best,
+            ),
+            MockResult(
+                total_cost=25000,  # Worst
+                per_agent_costs={"BANK_A": 15000, "BANK_B": 10000},
+                settlement_rate=0.8,
+                transactions_settled=4,
+                transactions_failed=1,
+                verbose_output=verbose_worst,
+            ),
+        ]
+
+        builder = MonteCarloContextBuilder(results=results, seeds=[100, 200])
+
+        # Get agent simulation context
+        agent_context = builder.get_agent_simulation_context("BANK_A")
+
+        # Build prompt using same function as PolicyOptimizer
+        prompt = build_single_agent_context(
+            current_iteration=3,
+            current_policy={"parameters": {"urgency_threshold": 3}},
+            current_metrics={"total_cost_mean": agent_context.mean_cost},
+            best_seed_output=agent_context.best_seed_output,
+            worst_seed_output=agent_context.worst_seed_output,
+            best_seed=agent_context.best_seed,
+            worst_seed=agent_context.worst_seed,
+            best_seed_cost=agent_context.best_seed_cost,
+            worst_seed_cost=agent_context.worst_seed_cost,
+            agent_id="BANK_A",
+        )
+
+        # Verify prompt contains verbose output sections
+        assert "BANK_A" in prompt
+        assert "Best Performing Seed" in prompt
+        assert "Worst Performing Seed" in prompt
+        assert "SIMULATION OUTPUT" in prompt or "Output" in prompt
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
