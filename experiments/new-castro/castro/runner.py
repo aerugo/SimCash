@@ -25,6 +25,9 @@ from payment_simulator.ai_cash_mgmt import (
     PolicyOptimizer,
     SeedManager,
 )
+from payment_simulator.ai_cash_mgmt.prompts import (
+    SingleAgentIterationRecord,
+)
 from payment_simulator.persistence.connection import DatabaseManager
 
 from castro.constraints import CASTRO_CONSTRAINTS
@@ -116,9 +119,10 @@ class ExperimentRunner:
 
         # State
         self._policies: dict[str, dict[str, Any]] = {}
-        self._history: dict[str, list[dict[str, Any]]] = {}
+        self._iteration_history: dict[str, list[SingleAgentIterationRecord]] = {}
         self._best_cost: float = float("inf")
         self._best_policies: dict[str, dict[str, Any]] = {}
+        self._best_agent_costs: dict[str, int] = {}
 
     async def run(self) -> ExperimentResult:
         """Run the experiment to convergence.
@@ -185,13 +189,21 @@ class ExperimentRunner:
                 for agent_id in self._experiment.optimized_agents:
                     console.print(f"  Optimizing {agent_id}...")
 
+                    agent_cost = per_agent_costs.get(agent_id, 0)
+                    current_metrics = {
+                        "total_cost_mean": float(agent_cost),
+                        "settlement_rate_mean": 1.0,  # Assume full settlement for now
+                    }
+
                     result = await self._optimizer.optimize(
                         agent_id=agent_id,
                         current_policy=self._policies[agent_id],
-                        performance_history=self._history.get(agent_id, []),
+                        current_iteration=iteration,
+                        current_metrics=current_metrics,
                         llm_client=self._llm_client,
                         llm_model=self._llm_config.model,
-                        current_cost=float(per_agent_costs.get(agent_id, 0)),
+                        current_cost=float(agent_cost),
+                        iteration_history=self._iteration_history.get(agent_id, []),
                     )
 
                     # Evaluate new policy cost BEFORE accepting
@@ -232,13 +244,30 @@ class ExperimentRunner:
                         errors_str = ", ".join(result.validation_errors[:2])
                         console.print(f"    [yellow]Rejected: {errors_str}[/yellow]")
 
-                    # Update history
-                    if agent_id not in self._history:
-                        self._history[agent_id] = []
-                    self._history[agent_id].append({
-                        "iteration": iteration,
-                        "cost": per_agent_costs.get(agent_id, 0),
-                    })
+                    # Track if this is the best cost for this agent
+                    is_best_so_far = agent_cost < self._best_agent_costs.get(
+                        agent_id, float("inf")
+                    )
+                    if is_best_so_far:
+                        self._best_agent_costs[agent_id] = agent_cost
+
+                    # Update iteration history with SingleAgentIterationRecord
+                    if agent_id not in self._iteration_history:
+                        self._iteration_history[agent_id] = []
+
+                    iteration_record = SingleAgentIterationRecord(
+                        iteration=iteration,
+                        metrics=current_metrics,
+                        policy=self._policies[agent_id].copy(),
+                        was_accepted=actually_accepted,
+                        is_best_so_far=is_best_so_far,
+                        comparison_to_best=(
+                            f"Cost improved by {((self._best_agent_costs[agent_id] - agent_cost) / agent_cost * 100):.1f}%"
+                            if is_best_so_far and agent_cost > 0
+                            else ""
+                        ),
+                    )
+                    self._iteration_history[agent_id].append(iteration_record)
 
                 console.print()
 

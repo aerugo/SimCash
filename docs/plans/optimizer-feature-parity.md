@@ -1381,6 +1381,7 @@ async def test_context_size_matches_expectation():
 
 **Files Updated:**
 - `api/payment_simulator/ai_cash_mgmt/optimization/policy_optimizer.py` - Extended context support
+- `experiments/new-castro/castro/runner.py` - Updated to use new PolicyOptimizer API with SingleAgentIterationRecord tracking
 
 **Test Files Created:**
 - `api/tests/ai_cash_mgmt/unit/test_context_types.py`
