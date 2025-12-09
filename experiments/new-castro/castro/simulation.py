@@ -5,6 +5,7 @@ Wraps the SimCash Orchestrator for running simulations with given policies.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from typing import Any
 import yaml
 
 from payment_simulator._core import Orchestrator
+from payment_simulator.config import SimulationConfig
 
 
 @dataclass
@@ -92,10 +94,9 @@ class CastroSimulationRunner:
         # Create and run orchestrator
         orch = Orchestrator.new(config)
 
-        # Calculate total ticks
-        sim_config = config.get("simulation", {})
-        ticks_per_day = sim_config.get("ticks_per_day", 100)
-        num_days = sim_config.get("num_days", 1)
+        # Calculate total ticks (config is now flat format)
+        ticks_per_day = config.get("ticks_per_day", 100)
+        num_days = config.get("num_days", 1)
         total_ticks = ticks if ticks is not None else (ticks_per_day * num_days)
 
         # Run simulation
@@ -112,26 +113,32 @@ class CastroSimulationRunner:
     ) -> dict[str, Any]:
         """Build simulation config with injected policy and seed.
 
+        Uses SimulationConfig.to_ffi_dict() for proper conversion.
+
         Args:
             policy: Policy to inject into agents.
             seed: RNG seed.
 
         Returns:
-            Complete configuration dict.
+            Complete configuration dict for Orchestrator.new().
         """
         # Deep copy base config
-        config = self._deep_copy(self._base_config)
+        base = self._deep_copy(self._base_config)
 
-        # Set seed
-        if "simulation" not in config:
-            config["simulation"] = {}
-        config["simulation"]["rng_seed"] = seed
+        # Update seed in simulation config
+        if "simulation" in base:
+            base["simulation"]["rng_seed"] = seed
+        else:
+            base["simulation"] = {"rng_seed": seed}
 
-        # Inject policy into all agents
-        for agent in config.get("agents", []):
-            agent["policy"] = {"type": "FromDict", "policy": policy}
+        # Inject policy into all agents using InlinePolicy type
+        agents = base.get("agents", [])
+        for agent in agents:
+            agent["policy"] = {"type": "Inline", "decision_trees": policy}
 
-        return config
+        # Use SimulationConfig for proper conversion to FFI format
+        sim_config = SimulationConfig.from_dict(base)
+        return sim_config.to_ffi_dict()
 
     def _extract_metrics(self, orch: Orchestrator) -> SimulationResult:
         """Extract metrics from completed orchestrator.
