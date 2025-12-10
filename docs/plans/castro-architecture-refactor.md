@@ -10,6 +10,25 @@
 - `docs/reference/ai_cash_mgmt/` (optimization framework)
 - `docs/reference/castro/` (experiment framework)
 
+---
+
+## Major Refactor: Module Split
+
+> **Note:** This document focuses on immediate bug fixes and improvements. For the comprehensive module split refactor (splitting `ai_cash_mgmt` into three modules), see:
+>
+> - **[Conceptual Plan](./refactor/conceptual-plan.md)** - Architecture overview, goals, and module specifications
+> - **[Development Plan](./refactor/development-plan.md)** - Phase-by-phase implementation with TDD tests
+> - **[Work Notes](./refactor/work_notes.md)** - Progress tracking and phase checklists
+>
+> The module split creates:
+> 1. **`ai_cash_mgmt/`** - Policy optimization core (bootstrap, constraints, sampling)
+> 2. **`llm/`** - LLM integration layer (unified provider abstraction)
+> 3. **`experiments/`** - Experiment framework (YAML-driven configs, runners, persistence)
+>
+> After the refactor, `experiments/castro/` becomes a thin layer containing only Castro-specific constraints and experiment YAML files.
+
+---
+
 ## Executive Summary
 
 The Castro experiment implementation has diverged from its intended architecture, resulting in:
