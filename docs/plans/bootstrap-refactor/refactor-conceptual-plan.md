@@ -3,11 +3,13 @@
 **Status**: Draft
 **Author**: Claude
 **Date**: 2025-12-10
-**Version**: 2.7
+**Version**: 2.8
+
+**Revision 2.8 Notes**: Aligned with development-plan.md. Updated example code in Section 6.1 to use Option B (existing `scenario_events` + `CustomTransactionArrivalEvent`) instead of proposed new FFI methods. Aligned `BootstrapSample` definition with development plan (added `sample_idx`, `seed`, use `frozen=True` and tuples for immutability).
 
 **Revision 2.7 Notes**: Refined sandbox architecture after reviewing FFI boundary, settlement engine, and tick loop documentation. Key insight: RTGS requires two agents for settlement - all balance changes happen through transactions between sender and receiver. Solution: 3-agent sandbox (A, SINK, SOURCE) where SOURCE sends liquidity beats and SINK receives A's outgoing payments. No direct balance manipulation - all mechanics reused from Rust.
 
-**Revision 2.6 Notes**: Major architecture change - use Rust Sandbox instead of Python reimplementation. New FFI methods (new_sandbox, inject_transaction_at_tick, inject_liquidity_at_tick) allow reusing ALL simulation logic. Zero code duplication. Credit, collateral, costs, policy evaluation all handled by existing Rust code.
+**Revision 2.6 Notes**: Major architecture change - use Rust Sandbox instead of Python reimplementation. ~~New FFI methods (new_sandbox, inject_transaction_at_tick, inject_liquidity_at_tick)~~ **Superseded by v2.8: Use existing scenario_events instead**. Zero code duplication. Credit, collateral, costs, policy evaluation all handled by existing Rust code.
 
 **Revision 2.5 Notes**: Clarified that bootstrap evaluator uses the SAME policy evaluation logic as full simulation. Policy conditions (credit_headroom, collateral_posted) require tracking in bootstrap state. Only settlement mechanics are simplified, not policy evaluation.
 
@@ -1071,103 +1073,119 @@ flowchart TB
 - Cost accrual: Rust (overdraft, delay, deadline, overdue)
 - Policy evaluation context: Rust (50+ fields available)
 
-#### FFI Methods Required
+#### Implementation Approach: Option B (Recommended)
 
-| Method | Purpose |
-|--------|---------|
-| `Orchestrator.new_bootstrap_sandbox(config)` | Create 3-agent sandbox environment |
-| `schedule_beat(tick, amount)` | Pre-schedule SOURCE→A transaction at tick |
-| `schedule_outgoing(tick, tx_config)` | Pre-schedule A's outgoing transaction arrival |
+**No new Rust FFI methods required**. We use existing `scenario_events` with `CustomTransactionArrivalEvent` to pre-schedule all transactions.
 
-**Alternative**: No new FFI methods needed if we can configure a regular simulation with:
-- 3 agents (SOURCE, A, SINK)
-- Pre-generated transaction list instead of Poisson arrivals
-- Infinite balances for SOURCE/SINK via large opening balance
+| Existing Mechanism | Purpose |
+|-------------------|---------|
+| `Orchestrator.new(config)` | Create 3-agent sandbox via standard config |
+| `scenario_events` | Pre-schedule all transactions |
+| `CustomTransactionArrivalEvent` | Inject transaction at specific tick |
+| `FifoPolicy` | Immediate release for SOURCE/SINK |
 
-#### Example Implementation
+#### Example Implementation (Option B)
 
 ```python
-# Python orchestration layer
+# Python orchestration layer using SandboxConfigBuilder
+from payment_simulator.config.schemas import (
+    SimulationConfig, AgentConfig, CustomTransactionArrivalEvent,
+    OneTimeSchedule, FifoPolicy, InlinePolicy,
+)
+
 def evaluate_policy_on_sample(
     sample: BootstrapSample,
-    policy: Policy,
+    policy: dict,
     agent_config: AgentConfig,
-    cost_config: CostConfig,
+    cost_rates: CostRates,
 ) -> PolicyEvaluationResult:
-    """Evaluate policy using Rust 3-agent sandbox - NO reimplementation."""
+    """Evaluate policy using Rust 3-agent sandbox - NO reimplementation.
 
-    # Configuration for 3-agent sandbox
-    INFINITE_BALANCE = 10_000_000_000_00  # $100M in cents
+    Uses existing scenario_events mechanism - ZERO Rust changes required.
+    """
+    INFINITE = 10_000_000_000_00  # $100M in cents
 
-    sandbox_config = {
-        "ticks_per_day": sample.total_ticks,
-        "num_days": 1,
-        "agents": [
-            {
-                "id": "SOURCE",
-                "opening_balance": INFINITE_BALANCE,
-                "credit_limit": 0,
-                # No arrival config - transactions pre-scheduled
-            },
-            {
-                "id": sample.agent_id,  # "BANK_A"
-                "opening_balance": agent_config.opening_balance,
-                "credit_limit": agent_config.credit_limit,
-                "collateral_limit": agent_config.collateral_limit,
-            },
-            {
-                "id": "SINK",
-                "opening_balance": 0,  # Doesn't need balance (only receives)
-                "credit_limit": INFINITE_BALANCE,  # Can "owe" infinitely
-            },
-        ],
-        "cost_config": cost_config.to_dict(),
-        # Disable automatic arrivals - we inject transactions manually
-        "arrivals": {},
-    }
+    # Build scenario_events for all transactions
+    scenario_events = []
 
-    # Create sandbox
-    sandbox = Orchestrator.new_bootstrap_sandbox(sandbox_config)
-
-    # Set policy ONLY for Agent A (SOURCE/SINK auto-process)
-    sandbox.set_policy(sample.agent_id, policy.to_dict())
-
-    # Schedule liquidity beats: SOURCE → A
-    for beat in sample.incoming_settlements:
-        sandbox.schedule_beat(
-            tick=beat.settlement_tick,
-            sender_id="SOURCE",
-            receiver_id=sample.agent_id,
-            amount=beat.amount,
+    # 1. Liquidity beats: SOURCE → A (settle immediately at beat tick)
+    for i, beat in enumerate(sample.incoming_settlements):
+        scenario_events.append(
+            CustomTransactionArrivalEvent(
+                type="CustomTransactionArrival",
+                from_agent="SOURCE",
+                to_agent=sample.agent_id,
+                amount=beat.amount,
+                priority=10,  # High priority = immediate release
+                deadline=1,   # Tight deadline
+                schedule=OneTimeSchedule(type="OneTime", tick=beat.settlement_tick),
+            )
         )
 
-    # Schedule outgoing transactions: A → SINK
+    # 2. Outgoing: A → SINK (policy-controlled release)
     for tx in sample.outgoing_txns:
-        sandbox.schedule_outgoing(
-            tick=tx.arrival_tick,
-            tx_config={
-                "tx_id": tx.tx_id,
-                "sender_id": sample.agent_id,
-                "receiver_id": "SINK",
-                "amount": tx.amount,
-                "deadline_tick": tx.deadline_tick,
-                "priority": tx.priority,
-            },
+        scenario_events.append(
+            CustomTransactionArrivalEvent(
+                type="CustomTransactionArrival",
+                from_agent=sample.agent_id,
+                to_agent="SINK",
+                amount=tx.amount,
+                priority=tx.priority,
+                deadline=tx.deadline_tick - tx.arrival_tick,  # Relative deadline
+                schedule=OneTimeSchedule(type="OneTime", tick=tx.arrival_tick),
+            )
         )
 
-    # Run simulation - ALL logic handled by Rust
+    # Build config using existing schema
+    config = SimulationConfig(
+        ticks_per_day=sample.total_ticks,
+        num_days=1,
+        seed=sample.seed,
+        agents=[
+            AgentConfig(
+                id="SOURCE",
+                opening_balance=INFINITE,
+                credit_limit=0,
+                policy=FifoPolicy(type="Fifo"),  # Always release immediately
+            ),
+            AgentConfig(
+                id=sample.agent_id,
+                opening_balance=agent_config.opening_balance,
+                credit_limit=agent_config.credit_limit,
+                policy=InlinePolicy(type="Inline", decision_trees=policy),
+            ),
+            AgentConfig(
+                id="SINK",
+                opening_balance=0,
+                credit_limit=INFINITE,
+                policy=FifoPolicy(type="Fifo"),
+            ),
+        ],
+        scenario_events=scenario_events,
+        cost_rates=cost_rates,
+    )
+
+    # Create and run sandbox using EXISTING Orchestrator
+    orch = Orchestrator.new(config.to_ffi_dict())
+
     for _ in range(sample.total_ticks):
-        sandbox.tick()
+        orch.tick()
 
     # Extract results for Agent A only
     return PolicyEvaluationResult(
         agent_id=sample.agent_id,
-        total_cost=sandbox.get_agent_total_cost(sample.agent_id),
-        overdraft_cost=sandbox.get_agent_overdraft_cost(sample.agent_id),
-        delay_cost=sandbox.get_agent_delay_cost(sample.agent_id),
-        deadline_penalties=sandbox.get_agent_deadline_penalties(sample.agent_id),
-        transactions_settled=sandbox.get_agent_settled_count(sample.agent_id),
-        transactions_missed=sandbox.get_agent_missed_count(sample.agent_id),
+        sample_idx=sample.sample_idx,
+        seed=sample.seed,
+        total_cost=orch.get_agent_total_cost(sample.agent_id),
+        overdraft_cost=orch.get_agent_overdraft_cost(sample.agent_id),
+        delay_cost=orch.get_agent_delay_cost(sample.agent_id),
+        deadline_penalty=orch.get_agent_deadline_penalties(sample.agent_id),
+        overdue_delay_cost=orch.get_agent_overdue_delay_cost(sample.agent_id),
+        transactions_processed=len(sample.outgoing_txns),
+        transactions_settled=orch.get_agent_settled_count(sample.agent_id),
+        transactions_unsettled=orch.get_agent_unsettled_count(sample.agent_id),
+        avg_settlement_delay=orch.get_agent_avg_settlement_delay(sample.agent_id),
+        max_overdraft=orch.get_agent_max_overdraft(sample.agent_id),
     )
 ```
 
@@ -1389,14 +1407,15 @@ class AgentTransactionHistory:
         }
 
 
-@dataclass
+@dataclass(frozen=True)
 class BootstrapSample:
     """One bootstrap sample with remapped absolute ticks."""
     agent_id: str
-    outgoing_txns: list[RemappedTransaction]     # Agent's outgoing obligations (to evaluate policy on)
-    incoming_settlements: list[RemappedTransaction]  # "Liquidity beats" (fixed timing)
+    sample_idx: int  # Index in Monte Carlo sequence (for tracking)
+    seed: int        # Seed used to generate this sample (for reproducibility)
+    outgoing_txns: tuple[RemappedTransaction, ...]     # Agent's outgoing obligations
+    incoming_settlements: tuple[RemappedTransaction, ...]  # "Liquidity beats" (fixed timing)
     total_ticks: int
-    eod_tick: int
 
     def get_arrivals_at_tick(self, tick: int) -> list[RemappedTransaction]:
         """Get outgoing transactions arriving at this tick."""
@@ -1946,4 +1965,4 @@ $$\widehat{\text{Var}}(\hat{\theta}) = \frac{1}{B-1} \sum_{b=1}^{B} \left( \hat{
 
 ---
 
-*Document Version 2.7 - Refined 3-agent sandbox (SOURCE, A, SINK) based on RTGS two-agent requirement*
+*Document Version 2.8 - Aligned with development-plan.md, using Option B (zero Rust changes)*
