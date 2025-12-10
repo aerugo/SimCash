@@ -33,6 +33,7 @@ class VerboseConfig:
     - monte_carlo: Show per-seed simulation results
     - llm: Show LLM call metadata (model, tokens, latency)
     - rejections: Show why policies are rejected
+    - debug: Show detailed debug info (validation errors, retries, LLM progress)
 
     Example:
         >>> config = VerboseConfig(policy=True, monte_carlo=True)
@@ -44,6 +45,7 @@ class VerboseConfig:
     monte_carlo: bool = False
     llm: bool = False
     rejections: bool = False
+    debug: bool = False
 
     @property
     def any(self) -> bool:
@@ -52,7 +54,7 @@ class VerboseConfig:
         Returns:
             True if at least one verbose flag is enabled.
         """
-        return self.policy or self.monte_carlo or self.llm or self.rejections
+        return self.policy or self.monte_carlo or self.llm or self.rejections or self.debug
 
     @classmethod
     def all(cls) -> VerboseConfig:
@@ -61,7 +63,7 @@ class VerboseConfig:
         Returns:
             VerboseConfig with all flags set to True.
         """
-        return cls(policy=True, monte_carlo=True, llm=True, rejections=True)
+        return cls(policy=True, monte_carlo=True, llm=True, rejections=True, debug=False)
 
     @classmethod
     def from_flags(
@@ -72,6 +74,7 @@ class VerboseConfig:
         verbose_monte_carlo: bool | None = None,
         verbose_llm: bool | None = None,
         verbose_rejections: bool | None = None,
+        debug: bool = False,
     ) -> VerboseConfig:
         """Create config from CLI flags.
 
@@ -84,6 +87,7 @@ class VerboseConfig:
             verbose_monte_carlo: Override monte_carlo verbose flag.
             verbose_llm: Override llm verbose flag.
             verbose_rejections: Override rejections verbose flag.
+            debug: Enable debug output (validation errors, retries).
 
         Returns:
             VerboseConfig with appropriate flags set.
@@ -95,6 +99,7 @@ class VerboseConfig:
                 monte_carlo=verbose_monte_carlo if verbose_monte_carlo is not None else True,
                 llm=verbose_llm if verbose_llm is not None else True,
                 rejections=verbose_rejections if verbose_rejections is not None else True,
+                debug=debug,
             )
 
         # Otherwise use individual flags
@@ -103,6 +108,7 @@ class VerboseConfig:
             monte_carlo=verbose_monte_carlo or False,
             llm=verbose_llm or False,
             rejections=verbose_rejections or False,
+            debug=debug,
         )
 
 
@@ -548,3 +554,111 @@ class VerboseLogger:
             )
 
         self._console.print()
+
+    def log_debug_llm_request_start(self, agent_id: str, attempt: int) -> None:
+        """Log the start of an LLM request (debug mode).
+
+        Args:
+            agent_id: Agent being optimized.
+            attempt: Current attempt number (1-indexed).
+        """
+        if not self._config.debug:
+            return
+
+        if attempt == 1:
+            self._console.print(
+                f"    [dim cyan]→ Sending LLM request for {agent_id}...[/dim cyan]"
+            )
+        else:
+            self._console.print(
+                f"    [dim yellow]→ Retry attempt {attempt} for {agent_id}...[/dim yellow]"
+            )
+
+    def log_debug_validation_error(
+        self,
+        agent_id: str,
+        attempt: int,
+        max_attempts: int,
+        errors: list[str],
+    ) -> None:
+        """Log validation errors during optimization (debug mode).
+
+        Args:
+            agent_id: Agent being optimized.
+            attempt: Current attempt number (1-indexed).
+            max_attempts: Maximum retry attempts.
+            errors: List of validation error messages.
+        """
+        if not self._config.debug:
+            return
+
+        self._console.print(
+            f"    [red]✗ Validation failed (attempt {attempt}/{max_attempts})[/red]"
+        )
+        for error in errors[:5]:  # Limit to first 5 errors
+            self._console.print(f"      [dim red]- {error}[/dim red]")
+        if len(errors) > 5:
+            self._console.print(f"      [dim red]... and {len(errors) - 5} more[/dim red]")
+
+    def log_debug_llm_error(
+        self,
+        agent_id: str,
+        attempt: int,
+        max_attempts: int,
+        error: str,
+    ) -> None:
+        """Log LLM errors during optimization (debug mode).
+
+        Args:
+            agent_id: Agent being optimized.
+            attempt: Current attempt number (1-indexed).
+            max_attempts: Maximum retry attempts.
+            error: Error message.
+        """
+        if not self._config.debug:
+            return
+
+        self._console.print(
+            f"    [red]✗ LLM error (attempt {attempt}/{max_attempts}): {error}[/red]"
+        )
+
+    def log_debug_validation_success(self, agent_id: str, attempt: int) -> None:
+        """Log successful validation (debug mode).
+
+        Args:
+            agent_id: Agent being optimized.
+            attempt: Current attempt number (1-indexed).
+        """
+        if not self._config.debug:
+            return
+
+        if attempt > 1:
+            self._console.print(
+                f"    [green]✓ Validation passed on attempt {attempt}[/green]"
+            )
+        else:
+            self._console.print(f"    [dim green]✓ Validation passed[/dim green]")
+
+    def log_debug_all_retries_exhausted(
+        self,
+        agent_id: str,
+        max_attempts: int,
+        final_errors: list[str],
+    ) -> None:
+        """Log when all retry attempts are exhausted (debug mode).
+
+        Args:
+            agent_id: Agent being optimized.
+            max_attempts: Maximum retry attempts.
+            final_errors: Final validation errors.
+        """
+        if not self._config.debug:
+            return
+
+        self._console.print(
+            f"    [bold red]✗ All {max_attempts} attempts exhausted for {agent_id}[/bold red]"
+        )
+        if final_errors:
+            self._console.print("    Final errors:")
+            for error in final_errors[:3]:
+                self._console.print(f"      [dim red]- {error}[/dim red]")
