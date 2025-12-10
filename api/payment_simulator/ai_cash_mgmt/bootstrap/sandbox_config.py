@@ -1,0 +1,228 @@
+"""Sandbox configuration builder for bootstrap policy evaluation.
+
+This module builds 3-agent sandbox configurations from BootstrapSamples
+for isolated policy evaluation.
+
+The sandbox structure:
+- SOURCE: Infinite liquidity agent that sends scheduled payments to target
+- TARGET: The agent being evaluated with the test policy
+- SINK: Infinite capacity agent that receives all outgoing payments
+
+This design enables:
+1. Controlled liquidity testing (incoming from SOURCE)
+2. Policy evaluation in isolation
+3. Deterministic scenarios based on bootstrap samples
+"""
+
+from __future__ import annotations
+
+from typing import Any, cast
+
+from payment_simulator.ai_cash_mgmt.bootstrap.models import (
+    BootstrapSample,
+    RemappedTransaction,
+)
+from payment_simulator.config.schemas import (
+    AgentConfig,
+    CostRates,
+    CustomTransactionArrivalEvent,
+    DirectTransferEvent,
+    FifoPolicy,
+    LiquidityAwarePolicy,
+    LsmConfig,
+    OneTimeSchedule,
+    PolicyConfig,
+    ScenarioEvent,
+    SimulationConfig,
+    SimulationSettings,
+)
+
+# Infinite liquidity constant (10 billion cents = $100 million)
+INFINITE_LIQUIDITY = 10_000_000_000
+
+
+class SandboxConfigBuilder:
+    """Builds 3-agent sandbox configurations from bootstrap samples.
+
+    Creates isolated simulation environments for policy evaluation:
+    - SOURCE agent with infinite liquidity
+    - Target agent with test policy
+    - SINK agent with infinite capacity
+
+    Example:
+        ```python
+        builder = SandboxConfigBuilder()
+        config = builder.build_config(
+            sample=bootstrap_sample,
+            target_policy={"type": "LiquidityAware", "target_buffer": 50000},
+            opening_balance=1_000_000,
+            credit_limit=500_000,
+        )
+        ```
+    """
+
+    def build_config(
+        self,
+        sample: BootstrapSample,
+        target_policy: dict[str, Any],
+        opening_balance: int,
+        credit_limit: int,
+        cost_rates: dict[str, float] | None = None,
+    ) -> SimulationConfig:
+        """Build sandbox configuration from bootstrap sample.
+
+        Args:
+            sample: BootstrapSample with remapped transactions.
+            target_policy: Policy configuration dict for target agent.
+            opening_balance: Opening balance for target agent (cents).
+            credit_limit: Credit limit for target agent (cents).
+            cost_rates: Optional cost rates override.
+
+        Returns:
+            SimulationConfig for 3-agent sandbox.
+        """
+        # Build agents
+        source_agent = self._build_source_agent()
+        target_agent = self._build_target_agent(
+            agent_id=sample.agent_id,
+            policy=target_policy,
+            opening_balance=opening_balance,
+            credit_limit=credit_limit,
+        )
+        sink_agent = self._build_sink_agent()
+
+        # Build scenario events
+        scenario_events = self._build_scenario_events(sample)
+
+        # Build simulation settings
+        settings = SimulationSettings(
+            ticks_per_day=sample.total_ticks,
+            num_days=1,
+            rng_seed=sample.seed,
+        )
+
+        # Build cost rates
+        rates = self._build_cost_rates(cost_rates)
+
+        # Cast scenario events to the full union type
+        events_for_config: list[ScenarioEvent] | None = None
+        if scenario_events:
+            events_for_config = cast(list[ScenarioEvent], scenario_events)
+
+        return SimulationConfig(
+            simulation=settings,
+            agents=[source_agent, target_agent, sink_agent],
+            cost_rates=rates,
+            lsm_config=LsmConfig(),  # type: ignore[call-arg]
+            scenario_events=events_for_config,
+        )
+
+    def _build_source_agent(self) -> AgentConfig:
+        """Build SOURCE agent with infinite liquidity."""
+        return AgentConfig(  # type: ignore[call-arg]
+            id="SOURCE",
+            opening_balance=INFINITE_LIQUIDITY,
+            unsecured_cap=0,
+            policy=FifoPolicy(),
+        )
+
+    def _build_target_agent(
+        self,
+        agent_id: str,
+        policy: dict[str, Any],
+        opening_balance: int,
+        credit_limit: int,
+    ) -> AgentConfig:
+        """Build target agent with test policy."""
+        return AgentConfig(  # type: ignore[call-arg]
+            id=agent_id,
+            opening_balance=opening_balance,
+            unsecured_cap=credit_limit,
+            policy=self._parse_policy(policy),
+        )
+
+    def _build_sink_agent(self) -> AgentConfig:
+        """Build SINK agent with infinite capacity."""
+        return AgentConfig(  # type: ignore[call-arg]
+            id="SINK",
+            opening_balance=0,
+            unsecured_cap=INFINITE_LIQUIDITY,
+            policy=FifoPolicy(),
+        )
+
+    def _parse_policy(self, policy_dict: dict[str, Any]) -> PolicyConfig:
+        """Parse policy dict to PolicyConfig."""
+        policy_type = policy_dict.get("type")
+
+        if policy_type == "Fifo":
+            return FifoPolicy()
+        elif policy_type == "LiquidityAware":
+            return LiquidityAwarePolicy(
+                target_buffer=policy_dict["target_buffer"],
+                urgency_threshold=policy_dict["urgency_threshold"],
+            )
+        else:
+            # For other policies, use Fifo as fallback
+            return FifoPolicy()
+
+    def _build_scenario_events(
+        self, sample: BootstrapSample
+    ) -> list[CustomTransactionArrivalEvent | DirectTransferEvent]:
+        """Build scenario events from bootstrap sample.
+
+        Converts:
+        - Outgoing transactions → CustomTransactionArrival (TARGET → SINK)
+        - Incoming settlements → DirectTransfer (SOURCE → TARGET)
+        """
+        events: list[CustomTransactionArrivalEvent | DirectTransferEvent] = []
+
+        # Outgoing transactions become CustomTransactionArrival events
+        for tx in sample.outgoing_txns:
+            outgoing_event = self._outgoing_to_event(tx, sample.agent_id)
+            events.append(outgoing_event)
+
+        # Incoming settlements become DirectTransfer events (liquidity beats)
+        for tx in sample.incoming_settlements:
+            if tx.settlement_tick is not None:
+                transfer_event = self._incoming_to_transfer(tx, sample.agent_id)
+                events.append(transfer_event)
+
+        return events
+
+    def _outgoing_to_event(
+        self, tx: RemappedTransaction, agent_id: str
+    ) -> CustomTransactionArrivalEvent:
+        """Convert outgoing transaction to scenario event."""
+        # Calculate deadline as ticks from arrival
+        deadline_ticks = tx.deadline_tick - tx.arrival_tick
+
+        return CustomTransactionArrivalEvent(  # type: ignore[call-arg]
+            from_agent=agent_id,
+            to_agent="SINK",
+            amount=tx.amount,
+            priority=tx.priority,
+            deadline=deadline_ticks if deadline_ticks > 0 else 1,
+            schedule=OneTimeSchedule(tick=tx.arrival_tick),
+        )
+
+    def _incoming_to_transfer(
+        self, tx: RemappedTransaction, agent_id: str
+    ) -> DirectTransferEvent:
+        """Convert incoming settlement to direct transfer (liquidity beat)."""
+        # Schedule at settlement_tick (when liquidity arrives)
+        tick = tx.settlement_tick if tx.settlement_tick is not None else 0
+
+        return DirectTransferEvent(
+            from_agent="SOURCE",
+            to_agent=agent_id,
+            amount=tx.amount,
+            schedule=OneTimeSchedule(tick=tick),
+        )
+
+    def _build_cost_rates(self, override: dict[str, float] | None) -> CostRates:
+        """Build cost rates with optional overrides."""
+        if override is None:
+            return CostRates()  # type: ignore[call-arg]
+
+        # Apply overrides to defaults
+        return CostRates(**override)  # type: ignore[arg-type]
