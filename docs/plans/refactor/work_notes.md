@@ -64,24 +64,25 @@ TEST RESULTS:
 
 ### Phase 0.5: Add Event Tracing to Bootstrap Sandbox
 
-**Status:** Not Started
+**Status:** IN PROGRESS (Models Complete, Evaluator Method Pending)
 
 **Tests First (TDD):**
-- [ ] Write `tests/ai_cash_mgmt/bootstrap/test_enriched_evaluation.py`
-- [ ] Test: `BootstrapEvent` is frozen (immutable)
-- [ ] Test: `CostBreakdown.total` sums all costs
-- [ ] Test: All costs are integer cents (INV-1)
-- [ ] Test: `EnrichedEvaluationResult` contains event trace
+- [x] Write `tests/ai_cash_mgmt/unit/bootstrap/test_enriched_evaluation.py`
+- [x] Test: `BootstrapEvent` is frozen (immutable)
+- [x] Test: `CostBreakdown.total` sums all costs
+- [x] Test: All costs are integer cents (INV-1)
+- [x] Test: `EnrichedEvaluationResult` contains event trace
 - [ ] Write `tests/experiments/castro/test_bootstrap_context.py`
 - [ ] Test: `get_best_result()` returns lowest cost
 - [ ] Test: `get_worst_result()` returns highest cost
 - [ ] Test: `format_event_trace_for_llm()` limits events
 
 **Implementation:**
-- [ ] Create `api/payment_simulator/ai_cash_mgmt/bootstrap/models.py`
-  - [ ] Add `BootstrapEvent` dataclass
-  - [ ] Add `CostBreakdown` dataclass
-  - [ ] Add `EnrichedEvaluationResult` dataclass
+- [x] Create `api/payment_simulator/ai_cash_mgmt/bootstrap/enriched_models.py`
+  - [x] Add `BootstrapEvent` dataclass
+  - [x] Add `CostBreakdown` dataclass
+  - [x] Add `EnrichedEvaluationResult` dataclass
+- [x] Update `bootstrap/__init__.py` with exports
 - [ ] Add `evaluate_sample_enriched()` to `bootstrap/evaluator.py`
 - [ ] Add `_is_relevant_event()` filter method
 - [ ] Add `_convert_to_bootstrap_event()` conversion method
@@ -97,7 +98,17 @@ TEST RESULTS:
 
 **Notes:**
 ```
-(Add notes as work progresses)
+2025-12-10: MODELS COMPLETE
+- Created enriched_models.py with BootstrapEvent, CostBreakdown, EnrichedEvaluationResult
+- All 12 enriched model tests pass
+- Total bootstrap tests: 110 (98 original + 12 new)
+- Models use frozen dataclasses per project convention
+- All money amounts are integer cents (INV-1)
+
+NEXT STEPS:
+- Add evaluate_sample_enriched() to evaluator.py
+- Create BootstrapContextBuilder for LLM context
+- Wire up to runner.py (optional - additive change)
 
 This fixes the Context/Evaluation mismatch:
 - Before: LLM receives placeholder data from full simulation
