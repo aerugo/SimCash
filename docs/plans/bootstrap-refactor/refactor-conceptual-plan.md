@@ -3,7 +3,13 @@
 **Status**: Draft
 **Author**: Claude
 **Date**: 2025-12-10
-**Version**: 2.4
+**Version**: 2.7
+
+**Revision 2.7 Notes**: Refined sandbox architecture after reviewing FFI boundary, settlement engine, and tick loop documentation. Key insight: RTGS requires two agents for settlement - all balance changes happen through transactions between sender and receiver. Solution: 3-agent sandbox (A, SINK, SOURCE) where SOURCE sends liquidity beats and SINK receives A's outgoing payments. No direct balance manipulation - all mechanics reused from Rust.
+
+**Revision 2.6 Notes**: Major architecture change - use Rust Sandbox instead of Python reimplementation. New FFI methods (new_sandbox, inject_transaction_at_tick, inject_liquidity_at_tick) allow reusing ALL simulation logic. Zero code duplication. Credit, collateral, costs, policy evaluation all handled by existing Rust code.
+
+**Revision 2.5 Notes**: Clarified that bootstrap evaluator uses the SAME policy evaluation logic as full simulation. Policy conditions (credit_headroom, collateral_posted) require tracking in bootstrap state. Only settlement mechanics are simplified, not policy evaluation.
 
 **Revision 2.4 Notes**: Converted all ASCII diagrams to mermaid flowcharts, sequence diagrams, and gantt charts for better rendering and consistency with project conventions.
 
@@ -609,22 +615,52 @@ ci_upper = np.percentile(bootstrap_costs, 97.5)
 # "With 95% confidence, the true expected cost lies in [ci_lower, ci_upper]"
 ```
 
-### 3.5 Revised Assessment: What's Captured vs. Simplified
+### 3.5 Revised Assessment: What's Captured (Sandbox Approach)
+
+With the **Rust Sandbox** approach (Section 6.1), we reuse the actual simulator rather than reimplementing. This dramatically improves what's captured:
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
 | LSM effects (incoming) | ✓ Captured | Via historical `ticks_to_settle` |
-| LSM effects (outgoing) | ~ Conservative | Assumes no beneficial offsets |
+| LSM effects (outgoing) | ✗ Not applicable | Single-agent sandbox has no counterparty for LSM |
 | Queue 2 dynamics (incoming) | ✓ Captured | Wait time included in settlement timing |
-| Queue 2 dynamics (outgoing) | ~ Simplified | Instant-or-wait model |
-| Credit headroom | ◯ Add in Phase 2 | Important for realistic cash mgmt |
-| Collateral posting | ◯ Add in Phase 2 | Liquidity-cost tradeoff |
-| Gridlock (as outcome) | ✓ Captured | Slow settlement days propagate |
-| Gridlock (as mechanism) | ✗ Not modeled | Would need explicit Q2 simulation |
+| Queue 2 dynamics (outgoing) | ✓ Reused | Real RTGS logic from Rust |
+| Credit headroom | ✓ Reused | Real balance + credit_limit check from Rust |
+| Collateral posting | ✓ Reused | Real collateral mechanics from Rust |
+| Cost accrual | ✓ Reused | Real cost formulas from Rust |
+| Policy evaluation | ✓ Reused | Real policy context from Rust |
+| Gridlock (as outcome) | ✓ Captured | Slow settlement days propagate via beats |
+| Gridlock (as mechanism) | ✗ Not applicable | Single-agent has no circular dependencies |
 | Strategic response | ✓ Delayed | Via daily re-optimization |
 | Same-day adaptation | ✗ Not modeled | But realistic (banks don't do this either) |
 
-**Legend**: ✓ = captured, ~ = partially/conservatively, ◯ = future enhancement, ✗ = not modeled
+**Legend**: ✓ = captured/reused, ✗ = not applicable (single-agent limitation)
+
+**Critical insight**: By using the Rust sandbox, we get **zero reimplementation**. Everything except multi-agent dynamics (LSM offsets, gridlock mechanism) is handled by real production code.
+
+```mermaid
+flowchart LR
+    subgraph Reused["REUSED from Rust (via Sandbox FFI)"]
+        Policy["Policy Evaluation"]
+        Context["Context Building<br/>(balance, credit_limit,<br/>collateral, queue, tick)"]
+        RTGS["RTGS Settlement"]
+        Costs["Cost Accrual"]
+        Collateral["Collateral Mechanics"]
+    end
+
+    subgraph NotApplicable["NOT APPLICABLE (Single-Agent)"]
+        LSM["LSM Offsets<br/>(no counterparty)"]
+        Gridlock["Gridlock Detection<br/>(no circular deps)"]
+    end
+
+    style Reused fill:#e8f5e9
+    style NotApplicable fill:#ffcdd2
+```
+
+**What the sandbox CANNOT capture** (fundamental single-agent limitations):
+- **LSM bilateral offsets**: Requires two agents with offsetting payments
+- **Gridlock mechanism**: Requires circular payment dependencies
+- These are captured **as outcomes** via historical settlement timing ("beats"), not as mechanisms
 
 ### 3.6 Data Scope Configuration
 
@@ -941,21 +977,228 @@ Interpretation:
 
 ## Part 6: Implementation Design
 
-### 6.1 Decision: Python First
+### 6.1 Decision: Reuse Rust Simulator with 3-Agent Sandbox
 
-After reviewing the architecture documentation:
+**Critical principle**: NEVER replicate simulation logic from Rust in Python. This is error-prone and creates maintenance burden.
 
-| Factor | Python | Rust |
-|--------|--------|------|
-| **FFI Principle** | "Minimal crossings" | Would add new FFI surface |
-| **Scope** | Single-agent, simplified | Full multi-agent dynamics |
-| **Foundation** | TransactionSampler exists | Start from scratch |
-| **Performance** | ~1ms/eval (adequate) | ~0.1ms/eval (overkill) |
-| **Research** | Fast iteration | Slower modification |
+**Original (flawed) approach**: Implement a simplified Python evaluator that tracks balance, credit, collateral, etc.
 
-**Decision**: Implement in Python. Bootstrap is fundamentally a **statistical procedure**, not a **simulation**. The Rust engine is designed for high-fidelity multi-agent simulation—bootstrap doesn't need that complexity.
+**Problem**: We'd be reimplementing:
+- Balance tracking
+- Credit headroom calculation
+- Collateral posting/withdrawal mechanics
+- Cost accrual formulas
+- Policy evaluation context building
 
-**Future path**: If bootstrap becomes production-critical with thousands of samples, add `Orchestrator.bootstrap_evaluate()` in Rust as a single FFI entry point.
+#### The RTGS Constraint
+
+After reviewing `docs/reference/architecture/06-settlement-engines.md`, a critical constraint emerged:
+
+> **RTGS requires two agents for settlement**. All balance changes happen through `try_settle()` which transfers funds from sender to receiver. There is no direct balance manipulation API.
+
+The original plan proposed `inject_liquidity_at_tick(tick, amount)` for direct balance credits. This won't work because:
+1. Rust's settlement engine doesn't support direct balance manipulation
+2. All credits/debits must flow through the settlement mechanism
+3. This is by design - it ensures balance conservation invariants
+
+#### Solution: 3-Agent Sandbox Architecture
+
+Instead of injecting liquidity directly, we create a sandbox with **three agents**:
+
+```mermaid
+flowchart TB
+    subgraph Sandbox["RUST SANDBOX (3 Agents)"]
+        subgraph Agents["Agent Configuration"]
+            SOURCE["SOURCE<br/>━━━━━━━━━━━━<br/>• Infinite balance<br/>• No policy<br/>• Sends 'beats' to A"]
+            A["AGENT A<br/>━━━━━━━━━━━━<br/>• Real balance<br/>• Real policy<br/>• Being evaluated"]
+            SINK["SINK<br/>━━━━━━━━━━━━<br/>• Infinite capacity<br/>• No policy<br/>• Receives from A"]
+        end
+
+        subgraph Flow["Transaction Flow"]
+            SOURCE -->|"Liquidity beats<br/>(pre-scheduled)"| A
+            A -->|"Outgoing payments<br/>(policy-controlled)"| SINK
+        end
+
+        subgraph Reused["ALL REUSED FROM RUST"]
+            RTGS["RTGS Settlement"]
+            Policy["Policy Evaluation"]
+            Costs["Cost Accrual"]
+            Collateral["Collateral Mechanics"]
+        end
+    end
+
+    A --> Policy
+    Policy --> RTGS
+    RTGS --> Costs
+
+    style SOURCE fill:#c8e6c9
+    style A fill:#fff3e0
+    style SINK fill:#ffcdd2
+    style Reused fill:#e3f2fd
+```
+
+| Agent | Role | Balance | Policy |
+|-------|------|---------|--------|
+| **SOURCE** | Sends liquidity beats to A | Infinite (e.g., $1B) | None (auto-release) |
+| **AGENT A** | The agent being evaluated | Real (from config) | **Being tested** |
+| **SINK** | Receives A's outgoing payments | Accepts all | None (auto-accept) |
+
+#### Why This Works
+
+**1. Liquidity Beats (SOURCE → A)**:
+- Pre-scheduled transactions from SOURCE to A at specific ticks
+- SOURCE has infinite balance, so RTGS always succeeds immediately
+- A receives liquidity at exactly the right tick (the "beat")
+- Uses real settlement mechanics - no special handling
+
+**2. Outgoing Payments (A → SINK)**:
+- A's outgoing transactions have `receiver_id: "SINK"`
+- A's policy decides when to release
+- Real RTGS checks: `A.balance + A.credit_limit >= amount`
+- If A has insufficient funds, transaction waits in queue (accruing delay costs)
+- SINK has infinite capacity - always accepts when A releases
+
+**3. No LSM Interference**:
+- LSM looks for bilateral offsets: A→B and B→A
+- In sandbox: SOURCE→A and A→SINK (no bilateral possible)
+- This is correct! Single-agent bootstrap shouldn't benefit from LSM
+- LSM effects are already captured in historical beat timing
+
+**4. Everything Else Reused**:
+- Balance tracking: Rust
+- Credit headroom: Rust (`balance + credit_limit`)
+- Collateral posting: Rust (if A's policy triggers it)
+- Cost accrual: Rust (overdraft, delay, deadline, overdue)
+- Policy evaluation context: Rust (50+ fields available)
+
+#### FFI Methods Required
+
+| Method | Purpose |
+|--------|---------|
+| `Orchestrator.new_bootstrap_sandbox(config)` | Create 3-agent sandbox environment |
+| `schedule_beat(tick, amount)` | Pre-schedule SOURCE→A transaction at tick |
+| `schedule_outgoing(tick, tx_config)` | Pre-schedule A's outgoing transaction arrival |
+
+**Alternative**: No new FFI methods needed if we can configure a regular simulation with:
+- 3 agents (SOURCE, A, SINK)
+- Pre-generated transaction list instead of Poisson arrivals
+- Infinite balances for SOURCE/SINK via large opening balance
+
+#### Example Implementation
+
+```python
+# Python orchestration layer
+def evaluate_policy_on_sample(
+    sample: BootstrapSample,
+    policy: Policy,
+    agent_config: AgentConfig,
+    cost_config: CostConfig,
+) -> PolicyEvaluationResult:
+    """Evaluate policy using Rust 3-agent sandbox - NO reimplementation."""
+
+    # Configuration for 3-agent sandbox
+    INFINITE_BALANCE = 10_000_000_000_00  # $100M in cents
+
+    sandbox_config = {
+        "ticks_per_day": sample.total_ticks,
+        "num_days": 1,
+        "agents": [
+            {
+                "id": "SOURCE",
+                "opening_balance": INFINITE_BALANCE,
+                "credit_limit": 0,
+                # No arrival config - transactions pre-scheduled
+            },
+            {
+                "id": sample.agent_id,  # "BANK_A"
+                "opening_balance": agent_config.opening_balance,
+                "credit_limit": agent_config.credit_limit,
+                "collateral_limit": agent_config.collateral_limit,
+            },
+            {
+                "id": "SINK",
+                "opening_balance": 0,  # Doesn't need balance (only receives)
+                "credit_limit": INFINITE_BALANCE,  # Can "owe" infinitely
+            },
+        ],
+        "cost_config": cost_config.to_dict(),
+        # Disable automatic arrivals - we inject transactions manually
+        "arrivals": {},
+    }
+
+    # Create sandbox
+    sandbox = Orchestrator.new_bootstrap_sandbox(sandbox_config)
+
+    # Set policy ONLY for Agent A (SOURCE/SINK auto-process)
+    sandbox.set_policy(sample.agent_id, policy.to_dict())
+
+    # Schedule liquidity beats: SOURCE → A
+    for beat in sample.incoming_settlements:
+        sandbox.schedule_beat(
+            tick=beat.settlement_tick,
+            sender_id="SOURCE",
+            receiver_id=sample.agent_id,
+            amount=beat.amount,
+        )
+
+    # Schedule outgoing transactions: A → SINK
+    for tx in sample.outgoing_txns:
+        sandbox.schedule_outgoing(
+            tick=tx.arrival_tick,
+            tx_config={
+                "tx_id": tx.tx_id,
+                "sender_id": sample.agent_id,
+                "receiver_id": "SINK",
+                "amount": tx.amount,
+                "deadline_tick": tx.deadline_tick,
+                "priority": tx.priority,
+            },
+        )
+
+    # Run simulation - ALL logic handled by Rust
+    for _ in range(sample.total_ticks):
+        sandbox.tick()
+
+    # Extract results for Agent A only
+    return PolicyEvaluationResult(
+        agent_id=sample.agent_id,
+        total_cost=sandbox.get_agent_total_cost(sample.agent_id),
+        overdraft_cost=sandbox.get_agent_overdraft_cost(sample.agent_id),
+        delay_cost=sandbox.get_agent_delay_cost(sample.agent_id),
+        deadline_penalties=sandbox.get_agent_deadline_penalties(sample.agent_id),
+        transactions_settled=sandbox.get_agent_settled_count(sample.agent_id),
+        transactions_missed=sandbox.get_agent_missed_count(sample.agent_id),
+    )
+```
+
+#### Why 3-Agent is Better Than Direct Injection
+
+| Aspect | Direct Injection (v2.6) | 3-Agent Sandbox (v2.7) |
+|--------|-------------------------|------------------------|
+| Balance changes | Requires new API | Uses existing RTGS |
+| Settlement invariants | Must implement | Automatically enforced |
+| Credit headroom check | New code path | Existing code path |
+| Collateral mechanics | Unknown integration | Already integrated |
+| Cost accrual | Must hook into | Automatically triggered |
+| Implementation effort | Medium (new FFI) | Low (config-based) |
+| Risk of bugs | Medium | Very low |
+
+#### Why Not Just 2 Agents?
+
+With only A and SINK:
+- No way to inject liquidity into A
+- A would only spend, never receive
+- Completely unrealistic evaluation
+
+With only SOURCE and A:
+- A has nowhere to send outgoing payments
+- Settlement would fail (no receiver)
+- Queue would grow forever
+
+The 3-agent setup is the **minimal configuration** that allows:
+- A to receive (from SOURCE)
+- A to send (to SINK)
+- Real settlement mechanics throughout
 
 ### 6.2 Component Architecture
 
@@ -963,35 +1206,36 @@ After reviewing the architecture documentation:
 flowchart TB
     subgraph Pipeline["BOOTSTRAP EVALUATION PIPELINE"]
 
-        subgraph Input["Input"]
+        subgraph Input["Input (Python)"]
             Verbose["VerboseOutput<br/>(events_by_tick)<br/>━━━━━━━━━━━━━━<br/>Raw events from<br/>Rust simulation"]
         end
 
-        subgraph Collector["TransactionHistoryCollector"]
+        subgraph Collector["TransactionHistoryCollector (Python)"]
             C1["• Parse Arrival events → TransactionRecord"]
-            C2["• Match Settlement events → update settlement_tick"]
+            C2["• Match Settlement events → update settlement_offset"]
             C3["• Handle LSM events (bilateral, cycle)"]
             C4["• Group by agent (outgoing vs incoming)"]
         end
 
-        subgraph History["AgentTransactionHistory"]
+        subgraph History["AgentTransactionHistory (Python)"]
             HA["BANK_A:<br/>├── outgoing: [tx1, tx2, ...]<br/>└── incoming: [tx3, tx4, ...]"]
             HB["BANK_B:<br/>├── outgoing: [tx5, tx6, ...]<br/>└── incoming: [tx1, tx2, ...]"]
         end
 
-        subgraph Sampler["BootstrapSampler"]
+        subgraph Sampler["BootstrapSampler (Python)"]
             S1["Input: AgentTransactionHistory, seed"]
-            S2["Algorithm:<br/>1. random.choices(outgoing)<br/>2. random.choices(incoming)<br/>3. Remap arrival ticks<br/>4. Remap settlement ticks (beats)"]
+            S2["Algorithm:<br/>1. random.choices(outgoing)<br/>2. random.choices(incoming)<br/>3. Remap to new arrival ticks<br/>4. Compute settlement ticks (beats)"]
             S3["Output: BootstrapSample"]
         end
 
-        subgraph Evaluator["BootstrapPolicyEvaluator"]
-            E1["Input: BootstrapSample, Policy, CostConfig"]
-            E2["for tick in range(total_ticks):<br/>  balance += incoming_at_tick<br/>  queue.extend(arrivals_at_tick)<br/>  releases = policy.decide()<br/>  settle if balance >= amount<br/>  costs.accrue()"]
-            E3["Output: PolicyEvaluationResult"]
+        subgraph Evaluator["3-Agent Rust Sandbox (FFI)"]
+            E1["new_bootstrap_sandbox(config)<br/>━━━━━━━━━━━━━━<br/>Creates: SOURCE, A, SINK"]
+            E2["schedule_beat() → SOURCE→A txns<br/>schedule_outgoing() → A→SINK txns"]
+            E3["tick() × N<br/>━━━━━━━━━━━━━━<br/>ALL LOGIC REUSED:<br/>• Policy evaluation (A only)<br/>• RTGS settlement<br/>• Cost accrual<br/>• Collateral mechanics"]
+            E4["get_agent_costs(A) →<br/>PolicyEvaluationResult"]
         end
 
-        subgraph Aggregate["Aggregation"]
+        subgraph Aggregate["Aggregation (Python)"]
             A1["mean_cost = Σ costs / n"]
             A2["std_cost = √variance"]
             A3["ci = percentile(2.5%, 97.5%)"]
@@ -1000,17 +1244,126 @@ flowchart TB
 
     Input --> Collector --> History
     History -->|"For each Monte Carlo sample"| Sampler
-    Sampler --> Evaluator --> Aggregate
+    Sampler -->|"FFI"| Evaluator
+    Evaluator --> Aggregate
 
     style Input fill:#e3f2fd
-    style Collector fill:#e8f5e9
-    style History fill:#fff3e0
-    style Sampler fill:#f3e5f5
-    style Evaluator fill:#fce4ec
-    style Aggregate fill:#e8f5e9
+    style Collector fill:#e3f2fd
+    style History fill:#e3f2fd
+    style Sampler fill:#e3f2fd
+    style Evaluator fill:#e8f5e9
+    style Aggregate fill:#e3f2fd
 ```
 
-### 6.3 Data Structures
+**Key insight**: Python handles data preparation and aggregation. Rust handles ALL simulation logic via 3-agent sandbox. No reimplementation.
+
+### 6.3 Sandbox Implementation Options
+
+There are two ways to implement the 3-agent sandbox:
+
+#### Option A: New FFI Methods (Clean API)
+
+Create dedicated FFI methods for bootstrap evaluation:
+
+```rust
+// In simulator/src/ffi/orchestrator.rs
+impl Orchestrator {
+    /// Create a bootstrap sandbox with SOURCE, A, SINK agents
+    #[pyo3(name = "new_bootstrap_sandbox")]
+    pub fn new_bootstrap_sandbox(config: PyDict) -> PyResult<Self> {
+        // Creates 3-agent setup with SOURCE/SINK having infinite balance
+        // Disables automatic arrivals
+        // Returns ready-to-use sandbox
+    }
+
+    /// Schedule a liquidity beat (SOURCE → A transaction)
+    #[pyo3(name = "schedule_beat")]
+    pub fn schedule_beat(&mut self, tick: i64, amount: i64) -> PyResult<()> {
+        // Pre-schedules transaction from SOURCE to evaluated agent
+    }
+
+    /// Schedule an outgoing transaction (A → SINK)
+    #[pyo3(name = "schedule_outgoing")]
+    pub fn schedule_outgoing(&mut self, tick: i64, tx_config: PyDict) -> PyResult<()> {
+        // Pre-schedules transaction from evaluated agent to SINK
+    }
+}
+```
+
+**Pros**: Clean API, explicit intent, optimized for bootstrap use case
+**Cons**: New FFI surface to maintain
+
+#### Option B: Use Existing FFI (No Changes)
+
+Configure a regular simulation with pre-generated transaction lists:
+
+```python
+def create_bootstrap_config(
+    sample: BootstrapSample,
+    agent_config: AgentConfig,
+    cost_config: CostConfig,
+) -> dict:
+    """Generate config for regular Orchestrator.new() that acts as bootstrap sandbox."""
+
+    INFINITE = 10_000_000_000_00  # $100M
+
+    # Pre-generate all transactions
+    transactions = []
+
+    # Liquidity beats: SOURCE → A
+    for i, beat in enumerate(sample.incoming_settlements):
+        transactions.append({
+            "tx_id": f"beat-{i}",
+            "sender_id": "SOURCE",
+            "receiver_id": sample.agent_id,
+            "amount": beat.amount,
+            "arrival_tick": beat.settlement_tick,  # Arrives = settles immediately
+            "deadline_tick": beat.settlement_tick + 1,
+            "priority": 10,  # High priority = immediate release
+        })
+
+    # Outgoing: A → SINK
+    for tx in sample.outgoing_txns:
+        transactions.append({
+            "tx_id": tx.tx_id,
+            "sender_id": sample.agent_id,
+            "receiver_id": "SINK",
+            "amount": tx.amount,
+            "arrival_tick": tx.arrival_tick,
+            "deadline_tick": tx.deadline_tick,
+            "priority": tx.priority,
+        })
+
+    return {
+        "ticks_per_day": sample.total_ticks,
+        "num_days": 1,
+        "seed": sample.seed,
+        "agents": [
+            {"id": "SOURCE", "opening_balance": INFINITE, "credit_limit": 0},
+            {"id": sample.agent_id, **agent_config.to_dict()},
+            {"id": "SINK", "opening_balance": 0, "credit_limit": INFINITE},
+        ],
+        "policies": {
+            "SOURCE": {"tree": {"action": "release"}},  # Always release immediately
+            sample.agent_id: policy.to_dict(),
+            "SINK": {"tree": {"action": "release"}},  # Always accept
+        },
+        "arrivals": {},  # Disable automatic generation
+        "transactions": transactions,  # Pre-generated list
+        "cost_config": cost_config.to_dict(),
+    }
+```
+
+**Pros**: No Rust changes, uses existing FFI
+**Cons**: Requires config support for pre-generated transaction list, slightly less explicit
+
+#### Recommendation
+
+Start with **Option B** if the simulator already supports pre-generated transaction lists (check `transactions` field in config). If not, implement **Option A** with minimal FFI surface.
+
+Either way, the key invariant is preserved: **ALL simulation logic stays in Rust**.
+
+### 6.4 Data Structures
 
 See Section 2.2 for the detailed `TransactionRecord` and `RemappedTransaction` dataclasses that implement the offset-based remapping mechanism.
 
@@ -1105,15 +1458,16 @@ class PolicyEvaluationResult:
 
 ### 8.2 Open Questions for Future Work
 
-1. **Should we add a simplified LSM model?**
-   - Current: No LSM in bootstrap (instant settlement if funds available)
-   - Option: Add bilateral offset check between outgoing and "virtual incoming"
-   - **Recommendation**: Phase 2 enhancement. Current model is conservative.
+1. **~~Should we add a simplified LSM model?~~** ✓ RESOLVED
+   - ~~Current: No LSM in bootstrap (instant settlement if funds available)~~
+   - **Resolution**: LSM for outgoing is NOT applicable (single-agent sandbox).
+     LSM effects for incoming are captured via historical settlement timing.
+     This is the correct design - no model needed.
 
-2. **Should we model credit headroom?**
-   - Current: Only balance matters for settlement
-   - Option: Add `balance + credit_limit >= amount` check
-   - **Recommendation**: Yes, add in Phase 1. Simple change with significant impact.
+2. **~~Should we model credit headroom?~~** ✓ RESOLVED
+   - ~~Current: Only balance matters for settlement~~
+   - **Resolution**: Yes, automatically included via Rust sandbox.
+     Real `balance + credit_limit >= amount` check used.
 
 3. **How to handle regime changes?**
    - Problem: Bootstrap assumes past ≈ future
@@ -1125,25 +1479,40 @@ class PolicyEvaluationResult:
    - Option: Collect history over multiple days, bootstrap from combined pool
    - **Recommendation**: Future enhancement for more robust estimates.
 
+5. **Should we implement Option A (new FFI) or Option B (config-based)?** NEW
+   - Option A: Cleaner API with dedicated `new_bootstrap_sandbox()` method
+   - Option B: Reuse existing FFI with pre-generated transaction list
+   - **Recommendation**: Start with Option B if supported, fall back to Option A.
+
 ### 8.3 Known Limitations to Document for Users
 
 ```markdown
 ## Limitations of Bootstrap Policy Evaluation
 
-1. **No strategic response modeling**: Other agents' behavior is treated as fixed.
+1. **No strategic response modeling**: Other agents' behavior is treated as fixed within an evaluation.
    Impact: May miss retaliatory responses or cooperation opportunities.
+   Mitigation: Strategic response IS captured over time via daily re-optimization.
 
-2. **Simplified settlement**: No LSM optimization, Queue 2 dynamics, or gridlock.
-   Impact: Underestimates benefit of LSM, overestimates delay costs.
+2. **No outgoing LSM benefits**: Single-agent sandbox cannot find bilateral offsets.
+   Impact: Underestimates benefit of LSM for outgoing transactions.
+   Mitigation: Incoming LSM benefits ARE captured via historical settlement timing ("beats").
 
 3. **Single-day horizon**: Bootstrap samples from one day's observations.
    Impact: May miss longer-term patterns or rare events.
+   Mitigation: Configure bootstrap window (e.g., 5 days) for more data.
 
 4. **Independence assumption**: Transactions resampled independently.
    Impact: May break temporal dependencies (e.g., clustered arrivals).
+   Mitigation: Stratified sampling option preserves amount distribution.
 
-5. **No collateral dynamics**: Credit headroom not currently modeled.
-   Impact: Underestimates liquidity options.
+5. **✓ ADDRESSED: Credit headroom**: Now fully modeled via Rust sandbox.
+   Uses real `balance + credit_limit >= amount` check.
+
+6. **✓ ADDRESSED: Collateral dynamics**: Now fully modeled via Rust sandbox.
+   Real collateral posting/withdrawal if policy triggers it.
+
+7. **✓ ADDRESSED: Cost accrual**: Now uses exact Rust formulas.
+   Overdraft, delay, deadline, overdue costs all match full simulation.
 ```
 
 ---
@@ -1577,4 +1946,4 @@ $$\widehat{\text{Var}}(\hat{\theta}) = \frac{1}{B-1} \sum_{b=1}^{B} \left( \hat{
 
 ---
 
-*Document Version 2.4 - All diagrams converted to mermaid for consistent rendering*
+*Document Version 2.7 - Refined 3-agent sandbox (SOURCE, A, SINK) based on RTGS two-agent requirement*
