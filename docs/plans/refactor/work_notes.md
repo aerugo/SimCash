@@ -375,6 +375,76 @@ TEST RESULTS:
 
 ---
 
+### Phase 4.5: Bootstrap Integration Tests with Mocked LLM
+
+**Status:** Not Started
+
+**Purpose:** Comprehensive integration tests that verify the bootstrap evaluation system
+works correctly with mocked LLM responses. These tests ensure:
+- Bootstrap samples are processed by both old and new policies
+- Delta costs are correctly calculated
+- Policies are accepted/rejected based on paired comparison results
+
+**Tests First (TDD):**
+- [ ] Write `tests/experiments/integration/test_bootstrap_policy_acceptance.py`
+- [ ] Test: Bootstrap samples are evaluated with old policy
+- [ ] Test: Bootstrap samples are evaluated with new policy (same samples!)
+- [ ] Test: Paired delta is computed correctly
+- [ ] Test: Policy is ACCEPTED when mean_delta > 0 (new policy cheaper)
+- [ ] Test: Policy is REJECTED when mean_delta <= 0 (old policy same or cheaper)
+- [ ] Test: End-to-end flow with mocked LLM returning valid policy JSON
+
+**Implementation:**
+- [ ] Create mock LLM client that returns deterministic policy updates
+- [ ] Create test scenarios with known cost outcomes
+- [ ] Verify exact sample reuse between old/new policy evaluation
+- [ ] Verify delta calculation matches expectations
+
+**Notes:**
+```
+(Add notes as work progresses)
+```
+
+---
+
+### Phase 4.6: Terminology Cleanup
+
+**Status:** Not Started
+
+**Purpose:** Fix incorrect terminology - use "bootstrap" consistently, NOT "Monte Carlo"
+or "Bootstrap Monte Carlo". Bootstrap sampling is a resampling technique, not Monte Carlo.
+
+**Files to Update:**
+- [ ] `api/payment_simulator/ai_cash_mgmt/bootstrap/__init__.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/bootstrap/models.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/bootstrap/sampler.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/config/game_config.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/core/game_orchestrator.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/core/game_session.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/optimization/policy_evaluator.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/persistence/models.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/persistence/repository.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/sampling/__init__.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/sampling/seed_manager.py`
+- [ ] `api/payment_simulator/ai_cash_mgmt/sampling/transaction_sampler.py`
+- [ ] `api/payment_simulator/cli/commands/ai_game.py`
+- [ ] `experiments/castro/castro/runner.py`
+- [ ] Documentation files
+
+**Terminology Changes:**
+- "Monte Carlo" → "bootstrap" or "bootstrap sampling"
+- "monte_carlo" → "bootstrap" (variable/function names)
+- "Bootstrap Monte Carlo" → "bootstrap" (this term doesn't exist)
+- "--verbose-monte-carlo" → "--verbose-bootstrap" (CLI flag)
+
+**Notes:**
+```
+(Add notes as work progresses)
+```
+
+---
+
 ### Phase 5: CLI Commands
 
 **Status:** Not Started
@@ -396,7 +466,7 @@ TEST RESULTS:
 - [ ] Implement `template` command
 - [ ] Register commands in main CLI app
 - [ ] Test CLI manually
-- [ ] Commit Phase 4 changes
+- [ ] Commit Phase 5 changes
 
 **Notes:**
 ```
@@ -447,6 +517,13 @@ TEST RESULTS:
 
 **Status:** Not Started
 
+**CLI Documentation (docs/reference/cli/):**
+- [ ] Update `docs/reference/cli/index.md` with experiment commands
+- [ ] Create `docs/reference/cli/experiment.md` for new experiment subcommand
+- [ ] Update existing CLI docs with corrected bootstrap terminology
+- [ ] Document `--verbose-bootstrap` flag (renamed from `--verbose-monte-carlo`)
+- [ ] Add examples for experiment run, validate, list, info commands
+
 **LLM Module Docs:**
 - [ ] Create `docs/reference/llm/index.md`
 - [ ] Create `docs/reference/llm/configuration.md`
@@ -467,12 +544,13 @@ TEST RESULTS:
 - [ ] Update `docs/reference/castro/index.md` (simplify)
 - [ ] Create `docs/reference/architecture/XX-experiment-framework.md`
 - [ ] Update main `CLAUDE.md` with new module info
+- [ ] Fix all "Monte Carlo" references in documentation to use "bootstrap"
 
 **Verification:**
 - [ ] All docs render correctly
 - [ ] Code examples work
 - [ ] Cross-references valid
-- [ ] Commit Phase 6 changes
+- [ ] Commit Phase 7 changes
 
 **Notes:**
 ```
