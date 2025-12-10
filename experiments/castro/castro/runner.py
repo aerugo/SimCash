@@ -212,6 +212,9 @@ class ExperimentRunner:
         self._best_cost: float = float("inf")
         self._best_policies: dict[str, dict[str, Any]] = {}
         self._best_agent_costs: dict[str, int] = {}
+        # Baseline costs per seed (for delta comparison across iterations)
+        # Key: seed, Value: cost from iteration 1
+        self._baseline_costs: dict[int, int] = {}
 
     async def run(self) -> ExperimentResult:
         """Run the experiment to convergence.
@@ -288,6 +291,12 @@ class ExperimentRunner:
                 ) = await self._evaluate_policies(iteration, capture_verbose=True)
                 console.print(f"  Total cost: ${total_cost / 100:.2f}")
 
+                # Store baseline costs on iteration 1 for delta comparison
+                is_baseline_run = iteration == 1
+                if is_baseline_run:
+                    for result in seed_results:
+                        self._baseline_costs[result.seed] = result.cost
+
                 # Verbose: Log Monte Carlo results
                 if seed_results:
                     import math
@@ -300,6 +309,7 @@ class ExperimentRunner:
                         mean_cost=mean_cost,
                         std_cost=std_cost,
                         deterministic=self._monte_carlo_config.deterministic,
+                        is_baseline_run=is_baseline_run,
                     )
 
                 # Track best
@@ -626,6 +636,9 @@ class ExperimentRunner:
         Runs Monte Carlo simulations with different seeds, captures verbose
         output, and builds a MonteCarloContextBuilder for per-agent context.
 
+        IMPORTANT: Seeds are consistent across iterations (based only on sample_idx)
+        to enable valid delta comparison between policies on the same transaction sets.
+
         Args:
             iteration: Current iteration number.
             capture_verbose: If True, capture tick-by-tick events for LLM context.
@@ -648,8 +661,10 @@ class ExperimentRunner:
         seeds: list[int] = []
 
         # Run Monte Carlo evaluation
+        # NOTE: Seeds are based only on sample_idx (not iteration) to ensure
+        # consistent transaction sets across iterations for valid delta comparison
         for sample_idx in range(num_samples):
-            seed = self._seed_manager.simulation_seed(iteration * 1000 + sample_idx)
+            seed = self._seed_manager.simulation_seed(sample_idx)
             seeds.append(seed)
 
             # Use first agent's policy (in full implementation, would inject per-agent)
@@ -678,8 +693,10 @@ class ExperimentRunner:
         context_builder = MonteCarloContextBuilder(results=results, seeds=seeds)
 
         # Build MonteCarloSeedResult list for verbose logging
+        # Include baseline_cost for delta comparison if available
         seed_results: list[MonteCarloSeedResult] = []
         for seed, result in zip(seeds, results, strict=True):
+            baseline_cost = self._baseline_costs.get(seed)
             seed_results.append(
                 MonteCarloSeedResult(
                     seed=seed,
@@ -687,6 +704,7 @@ class ExperimentRunner:
                     settled=result.transactions_settled,
                     total=result.transactions_settled + result.transactions_failed,
                     settlement_rate=result.settlement_rate,
+                    baseline_cost=baseline_cost,
                 )
             )
 
