@@ -262,6 +262,105 @@ A bank that delays while others pay promptly benefits from incoming liquidity wi
 
 ---
 
+## Policy Evaluation
+
+The simulation enables AI-driven policy optimization through Monte Carlo evaluation. This section describes the conceptual foundations.
+
+### The Single-Agent Perspective
+
+When evaluating policy performance, we adopt a **single-agent perspective**. For a bank's AI cash manager:
+
+**What the Agent Knows (Information Set):**
+| Known (✓) | Unknown (✗) |
+|-----------|-------------|
+| Current balance at central bank | Future payment arrivals |
+| Pending outgoing payments (amounts, deadlines, priorities) | Other banks' strategies |
+| Historical pattern of incoming payments | Exact timing of incoming settlements |
+| Cost parameters (overdraft rates, delay penalties) | |
+
+**What the Agent Controls:**
+- When to release outgoing transactions (Queue 1 → RTGS submission)
+- Which priority to assign for RTGS processing
+- Whether and how much collateral to post
+- Whether to split large payments
+
+**What is Exogenous (Fixed External Events):**
+- When counterparties pay (incoming liquidity timing)
+- Amounts of incoming payments
+- System-wide congestion patterns
+
+This separation is fundamental: the agent optimizes its decisions given the world it observes, but cannot control counterparty behavior within an evaluation period.
+
+### The Liquidity Beats Concept
+
+**Key insight**: Incoming settlements can be modeled as **"liquidity beats"**—fixed external events that define when an agent receives cash.
+
+Consider Agent A receiving payments from other banks:
+```
+Tick:    0    1    2    3    4    5    6    7    8    9    10   11   12
+         │    │    │    │    │    │    │    │    │    │    │    │    │
+         │    │    │    ▼    │    │    ▼    │    │    │    ▼    │    │
+         │    │    │  $50k   │    │  $30k   │    │    │  $80k   │    │
+         └────┴────┴─────────┴────┴─────────┴────┴────┴─────────┴────┴──►
+
+These "beats" define when Agent A receives liquidity.
+Agent A's policy decides when to SPEND this liquidity.
+```
+
+Like a musical beat, these are the rhythmic moments when liquidity arrives. The AI cannot change when other banks pay—it can only decide how to respond.
+
+**Why "beats" preserve system dynamics**: When historical transactions are used for policy evaluation, the **timing offsets are preserved**:
+
+- `deadline_offset = deadline_tick - arrival_tick` (how long until deadline)
+- `settlement_offset = settlement_tick - arrival_tick` (how long until settlement)
+
+If a historical transaction took 5 ticks to settle (due to Queue 2 wait, LSM cycles, or gridlock), that 5-tick offset is preserved when the transaction is resampled. This implicitly captures:
+- **LSM effects**: Quick settlements via bilateral offset
+- **Queue 2 dynamics**: Wait times for liquidity
+- **Gridlock effects**: Slow settlement days produce slow offset distributions
+
+### The Coordination Game
+
+The fundamental tension creates a coordination game between banks:
+
+```
+                      Bank B: Wait & See    |    Bank B: Pay Early
+            ─────────────────────────────────┼─────────────────────────────
+Bank A:     │                                │
+Pay Early   │  B pays A's liquidity          │  Both settle quickly
+            │  (A loses)                     │  (Mutual gain)
+            ─────────────────────────────────┼─────────────────────────────
+Bank A:     │                                │
+Wait & See  │  GRIDLOCK                      │  A pays B's liquidity
+            │  (Both suffer delays)          │  (B loses)
+            ─────────────────────────────────┴─────────────────────────────
+```
+
+**Game-theoretic interpretations**:
+
+**Stag Hunt** (when LSM is effective): If both cooperate (pay early), everyone benefits from quick settlement. If one defects (waits), the cooperator loses but the defector may benefit from recycling. The cooperative equilibrium is efficient but fragile.
+
+**Prisoner's Dilemma** (when liquidity is scarce): Individual incentive to wait dominates collective benefit of paying early. Without LSM intervention, gridlock is the Nash equilibrium.
+
+**Parameter sensitivity**: The game structure depends on the ratio of delay costs to liquidity costs:
+- High delay costs → Pay early is dominant strategy
+- Low delay costs, high liquidity costs → Wait is dominant strategy
+- Balanced costs → Mixed strategies emerge, LSM becomes crucial
+
+### Convergence Toward Equilibrium
+
+When multiple agents optimize policies simultaneously:
+
+1. **Day N**: Each agent uses policies optimized from Day N-1 observations
+2. **Run simulation**: Agents interact, creating new transaction history
+3. **Observe outcomes**: Each agent sees counterparty behavior reflected in settlement timing
+4. **Update policies**: Each agent proposes improvements via bootstrap Monte Carlo
+5. **Repeat**: Policies converge toward approximate equilibrium
+
+This **delayed best-response** dynamic is realistic—real treasury departments analyze yesterday's data to inform today's decisions, not react instantaneously.
+
+---
+
 ## Validation: Sanity-Checking New Features
 
 When implementing new features, validate against these real-world expectations:
@@ -343,22 +442,26 @@ The simulation is designed to explore questions like:
 
 | Term | Definition |
 |------|------------|
-| **RTGS** | Real-Time Gross Settlement—payments settle individually and immediately |
-| **LSM** | Liquidity-Saving Mechanism—algorithms that reduce liquidity needs through smart grouping |
+| **Algorithm Sequencing** | Formal order of LSM algorithms: FIFO → Bilateral → Multilateral |
+| **Best Response** | Optimal policy given fixed counterparty behaviors (building block for equilibrium) |
+| **Bilateral Limit** | Maximum outflow to a specific counterparty per day |
+| **Bilateral Offset** | Settling two opposing payments at net liquidity cost (Algorithm 2) |
+| **Bootstrap** | Statistical resampling technique for estimating distributions from observed data (Efron, 1979) |
+| **Credit Headroom** | Available intraday credit from central bank |
+| **Entry Disposition** | Offset check performed when payment enters Queue 2 |
 | **Finality** | Irreversibility of settled payments |
 | **Gridlock** | Circular dependency where all parties wait for each other |
+| **Internal Priority** | Bank's own urgency rating (0-10) for internal queue ordering |
+| **Liquidity Beats** | Sequence of incoming settlements as fixed external events in policy evaluation |
+| **LSM** | Liquidity-Saving Mechanism—algorithms that reduce liquidity needs through smart grouping |
+| **Multilateral Cycle** | Settling a ring of payments simultaneously (Algorithm 3) |
+| **Multilateral Limit** | Maximum total outflow to all counterparties per day |
 | **Queue 1** | Bank's internal queue (strategic holding) |
 | **Queue 2** | Central system queue (awaiting liquidity) |
-| **Bilateral Offset** | Settling two opposing payments at net liquidity cost (Algorithm 2) |
-| **Multilateral Cycle** | Settling a ring of payments simultaneously (Algorithm 3) |
-| **Tick** | Discrete time unit in the simulation |
-| **Credit Headroom** | Available intraday credit from central bank |
-| **Internal Priority** | Bank's own urgency rating (0-10) for internal queue ordering |
+| **RTGS** | Real-Time Gross Settlement—payments settle individually and immediately |
 | **RTGS Priority** | Declared priority for Queue 2: Highly Urgent, Urgent, or Normal |
-| **Bilateral Limit** | Maximum outflow to a specific counterparty per day |
-| **Multilateral Limit** | Maximum total outflow to all counterparties per day |
-| **Entry Disposition** | Offset check performed when payment enters Queue 2 |
-| **Algorithm Sequencing** | Formal order of LSM algorithms: FIFO → Bilateral → Multilateral |
+| **Settlement Offset** | Time from transaction arrival to actual settlement (captures LSM/queue delays) |
+| **Tick** | Discrete time unit in the simulation |
 
 ---
 
@@ -370,6 +473,7 @@ The simulation draws on concepts from:
 2. **Nationalbanken** - "Gridlock Resolution in Payment Systems" research
 3. **Riksbank** - RIX-RTGS documentation and T2 integration plans
 4. **Bank for International Settlements** - CPMI reports on payment system design
+5. **Efron, B. (1979)** - "Bootstrap methods: Another look at the jackknife" (*Annals of Statistics*) - Foundation for statistical resampling in policy evaluation
 
 For implementation details, see the technical documentation in `CLAUDE.md` and the architecture guide in `docs/architecture.md`.
 
