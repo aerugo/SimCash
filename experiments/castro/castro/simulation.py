@@ -190,9 +190,11 @@ class CastroSimulationRunner:
         tx_counts = orch.get_transaction_counts_debug()
 
         # Calculate settlement metrics
-        settled = tx_counts.get("settled", 0)
-        failed = tx_counts.get("failed", 0)
-        total_tx = settled + failed
+        # Note: Use correct keys from Rust FFI
+        arrivals = tx_counts.get("arrivals", 0)
+        settled = tx_counts.get("settled_arrivals", 0)
+        failed = arrivals - settled  # Failed = total arrivals minus settled
+        total_tx = arrivals  # Total is just arrivals (not children)
 
         settlement_rate = settled / total_tx if total_tx > 0 else 1.0
 
