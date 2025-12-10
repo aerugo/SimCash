@@ -123,21 +123,44 @@ The foundation is now in place:
 
 ### Phase 1: Preparation (Pre-Refactor)
 
-**Status:** Not Started
+**Status:** COMPLETED (2025-12-10)
 
-- [ ] Create `api/payment_simulator/llm/` directory
-- [ ] Create `api/payment_simulator/experiments/` directory structure
-- [ ] Create empty `__init__.py` files
-- [ ] Create `api/payment_simulator/llm/protocol.py` with protocol stubs
-- [ ] Create `api/tests/llm/` directory
-- [ ] Create `api/tests/experiments/` directory
-- [ ] Create test fixture YAML files in `api/tests/fixtures/experiments/`
-- [ ] Verify all existing tests still pass
-- [ ] Commit Phase 1 changes
+- [x] Create `api/payment_simulator/llm/` directory
+- [x] Create `api/payment_simulator/experiments/` directory structure
+- [x] Create empty `__init__.py` files
+- [x] Create `api/payment_simulator/llm/protocol.py` with protocol stubs
+- [x] Create `api/tests/llm/` directory
+- [x] Create `api/tests/experiments/` directory
+- [ ] Create test fixture YAML files in `api/tests/fixtures/experiments/` (DEFERRED to Phase 3)
+- [x] Verify all existing tests still pass
+- [x] Commit Phase 1 changes
 
 **Notes:**
 ```
-(Add notes as work progresses)
+2025-12-10: PHASE 1 COMPLETE
+- Created api/payment_simulator/llm/ module with:
+  - __init__.py - exports LLMClientProtocol
+  - protocol.py - LLMClientProtocol with @runtime_checkable
+    * generate_structured_output() method
+    * generate_text() method
+
+- Created api/payment_simulator/experiments/ module with:
+  - __init__.py
+  - config/__init__.py - placeholder for experiment config loader
+  - runner/__init__.py - placeholder for experiment runner
+  - persistence/__init__.py - placeholder for experiment persistence
+
+- Created test structure:
+  - api/tests/llm/test_protocol.py - 6 tests for LLMClientProtocol
+  - api/tests/experiments/test_module_structure.py - 4 tests for module imports
+
+TEST RESULTS:
+- LLM protocol tests: 6/6 passed
+- Experiments module structure tests: 4/4 passed
+- All existing tests continue to pass
+
+Note: Test fixture YAML files deferred to Phase 3 (Experiment Config Framework)
+since they require the ExperimentConfig schema to be defined first.
 ```
 
 ---
