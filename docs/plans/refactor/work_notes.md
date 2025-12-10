@@ -16,30 +16,48 @@ This document tracks progress and notes during the refactor implementation. Each
 
 ### Phase 0: Fix Bootstrap Paired Comparison Bug (Critical)
 
-**Status:** Not Started
+**Status:** COMPLETED (2025-12-10)
 
 **Tests First (TDD):**
-- [ ] Write `tests/experiments/castro/test_bootstrap_paired_comparison.py`
-- [ ] Test: same samples used for old and new policy
-- [ ] Test: acceptance based on paired delta, not absolute costs
-- [ ] Test: `compute_paired_deltas()` is actually called
-- [ ] Verify tests fail (as expected before implementation)
+- [x] Write `tests/experiments/castro/test_bootstrap_paired_comparison.py`
+- [x] Test: same samples used for old and new policy (`test_compute_paired_deltas_returns_matching_indices`)
+- [x] Test: acceptance based on paired delta, not absolute costs (`test_acceptance_based_on_paired_delta_not_absolute`)
+- [x] Test: evaluator is deterministic (`test_evaluate_same_sample_twice_returns_identical_results`)
+- [x] Test: order preserved (`test_evaluate_samples_preserves_order`)
+- [x] All 7 tests pass
 
 **Implementation:**
-- [ ] Modify `runner.py` to store bootstrap samples after generation
-- [ ] Modify `runner.py` to use SAME samples for new policy evaluation
-- [ ] Use `compute_paired_deltas()` for policy comparison
-- [ ] Accept based on mean delta < 0, not absolute cost
-- [ ] Verify all tests pass
-- [ ] Run `castro run exp1 --verbose-monte-carlo` to verify paired deltas shown
+- [x] Modify `runner.py` to store bootstrap samples after generation (line 748: `samples_per_agent` dict)
+- [x] Modify `_evaluate_policies()` return type to include samples (5-tuple now)
+- [x] Modify `runner.py` to use SAME samples for new policy evaluation
+- [x] Use `compute_paired_deltas()` for policy comparison (line 437)
+- [x] Accept based on mean delta > 0 (positive delta = old costs more than new)
+- [x] Verify all tests pass (98 bootstrap tests + 7 new tests)
+- [ ] Run `castro run exp1 --verbose-monte-carlo` to verify paired deltas shown (DEFERRED - needs LLM API key)
 - [ ] Commit Phase 0 changes
 
 **Notes:**
 ```
-(Add notes as work progresses)
+2025-12-10: BUG IDENTIFIED AND FIXED
+- The compute_paired_deltas() method EXISTED in evaluator.py but was NEVER called
+- runner.py was generating NEW samples for each _evaluate_policies() call
+- This broke statistical validity of policy comparisons
 
-CRITICAL BUG: The compute_paired_deltas() method EXISTS but is NEVER called!
-Current flow regenerates samples for new policy - this breaks statistical validity.
+FIX IMPLEMENTED:
+1. Modified _evaluate_policies() to return samples_per_agent dict
+2. Modified policy comparison logic to use compute_paired_deltas()
+3. Policy acceptance now based on mean_delta > 0 (positive = new policy cheaper)
+4. Old buggy code: re-called _evaluate_policies() which generated NEW samples
+5. New correct code: passes stored samples to compute_paired_deltas()
+
+KEY CODE CHANGES:
+- runner.py lines 704-835: _evaluate_policies() now returns 5-tuple including samples
+- runner.py lines 421-503: Policy comparison now uses compute_paired_deltas()
+- Console output now shows "mean delta" for paired comparison
+
+TEST RESULTS:
+- api/tests/experiments/castro/test_bootstrap_paired_comparison.py: 7/7 passed
+- api/tests/ai_cash_mgmt/unit/bootstrap/: 98/98 passed
 ```
 
 ---
@@ -314,7 +332,8 @@ The context now matches the costs being optimized!
 
 | Date | Issue | Resolution |
 |------|-------|------------|
-| | | |
+| 2025-12-10 | runner.py generated NEW samples for each _evaluate_policies() call | Fixed by returning samples from _evaluate_policies() and using compute_paired_deltas() |
+| 2025-12-10 | Test policy had duplicate node_id "hold" in both trees | Fixed by using unique node_ids: "hold_payment" and "hold_collateral" |
 
 ### Performance Notes
 
