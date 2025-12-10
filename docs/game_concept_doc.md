@@ -354,7 +354,7 @@ When multiple agents optimize policies simultaneously:
 1. **Day N**: Each agent uses policies optimized from Day N-1 observations
 2. **Run simulation**: Agents interact, creating new transaction history
 3. **Observe outcomes**: Each agent sees counterparty behavior reflected in settlement timing
-4. **Update policies**: Each agent proposes improvements via bootstrap Monte Carlo
+4. **Update policies**: Each agent proposes improvements via bootstrap evaluation
 5. **Repeat**: Policies converge toward approximate equilibrium
 
 This **delayed best-response** dynamic is realistic—real treasury departments analyze yesterday's data to inform today's decisions, not react instantaneously.
