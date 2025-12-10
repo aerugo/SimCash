@@ -101,6 +101,14 @@ def run(
         bool,
         typer.Option("--quiet", "-q", help="Suppress verbose output"),
     ] = False,
+    bootstrap: Annotated[
+        bool,
+        typer.Option(
+            "--bootstrap",
+            "-b",
+            help="Use bootstrap sampling for Monte Carlo policy evaluation",
+        ),
+    ] = False,
 ) -> None:
     """Run a Castro experiment.
 
@@ -129,6 +137,9 @@ def run(
 
         # Specific verbose modes
         castro run exp1 --verbose-policy --verbose-monte-carlo
+
+        # Bootstrap evaluation mode
+        castro run exp2 --bootstrap
     """
     from castro.verbose_logging import VerboseConfig
 
@@ -165,6 +176,7 @@ def run(
         model=model,
         thinking_budget=thinking_budget,
         reasoning_effort=reasoning_effort,
+        use_bootstrap=bootstrap,
     )
 
     # Override settings if specified
@@ -253,6 +265,8 @@ def info(
     table.add_row("Output Directory", str(exp.output_dir))
     table.add_row("", "")
     table.add_row("[bold]Monte Carlo[/bold]", "")
+    table.add_row("  Deterministic", "Yes" if exp.deterministic else "No")
+    table.add_row("  Bootstrap", "Yes" if exp.use_bootstrap else "No")
     table.add_row("  Samples", str(exp.num_samples))
     table.add_row("  Evaluation Ticks", str(exp.evaluation_ticks))
     table.add_row("", "")
