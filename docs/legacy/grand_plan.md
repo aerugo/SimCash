@@ -1603,6 +1603,83 @@ This is **not optional** - persistence is required for research reproducibility 
    - Flag regressions or anomalies
    - Automatic rejection of unsafe policies
 
+#### Bootstrap Policy Evaluation
+
+**Theoretical Foundation**: Bootstrap resampling provides a principled statistical approach to policy evaluation that aligns with how a real-world AI cash manager would reason about performance under uncertainty.
+
+**The Core Problem**: A bank's AI cash manager cannot know the true distribution of future payment arrivals. It can only observe what has happened historically and reason about what might happen based on that data. Traditional parametric Monte Carlo assumes we know the true distribution (e.g., "arrivals follow Poisson(λ=5) with LogNormal amounts"), but this assumption may be wrong.
+
+**Why Bootstrap?** (Efron, 1979): The bootstrap treats the empirical distribution of observed data as an approximation of the unknown true distribution:
+
+```
+Parametric Monte Carlo:
+  "Assume arrivals follow Poisson(λ=5). Generate synthetic days."
+  Problem: How do we know λ=5 is correct?
+
+Bootstrap:
+  "I don't know the true distribution. Resample from observed history."
+  Advantage: No parametric assumptions required.
+```
+
+**Statistical Guarantees**:
+- **Consistency**: Bootstrap distribution converges to true sampling distribution as sample size increases
+- **Variance Estimation**: Provides unbiased estimates without parametric assumptions
+- **Confidence Intervals**: Percentile method gives valid CIs for expected policy cost:
+  ```
+  CI_95% = [θ*_(2.5%), θ*_(97.5%)]
+  ```
+
+**Single-Agent Perspective**: Bootstrap evaluation adopts a single-agent view where:
+- **Controllable**: When to release payments, which priority, whether to post collateral
+- **Exogenous**: Incoming settlements from counterparties arrive at historical timings ("liquidity beats")
+
+**The "Liquidity Beats" Concept**: Incoming settlements are treated as fixed external events that define when Agent A receives liquidity. These "beats" preserve all system dynamics from the historical observation:
+- LSM effects encoded in settlement timing
+- Queue 2 waiting times included in settlement offset
+- Gridlock effects captured as slow settlement distributions
+
+See `game_concept_doc.md` Section "Policy Evaluation" for detailed treatment.
+
+**Transaction Remapping**: Historical transactions are stored with relative timing offsets (deadline_offset, settlement_offset). During bootstrap:
+1. Sample transaction from history
+2. Assign new arrival tick (uniformly sampled)
+3. Remap deadline and settlement using preserved offsets:
+   - `new_deadline = new_arrival + deadline_offset`
+   - `new_settlement = new_arrival + settlement_offset`
+
+This ensures LSM/Queue2/gridlock effects propagate correctly.
+
+**What Bootstrap Captures**:
+| Aspect | Captured? | How |
+|--------|-----------|-----|
+| Transaction uncertainty | ✓ | Resampling variation |
+| Amount distribution | ✓ | Empirical distribution |
+| Timing patterns | ✓ | Historical clustering |
+| Counterparty behavior | ✓ | Delayed response (daily updates) |
+| LSM/Queue2 effects (incoming) | ✓ | Via historical settlement timing |
+| Gridlock (as outcome) | ✓ | Slow settlement distributions |
+| Strategic response | ✓ | Via daily re-optimization |
+
+**Conservative Estimates**: Bootstrap provides conservative estimates for outgoing settlements (assumes no LSM benefits). If a policy works well under bootstrap, it will likely work better in reality where LSM may find bilateral offsets.
+
+**Optimization Objective**: Bootstrap enables **best-response policy optimization**:
+```
+Given counterparty behaviors (fixed, from history):
+  π* = argmin E[Cost | π]
+
+This is NOT Nash equilibrium (which requires mutual best response),
+but becomes approximate equilibrium through daily iteration.
+```
+
+**Convergence via Daily Updates**: When all agents optimize daily using bootstrap:
+1. Day N: Use policies optimized from Day N-1 history
+2. Run simulation, collect new transactions
+3. Each agent bootstraps from Day N observations
+4. Propose improved policies for Day N+1
+5. Repeat → policies converge toward equilibrium
+
+This delayed response IS realistic—real treasury departments don't react instantaneously to competitor strategies.
+
 #### Multi-Agent Learning
 **Deliverable**: Simultaneous policy evolution
 
@@ -3276,6 +3353,8 @@ agents:
 | **Arrival** | New payment order entering a bank's Queue 1 |
 | **Balance** | Bank's settlement account balance at central bank (can go negative with credit) |
 | **Bilateral Offsetting** | LSM technique: net A→B and B→A transactions to reduce gross settlement |
+| **Bootstrap** | Statistical resampling technique: sample with replacement from observed data to estimate distributions without parametric assumptions (Efron, 1979) |
+| **Bootstrap Sample** | One resampled dataset used for Monte Carlo evaluation (transactions drawn with replacement from historical observations) |
 | **Cash Manager** | Treasury operations role making intraday payment decisions (modeled by policies) |
 | **Collateral** | Assets posted to secure intraday credit (incurs opportunity cost) |
 | **Credit Limit** | Maximum intraday overdraft allowed (balance can go to `balance - credit_limit`) |
@@ -3288,6 +3367,7 @@ agents:
 | **FFI (Foreign Function Interface)** | Boundary between Rust and Python (via PyO3) |
 | **Gridlock** | Situation where all banks wait for inflows, no settlements occur |
 | **Headroom** | Remaining unused credit capacity (`credit_limit + balance` if balance > 0) |
+| **Liquidity Beats** | The sequence of incoming settlements treated as fixed external events in bootstrap evaluation—defines when an agent receives liquidity from counterparties |
 | **Liquidity Pressure** | Metric of how constrained an agent's liquidity is (0-1 scale) |
 | **LSM (Liquidity-Saving Mechanism)** | Queue optimization techniques (offsetting, cycles) |
 | **Nostro** | Account held at correspondent bank for cross-border settlements |
