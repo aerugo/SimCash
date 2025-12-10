@@ -43,7 +43,7 @@ agents:
     unsecured_cap: 100000
     max_collateral_capacity: 10000000
     # Stochastic arrivals
-    arrivals:
+    arrival_config:
       rate_per_tick: 2.0  # Poisson lambda
       amount_distribution:
         type: LogNormal
@@ -51,16 +51,13 @@ agents:
         std_dev: 5000
       counterparty_weights:
         BANK_B: 1.0
-      deadline_distribution:
-        type: Uniform
-        min_ticks: 3
-        max_ticks: 8
+      deadline_range: [3, 8]  # [min_ticks, max_ticks]
 
   - id: BANK_B
     opening_balance: 0
     unsecured_cap: 100000
     max_collateral_capacity: 10000000
-    arrivals:
+    arrival_config:
       rate_per_tick: 2.0
       amount_distribution:
         type: LogNormal
@@ -68,7 +65,4 @@ agents:
         std_dev: 5000
       counterparty_weights:
         BANK_A: 1.0
-      deadline_distribution:
-        type: Uniform
-        min_ticks: 3
-        max_ticks: 8
+      deadline_range: [3, 8]
