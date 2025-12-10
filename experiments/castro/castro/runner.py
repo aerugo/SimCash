@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    pass  # Add any TYPE_CHECKING imports here as needed
+    from payment_simulator.ai_cash_mgmt.bootstrap.models import BootstrapSample
 
 from payment_simulator.ai_cash_mgmt import (
     ConstraintValidator,
@@ -299,11 +299,13 @@ class ExperimentRunner:
                 console.print(f"[cyan]Iteration {iteration}[/cyan]")
 
                 # 1. Evaluate current policies using bootstrap sampling
+                # CRITICAL: samples_per_agent MUST be reused for paired comparison
                 (
                     total_cost,
                     per_agent_costs,
                     context_builder,
                     seed_results,
+                    samples_per_agent,
                 ) = await self._evaluate_policies(iteration, capture_verbose=True)
                 console.print(f"  Total cost: ${total_cost / 100:.2f}")
 
@@ -416,66 +418,89 @@ class ExperimentRunner:
                         )
                         exp_repo.save_event(llm_event)
 
-                    # Evaluate new policy cost BEFORE accepting
+                    # Evaluate new policy using PAIRED COMPARISON
+                    # CRITICAL FIX: Use compute_paired_deltas() with SAME samples
                     actually_accepted = False
                     new_cost = result.old_cost
                     old_policy_for_logging = self._policies[agent_id].copy()
+                    mean_delta = 0.0
 
                     if result.was_accepted and result.new_policy:
-                        # Temporarily apply new policy and evaluate
                         old_policy = self._policies[agent_id]
-                        self._policies[agent_id] = result.new_policy
 
-                        # Re-evaluate without verbose capture (performance optimization)
-                        _eval_total, eval_per_agent, _, _ = await self._evaluate_policies(
-                            iteration, capture_verbose=False
-                        )
-                        new_cost = eval_per_agent.get(agent_id, result.old_cost)
+                        # Get the bootstrap samples generated for this agent this iteration
+                        agent_samples = samples_per_agent.get(agent_id, [])
 
-                        # Only accept if cost improved
-                        if new_cost < result.old_cost:
-                            actually_accepted = True
-                            console.print(
-                                f"    [green]Policy improved: "
-                                f"${result.old_cost/100:.2f} → ${new_cost/100:.2f}[/green]"
+                        if agent_samples and self._bootstrap_evaluator is not None:
+                            # PAIRED COMPARISON: Evaluate BOTH policies on SAME samples
+                            # delta = cost_old - cost_new, positive means new is cheaper
+                            deltas = self._bootstrap_evaluator.compute_paired_deltas(
+                                samples=agent_samples,
+                                policy_a=old_policy,
+                                policy_b=result.new_policy,
+                            )
+                            mean_delta = self._bootstrap_evaluator.compute_mean_delta(
+                                deltas
                             )
 
-                            # Verbose: Log accepted policy change
-                            self._verbose_logger.log_policy_change(
-                                agent_id=agent_id,
-                                old_policy=old_policy_for_logging,
-                                new_policy=result.new_policy,
-                                old_cost=int(result.old_cost),
-                                new_cost=int(new_cost),
-                                accepted=True,
+                            # Calculate mean costs from deltas for logging
+                            old_cost_mean = (
+                                sum(d.cost_a for d in deltas) // len(deltas)
+                                if deltas
+                                else int(result.old_cost)
                             )
-                        else:
-                            # Revert to old policy
-                            self._policies[agent_id] = old_policy
-                            console.print(
-                                f"    [yellow]Rejected: cost not improved "
-                                f"(${result.old_cost/100:.2f} → ${new_cost/100:.2f})[/yellow]"
+                            new_cost = (
+                                sum(d.cost_b for d in deltas) // len(deltas)
+                                if deltas
+                                else int(result.old_cost)
                             )
 
-                            # Verbose: Log cost-rejected policy change
-                            self._verbose_logger.log_policy_change(
-                                agent_id=agent_id,
-                                old_policy=old_policy_for_logging,
-                                new_policy=result.new_policy,
-                                old_cost=int(result.old_cost),
-                                new_cost=int(new_cost),
-                                accepted=False,
-                            )
-                            self._verbose_logger.log_rejection(
-                                RejectionDetail(
-                                    agent_id=agent_id,
-                                    proposed_policy=result.new_policy,
-                                    validation_errors=[],
-                                    rejection_reason="cost_not_improved",
-                                    old_cost=int(result.old_cost),
-                                    new_cost=int(new_cost),
+                            # Accept if new policy is cheaper (delta > 0 means A costs more than B)
+                            if mean_delta > 0:
+                                actually_accepted = True
+                                self._policies[agent_id] = result.new_policy
+                                console.print(
+                                    f"    [green]Policy improved: "
+                                    f"mean delta ${mean_delta/100:.2f} "
+                                    f"(${old_cost_mean/100:.2f} → ${new_cost/100:.2f})[/green]"
                                 )
-                            )
+
+                                # Verbose: Log accepted policy change
+                                self._verbose_logger.log_policy_change(
+                                    agent_id=agent_id,
+                                    old_policy=old_policy_for_logging,
+                                    new_policy=result.new_policy,
+                                    old_cost=old_cost_mean,
+                                    new_cost=int(new_cost),
+                                    accepted=True,
+                                )
+                            else:
+                                # Keep old policy (don't need to revert, never changed)
+                                console.print(
+                                    f"    [yellow]Rejected: paired comparison "
+                                    f"mean delta ${mean_delta/100:.2f} "
+                                    f"(${old_cost_mean/100:.2f} → ${new_cost/100:.2f})[/yellow]"
+                                )
+
+                                # Verbose: Log cost-rejected policy change
+                                self._verbose_logger.log_policy_change(
+                                    agent_id=agent_id,
+                                    old_policy=old_policy_for_logging,
+                                    new_policy=result.new_policy,
+                                    old_cost=old_cost_mean,
+                                    new_cost=int(new_cost),
+                                    accepted=False,
+                                )
+                                self._verbose_logger.log_rejection(
+                                    RejectionDetail(
+                                        agent_id=agent_id,
+                                        proposed_policy=result.new_policy,
+                                        validation_errors=[],
+                                        rejection_reason="paired_comparison_not_improved",
+                                        old_cost=old_cost_mean,
+                                        new_cost=int(new_cost),
+                                    )
+                                )
 
                     # Update result for database record
                     result.was_accepted = actually_accepted
@@ -705,7 +730,13 @@ class ExperimentRunner:
         self,
         iteration: int,
         capture_verbose: bool = True,
-    ) -> tuple[int, dict[str, int], MonteCarloContextBuilder, list[MonteCarloSeedResult]]:
+    ) -> tuple[
+        int,
+        dict[str, int],
+        MonteCarloContextBuilder,
+        list[MonteCarloSeedResult],
+        dict[str, list[BootstrapSample]],
+    ]:
         """Evaluate current policies using bootstrap sampling.
 
         Bootstrap evaluation:
@@ -718,7 +749,9 @@ class ExperimentRunner:
             capture_verbose: If True, capture tick-by-tick events (not used in bootstrap).
 
         Returns:
-            Tuple of (total_cost, per_agent_costs, context_builder, seed_results).
+            Tuple of (total_cost, per_agent_costs, context_builder, seed_results, samples_per_agent).
+            The samples_per_agent dict maps agent_id to list of BootstrapSamples,
+            which MUST be reused for paired comparison when evaluating new policies.
         """
         if self._bootstrap_sampler is None or self._bootstrap_evaluator is None:
             msg = "Bootstrap components not initialized"
@@ -735,6 +768,10 @@ class ExperimentRunner:
         results: list[SimulationResult] = []
         seeds: list[int] = []
 
+        # CRITICAL: Store samples for paired comparison
+        # These MUST be reused when comparing old vs new policy
+        samples_per_agent: dict[str, list[BootstrapSample]] = {}
+
         # Evaluate each agent using bootstrap
         for agent_id in self._experiment.optimized_agents:
             history = self._transaction_history.get(agent_id)
@@ -744,7 +781,7 @@ class ExperimentRunner:
             # Get policy for this agent
             policy = self._policies.get(agent_id, {})
 
-            # Generate bootstrap samples
+            # Generate bootstrap samples ONCE per iteration
             samples = self._bootstrap_sampler.generate_samples(
                 agent_id=agent_id,
                 n_samples=num_samples,
@@ -752,6 +789,9 @@ class ExperimentRunner:
                 incoming_records=history.incoming,
                 total_ticks=self._monte_carlo_config.evaluation_ticks,
             )
+
+            # Store samples for paired comparison
+            samples_per_agent[agent_id] = samples
 
             # Evaluate on each sample
             agent_costs: list[int] = []
@@ -817,7 +857,7 @@ class ExperimentRunner:
                 )
             )
 
-        return mean_total, mean_per_agent, context_builder, seed_results
+        return mean_total, mean_per_agent, context_builder, seed_results, samples_per_agent
 
     def _create_session_record(self) -> GameSessionRecord:
         """Create initial session record.

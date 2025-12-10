@@ -18,7 +18,7 @@ class SeedManager:
     Seed derivation hierarchy:
     - master_seed
       ├── simulation_seed (for running the main simulation)
-      ├── sampling_seed (for Monte Carlo transaction sampling)
+      ├── sampling_seed (for bootstrap transaction sampling)
       │   ├── iteration_N_agent_A
       │   ├── iteration_N_agent_B
       │   └── ...
@@ -72,7 +72,7 @@ class SeedManager:
         return self.derive_seed("simulation", iteration)
 
     def sampling_seed(self, iteration: int, agent_id: str) -> int:
-        """Seed for Monte Carlo sampling for specific agent/iteration.
+        """Seed for bootstrap sampling for specific agent/iteration.
 
         Args:
             iteration: The optimization iteration number.
