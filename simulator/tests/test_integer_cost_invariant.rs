@@ -515,3 +515,91 @@ fn test_cost_calculation_determinism() {
                    "Run {} produced different cost: {} vs {}", i, result, first_result);
     }
 }
+
+// ============================================================================
+// INVARIANT 7: NaN and Inf rates produce zero cost, not garbage
+// ============================================================================
+
+#[test]
+fn test_nan_rate_produces_zero_cost() {
+    // Test that NaN rates are handled safely (return 0, not garbage)
+    let mut config = create_test_config();
+    config.cost_rates.overdraft_bps_per_tick = f64::NAN;
+    config.cost_rates.delay_cost_per_tick_per_cent = f64::NAN;
+    config.cost_rates.collateral_cost_per_tick_bps = f64::NAN;
+    config.cost_rates.liquidity_cost_per_tick_bps = f64::NAN;
+    config.agent_configs[0].opening_balance = -1_000_000; // In overdraft
+    config.agent_configs[0].unsecured_cap = 2_000_000;
+    config.agent_configs[0].posted_collateral = Some(1_000_000);
+
+    let mut orchestrator = Orchestrator::new(config).unwrap();
+
+    // Queue transaction to create delay cost scenario
+    let tx = Transaction::new("BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 10);
+    orchestrator.state_mut().add_transaction(tx.clone());
+    orchestrator.state_mut().get_agent_mut("BANK_A").unwrap().queue_outgoing(tx.id().to_string());
+
+    // Run several ticks
+    for _ in 0..10 {
+        orchestrator.tick().unwrap();
+    }
+
+    let costs = orchestrator.get_costs("BANK_A").unwrap();
+
+    // With NaN rates, all costs should be zero (not garbage/negative)
+    assert_eq!(costs.total_liquidity_cost, 0, "NaN overdraft rate should produce 0 cost");
+    assert_eq!(costs.total_delay_cost, 0, "NaN delay rate should produce 0 cost");
+    assert_eq!(costs.total_collateral_cost, 0, "NaN collateral rate should produce 0 cost");
+    assert_eq!(costs.total_liquidity_opportunity_cost, 0, "NaN liquidity rate should produce 0 cost");
+
+    // Total should also be zero (modulo any penalties which use integer rates)
+    assert!(costs.total() >= 0, "Total cost should not be negative");
+}
+
+#[test]
+fn test_inf_rate_produces_zero_cost() {
+    // Test that Infinity rates are handled safely (return 0, not garbage)
+    let mut config = create_test_config();
+    config.cost_rates.overdraft_bps_per_tick = f64::INFINITY;
+    config.cost_rates.delay_cost_per_tick_per_cent = f64::INFINITY;
+    config.cost_rates.collateral_cost_per_tick_bps = f64::INFINITY;
+    config.cost_rates.liquidity_cost_per_tick_bps = f64::INFINITY;
+    config.agent_configs[0].opening_balance = -1_000_000;
+    config.agent_configs[0].unsecured_cap = 2_000_000;
+    config.agent_configs[0].posted_collateral = Some(1_000_000);
+
+    let mut orchestrator = Orchestrator::new(config).unwrap();
+
+    for _ in 0..5 {
+        orchestrator.tick().unwrap();
+    }
+
+    let costs = orchestrator.get_costs("BANK_A").unwrap();
+
+    // With Inf rates, all costs should be zero (not garbage/overflow)
+    assert_eq!(costs.total_liquidity_cost, 0, "Inf overdraft rate should produce 0 cost");
+    assert_eq!(costs.total_collateral_cost, 0, "Inf collateral rate should produce 0 cost");
+    assert_eq!(costs.total_liquidity_opportunity_cost, 0, "Inf liquidity rate should produce 0 cost");
+}
+
+#[test]
+fn test_neg_inf_rate_produces_zero_cost() {
+    // Test that negative Infinity rates are handled safely
+    let mut config = create_test_config();
+    config.cost_rates.overdraft_bps_per_tick = f64::NEG_INFINITY;
+    config.cost_rates.delay_cost_per_tick_per_cent = f64::NEG_INFINITY;
+    config.agent_configs[0].opening_balance = -1_000_000;
+    config.agent_configs[0].unsecured_cap = 2_000_000;
+
+    let mut orchestrator = Orchestrator::new(config).unwrap();
+
+    for _ in 0..5 {
+        orchestrator.tick().unwrap();
+    }
+
+    let costs = orchestrator.get_costs("BANK_A").unwrap();
+
+    // Negative infinity should produce 0 cost (rate check is >= 0)
+    assert_eq!(costs.total_liquidity_cost, 0, "Neg-Inf overdraft rate should produce 0 cost");
+    assert_eq!(costs.total_delay_cost, 0, "Neg-Inf delay rate should produce 0 cost");
+}
