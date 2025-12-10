@@ -3,192 +3,856 @@
 **Status**: Draft
 **Author**: Claude
 **Date**: 2025-12-10
-**Version**: 1.0
+**Version**: 2.0
 
 ---
 
-## Overview
+## Executive Summary
 
-This plan describes the implementation of bootstrap-based Monte Carlo policy evaluation for the Castro experiment system. The current implementation incorrectly uses different random seeds to generate synthetic transaction streams. The correct approach uses bootstrap resampling from **observed historical transactions** to evaluate policies without parametric assumptions about arrival distributions.
+This document describes a **bootstrap resampling approach** for evaluating cash management policies in the Castro experiment system. The method aligns with how a real-world AI cash manager would reason about policy performance under uncertainty, using only historically observed transactions rather than assumed parametric distributions.
+
+**Key insight**: A bank's AI cash manager cannot know the true distribution of future payment arrivals. It can only observe what has happened and reason about what might happen based on that history.
 
 ---
 
-## Problem Statement
+## Part 1: Theoretical Foundation
 
-### Current (Incorrect) Implementation
+### 1.1 The Real-World Scenario We're Modeling
 
-The current Monte Carlo evaluation in `castro/runner.py`:
+Consider a bank's Treasury department deploying an AI-powered cash management system:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        BANK TREASURY OPERATIONS                              │
+│                                                                              │
+│  ┌─────────────────┐                        ┌─────────────────────────────┐ │
+│  │  PAYMENT        │   Queue 1              │  CENTRAL BANK               │ │
+│  │  OBLIGATIONS    │   (Bank's desk)        │  RTGS SYSTEM                │ │
+│  │                 │                        │                             │ │
+│  │  • Client txns  │──► AI Cash Manager ───►│  • Immediate settlement     │ │
+│  │  • Securities   │    decides:            │  • Queue if no liquidity    │ │
+│  │  • Interbank    │    - When to release?  │  • LSM optimization         │ │
+│  │                 │    - Which priority?   │                             │ │
+│  └─────────────────┘    - How much credit?  └─────────────────────────────┘ │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │                    AI CASH MANAGER'S INFORMATION SET                    ││
+│  │                                                                         ││
+│  │  ✓ Current balance at central bank                                     ││
+│  │  ✓ Pending outgoing payments (amounts, deadlines, priorities)          ││
+│  │  ✓ Historical pattern of incoming payments                             ││
+│  │  ✓ Cost parameters (overdraft rates, delay penalties)                  ││
+│  │                                                                         ││
+│  │  ✗ Future payment arrivals (unknown)                                   ││
+│  │  ✗ Other banks' strategies (unobservable)                              ││
+│  │  ✗ Exact timing of incoming settlements (depends on counterparties)    ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1.2 The Fundamental Tension (from game_concept_doc.md)
+
+Banks face a core tradeoff every business day:
+
+> **Liquidity costs money.** Holding large reserves at the central bank ties up capital that could earn returns elsewhere. Borrowing intraday credit (whether collateralized or priced) has explicit costs.
+>
+> **Delay costs money.** Client service agreements, regulatory deadlines, and reputational concerns create pressure to settle payments promptly.
+
+This creates a **coordination problem**:
+
+```
+                    BANK B's Strategy
+                    ┌─────────────────────────────────┐
+                    │   Pay Early    │   Wait & See   │
+    ┌───────────────┼────────────────┼────────────────┤
+    │   Pay Early   │  Both settle   │  A pays B's    │
+B   │               │  quickly       │  liquidity     │
+A   │               │  (mutual gain) │  (A loses)     │
+N   ├───────────────┼────────────────┼────────────────┤
+K   │   Wait & See  │  B pays A's    │  GRIDLOCK      │
+    │               │  liquidity     │  Both suffer   │
+A   │               │  (B loses)     │  delays        │
+    └───────────────┴────────────────┴────────────────┘
+```
+
+This resembles a **Stag Hunt** or **Prisoner's Dilemma** depending on cost parameters.
+
+### 1.3 What the AI Cash Manager Needs to Do
+
+The AI must evaluate candidate policies by asking:
+
+> "If I use this decision tree for the rest of the day, what costs should I expect?"
+
+**The challenge**: The AI doesn't know:
+1. What new payment obligations will arrive
+2. When counterparties will pay (providing incoming liquidity)
+3. Whether the payment system will experience congestion or gridlock
+
+### 1.4 Why Bootstrap? A Statistical Argument
+
+#### The Frequentist Perspective
+
+**Traditional Monte Carlo** (current broken implementation):
+```
+"Let's assume arrivals follow Poisson(λ=5) with LogNormal amounts.
+ Generate 10 synthetic days and average the costs."
+```
+
+**Problem**: How do we know λ=5 is correct? What if today is unusual?
+
+**Bootstrap approach**:
+```
+"I don't know the true distribution. But I have historical observations.
+ Let me resample from what I've actually seen to estimate uncertainty."
+```
+
+#### The Bootstrap Principle (Efron, 1979)
+
+The **bootstrap** treats the empirical distribution of observed data as an approximation of the true unknown distribution:
+
+```
+        True Distribution F (unknown)
+               │
+               │ generates
+               ▼
+        Observed Sample: X₁, X₂, ..., Xₙ
+               │
+               │ approximates
+               ▼
+        Empirical Distribution F̂
+               │
+               │ resample with replacement
+               ▼
+        Bootstrap Samples: X₁*, X₂*, ..., Xₙ*
+               │
+               │ compute statistic
+               ▼
+        Bootstrap Distribution of θ̂*
+```
+
+**Key property**: Bootstrap provides consistent estimates of sampling distributions without parametric assumptions.
+
+#### Why This Matters for Policy Evaluation
+
+Consider an AI evaluating a policy that says "release payments when balance > $50,000":
+
+```
+Historical observation:
+  - Day had 47 transactions
+  - 23 arrivals in morning, 24 in afternoon
+  - Largest: $200k, Smallest: $5k
+  - Mean incoming settlement time: 3.2 ticks after arrival
+
+Bootstrap samples:
+  Sample 1: 47 transactions (some repeated, some missing)
+            → Simulated cost: $2,650
+  Sample 2: 47 transactions (different mix)
+            → Simulated cost: $2,720
+  ...
+  Sample 10: 47 transactions
+            → Simulated cost: $2,580
+
+Result: E[cost] ≈ $2,668 ± $28 (95% CI)
+```
+
+This tells the AI: "Given what you've seen, this policy costs roughly $2,668 with uncertainty around ±$56."
+
+---
+
+## Part 2: The Model in Detail
+
+### 2.1 Single-Agent Perspective
+
+The bootstrap evaluator adopts a **single-agent perspective**. For agent A:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    AGENT A's BOOTSTRAP WORLD                            │
+│                                                                          │
+│  ┌────────────────────┐          ┌────────────────────────────────────┐ │
+│  │ CONTROLLABLE       │          │ EXOGENOUS (Fixed "Beats")          │ │
+│  │                    │          │                                    │ │
+│  │ • When to release  │          │ • Incoming settlements from B,C,D │ │
+│  │   outgoing txns    │          │   arrive at historical timings    │ │
+│  │ • Which priority   │          │                                    │ │
+│  │ • Post collateral? │          │ • Amounts of incoming payments    │ │
+│  │                    │          │                                    │ │
+│  └────────────────────┘          └────────────────────────────────────┘ │
+│           │                                    │                        │
+│           │         ┌──────────────┐           │                        │
+│           └────────►│   BALANCE    │◄──────────┘                        │
+│                     │   EVOLUTION  │                                    │
+│                     └──────┬───────┘                                    │
+│                            │                                            │
+│                            ▼                                            │
+│                     ┌──────────────┐                                    │
+│                     │    COSTS     │                                    │
+│                     │  • Overdraft │                                    │
+│                     │  • Delay     │                                    │
+│                     │  • Deadline  │                                    │
+│                     └──────────────┘                                    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 The "Liquidity Beats" Concept
+
+**Critical modeling choice**: We treat incoming settlements as **fixed external events**.
+
+```
+Timeline showing "liquidity beats" (incoming settlements to Agent A):
+
+Tick:    0    1    2    3    4    5    6    7    8    9    10   11   12
+         │    │    │    │    │    │    │    │    │    │    │    │    │
+         │    │    │    ▼    │    │    ▼    │    │    │    ▼    │    │
+         │    │    │  $50k   │    │  $30k   │    │    │  $80k   │    │
+         │    │    │         │    │         │    │    │         │    │
+         └────┴────┴─────────┴────┴─────────┴────┴────┴─────────┴────┴──►
+
+These "beats" define when Agent A receives liquidity.
+Agent A's policy decides when to SPEND this liquidity.
+```
+
+**Why "beats"?** Like a musical beat, these are the rhythmic moments when liquidity arrives. The AI can't change when other banks pay—it can only decide how to respond.
+
+#### Statistical Properties of Liquidity Beats
+
+From historical data, we can compute:
+
+| Statistic | Meaning | Example |
+|-----------|---------|---------|
+| Mean inter-arrival time | Average gap between incoming payments | 2.3 ticks |
+| Variance | Regularity of incoming flow | High = bursty, Low = steady |
+| Autocorrelation | Do payments cluster? | Morning rush, afternoon lull |
+| Amount distribution | Size profile of incoming | LogNormal(μ=10, σ=1.5) |
+
+Bootstrap preserves these statistical properties **without assuming we know them**.
+
+### 2.3 Transaction Lifecycle Model
+
+Each transaction goes through a lifecycle:
+
+```
+                                    HISTORICAL OBSERVATION
+                                    ─────────────────────────
+      Arrival                 Policy Decision              Settlement
+         │                          │                          │
+         ▼                          ▼                          ▼
+    ┌─────────┐              ┌─────────────┐             ┌───────────┐
+    │ tick=0  │──────────────│ tick=0..T   │─────────────│ tick=5    │
+    │ amount  │              │ Hold/Submit │             │ via RTGS  │
+    │ deadline│              │             │             │ or LSM    │
+    │ priority│              │             │             │           │
+    └─────────┘              └─────────────┘             └───────────┘
+         │                                                     │
+         └──────────────── ticks_to_settle = 5 ───────────────┘
+
+                                    BOOTSTRAP EVALUATION
+                                    ────────────────────────
+      Arrival (resampled)     Policy Decision (evaluated)   Settlement
+         │                          │                          │
+         ▼                          ▼                          ▼
+    ┌─────────┐              ┌─────────────┐             ┌───────────┐
+    │ tick=2  │──────────────│ tick=2..T   │─────────────│ instant   │
+    │ (shifted)│              │ NEW policy  │             │ (if funds │
+    │         │              │ evaluated   │             │  available)│
+    └─────────┘              └─────────────┘             └───────────┘
+```
+
+**Key distinction**:
+- **Historical settlement time**: Reflects the OLD policy + system dynamics
+- **Bootstrap evaluation**: Tests NEW policy with instant settlement (if funds available)
+
+This is a simplification—see Critical Analysis section.
+
+### 2.4 Cost Model Alignment
+
+The bootstrap evaluator implements the same cost model as the full simulation:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         COST ACCRUAL MODEL                            │
+│                                                                       │
+│  For each tick t:                                                     │
+│                                                                       │
+│  1. OVERDRAFT COST (if balance < 0):                                 │
+│     ┌─────────────────────────────────────────────────────────────┐  │
+│     │  cost = overdraft_bps × |balance| × (1/ticks_per_day)/10000 │  │
+│     └─────────────────────────────────────────────────────────────┘  │
+│                                                                       │
+│  2. DELAY COST (for each tx in Queue 1):                             │
+│     ┌─────────────────────────────────────────────────────────────┐  │
+│     │  cost = delay_penalty_per_tick × (t - arrival_tick)          │  │
+│     └─────────────────────────────────────────────────────────────┘  │
+│                                                                       │
+│  3. DEADLINE PENALTY (one-time when t > deadline_tick):              │
+│     ┌─────────────────────────────────────────────────────────────┐  │
+│     │  cost = deadline_penalty (one-time)                          │  │
+│     └─────────────────────────────────────────────────────────────┘  │
+│                                                                       │
+│  4. OVERDUE DELAY (after deadline):                                  │
+│     ┌─────────────────────────────────────────────────────────────┐  │
+│     │  cost = delay_penalty_per_tick × overdue_multiplier (5×)     │  │
+│     └─────────────────────────────────────────────────────────────┘  │
+│                                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Numeric Example**:
+
+```
+Scenario: 12-tick day, Agent A with $100k opening balance
+
+Transaction arrives:
+  - Amount: $150k (larger than balance!)
+  - Deadline: tick 8
+  - Priority: 5
+
+Cost rates:
+  - overdraft_bps: 10 (0.10% annualized)
+  - delay_penalty_per_tick: $1
+  - deadline_penalty: $100
+  - overdue_multiplier: 5×
+
+Policy A: "Release immediately"
+───────────────────────────────
+tick 0: Release $150k → balance = -$50k
+tick 1-7: overdraft cost = 10 × 50000 × (1/12) / 10000 = $4.17/tick
+tick 8-11: same overdraft
+Total overdraft: $4.17 × 12 = $50
+Total cost: $50
+
+Policy B: "Wait for liquidity" (assume $80k arrives at tick 5)
+───────────────────────────────
+tick 0-4: delay cost = $1/tick × 5 ticks = $5
+tick 5: Receive $80k → balance = $180k, release $150k → balance = $30k
+Total cost: $5
+
+Policy B wins! But only if incoming liquidity is reliable.
+```
+
+---
+
+## Part 3: Critical Analysis
+
+### 3.1 What Bootstrap Captures vs. What It Misses
+
+| Aspect | Bootstrap Captures | Bootstrap Misses |
+|--------|-------------------|------------------|
+| Transaction uncertainty | ✓ Resampling variation | ✗ Truly novel transactions |
+| Amount distribution | ✓ Empirical distribution | ✗ Black swan events |
+| Timing patterns | ✓ Historical clustering | ✗ Regime changes |
+| Counterparty behavior | ✗ Fixed to historical | ✗ Strategic responses |
+| System dynamics | ✗ Simplified | ✗ LSM, gridlock |
+
+### 3.2 The Strategic Response Problem
+
+**Critical limitation**: Bootstrap treats other agents' behavior as fixed.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    WHAT BOOTSTRAP ASSUMES                            │
+│                                                                       │
+│  Agent A changes policy ───────► Agent A's costs change              │
+│                                                                       │
+│  Agent B's behavior ────────────► UNCHANGED (historical pattern)     │
+│  Agent C's behavior ────────────► UNCHANGED (historical pattern)     │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    WHAT ACTUALLY HAPPENS                             │
+│                                                                       │
+│  Agent A changes policy ───────► Agent A's costs change              │
+│                         ───────► Agent A's payments to B change      │
+│                         ───────► B's incoming liquidity changes      │
+│                         ───────► B may respond strategically         │
+│                         ───────► B's payments to A change            │
+│                         ───────► A's incoming liquidity changes!     │
+│                                                                       │
+│  THIS FEEDBACK LOOP IS NOT MODELED IN BOOTSTRAP                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**When is this assumption valid?**
+- Agent A is a **small bank** that doesn't significantly affect the system
+- Other agents use **fixed rule-based policies** (not adaptive)
+- We're evaluating **marginal policy changes** (not radical shifts)
+
+**When does it break down?**
+- Agent A is a **major liquidity provider**
+- All agents are simultaneously learning (multi-agent RL)
+- Policy change causes **regime shift** (e.g., triggers gridlock)
+
+### 3.3 The Simplified Settlement Model
+
+**What the real simulation does**:
+
+```
+Agent A releases payment to B:
+  1. Check A's balance + credit
+  2. If sufficient: immediate settlement
+  3. If insufficient: enter Queue 2
+  4. LSM may find offset with B→A payment
+  5. Multilateral cycle may clear payment
+  6. Settlement time is ENDOGENOUS (depends on system state)
+```
+
+**What bootstrap evaluator does**:
+
+```
+Agent A releases payment:
+  1. Check A's balance
+  2. If sufficient: instant settlement, debit balance
+  3. If insufficient: stays in queue, accrues delay cost
+  4. NO LSM, NO CYCLE DETECTION
+  5. Settlement time is INSTANT (if funds available)
+```
+
+**Implications**:
+- Bootstrap **understates** the benefit of LSM (no bilateral/multilateral offsets)
+- Bootstrap **understates** gridlock risk (no circular waiting)
+- Bootstrap **overstates** delay costs (no Queue 2 eventual settlement)
+
+### 3.4 Statistical Validity of Bootstrap
+
+**Theorem (Bootstrap Consistency)**:
+Under regularity conditions, the bootstrap distribution converges to the true sampling distribution as n → ∞.
+
+**In our context**:
+
+```
+n = number of historical transactions observed
+
+If n is small (< 30):
+  - Bootstrap variance estimates may be unreliable
+  - Heavy tails may be underrepresented
+  - Recommendation: Use stratified bootstrap
+
+If n is moderate (30-100):
+  - Bootstrap is reasonably reliable
+  - Check for coverage of rare events
+  - Standard bootstrap is appropriate
+
+If n is large (> 100):
+  - Bootstrap is highly reliable
+  - May want subsampling for computational efficiency
+```
+
+**Confidence Intervals**:
 
 ```python
-for sample_idx in range(num_samples):
-    seed = self._seed_manager.simulation_seed(sample_idx)  # Different seed
-    result = self._sim_runner.run_simulation(
-        policy=policy,
-        seed=seed,  # Generates NEW synthetic transactions
-        ...
-    )
+# Bootstrap percentile confidence interval
+bootstrap_costs = [evaluate_policy(sample) for sample in bootstrap_samples]
+ci_lower = np.percentile(bootstrap_costs, 2.5)
+ci_upper = np.percentile(bootstrap_costs, 97.5)
+
+# Interpretation:
+# "With 95% confidence, the true expected cost lies in [ci_lower, ci_upper]"
 ```
 
-**Issues**:
-1. **Assumes known distribution**: Uses Poisson/LogNormal to generate new arrivals
-2. **Parallel universes**: Each sample is a completely independent simulation
-3. **Not realistic**: Real agents can't know the underlying arrival distribution
-4. **Doesn't test policy robustness**: Tests "what if different transactions existed" rather than "how robust is this policy to uncertainty in observed data"
+### 3.5 What's Missing: A Checklist
 
-### Correct Bootstrap Approach
-
-Bootstrap sampling evaluates policies by resampling from **actually observed transactions**:
-
-1. Run ONE real simulation with current policy → observe transaction history
-2. For each agent A, collect:
-   - Outgoing transactions (where A is sender)
-   - Incoming settlements (where A is receiver) with settlement timing
-3. Bootstrap resample (with replacement) to create synthetic scenarios
-4. Evaluate policy cost on each bootstrap sample
-5. Aggregate statistics (mean, std, confidence intervals)
-
-**Key insight**: Incoming settlements define **fixed "liquidity beats"** - the agent cannot control when counterparties pay them, so this timing is treated as exogenous.
+| Missing Element | Impact | Mitigation |
+|-----------------|--------|------------|
+| LSM bilateral offsets | Underestimates liquidity efficiency | Could add simple offset model |
+| LSM multilateral cycles | Underestimates complex settlement | Hard to model without full sim |
+| Queue 2 dynamics | Overestimates delay costs | Could add queue release model |
+| Credit headroom | Understates liquidity options | Add credit limit to model |
+| Collateral posting | Misses liquidity-cost tradeoff | Add collateral in Phase 2 |
+| Gridlock detection | Misses coordination failures | Fundamental limitation |
+| Strategic response | Assumes fixed counterparties | Multi-agent extension needed |
 
 ---
 
-## Design Decision: Python vs Rust
+## Part 4: What We're Actually Optimizing
 
-### Analysis
+### 4.1 The Optimization Objective
 
-| Factor | Python Implementation | Rust Implementation |
-|--------|----------------------|---------------------|
-| **FFI complexity** | No FFI needed | Adds new FFI surface |
-| **Cost model** | Re-implement simplified model | Reuse existing CostRates |
-| **Multi-agent dynamics** | Not needed (single-agent eval) | Full simulation overkill |
-| **Existing foundation** | TransactionSampler exists | Would start from scratch |
-| **Development speed** | Fast iteration | Slower, more testing |
-| **Performance** | ~1ms per eval adequate | ~0.1ms per eval possible |
-| **Research flexibility** | Easy to experiment | Harder to modify |
-
-### Decision: Python First
-
-**Rationale**:
-
-1. **Bootstrap evaluation is fundamentally different** from full simulation:
-   - No multi-agent settlement dynamics
-   - No LSM/RTGS queuing
-   - No gridlock resolution
-   - Single-agent perspective only
-
-2. **FFI Boundary Principle** (from `docs/reference/architecture/04-ffi-boundary.md`):
-   > "Batch operations. One FFI call per tick, not per transaction."
-
-   Bootstrap evaluation would require either:
-   - Many FFI calls to query transaction state, OR
-   - A completely new Rust API for bootstrap-specific operations
-
-   Neither aligns with the "minimal FFI surface" principle.
-
-3. **TransactionSampler already exists** in Python with bootstrap, permutation, and stratified methods.
-
-4. **Performance is adequate**: With 10 MC samples × 25 iterations × 2 agents × ~50 transactions, we have ~25,000 lightweight evaluations. At 1ms each, that's 25 seconds - acceptable for an LLM-driven optimization loop that takes minutes per iteration anyway.
-
-5. **Research flexibility**: The Castro experiments are research artifacts. Python allows faster iteration on the evaluation methodology.
-
-**Future consideration**: If bootstrap evaluation becomes a production bottleneck (e.g., thousands of samples), implement a Rust-side `BootstrapEvaluator` with a single FFI entry point.
-
----
-
-## Architecture
-
-### Component Diagram
+The LLM is optimizing a **best response** policy:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ExperimentRunner                             │
-│                                                                 │
-│  1. Run real simulation ──────────────────────────────────────► │
-│                                                                 │
-│  2. Collect transaction history ──────────────────────────────► │
-│     └─► TransactionHistoryCollector                             │
-│                                                                 │
-│  3. Bootstrap evaluation loop ────────────────────────────────► │
-│     │                                                           │
-│     ├─► BootstrapSampler (per agent)                           │
-│     │   └─► Sample outgoing txns                               │
-│     │   └─► Sample incoming settlements                        │
-│     │                                                           │
-│     └─► BootstrapPolicyEvaluator (per agent)                   │
-│         └─► Simulate balance evolution                         │
-│         └─► Apply policy decisions                             │
-│         └─► Calculate costs                                    │
-│                                                                 │
-│  4. Aggregate results ────────────────────────────────────────► │
-│     └─► MonteCarloContextBuilder (existing)                    │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    OPTIMIZATION HIERARCHY                            │
+│                                                                       │
+│  Level 3: Nash Equilibrium (Not what we're doing)                   │
+│  ─────────────────────────────────────────────────────               │
+│  Find (π_A*, π_B*) such that:                                       │
+│    π_A* = argmin E[Cost_A | π_A, π_B*]                              │
+│    π_B* = argmin E[Cost_B | π_A*, π_B]                              │
+│                                                                       │
+│  Level 2: Best Response (What bootstrap approximates)               │
+│  ─────────────────────────────────────────────────────               │
+│  Given π_B (fixed, from historical observation):                    │
+│    π_A* = argmin E[Cost_A | π_A, π_B]                               │
+│                                                                       │
+│  Level 1: Policy Improvement (What the LLM does)                    │
+│  ─────────────────────────────────────────────────────               │
+│  Given π_A (current), find π_A' such that:                          │
+│    E[Cost_A | π_A'] < E[Cost_A | π_A]                               │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Data Flow
+**Bootstrap enables Level 1 and approximates Level 2.**
+
+### 4.2 Convergence Analysis
+
+When all agents optimize simultaneously using bootstrap:
 
 ```
-Real Simulation
-      │
-      ▼
-┌─────────────────┐
-│ VerboseOutput   │  Contains all events by tick
-│ events_by_tick  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────┐
-│ TransactionHistoryCollector │
-└────────┬────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│ TransactionHistory (per agent)                          │
-│ ┌─────────────────────┐  ┌───────────────────────────┐ │
-│ │ Outgoing Txns       │  │ Incoming Settlements      │ │
-│ │ - tx_id             │  │ - tx_id                   │ │
-│ │ - amount            │  │ - amount                  │ │
-│ │ - arrival_tick      │  │ - settlement_tick         │ │
-│ │ - deadline_tick     │  │ - ticks_from_arrival      │ │
-│ │ - priority          │  │   (fixed "liquidity beat")│ │
-│ │ - settlement_tick?  │  │                           │ │
-│ └─────────────────────┘  └───────────────────────────┘ │
-└────────────────────────────────────────────────────────┘
-         │
-         │  Bootstrap Resample (N times)
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│ BootstrapSample (per MC iteration, per agent)           │
-│ - sampled_outgoing: list[TransactionRecord]             │
-│ - sampled_incoming: list[SettlementRecord]              │
-│ - remapped arrival ticks (preserve relative timing)     │
-└────────────────────────────────────────────────────────┘
-         │
-         │  Policy Evaluation
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│ BootstrapPolicyEvaluator                                │
-│                                                         │
-│ for tick in range(total_ticks):                         │
-│   1. Add incoming liquidity (fixed beats)               │
-│   2. Queue new arrivals                                 │
-│   3. Apply policy → decide releases                     │
-│   4. Process releases (update balance)                  │
-│   5. Accrue costs (delay, overdraft, deadline)          │
-│                                                         │
-│ return total_cost                                       │
-└─────────────────────────────────────────────────────────┘
+Iteration 1:
+  - All agents use initial policies
+  - Run full simulation → observe transactions
+  - Each agent bootstraps from observations
+  - Each agent proposes improved policy
+
+Iteration 2:
+  - All agents use NEW policies
+  - Run full simulation → NEW transactions
+  - Observations have changed because policies changed!
+  - Bootstrap from new observations
+
+Iteration N:
+  - If policies stabilize, observations stabilize
+  - Each agent's bootstrap becomes consistent
+  - Approximate Nash equilibrium may emerge
+```
+
+**Convergence conditions**:
+1. Policies must not oscillate wildly
+2. Transaction patterns must stabilize
+3. No single agent dominates system dynamics
+
+### 4.3 Flow of a Complete Iteration
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    ITERATION N OF CASTRO EXPERIMENT                      │
+│                                                                          │
+│  STEP 1: Run Full Simulation                                            │
+│  ───────────────────────────────                                        │
+│                                                                          │
+│    Policies: {π_A(n), π_B(n)}                                           │
+│                    │                                                     │
+│                    ▼                                                     │
+│    ┌──────────────────────────────────────┐                             │
+│    │         RUST SIMULATOR               │                             │
+│    │  • Arrivals generated                │                             │
+│    │  • Policies executed                 │                             │
+│    │  • RTGS + LSM settlement             │                             │
+│    │  • Costs accrued                     │                             │
+│    └──────────────────────────────────────┘                             │
+│                    │                                                     │
+│                    ▼                                                     │
+│    Events: {arrivals, settlements, costs}                               │
+│                                                                          │
+│  STEP 2: Collect Transaction History                                    │
+│  ────────────────────────────────────                                   │
+│                                                                          │
+│    For each agent A:                                                    │
+│    ┌─────────────────────────────────────────────────────────┐         │
+│    │ Outgoing: [(tx1, t_arrive=0, t_settle=3),              │         │
+│    │           (tx2, t_arrive=2, t_settle=7), ...]          │         │
+│    │ Incoming: [(tx5, t_settle=1, amount=$50k),             │         │
+│    │           (tx9, t_settle=5, amount=$30k), ...]         │         │
+│    └─────────────────────────────────────────────────────────┘         │
+│                                                                          │
+│  STEP 3: Bootstrap Evaluation (10 samples)                              │
+│  ─────────────────────────────────────────                              │
+│                                                                          │
+│    For each sample k ∈ {1, ..., 10}:                                    │
+│      For each agent A:                                                  │
+│        1. Resample outgoing transactions (with replacement)            │
+│        2. Resample incoming settlements (with replacement)             │
+│        3. Evaluate π_A(n) on sample → cost_A,k                         │
+│                                                                          │
+│    Aggregate: mean_cost_A = (1/10) Σ cost_A,k                          │
+│               std_cost_A  = sqrt((1/9) Σ (cost_A,k - mean)²)           │
+│                                                                          │
+│  STEP 4: LLM Policy Update                                              │
+│  ─────────────────────────                                              │
+│                                                                          │
+│    For each agent A:                                                    │
+│      LLM receives:                                                      │
+│        • Current policy π_A(n)                                         │
+│        • Bootstrap cost statistics                                     │
+│        • Sample of verbose events (agent A's view)                     │
+│                                                                          │
+│      LLM proposes: π_A(n+1)                                            │
+│                                                                          │
+│  STEP 5: Acceptance Decision                                            │
+│  ───────────────────────────                                            │
+│                                                                          │
+│    Re-evaluate π_A(n+1) on bootstrap samples                           │
+│    If cost(π_A(n+1)) < cost(π_A(n)): accept                            │
+│    Else: reject, keep π_A(n)                                           │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Data Structures
+## Part 5: Worked Example
 
-### TransactionRecord
+### 5.1 Scenario Setup
+
+```yaml
+# LVTS-Style 12-Period Scenario
+simulation:
+  ticks_per_day: 12
+  num_days: 1
+
+agents:
+  - id: BANK_A
+    opening_balance: 100000  # $1,000.00
+    credit_limit: 50000      # $500.00 overdraft allowed
+
+  - id: BANK_B
+    opening_balance: 100000  # $1,000.00
+    credit_limit: 50000
+
+arrivals:
+  BANK_A:
+    rate_per_tick: 4.5  # Poisson(4.5) → ~54 transactions/day
+    amount:
+      type: LogNormal
+      mean: 5000  # $50.00 average
+      std: 3000
+
+costs:
+  overdraft_cost_bps: 10.0      # 0.10% annualized
+  delay_penalty_per_tick: 100   # $1.00 per tick
+  deadline_penalty: 10000       # $100.00 one-time
+  overdue_delay_multiplier: 5.0
+```
+
+### 5.2 Historical Observation (After Full Simulation)
+
+```
+Agent A's Transaction History:
+────────────────────────────────────────────────────────────────────────
+Outgoing (A → others):
+  tx-001: amount=$80.00,  arrive=0,  deadline=5,  settled=2  (3 tick wait)
+  tx-002: amount=$45.00,  arrive=0,  deadline=8,  settled=1  (1 tick wait)
+  tx-003: amount=$120.00, arrive=1,  deadline=7,  settled=4  (3 tick wait)
+  tx-004: amount=$30.00,  arrive=2,  deadline=10, settled=3  (1 tick wait)
+  tx-005: amount=$65.00,  arrive=3,  deadline=9,  settled=6  (3 tick wait)
+  ... (47 more)
+
+Incoming (others → A):
+  tx-101: amount=$55.00,  settled=1  → "beat" at tick 1
+  tx-102: amount=$90.00,  settled=3  → "beat" at tick 3
+  tx-103: amount=$40.00,  settled=5  → "beat" at tick 5
+  tx-104: amount=$75.00,  settled=7  → "beat" at tick 7
+  ... (42 more)
+
+Total outgoing: $2,847.00 across 52 transactions
+Total incoming: $2,695.00 across 46 settlements
+Net flow: -$152.00 (A is net payer)
+────────────────────────────────────────────────────────────────────────
+```
+
+### 5.3 Bootstrap Sample Generation
+
+```
+Bootstrap Sample #3 (seed=42):
+────────────────────────────────────────────────────────────────────────
+Outgoing (resampled with replacement):
+  tx-001: amount=$80.00,  arrive=0  (selected)
+  tx-003: amount=$120.00, arrive=1  (selected)
+  tx-003: amount=$120.00, arrive=1  (DUPLICATE - selected again)
+  tx-005: amount=$65.00,  arrive=3  (selected)
+  tx-002: amount=$45.00,  arrive=0  (selected)
+  ... (47 more, with possible repeats)
+
+Incoming "beats" (resampled with replacement):
+  tick 1: $55.00 + $55.00 = $110.00  (tx-101 sampled twice!)
+  tick 3: $90.00
+  tick 5: $40.00
+  tick 7: $75.00 + $90.00 = $165.00  (different transactions sampled)
+  ... (remapped to fit 12-tick window)
+
+Note: Resampling can create "bursty" or "sparse" scenarios
+────────────────────────────────────────────────────────────────────────
+```
+
+### 5.4 Policy Evaluation on Bootstrap Sample
+
+```
+Evaluating Policy: "Release if (priority >= 5) OR (ticks_to_deadline <= 3)"
+────────────────────────────────────────────────────────────────────────
+
+Tick 0:
+  Balance: $1,000.00
+  Arrivals: tx-001 ($80, prio=5, deadline=5), tx-002 ($45, prio=3, deadline=8)
+  Policy: Release tx-001 (prio=5), Hold tx-002 (prio<5, deadline not urgent)
+  Action: Release $80 → Balance = $920
+  Queue: [tx-002]
+  Costs: $0
+
+Tick 1:
+  Balance: $920 + $110 (incoming) = $1,030
+  Arrivals: tx-003 ($120, prio=7, deadline=7)
+  Policy: Release tx-003 (prio=7)
+  Action: Release $120 → Balance = $910
+  Queue: [tx-002] (1 tick delay cost)
+  Costs: $1 delay
+
+Tick 2:
+  Balance: $910
+  Arrivals: tx-003 DUPLICATE ($120, prio=7, deadline=7)
+  Policy: Release
+  Action: Release $120 → Balance = $790
+  Queue: [tx-002] (2 tick delay cost)
+  Costs: $1 delay
+
+...continuing...
+
+Tick 11 (EOD):
+  Balance: $650
+  Queue: [tx-047 overdue]
+  Costs: $100 deadline penalty + $25 overdue delay
+
+TOTAL COST for Sample #3: $267.00
+────────────────────────────────────────────────────────────────────────
+```
+
+### 5.5 Monte Carlo Aggregation
+
+```
+Monte Carlo Results (10 bootstrap samples):
+────────────────────────────────────────────────────────────────────────
+┌─────────────┬──────────────┬─────────────┬─────────────┬────────────┐
+│ Sample      │ Total Cost   │ Delay Cost  │ Overdraft   │ Deadlines  │
+│             │              │             │ Cost        │ Missed     │
+├─────────────┼──────────────┼─────────────┼─────────────┼────────────┤
+│ 1           │ $2,665.57    │ $1,890.00   │ $75.57      │ 7          │
+│ 2           │ $2,662.37    │ $1,812.00   │ $50.37      │ 8          │
+│ 3           │ $2,712.20    │ $1,956.00   │ $106.20     │ 6          │
+│ 4           │ $2,685.95    │ $1,900.00   │ $85.95      │ 7          │
+│ 5           │ $2,661.10    │ $1,808.00   │ $53.10      │ 8          │
+│ 6           │ $2,701.55    │ $1,944.00   │ $57.55      │ 7          │
+│ 7           │ $2,693.59    │ $1,928.00   │ $65.59      │ 7          │
+│ 8           │ $2,648.66    │ $1,794.00   │ $54.66      │ 8          │
+│ 9           │ $2,638.29    │ $1,780.00   │ $58.29      │ 8          │
+│ 10          │ $2,617.67    │ $1,752.00   │ $65.67      │ 8          │
+├─────────────┼──────────────┼─────────────┼─────────────┼────────────┤
+│ Mean        │ $2,668.69    │ $1,856.40   │ $67.29      │ 7.4        │
+│ Std Dev     │ $28.15       │ $72.31      │ $16.83      │ 0.7        │
+│ 95% CI      │ ±$17.44      │ ±$44.81     │ ±$10.43     │ ±0.4       │
+└─────────────┴──────────────┴─────────────┴─────────────┴────────────┘
+
+Interpretation:
+  - Mean cost: $2,668.69 (our best estimate)
+  - 95% CI: [$2,651.25, $2,686.13]
+  - Delay cost dominates (69.6% of total)
+  - Overdraft cost small (2.5% of total)
+  - ~7 deadline misses per day (out of ~52 transactions)
+────────────────────────────────────────────────────────────────────────
+```
+
+---
+
+## Part 6: Implementation Design
+
+### 6.1 Decision: Python First
+
+After reviewing the architecture documentation:
+
+| Factor | Python | Rust |
+|--------|--------|------|
+| **FFI Principle** | "Minimal crossings" | Would add new FFI surface |
+| **Scope** | Single-agent, simplified | Full multi-agent dynamics |
+| **Foundation** | TransactionSampler exists | Start from scratch |
+| **Performance** | ~1ms/eval (adequate) | ~0.1ms/eval (overkill) |
+| **Research** | Fast iteration | Slower modification |
+
+**Decision**: Implement in Python. Bootstrap is fundamentally a **statistical procedure**, not a **simulation**. The Rust engine is designed for high-fidelity multi-agent simulation—bootstrap doesn't need that complexity.
+
+**Future path**: If bootstrap becomes production-critical with thousands of samples, add `Orchestrator.bootstrap_evaluate()` in Rust as a single FFI entry point.
+
+### 6.2 Component Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    BOOTSTRAP EVALUATION PIPELINE                         │
+│                                                                          │
+│  ┌───────────────────┐                                                  │
+│  │ VerboseOutput     │  Raw events from Rust simulation                 │
+│  │ (events_by_tick)  │                                                  │
+│  └─────────┬─────────┘                                                  │
+│            │                                                             │
+│            ▼                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │                 TransactionHistoryCollector                         ││
+│  │                                                                     ││
+│  │  Responsibilities:                                                  ││
+│  │  • Parse Arrival events → TransactionRecord                        ││
+│  │  • Match Settlement events → update settlement_tick                 ││
+│  │  • Handle LSM events (bilateral, cycle)                            ││
+│  │  • Group by agent (outgoing vs incoming)                           ││
+│  └─────────┬───────────────────────────────────────────────────────────┘│
+│            │                                                             │
+│            ▼                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │                    AgentTransactionHistory                          ││
+│  │                                                                     ││
+│  │  BANK_A:                          BANK_B:                          ││
+│  │  ├── outgoing: [tx1, tx2, ...]   ├── outgoing: [tx5, tx6, ...]    ││
+│  │  └── incoming: [tx3, tx4, ...]   └── incoming: [tx1, tx2, ...]    ││
+│  └─────────┬───────────────────────────────────────────────────────────┘│
+│            │                                                             │
+│            │ For each Monte Carlo sample:                               │
+│            ▼                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │                      BootstrapSampler                               ││
+│  │                                                                     ││
+│  │  Input: AgentTransactionHistory, seed                              ││
+│  │  Output: BootstrapSample                                           ││
+│  │                                                                     ││
+│  │  Algorithm:                                                         ││
+│  │  1. outgoing = random.choices(history.outgoing, k=len(outgoing))   ││
+│  │  2. incoming = random.choices(history.incoming, k=len(incoming))   ││
+│  │  3. Remap arrival ticks (preserve relative timing)                 ││
+│  │  4. Remap settlement ticks for incoming (preserve "beats")         ││
+│  └─────────┬───────────────────────────────────────────────────────────┘│
+│            │                                                             │
+│            ▼                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │                   BootstrapPolicyEvaluator                          ││
+│  │                                                                     ││
+│  │  Input: BootstrapSample, Policy, CostConfig                        ││
+│  │  Output: PolicyEvaluationResult                                    ││
+│  │                                                                     ││
+│  │  for tick in range(total_ticks):                                   ││
+│  │      balance += incoming_liquidity_at_tick(tick)                   ││
+│  │      queue.extend(arrivals_at_tick(tick))                          ││
+│  │      releases = policy.decide(queue, balance, tick)                ││
+│  │      for tx in releases:                                           ││
+│  │          if balance >= tx.amount:                                  ││
+│  │              balance -= tx.amount                                  ││
+│  │              queue.remove(tx)                                      ││
+│  │      costs.accrue(tick, balance, queue)                            ││
+│  └─────────┬───────────────────────────────────────────────────────────┘│
+│            │                                                             │
+│            ▼                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │                      Aggregation                                    ││
+│  │                                                                     ││
+│  │  mean_cost = sum(sample_costs) / num_samples                       ││
+│  │  std_cost = sqrt(variance(sample_costs))                           ││
+│  │  ci_lower = percentile(sample_costs, 2.5)                          ││
+│  │  ci_upper = percentile(sample_costs, 97.5)                         ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.3 Data Structures
 
 ```python
 @dataclass(frozen=True)
 class TransactionRecord:
-    """Complete record of a transaction's lifecycle."""
-
+    """Immutable record of a transaction's lifecycle."""
     tx_id: str
     sender_id: str
     receiver_id: str
@@ -201,73 +865,70 @@ class TransactionRecord:
 
     @property
     def ticks_to_settle(self) -> int | None:
-        """Ticks from arrival to settlement (None if unsettled)."""
+        """Ticks from arrival to settlement."""
         if self.settlement_tick is None:
             return None
         return self.settlement_tick - self.arrival_tick
 
     @property
-    def was_settled(self) -> bool:
-        """Whether this transaction was settled."""
-        return self.settlement_tick is not None
-```
+    def deadline_urgency(self) -> int:
+        """Ticks remaining until deadline at arrival."""
+        return self.deadline_tick - self.arrival_tick
 
-### AgentTransactionHistory
 
-```python
 @dataclass
 class AgentTransactionHistory:
-    """Per-agent view of historical transaction data."""
-
+    """Per-agent view of historical transactions."""
     agent_id: str
-    outgoing: list[TransactionRecord]  # Transactions where agent is sender
-    incoming_settlements: list[TransactionRecord]  # Settled transactions where agent is receiver
+    outgoing: list[TransactionRecord]
+    incoming_settlements: list[TransactionRecord]
 
-    @property
-    def total_outgoing_volume(self) -> int:
-        """Total outgoing amount (cents)."""
-        return sum(tx.amount for tx in self.outgoing)
+    def summary_statistics(self) -> dict[str, float]:
+        """Compute summary statistics for LLM context."""
+        return {
+            "num_outgoing": len(self.outgoing),
+            "num_incoming": len(self.incoming_settlements),
+            "total_outgoing_volume": sum(tx.amount for tx in self.outgoing),
+            "total_incoming_volume": sum(tx.amount for tx in self.incoming_settlements),
+            "avg_outgoing_amount": np.mean([tx.amount for tx in self.outgoing]),
+            "avg_ticks_to_settle": np.mean([
+                tx.ticks_to_settle for tx in self.outgoing
+                if tx.ticks_to_settle is not None
+            ]),
+            "settlement_rate": sum(
+                1 for tx in self.outgoing if tx.settlement_tick is not None
+            ) / len(self.outgoing) if self.outgoing else 1.0,
+        }
 
-    @property
-    def total_incoming_volume(self) -> int:
-        """Total incoming settlement amount (cents)."""
-        return sum(tx.amount for tx in self.incoming_settlements)
-```
 
-### BootstrapSample
-
-```python
 @dataclass
 class BootstrapSample:
     """One bootstrap sample for policy evaluation."""
-
     agent_id: str
-    outgoing_txns: list[TransactionRecord]  # Resampled outgoing
-    incoming_settlements: list[TransactionRecord]  # Resampled incoming (fixed timing)
+    outgoing_txns: list[TransactionRecord]
+    incoming_settlements: list[TransactionRecord]
     total_ticks: int
 
     def get_arrivals_at_tick(self, tick: int) -> list[TransactionRecord]:
-        """Get outgoing transactions arriving at this tick."""
+        """Get transactions arriving at this tick."""
         return [tx for tx in self.outgoing_txns if tx.arrival_tick == tick]
 
     def get_incoming_liquidity_at_tick(self, tick: int) -> int:
-        """Get total incoming liquidity at this tick (fixed beats)."""
+        """Get total incoming liquidity at this tick."""
         return sum(
-            tx.amount
-            for tx in self.incoming_settlements
+            tx.amount for tx in self.incoming_settlements
             if tx.settlement_tick == tick
         )
-```
 
-### PolicyEvaluationResult
 
-```python
 @dataclass
 class PolicyEvaluationResult:
-    """Result of evaluating a policy on a bootstrap sample."""
-
+    """Result of evaluating a policy on one bootstrap sample."""
     agent_id: str
     sample_idx: int
+    seed: int
+
+    # Total cost
     total_cost: int  # cents
 
     # Cost breakdown
@@ -277,680 +938,137 @@ class PolicyEvaluationResult:
     overdue_delay_cost: int
 
     # Metrics
+    transactions_processed: int
     transactions_settled: int
     transactions_unsettled: int
     avg_settlement_delay: float
     max_overdraft: int
+
+    @property
+    def settlement_rate(self) -> float:
+        """Fraction of transactions settled."""
+        if self.transactions_processed == 0:
+            return 1.0
+        return self.transactions_settled / self.transactions_processed
 ```
 
 ---
 
-## Implementation Plan (TDD)
+## Part 7: TDD Test Specifications
 
-### Phase 1: TransactionHistoryCollector
+*[The detailed TDD tests from the previous version are retained here - see implementation phases 1-5 in original document]*
 
-**Goal**: Extract transaction lifecycle data from simulation events.
+---
 
-#### Test 1.1: Extract arrivals from events
-```python
-def test_collector_extracts_arrivals():
-    """Arrival events are extracted with correct fields."""
-    events_by_tick = {
-        0: [
-            {"event_type": "Arrival", "tx_id": "tx-001", "sender_id": "BANK_A",
-             "receiver_id": "BANK_B", "amount": 100000, "priority": 5,
-             "deadline": 10, "tick": 0},
-        ]
-    }
+## Part 8: Open Questions and Recommendations
 
-    collector = TransactionHistoryCollector()
-    history = collector.collect(events_by_tick)
+### 8.1 Resolved Questions
 
-    assert len(history["BANK_A"].outgoing) == 1
-    tx = history["BANK_A"].outgoing[0]
-    assert tx.tx_id == "tx-001"
-    assert tx.amount == 100000
-    assert tx.arrival_tick == 0
-    assert tx.settlement_tick is None  # Not yet settled
-```
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| Rust vs Python | Python | Statistical procedure, not simulation |
+| Sample size | Same as original (standard bootstrap) | Simplicity, statistical validity |
+| Arrival remapping | Preserve relative timing | Maintains transaction relationships |
 
-#### Test 1.2: Match settlements to arrivals
-```python
-def test_collector_matches_settlement_to_arrival():
-    """Settlement events update the transaction's settlement_tick."""
-    events_by_tick = {
-        0: [
-            {"event_type": "Arrival", "tx_id": "tx-001", "sender_id": "BANK_A",
-             "receiver_id": "BANK_B", "amount": 100000, ...},
-        ],
-        5: [
-            {"event_type": "RtgsImmediateSettlement", "tx_id": "tx-001",
-             "sender": "BANK_A", "receiver": "BANK_B", "amount": 100000, ...},
-        ],
-    }
+### 8.2 Open Questions for Future Work
 
-    collector = TransactionHistoryCollector()
-    history = collector.collect(events_by_tick)
+1. **Should we add a simplified LSM model?**
+   - Current: No LSM in bootstrap (instant settlement if funds available)
+   - Option: Add bilateral offset check between outgoing and "virtual incoming"
+   - **Recommendation**: Phase 2 enhancement. Current model is conservative.
 
-    tx = history["BANK_A"].outgoing[0]
-    assert tx.settlement_tick == 5
-    assert tx.ticks_to_settle == 5
-```
+2. **Should we model credit headroom?**
+   - Current: Only balance matters for settlement
+   - Option: Add `balance + credit_limit >= amount` check
+   - **Recommendation**: Yes, add in Phase 1. Simple change with significant impact.
 
-#### Test 1.3: Track incoming settlements for receiver
-```python
-def test_collector_tracks_incoming_settlements():
-    """Receiver agent sees incoming settlements with timing."""
-    events_by_tick = {
-        0: [{"event_type": "Arrival", "tx_id": "tx-001", "sender_id": "BANK_A",
-             "receiver_id": "BANK_B", ...}],
-        5: [{"event_type": "RtgsImmediateSettlement", "tx_id": "tx-001", ...}],
-    }
+3. **How to handle regime changes?**
+   - Problem: Bootstrap assumes past ≈ future
+   - Option: Use weighted bootstrap (recent observations weighted higher)
+   - **Recommendation**: Future research. Current use case doesn't require this.
 
-    collector = TransactionHistoryCollector()
-    history = collector.collect(events_by_tick)
+4. **Should we run bootstrap on multiple past days?**
+   - Current: Bootstrap from single simulation
+   - Option: Collect history over multiple days, bootstrap from combined pool
+   - **Recommendation**: Future enhancement for more robust estimates.
 
-    # BANK_B receives liquidity at tick 5
-    assert len(history["BANK_B"].incoming_settlements) == 1
-    incoming = history["BANK_B"].incoming_settlements[0]
-    assert incoming.settlement_tick == 5
-```
+### 8.3 Known Limitations to Document for Users
 
-#### Test 1.4: Handle LSM settlements
-```python
-def test_collector_handles_lsm_bilateral_offset():
-    """LSM bilateral offsets are tracked as settlements."""
-    events_by_tick = {
-        0: [
-            {"event_type": "Arrival", "tx_id": "tx-001", "sender_id": "BANK_A", ...},
-            {"event_type": "Arrival", "tx_id": "tx-002", "sender_id": "BANK_B", ...},
-        ],
-        3: [
-            {"event_type": "LsmBilateralOffset", "tx_ids": ["tx-001", "tx-002"],
-             "agents": ["BANK_A", "BANK_B"], ...},
-        ],
-    }
+```markdown
+## Limitations of Bootstrap Policy Evaluation
 
-    collector = TransactionHistoryCollector()
-    history = collector.collect(events_by_tick)
+1. **No strategic response modeling**: Other agents' behavior is treated as fixed.
+   Impact: May miss retaliatory responses or cooperation opportunities.
 
-    # Both transactions settled at tick 3
-    assert history["BANK_A"].outgoing[0].settlement_tick == 3
-    assert history["BANK_B"].outgoing[0].settlement_tick == 3
-```
+2. **Simplified settlement**: No LSM optimization, Queue 2 dynamics, or gridlock.
+   Impact: Underestimates benefit of LSM, overestimates delay costs.
 
-#### Implementation: TransactionHistoryCollector
+3. **Single-day horizon**: Bootstrap samples from one day's observations.
+   Impact: May miss longer-term patterns or rare events.
 
-```python
-class TransactionHistoryCollector:
-    """Extracts transaction lifecycle data from simulation events."""
+4. **Independence assumption**: Transactions resampled independently.
+   Impact: May break temporal dependencies (e.g., clustered arrivals).
 
-    def collect(
-        self,
-        events_by_tick: dict[int, list[dict[str, Any]]]
-    ) -> dict[str, AgentTransactionHistory]:
-        """Collect transaction history from events."""
-        # Track transactions by ID
-        transactions: dict[str, TransactionRecord] = {}
-
-        # First pass: collect arrivals
-        for tick, events in events_by_tick.items():
-            for event in events:
-                if event.get("event_type") == "Arrival":
-                    tx = self._create_transaction_from_arrival(event, tick)
-                    transactions[tx.tx_id] = tx
-
-        # Second pass: match settlements
-        for tick, events in events_by_tick.items():
-            for event in events:
-                self._process_settlement_event(event, tick, transactions)
-
-        # Group by agent
-        return self._group_by_agent(transactions)
+5. **No collateral dynamics**: Credit headroom not currently modeled.
+   Impact: Underestimates liquidity options.
 ```
 
 ---
 
-### Phase 2: BootstrapSampler
+## Part 9: References
 
-**Goal**: Generate bootstrap samples from historical data.
+### Academic References
 
-#### Test 2.1: Bootstrap samples with replacement
-```python
-def test_bootstrap_sampler_samples_with_replacement():
-    """Bootstrap sampling allows duplicates."""
-    history = AgentTransactionHistory(
-        agent_id="BANK_A",
-        outgoing=[tx1, tx2, tx3],  # 3 transactions
-        incoming_settlements=[settle1, settle2],
-    )
+1. Efron, B. (1979). "Bootstrap methods: Another look at the jackknife." *Annals of Statistics*, 7(1), 1-26.
 
-    sampler = BootstrapSampler(seed=42)
-    sample = sampler.sample(history, num_outgoing=3, num_incoming=2)
+2. Efron, B., & Tibshirani, R. J. (1993). *An Introduction to the Bootstrap*. Chapman & Hall/CRC.
 
-    # With replacement: may have duplicates
-    tx_ids = [tx.tx_id for tx in sample.outgoing_txns]
-    # Could be [tx1, tx1, tx3] or [tx2, tx2, tx2] etc.
-    assert len(tx_ids) == 3
-```
+3. Bech, M. L., & Garratt, R. (2003). "The intraday liquidity management game." *Journal of Economic Theory*, 109(2), 198-219.
 
-#### Test 2.2: Deterministic with same seed
-```python
-def test_bootstrap_sampler_deterministic():
-    """Same seed produces identical samples."""
-    history = AgentTransactionHistory(...)
+### SimCash Documentation
 
-    sampler1 = BootstrapSampler(seed=42)
-    sample1 = sampler1.sample(history, num_outgoing=10, num_incoming=5)
-
-    sampler2 = BootstrapSampler(seed=42)
-    sample2 = sampler2.sample(history, num_outgoing=10, num_incoming=5)
-
-    assert sample1.outgoing_txns == sample2.outgoing_txns
-    assert sample1.incoming_settlements == sample2.incoming_settlements
-```
-
-#### Test 2.3: Remap arrival ticks to preserve relative timing
-```python
-def test_bootstrap_sampler_preserves_relative_timing():
-    """Resampled transactions have remapped but consistent timing."""
-    tx1 = TransactionRecord(tx_id="tx-001", arrival_tick=5, deadline_tick=15, ...)
-    tx2 = TransactionRecord(tx_id="tx-002", arrival_tick=10, deadline_tick=25, ...)
-
-    history = AgentTransactionHistory(
-        agent_id="BANK_A",
-        outgoing=[tx1, tx2],
-        incoming_settlements=[],
-    )
-
-    sampler = BootstrapSampler(seed=42)
-    sample = sampler.sample(history, total_ticks=20)
-
-    # Arrival ticks should be valid within sample period
-    for tx in sample.outgoing_txns:
-        assert 0 <= tx.arrival_tick < 20
-        # Deadline should maintain relative offset
-        original_deadline_offset = tx.deadline_tick - tx.arrival_tick
-        assert original_deadline_offset > 0
-```
-
-#### Test 2.4: Incoming settlements preserve "beat" timing
-```python
-def test_bootstrap_sampler_preserves_settlement_beats():
-    """Incoming settlements maintain their ticks_to_settle timing."""
-    settle1 = TransactionRecord(
-        arrival_tick=0, settlement_tick=5, ...  # 5 ticks to settle
-    )
-    settle2 = TransactionRecord(
-        arrival_tick=3, settlement_tick=8, ...  # 5 ticks to settle
-    )
-
-    history = AgentTransactionHistory(
-        agent_id="BANK_A",
-        outgoing=[],
-        incoming_settlements=[settle1, settle2],
-    )
-
-    sampler = BootstrapSampler(seed=42)
-    sample = sampler.sample(history, total_ticks=20)
-
-    # Each incoming settlement maintains its ticks_to_settle
-    for settlement in sample.incoming_settlements:
-        assert settlement.ticks_to_settle is not None
-        # The "beat" is preserved even if remapped to different absolute tick
-```
-
-#### Implementation: BootstrapSampler
-
-```python
-class BootstrapSampler:
-    """Generates bootstrap samples from transaction history."""
-
-    def __init__(self, seed: int) -> None:
-        self._rng = np.random.Generator(np.random.PCG64(seed))
-
-    def sample(
-        self,
-        history: AgentTransactionHistory,
-        total_ticks: int,
-    ) -> BootstrapSample:
-        """Generate one bootstrap sample."""
-        # Sample outgoing with replacement
-        outgoing = self._bootstrap_transactions(
-            history.outgoing, total_ticks
-        )
-
-        # Sample incoming settlements with replacement
-        # Preserve ticks_to_settle as fixed "beats"
-        incoming = self._bootstrap_settlements(
-            history.incoming_settlements, total_ticks
-        )
-
-        return BootstrapSample(
-            agent_id=history.agent_id,
-            outgoing_txns=outgoing,
-            incoming_settlements=incoming,
-            total_ticks=total_ticks,
-        )
-```
+- [Game Concept Document](../game_concept_doc.md) - Real-world context and validation criteria
+- [Cost Model](../reference/architecture/12-cost-model.md) - Cost formulas and accrual
+- [Tick Loop Anatomy](../reference/architecture/11-tick-loop-anatomy.md) - Simulation mechanics
+- [Patterns and Conventions](../reference/patterns-and-conventions.md) - Code standards
 
 ---
 
-### Phase 3: BootstrapPolicyEvaluator
+## Appendix A: Mathematical Formulation
 
-**Goal**: Evaluate policy cost on a bootstrap sample.
+### A.1 Bootstrap Estimator
 
-#### Test 3.1: Balance evolution with incoming liquidity
-```python
-def test_evaluator_credits_incoming_liquidity():
-    """Incoming settlements increase balance at correct ticks."""
-    sample = BootstrapSample(
-        agent_id="BANK_A",
-        outgoing_txns=[],
-        incoming_settlements=[
-            TransactionRecord(settlement_tick=5, amount=100000, ...),
-        ],
-        total_ticks=10,
-    )
+Let $X_1, X_2, \ldots, X_n$ be observed transactions. The bootstrap estimate of expected cost is:
 
-    evaluator = BootstrapPolicyEvaluator(
-        opening_balance=50000,
-        cost_config=CostConfig(...),
-    )
+$$\hat{\theta}^* = \frac{1}{B} \sum_{b=1}^{B} C(\pi, X^{*b})$$
 
-    # At tick 5, balance should increase
-    result = evaluator.evaluate(sample, policy=FifoPolicy())
-    # Balance: 50000 → 150000 at tick 5
-```
+where $X^{*b} = (X^*_1, \ldots, X^*_n)$ is a bootstrap sample drawn with replacement, and $C(\pi, X)$ is the cost under policy $\pi$ given transactions $X$.
 
-#### Test 3.2: Delay cost accrual in queue
-```python
-def test_evaluator_accrues_delay_cost():
-    """Transactions in queue accrue delay cost per tick."""
-    sample = BootstrapSample(
-        agent_id="BANK_A",
-        outgoing_txns=[
-            TransactionRecord(arrival_tick=0, deadline_tick=10, amount=100000, ...),
-        ],
-        incoming_settlements=[],  # No incoming liquidity
-        total_ticks=10,
-    )
+### A.2 Confidence Interval
 
-    evaluator = BootstrapPolicyEvaluator(
-        opening_balance=0,  # Can't pay
-        cost_config=CostConfig(delay_penalty_per_tick=100),
-    )
+The bootstrap percentile confidence interval is:
 
-    result = evaluator.evaluate(sample, policy=FifoPolicy())
+$$\text{CI}_{1-\alpha} = \left[ \hat{\theta}^*_{(\alpha/2)}, \hat{\theta}^*_{(1-\alpha/2)} \right]$$
 
-    # Transaction stuck in queue for 10 ticks = 100 * 10 = 1000 cents delay cost
-    assert result.delay_cost == 1000
-```
+where $\hat{\theta}^*_{(p)}$ is the $p$-th percentile of the bootstrap distribution.
 
-#### Test 3.3: Overdraft cost when releasing without funds
-```python
-def test_evaluator_accrues_overdraft_cost():
-    """Releasing transaction with insufficient balance incurs overdraft."""
-    sample = BootstrapSample(
-        agent_id="BANK_A",
-        outgoing_txns=[
-            TransactionRecord(arrival_tick=0, amount=100000, ...),
-        ],
-        incoming_settlements=[],
-        total_ticks=10,
-    )
+### A.3 Variance Estimation
 
-    evaluator = BootstrapPolicyEvaluator(
-        opening_balance=50000,  # Only half
-        cost_config=CostConfig(overdraft_cost_bps=10.0, ticks_per_day=100),
-    )
+The bootstrap variance estimate is:
 
-    # Policy releases immediately → overdraft of 50000
-    result = evaluator.evaluate(sample, policy=ImmediateReleasePolicy())
-
-    assert result.overdraft_cost > 0
-    assert result.max_overdraft == 50000
-```
-
-#### Test 3.4: Deadline penalty when transaction goes overdue
-```python
-def test_evaluator_applies_deadline_penalty():
-    """One-time penalty when transaction exceeds deadline."""
-    sample = BootstrapSample(
-        agent_id="BANK_A",
-        outgoing_txns=[
-            TransactionRecord(arrival_tick=0, deadline_tick=5, amount=100000, ...),
-        ],
-        incoming_settlements=[],
-        total_ticks=10,
-    )
-
-    evaluator = BootstrapPolicyEvaluator(
-        opening_balance=0,  # Can't pay
-        cost_config=CostConfig(deadline_penalty=10000),
-    )
-
-    result = evaluator.evaluate(sample, policy=FifoPolicy())
-
-    # At tick 6, transaction goes overdue → 10000 penalty
-    assert result.deadline_penalty == 10000
-```
-
-#### Test 3.5: Policy integration with decision tree
-```python
-def test_evaluator_respects_policy_decisions():
-    """Evaluator applies policy decisions correctly."""
-    sample = BootstrapSample(
-        agent_id="BANK_A",
-        outgoing_txns=[
-            TransactionRecord(arrival_tick=0, priority=3, amount=50000, ...),
-            TransactionRecord(arrival_tick=0, priority=8, amount=50000, ...),
-        ],
-        incoming_settlements=[],
-        total_ticks=10,
-    )
-
-    evaluator = BootstrapPolicyEvaluator(
-        opening_balance=50000,  # Only enough for one
-        cost_config=CostConfig(...),
-    )
-
-    # Priority policy releases high priority first
-    result = evaluator.evaluate(sample, policy=PriorityPolicy())
-
-    # High priority (8) released, low priority (3) queued
-    assert result.transactions_settled == 1
-    assert result.transactions_unsettled == 1
-```
-
-#### Implementation: BootstrapPolicyEvaluator
-
-```python
-class BootstrapPolicyEvaluator:
-    """Evaluates policy cost on a bootstrap sample."""
-
-    def __init__(
-        self,
-        opening_balance: int,
-        cost_config: CostConfig,
-    ) -> None:
-        self._opening_balance = opening_balance
-        self._cost_config = cost_config
-
-    def evaluate(
-        self,
-        sample: BootstrapSample,
-        policy: PolicyExecutor,
-    ) -> PolicyEvaluationResult:
-        """Evaluate policy on sample, return cost."""
-        balance = self._opening_balance
-        queue: list[TransactionRecord] = []
-        costs = CostAccumulator()
-
-        for tick in range(sample.total_ticks):
-            # 1. Credit incoming liquidity (fixed beats)
-            balance += sample.get_incoming_liquidity_at_tick(tick)
-
-            # 2. Queue new arrivals
-            queue.extend(sample.get_arrivals_at_tick(tick))
-
-            # 3. Apply policy to decide releases
-            context = PolicyContext(balance=balance, tick=tick, queue=queue)
-            decisions = policy.evaluate(context)
-
-            # 4. Process releases
-            for decision in decisions:
-                if decision.action == "release" and balance >= decision.tx.amount:
-                    balance -= decision.tx.amount
-                    queue.remove(decision.tx)
-                    costs.record_settlement(decision.tx, tick)
-
-            # 5. Accrue costs
-            costs.accrue_tick_costs(tick, balance, queue, self._cost_config)
-
-        return costs.to_result(sample.agent_id)
-```
+$$\widehat{\text{Var}}(\hat{\theta}) = \frac{1}{B-1} \sum_{b=1}^{B} \left( \hat{\theta}^{*b} - \bar{\theta}^* \right)^2$$
 
 ---
 
-### Phase 4: Integration with ExperimentRunner
+## Appendix B: Comparison with Alternative Approaches
 
-**Goal**: Replace current MC loop with bootstrap evaluation.
-
-#### Test 4.1: Bootstrap evaluation uses observed transactions
-```python
-def test_runner_uses_bootstrap_evaluation():
-    """ExperimentRunner uses bootstrap instead of synthetic arrivals."""
-    runner = ExperimentRunner(experiment, ...)
-
-    # Mock simulation to return known transactions
-    mock_result = SimulationResult(
-        verbose_output=VerboseOutput(events_by_tick={
-            0: [arrival_event_1, arrival_event_2],
-            5: [settlement_event_1],
-        }),
-        ...
-    )
-
-    with patch.object(runner._sim_runner, 'run_simulation', return_value=mock_result):
-        result = await runner._evaluate_policies_bootstrap(iteration=1)
-
-    # Should have collected transactions from the single simulation
-    assert runner._history_collector.transaction_count > 0
-```
-
-#### Test 4.2: Each agent sees only their own costs
-```python
-def test_bootstrap_evaluation_isolates_agent_costs():
-    """Each agent's context only includes their own costs."""
-    runner = ExperimentRunner(experiment, ...)
-
-    result = await runner._evaluate_policies_bootstrap(iteration=1)
-
-    # Agent A's context should not include Agent B's costs
-    context_a = result.context_builder.get_agent_context("BANK_A")
-    assert "BANK_B" not in context_a.cost_summary
-```
-
-#### Test 4.3: System metrics sum agent costs
-```python
-def test_bootstrap_evaluation_aggregates_system_costs():
-    """System metrics are sum of all agent costs."""
-    runner = ExperimentRunner(experiment, ...)
-
-    result = await runner._evaluate_policies_bootstrap(iteration=1)
-
-    agent_a_cost = result.per_agent_costs["BANK_A"]
-    agent_b_cost = result.per_agent_costs["BANK_B"]
-
-    assert result.total_cost == agent_a_cost + agent_b_cost
-```
+| Approach | Pros | Cons | When to Use |
+|----------|------|------|-------------|
+| **Bootstrap (this plan)** | Non-parametric, uses observed data | Misses strategic response | Default choice |
+| **Synthetic Monte Carlo** | Tests diverse scenarios | Assumes known distribution | Distribution validation |
+| **Full Multi-Agent Sim** | Captures strategic dynamics | Expensive, complex | Final validation |
+| **Analytical Solution** | Exact, fast | Requires simplifying assumptions | Toy problems |
 
 ---
 
-### Phase 5: Policy Adapter
-
-**Goal**: Evaluate Castro policy trees within bootstrap evaluator.
-
-#### Test 5.1: Parse Castro policy JSON into executable
-```python
-def test_policy_adapter_parses_castro_policy():
-    """Castro policy JSON converts to executable policy."""
-    castro_policy = {
-        "version": "2.0",
-        "payment_tree": {
-            "root": {
-                "type": "decision",
-                "condition": {"field": "priority", "operator": ">=", "value": 5},
-                "if_true": {"type": "action", "action": "Submit"},
-                "if_false": {"type": "action", "action": "Hold"},
-            }
-        }
-    }
-
-    adapter = CastroPolicyAdapter()
-    policy = adapter.from_json(castro_policy)
-
-    # High priority → release
-    high_priority_tx = TransactionRecord(priority=8, ...)
-    assert policy.should_release(high_priority_tx, balance=100000) is True
-
-    # Low priority → hold
-    low_priority_tx = TransactionRecord(priority=3, ...)
-    assert policy.should_release(low_priority_tx, balance=100000) is False
-```
-
----
-
-## File Structure
-
-```
-api/payment_simulator/ai_cash_mgmt/
-├── sampling/
-│   ├── __init__.py
-│   ├── seed_manager.py          # Existing
-│   ├── transaction_sampler.py   # Existing
-│   ├── bootstrap_sampler.py     # NEW
-│   └── transaction_history.py   # NEW
-├── evaluation/
-│   ├── __init__.py              # NEW
-│   ├── bootstrap_evaluator.py   # NEW
-│   ├── cost_calculator.py       # NEW
-│   └── policy_adapter.py        # NEW
-
-experiments/castro/castro/
-├── runner.py                    # MODIFY: Add bootstrap evaluation method
-├── context_builder.py           # MODIFY: Adapt for bootstrap results
-└── bootstrap_integration.py     # NEW: Integration layer
-```
-
----
-
-## Configuration
-
-### New MonteCarloConfig Fields
-
-```python
-@dataclass
-class MonteCarloConfig:
-    # Existing fields
-    num_samples: int = 10
-    evaluation_ticks: int = 100
-    deterministic: bool = False
-    sample_method: SampleMethod = SampleMethod.BOOTSTRAP
-
-    # NEW: Bootstrap-specific
-    use_bootstrap_evaluation: bool = True
-    """Use bootstrap resampling from observed transactions (recommended)."""
-
-    arrival_remapping: ArrivalRemapping = ArrivalRemapping.PRESERVE_RELATIVE
-    """How to remap arrival ticks in bootstrap samples."""
-```
-
-### ArrivalRemapping Options
-
-```python
-class ArrivalRemapping(str, Enum):
-    PRESERVE_RELATIVE = "preserve_relative"
-    """Keep relative timing between transactions."""
-
-    UNIFORM_SPREAD = "uniform_spread"
-    """Spread arrivals uniformly across ticks."""
-
-    ORIGINAL_TICKS = "original_ticks"
-    """Keep original arrival ticks (may cause clustering)."""
-```
-
----
-
-## Migration Plan
-
-### Phase 1: Parallel Implementation (Non-Breaking)
-1. Implement new bootstrap components
-2. Add `use_bootstrap_evaluation` flag (default: False)
-3. Test alongside existing implementation
-4. Validate results match expected behavior
-
-### Phase 2: Feature Flag Rollout
-1. Enable bootstrap for exp2 (stochastic scenario)
-2. Keep synthetic arrivals for exp1 (deterministic scenario makes no sense for bootstrap)
-3. Collect comparison data
-
-### Phase 3: Default Enablement
-1. Set `use_bootstrap_evaluation=True` as default
-2. Deprecate synthetic arrival Monte Carlo
-3. Update documentation
-
----
-
-## Testing Strategy
-
-### Unit Tests
-- `test_transaction_history_collector.py`
-- `test_bootstrap_sampler.py`
-- `test_bootstrap_policy_evaluator.py`
-- `test_policy_adapter.py`
-- `test_cost_calculator.py`
-
-### Integration Tests
-- `test_bootstrap_runner_integration.py`
-- `test_bootstrap_determinism.py`
-
-### Property-Based Tests
-- Bootstrap samples have correct size
-- Resampling preserves amount distribution
-- Cost calculation is non-negative
-- Determinism with same seed
-
-### Acceptance Tests
-- exp2 with bootstrap produces reasonable cost variance
-- LLM receives meaningful agent-specific context
-- Optimization converges to stable policy
-
----
-
-## Success Criteria
-
-1. **Correctness**
-   - Bootstrap samples are reproducible with same seed
-   - Costs match expected formulas from cost model
-   - Policy decisions match Castro policy tree semantics
-
-2. **Performance**
-   - Bootstrap evaluation < 100ms per sample
-   - Total MC evaluation < 5s for 10 samples × 2 agents
-
-3. **Research Value**
-   - Cost variance reflects transaction uncertainty
-   - LLM can reason about bootstrap results
-   - Policy improvements generalize to held-out seeds
-
----
-
-## Open Questions
-
-1. **How to handle unsettled transactions in history?**
-   - Option A: Exclude from bootstrap pool
-   - Option B: Include with settlement_tick=None (never settles in eval)
-   - **Recommendation**: Option B - more realistic
-
-2. **Should bootstrap samples have same size as original?**
-   - Option A: Same size (standard bootstrap)
-   - Option B: Variable size (Poisson bootstrap)
-   - **Recommendation**: Option A for simplicity
-
-3. **How to remap arrival ticks?**
-   - Option A: Preserve original ticks (may cluster)
-   - Option B: Spread uniformly
-   - Option C: Preserve relative timing only
-   - **Recommendation**: Option C - maintains transaction relationships
-
----
-
-## References
-
-- [Patterns and Conventions](../reference/patterns-and-conventions.md)
-- [Cost Model](../reference/architecture/12-cost-model.md)
-- [FFI Boundary](../reference/architecture/04-ffi-boundary.md)
-- [Sampling Components](../reference/ai_cash_mgmt/sampling.md)
-- [Tick Loop Anatomy](../reference/architecture/11-tick-loop-anatomy.md)
+*Document Version 2.0 - Expanded with theoretical grounding, examples, and critical analysis*
