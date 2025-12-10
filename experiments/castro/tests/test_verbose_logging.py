@@ -324,7 +324,11 @@ class TestMonteCarloLogging:
     def test_log_monte_carlo_identifies_best_worst_seeds(
         self, string_console: tuple[Console, io.StringIO]
     ) -> None:
-        """Monte Carlo log identifies best and worst seeds for debugging."""
+        """Monte Carlo log identifies best and worst seeds for debugging.
+
+        Note: Best/Worst are now determined by delta_percent (improvement vs baseline),
+        not raw cost. This test provides baseline_cost to enable comparison.
+        """
         from castro.verbose_logging import (
             MonteCarloSeedResult,
             VerboseConfig,
@@ -335,15 +339,33 @@ class TestMonteCarloLogging:
         config = VerboseConfig(monte_carlo=True)
         logger = VerboseLogger(config, console)
 
+        # Provide baseline_cost so Best/Worst are determined by delta
+        # Best = highest improvement (10% improvement for 0x7A3B)
+        # Worst = lowest improvement (3% improvement for 0x2F1C)
         seed_results = [
             MonteCarloSeedResult(
-                seed=0x7A3B, cost=1320000, settled=12, total=12, settlement_rate=1.0
+                seed=0x7A3B,
+                cost=1320000,
+                settled=12,
+                total=12,
+                settlement_rate=1.0,
+                baseline_cost=1466666,  # ~10% improvement
             ),  # Best
             MonteCarloSeedResult(
-                seed=0x2F1C, cost=1380000, settled=11, total=12, settlement_rate=11 / 12
+                seed=0x2F1C,
+                cost=1380000,
+                settled=11,
+                total=12,
+                settlement_rate=11 / 12,
+                baseline_cost=1420000,  # ~3% improvement
             ),  # Worst
             MonteCarloSeedResult(
-                seed=0x8E4D, cost=1340000, settled=12, total=12, settlement_rate=1.0
+                seed=0x8E4D,
+                cost=1340000,
+                settled=12,
+                total=12,
+                settlement_rate=1.0,
+                baseline_cost=1440000,  # ~7% improvement
             ),
         ]
 
