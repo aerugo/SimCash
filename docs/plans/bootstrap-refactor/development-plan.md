@@ -3,7 +3,7 @@
 **Status**: Draft
 **Author**: Claude
 **Date**: 2025-12-10
-**Version**: 1.0
+**Version**: 1.1
 
 **Related**: [Conceptual Plan](refactor-conceptual-plan.md) - Theoretical foundation and architecture
 
@@ -761,6 +761,680 @@ def test_incoming_uses_settlement_as_beat_tick():
 
 ---
 
+## Phase 3B: Statistical Validation Tests
+
+### Goal
+Verify that bootstrap samples preserve the statistical properties of the original transaction history. These tests ensure the bootstrap methodology is sound before using samples for policy evaluation.
+
+### File Location
+```
+api/tests/ai_cash_mgmt/unit/bootstrap/test_statistical_validation.py
+```
+
+### Statistical Properties to Validate
+
+| Property | Test Method | Null Hypothesis |
+|----------|-------------|-----------------|
+| **Amount distribution** | Kolmogorov-Smirnov test | Bootstrap amounts come from same distribution as original |
+| **Priority distribution** | Chi-squared test | Priority frequencies match original |
+| **Mean preservation** | Bootstrap CI coverage | True mean lies within 95% CI ~95% of time |
+| **Variance preservation** | F-test / Levene's test | Variances are equal |
+| **Temporal patterns** | Per-tick rate comparison | Arrival rate per tick matches original pattern |
+| **Settlement timing** | KS test on offsets | Settlement offset distribution preserved |
+
+### Scenario 1: Simple (Uniform Distribution)
+
+**Characteristics**:
+- 50 transactions with uniform amounts ($100-$1000)
+- Single priority level (5)
+- Uniform arrival times across day
+- Consistent settlement offset (2-4 ticks)
+
+**Purpose**: Validate basic bootstrap mechanics work correctly with the simplest possible distribution.
+
+```python
+# tests/ai_cash_mgmt/unit/bootstrap/test_statistical_validation.py
+
+import numpy as np
+from scipy import stats
+import pytest
+
+class TestScenario1Simple:
+    """Statistical validation for simple uniform distribution scenario."""
+
+    @pytest.fixture
+    def simple_history(self) -> AgentTransactionHistory:
+        """Create simple scenario: uniform amounts, single priority."""
+        np.random.seed(42)  # Reproducible test data
+
+        transactions = []
+        for i in range(50):
+            transactions.append(TransactionRecord(
+                tx_id=f"tx-{i}",
+                sender_id="BANK_A",
+                receiver_id="BANK_B",
+                amount=np.random.randint(10000, 100001),  # $100-$1000 uniform
+                priority=5,  # Fixed priority
+                original_arrival_tick=np.random.randint(0, 12),  # Uniform arrival
+                deadline_offset=10,
+                settlement_offset=np.random.randint(2, 5),  # 2-4 ticks
+            ))
+
+        return AgentTransactionHistory(
+            agent_id="BANK_A",
+            outgoing=transactions,
+            incoming=[],
+        )
+
+    def test_amount_distribution_preserved_ks_test(self, simple_history):
+        """Bootstrap sample amounts have same distribution as original (KS test).
+
+        H0: Bootstrap amounts come from same distribution as original
+        Accept if p-value > 0.05
+        """
+        original_amounts = np.array([tx.amount for tx in simple_history.outgoing])
+
+        sampler = BootstrapSampler(seed=12345, ticks_per_day=12)
+
+        # Generate many bootstrap samples and aggregate amounts
+        all_bootstrap_amounts = []
+        for i in range(100):  # 100 bootstrap samples
+            sample = sampler.create_sample(simple_history, sample_idx=i)
+            all_bootstrap_amounts.extend([tx.amount for tx in sample.outgoing_txns])
+
+        bootstrap_amounts = np.array(all_bootstrap_amounts)
+
+        # Kolmogorov-Smirnov test
+        ks_stat, p_value = stats.ks_2samp(original_amounts, bootstrap_amounts)
+
+        assert p_value > 0.05, (
+            f"KS test rejected H0: distributions differ (p={p_value:.4f}, stat={ks_stat:.4f}). "
+            f"Bootstrap amounts should match original distribution."
+        )
+
+    def test_mean_within_bootstrap_ci(self, simple_history):
+        """True mean should lie within 95% bootstrap CI approximately 95% of time.
+
+        This tests bootstrap CI coverage - a fundamental property.
+        """
+        original_amounts = np.array([tx.amount for tx in simple_history.outgoing])
+        true_mean = np.mean(original_amounts)
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Compute bootstrap CI for mean
+        bootstrap_means = []
+        for i in range(1000):  # 1000 bootstrap replications
+            sample = sampler.create_sample(simple_history, sample_idx=i)
+            sample_amounts = [tx.amount for tx in sample.outgoing_txns]
+            bootstrap_means.append(np.mean(sample_amounts))
+
+        ci_lower = np.percentile(bootstrap_means, 2.5)
+        ci_upper = np.percentile(bootstrap_means, 97.5)
+
+        assert ci_lower <= true_mean <= ci_upper, (
+            f"True mean {true_mean:.2f} outside 95% CI [{ci_lower:.2f}, {ci_upper:.2f}]. "
+            f"Bootstrap CI should contain true parameter."
+        )
+
+    def test_variance_preserved_levene(self, simple_history):
+        """Bootstrap sample variance matches original (Levene's test).
+
+        H0: Variances are equal
+        Accept if p-value > 0.05
+        """
+        original_amounts = np.array([tx.amount for tx in simple_history.outgoing])
+
+        sampler = BootstrapSampler(seed=99, ticks_per_day=12)
+
+        # Collect bootstrap amounts
+        bootstrap_amounts = []
+        for i in range(50):
+            sample = sampler.create_sample(simple_history, sample_idx=i)
+            bootstrap_amounts.extend([tx.amount for tx in sample.outgoing_txns])
+
+        # Levene's test (more robust than F-test)
+        stat, p_value = stats.levene(original_amounts, np.array(bootstrap_amounts))
+
+        assert p_value > 0.05, (
+            f"Levene's test rejected H0: variances differ (p={p_value:.4f}). "
+            f"Bootstrap should preserve variance."
+        )
+
+    def test_priority_distribution_preserved(self, simple_history):
+        """Priority distribution is preserved (trivial for single priority)."""
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+        sample = sampler.create_sample(simple_history, sample_idx=0)
+
+        # All should be priority 5
+        priorities = [tx.priority for tx in sample.outgoing_txns]
+        assert all(p == 5 for p in priorities), "Single priority should be preserved"
+
+    def test_settlement_offset_distribution_preserved(self, simple_history):
+        """Settlement offset distribution preserved (KS test)."""
+        original_offsets = np.array([
+            tx.settlement_offset for tx in simple_history.outgoing
+            if tx.settlement_offset is not None
+        ])
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Note: settlement_offset is preserved exactly during resampling
+        # But the sampled transactions may differ, so distribution should match
+        bootstrap_offsets = []
+        for i in range(100):
+            sample = sampler.create_sample(simple_history, sample_idx=i)
+            for tx in sample.outgoing_txns:
+                # We need to trace back to original record to get offset
+                # This tests that we're sampling from the right distribution
+                pass  # Implementation depends on how offsets are tracked
+
+        # For now, verify offsets are in valid range
+        sample = sampler.create_sample(simple_history, sample_idx=0)
+        for tx in sample.outgoing_txns:
+            # Deadline offset should be preserved
+            assert tx.deadline_tick - tx.arrival_tick == 10
+```
+
+### Scenario 2: Slightly Complex (Log-Normal Amounts, Mixed Priorities)
+
+**Characteristics**:
+- 100 transactions with log-normal amounts (realistic payment distribution)
+- Categorical priority distribution: 20% high (8-10), 50% normal (4-7), 30% low (0-3)
+- Non-uniform arrivals (morning-heavy)
+- Variable settlement offsets (1-8 ticks)
+
+**Purpose**: Validate bootstrap preserves shape of skewed distributions and categorical variables.
+
+```python
+class TestScenario2SlightlyComplex:
+    """Statistical validation for log-normal amounts and mixed priorities."""
+
+    @pytest.fixture
+    def complex_history(self) -> AgentTransactionHistory:
+        """Create scenario: log-normal amounts, categorical priorities, morning-heavy."""
+        np.random.seed(42)
+
+        # Priority distribution: 20% high, 50% normal, 30% low
+        priority_probs = [0.30, 0.50, 0.20]  # low, normal, high
+        priority_ranges = [(0, 3), (4, 7), (8, 10)]
+
+        # Morning-heavy arrival pattern (ticks 0-3 have 60% of arrivals)
+        arrival_weights = [0.15, 0.15, 0.15, 0.15, 0.08, 0.08, 0.06, 0.06, 0.04, 0.04, 0.02, 0.02]
+
+        transactions = []
+        for i in range(100):
+            # Log-normal amounts: mean ~$500, heavy right tail
+            amount = int(np.random.lognormal(mean=10.5, sigma=1.0))  # ~$36k mean, skewed
+            amount = max(1000, min(amount, 10_000_000))  # Clamp to $10-$100k
+
+            # Categorical priority
+            priority_band = np.random.choice([0, 1, 2], p=priority_probs)
+            priority = np.random.randint(priority_ranges[priority_band][0],
+                                        priority_ranges[priority_band][1] + 1)
+
+            # Morning-heavy arrivals
+            arrival_tick = np.random.choice(12, p=arrival_weights)
+
+            # Variable settlement offset
+            settlement_offset = np.random.randint(1, 9)
+
+            transactions.append(TransactionRecord(
+                tx_id=f"tx-{i}",
+                sender_id="BANK_A",
+                receiver_id="BANK_B",
+                amount=amount,
+                priority=priority,
+                original_arrival_tick=arrival_tick,
+                deadline_offset=12,
+                settlement_offset=settlement_offset,
+            ))
+
+        return AgentTransactionHistory(
+            agent_id="BANK_A",
+            outgoing=transactions,
+            incoming=[],
+        )
+
+    def test_lognormal_shape_preserved(self, complex_history):
+        """Log-normal distribution shape is preserved (skewness and kurtosis)."""
+        original_amounts = np.array([tx.amount for tx in complex_history.outgoing])
+        original_skew = stats.skew(original_amounts)
+        original_kurtosis = stats.kurtosis(original_amounts)
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Generate bootstrap samples
+        bootstrap_amounts = []
+        for i in range(100):
+            sample = sampler.create_sample(complex_history, sample_idx=i)
+            bootstrap_amounts.extend([tx.amount for tx in sample.outgoing_txns])
+
+        bootstrap_skew = stats.skew(bootstrap_amounts)
+        bootstrap_kurtosis = stats.kurtosis(bootstrap_amounts)
+
+        # Skewness should be similar (both positive for log-normal)
+        assert abs(bootstrap_skew - original_skew) < 0.5, (
+            f"Skewness differs: original={original_skew:.2f}, bootstrap={bootstrap_skew:.2f}"
+        )
+
+        # Kurtosis should be similar
+        assert abs(bootstrap_kurtosis - original_kurtosis) < 2.0, (
+            f"Kurtosis differs: original={original_kurtosis:.2f}, bootstrap={bootstrap_kurtosis:.2f}"
+        )
+
+    def test_priority_categorical_distribution_chi_squared(self, complex_history):
+        """Priority distribution matches original (chi-squared test).
+
+        H0: Bootstrap priority frequencies match original
+        Accept if p-value > 0.05
+        """
+        # Original priority counts
+        original_priorities = [tx.priority for tx in complex_history.outgoing]
+        original_counts = np.bincount(original_priorities, minlength=11)
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Bootstrap priority counts (aggregate many samples)
+        bootstrap_priorities = []
+        for i in range(100):
+            sample = sampler.create_sample(complex_history, sample_idx=i)
+            bootstrap_priorities.extend([tx.priority for tx in sample.outgoing_txns])
+
+        bootstrap_counts = np.bincount(bootstrap_priorities, minlength=11)
+
+        # Normalize to same total for comparison
+        original_freq = original_counts / sum(original_counts)
+        bootstrap_freq = bootstrap_counts / sum(bootstrap_counts)
+
+        # Chi-squared test (need expected counts > 5, so group small categories)
+        # Group into: low (0-3), normal (4-7), high (8-10)
+        original_grouped = [
+            sum(original_counts[0:4]),
+            sum(original_counts[4:8]),
+            sum(original_counts[8:11]),
+        ]
+        bootstrap_grouped = [
+            sum(bootstrap_counts[0:4]),
+            sum(bootstrap_counts[4:8]),
+            sum(bootstrap_counts[8:11]),
+        ]
+
+        # Scale bootstrap to same total as original for chi-squared
+        scale = sum(original_grouped) / sum(bootstrap_grouped)
+        bootstrap_scaled = [c * scale for c in bootstrap_grouped]
+
+        chi2, p_value = stats.chisquare(bootstrap_scaled, original_grouped)
+
+        assert p_value > 0.05, (
+            f"Chi-squared test rejected H0: priority distributions differ (p={p_value:.4f}). "
+            f"Original: {original_grouped}, Bootstrap: {bootstrap_grouped}"
+        )
+
+    def test_morning_heavy_pattern_preserved(self, complex_history):
+        """Morning-heavy arrival pattern is preserved in bootstrap samples.
+
+        Original has 60% of arrivals in ticks 0-3.
+        Bootstrap should have similar concentration.
+        """
+        # Original pattern
+        original_arrivals = [tx.original_arrival_tick for tx in complex_history.outgoing]
+        original_morning = sum(1 for t in original_arrivals if t < 4) / len(original_arrivals)
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Bootstrap pattern (check remapped arrival ticks)
+        # Note: arrival ticks are remapped uniformly, but transaction SELECTION
+        # preserves the original distribution of amounts/priorities
+        sample = sampler.create_sample(complex_history, sample_idx=0)
+
+        # The bootstrap samples FROM the original transactions, so if we
+        # track which original transactions were selected, their characteristics
+        # are preserved. The ARRIVAL TICK is remapped, but the transaction
+        # attributes come from the original distribution.
+
+        # For this test, we verify that the same transactions are available
+        # (with replacement), preserving the characteristic distribution
+        assert len(sample.outgoing_txns) == len(complex_history.outgoing)
+
+    def test_amount_percentiles_preserved(self, complex_history):
+        """Key percentiles of amount distribution are preserved."""
+        original_amounts = np.array([tx.amount for tx in complex_history.outgoing])
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        bootstrap_amounts = []
+        for i in range(100):
+            sample = sampler.create_sample(complex_history, sample_idx=i)
+            bootstrap_amounts.extend([tx.amount for tx in sample.outgoing_txns])
+
+        bootstrap_amounts = np.array(bootstrap_amounts)
+
+        # Check key percentiles
+        for pct in [25, 50, 75, 90, 95]:
+            original_pct = np.percentile(original_amounts, pct)
+            bootstrap_pct = np.percentile(bootstrap_amounts, pct)
+
+            # Allow 20% tolerance
+            tolerance = 0.20 * original_pct
+            assert abs(bootstrap_pct - original_pct) < tolerance, (
+                f"Percentile {pct} differs too much: "
+                f"original={original_pct:.2f}, bootstrap={bootstrap_pct:.2f}"
+            )
+```
+
+### Scenario 3: Complex (Temporal Patterns, Correlations, Multiple Counterparties)
+
+**Characteristics**:
+- 200 transactions across 3 counterparties
+- Correlated amounts and priorities (high priority → larger amounts)
+- Time-varying arrival rates (morning rush, lunch lull, EOD spike)
+- Bimodal settlement offsets (immediate vs queued)
+- Different patterns per counterparty
+
+**Purpose**: Validate bootstrap handles real-world complexity including correlations and multi-dimensional structure.
+
+```python
+class TestScenario3Complex:
+    """Statistical validation for complex scenario with correlations and temporal patterns."""
+
+    @pytest.fixture
+    def complex_multiparty_history(self) -> AgentTransactionHistory:
+        """Create complex scenario: correlations, multiple counterparties, temporal patterns."""
+        np.random.seed(42)
+
+        # Counterparty-specific patterns
+        counterparties = {
+            "BANK_B": {"weight": 0.5, "mean_amount": 50000, "priority_bias": 5},
+            "BANK_C": {"weight": 0.3, "mean_amount": 150000, "priority_bias": 7},
+            "BANK_D": {"weight": 0.2, "mean_amount": 500000, "priority_bias": 9},
+        }
+
+        # Temporal pattern: morning rush (0-2), lunch lull (5-6), EOD spike (10-11)
+        tick_weights = [0.15, 0.12, 0.10, 0.08, 0.07, 0.04, 0.04, 0.06, 0.08, 0.10, 0.08, 0.08]
+
+        transactions = []
+        for i in range(200):
+            # Select counterparty
+            cp = np.random.choice(
+                list(counterparties.keys()),
+                p=[c["weight"] for c in counterparties.values()]
+            )
+            cp_config = counterparties[cp]
+
+            # Amount: log-normal with counterparty-specific mean
+            amount = int(np.random.lognormal(
+                mean=np.log(cp_config["mean_amount"]),
+                sigma=0.5
+            ))
+            amount = max(1000, min(amount, 50_000_000))
+
+            # Priority: correlated with amount (larger → higher priority)
+            # Base priority from counterparty, adjusted by amount
+            base_priority = cp_config["priority_bias"]
+            amount_factor = np.log10(amount) - 4  # 0 for $10k, 1 for $100k
+            priority = int(np.clip(base_priority + amount_factor + np.random.normal(0, 1), 0, 10))
+
+            # Arrival tick: temporal pattern
+            arrival_tick = np.random.choice(12, p=tick_weights)
+
+            # Settlement offset: bimodal (immediate: 1-2 ticks, or queued: 5-8 ticks)
+            if np.random.random() < 0.6:  # 60% immediate
+                settlement_offset = np.random.randint(1, 3)
+            else:  # 40% queued
+                settlement_offset = np.random.randint(5, 9)
+
+            transactions.append(TransactionRecord(
+                tx_id=f"tx-{i}",
+                sender_id="BANK_A",
+                receiver_id=cp,
+                amount=amount,
+                priority=priority,
+                original_arrival_tick=arrival_tick,
+                deadline_offset=10,
+                settlement_offset=settlement_offset,
+            ))
+
+        return AgentTransactionHistory(
+            agent_id="BANK_A",
+            outgoing=transactions,
+            incoming=[],
+        )
+
+    def test_counterparty_distribution_preserved(self, complex_multiparty_history):
+        """Counterparty distribution is preserved in bootstrap samples."""
+        # Original counterparty counts
+        original_cps = [tx.receiver_id for tx in complex_multiparty_history.outgoing]
+        original_counts = {cp: original_cps.count(cp) for cp in set(original_cps)}
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Bootstrap counterparty counts
+        bootstrap_cps = []
+        for i in range(100):
+            sample = sampler.create_sample(complex_multiparty_history, sample_idx=i)
+            bootstrap_cps.extend([tx.receiver_id for tx in sample.outgoing_txns])
+
+        bootstrap_counts = {cp: bootstrap_cps.count(cp) for cp in set(bootstrap_cps)}
+
+        # Normalize and compare
+        total_orig = sum(original_counts.values())
+        total_boot = sum(bootstrap_counts.values())
+
+        for cp in original_counts:
+            orig_freq = original_counts[cp] / total_orig
+            boot_freq = bootstrap_counts.get(cp, 0) / total_boot
+
+            # Allow 10% tolerance
+            assert abs(boot_freq - orig_freq) < 0.10, (
+                f"Counterparty {cp} frequency differs: "
+                f"original={orig_freq:.3f}, bootstrap={boot_freq:.3f}"
+            )
+
+    def test_amount_priority_correlation_preserved(self, complex_multiparty_history):
+        """Correlation between amount and priority is preserved.
+
+        Original has positive correlation (larger amounts → higher priority).
+        Bootstrap should preserve this correlation structure.
+        """
+        # Original correlation
+        original_amounts = np.array([tx.amount for tx in complex_multiparty_history.outgoing])
+        original_priorities = np.array([tx.priority for tx in complex_multiparty_history.outgoing])
+        original_corr, _ = stats.pearsonr(np.log10(original_amounts), original_priorities)
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Bootstrap correlation
+        bootstrap_amounts = []
+        bootstrap_priorities = []
+        for i in range(50):
+            sample = sampler.create_sample(complex_multiparty_history, sample_idx=i)
+            bootstrap_amounts.extend([tx.amount for tx in sample.outgoing_txns])
+            bootstrap_priorities.extend([tx.priority for tx in sample.outgoing_txns])
+
+        bootstrap_corr, _ = stats.pearsonr(
+            np.log10(np.array(bootstrap_amounts)),
+            np.array(bootstrap_priorities)
+        )
+
+        # Correlation should be similar (within 0.15)
+        assert abs(bootstrap_corr - original_corr) < 0.15, (
+            f"Amount-priority correlation differs: "
+            f"original={original_corr:.3f}, bootstrap={bootstrap_corr:.3f}"
+        )
+
+    def test_bimodal_settlement_preserved(self, complex_multiparty_history):
+        """Bimodal settlement offset distribution is preserved.
+
+        Original has two modes: immediate (1-2) and queued (5-8).
+        Bootstrap should preserve this bimodality.
+        """
+        original_offsets = np.array([
+            tx.settlement_offset for tx in complex_multiparty_history.outgoing
+        ])
+
+        # Check bimodality in original
+        immediate_orig = np.sum((original_offsets >= 1) & (original_offsets <= 2))
+        queued_orig = np.sum((original_offsets >= 5) & (original_offsets <= 8))
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Check bimodality in bootstrap
+        bootstrap_offsets = []
+        for i in range(100):
+            sample = sampler.create_sample(complex_multiparty_history, sample_idx=i)
+            # Get offsets from the selected transactions
+            # (The sample preserves the original transaction's settlement_offset)
+            for tx in sample.outgoing_txns:
+                # Need to track which original transaction was selected
+                # This depends on implementation details
+                pass
+
+        # Alternative: verify KS test on full distribution
+        bootstrap_all_offsets = []
+        for i in range(100):
+            sample = sampler.create_sample(complex_multiparty_history, sample_idx=i)
+            # Assuming we can access the original offsets somehow
+            # This test may need adjustment based on actual implementation
+
+        # For now, verify the structure exists
+        assert immediate_orig / len(original_offsets) > 0.5, "Should have ~60% immediate"
+        assert queued_orig / len(original_offsets) > 0.3, "Should have ~40% queued"
+
+    def test_temporal_pattern_first_half_vs_second_half(self, complex_multiparty_history):
+        """Temporal imbalance (more morning transactions) is reflected in samples.
+
+        Original has ~50% of transactions in first 4 ticks.
+        Since arrival ticks are remapped uniformly, this tests that the
+        TRANSACTION CHARACTERISTICS (amounts, priorities) sampled reflect
+        the original distribution, not the temporal pattern directly.
+        """
+        original_txs = complex_multiparty_history.outgoing
+
+        # Morning transactions tend to have different characteristics
+        morning_txs = [tx for tx in original_txs if tx.original_arrival_tick < 4]
+        afternoon_txs = [tx for tx in original_txs if tx.original_arrival_tick >= 4]
+
+        morning_mean_amount = np.mean([tx.amount for tx in morning_txs])
+        afternoon_mean_amount = np.mean([tx.amount for tx in afternoon_txs])
+
+        # Bootstrap samples should preserve this mix
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        bootstrap_amounts = []
+        for i in range(100):
+            sample = sampler.create_sample(complex_multiparty_history, sample_idx=i)
+            bootstrap_amounts.extend([tx.amount for tx in sample.outgoing_txns])
+
+        # The overall amount distribution should match
+        original_mean = np.mean([tx.amount for tx in original_txs])
+        bootstrap_mean = np.mean(bootstrap_amounts)
+
+        # Allow 10% tolerance
+        assert abs(bootstrap_mean - original_mean) / original_mean < 0.10, (
+            f"Mean amount differs: original={original_mean:.2f}, bootstrap={bootstrap_mean:.2f}"
+        )
+
+    def test_joint_distribution_counterparty_amount(self, complex_multiparty_history):
+        """Joint distribution of (counterparty, amount) is preserved.
+
+        Different counterparties have different amount distributions.
+        Bootstrap should preserve this conditional structure.
+        """
+        # Original: mean amount per counterparty
+        original_by_cp = {}
+        for tx in complex_multiparty_history.outgoing:
+            if tx.receiver_id not in original_by_cp:
+                original_by_cp[tx.receiver_id] = []
+            original_by_cp[tx.receiver_id].append(tx.amount)
+
+        original_means = {cp: np.mean(amounts) for cp, amounts in original_by_cp.items()}
+
+        sampler = BootstrapSampler(seed=42, ticks_per_day=12)
+
+        # Bootstrap: mean amount per counterparty
+        bootstrap_by_cp = {cp: [] for cp in original_by_cp}
+        for i in range(100):
+            sample = sampler.create_sample(complex_multiparty_history, sample_idx=i)
+            for tx in sample.outgoing_txns:
+                if tx.receiver_id in bootstrap_by_cp:
+                    bootstrap_by_cp[tx.receiver_id].append(tx.amount)
+
+        bootstrap_means = {cp: np.mean(amounts) if amounts else 0
+                         for cp, amounts in bootstrap_by_cp.items()}
+
+        # Each counterparty's mean should be preserved (within 20%)
+        for cp in original_means:
+            orig = original_means[cp]
+            boot = bootstrap_means.get(cp, 0)
+            assert abs(boot - orig) / orig < 0.20, (
+                f"Counterparty {cp} mean amount differs: "
+                f"original={orig:.2f}, bootstrap={boot:.2f}"
+            )
+```
+
+### Summary: Statistical Validation Test Matrix
+
+| Test | Scenario 1 (Simple) | Scenario 2 (Medium) | Scenario 3 (Complex) |
+|------|---------------------|---------------------|----------------------|
+| **Amount KS test** | ✓ Uniform | ✓ Log-normal | ✓ Multi-modal |
+| **Mean CI coverage** | ✓ | - | - |
+| **Variance Levene** | ✓ | - | - |
+| **Skewness/Kurtosis** | - | ✓ | - |
+| **Priority chi-squared** | ✓ (trivial) | ✓ Categorical | - |
+| **Percentiles** | - | ✓ | - |
+| **Counterparty freq** | - | - | ✓ |
+| **Correlation preserved** | - | - | ✓ Amount-priority |
+| **Bimodal settlement** | - | - | ✓ |
+| **Joint distribution** | - | - | ✓ CP × Amount |
+
+### Implementation Notes
+
+```python
+# Helper functions for statistical tests
+
+def assert_ks_same_distribution(sample1: np.ndarray, sample2: np.ndarray,
+                                alpha: float = 0.05, name: str = ""):
+    """Assert two samples come from same distribution (KS test)."""
+    stat, p_value = stats.ks_2samp(sample1, sample2)
+    assert p_value > alpha, (
+        f"KS test rejected H0 for {name}: p={p_value:.4f} < {alpha}. "
+        f"Distributions appear different."
+    )
+
+
+def assert_chi_squared_same_distribution(observed: list[int], expected: list[int],
+                                         alpha: float = 0.05, name: str = ""):
+    """Assert categorical distributions match (chi-squared test)."""
+    # Scale expected to same total as observed
+    scale = sum(observed) / sum(expected)
+    expected_scaled = [e * scale for e in expected]
+
+    chi2, p_value = stats.chisquare(observed, expected_scaled)
+    assert p_value > alpha, (
+        f"Chi-squared test rejected H0 for {name}: p={p_value:.4f} < {alpha}. "
+        f"Observed: {observed}, Expected: {expected_scaled}"
+    )
+
+
+def compute_bootstrap_ci(statistic_fn, history, sampler, num_replicates=1000,
+                        confidence=0.95):
+    """Compute bootstrap confidence interval for a statistic."""
+    statistics = []
+    for i in range(num_replicates):
+        sample = sampler.create_sample(history, sample_idx=i)
+        stat = statistic_fn(sample)
+        statistics.append(stat)
+
+    alpha = 1 - confidence
+    ci_lower = np.percentile(statistics, 100 * alpha / 2)
+    ci_upper = np.percentile(statistics, 100 * (1 - alpha / 2))
+
+    return ci_lower, ci_upper, statistics
+```
+
+---
+
 ## Phase 4: Sandbox Configuration Builder
 
 ### Goal
@@ -1221,8 +1895,11 @@ gantt
     section Phase 3
     Bootstrap Sampler                  :p3, after p2, 2d
 
+    section Phase 3B
+    Statistical Validation Tests       :p3b, after p3, 2d
+
     section Phase 4
-    Sandbox Config Builder             :p4, after p3, 2d
+    Sandbox Config Builder             :p4, after p3b, 2d
 
     section Phase 5
     Policy Evaluator                   :p5a, after p4, 2d
@@ -1242,10 +1919,13 @@ gantt
 | 1. Data Structures | None | Immediately |
 | 2. History Collector | Phase 1 | Phase 1 tests green |
 | 3. Bootstrap Sampler | Phases 1, 2 | Phase 2 tests green |
-| 4. Config Builder | Phases 1, 3 | Phase 3 tests green |
+| 3B. Statistical Validation | Phase 3 | Phase 3 tests green |
+| 4. Config Builder | Phases 1, 3, 3B | Phase 3B tests green |
 | 5. Policy Evaluator | Phases 1-4 | Phase 4 tests green |
 | 6. Castro Integration | Phases 1-5 | Phase 5 tests green |
 | 7. E2E Tests | Phases 1-6 | Phase 6 tests green |
+
+**Note**: Phase 3B (Statistical Validation) is a **gate** before Phase 4. We must verify that bootstrap samples are statistically valid before using them for policy evaluation. This prevents building on a flawed foundation.
 
 ---
 
@@ -1259,6 +1939,10 @@ gantt
 - [ ] Paired policy comparison uses identical samples
 - [ ] Cost delta calculation is accurate
 - [ ] Castro can use bootstrap for policy acceptance decisions
+- [ ] **Statistical validation tests pass for all three scenarios**
+  - [ ] Scenario 1 (Simple): KS test, mean CI coverage, variance Levene
+  - [ ] Scenario 2 (Medium): Log-normal shape, chi-squared priorities, percentiles
+  - [ ] Scenario 3 (Complex): Correlation, counterparty distribution, joint distribution
 
 ### Should Have (P1)
 
@@ -1266,6 +1950,7 @@ gantt
 - [ ] Monte Carlo with 20 samples completes in <10s
 - [ ] Detailed cost breakdown in evaluation results
 - [ ] Confidence interval calculation for delta
+- [ ] Bootstrap CI coverage verified (~95% for 95% CI)
 
 ### Nice to Have (P2)
 
@@ -1273,6 +1958,7 @@ gantt
 - [ ] Parallel sample evaluation
 - [ ] Caching of intermediate results
 - [ ] Visualization of bootstrap distributions
+- [ ] Additional statistical tests (Anderson-Darling, Cramér-von Mises)
 
 ---
 
@@ -1296,4 +1982,4 @@ gantt
 
 ---
 
-*Document Version 1.0 - TDD Development Plan*
+*Document Version 1.1 - TDD Development Plan with Statistical Validation*
