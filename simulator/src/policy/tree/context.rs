@@ -484,13 +484,14 @@ impl EvalContext {
         let mut queue1_total_value = 0i64;
         for tx_id in agent.outgoing_queue() {
             if let Some(tx_in_queue) = state.get_transaction(tx_id) {
-                queue1_total_value += tx_in_queue.remaining_amount();
+                queue1_total_value = queue1_total_value.saturating_add(tx_in_queue.remaining_amount());
             }
         }
         fields.insert("queue1_total_value".to_string(), queue1_total_value as f64);
 
         // Headroom: available liquidity minus what's needed for Queue 1
-        let headroom = agent.available_liquidity() - queue1_total_value;
+        // Use saturating_sub to handle potential overflow
+        let headroom = agent.available_liquidity().saturating_sub(queue1_total_value);
         fields.insert("headroom".to_string(), headroom as f64);
 
         // Queue 2 (RTGS) pressure fields
@@ -1228,12 +1229,13 @@ fn calculate_q2_bilateral_values(
     for tx_id in state.rtgs_queue() {
         if let Some(tx) = state.get_transaction(tx_id) {
             // Outgoing to counterparty
+            // Use saturating_add to prevent overflow
             if tx.sender_id() == agent_id && tx.receiver_id() == counterparty_id {
-                my_q2_out += tx.remaining_amount();
+                my_q2_out = my_q2_out.saturating_add(tx.remaining_amount());
             }
             // Incoming from counterparty
             if tx.sender_id() == counterparty_id && tx.receiver_id() == agent_id {
-                my_q2_in += tx.remaining_amount();
+                my_q2_in = my_q2_in.saturating_add(tx.remaining_amount());
             }
         }
     }
@@ -1255,9 +1257,11 @@ fn calculate_top_counterparties_by_q2_outflow(
     for tx_id in state.rtgs_queue() {
         if let Some(tx) = state.get_transaction(tx_id) {
             if tx.sender_id() == agent_id {
-                *by_counterparty
+                // Use saturating_add to prevent overflow
+                let entry = by_counterparty
                     .entry(tx.receiver_id().to_string())
-                    .or_insert(0) += tx.remaining_amount();
+                    .or_insert(0);
+                *entry = entry.saturating_add(tx.remaining_amount());
             }
         }
     }
@@ -1284,9 +1288,11 @@ fn calculate_top_counterparties_by_q2_inflow(
     for tx_id in state.rtgs_queue() {
         if let Some(tx) = state.get_transaction(tx_id) {
             if tx.receiver_id() == agent_id {
-                *by_counterparty
+                // Use saturating_add to prevent overflow
+                let entry = by_counterparty
                     .entry(tx.sender_id().to_string())
-                    .or_insert(0) += tx.remaining_amount();
+                    .or_insert(0);
+                *entry = entry.saturating_add(tx.remaining_amount());
             }
         }
     }
@@ -1312,12 +1318,15 @@ fn calculate_top_bilateral_nets(
     for tx_id in state.rtgs_queue() {
         if let Some(tx) = state.get_transaction(tx_id) {
             // Outgoing (positive contribution to net)
+            // Use saturating arithmetic to prevent overflow
             if tx.sender_id() == agent_id {
-                *nets.entry(tx.receiver_id().to_string()).or_insert(0) += tx.remaining_amount();
+                let entry = nets.entry(tx.receiver_id().to_string()).or_insert(0);
+                *entry = entry.saturating_add(tx.remaining_amount());
             }
             // Incoming (negative contribution to net)
             if tx.receiver_id() == agent_id {
-                *nets.entry(tx.sender_id().to_string()).or_insert(0) -= tx.remaining_amount();
+                let entry = nets.entry(tx.sender_id().to_string()).or_insert(0);
+                *entry = entry.saturating_sub(tx.remaining_amount());
             }
         }
     }
@@ -1396,10 +1405,11 @@ fn calculate_throughput_fraction_simple(state: &SimulationState, agent_id: &str)
     let mut settled_amount = 0i64;
 
     // Iterate through all transactions where this agent is the sender
+    // Use saturating_add to prevent overflow with large transaction volumes
     for tx in state.transactions().values() {
         if tx.sender_id() == agent_id {
-            total_amount += tx.amount();
-            settled_amount += tx.settled_amount();
+            total_amount = total_amount.saturating_add(tx.amount());
+            settled_amount = settled_amount.saturating_add(tx.settled_amount());
         }
     }
 
