@@ -3,7 +3,9 @@
 **Status**: Draft
 **Author**: Claude
 **Date**: 2025-12-10
-**Version**: 2.3
+**Version**: 2.4
+
+**Revision 2.4 Notes**: Converted all ASCII diagrams to mermaid flowcharts, sequence diagrams, and gantt charts for better rendering and consistency with project conventions.
 
 **Revision 2.3 Notes**: Added Part 10 - Documentation Phase with detailed specifications for 11 reference documents in `docs/reference/castro/`. Includes document templates, mermaid flowchart style guide, section outlines, TDD tests, and phased timeline aligned with implementation.
 
@@ -27,34 +29,40 @@ This document describes a **bootstrap resampling approach** for evaluating cash 
 
 Consider a bank's Treasury department deploying an AI-powered cash management system:
 
+```mermaid
+flowchart LR
+    subgraph Bank["BANK TREASURY"]
+        subgraph Obligations["Payment Obligations"]
+            Client[Client txns]
+            Securities[Securities]
+            Interbank[Interbank]
+        end
+
+        AI["AI Cash Manager<br/>━━━━━━━━━━━━━━<br/>• When to release?<br/>• Which priority?<br/>• How much credit?"]
+    end
+
+    subgraph CentralBank["CENTRAL BANK RTGS"]
+        Immediate[Immediate settlement]
+        Queue[Queue if no liquidity]
+        LSM[LSM optimization]
+    end
+
+    Obligations -->|"Queue 1<br/>(Bank's desk)"| AI
+    AI --> CentralBank
+
+    style Bank fill:#e3f2fd
+    style CentralBank fill:#e8f5e9
+    style AI fill:#fff3e0
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        BANK TREASURY OPERATIONS                              │
-│                                                                              │
-│  ┌─────────────────┐                        ┌─────────────────────────────┐ │
-│  │  PAYMENT        │   Queue 1              │  CENTRAL BANK               │ │
-│  │  OBLIGATIONS    │   (Bank's desk)        │  RTGS SYSTEM                │ │
-│  │                 │                        │                             │ │
-│  │  • Client txns  │──► AI Cash Manager ───►│  • Immediate settlement     │ │
-│  │  • Securities   │    decides:            │  • Queue if no liquidity    │ │
-│  │  • Interbank    │    - When to release?  │  • LSM optimization         │ │
-│  │                 │    - Which priority?   │                             │ │
-│  └─────────────────┘    - How much credit?  └─────────────────────────────┘ │
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │                    AI CASH MANAGER'S INFORMATION SET                    ││
-│  │                                                                         ││
-│  │  ✓ Current balance at central bank                                     ││
-│  │  ✓ Pending outgoing payments (amounts, deadlines, priorities)          ││
-│  │  ✓ Historical pattern of incoming payments                             ││
-│  │  ✓ Cost parameters (overdraft rates, delay penalties)                  ││
-│  │                                                                         ││
-│  │  ✗ Future payment arrivals (unknown)                                   ││
-│  │  ✗ Other banks' strategies (unobservable)                              ││
-│  │  ✗ Exact timing of incoming settlements (depends on counterparties)    ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+
+**AI Cash Manager's Information Set:**
+
+| Known (✓) | Unknown (✗) |
+|-----------|-------------|
+| Current balance at central bank | Future payment arrivals |
+| Pending outgoing payments (amounts, deadlines, priorities) | Other banks' strategies |
+| Historical pattern of incoming payments | Exact timing of incoming settlements |
+| Cost parameters (overdraft rates, delay penalties) | |
 
 ### 1.2 The Fundamental Tension (from game_concept_doc.md)
 
@@ -66,20 +74,22 @@ Banks face a core tradeoff every business day:
 
 This creates a **coordination problem**:
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px'}}}%%
+quadrantChart
+    title Coordination Game: Bank A vs Bank B
+    x-axis "Bank B: Wait & See" --> "Bank B: Pay Early"
+    y-axis "Bank A: Wait & See" --> "Bank A: Pay Early"
+    quadrant-1 "Both settle quickly (Mutual gain)"
+    quadrant-2 "A pays B's liquidity (A loses)"
+    quadrant-3 "GRIDLOCK (Both suffer delays)"
+    quadrant-4 "B pays A's liquidity (B loses)"
 ```
-                    BANK B's Strategy
-                    ┌─────────────────────────────────┐
-                    │   Pay Early    │   Wait & See   │
-    ┌───────────────┼────────────────┼────────────────┤
-    │   Pay Early   │  Both settle   │  A pays B's    │
-B   │               │  quickly       │  liquidity     │
-A   │               │  (mutual gain) │  (A loses)     │
-N   ├───────────────┼────────────────┼────────────────┤
-K   │   Wait & See  │  B pays A's    │  GRIDLOCK      │
-    │               │  liquidity     │  Both suffer   │
-A   │               │  (B loses)     │  delays        │
-    └───────────────┴────────────────┴────────────────┘
-```
+
+| | **Bank B: Pay Early** | **Bank B: Wait & See** |
+|---|---|---|
+| **Bank A: Pay Early** | Both settle quickly *(mutual gain)* | A pays B's liquidity *(A loses)* |
+| **Bank A: Wait & See** | B pays A's liquidity *(B loses)* | **GRIDLOCK** *(Both suffer delays)* |
 
 This resembles a **Stag Hunt** or **Prisoner's Dilemma** depending on cost parameters.
 
@@ -116,24 +126,24 @@ The AI must evaluate candidate policies by asking:
 
 The **bootstrap** treats the empirical distribution of observed data as an approximation of the true unknown distribution:
 
-```
-        True Distribution F (unknown)
-               │
-               │ generates
-               ▼
-        Observed Sample: X₁, X₂, ..., Xₙ
-               │
-               │ approximates
-               ▼
-        Empirical Distribution F̂
-               │
-               │ resample with replacement
-               ▼
-        Bootstrap Samples: X₁*, X₂*, ..., Xₙ*
-               │
-               │ compute statistic
-               ▼
-        Bootstrap Distribution of θ̂*
+```mermaid
+flowchart TB
+    F["True Distribution F<br/>(unknown)"]
+    Sample["Observed Sample<br/>X₁, X₂, ..., Xₙ"]
+    Empirical["Empirical Distribution F̂"]
+    Bootstrap["Bootstrap Samples<br/>X₁*, X₂*, ..., Xₙ*"]
+    Dist["Bootstrap Distribution of θ̂*"]
+
+    F -->|generates| Sample
+    Sample -->|approximates| Empirical
+    Empirical -->|"resample with<br/>replacement"| Bootstrap
+    Bootstrap -->|compute statistic| Dist
+
+    style F fill:#ffcdd2
+    style Sample fill:#e3f2fd
+    style Empirical fill:#e8f5e9
+    style Bootstrap fill:#fff3e0
+    style Dist fill:#f3e5f5
 ```
 
 **Key property**: Bootstrap provides consistent estimates of sampling distributions without parametric assumptions.
@@ -171,33 +181,33 @@ This tells the AI: "Given what you've seen, this policy costs roughly $2,668 wit
 
 The bootstrap evaluator adopts a **single-agent perspective**. For agent A:
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    AGENT A's BOOTSTRAP WORLD                            │
-│                                                                          │
-│  ┌────────────────────┐          ┌────────────────────────────────────┐ │
-│  │ CONTROLLABLE       │          │ EXOGENOUS (Fixed "Beats")          │ │
-│  │                    │          │                                    │ │
-│  │ • When to release  │          │ • Incoming settlements from B,C,D │ │
-│  │   outgoing txns    │          │   arrive at historical timings    │ │
-│  │ • Which priority   │          │                                    │ │
-│  │ • Post collateral? │          │ • Amounts of incoming payments    │ │
-│  │                    │          │                                    │ │
-│  └────────────────────┘          └────────────────────────────────────┘ │
-│           │                                    │                        │
-│           │         ┌──────────────┐           │                        │
-│           └────────►│   BALANCE    │◄──────────┘                        │
-│                     │   EVOLUTION  │                                    │
-│                     └──────┬───────┘                                    │
-│                            │                                            │
-│                            ▼                                            │
-│                     ┌──────────────┐                                    │
-│                     │    COSTS     │                                    │
-│                     │  • Overdraft │                                    │
-│                     │  • Delay     │                                    │
-│                     │  • Deadline  │                                    │
-│                     └──────────────┘                                    │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph World["AGENT A's BOOTSTRAP WORLD"]
+        subgraph Controllable["CONTROLLABLE"]
+            C1["When to release outgoing txns"]
+            C2["Which priority"]
+            C3["Post collateral?"]
+        end
+
+        subgraph Exogenous["EXOGENOUS (Fixed 'Beats')"]
+            E1["Incoming settlements from B,C,D<br/>arrive at historical timings"]
+            E2["Amounts of incoming payments"]
+        end
+
+        Balance["BALANCE<br/>EVOLUTION"]
+
+        Costs["COSTS<br/>━━━━━━━━━━<br/>• Overdraft<br/>• Delay<br/>• Deadline"]
+    end
+
+    Controllable --> Balance
+    Exogenous --> Balance
+    Balance --> Costs
+
+    style Controllable fill:#e8f5e9
+    style Exogenous fill:#ffcdd2
+    style Balance fill:#e3f2fd
+    style Costs fill:#fff3e0
 ```
 
 ### 2.2 The "Liquidity Beats" Concept
@@ -208,41 +218,52 @@ The bootstrap evaluator adopts a **single-agent perspective**. For agent A:
 
 When a historical transaction is bootstrapped, we preserve its **relative timing** (offsets from arrival) while assigning a **new arrival tick**:
 
+**Historical Transaction (Tx: B → A)**
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| v | $50,000 | Value of Tx |
+| T | tick 5 | Original arrival tick |
+| TxD | tick 15 | Deadline tick (deadline_offset = 10) |
+| TxS | tick 10 | Actual settlement tick (settlement_offset = 5) |
+
+```mermaid
+gantt
+    title Historical Transaction Timeline
+    dateFormat X
+    axisFormat %s
+
+    section Original
+    Arrival (T=5)           :milestone, m1, 5, 0
+    Settlement (TxS=10)     :milestone, m2, 10, 0
+    Deadline (TxD=15)       :milestone, m3, 15, 0
+    Settlement offset (5)   :active, 5, 10
+    Deadline offset (10)    :crit, 5, 15
 ```
-HISTORICAL TRANSACTION (Tx: B → A)
-──────────────────────────────────
-v   = Value of Tx                    (e.g., $50,000)
-T   = Original arrival tick          (e.g., tick 5)
-TxD = Deadline tick                  (e.g., tick 15, so deadline_offset = 10)
-TxS = Actual settlement tick         (e.g., tick 10, so settlement_offset = 5)
 
-    T=5         TxS=10      TxD=15
-     │            │           │
-     ▼            ▼           ▼
-─────┼────────────┼───────────┼────────────────────► tick
-     │◄──settle──►│           │
-     │   offset=5 │           │
-     │◄────────deadline offset = 10─────────►│
+**Bootstrap Remapping (same Tx, new arrival at tick t=2)**
 
+| Variable | Formula | Value |
+|----------|---------|-------|
+| t | randomly sampled | tick 2 |
+| txD | t + deadline_offset | 2 + 10 = tick 12 |
+| txS | t + settlement_offset | 2 + 5 = tick 7 |
 
-BOOTSTRAP REMAPPING (same Tx, drawn to arrive at tick t)
-────────────────────────────────────────────────────────
-t   = New arrival tick (randomly sampled)       (e.g., tick 2)
-txD = t + (TxD - T) = t + deadline_offset       (e.g., 2 + 10 = tick 12)
-txS = t + (TxS - T) = t + settlement_offset     (e.g., 2 + 5 = tick 7)
+```mermaid
+gantt
+    title Bootstrap Remapped Timeline (offsets PRESERVED)
+    dateFormat X
+    axisFormat %s
 
-    t=2          txS=7       txD=12
-     │            │           │
-     ▼            ▼           ▼
-─────┼────────────┼───────────┼────────────────────► tick
-     │◄──settle──►│           │
-     │   offset=5 │           │   (offsets PRESERVED)
-     │◄────────deadline offset = 10─────────►│
-
-
-EFFECT: Agent A receives liquidity v at tick txS (= tick 7)
-        This affects A's ability to settle its own outgoing transactions.
+    section Remapped
+    Arrival (t=2)           :milestone, m1, 2, 0
+    Settlement (txS=7)      :milestone, m2, 7, 0
+    Deadline (txD=12)       :milestone, m3, 12, 0
+    Settlement offset (5)   :active, 2, 7
+    Deadline offset (10)    :crit, 2, 12
 ```
+
+**Effect**: Agent A receives liquidity v at tick txS (= tick 7). This affects A's ability to settle its own outgoing transactions.
 
 #### Why Preserve Settlement Offset?
 
@@ -371,67 +392,66 @@ This is a simplification—see Critical Analysis section.
 
 The bootstrap evaluator implements the same cost model as the full simulation:
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                         COST ACCRUAL MODEL                            │
-│                                                                       │
-│  For each tick t:                                                     │
-│                                                                       │
-│  1. OVERDRAFT COST (if balance < 0):                                 │
-│     ┌─────────────────────────────────────────────────────────────┐  │
-│     │  cost = overdraft_bps × |balance| × (1/ticks_per_day)/10000 │  │
-│     └─────────────────────────────────────────────────────────────┘  │
-│                                                                       │
-│  2. DELAY COST (for each tx in Queue 1):                             │
-│     ┌─────────────────────────────────────────────────────────────┐  │
-│     │  cost = delay_penalty_per_tick × (t - arrival_tick)          │  │
-│     └─────────────────────────────────────────────────────────────┘  │
-│                                                                       │
-│  3. DEADLINE PENALTY (one-time when t > deadline_tick):              │
-│     ┌─────────────────────────────────────────────────────────────┐  │
-│     │  cost = deadline_penalty (one-time)                          │  │
-│     └─────────────────────────────────────────────────────────────┘  │
-│                                                                       │
-│  4. OVERDUE DELAY (after deadline):                                  │
-│     ┌─────────────────────────────────────────────────────────────┐  │
-│     │  cost = delay_penalty_per_tick × overdue_multiplier (5×)     │  │
-│     └─────────────────────────────────────────────────────────────┘  │
-│                                                                       │
-└──────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Model["COST ACCRUAL MODEL (per tick t)"]
+        OD["1. OVERDRAFT COST<br/>(if balance < 0)<br/>━━━━━━━━━━━━━━━━━━━━<br/>cost = overdraft_bps × |balance| × (1/ticks_per_day) / 10000"]
+
+        Delay["2. DELAY COST<br/>(for each tx in Queue 1)<br/>━━━━━━━━━━━━━━━━━━━━<br/>cost = delay_penalty_per_tick × (t - arrival_tick)"]
+
+        Deadline["3. DEADLINE PENALTY<br/>(one-time when t > deadline_tick)<br/>━━━━━━━━━━━━━━━━━━━━<br/>cost = deadline_penalty (one-time)"]
+
+        Overdue["4. OVERDUE DELAY<br/>(after deadline)<br/>━━━━━━━━━━━━━━━━━━━━<br/>cost = delay_penalty × overdue_multiplier (5×)"]
+    end
+
+    OD --> Total["Total Tick Cost"]
+    Delay --> Total
+    Deadline --> Total
+    Overdue --> Total
+
+    style OD fill:#ffcdd2
+    style Delay fill:#fff3e0
+    style Deadline fill:#ffccbc
+    style Overdue fill:#ffcdd2
+    style Total fill:#e8f5e9
 ```
 
 **Numeric Example**:
 
+| Parameter | Value |
+|-----------|-------|
+| Day length | 12 ticks |
+| Opening balance | $100k |
+| Transaction amount | $150k (larger than balance!) |
+| Deadline | tick 8 |
+| overdraft_bps | 10 (0.10% annualized) |
+| delay_penalty_per_tick | $1 |
+| deadline_penalty | $100 |
+| overdue_multiplier | 5× |
+
+```mermaid
+gantt
+    title Policy Comparison: Release Immediately vs Wait for Liquidity
+    dateFormat X
+    axisFormat %s
+
+    section Policy A (Release Immediately)
+    Release $150k (overdraft)    :crit, 0, 12
+    Total cost: $50              :milestone, 12, 0
+
+    section Policy B (Wait for Liquidity)
+    Delay cost accruing          :active, 0, 5
+    Liquidity arrives ($80k)     :milestone, 5, 0
+    Settled (no overdraft)       :done, 5, 12
+    Total cost: $5               :milestone, 12, 0
 ```
-Scenario: 12-tick day, Agent A with $100k opening balance
 
-Transaction arrives:
-  - Amount: $150k (larger than balance!)
-  - Deadline: tick 8
-  - Priority: 5
+| Policy | Action | Cost Breakdown | Total |
+|--------|--------|----------------|-------|
+| **A: Release immediately** | Release at tick 0 | Overdraft: $4.17/tick × 12 = $50 | **$50** |
+| **B: Wait for liquidity** | Wait until tick 5 | Delay: $1/tick × 5 = $5 | **$5** |
 
-Cost rates:
-  - overdraft_bps: 10 (0.10% annualized)
-  - delay_penalty_per_tick: $1
-  - deadline_penalty: $100
-  - overdue_multiplier: 5×
-
-Policy A: "Release immediately"
-───────────────────────────────
-tick 0: Release $150k → balance = -$50k
-tick 1-7: overdraft cost = 10 × 50000 × (1/12) / 10000 = $4.17/tick
-tick 8-11: same overdraft
-Total overdraft: $4.17 × 12 = $50
-Total cost: $50
-
-Policy B: "Wait for liquidity" (assume $80k arrives at tick 5)
-───────────────────────────────
-tick 0-4: delay cost = $1/tick × 5 ticks = $5
-tick 5: Receive $80k → balance = $180k, release $150k → balance = $30k
-Total cost: $5
-
-Policy B wins! But only if incoming liquidity is reliable.
-```
+**Policy B wins!** But only if incoming liquidity is reliable.
 
 ---
 
@@ -461,26 +481,32 @@ Policy B wins! But only if incoming liquidity is reliable.
 
 This creates **best-response dynamics** with a one-day lag:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                 ASYNCHRONOUS BEST-RESPONSE DYNAMICS                  │
-│                                                                       │
-│  Day T:                                                              │
-│    - Agent A uses policy π_A^t (optimized yesterday)                │
-│    - Agent B uses policy π_B^t (optimized yesterday)                │
-│    - Both observe settlement outcomes                                │
-│                                                                       │
-│  Day T+1:                                                            │
-│    - Agent A bootstraps from Day T transactions                      │
-│    - Agent A updates policy: π_A^{t+1} = best_response(history_T)   │
-│    - Agent B does the same                                           │
-│                                                                       │
-│  Over many days:                                                     │
-│    - Policies converge toward equilibrium                            │
-│    - Each agent is responding to others' YESTERDAY behavior          │
-│    - This IS strategic response, just delayed by one period          │
-│                                                                       │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant A as Agent A
+    participant Sim as Simulation
+    participant B as Agent B
+
+    rect rgb(230, 245, 255)
+        note over A,B: Day T
+        A->>Sim: Uses policy π_A^t (optimized yesterday)
+        B->>Sim: Uses policy π_B^t (optimized yesterday)
+        Sim-->>A: Settlement outcomes
+        Sim-->>B: Settlement outcomes
+    end
+
+    rect rgb(255, 243, 224)
+        note over A,B: Day T+1
+        A->>A: Bootstrap from Day T transactions
+        A->>A: π_A^{t+1} = best_response(history_T)
+        B->>B: Bootstrap from Day T transactions
+        B->>B: π_B^{t+1} = best_response(history_T)
+    end
+
+    rect rgb(232, 245, 233)
+        note over A,B: Over many days...
+        note right of Sim: Policies converge toward equilibrium<br/>Each agent responds to YESTERDAY's behavior<br/>This IS strategic response (delayed)
+    end
 ```
 
 **This is realistic!** Real treasury departments don't react instantaneously to competitor strategies. They observe outcomes, analyze data, and adjust policies periodically.
@@ -502,19 +528,30 @@ This creates **best-response dynamics** with a one-day lag:
 
 Incoming settlements are treated as **fixed external events** with **historical timing preserved**:
 
-```
-Historical observation:
-  - Tick 5: Bank B paid us $50k (settled after 3 ticks in Queue 2)
-  - Tick 8: Bank C paid us $30k (LSM bilateral offset, instant)
+```mermaid
+flowchart LR
+    subgraph Historical["Historical Observation"]
+        H1["Tick 5: Bank B paid us $50k<br/>(3 ticks in Queue 2)"]
+        H2["Tick 8: Bank C paid us $30k<br/>(LSM bilateral, instant)"]
+    end
 
-Bootstrap treatment:
-  - Tick 5: We receive $50k (timing from history)
-  - Tick 8: We receive $30k (timing from history)
+    subgraph Bootstrap["Bootstrap Treatment"]
+        B1["Tick 5: Receive $50k<br/>(timing preserved)"]
+        B2["Tick 8: Receive $30k<br/>(timing preserved)"]
+    end
 
-  ✓ LSM effects ARE captured (historical settlement timing reflects LSM success)
-  ✓ Queue 2 effects ARE captured (ticks_to_settle includes queue time)
-  ✓ Gridlock effects ARE captured (slow days = slow settlement times)
+    H1 -.->|"preserves timing"| B1
+    H2 -.->|"preserves timing"| B2
+
+    style Historical fill:#e3f2fd
+    style Bootstrap fill:#e8f5e9
 ```
+
+| Effect | Captured? | How |
+|--------|-----------|-----|
+| LSM effects | ✓ | Historical settlement timing reflects LSM success |
+| Queue 2 effects | ✓ | `ticks_to_settle` includes queue time |
+| Gridlock effects | ✓ | Slow days = slow settlement times |
 
 **This is the "liquidity beats" concept**: incoming cash arrives at historically-observed times, which implicitly encode all the system dynamics that affected those settlements.
 
@@ -522,16 +559,25 @@ Bootstrap treatment:
 
 Outgoing settlements use a **simplified instant-or-queue model**:
 
-```
-Agent A releases payment:
-  1. Check A's balance
-  2. If sufficient: instant settlement, debit balance
-  3. If insufficient: stays in queue, accrues delay cost
+```mermaid
+flowchart TB
+    Release["Agent A releases payment"]
+    Check{"Balance >= Amount?"}
+    Settle["Instant settlement<br/>Debit balance"]
+    Queue["Stays in queue<br/>Accrues delay cost"]
 
-This is a CONSERVATIVE estimate:
-  - Real world: LSM might find bilateral offset, settling sooner
-  - Bootstrap: Assumes no such luck, must have balance on hand
+    Release --> Check
+    Check -->|Yes| Settle
+    Check -->|No| Queue
+
+    style Check fill:#fff3e0
+    style Settle fill:#e8f5e9
+    style Queue fill:#ffcdd2
 ```
+
+**This is a CONSERVATIVE estimate**:
+- Real world: LSM might find bilateral offset, settling sooner
+- Bootstrap: Assumes no such luck, must have balance on hand
 
 **Implications**:
 - Bootstrap is **conservative** on outgoing settlements (assumes worst case)
@@ -543,25 +589,13 @@ This is a CONSERVATIVE estimate:
 **Theorem (Bootstrap Consistency)**:
 Under regularity conditions, the bootstrap distribution converges to the true sampling distribution as n → ∞.
 
-**In our context**:
+**In our context** (n = number of historical transactions observed):
 
-```
-n = number of historical transactions observed
-
-If n is small (< 30):
-  - Bootstrap variance estimates may be unreliable
-  - Heavy tails may be underrepresented
-  - Recommendation: Use stratified bootstrap
-
-If n is moderate (30-100):
-  - Bootstrap is reasonably reliable
-  - Check for coverage of rare events
-  - Standard bootstrap is appropriate
-
-If n is large (> 100):
-  - Bootstrap is highly reliable
-  - May want subsampling for computational efficiency
-```
+| Sample Size | Reliability | Recommendation |
+|-------------|-------------|----------------|
+| n < 30 (small) | Variance estimates may be unreliable; heavy tails underrepresented | Use stratified bootstrap |
+| 30 ≤ n ≤ 100 (moderate) | Reasonably reliable; check rare event coverage | Standard bootstrap appropriate |
+| n > 100 (large) | Highly reliable | May use subsampling for efficiency |
 
 **Confidence Intervals**:
 
@@ -628,27 +662,32 @@ class BootstrapConfig:
 
 The LLM is optimizing a **best response** policy:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    OPTIMIZATION HIERARCHY                            │
-│                                                                       │
-│  Level 3: Nash Equilibrium (Not what we're doing)                   │
-│  ─────────────────────────────────────────────────────               │
-│  Find (π_A*, π_B*) such that:                                       │
-│    π_A* = argmin E[Cost_A | π_A, π_B*]                              │
-│    π_B* = argmin E[Cost_B | π_A*, π_B]                              │
-│                                                                       │
-│  Level 2: Best Response (What bootstrap approximates)               │
-│  ─────────────────────────────────────────────────────               │
-│  Given π_B (fixed, from historical observation):                    │
-│    π_A* = argmin E[Cost_A | π_A, π_B]                               │
-│                                                                       │
-│  Level 1: Policy Improvement (What the LLM does)                    │
-│  ─────────────────────────────────────────────────────               │
-│  Given π_A (current), find π_A' such that:                          │
-│    E[Cost_A | π_A'] < E[Cost_A | π_A]                               │
-│                                                                       │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph L3["Level 3: Nash Equilibrium"]
+        direction TB
+        N1["Find (π_A*, π_B*) such that:<br/>π_A* = argmin E[Cost_A | π_A, π_B*]<br/>π_B* = argmin E[Cost_B | π_A*, π_B]"]
+        N2["❌ Not what we're doing"]
+    end
+
+    subgraph L2["Level 2: Best Response"]
+        direction TB
+        B1["Given π_B (fixed, from history):<br/>π_A* = argmin E[Cost_A | π_A, π_B]"]
+        B2["✓ What bootstrap approximates"]
+    end
+
+    subgraph L1["Level 1: Policy Improvement"]
+        direction TB
+        P1["Given π_A (current), find π_A':<br/>E[Cost_A | π_A'] < E[Cost_A | π_A]"]
+        P2["✓ What the LLM does"]
+    end
+
+    L3 -.->|"requires"| L2
+    L2 -.->|"requires"| L1
+
+    style L3 fill:#ffcdd2
+    style L2 fill:#fff3e0
+    style L1 fill:#e8f5e9
 ```
 
 **Bootstrap enables Level 1 and approximates Level 2.**
@@ -657,23 +696,34 @@ The LLM is optimizing a **best response** policy:
 
 When all agents optimize simultaneously using bootstrap:
 
-```
-Iteration 1:
-  - All agents use initial policies
-  - Run full simulation → observe transactions
-  - Each agent bootstraps from observations
-  - Each agent proposes improved policy
+```mermaid
+sequenceDiagram
+    participant Iter as Iteration
+    participant Agents as All Agents
+    participant Sim as Simulation
+    participant Boot as Bootstrap
 
-Iteration 2:
-  - All agents use NEW policies
-  - Run full simulation → NEW transactions
-  - Observations have changed because policies changed!
-  - Bootstrap from new observations
+    rect rgb(230, 245, 255)
+        note over Iter: Iteration 1
+        Agents->>Sim: Use initial policies
+        Sim->>Sim: Run full simulation
+        Sim-->>Boot: Observe transactions
+        Boot->>Agents: Each agent bootstraps
+        Agents->>Agents: Propose improved policies
+    end
 
-Iteration N:
-  - If policies stabilize, observations stabilize
-  - Each agent's bootstrap becomes consistent
-  - Approximate Nash equilibrium may emerge
+    rect rgb(255, 243, 224)
+        note over Iter: Iteration 2
+        Agents->>Sim: Use NEW policies
+        Sim->>Sim: Run full simulation
+        Sim-->>Boot: NEW transactions (changed!)
+        Boot->>Agents: Bootstrap from new observations
+    end
+
+    rect rgb(232, 245, 233)
+        note over Iter: Iteration N...
+        note right of Boot: If policies stabilize → observations stabilize<br/>Each agent's bootstrap becomes consistent<br/>Approximate Nash equilibrium may emerge
+    end
 ```
 
 **Convergence conditions**:
@@ -683,69 +733,47 @@ Iteration N:
 
 ### 4.3 Flow of a Complete Iteration
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    ITERATION N OF CASTRO EXPERIMENT                      │
-│                                                                          │
-│  STEP 1: Run Full Simulation                                            │
-│  ───────────────────────────────                                        │
-│                                                                          │
-│    Policies: {π_A(n), π_B(n)}                                           │
-│                    │                                                     │
-│                    ▼                                                     │
-│    ┌──────────────────────────────────────┐                             │
-│    │         RUST SIMULATOR               │                             │
-│    │  • Arrivals generated                │                             │
-│    │  • Policies executed                 │                             │
-│    │  • RTGS + LSM settlement             │                             │
-│    │  • Costs accrued                     │                             │
-│    └──────────────────────────────────────┘                             │
-│                    │                                                     │
-│                    ▼                                                     │
-│    Events: {arrivals, settlements, costs}                               │
-│                                                                          │
-│  STEP 2: Collect Transaction History                                    │
-│  ────────────────────────────────────                                   │
-│                                                                          │
-│    For each agent A:                                                    │
-│    ┌─────────────────────────────────────────────────────────┐         │
-│    │ Outgoing: [(tx1, t_arrive=0, t_settle=3),              │         │
-│    │           (tx2, t_arrive=2, t_settle=7), ...]          │         │
-│    │ Incoming: [(tx5, t_settle=1, amount=$50k),             │         │
-│    │           (tx9, t_settle=5, amount=$30k), ...]         │         │
-│    └─────────────────────────────────────────────────────────┘         │
-│                                                                          │
-│  STEP 3: Bootstrap Evaluation (10 samples)                              │
-│  ─────────────────────────────────────────                              │
-│                                                                          │
-│    For each sample k ∈ {1, ..., 10}:                                    │
-│      For each agent A:                                                  │
-│        1. Resample outgoing transactions (with replacement)            │
-│        2. Resample incoming settlements (with replacement)             │
-│        3. Evaluate π_A(n) on sample → cost_A,k                         │
-│                                                                          │
-│    Aggregate: mean_cost_A = (1/10) Σ cost_A,k                          │
-│               std_cost_A  = sqrt((1/9) Σ (cost_A,k - mean)²)           │
-│                                                                          │
-│  STEP 4: LLM Policy Update                                              │
-│  ─────────────────────────                                              │
-│                                                                          │
-│    For each agent A:                                                    │
-│      LLM receives:                                                      │
-│        • Current policy π_A(n)                                         │
-│        • Bootstrap cost statistics                                     │
-│        • Sample of verbose events (agent A's view)                     │
-│                                                                          │
-│      LLM proposes: π_A(n+1)                                            │
-│                                                                          │
-│  STEP 5: Acceptance Decision                                            │
-│  ───────────────────────────                                            │
-│                                                                          │
-│    Re-evaluate π_A(n+1) on bootstrap samples                           │
-│    If cost(π_A(n+1)) < cost(π_A(n)): accept                            │
-│    Else: reject, keep π_A(n)                                           │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Step1["STEP 1: Run Full Simulation"]
+        Policies["Policies: {π_A(n), π_B(n)}"]
+        Rust["RUST SIMULATOR<br/>━━━━━━━━━━━━━━━━━━<br/>• Arrivals generated<br/>• Policies executed<br/>• RTGS + LSM settlement<br/>• Costs accrued"]
+        Events["Events: {arrivals, settlements, costs}"]
+
+        Policies --> Rust --> Events
+    end
+
+    subgraph Step2["STEP 2: Collect Transaction History"]
+        Collect["For each agent A:<br/>━━━━━━━━━━━━━━━━━━<br/>Outgoing: [(tx1, arrive=0, settle=3), ...]<br/>Incoming: [(tx5, settle=1, $50k), ...]"]
+    end
+
+    subgraph Step3["STEP 3: Bootstrap Evaluation (10 samples)"]
+        Boot["For each sample k ∈ {1, ..., 10}:<br/>For each agent A:<br/>━━━━━━━━━━━━━━━━━━<br/>1. Resample outgoing (with replacement)<br/>2. Resample incoming (with replacement)<br/>3. Evaluate π_A(n) → cost_A,k"]
+        Agg["Aggregate:<br/>mean_cost_A = (1/10) Σ cost_A,k<br/>std_cost_A = √((1/9) Σ (cost - mean)²)"]
+
+        Boot --> Agg
+    end
+
+    subgraph Step4["STEP 4: LLM Policy Update"]
+        LLM["For each agent A:<br/>━━━━━━━━━━━━━━━━━━<br/>LLM receives:<br/>• Current policy π_A(n)<br/>• Bootstrap cost statistics<br/>• Sample verbose events<br/><br/>LLM proposes: π_A(n+1)"]
+    end
+
+    subgraph Step5["STEP 5: Acceptance Decision"]
+        Accept{"Re-evaluate π_A(n+1)<br/>on bootstrap samples"}
+        Yes["Accept π_A(n+1)"]
+        No["Reject, keep π_A(n)"]
+
+        Accept -->|"cost(new) < cost(old)"| Yes
+        Accept -->|"otherwise"| No
+    end
+
+    Step1 --> Step2 --> Step3 --> Step4 --> Step5
+
+    style Step1 fill:#e3f2fd
+    style Step2 fill:#e8f5e9
+    style Step3 fill:#fff3e0
+    style Step4 fill:#f3e5f5
+    style Step5 fill:#fce4ec
 ```
 
 ---
@@ -931,78 +959,55 @@ After reviewing the architecture documentation:
 
 ### 6.2 Component Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    BOOTSTRAP EVALUATION PIPELINE                         │
-│                                                                          │
-│  ┌───────────────────┐                                                  │
-│  │ VerboseOutput     │  Raw events from Rust simulation                 │
-│  │ (events_by_tick)  │                                                  │
-│  └─────────┬─────────┘                                                  │
-│            │                                                             │
-│            ▼                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │                 TransactionHistoryCollector                         ││
-│  │                                                                     ││
-│  │  Responsibilities:                                                  ││
-│  │  • Parse Arrival events → TransactionRecord                        ││
-│  │  • Match Settlement events → update settlement_tick                 ││
-│  │  • Handle LSM events (bilateral, cycle)                            ││
-│  │  • Group by agent (outgoing vs incoming)                           ││
-│  └─────────┬───────────────────────────────────────────────────────────┘│
-│            │                                                             │
-│            ▼                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │                    AgentTransactionHistory                          ││
-│  │                                                                     ││
-│  │  BANK_A:                          BANK_B:                          ││
-│  │  ├── outgoing: [tx1, tx2, ...]   ├── outgoing: [tx5, tx6, ...]    ││
-│  │  └── incoming: [tx3, tx4, ...]   └── incoming: [tx1, tx2, ...]    ││
-│  └─────────┬───────────────────────────────────────────────────────────┘│
-│            │                                                             │
-│            │ For each Monte Carlo sample:                               │
-│            ▼                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │                      BootstrapSampler                               ││
-│  │                                                                     ││
-│  │  Input: AgentTransactionHistory, seed                              ││
-│  │  Output: BootstrapSample                                           ││
-│  │                                                                     ││
-│  │  Algorithm:                                                         ││
-│  │  1. outgoing = random.choices(history.outgoing, k=len(outgoing))   ││
-│  │  2. incoming = random.choices(history.incoming, k=len(incoming))   ││
-│  │  3. Remap arrival ticks (preserve relative timing)                 ││
-│  │  4. Remap settlement ticks for incoming (preserve "beats")         ││
-│  └─────────┬───────────────────────────────────────────────────────────┘│
-│            │                                                             │
-│            ▼                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │                   BootstrapPolicyEvaluator                          ││
-│  │                                                                     ││
-│  │  Input: BootstrapSample, Policy, CostConfig                        ││
-│  │  Output: PolicyEvaluationResult                                    ││
-│  │                                                                     ││
-│  │  for tick in range(total_ticks):                                   ││
-│  │      balance += incoming_liquidity_at_tick(tick)                   ││
-│  │      queue.extend(arrivals_at_tick(tick))                          ││
-│  │      releases = policy.decide(queue, balance, tick)                ││
-│  │      for tx in releases:                                           ││
-│  │          if balance >= tx.amount:                                  ││
-│  │              balance -= tx.amount                                  ││
-│  │              queue.remove(tx)                                      ││
-│  │      costs.accrue(tick, balance, queue)                            ││
-│  └─────────┬───────────────────────────────────────────────────────────┘│
-│            │                                                             │
-│            ▼                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │                      Aggregation                                    ││
-│  │                                                                     ││
-│  │  mean_cost = sum(sample_costs) / num_samples                       ││
-│  │  std_cost = sqrt(variance(sample_costs))                           ││
-│  │  ci_lower = percentile(sample_costs, 2.5)                          ││
-│  │  ci_upper = percentile(sample_costs, 97.5)                         ││
-│  └─────────────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Pipeline["BOOTSTRAP EVALUATION PIPELINE"]
+
+        subgraph Input["Input"]
+            Verbose["VerboseOutput<br/>(events_by_tick)<br/>━━━━━━━━━━━━━━<br/>Raw events from<br/>Rust simulation"]
+        end
+
+        subgraph Collector["TransactionHistoryCollector"]
+            C1["• Parse Arrival events → TransactionRecord"]
+            C2["• Match Settlement events → update settlement_tick"]
+            C3["• Handle LSM events (bilateral, cycle)"]
+            C4["• Group by agent (outgoing vs incoming)"]
+        end
+
+        subgraph History["AgentTransactionHistory"]
+            HA["BANK_A:<br/>├── outgoing: [tx1, tx2, ...]<br/>└── incoming: [tx3, tx4, ...]"]
+            HB["BANK_B:<br/>├── outgoing: [tx5, tx6, ...]<br/>└── incoming: [tx1, tx2, ...]"]
+        end
+
+        subgraph Sampler["BootstrapSampler"]
+            S1["Input: AgentTransactionHistory, seed"]
+            S2["Algorithm:<br/>1. random.choices(outgoing)<br/>2. random.choices(incoming)<br/>3. Remap arrival ticks<br/>4. Remap settlement ticks (beats)"]
+            S3["Output: BootstrapSample"]
+        end
+
+        subgraph Evaluator["BootstrapPolicyEvaluator"]
+            E1["Input: BootstrapSample, Policy, CostConfig"]
+            E2["for tick in range(total_ticks):<br/>  balance += incoming_at_tick<br/>  queue.extend(arrivals_at_tick)<br/>  releases = policy.decide()<br/>  settle if balance >= amount<br/>  costs.accrue()"]
+            E3["Output: PolicyEvaluationResult"]
+        end
+
+        subgraph Aggregate["Aggregation"]
+            A1["mean_cost = Σ costs / n"]
+            A2["std_cost = √variance"]
+            A3["ci = percentile(2.5%, 97.5%)"]
+        end
+    end
+
+    Input --> Collector --> History
+    History -->|"For each Monte Carlo sample"| Sampler
+    Sampler --> Evaluator --> Aggregate
+
+    style Input fill:#e3f2fd
+    style Collector fill:#e8f5e9
+    style History fill:#fff3e0
+    style Sampler fill:#f3e5f5
+    style Evaluator fill:#fce4ec
+    style Aggregate fill:#e8f5e9
 ```
 
 ### 6.3 Data Structures
@@ -1572,4 +1577,4 @@ $$\widehat{\text{Var}}(\hat{\theta}) = \frac{1}{B-1} \sum_{b=1}^{B} \left( \hat{
 
 ---
 
-*Document Version 2.3 - Added documentation phase with detailed specifications for reference docs*
+*Document Version 2.4 - All diagrams converted to mermaid for consistent rendering*
