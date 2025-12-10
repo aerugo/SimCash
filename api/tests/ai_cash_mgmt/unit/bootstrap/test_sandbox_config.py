@@ -585,10 +585,13 @@ class TestCostRatesConfiguration:
 
 
 class TestTreePolicyParsing:
-    """Test parsing of v2.0 tree policies (Castro experiments)."""
+    """Test parsing of tree policies (JSON decision tree format).
 
-    def test_v2_tree_policy_detected(self) -> None:
-        """v2.0 tree policy format is correctly detected."""
+    See docs/reference/policy/configuration.md for the official schema.
+    """
+
+    def test_tree_policy_with_payment_tree_detected(self) -> None:
+        """Tree policy with payment_tree is correctly detected."""
         sample = BootstrapSample(
             agent_id="BANK_A",
             sample_idx=0,
@@ -598,12 +601,11 @@ class TestTreePolicyParsing:
             total_ticks=100,
         )
 
-        # v2.0 tree policy format (simplified version)
+        # Standard tree policy format
         tree_policy = {
-            "version": "2.0",
+            "version": "1.0",
             "policy_id": "test_policy",
             "parameters": {
-                "initial_liquidity_fraction": 0.25,
                 "urgency_threshold": 3.0,
             },
             "payment_tree": {
@@ -636,8 +638,8 @@ class TestTreePolicyParsing:
         target_agent = next(a for a in config.agents if a.id == "BANK_A")
         assert target_agent.policy.type == "InlineJson"
 
-    def test_v2_tree_policy_with_payment_tree_key(self) -> None:
-        """Policy with payment_tree key (without version) is detected."""
+    def test_tree_policy_with_bank_tree_detected(self) -> None:
+        """Tree policy with bank_tree is correctly detected."""
         sample = BootstrapSample(
             agent_id="BANK_A",
             sample_idx=0,
@@ -647,14 +649,15 @@ class TestTreePolicyParsing:
             total_ticks=100,
         )
 
-        # Policy with just payment_tree (no explicit version)
+        # Policy with bank_tree (budget management)
         tree_policy = {
-            "policy_id": "minimal_tree",
-            "parameters": {},
-            "payment_tree": {
+            "version": "1.0",
+            "policy_id": "budget_policy",
+            "bank_tree": {
                 "type": "action",
-                "node_id": "release",
-                "action": "Release",
+                "node_id": "set_budget",
+                "action": "SetReleaseBudget",
+                "parameters": {"max_value_to_release": {"value": 100000}},
             },
         }
 
@@ -666,7 +669,7 @@ class TestTreePolicyParsing:
             credit_limit=500_000,
         )
 
-        # Should still use InlineJsonPolicy
+        # Should use InlineJsonPolicy
         target_agent = next(a for a in config.agents if a.id == "BANK_A")
         assert target_agent.policy.type == "InlineJson"
 

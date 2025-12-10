@@ -157,7 +157,7 @@ class SandboxConfigBuilder:
 
         Handles:
         - Simple policies with "type" field (Fifo, LiquidityAware)
-        - v2.0 tree policies with "version"/"payment_tree" structure
+        - Tree policies with decision tree structure (payment_tree, etc.)
 
         Args:
             policy_dict: Policy configuration dictionary.
@@ -175,18 +175,17 @@ class SandboxConfigBuilder:
                 urgency_threshold=policy_dict["urgency_threshold"],
             )
         elif self._is_tree_policy(policy_dict):
-            # v2.0 tree policy format - use InlineJsonPolicy
+            # Tree policy format - use InlineJsonPolicy
             return InlineJsonPolicy(json_string=json.dumps(policy_dict))
         else:
             # Fallback for unknown policies
             return FifoPolicy()
 
     def _is_tree_policy(self, policy_dict: dict[str, Any]) -> bool:
-        """Check if policy dict is a v2.0 tree policy format.
+        """Check if policy dict is a tree policy format.
 
-        Tree policies have:
-        - "version": "2.0" key, OR
-        - "payment_tree" key (main decision tree structure)
+        Tree policies are detected by the presence of decision tree keys.
+        See docs/reference/policy/configuration.md for the schema.
 
         Args:
             policy_dict: Policy configuration dictionary.
@@ -194,10 +193,8 @@ class SandboxConfigBuilder:
         Returns:
             True if this is a tree policy format.
         """
-        return (
-            policy_dict.get("version") == "2.0"
-            or "payment_tree" in policy_dict
-        )
+        tree_keys = ("payment_tree", "bank_tree", "strategic_collateral_tree", "end_of_tick_collateral_tree")
+        return any(key in policy_dict for key in tree_keys)
 
     def _build_scenario_events(
         self, sample: BootstrapSample
