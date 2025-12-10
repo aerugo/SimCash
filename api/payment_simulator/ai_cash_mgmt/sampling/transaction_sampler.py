@@ -1,7 +1,7 @@
-"""Transaction sampling for Monte Carlo evaluation.
+"""Transaction sampling for bootstrap evaluation.
 
-Samples transactions from historical data for evaluating policy performance
-through Monte Carlo simulation.
+Samples transactions from historical data with replacement (bootstrap)
+for evaluating policy performance.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import numpy as np
 class HistoricalTransaction:
     """Immutable record of a historical transaction.
 
-    Stores all relevant transaction data for Monte Carlo resampling.
+    Stores all relevant transaction data for bootstrap resampling.
     The frozen=True makes instances immutable and hashable.
 
     Example:
@@ -59,7 +59,7 @@ class HistoricalTransaction:
 
 
 class TransactionSampler:
-    """Samples transactions from historical data for Monte Carlo evaluation.
+    """Samples transactions from historical data for bootstrap evaluation.
 
     Key Design Decisions:
     - Deterministic: Same seed produces same samples
@@ -133,7 +133,7 @@ class TransactionSampler:
         max_tick: int | None = None,
         method: str = "bootstrap",
     ) -> list[list[HistoricalTransaction]]:
-        """Create Monte Carlo transaction samples.
+        """Create bootstrap transaction samples.
 
         Args:
             agent_id: Filter to transactions involving this agent.

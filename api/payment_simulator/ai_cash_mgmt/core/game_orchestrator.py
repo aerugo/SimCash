@@ -36,9 +36,9 @@ class GameOrchestrator:
     """Main orchestrator for AI Cash Management game.
 
     Coordinates:
-    - TransactionSampler: Creates Monte Carlo samples from historical data
+    - TransactionSampler: Creates bootstrap samples from historical data
     - PolicyOptimizer: Generates improved policies via LLM
-    - PolicyEvaluator: Evaluates policies on Monte Carlo samples
+    - PolicyEvaluator: Evaluates policies on bootstrap samples
     - ConvergenceDetector: Detects when optimization has stabilized
 
     Example:
@@ -201,7 +201,7 @@ class GameOrchestrator:
         iteration = session.current_iteration
 
         # Get sample method - may be SampleMethod enum or string
-        method_raw = self._config.monte_carlo.sample_method
+        method_raw = self._config.bootstrap.sample_method
         sample_method = method_raw.value if hasattr(method_raw, "value") else str(method_raw)
 
         for agent_id in self._config.optimized_agents:
@@ -227,10 +227,10 @@ class GameOrchestrator:
             ]
             sampler.collect_transactions(tx_dicts)
 
-            # Create Monte Carlo samples (used for evaluation when evaluator is set)
+            # Create bootstrap samples (used for evaluation when evaluator is set)
             _ = sampler.create_samples(
                 agent_id=agent_id,
-                num_samples=self._config.monte_carlo.num_samples,
+                num_samples=self._config.bootstrap.num_samples,
                 max_tick=current_tick,
                 method=sample_method,
             )

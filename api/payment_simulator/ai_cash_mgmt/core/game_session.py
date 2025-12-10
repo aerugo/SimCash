@@ -197,7 +197,7 @@ class GameSession:
         Args:
             agent_id: Agent identifier.
             policy: The evaluated policy.
-            mean_cost: Mean cost from Monte Carlo evaluation.
+            mean_cost: Mean cost from bootstrap evaluation.
             iteration: Iteration number.
         """
         evaluation = PolicyEvaluation(
