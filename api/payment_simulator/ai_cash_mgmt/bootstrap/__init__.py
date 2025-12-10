@@ -14,10 +14,20 @@ Key components:
 - BootstrapPolicyEvaluator: Evaluates policies using Monte Carlo simulation
 - EvaluationResult: Result of a single sample evaluation
 - PairedDelta: Paired comparison between two policies
+
+Enriched evaluation (Phase 0.5):
+- BootstrapEvent: Event captured during evaluation for LLM context
+- CostBreakdown: Itemized cost breakdown by type
+- EnrichedEvaluationResult: Full evaluation result with event trace
 """
 
 from __future__ import annotations
 
+from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+    BootstrapEvent,
+    CostBreakdown,
+    EnrichedEvaluationResult,
+)
 from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import (
     BootstrapPolicyEvaluator,
     EvaluationResult,
@@ -37,9 +47,12 @@ from payment_simulator.ai_cash_mgmt.bootstrap.sandbox_config import SandboxConfi
 
 __all__ = [
     "AgentTransactionHistory",
+    "BootstrapEvent",
     "BootstrapPolicyEvaluator",
     "BootstrapSample",
     "BootstrapSampler",
+    "CostBreakdown",
+    "EnrichedEvaluationResult",
     "EvaluationResult",
     "PairedDelta",
     "RemappedTransaction",
