@@ -4653,26 +4653,55 @@ impl Orchestrator {
         total_cost
     }
 
-    /// Calculate overdraft cost for a given balance
+    /// Calculate overdraft cost for a given balance using integer-only arithmetic
     ///
-    /// Overdraft cost = max(0, -balance) * overdraft_bps_per_tick
+    /// Overdraft cost = max(0, -balance) * overdraft_bps_per_tick / 10,000
     ///
-    /// Example: -$500,000 balance at 0.001 bps/tick = 500 basis points = $5
+    /// CRITICAL INVARIANT: Money is always i64. This function uses integer-only
+    /// arithmetic to avoid NaN/Inf/precision issues from f64→i64 casts.
+    ///
+    /// Uses u128 for intermediate calculations to avoid overflow with large values.
+    /// Supports fractional bps rates (e.g., 0.8 bps) by scaling to milli-bps.
+    ///
+    /// Example: -$500,000 balance at 1 bps/tick = 500,000 * 1 / 10,000 = 50 cents
+    /// Example: -$117,679.26 at 0.8 bps/tick = 11,767,926 * 0.8 / 10,000 = 941 cents
     fn calculate_overdraft_cost(&self, balance: i64) -> i64 {
         if balance >= 0 {
             return 0;
         }
 
-        let overdraft_amount = (-balance) as f64;
-        // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
-        // Example: 1 bps on $100k = $100k × (1/10,000) = $10
-        let cost = overdraft_amount * (self.cost_rates.overdraft_bps_per_tick / 10_000.0);
-        cost.round() as i64 // Use rounding instead of truncation (Phase 8 fix)
+        let overdraft_amount = (-balance) as u128;
+
+        // Scale bps rate by 1000 to handle fractional bps (e.g., 0.8 bps -> 800 milli-bps)
+        // This allows precision down to 0.001 bps
+        const BPS_SCALE: u128 = 1000;
+        let bps_rate_scaled = (self.cost_rates.overdraft_bps_per_tick * BPS_SCALE as f64).round().max(0.0) as u128;
+
+        if bps_rate_scaled == 0 {
+            return 0;
+        }
+
+        // Integer-only calculation: amount * bps_rate_scaled / (10,000 * BPS_SCALE)
+        // Combined divisor: 10,000 * 1,000 = 10,000,000
+        const COMBINED_DIVISOR: u128 = 10_000 * BPS_SCALE;
+
+        // Compute with rounding: add half the divisor before dividing (round half up)
+        let numerator = overdraft_amount * bps_rate_scaled;
+        let half_divisor = COMBINED_DIVISOR / 2;
+        let result = (numerator + half_divisor) / COMBINED_DIVISOR;
+
+        // Clamp to i64 range
+        result.min(i64::MAX as u128) as i64
     }
 
-    /// Calculate delay cost for queued transactions
+    /// Calculate delay cost for queued transactions using integer-only arithmetic
     ///
     /// Delay cost = sum of (queued transaction values × multipliers) * delay_cost_per_tick_per_cent
+    ///
+    /// CRITICAL INVARIANT: Money is always i64. This function uses integer-only
+    /// arithmetic to avoid NaN/Inf/precision issues from f64→i64 casts.
+    ///
+    /// Uses u128 for intermediate calculations to avoid overflow with large values.
     ///
     /// Multipliers applied:
     /// - Overdue multiplier: transactions past deadline have cost multiplied by overdue_delay_multiplier
@@ -4687,98 +4716,165 @@ impl Orchestrator {
             None => return 0,
         };
 
-        let mut total_weighted_value = 0.0;
+        // Scale factor for multipliers (allows precision for values like 1.5)
+        const MULT_SCALE: u128 = 1000;
+
+        // Convert rate to scaled integer
+        // delay_cost_per_tick_per_cent is a fraction (e.g., 0.01 = 1%)
+        // Scale by 1,000,000 to preserve precision for small rates
+        const RATE_SCALE: u128 = 1_000_000;
+        let rate_scaled = (self.cost_rates.delay_cost_per_tick_per_cent * RATE_SCALE as f64).round().max(0.0) as u128;
+
+        if rate_scaled == 0 {
+            return 0;
+        }
+
+        // Pre-compute overdue multiplier (scaled)
+        let overdue_mult_scaled = (self.cost_rates.overdue_delay_multiplier * MULT_SCALE as f64).round().max(0.0) as u128;
+        let normal_mult_scaled = MULT_SCALE; // 1.0 scaled
+
+        // Accumulate weighted values using u128 to prevent overflow
+        let mut total_weighted_value_scaled: u128 = 0;
+
+        // Helper to calculate weighted amount for a transaction
+        let calc_weighted = |tx: &Transaction, overdue_mult: u128, normal_mult: u128| -> u128 {
+            let amount = tx.remaining_amount().max(0) as u128;
+
+            // Apply multiplier for overdue transactions
+            let overdue_multiplier = if tx.is_overdue() {
+                overdue_mult
+            } else {
+                normal_mult
+            };
+
+            // Apply priority-based multiplier if configured (Enhancement 11.1)
+            let priority_mult_scaled = self.cost_rates.priority_delay_multipliers
+                .as_ref()
+                .map(|m| (m.get_multiplier_for_priority(tx.priority()) * MULT_SCALE as f64).round().max(0.0) as u128)
+                .unwrap_or(MULT_SCALE);
+
+            // Combine multipliers: (overdue * priority) / MULT_SCALE
+            // This keeps one MULT_SCALE factor
+            let combined_mult = overdue_multiplier * priority_mult_scaled / MULT_SCALE;
+
+            // Return amount * combined_mult (still has MULT_SCALE factor)
+            amount * combined_mult
+        };
 
         // Sum up weighted value of all transactions in Queue 1
         for tx_id in agent.outgoing_queue() {
             if let Some(tx) = self.state.get_transaction(tx_id) {
-                let amount = tx.remaining_amount() as f64;
-
-                // Apply multiplier for overdue transactions
-                let overdue_multiplier = if tx.is_overdue() {
-                    self.cost_rates.overdue_delay_multiplier
-                } else {
-                    1.0
-                };
-
-                // Apply priority-based multiplier if configured (Enhancement 11.1)
-                let priority_multiplier = self.cost_rates.priority_delay_multipliers
-                    .as_ref()
-                    .map(|m| m.get_multiplier_for_priority(tx.priority()))
-                    .unwrap_or(1.0);
-
-                total_weighted_value += amount * overdue_multiplier * priority_multiplier;
+                total_weighted_value_scaled += calc_weighted(tx, overdue_mult_scaled, normal_mult_scaled);
             }
         }
 
         // Also sum up transactions in Queue 2 (RTGS queue) for this agent
-        // Performance optimization: Use index for O(1) lookup instead of O(Queue2_Size) scan
         let agent_queue2_txs = self.state.queue2_index().get_agent_transactions(agent_id);
         for tx_id in agent_queue2_txs {
             if let Some(tx) = self.state.get_transaction(tx_id) {
-                let amount = tx.remaining_amount() as f64;
-
-                // Apply multiplier for overdue transactions
-                let overdue_multiplier = if tx.is_overdue() {
-                    self.cost_rates.overdue_delay_multiplier
-                } else {
-                    1.0
-                };
-
-                // Apply priority-based multiplier if configured (Enhancement 11.1)
-                let priority_multiplier = self.cost_rates.priority_delay_multipliers
-                    .as_ref()
-                    .map(|m| m.get_multiplier_for_priority(tx.priority()))
-                    .unwrap_or(1.0);
-
-                total_weighted_value += amount * overdue_multiplier * priority_multiplier;
+                total_weighted_value_scaled += calc_weighted(tx, overdue_mult_scaled, normal_mult_scaled);
             }
         }
 
-        let cost = total_weighted_value * self.cost_rates.delay_cost_per_tick_per_cent;
-        cost.round() as i64 // Use rounding instead of truncation (Phase 8 fix)
+        // Final calculation using u128: weighted_value_scaled * rate_scaled / (MULT_SCALE * RATE_SCALE)
+        let combined_scale = MULT_SCALE * RATE_SCALE;
+
+        // Compute with rounding: add half the divisor before dividing
+        let numerator = total_weighted_value_scaled * rate_scaled;
+        let half_scale = combined_scale / 2;
+        let result = (numerator + half_scale) / combined_scale;
+
+        // Clamp to i64 range
+        result.min(i64::MAX as u128) as i64
     }
 
-    /// Calculate collateral opportunity cost (Phase 8)
+    /// Calculate collateral opportunity cost using integer-only arithmetic (Phase 8)
     ///
-    /// Collateral cost = posted_collateral * (collateral_cost_per_tick_bps / 10,000)
+    /// Collateral cost = posted_collateral * collateral_cost_per_tick_bps / 10,000
+    ///
+    /// CRITICAL INVARIANT: Money is always i64. This function uses integer-only
+    /// arithmetic to avoid NaN/Inf/precision issues from f64→i64 casts.
+    ///
+    /// Uses u128 for intermediate calculations to avoid overflow with large values.
+    /// Supports fractional bps rates (e.g., 0.0005 bps) by scaling to micro-bps.
     ///
     /// Represents the opportunity cost of having assets posted as collateral
     /// rather than deployed in other earning activities.
     ///
-    /// Example: $1,000,000 collateral at 2 bps/tick = $1M × (2/10,000) = $200 = 20,000 cents
+    /// Example: $1,000,000 collateral at 2 bps/tick = $1M × 2 / 10,000 = $200 = 20,000 cents
     fn calculate_collateral_cost(&self, posted_collateral: i64) -> i64 {
         if posted_collateral <= 0 {
             return 0;
         }
 
-        let collateral_amount = posted_collateral as f64;
-        // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
-        // Example: 2 bps on $1M = $1M × (2/10,000) = $200
-        let cost = collateral_amount * (self.cost_rates.collateral_cost_per_tick_bps / 10_000.0);
-        cost.round() as i64
+        // Scale bps rate by 1,000,000 to handle very small fractional bps (e.g., 0.0005 bps)
+        // This allows precision down to 0.000001 bps
+        const BPS_SCALE: u128 = 1_000_000;
+        let bps_rate_scaled = (self.cost_rates.collateral_cost_per_tick_bps * BPS_SCALE as f64).round().max(0.0) as u128;
+
+        if bps_rate_scaled == 0 {
+            return 0;
+        }
+
+        // Use u128 to avoid overflow with large collateral amounts
+        let amount = posted_collateral as u128;
+
+        // Integer-only calculation: amount * bps_rate_scaled / (10,000 * BPS_SCALE)
+        // Combined divisor: 10,000 * 1,000,000 = 10,000,000,000
+        const COMBINED_DIVISOR: u128 = 10_000 * BPS_SCALE;
+
+        // Compute with rounding: add half the divisor before dividing (round half up)
+        let numerator = amount * bps_rate_scaled;
+        let half_divisor = COMBINED_DIVISOR / 2;
+        let result = (numerator + half_divisor) / COMBINED_DIVISOR;
+
+        // Clamp to i64 range
+        result.min(i64::MAX as u128) as i64
     }
 
-    /// Calculate liquidity opportunity cost (Enhancement 11.2)
+    /// Calculate liquidity opportunity cost using integer-only arithmetic (Enhancement 11.2)
     ///
     /// The opportunity cost of holding allocated liquidity in the settlement system
     /// rather than earning interest elsewhere.
     ///
-    /// Formula: allocated_liquidity × (liquidity_cost_per_tick_bps / 10,000)
+    /// CRITICAL INVARIANT: Money is always i64. This function uses integer-only
+    /// arithmetic to avoid NaN/Inf/precision issues from f64→i64 casts.
     ///
-    /// Example: 1M allocated at 15 bps/tick = 1,000,000 × (15/10,000) = 1,500 cents/tick
+    /// Uses u128 for intermediate calculations to avoid overflow with large values.
+    /// Supports fractional bps rates by scaling to micro-bps.
+    ///
+    /// Formula: allocated_liquidity × liquidity_cost_per_tick_bps / 10,000
+    ///
+    /// Example: 1M allocated at 15 bps/tick = 1,000,000 × 15 / 10,000 = 1,500 cents/tick
     ///
     /// Note: This only applies to liquidity allocated from liquidity_pool,
     /// not to opening_balance (which is assumed to already be at the central bank).
     fn calculate_liquidity_opportunity_cost(&self, allocated_liquidity: i64) -> i64 {
-        if allocated_liquidity <= 0 || self.cost_rates.liquidity_cost_per_tick_bps <= 0.0 {
+        if allocated_liquidity <= 0 {
             return 0;
         }
 
-        let liquidity_amount = allocated_liquidity as f64;
-        // Convert bps to rate: 1 bps = 0.0001 = 1/10,000
-        let cost = liquidity_amount * (self.cost_rates.liquidity_cost_per_tick_bps / 10_000.0);
-        cost.round() as i64
+        // Scale bps rate by 1,000,000 to handle fractional bps
+        const BPS_SCALE: u128 = 1_000_000;
+        let bps_rate_scaled = (self.cost_rates.liquidity_cost_per_tick_bps * BPS_SCALE as f64).round().max(0.0) as u128;
+
+        if bps_rate_scaled == 0 {
+            return 0;
+        }
+
+        // Use u128 to avoid overflow with large liquidity amounts
+        let amount = allocated_liquidity as u128;
+
+        // Integer-only calculation: amount * bps_rate_scaled / (10,000 * BPS_SCALE)
+        const COMBINED_DIVISOR: u128 = 10_000 * BPS_SCALE;
+
+        // Compute with rounding: add half the divisor before dividing (round half up)
+        let numerator = amount * bps_rate_scaled;
+        let half_divisor = COMBINED_DIVISOR / 2;
+        let result = (numerator + half_divisor) / COMBINED_DIVISOR;
+
+        // Clamp to i64 range
+        result.min(i64::MAX as u128) as i64
     }
 
     /// Sort an agent's Queue 1 based on queue1_ordering configuration
