@@ -167,17 +167,26 @@ The simulation models the decisions a bank's treasury/cash management function m
 
 **Real-world note**: T2 and most RTGS systems do not automatically split payments. Banks may choose to submit multiple smaller instructions as a strategic decision.
 
-### Priority and Timing Flags
+### Priority System
 
-The simulation implements TARGET2's **dual priority system**, separating internal bank priorities from RTGS queue priorities:
+The simulation implements TARGET2's **dual priority system**, separating internal bank priorities from RTGS queue priorities.
 
-**Internal Priority (0-10)**
+#### Internal Priority (0-10)
+
 - The bank's own assessment of payment urgency
 - Used for internal queue ordering in Queue 1
 - Higher values mean more urgent to the sending bank
-- Does not affect RTGS processing order
+- Does not directly affect RTGS processing order
 
-**RTGS Declared Priority**
+**Priority Bands**: Internal priorities map to three bands:
+| Band | Priority Range | Typical Use |
+|------|---------------|-------------|
+| **Urgent** | 8-10 | Time-critical, high-value |
+| **Normal** | 4-7 | Standard business payments |
+| **Low** | 0-3 | Flexible timing, batch-eligible |
+
+#### RTGS Declared Priority
+
 When submitting to the central RTGS system (Queue 2), banks declare one of three priority levels:
 
 - **Highly Urgent**: Processed before all other payments. Used for critical settlements (e.g., ancillary system settlements, time-critical obligations).
@@ -188,6 +197,33 @@ When submitting to the central RTGS system (Queue 2), banks declare one of three
 This reflects TARGET2 reality: a bank may consider a payment internally critical (high internal priority) but submit it as Normal to the RTGS to avoid higher processing costs or queue competition. Conversely, a routine payment (low internal priority) might need Urgent RTGS status due to a client deadline.
 
 Banks can **withdraw** payments from Queue 2 and **resubmit** with different RTGS priorities, but this resets their FIFO position within the new priority level.
+
+#### Queue Ordering Modes
+
+**Queue 1** supports two ordering modes:
+
+- **FIFO** (default): Transactions processed in arrival order. Policy evaluates each in sequence.
+- **Priority-Deadline**: Sorted by priority (descending), then deadline (ascending), then arrival (tie-breaker). Ensures urgent payments with tight deadlines are evaluated first.
+
+**Queue 2** processes payments within each RTGS priority level in FIFO order. When T2 priority mode is enabled, all Highly Urgent payments process before any Urgent, and all Urgent before any Normal.
+
+#### Priority Escalation
+
+As deadlines approach, transaction priority can automatically increase to ensure timely processing:
+
+```
+escalated_priority = min(10, original_priority + max_boost × progress)
+```
+
+Where `progress` measures how close the deadline is (0.0 = just arrived, 1.0 = at deadline).
+
+**Configuration**:
+- `enabled`: Turn escalation on/off
+- `start_escalating_at_ticks`: Begin escalation N ticks before deadline
+- `max_boost`: Maximum priority increase (e.g., +3)
+- `curve`: Escalation shape (linear, exponential)
+
+**Real-world parallel**: Treasury systems often have escalation rules that automatically elevate payment priority as cutoff times approach, ensuring critical deadlines aren't missed due to queue position.
 
 ### Bilateral and Multilateral Limits
 
@@ -210,31 +246,103 @@ When limits are exceeded, payments queue rather than fail—they await capacity 
 
 ## Cost Structure
 
-Costs in the simulation represent real economic pressures:
+Costs in the simulation represent real economic pressures. Each cost type has explicit formulas to enable deterministic calculation.
 
-### Liquidity Costs
+### Overdraft Costs (Liquidity)
 
-**What it represents**: The opportunity cost of capital, explicit interest on overdrafts, or collateral posting costs.
+**What it represents**: Interest charged on negative balances (intraday credit usage).
 
-**Real-world parallel**: Banks optimize intraday liquidity usage because reserves earn less than alternative investments, and collateral/credit lines have real costs.
+**Formula**:
+```
+overdraft_cost = overdraft_cost_bps × |negative_balance| × (1 / ticks_per_day) / 10000
+```
+
+**Real-world parallel**: Central banks charge for intraday overdrafts, typically 10-50 basis points annualized. Banks optimize to minimize time spent in overdraft.
+
+### Collateral Costs
+
+**What it represents**: Opportunity cost of securities posted as collateral to secure credit lines.
+
+**Formula**:
+```
+collateral_cost = collateral_cost_bps × posted_collateral × (1 / ticks_per_day) / 10000
+```
+
+**Real-world parallel**: Collateral tied up at the central bank cannot be used for repo, securities lending, or other yield-generating activities.
+
+**Note**: Collateral costs are distinct from overdraft costs—posting collateral expands credit capacity but incurs its own carrying cost.
 
 ### Delay Costs (Queue 1 Only)
 
 **What it represents**: Client dissatisfaction, SLA penalties, reputational damage from slow payment execution.
 
-**Why only Queue 1**: Payments held *by the bank* create client-facing delays. Payments queued *at the central bank* are waiting for system-level liquidity—a different dynamic.
+**Formula**:
+```
+delay_cost = delay_penalty_per_tick × (current_tick - arrival_tick)
+```
+
+**Why only Queue 1**: Payments held *by the bank* create client-facing delays. Payments queued *at the central bank* (Queue 2) are waiting for system-level liquidity—the bank has already submitted, so no further delay penalty applies.
+
+**Priority multipliers**: Urgent payments may incur higher delay costs:
+```
+effective_delay_cost = delay_cost × priority_delay_multiplier
+```
+Where multipliers differ by priority band (e.g., 1.5× for Urgent, 1.0× for Normal).
 
 ### Deadline Penalties
 
-**What it represents**: Regulatory fines, failed settlement penalties, or severe client impact for missed critical payments.
+**What it represents**: One-time penalty when a transaction's deadline passes without settlement.
+
+**Formula**:
+```
+deadline_penalty = deadline_penalty_amount  (one-time charge when deadline exceeded)
+```
 
 **Real-world parallel**: Certain payments (securities settlement, margin calls, regulatory deadlines) have hard deadlines with severe consequences.
 
+### Overdue Delay Costs
+
+**What it represents**: Accelerated delay costs for transactions past their deadline but still pending.
+
+**Formula**:
+```
+overdue_delay_cost = delay_penalty_per_tick × overdue_multiplier × ticks_overdue
+```
+
+**Default multiplier**: 5× (transactions past deadline cost 5× more per tick than normal delay).
+
+**Real-world parallel**: Missing a deadline triggers escalation—more resources, management attention, and client remediation.
+
+### Split Friction Costs
+
+**What it represents**: Operational overhead of dividing a payment into multiple smaller instructions.
+
+**Formula**:
+```
+split_cost = split_friction_cost × (num_parts - 1)
+```
+
+**Real-world parallel**: Each payment instruction requires message processing, reconciliation, and audit trail. Splitting multiplies this overhead.
+
 ### End-of-Day Penalties
 
-**What it represents**: The extreme undesirability of failing to settle obligations by market close.
+**What it represents**: Severe penalty for transactions still unsettled at market close.
 
-**Real-world parallel**: Unsettled payments at day-end create credit risk, regulatory issues, and operational chaos.
+**Formula**:
+```
+eod_penalty = eod_unsettled_penalty × (remaining_amount / original_amount)
+```
+
+**Real-world parallel**: Unsettled payments at day-end create credit risk, regulatory reporting issues, and operational chaos. This penalty is typically much larger than other costs to strongly incentivize settlement.
+
+### Cost Accumulation
+
+Costs accrue **per tick** (for ongoing costs like overdraft and collateral) or **per event** (for penalties). Each agent tracks:
+- Total cost breakdown by type
+- Per-transaction cost attribution
+- Running cost throughout the day
+
+The cost model ensures that all financial trade-offs are quantifiable, enabling policy optimization.
 
 ---
 
@@ -262,9 +370,106 @@ A bank that delays while others pay promptly benefits from incoming liquidity wi
 
 ---
 
+## Policy System
+
+Banks make decisions through **policies**—programs that evaluate context and choose actions. The simulation supports multiple policy representations, from simple rules to complex decision trees.
+
+### Decision Tree Policies
+
+The primary policy mechanism is a **JSON-based decision tree DSL** (Domain-Specific Language):
+
+```
+      ┌─────────────────┐
+      │  Root Condition │
+      │ balance > 50000 │
+      └────────┬────────┘
+               │
+       ┌───────┴───────┐
+       │               │
+   ┌───▼───┐       ┌───▼───┐
+   │ True  │       │ False │
+   │release│       │ hold  │
+   └───────┘       └───────┘
+```
+
+**Key characteristics**:
+- **Condition nodes**: Evaluate expressions against current context (e.g., `balance > 50000`, `priority >= 8`)
+- **Action nodes**: Specify what to do (`release`, `hold`, `split`, `post_collateral`)
+- **Nested logic**: Trees can branch multiple levels deep for complex strategies
+
+### Policy Tree Types
+
+Different trees control different decisions:
+
+| Tree Type | When Evaluated | Controls |
+|-----------|----------------|----------|
+| **payment_tree** | For each pending payment | Release, hold, or split this payment |
+| **bank_tree** | Once per tick (before payments) | Bank-wide decisions, budget allocation |
+| **strategic_collateral_tree** | Before settlement attempts | Whether to post/withdraw collateral |
+| **end_of_tick_collateral_tree** | After all settlements | End-of-tick collateral adjustments |
+
+### Policy Context
+
+Policies evaluate against a rich context providing 140+ fields including:
+- **Balance state**: `balance`, `available_liquidity`, `credit_headroom`
+- **Queue state**: `queue1_size`, `queue1_value`, `queue2_size`
+- **Transaction details**: `tx_amount`, `tx_priority`, `tx_deadline`, `ticks_to_deadline`
+- **Time**: `current_tick`, `ticks_remaining_in_day`, `is_end_of_day`
+- **Costs**: `total_cost_so_far`, `delay_cost_so_far`
+- **Custom registers**: 10 numeric registers for policy memory across ticks
+
+### Built-in Policies
+
+For common strategies, pre-built policies are available:
+- **Fifo**: Release payments in arrival order when funds available
+- **Deadline**: Prioritize payments closest to deadline
+- **LiquidityAware**: Consider balance and incoming flow before releasing
+- **TreePolicy**: Custom decision tree (most flexible)
+
+---
+
+## Configuration Toggles
+
+Several features can be enabled or disabled to model different RTGS system designs:
+
+### Settlement Features
+
+| Toggle | Default | Effect When Enabled |
+|--------|---------|---------------------|
+| `entry_disposition_offsetting` | false | Check for bilateral offset when payment enters Queue 2 |
+| `algorithm_sequencing` | true | Run LSM algorithms in sequence: FIFO → Bilateral → Multilateral |
+| `deferred_crediting` | false | Defer credit application to end of tick (prevents within-tick recycling) |
+
+### Priority Features
+
+| Toggle | Default | Effect When Enabled |
+|--------|---------|---------------------|
+| `priority_mode` | false | Process Queue 2 strictly by priority band (all Urgent before any Normal) |
+| `priority_escalation.enabled` | false | Auto-boost priority as deadlines approach |
+| `queue1_ordering` | "Fifo" | How Queue 1 is sorted ("Fifo" or "priority_deadline") |
+
+### Deferred Crediting Mode
+
+When enabled, settlement credits accumulate during a tick but only apply at tick end:
+
+```
+Without deferred crediting:
+  Tick N: A pays B $100 → B's balance increases immediately
+          B can use those funds for subsequent settlements in same tick
+
+With deferred crediting:
+  Tick N: A pays B $100 → Credit queued
+          B cannot use funds until tick N+1
+  End of tick: Credits applied
+```
+
+This prevents liquidity "recycling" within a tick, more closely modeling systems where settlement finality has processing delay.
+
+---
+
 ## Policy Evaluation
 
-The simulation enables AI-driven policy optimization through Monte Carlo evaluation. This section describes the conceptual foundations.
+The simulation enables AI-driven policy optimization through bootstrap evaluation. This section describes the conceptual foundations.
 
 ### The Single-Agent Perspective
 
@@ -383,9 +588,32 @@ When implementing new features, validate against these real-world expectations:
 ### Cost Behavior
 
 - [x] Liquidity costs scale with usage duration and amount
+- [x] Collateral costs are separate from overdraft costs
 - [x] Delay costs scale with waiting time in Queue 1
+- [x] Overdue transactions incur multiplied delay costs
 - [x] End-of-day creates strong settlement pressure
 - [x] Higher priority payments receive preferential treatment when enabled
+- [x] Split friction costs apply per split operation
+
+### Policy Behavior
+
+- [x] Decision trees evaluate conditions against current context
+- [x] Multiple tree types control different decisions (payment, bank, collateral)
+- [x] Built-in policies (Fifo, Deadline, LiquidityAware) work correctly
+- [x] Policy context provides accurate balance, queue, and cost information
+
+### Deferred Crediting
+
+- [x] When enabled, credits queue until end of tick
+- [x] Agents cannot recycle within-tick liquidity when deferred
+- [x] LSM bilateral offsets behave correctly under deferred crediting
+
+### Priority Features
+
+- [x] Priority escalation increases priority as deadline approaches
+- [x] Priority bands (Urgent/Normal/Low) correctly classify priorities
+- [x] Priority delay multipliers apply correct cost scaling
+- [x] Queue ordering modes (FIFO vs priority-deadline) work correctly
 
 ### Coordination Dynamics
 
@@ -447,8 +675,12 @@ The simulation is designed to explore questions like:
 | **Bilateral Limit** | Maximum outflow to a specific counterparty per day |
 | **Bilateral Offset** | Settling two opposing payments at net liquidity cost (Algorithm 2) |
 | **Bootstrap** | Statistical resampling technique for estimating distributions from observed data (Efron, 1979) |
+| **Collateral Cost** | Opportunity cost of securities posted to secure credit lines (distinct from overdraft cost) |
 | **Credit Headroom** | Available intraday credit from central bank |
+| **Decision Tree** | Policy representation using condition/action nodes to make payment decisions |
+| **Deferred Crediting** | Settlement mode where credits apply at tick end, preventing within-tick recycling |
 | **Entry Disposition** | Offset check performed when payment enters Queue 2 |
+| **EOD Penalty** | Large penalty for transactions unsettled at end of day |
 | **Finality** | Irreversibility of settled payments |
 | **Gridlock** | Circular dependency where all parties wait for each other |
 | **Internal Priority** | Bank's own urgency rating (0-10) for internal queue ordering |
@@ -456,11 +688,16 @@ The simulation is designed to explore questions like:
 | **LSM** | Liquidity-Saving Mechanism—algorithms that reduce liquidity needs through smart grouping |
 | **Multilateral Cycle** | Settling a ring of payments simultaneously (Algorithm 3) |
 | **Multilateral Limit** | Maximum total outflow to all counterparties per day |
+| **Overdue Multiplier** | Factor applied to delay costs after deadline passes (default 5×) |
+| **Policy** | Decision-making program that evaluates context and chooses actions (release, hold, split) |
+| **Priority Band** | Grouping of priorities: Urgent (8-10), Normal (4-7), Low (0-3) |
+| **Priority Escalation** | Automatic priority boost as transaction deadline approaches |
 | **Queue 1** | Bank's internal queue (strategic holding) |
 | **Queue 2** | Central system queue (awaiting liquidity) |
 | **RTGS** | Real-Time Gross Settlement—payments settle individually and immediately |
 | **RTGS Priority** | Declared priority for Queue 2: Highly Urgent, Urgent, or Normal |
 | **Settlement Offset** | Time from transaction arrival to actual settlement (captures LSM/queue delays) |
+| **Split Friction** | Operational cost incurred when dividing a payment into multiple parts |
 | **Tick** | Discrete time unit in the simulation |
 
 ---
