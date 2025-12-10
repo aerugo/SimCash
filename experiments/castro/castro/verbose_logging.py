@@ -118,10 +118,12 @@ class MonteCarloSeedResult:
 
     Attributes:
         seed: The RNG seed used.
-        cost: Total cost in cents.
+        cost: Total cost in cents (current policy).
         settled: Number of transactions settled.
         total: Total number of transactions.
         settlement_rate: Fraction of transactions settled.
+        baseline_cost: Cost with baseline policy (for delta comparison).
+            None for iteration 1 (establishing baseline).
     """
 
     seed: int
@@ -129,6 +131,25 @@ class MonteCarloSeedResult:
     settled: int
     total: int
     settlement_rate: float
+    baseline_cost: int | None = None
+
+    @property
+    def delta_percent(self) -> float | None:
+        """Compute percentage improvement vs baseline.
+
+        Returns:
+            Positive value means improvement (cost decreased).
+            Negative value means regression (cost increased).
+            None if no baseline_cost is set.
+
+        Formula: (baseline_cost - cost) / baseline_cost * 100
+        """
+        if self.baseline_cost is None:
+            return None
+        if self.baseline_cost == 0:
+            # Edge case: zero baseline
+            return 0.0 if self.cost == 0 else None
+        return (self.baseline_cost - self.cost) / self.baseline_cost * 100
 
 
 @dataclass
@@ -316,17 +337,26 @@ class VerboseLogger:
         mean_cost: int,
         std_cost: int,
         deterministic: bool = False,
+        is_baseline_run: bool | None = None,
     ) -> None:
         """Log Monte Carlo evaluation results.
 
-        Shows per-seed breakdown with best/worst identification.
-        In deterministic mode, shows single evaluation result without statistics.
+        Shows per-seed breakdown with best/worst identification based on
+        improvement percentage (delta) when comparing to baseline.
+
+        On baseline run (iteration 1): No Best/Worst labels shown since
+        there's no previous policy to compare against.
+
+        On subsequent runs: Best/Worst determined by delta_percent
+        (highest improvement = Best, lowest/regression = Worst).
 
         Args:
             seed_results: Results from each seed.
             mean_cost: Mean cost across seeds.
             std_cost: Standard deviation of costs.
             deterministic: If True, show deterministic mode output (no statistics).
+            is_baseline_run: If True, this is iteration 1 (establishing baseline).
+                If None, auto-detect from whether baseline_cost is set.
         """
         if not self._config.monte_carlo:
             return
@@ -340,27 +370,49 @@ class VerboseLogger:
             settled_str = f"{result.settled}/{result.total}"
             rate_str = f"{result.settlement_rate * 100:.1f}%"
 
-            self._console.print(f"\n[bold]Deterministic Evaluation:[/bold]")
+            self._console.print("\n[bold]Deterministic Evaluation:[/bold]")
             self._console.print(f"  Cost: {cost_str}")
             self._console.print(f"  Settled: {settled_str} ({rate_str})")
             self._console.print(f"  Seed: 0x{result.seed:08x} (for debugging)")
             self._console.print()
             return
 
-        # Monte Carlo mode: full statistics
-        self._console.print(f"\n[bold]Monte Carlo Evaluation ({num_samples} samples):[/bold]")
+        # Auto-detect baseline run if not specified
+        if is_baseline_run is None:
+            # It's a baseline run if no results have baseline_cost set
+            is_baseline_run = all(r.baseline_cost is None for r in seed_results)
 
-        # Find best and worst seeds
-        if seed_results:
-            best_result = min(seed_results, key=lambda r: r.cost)
-            worst_result = max(seed_results, key=lambda r: r.cost)
+        # Check if we have delta information
+        has_deltas = any(r.delta_percent is not None for r in seed_results)
+
+        # Monte Carlo mode: full statistics
+        if is_baseline_run:
+            self._console.print(
+                f"\n[bold]Monte Carlo Baseline ({num_samples} samples):[/bold]"
+            )
         else:
-            best_result = worst_result = None
+            self._console.print(
+                f"\n[bold]Monte Carlo Evaluation ({num_samples} samples):[/bold]"
+            )
+
+        # Find best and worst seeds based on delta (improvement percentage)
+        best_result: MonteCarloSeedResult | None = None
+        worst_result: MonteCarloSeedResult | None = None
+
+        if seed_results and has_deltas and not is_baseline_run:
+            # Best = highest delta (most improvement)
+            # Worst = lowest delta (least improvement or regression)
+            results_with_delta = [r for r in seed_results if r.delta_percent is not None]
+            if results_with_delta:
+                best_result = max(results_with_delta, key=lambda r: r.delta_percent or 0)
+                worst_result = min(results_with_delta, key=lambda r: r.delta_percent or 0)
 
         # Per-seed table
         table = Table(show_header=True, header_style="bold")
         table.add_column("Seed", style="dim")
         table.add_column("Cost", justify="right")
+        if has_deltas and not is_baseline_run:
+            table.add_column("Delta", justify="right")
         table.add_column("Settled", justify="right")
         table.add_column("Rate", justify="right")
         table.add_column("Note", style="italic")
@@ -371,13 +423,29 @@ class VerboseLogger:
             settled_str = f"{result.settled}/{result.total}"
             rate_str = f"{result.settlement_rate * 100:.1f}%"
 
-            note = ""
-            if result is best_result:
-                note = "[green]Best[/green]"
-            elif result is worst_result:
-                note = "[red]Worst[/red]"
+            # Delta column (only when comparing to baseline)
+            delta_str = ""
+            if has_deltas and not is_baseline_run:
+                if result.delta_percent is not None:
+                    if result.delta_percent >= 0:
+                        delta_str = f"[green]+{result.delta_percent:.1f}%[/green]"
+                    else:
+                        delta_str = f"[red]{result.delta_percent:.1f}%[/red]"
+                else:
+                    delta_str = "-"
 
-            table.add_row(seed_str, cost_str, settled_str, rate_str, note)
+            # Note column (Best/Worst only when not baseline run)
+            note = ""
+            if not is_baseline_run:
+                if result is best_result:
+                    note = "[green]Best[/green]"
+                elif result is worst_result:
+                    note = "[red]Worst[/red]"
+
+            if has_deltas and not is_baseline_run:
+                table.add_row(seed_str, cost_str, delta_str, settled_str, rate_str, note)
+            else:
+                table.add_row(seed_str, cost_str, settled_str, rate_str, note)
 
         self._console.print(table)
 
@@ -386,11 +454,25 @@ class VerboseLogger:
         std_str = f"${std_cost / 100:,.2f}"
         self._console.print(f"  Mean: {mean_str} (std: {std_str})")
 
-        if best_result:
+        # Mean delta if we have deltas
+        if has_deltas and not is_baseline_run:
+            deltas = [r.delta_percent for r in seed_results if r.delta_percent is not None]
+            if deltas:
+                mean_delta = sum(deltas) / len(deltas)
+                if mean_delta >= 0:
+                    self._console.print(
+                        f"  Mean improvement: [green]+{mean_delta:.1f}%[/green]"
+                    )
+                else:
+                    self._console.print(
+                        f"  Mean improvement: [red]{mean_delta:.1f}%[/red]"
+                    )
+
+        if best_result and not is_baseline_run:
             self._console.print(
                 f"  Best seed: 0x{best_result.seed:08x} (for debugging)"
             )
-        if worst_result:
+        if worst_result and not is_baseline_run:
             self._console.print(
                 f"  Worst seed: 0x{worst_result.seed:08x} (for debugging)"
             )
