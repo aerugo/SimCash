@@ -582,3 +582,127 @@ class TestCostRatesConfiguration:
 
         assert config.cost_rates.overdraft_bps_per_tick == 0.01
         assert config.cost_rates.delay_cost_per_tick_per_cent == 0.001
+
+
+class TestTreePolicyParsing:
+    """Test parsing of v2.0 tree policies (Castro experiments)."""
+
+    def test_v2_tree_policy_detected(self) -> None:
+        """v2.0 tree policy format is correctly detected."""
+        sample = BootstrapSample(
+            agent_id="BANK_A",
+            sample_idx=0,
+            seed=12345,
+            outgoing_txns=(),
+            incoming_settlements=(),
+            total_ticks=100,
+        )
+
+        # v2.0 tree policy format (simplified version)
+        tree_policy = {
+            "version": "2.0",
+            "policy_id": "test_policy",
+            "parameters": {
+                "initial_liquidity_fraction": 0.25,
+                "urgency_threshold": 3.0,
+            },
+            "payment_tree": {
+                "type": "condition",
+                "node_id": "urgency_check",
+                "condition": {
+                    "op": "<=",
+                    "left": {"field": "ticks_to_deadline"},
+                    "right": {"param": "urgency_threshold"},
+                },
+                "on_true": {"type": "action", "node_id": "release", "action": "Release"},
+                "on_false": {"type": "action", "node_id": "hold", "action": "Hold"},
+            },
+            "strategic_collateral_tree": {
+                "type": "action",
+                "node_id": "hold_collateral",
+                "action": "HoldCollateral",
+            },
+        }
+
+        builder = SandboxConfigBuilder()
+        config = builder.build_config(
+            sample=sample,
+            target_policy=tree_policy,
+            opening_balance=1_000_000,
+            credit_limit=500_000,
+        )
+
+        # Target agent should have InlineJsonPolicy
+        target_agent = next(a for a in config.agents if a.id == "BANK_A")
+        assert target_agent.policy.type == "InlineJson"
+
+    def test_v2_tree_policy_with_payment_tree_key(self) -> None:
+        """Policy with payment_tree key (without version) is detected."""
+        sample = BootstrapSample(
+            agent_id="BANK_A",
+            sample_idx=0,
+            seed=12345,
+            outgoing_txns=(),
+            incoming_settlements=(),
+            total_ticks=100,
+        )
+
+        # Policy with just payment_tree (no explicit version)
+        tree_policy = {
+            "policy_id": "minimal_tree",
+            "parameters": {},
+            "payment_tree": {
+                "type": "action",
+                "node_id": "release",
+                "action": "Release",
+            },
+        }
+
+        builder = SandboxConfigBuilder()
+        config = builder.build_config(
+            sample=sample,
+            target_policy=tree_policy,
+            opening_balance=1_000_000,
+            credit_limit=500_000,
+        )
+
+        # Should still use InlineJsonPolicy
+        target_agent = next(a for a in config.agents if a.id == "BANK_A")
+        assert target_agent.policy.type == "InlineJson"
+
+    def test_simple_policy_still_works(self) -> None:
+        """Simple Fifo/LiquidityAware policies still work."""
+        sample = BootstrapSample(
+            agent_id="BANK_A",
+            sample_idx=0,
+            seed=12345,
+            outgoing_txns=(),
+            incoming_settlements=(),
+            total_ticks=100,
+        )
+
+        builder = SandboxConfigBuilder()
+
+        # Test Fifo
+        config = builder.build_config(
+            sample=sample,
+            target_policy={"type": "Fifo"},
+            opening_balance=1_000_000,
+            credit_limit=500_000,
+        )
+        target_agent = next(a for a in config.agents if a.id == "BANK_A")
+        assert target_agent.policy.type == "Fifo"
+
+        # Test LiquidityAware
+        config = builder.build_config(
+            sample=sample,
+            target_policy={
+                "type": "LiquidityAware",
+                "target_buffer": 50000,
+                "urgency_threshold": 5,
+            },
+            opening_balance=1_000_000,
+            credit_limit=500_000,
+        )
+        target_agent = next(a for a in config.agents if a.id == "BANK_A")
+        assert target_agent.policy.type == "LiquidityAware"
