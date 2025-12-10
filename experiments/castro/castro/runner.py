@@ -24,6 +24,11 @@ from payment_simulator.ai_cash_mgmt import (
     PolicyOptimizer,
     SeedManager,
 )
+from payment_simulator.ai_cash_mgmt.bootstrap import (
+    BootstrapPolicyEvaluator,
+    BootstrapSampler,
+    TransactionHistoryCollector,
+)
 from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
     DebugCallback,
     OptimizationResult,
@@ -216,6 +221,11 @@ class ExperimentRunner:
         # Key: seed, Value: cost from iteration 1
         self._baseline_costs: dict[int, int] = {}
 
+        # Bootstrap evaluation state
+        self._bootstrap_sampler: BootstrapSampler | None = None
+        self._bootstrap_evaluator: BootstrapPolicyEvaluator | None = None
+        self._transaction_history: dict[str, Any] = {}  # Agent ID -> AgentTransactionHistory
+
     async def run(self) -> ExperimentResult:
         """Run the experiment to convergence.
 
@@ -270,9 +280,15 @@ class ExperimentRunner:
             if self._monte_carlo_config.deterministic:
                 console.print("  Evaluation mode: [cyan]Deterministic[/cyan] (single evaluation)")
             else:
-                console.print(f"  Monte Carlo samples: {self._monte_carlo_config.num_samples}")
+                console.print(
+                    f"  Evaluation mode: [green]Bootstrap[/green] "
+                    f"({self._monte_carlo_config.num_samples} samples)"
+                )
             console.print(f"  LLM model: {self._model_config.model}")
             console.print()
+
+            # Initialize bootstrap components for policy evaluation
+            self._initialize_bootstrap()
 
             # Optimization loop
             iteration = 0
@@ -282,7 +298,7 @@ class ExperimentRunner:
                 iteration += 1
                 console.print(f"[cyan]Iteration {iteration}[/cyan]")
 
-                # 1. Evaluate current policies with verbose capture
+                # 1. Evaluate current policies using bootstrap sampling
                 (
                     total_cost,
                     per_agent_costs,
@@ -626,28 +642,86 @@ class ExperimentRunner:
             # Deep copy for each agent
             self._policies[agent_id] = json.loads(json.dumps(seed_policy))
 
+    def _initialize_bootstrap(self) -> None:
+        """Initialize bootstrap components for bootstrap evaluation mode.
+
+        Runs a full simulation to collect transaction history, then sets up
+        the bootstrap sampler and evaluator for subsequent policy evaluations.
+        """
+        if self._sim_runner is None:
+            msg = "Simulation runner not initialized"
+            raise RuntimeError(msg)
+
+        console.print("  [dim]Initializing bootstrap: running base simulation...[/dim]")
+
+        # Run a full simulation with seed policy to collect transaction history
+        policy = next(iter(self._policies.values()))
+        seed = self._seed_manager.simulation_seed(0)
+
+        result = self._sim_runner.run_simulation(
+            policy=policy,
+            seed=seed,
+            ticks=self._monte_carlo_config.evaluation_ticks,
+            capture_verbose=True,  # Need events for history collection
+        )
+
+        # Collect transaction history from events
+        collector = TransactionHistoryCollector()
+        if result.verbose_output is not None:
+            all_events: list[dict[str, Any]] = []
+            for tick_events in result.verbose_output.events_by_tick.values():
+                all_events.extend(tick_events)
+            collector.process_events(all_events)
+
+        # Store history for each optimized agent
+        for agent_id in self._experiment.optimized_agents:
+            self._transaction_history[agent_id] = collector.get_agent_history(agent_id)
+
+        # Get agent configuration from scenario for opening balance and credit limit
+        agents_config = self._sim_runner._base_config.get("agents", [])
+        agent_balance = 1_000_000_00  # Default: $1M in cents
+        agent_credit = 500_000_00  # Default: $500K in cents
+
+        for agent_cfg in agents_config:
+            if agent_cfg.get("id") in self._experiment.optimized_agents:
+                agent_balance = agent_cfg.get("opening_balance", agent_balance)
+                agent_credit = agent_cfg.get("unsecured_cap", agent_credit)
+                break
+
+        # Initialize bootstrap sampler and evaluator
+        self._bootstrap_sampler = BootstrapSampler(seed=self._experiment.master_seed)
+        self._bootstrap_evaluator = BootstrapPolicyEvaluator(
+            opening_balance=agent_balance,
+            credit_limit=agent_credit,
+        )
+
+        console.print(
+            f"  [dim]Bootstrap initialized: "
+            f"{sum(len(h.outgoing) for h in self._transaction_history.values())} "
+            f"outgoing transactions collected[/dim]"
+        )
+
     async def _evaluate_policies(
         self,
         iteration: int,
         capture_verbose: bool = True,
     ) -> tuple[int, dict[str, int], MonteCarloContextBuilder, list[MonteCarloSeedResult]]:
-        """Evaluate current policies across Monte Carlo samples.
+        """Evaluate current policies using bootstrap sampling.
 
-        Runs Monte Carlo simulations with different seeds, captures verbose
-        output, and builds a MonteCarloContextBuilder for per-agent context.
-
-        IMPORTANT: Seeds are consistent across iterations (based only on sample_idx)
-        to enable valid delta comparison between policies on the same transaction sets.
+        Bootstrap evaluation:
+        1. Generates bootstrap samples from collected transaction history
+        2. Evaluates policies on 3-agent sandbox (SOURCE, TARGET, SINK)
+        3. Computes mean costs across samples for policy comparison
 
         Args:
             iteration: Current iteration number.
-            capture_verbose: If True, capture tick-by-tick events for LLM context.
+            capture_verbose: If True, capture tick-by-tick events (not used in bootstrap).
 
         Returns:
             Tuple of (total_cost, per_agent_costs, context_builder, seed_results).
         """
-        if self._sim_runner is None:
-            msg = "Simulation runner not initialized"
+        if self._bootstrap_sampler is None or self._bootstrap_evaluator is None:
+            msg = "Bootstrap components not initialized"
             raise RuntimeError(msg)
 
         num_samples = self._monte_carlo_config.num_samples
@@ -656,31 +730,67 @@ class ExperimentRunner:
             agent_id: [] for agent_id in self._experiment.optimized_agents
         }
 
-        # Store all results and seeds for MonteCarloContextBuilder
+        # For MonteCarloContextBuilder compatibility, we need SimulationResults
+        # We'll create minimal results from bootstrap evaluation
         results: list[SimulationResult] = []
         seeds: list[int] = []
 
-        # Run Monte Carlo evaluation
-        # NOTE: Seeds are based only on sample_idx (not iteration) to ensure
-        # consistent transaction sets across iterations for valid delta comparison
-        for sample_idx in range(num_samples):
-            seed = self._seed_manager.simulation_seed(sample_idx)
-            seeds.append(seed)
+        # Evaluate each agent using bootstrap
+        for agent_id in self._experiment.optimized_agents:
+            history = self._transaction_history.get(agent_id)
+            if history is None:
+                continue
 
-            # Use first agent's policy (in full implementation, would inject per-agent)
-            policy = next(iter(self._policies.values()))
-            result = self._sim_runner.run_simulation(
-                policy=policy,
-                seed=seed,
-                ticks=self._monte_carlo_config.evaluation_ticks,
-                capture_verbose=capture_verbose,
+            # Get policy for this agent
+            policy = self._policies.get(agent_id, {})
+
+            # Generate bootstrap samples
+            samples = self._bootstrap_sampler.generate_samples(
+                agent_id=agent_id,
+                n_samples=num_samples,
+                outgoing_records=history.outgoing,
+                incoming_records=history.incoming,
+                total_ticks=self._monte_carlo_config.evaluation_ticks,
             )
 
-            results.append(result)
-            total_costs.append(result.total_cost)
-            for agent_id, cost in result.per_agent_costs.items():
-                if agent_id in per_agent_totals:
-                    per_agent_totals[agent_id].append(cost)
+            # Evaluate on each sample
+            agent_costs: list[int] = []
+            for sample in samples:
+                eval_result = self._bootstrap_evaluator.evaluate_sample(
+                    sample=sample,
+                    policy=policy,
+                )
+                agent_costs.append(eval_result.total_cost)
+
+            per_agent_totals[agent_id] = agent_costs
+
+        # Compute per-sample totals (sum across agents)
+        for sample_idx in range(num_samples):
+            sample_total = sum(
+                per_agent_totals[agent_id][sample_idx]
+                for agent_id in self._experiment.optimized_agents
+                if sample_idx < len(per_agent_totals.get(agent_id, []))
+            )
+            total_costs.append(sample_total)
+
+            # Build seed from sample_idx for consistency
+            sample_seed = self._seed_manager.simulation_seed(sample_idx)
+            seeds.append(sample_seed)
+
+            # Create minimal SimulationResult for context builder
+            results.append(
+                SimulationResult(
+                    total_cost=sample_total,
+                    per_agent_costs={
+                        agent_id: per_agent_totals[agent_id][sample_idx]
+                        for agent_id in self._experiment.optimized_agents
+                        if sample_idx < len(per_agent_totals.get(agent_id, []))
+                    },
+                    settlement_rate=1.0,  # Bootstrap samples are pre-filtered
+                    transactions_settled=0,  # Not tracked in bootstrap
+                    transactions_failed=0,
+                )
+            )
 
         # Compute means
         mean_total = sum(total_costs) // len(total_costs) if total_costs else 0
@@ -693,9 +803,8 @@ class ExperimentRunner:
         context_builder = MonteCarloContextBuilder(results=results, seeds=seeds)
 
         # Build MonteCarloSeedResult list for verbose logging
-        # Include baseline_cost for delta comparison if available
         seed_results: list[MonteCarloSeedResult] = []
-        for seed, result in zip(seeds, results, strict=True):
+        for i, (seed, result) in enumerate(zip(seeds, results, strict=True)):
             baseline_cost = self._baseline_costs.get(seed)
             seed_results.append(
                 MonteCarloSeedResult(
