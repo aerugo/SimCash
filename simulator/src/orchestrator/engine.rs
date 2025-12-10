@@ -4675,7 +4675,16 @@ impl Orchestrator {
         // Scale bps rate by 1000 to handle fractional bps (e.g., 0.8 bps -> 800 milli-bps)
         // This allows precision down to 0.001 bps
         const BPS_SCALE: u128 = 1000;
-        let bps_rate_scaled = (self.cost_rates.overdraft_bps_per_tick * BPS_SCALE as f64).round().max(0.0) as u128;
+
+        // CRITICAL: Guard against NaN/Inf before casting to integer
+        // NaN/Inf comparisons are false, so .max(0.0) doesn't help
+        // f64 as u128 for NaN/Inf is undefined behavior
+        let rate = self.cost_rates.overdraft_bps_per_tick;
+        let bps_rate_scaled = if rate.is_finite() && rate >= 0.0 {
+            (rate * BPS_SCALE as f64).round() as u128
+        } else {
+            0
+        };
 
         if bps_rate_scaled == 0 {
             return 0;
@@ -4723,14 +4732,27 @@ impl Orchestrator {
         // delay_cost_per_tick_per_cent is a fraction (e.g., 0.01 = 1%)
         // Scale by 1,000,000 to preserve precision for small rates
         const RATE_SCALE: u128 = 1_000_000;
-        let rate_scaled = (self.cost_rates.delay_cost_per_tick_per_cent * RATE_SCALE as f64).round().max(0.0) as u128;
+
+        // CRITICAL: Guard against NaN/Inf before casting to integer
+        let delay_rate = self.cost_rates.delay_cost_per_tick_per_cent;
+        let rate_scaled = if delay_rate.is_finite() && delay_rate >= 0.0 {
+            (delay_rate * RATE_SCALE as f64).round() as u128
+        } else {
+            0
+        };
 
         if rate_scaled == 0 {
             return 0;
         }
 
         // Pre-compute overdue multiplier (scaled)
-        let overdue_mult_scaled = (self.cost_rates.overdue_delay_multiplier * MULT_SCALE as f64).round().max(0.0) as u128;
+        // CRITICAL: Guard against NaN/Inf
+        let overdue_rate = self.cost_rates.overdue_delay_multiplier;
+        let overdue_mult_scaled = if overdue_rate.is_finite() && overdue_rate >= 0.0 {
+            (overdue_rate * MULT_SCALE as f64).round() as u128
+        } else {
+            MULT_SCALE // Default to 1.0 if invalid
+        };
         let normal_mult_scaled = MULT_SCALE; // 1.0 scaled
 
         // Accumulate weighted values using u128 to prevent overflow
@@ -4748,9 +4770,17 @@ impl Orchestrator {
             };
 
             // Apply priority-based multiplier if configured (Enhancement 11.1)
+            // CRITICAL: Guard against NaN/Inf
             let priority_mult_scaled = self.cost_rates.priority_delay_multipliers
                 .as_ref()
-                .map(|m| (m.get_multiplier_for_priority(tx.priority()) * MULT_SCALE as f64).round().max(0.0) as u128)
+                .map(|m| {
+                    let mult = m.get_multiplier_for_priority(tx.priority());
+                    if mult.is_finite() && mult >= 0.0 {
+                        (mult * MULT_SCALE as f64).round() as u128
+                    } else {
+                        MULT_SCALE // Default to 1.0 if invalid
+                    }
+                })
                 .unwrap_or(MULT_SCALE);
 
             // Combine multipliers: (overdue * priority) / MULT_SCALE
@@ -4810,7 +4840,14 @@ impl Orchestrator {
         // Scale bps rate by 1,000,000 to handle very small fractional bps (e.g., 0.0005 bps)
         // This allows precision down to 0.000001 bps
         const BPS_SCALE: u128 = 1_000_000;
-        let bps_rate_scaled = (self.cost_rates.collateral_cost_per_tick_bps * BPS_SCALE as f64).round().max(0.0) as u128;
+
+        // CRITICAL: Guard against NaN/Inf before casting to integer
+        let rate = self.cost_rates.collateral_cost_per_tick_bps;
+        let bps_rate_scaled = if rate.is_finite() && rate >= 0.0 {
+            (rate * BPS_SCALE as f64).round() as u128
+        } else {
+            0
+        };
 
         if bps_rate_scaled == 0 {
             return 0;
@@ -4856,7 +4893,14 @@ impl Orchestrator {
 
         // Scale bps rate by 1,000,000 to handle fractional bps
         const BPS_SCALE: u128 = 1_000_000;
-        let bps_rate_scaled = (self.cost_rates.liquidity_cost_per_tick_bps * BPS_SCALE as f64).round().max(0.0) as u128;
+
+        // CRITICAL: Guard against NaN/Inf before casting to integer
+        let rate = self.cost_rates.liquidity_cost_per_tick_bps;
+        let bps_rate_scaled = if rate.is_finite() && rate >= 0.0 {
+            (rate * BPS_SCALE as f64).round() as u128
+        } else {
+            0
+        };
 
         if bps_rate_scaled == 0 {
             return 0;
