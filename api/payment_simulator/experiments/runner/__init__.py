@@ -2,8 +2,40 @@
 
 Provides the framework for executing policy optimization experiments.
 
-Note:
-    Implementation coming in Phase 4 of the refactor plan.
+Components:
+    - ExperimentRunnerProtocol: Protocol for experiment runners
+    - OutputHandlerProtocol: Protocol for output handling
+    - SilentOutput: Silent output for testing
+    - ExperimentResult: Final experiment result
+    - ExperimentState: Current experiment state
+    - IterationRecord: Record of a single iteration
+
+Example:
+    >>> from payment_simulator.experiments.runner import (
+    ...     ExperimentResult,
+    ...     ExperimentState,
+    ...     SilentOutput,
+    ... )
+    >>> state = ExperimentState(experiment_name="test")
+    >>> output = SilentOutput()
 """
 
-__all__: list[str] = []
+from payment_simulator.experiments.runner.output import (
+    OutputHandlerProtocol,
+    SilentOutput,
+)
+from payment_simulator.experiments.runner.protocol import ExperimentRunnerProtocol
+from payment_simulator.experiments.runner.result import (
+    ExperimentResult,
+    ExperimentState,
+    IterationRecord,
+)
+
+__all__ = [
+    "OutputHandlerProtocol",
+    "SilentOutput",
+    "ExperimentRunnerProtocol",
+    "ExperimentResult",
+    "ExperimentState",
+    "IterationRecord",
+]
