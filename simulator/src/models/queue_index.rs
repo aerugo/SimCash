@@ -127,7 +127,8 @@ impl AgentQueueIndex {
                     .or_insert_with(AgentQueue2Metrics::default);
 
                 metrics.count += 1;
-                metrics.total_value += tx.remaining_amount();
+                // Use saturating_add to prevent overflow
+                metrics.total_value = metrics.total_value.saturating_add(tx.remaining_amount());
 
                 // Update nearest deadline (default is usize::MAX, so min() will pick first tx deadline)
                 metrics.nearest_deadline = metrics.nearest_deadline.min(tx.deadline_tick());

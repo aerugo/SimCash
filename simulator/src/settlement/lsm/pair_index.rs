@@ -116,12 +116,12 @@ impl PairBucket {
     }
 
     fn add(&mut self, tx_id: &str, amount: i64) {
-        self.sum += amount;
+        self.sum = self.sum.saturating_add(amount);
         self.tx_ids.push(tx_id.to_string());
     }
 
     fn remove(&mut self, tx_id: &str, amount: i64) {
-        self.sum -= amount;
+        self.sum = self.sum.saturating_sub(amount);
         self.tx_ids.retain(|id| id != tx_id);
     }
 

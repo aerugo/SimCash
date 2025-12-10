@@ -313,7 +313,8 @@ impl SimulationState {
     ///
     /// Sum of all agent balances. This should remain constant during settlement.
     pub fn total_balance(&self) -> i64 {
-        self.agents.values().map(|agent| agent.balance()).sum()
+        // Use fold with saturating_add to prevent overflow
+        self.agents.values().map(|agent| agent.balance()).fold(0i64, |acc, x| acc.saturating_add(x))
     }
 
     /// Calculate total value in RTGS queue (Queue 2)
@@ -322,11 +323,12 @@ impl SimulationState {
     ///
     /// Sum of remaining amounts for all queued transactions
     pub fn queue_value(&self) -> i64 {
+        // Use fold with saturating_add to prevent overflow
         self.rtgs_queue
             .iter()
             .filter_map(|tx_id| self.transactions.get(tx_id))
             .map(|tx| tx.remaining_amount())
-            .sum()
+            .fold(0i64, |acc, x| acc.saturating_add(x))
     }
 
     // =========================================================================

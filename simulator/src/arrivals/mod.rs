@@ -537,6 +537,9 @@ impl ArrivalGenerator {
     /// Deadlines are capped at episode_end_tick to prevent impossible deadlines
     /// (Issue #6 fix). Additionally, if `deadline_cap_at_eod` is enabled, deadlines
     /// are further capped at the end of the current day.
+    ///
+    /// Finally, the deadline is guaranteed to be at least arrival_tick + 1
+    /// to satisfy the Transaction invariant (deadline > arrival).
     fn generate_deadline(
         &self,
         arrival_tick: usize,
@@ -551,13 +554,18 @@ impl ArrivalGenerator {
         let episode_capped = raw_deadline.min(self.episode_end_tick);
 
         // If deadline_cap_at_eod enabled, also cap at current day's end
-        if self.deadline_cap_at_eod {
+        let capped = if self.deadline_cap_at_eod {
             let current_day = arrival_tick / self.ticks_per_day;
             let day_end_tick = (current_day + 1) * self.ticks_per_day;
             episode_capped.min(day_end_tick)
         } else {
             episode_capped
-        }
+        };
+
+        // Ensure deadline is always at least one tick after arrival
+        // (required by Transaction invariant: deadline > arrival)
+        // This handles edge cases like arrivals at or past episode_end_tick
+        capped.max(arrival_tick + 1)
     }
 
     /// Sample from standard normal distribution using Box-Muller transform.

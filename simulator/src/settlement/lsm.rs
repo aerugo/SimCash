@@ -395,17 +395,18 @@ fn settle_bilateral_pair(
     let mut settlements = 0;
 
     // Calculate total amounts in each direction
+    // Use fold with saturating_add to prevent overflow
     let sum_ab: i64 = txs_ab
         .iter()
         .filter_map(|id| state.get_transaction(id))
         .map(|tx| tx.remaining_amount())
-        .sum();
+        .fold(0i64, |acc, x| acc.saturating_add(x));
 
     let sum_ba: i64 = txs_ba
         .iter()
         .filter_map(|id| state.get_transaction(id))
         .map(|tx| tx.remaining_amount())
-        .sum();
+        .fold(0i64, |acc, x| acc.saturating_add(x));
 
     // Determine net direction and required liquidity
     let net_amount = (sum_ab - sum_ba).abs();
@@ -843,7 +844,8 @@ fn find_cycles_from_start(
                     agents.push(node.clone());
                     transactions.push(tx.clone());
                     min_amount = min_amount.min(*amt);
-                    total_value += amt;
+                    // Use saturating_add to prevent overflow
+                    total_value = total_value.saturating_add(*amt);
                 }
 
                 transactions.push(tx_id.clone());
@@ -1273,7 +1275,7 @@ pub fn run_lsm_pass_with_deferred(
                     agents,
                     transactions,  // Can move now since we cloned for replay_events above
                     settled_value: offset_amount,
-                    total_value: pair.amount_a_to_b + pair.amount_b_to_a,
+                    total_value: pair.amount_a_to_b.saturating_add(pair.amount_b_to_a),
                     tx_amounts,
                     net_positions,
                     max_net_outflow,

@@ -93,7 +93,8 @@ impl AggregatedGraph {
                     .entry(receiver_idx)
                     .or_insert((0, Vec::new()));
 
-                edge_data.0 += amount;
+                // Use saturating_add to prevent overflow
+                edge_data.0 = edge_data.0.saturating_add(amount);
                 edge_data.1.push(tx_id.clone());
             }
         }

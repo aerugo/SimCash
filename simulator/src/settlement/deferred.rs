@@ -67,7 +67,8 @@ impl DeferredCredits {
             .pending
             .entry(agent_id.to_string())
             .or_insert((0, Vec::new()));
-        entry.0 += amount;
+        // Use saturating_add to prevent overflow
+        entry.0 = entry.0.saturating_add(amount);
         entry.1.push(tx_id.to_string());
     }
 
