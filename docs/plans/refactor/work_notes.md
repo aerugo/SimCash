@@ -229,28 +229,72 @@ TEST RESULTS:
 
 ### Phase 3: Experiment Configuration Framework
 
-**Status:** Not Started
+**Status:** COMPLETED (2025-12-10)
 
 **Tests First (TDD):**
-- [ ] Write `tests/experiments/config/test_experiment_config.py`
-- [ ] Create valid YAML test fixtures
-- [ ] Create invalid YAML test fixtures (for error cases)
-- [ ] Verify tests fail (as expected before implementation)
+- [x] Write `tests/experiments/config/test_experiment_config.py` - 28 tests
+- [x] Create valid YAML test fixtures (in-test fixtures via tmp_path)
+- [x] Create invalid YAML test fixtures (for error cases)
+- [x] Verify tests fail before implementation (TDD)
 
 **Implementation:**
-- [ ] Create `api/payment_simulator/experiments/config/experiment_config.py`
-- [ ] Implement `ExperimentConfig.from_yaml()` method
-- [ ] Implement `EvaluationConfig` dataclass
-- [ ] Implement `OutputConfig` dataclass
-- [ ] Implement `load_constraints()` method for dynamic import
-- [ ] Update `api/payment_simulator/experiments/__init__.py`
-- [ ] Verify all config tests pass
-- [ ] Verify mypy passes
-- [ ] Commit Phase 2 changes
+- [x] Create `api/payment_simulator/experiments/config/experiment_config.py`
+- [x] Implement `ExperimentConfig.from_yaml()` method
+- [x] Implement `EvaluationConfig` dataclass
+- [x] Implement `OutputConfig` dataclass
+- [x] Implement `ConvergenceConfig` dataclass
+- [x] Implement `load_constraints()` method for dynamic import
+- [x] Update `api/payment_simulator/experiments/config/__init__.py`
+- [x] Verify all config tests pass (28/28)
+- [ ] Verify mypy passes (DEFERRED)
+- [x] Commit Phase 3 changes
 
 **Notes:**
 ```
-(Add notes as work progresses)
+2025-12-10: PHASE 3 COMPLETE
+
+IMPLEMENTED:
+1. EvaluationConfig (frozen dataclass):
+   - mode: bootstrap or deterministic
+   - num_samples: for bootstrap mode (default 10)
+   - ticks: simulation ticks per evaluation
+   - __post_init__ validation for mode
+
+2. OutputConfig (frozen dataclass):
+   - directory: Path for output (default "results")
+   - database: filename (default "experiments.db")
+   - verbose: flag (default True)
+
+3. ConvergenceConfig (frozen dataclass):
+   - max_iterations: (default 50)
+   - stability_threshold: (default 0.05)
+   - stability_window: (default 5)
+   - improvement_threshold: (default 0.01)
+
+4. ExperimentConfig (frozen dataclass):
+   - name, description, scenario_path
+   - evaluation: EvaluationConfig
+   - convergence: ConvergenceConfig
+   - llm: LLMConfig (from Phase 2)
+   - optimized_agents: tuple[str, ...]
+   - constraints_module: str for dynamic import
+   - output: OutputConfig
+   - master_seed: int (default 42)
+   - from_yaml() class method for YAML loading
+   - load_constraints() for dynamic module import
+
+DESIGN DECISIONS:
+- All config dataclasses are frozen (immutable)
+- ExperimentConfig.from_yaml() is the primary loading interface
+- Reuses LLMConfig from Phase 2 llm module
+- optimized_agents is a tuple (not list) for immutability
+
+TEST RESULTS:
+- EvaluationConfig tests: 5/5 passed
+- OutputConfig tests: 4/4 passed
+- ConvergenceConfig tests: 5/5 passed
+- ExperimentConfig tests: 14/14 passed
+- Total: 28/28 passed
 ```
 
 ---
