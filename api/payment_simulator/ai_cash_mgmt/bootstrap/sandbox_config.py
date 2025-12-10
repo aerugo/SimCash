@@ -16,6 +16,7 @@ This design enables:
 
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 from payment_simulator.ai_cash_mgmt.bootstrap.models import (
@@ -28,6 +29,7 @@ from payment_simulator.config.schemas import (
     CustomTransactionArrivalEvent,
     DirectTransferEvent,
     FifoPolicy,
+    InlineJsonPolicy,
     LiquidityAwarePolicy,
     LsmConfig,
     OneTimeSchedule,
@@ -151,7 +153,18 @@ class SandboxConfigBuilder:
         )
 
     def _parse_policy(self, policy_dict: dict[str, Any]) -> PolicyConfig:
-        """Parse policy dict to PolicyConfig."""
+        """Parse policy dict to PolicyConfig.
+
+        Handles:
+        - Simple policies with "type" field (Fifo, LiquidityAware)
+        - Tree policies with decision tree structure (payment_tree, etc.)
+
+        Args:
+            policy_dict: Policy configuration dictionary.
+
+        Returns:
+            Appropriate PolicyConfig instance.
+        """
         policy_type = policy_dict.get("type")
 
         if policy_type == "Fifo":
@@ -161,9 +174,27 @@ class SandboxConfigBuilder:
                 target_buffer=policy_dict["target_buffer"],
                 urgency_threshold=policy_dict["urgency_threshold"],
             )
+        elif self._is_tree_policy(policy_dict):
+            # Tree policy format - use InlineJsonPolicy
+            return InlineJsonPolicy(json_string=json.dumps(policy_dict))
         else:
-            # For other policies, use Fifo as fallback
+            # Fallback for unknown policies
             return FifoPolicy()
+
+    def _is_tree_policy(self, policy_dict: dict[str, Any]) -> bool:
+        """Check if policy dict is a tree policy format.
+
+        Tree policies are detected by the presence of decision tree keys.
+        See docs/reference/policy/configuration.md for the schema.
+
+        Args:
+            policy_dict: Policy configuration dictionary.
+
+        Returns:
+            True if this is a tree policy format.
+        """
+        tree_keys = ("payment_tree", "bank_tree", "strategic_collateral_tree", "end_of_tick_collateral_tree")
+        return any(key in policy_dict for key in tree_keys)
 
     def _build_scenario_events(
         self, sample: BootstrapSample
