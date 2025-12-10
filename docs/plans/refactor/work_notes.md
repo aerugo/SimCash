@@ -14,7 +14,83 @@ This document tracks progress and notes during the refactor implementation. Each
 
 ## Phase TODO Checklists
 
-### Phase 0: Preparation
+### Phase 0: Fix Bootstrap Paired Comparison Bug (Critical)
+
+**Status:** Not Started
+
+**Tests First (TDD):**
+- [ ] Write `tests/experiments/castro/test_bootstrap_paired_comparison.py`
+- [ ] Test: same samples used for old and new policy
+- [ ] Test: acceptance based on paired delta, not absolute costs
+- [ ] Test: `compute_paired_deltas()` is actually called
+- [ ] Verify tests fail (as expected before implementation)
+
+**Implementation:**
+- [ ] Modify `runner.py` to store bootstrap samples after generation
+- [ ] Modify `runner.py` to use SAME samples for new policy evaluation
+- [ ] Use `compute_paired_deltas()` for policy comparison
+- [ ] Accept based on mean delta < 0, not absolute cost
+- [ ] Verify all tests pass
+- [ ] Run `castro run exp1 --verbose-monte-carlo` to verify paired deltas shown
+- [ ] Commit Phase 0 changes
+
+**Notes:**
+```
+(Add notes as work progresses)
+
+CRITICAL BUG: The compute_paired_deltas() method EXISTS but is NEVER called!
+Current flow regenerates samples for new policy - this breaks statistical validity.
+```
+
+---
+
+### Phase 0.5: Add Event Tracing to Bootstrap Sandbox
+
+**Status:** Not Started
+
+**Tests First (TDD):**
+- [ ] Write `tests/ai_cash_mgmt/bootstrap/test_enriched_evaluation.py`
+- [ ] Test: `BootstrapEvent` is frozen (immutable)
+- [ ] Test: `CostBreakdown.total` sums all costs
+- [ ] Test: All costs are integer cents (INV-1)
+- [ ] Test: `EnrichedEvaluationResult` contains event trace
+- [ ] Write `tests/experiments/castro/test_bootstrap_context.py`
+- [ ] Test: `get_best_result()` returns lowest cost
+- [ ] Test: `get_worst_result()` returns highest cost
+- [ ] Test: `format_event_trace_for_llm()` limits events
+
+**Implementation:**
+- [ ] Create `api/payment_simulator/ai_cash_mgmt/bootstrap/models.py`
+  - [ ] Add `BootstrapEvent` dataclass
+  - [ ] Add `CostBreakdown` dataclass
+  - [ ] Add `EnrichedEvaluationResult` dataclass
+- [ ] Add `evaluate_sample_enriched()` to `bootstrap/evaluator.py`
+- [ ] Add `_is_relevant_event()` filter method
+- [ ] Add `_convert_to_bootstrap_event()` conversion method
+- [ ] Create `experiments/castro/castro/bootstrap_context.py`
+  - [ ] Implement `BootstrapContextBuilder` class
+  - [ ] Implement `get_best_result()` and `get_worst_result()`
+  - [ ] Implement `format_event_trace_for_llm()`
+  - [ ] Implement `build_agent_context()`
+- [ ] Update `runner.py` to use enriched evaluation
+- [ ] Verify all tests pass
+- [ ] Run `castro run exp1 --verbose-llm` to verify real event data
+- [ ] Commit Phase 0.5 changes
+
+**Notes:**
+```
+(Add notes as work progresses)
+
+This fixes the Context/Evaluation mismatch:
+- Before: LLM receives placeholder data from full simulation
+- After: LLM receives real events from bootstrap sandbox
+
+The context now matches the costs being optimized!
+```
+
+---
+
+### Phase 1: Preparation (Pre-Refactor)
 
 **Status:** Not Started
 
@@ -26,7 +102,7 @@ This document tracks progress and notes during the refactor implementation. Each
 - [ ] Create `api/tests/experiments/` directory
 - [ ] Create test fixture YAML files in `api/tests/fixtures/experiments/`
 - [ ] Verify all existing tests still pass
-- [ ] Commit Phase 0 changes
+- [ ] Commit Phase 1 changes
 
 **Notes:**
 ```
@@ -35,7 +111,7 @@ This document tracks progress and notes during the refactor implementation. Each
 
 ---
 
-### Phase 1: LLM Module Extraction
+### Phase 2: LLM Module Extraction
 
 **Status:** Not Started
 
@@ -61,7 +137,7 @@ This document tracks progress and notes during the refactor implementation. Each
 
 ---
 
-### Phase 2: Experiment Configuration Framework
+### Phase 3: Experiment Configuration Framework
 
 **Status:** Not Started
 
@@ -89,7 +165,7 @@ This document tracks progress and notes during the refactor implementation. Each
 
 ---
 
-### Phase 3: Experiment Runner Framework
+### Phase 4: Experiment Runner Framework
 
 **Status:** Not Started
 
@@ -118,7 +194,7 @@ This document tracks progress and notes during the refactor implementation. Each
 
 ---
 
-### Phase 4: CLI Commands
+### Phase 5: CLI Commands
 
 **Status:** Not Started
 
@@ -148,7 +224,7 @@ This document tracks progress and notes during the refactor implementation. Each
 
 ---
 
-### Phase 5: Castro Migration
+### Phase 6: Castro Migration
 
 **Status:** Not Started
 
@@ -186,7 +262,7 @@ This document tracks progress and notes during the refactor implementation. Each
 
 ---
 
-### Phase 6: Documentation
+### Phase 7: Documentation
 
 **Status:** Not Started
 
@@ -295,12 +371,47 @@ After each phase, verify no regressions:
 
 Track all files changed during refactor for review:
 
-### Phase 0
+### Phase 0: Bootstrap Bug Fix
+```
+Created:
+  - api/tests/experiments/castro/test_bootstrap_paired_comparison.py
+
+Modified:
+  - experiments/castro/castro/runner.py (store and reuse samples)
+  - api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py (verify compute_paired_deltas)
+
+Deleted:
+  - (none)
+```
+
+### Phase 0.5: Event Tracing
+```
+Created:
+  - api/payment_simulator/ai_cash_mgmt/bootstrap/models.py
+  - experiments/castro/castro/bootstrap_context.py
+  - api/tests/ai_cash_mgmt/bootstrap/test_enriched_evaluation.py
+  - api/tests/experiments/castro/test_bootstrap_context.py
+
+Modified:
+  - api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py (add evaluate_sample_enriched)
+  - experiments/castro/castro/runner.py (use enriched evaluation)
+
+Deprecated:
+  - experiments/castro/castro/context_builder.py (replaced by bootstrap_context.py)
+```
+
+### Phase 1: Preparation
 ```
 Created:
   - api/payment_simulator/llm/__init__.py
   - api/payment_simulator/llm/protocol.py
-  - ...
+  - api/payment_simulator/experiments/__init__.py
+  - api/payment_simulator/experiments/config/__init__.py
+  - api/payment_simulator/experiments/runner/__init__.py
+  - api/payment_simulator/experiments/persistence/__init__.py
+  - api/tests/llm/__init__.py
+  - api/tests/experiments/__init__.py
+  - api/tests/fixtures/experiments/test_experiment.yaml
 
 Modified:
   - (none expected)
@@ -309,7 +420,7 @@ Deleted:
   - (none expected)
 ```
 
-### Phase 1
+### Phase 2: LLM Module
 ```
 Created:
   - api/payment_simulator/llm/config.py
@@ -326,7 +437,7 @@ Deleted:
   - (none expected)
 ```
 
-### Phase 2-6
+### Phases 3-7
 ```
 (Fill in as work progresses)
 ```
