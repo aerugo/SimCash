@@ -3,7 +3,9 @@
 **Status**: Draft
 **Author**: Claude
 **Date**: 2025-12-10
-**Version**: 2.4
+**Version**: 2.5
+
+**Revision 2.5 Notes**: Clarified that bootstrap evaluator uses the SAME policy evaluation logic as full simulation. Policy conditions (credit_headroom, collateral_posted) require tracking in bootstrap state. Only settlement mechanics are simplified, not policy evaluation.
 
 **Revision 2.4 Notes**: Converted all ASCII diagrams to mermaid flowcharts, sequence diagrams, and gantt charts for better rendering and consistency with project conventions.
 
@@ -617,14 +619,39 @@ ci_upper = np.percentile(bootstrap_costs, 97.5)
 | LSM effects (outgoing) | ~ Conservative | Assumes no beneficial offsets |
 | Queue 2 dynamics (incoming) | ✓ Captured | Wait time included in settlement timing |
 | Queue 2 dynamics (outgoing) | ~ Simplified | Instant-or-wait model |
-| Credit headroom | ◯ Add in Phase 2 | Important for realistic cash mgmt |
-| Collateral posting | ◯ Add in Phase 2 | Liquidity-cost tradeoff |
+| Credit headroom (condition) | ✓ Track in state | If policy checks `credit_headroom`, track `balance + credit_limit` |
+| Credit headroom (settlement) | ~ Simplified | Bootstrap uses balance-only check, not balance+credit |
+| Collateral posting (condition) | ✓ Track in state | If policy checks `collateral_posted`, track it |
+| Collateral posting (action) | ◯ Phase 2 | Need to model collateral→liquidity conversion mechanics |
 | Gridlock (as outcome) | ✓ Captured | Slow settlement days propagate |
 | Gridlock (as mechanism) | ✗ Not modeled | Would need explicit Q2 simulation |
 | Strategic response | ✓ Delayed | Via daily re-optimization |
 | Same-day adaptation | ✗ Not modeled | But realistic (banks don't do this either) |
 
 **Legend**: ✓ = captured, ~ = partially/conservatively, ◯ = future enhancement, ✗ = not modeled
+
+**Important**: The bootstrap evaluator uses the **same policy evaluation logic** as the full simulation. If a policy references a context field (like `credit_headroom`), the bootstrap state must track it. The simplification is in **settlement mechanics**, not in policy evaluation.
+
+```mermaid
+flowchart LR
+    subgraph Same["SAME in Bootstrap"]
+        Policy["Policy DSL"]
+        Context["Context Fields<br/>(balance, credit_limit,<br/>queue, tick, etc.)"]
+        Eval["policy.decide()"]
+    end
+
+    subgraph Simplified["SIMPLIFIED in Bootstrap"]
+        Settle["Settlement Logic<br/>(instant if balance >= amount,<br/>else queue)"]
+        LSM["No LSM offsets<br/>for outgoing"]
+    end
+
+    Policy --> Eval
+    Context --> Eval
+    Eval --> Settle
+
+    style Same fill:#e8f5e9
+    style Simplified fill:#fff3e0
+```
 
 ### 3.6 Data Scope Configuration
 
@@ -986,9 +1013,10 @@ flowchart TB
         end
 
         subgraph Evaluator["BootstrapPolicyEvaluator"]
-            E1["Input: BootstrapSample, Policy, CostConfig"]
-            E2["for tick in range(total_ticks):<br/>  balance += incoming_at_tick<br/>  queue.extend(arrivals_at_tick)<br/>  releases = policy.decide()<br/>  settle if balance >= amount<br/>  costs.accrue()"]
-            E3["Output: PolicyEvaluationResult"]
+            E1["Input: BootstrapSample, Policy,<br/>AgentConfig, CostConfig"]
+            E2["State: balance, credit_limit,<br/>collateral_posted, queue, tick"]
+            E3["for tick in range(total_ticks):<br/>  balance += incoming_at_tick<br/>  queue.extend(arrivals_at_tick)<br/>  context = build_context(state)<br/>  releases = policy.decide(context)<br/>  settle if balance >= amount<br/>  costs.accrue()"]
+            E4["Output: PolicyEvaluationResult"]
         end
 
         subgraph Aggregate["Aggregation"]
@@ -1577,4 +1605,4 @@ $$\widehat{\text{Var}}(\hat{\theta}) = \frac{1}{B-1} \sum_{b=1}^{B} \left( \hat{
 
 ---
 
-*Document Version 2.4 - All diagrams converted to mermaid for consistent rendering*
+*Document Version 2.5 - Clarified policy evaluation vs settlement mechanics distinction*
