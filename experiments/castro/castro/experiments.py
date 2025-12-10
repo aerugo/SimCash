@@ -83,20 +83,11 @@ class CastroExperiment:
     deterministic: bool = False
     """When True, run single deterministic evaluation instead of Monte Carlo sampling."""
 
-    # Bootstrap mode - use bootstrap sampling instead of seeded full simulations
-    use_bootstrap: bool = False
-    """When True, use bootstrap resampling for Monte Carlo policy evaluation.
-
-    Bootstrap mode:
-    1. Runs a single full simulation to collect transaction history
-    2. Uses bootstrap resampling to generate policy evaluation samples
-    3. Evaluates policies on 3-agent sandbox (SOURCE, TARGET, SINK)
-
-    This provides faster policy comparison with lower variance through paired
-    delta estimation on the same bootstrap samples.
-    """
-
     # Monte Carlo settings (ignored if deterministic=True)
+    # Policy evaluation uses bootstrap resampling:
+    # 1. Runs a single full simulation to collect transaction history
+    # 2. Uses bootstrap resampling to generate policy evaluation samples
+    # 3. Evaluates policies on 3-agent sandbox (SOURCE, TARGET, SINK)
     num_samples: int = 1
     evaluation_ticks: int = 100
 
@@ -199,7 +190,6 @@ def create_exp1(
     model: str = DEFAULT_MODEL,
     thinking_budget: int | None = None,
     reasoning_effort: str | None = None,
-    use_bootstrap: bool = False,
 ) -> CastroExperiment:
     """Experiment 1: 2-Period Deterministic.
 
@@ -218,7 +208,6 @@ def create_exp1(
         model: LLM model in provider:model format (e.g., 'anthropic:claude-sonnet-4-5').
         thinking_budget: Anthropic extended thinking budget (optional).
         reasoning_effort: OpenAI reasoning effort 'low'/'medium'/'high' (optional).
-        use_bootstrap: Use bootstrap sampling for Monte Carlo evaluation.
 
     Returns:
         CastroExperiment configuration.
@@ -228,7 +217,6 @@ def create_exp1(
         description="2-Period Deterministic Nash Equilibrium",
         scenario_path=Path("configs/exp1_2period.yaml"),
         deterministic=True,  # No Monte Carlo - scenario is deterministic
-        use_bootstrap=use_bootstrap,
         evaluation_ticks=2,  # Only 2 ticks in scenario
         max_iterations=25,
         stability_threshold=0.05,
@@ -247,7 +235,6 @@ def create_exp2(
     model: str = DEFAULT_MODEL,
     thinking_budget: int | None = None,
     reasoning_effort: str | None = None,
-    use_bootstrap: bool = False,
 ) -> CastroExperiment:
     """Experiment 2: 12-Period Stochastic.
 
@@ -256,14 +243,13 @@ def create_exp2(
     Setup:
     - 12 ticks per day
     - Poisson arrivals, LogNormal amounts
-    - 10 seeds for Monte Carlo evaluation
+    - 10 bootstrap samples for Monte Carlo evaluation
 
     Args:
         output_dir: Output directory for results.
         model: LLM model in provider:model format (e.g., 'anthropic:claude-sonnet-4-5').
         thinking_budget: Anthropic extended thinking budget (optional).
         reasoning_effort: OpenAI reasoning effort 'low'/'medium'/'high' (optional).
-        use_bootstrap: Use bootstrap sampling for Monte Carlo evaluation.
 
     Returns:
         CastroExperiment configuration.
@@ -272,8 +258,7 @@ def create_exp2(
         name="exp2",
         description="12-Period Stochastic LVTS-Style",
         scenario_path=Path("configs/exp2_12period.yaml"),
-        use_bootstrap=use_bootstrap,
-        num_samples=10,  # Monte Carlo with 10 seeds
+        num_samples=10,  # Bootstrap samples for Monte Carlo evaluation
         evaluation_ticks=12,
         max_iterations=25,
         stability_threshold=0.05,
@@ -292,7 +277,6 @@ def create_exp3(
     model: str = DEFAULT_MODEL,
     thinking_budget: int | None = None,
     reasoning_effort: str | None = None,
-    use_bootstrap: bool = False,
 ) -> CastroExperiment:
     """Experiment 3: Joint Liquidity & Timing.
 
@@ -301,6 +285,7 @@ def create_exp3(
     Setup:
     - 3 ticks per day (evaluated over 10 ticks minimum)
     - Tests interaction between liquidity and timing decisions
+    - 10 bootstrap samples for Monte Carlo evaluation
 
     Note: Uses minimum evaluation_ticks of 10 for MonteCarloConfig validation.
     The scenario runs 3 ticks per day, remaining ticks are idle.
@@ -310,7 +295,6 @@ def create_exp3(
         model: LLM model in provider:model format (e.g., 'anthropic:claude-sonnet-4-5').
         thinking_budget: Anthropic extended thinking budget (optional).
         reasoning_effort: OpenAI reasoning effort 'low'/'medium'/'high' (optional).
-        use_bootstrap: Use bootstrap sampling for Monte Carlo evaluation.
 
     Returns:
         CastroExperiment configuration.
@@ -319,8 +303,7 @@ def create_exp3(
         name="exp3",
         description="Joint Liquidity & Timing Optimization",
         scenario_path=Path("configs/exp3_joint.yaml"),
-        use_bootstrap=use_bootstrap,
-        num_samples=10,  # Monte Carlo with 10 seeds
+        num_samples=10,  # Bootstrap samples for Monte Carlo evaluation
         evaluation_ticks=10,  # Minimum for MonteCarloConfig (ticks 3-9 are idle)
         max_iterations=25,
         stability_threshold=0.05,

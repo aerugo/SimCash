@@ -279,19 +279,16 @@ class ExperimentRunner:
             console.print(f"  Max iterations: {self._convergence_config.max_iterations}")
             if self._monte_carlo_config.deterministic:
                 console.print("  Evaluation mode: [cyan]Deterministic[/cyan] (single evaluation)")
-            elif self._experiment.use_bootstrap:
+            else:
                 console.print(
                     f"  Evaluation mode: [green]Bootstrap[/green] "
                     f"({self._monte_carlo_config.num_samples} samples)"
                 )
-            else:
-                console.print(f"  Monte Carlo samples: {self._monte_carlo_config.num_samples}")
             console.print(f"  LLM model: {self._model_config.model}")
             console.print()
 
-            # Initialize bootstrap components if enabled
-            if self._experiment.use_bootstrap:
-                self._initialize_bootstrap()
+            # Initialize bootstrap components for policy evaluation
+            self._initialize_bootstrap()
 
             # Optimization loop
             iteration = 0
@@ -301,22 +298,13 @@ class ExperimentRunner:
                 iteration += 1
                 console.print(f"[cyan]Iteration {iteration}[/cyan]")
 
-                # 1. Evaluate current policies with verbose capture
-                # Use bootstrap evaluation if enabled, otherwise use seeded full simulations
-                if self._experiment.use_bootstrap:
-                    (
-                        total_cost,
-                        per_agent_costs,
-                        context_builder,
-                        seed_results,
-                    ) = await self._evaluate_policies_bootstrap(iteration, capture_verbose=True)
-                else:
-                    (
-                        total_cost,
-                        per_agent_costs,
-                        context_builder,
-                        seed_results,
-                    ) = await self._evaluate_policies(iteration, capture_verbose=True)
+                # 1. Evaluate current policies using bootstrap sampling
+                (
+                    total_cost,
+                    per_agent_costs,
+                    context_builder,
+                    seed_results,
+                ) = await self._evaluate_policies(iteration, capture_verbose=True)
                 console.print(f"  Total cost: ${total_cost / 100:.2f}")
 
                 # Store baseline costs on iteration 1 for delta comparison
@@ -439,17 +427,9 @@ class ExperimentRunner:
                         self._policies[agent_id] = result.new_policy
 
                         # Re-evaluate without verbose capture (performance optimization)
-                        # Use bootstrap evaluation if enabled
-                        if self._experiment.use_bootstrap:
-                            _eval_total, eval_per_agent, _, _ = (
-                                await self._evaluate_policies_bootstrap(
-                                    iteration, capture_verbose=False
-                                )
-                            )
-                        else:
-                            _eval_total, eval_per_agent, _, _ = await self._evaluate_policies(
-                                iteration, capture_verbose=False
-                            )
+                        _eval_total, eval_per_agent, _, _ = await self._evaluate_policies(
+                            iteration, capture_verbose=False
+                        )
                         new_cost = eval_per_agent.get(agent_id, result.old_cost)
 
                         # Only accept if cost improved
@@ -662,90 +642,6 @@ class ExperimentRunner:
             # Deep copy for each agent
             self._policies[agent_id] = json.loads(json.dumps(seed_policy))
 
-    async def _evaluate_policies(
-        self,
-        iteration: int,
-        capture_verbose: bool = True,
-    ) -> tuple[int, dict[str, int], MonteCarloContextBuilder, list[MonteCarloSeedResult]]:
-        """Evaluate current policies across Monte Carlo samples.
-
-        Runs Monte Carlo simulations with different seeds, captures verbose
-        output, and builds a MonteCarloContextBuilder for per-agent context.
-
-        IMPORTANT: Seeds are consistent across iterations (based only on sample_idx)
-        to enable valid delta comparison between policies on the same transaction sets.
-
-        Args:
-            iteration: Current iteration number.
-            capture_verbose: If True, capture tick-by-tick events for LLM context.
-
-        Returns:
-            Tuple of (total_cost, per_agent_costs, context_builder, seed_results).
-        """
-        if self._sim_runner is None:
-            msg = "Simulation runner not initialized"
-            raise RuntimeError(msg)
-
-        num_samples = self._monte_carlo_config.num_samples
-        total_costs: list[int] = []
-        per_agent_totals: dict[str, list[int]] = {
-            agent_id: [] for agent_id in self._experiment.optimized_agents
-        }
-
-        # Store all results and seeds for MonteCarloContextBuilder
-        results: list[SimulationResult] = []
-        seeds: list[int] = []
-
-        # Run Monte Carlo evaluation
-        # NOTE: Seeds are based only on sample_idx (not iteration) to ensure
-        # consistent transaction sets across iterations for valid delta comparison
-        for sample_idx in range(num_samples):
-            seed = self._seed_manager.simulation_seed(sample_idx)
-            seeds.append(seed)
-
-            # Use first agent's policy (in full implementation, would inject per-agent)
-            policy = next(iter(self._policies.values()))
-            result = self._sim_runner.run_simulation(
-                policy=policy,
-                seed=seed,
-                ticks=self._monte_carlo_config.evaluation_ticks,
-                capture_verbose=capture_verbose,
-            )
-
-            results.append(result)
-            total_costs.append(result.total_cost)
-            for agent_id, cost in result.per_agent_costs.items():
-                if agent_id in per_agent_totals:
-                    per_agent_totals[agent_id].append(cost)
-
-        # Compute means
-        mean_total = sum(total_costs) // len(total_costs) if total_costs else 0
-        mean_per_agent = {
-            agent_id: sum(costs) // len(costs) if costs else 0
-            for agent_id, costs in per_agent_totals.items()
-        }
-
-        # Build context builder for per-agent context
-        context_builder = MonteCarloContextBuilder(results=results, seeds=seeds)
-
-        # Build MonteCarloSeedResult list for verbose logging
-        # Include baseline_cost for delta comparison if available
-        seed_results: list[MonteCarloSeedResult] = []
-        for seed, result in zip(seeds, results, strict=True):
-            baseline_cost = self._baseline_costs.get(seed)
-            seed_results.append(
-                MonteCarloSeedResult(
-                    seed=seed,
-                    cost=result.total_cost,
-                    settled=result.transactions_settled,
-                    total=result.transactions_settled + result.transactions_failed,
-                    settlement_rate=result.settlement_rate,
-                    baseline_cost=baseline_cost,
-                )
-            )
-
-        return mean_total, mean_per_agent, context_builder, seed_results
-
     def _initialize_bootstrap(self) -> None:
         """Initialize bootstrap components for bootstrap evaluation mode.
 
@@ -805,7 +701,7 @@ class ExperimentRunner:
             f"outgoing transactions collected[/dim]"
         )
 
-    async def _evaluate_policies_bootstrap(
+    async def _evaluate_policies(
         self,
         iteration: int,
         capture_verbose: bool = True,
@@ -815,7 +711,7 @@ class ExperimentRunner:
         Bootstrap evaluation:
         1. Generates bootstrap samples from collected transaction history
         2. Evaluates policies on 3-agent sandbox (SOURCE, TARGET, SINK)
-        3. Returns comparable results to seeded full simulation
+        3. Computes mean costs across samples for policy comparison
 
         Args:
             iteration: Current iteration number.
