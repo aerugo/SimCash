@@ -83,6 +83,7 @@ flowchart LR
 | `--verbose-monte-carlo` | | False | Show per-seed Monte Carlo results |
 | `--verbose-llm` | | False | Show LLM call metadata |
 | `--verbose-rejections` | | False | Show rejection analysis |
+| `--debug` | `-d` | False | Show debug output (validation errors, LLM retries) |
 | `--quiet` | `-q` | False | Suppress verbose output |
 
 #### Examples
@@ -105,7 +106,68 @@ castro run exp1 --verbose-policy --verbose-monte-carlo
 
 # Run with custom seed
 castro run exp1 --seed 12345
+
+# Run with debug output to diagnose stalls
+castro run exp1 --debug
+
+# Combine debug with verbose for full visibility
+castro run exp1 --verbose --debug
 ```
+
+#### Debug Mode
+
+The `--debug` flag shows real-time progress during LLM optimization. This is useful for diagnosing when the simulation appears to stall:
+
+```mermaid
+flowchart LR
+    subgraph Debug Output
+        Start["→ Sending LLM request..."]
+        Fail["✗ Validation failed"]
+        Retry["→ Retry attempt N..."]
+        Success["✓ Validation passed"]
+    end
+
+    Start --> Fail
+    Fail --> Retry
+    Retry --> Success
+    Retry --> Fail
+
+    style Fail fill:#ffebee
+    style Success fill:#e8f5e9
+```
+
+**Debug output shows:**
+
+| Event | Example Output |
+|-------|---------------|
+| LLM request starts | `→ Sending LLM request for BANK_A...` |
+| Validation fails | `✗ Validation failed (attempt 1/3)` |
+| Validation errors | `- Parameter 'urgency_threshold' value 25 exceeds max 20` |
+| Retry starts | `→ Retry attempt 2 for BANK_A...` |
+| LLM error | `✗ LLM error (attempt 1/3): Connection timeout` |
+| Validation succeeds | `✓ Validation passed on attempt 2` |
+| All retries exhausted | `✗ All 3 attempts exhausted for BANK_A` |
+
+**Example debug output:**
+
+```
+Iteration 1
+  Total cost: $2665.39
+  ...
+  Optimizing BANK_A...
+    → Sending LLM request for BANK_A...
+    ✗ Validation failed (attempt 1/3)
+      - Parameter 'urgency_threshold' value 25 exceeds max 20
+    → Retry attempt 2 for BANK_A...
+    ✓ Validation passed on attempt 2
+    Policy improved: $150.00 → $140.00
+```
+
+**Use cases:**
+
+- **Diagnosing stalls**: If you see "Sending LLM request" with no follow-up, the LLM is taking a long time
+- **Understanding retries**: See exactly what validation errors are causing retries
+- **Debugging validation**: Identify which constraints are being violated
 
 #### Output
 
