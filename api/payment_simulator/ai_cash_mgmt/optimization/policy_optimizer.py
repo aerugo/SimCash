@@ -30,6 +30,81 @@ if TYPE_CHECKING:
     )
 
 
+class DebugCallback(Protocol):
+    """Protocol for debug callbacks during policy optimization.
+
+    Implementations can log progress during the retry loop.
+    """
+
+    def on_attempt_start(self, agent_id: str, attempt: int, max_attempts: int) -> None:
+        """Called when starting an LLM request attempt.
+
+        Args:
+            agent_id: Agent being optimized.
+            attempt: Current attempt number (1-indexed).
+            max_attempts: Maximum retry attempts.
+        """
+        ...
+
+    def on_validation_error(
+        self,
+        agent_id: str,
+        attempt: int,
+        max_attempts: int,
+        errors: list[str],
+    ) -> None:
+        """Called when validation fails.
+
+        Args:
+            agent_id: Agent being optimized.
+            attempt: Current attempt number (1-indexed).
+            max_attempts: Maximum retry attempts.
+            errors: List of validation error messages.
+        """
+        ...
+
+    def on_llm_error(
+        self,
+        agent_id: str,
+        attempt: int,
+        max_attempts: int,
+        error: str,
+    ) -> None:
+        """Called when the LLM call fails.
+
+        Args:
+            agent_id: Agent being optimized.
+            attempt: Current attempt number (1-indexed).
+            max_attempts: Maximum retry attempts.
+            error: Error message.
+        """
+        ...
+
+    def on_validation_success(self, agent_id: str, attempt: int) -> None:
+        """Called when validation succeeds.
+
+        Args:
+            agent_id: Agent being optimized.
+            attempt: Current attempt number (1-indexed).
+        """
+        ...
+
+    def on_all_retries_exhausted(
+        self,
+        agent_id: str,
+        max_attempts: int,
+        final_errors: list[str],
+    ) -> None:
+        """Called when all retry attempts are exhausted.
+
+        Args:
+            agent_id: Agent being optimized.
+            max_attempts: Maximum retry attempts.
+            final_errors: Final validation errors.
+        """
+        ...
+
+
 @dataclass
 class OptimizationResult:
     """Result of a policy optimization attempt.
@@ -147,6 +222,7 @@ class PolicyOptimizer:
         worst_seed_cost: int = 0,
         cost_breakdown: dict[str, int] | None = None,
         cost_rates: dict[str, Any] | None = None,
+        debug_callback: DebugCallback | None = None,
     ) -> OptimizationResult:
         """Generate an optimized policy via LLM.
 
@@ -170,6 +246,7 @@ class PolicyOptimizer:
             worst_seed_cost: Cost from worst seed.
             cost_breakdown: Breakdown of costs by type (delay, collateral, etc).
             cost_rates: Cost rate configuration from simulation.
+            debug_callback: Optional callback for debug logging during retries.
 
         Returns:
             OptimizationResult with new policy or None if failed.
@@ -179,6 +256,12 @@ class PolicyOptimizer:
         start_time = time.monotonic()
 
         for attempt in range(self._max_retries):
+            # Debug: Log attempt start
+            if debug_callback is not None:
+                debug_callback.on_attempt_start(
+                    agent_id, attempt + 1, self._max_retries
+                )
+
             # Build rich extended context prompt
             prompt = build_single_agent_context(
                 current_iteration=current_iteration,
@@ -213,12 +296,21 @@ class PolicyOptimizer:
                 )
             except Exception as e:
                 validation_errors = [f"LLM error: {e!s}"]
+                # Debug: Log LLM error
+                if debug_callback is not None:
+                    debug_callback.on_llm_error(
+                        agent_id, attempt + 1, self._max_retries, str(e)
+                    )
                 continue
 
             # Validate the generated policy
             result = self._validator.validate(new_policy)
 
             if result.is_valid:
+                # Debug: Log validation success
+                if debug_callback is not None:
+                    debug_callback.on_validation_success(agent_id, attempt + 1)
+
                 # Success!
                 elapsed = time.monotonic() - start_time
                 return OptimizationResult(
@@ -238,7 +330,18 @@ class PolicyOptimizer:
             # Validation failed - collect errors for retry
             validation_errors = result.errors
 
+            # Debug: Log validation error
+            if debug_callback is not None:
+                debug_callback.on_validation_error(
+                    agent_id, attempt + 1, self._max_retries, validation_errors
+                )
+
         # All retries exhausted
+        if debug_callback is not None:
+            debug_callback.on_all_retries_exhausted(
+                agent_id, self._max_retries, validation_errors
+            )
+
         elapsed = time.monotonic() - start_time
         return OptimizationResult(
             agent_id=agent_id,

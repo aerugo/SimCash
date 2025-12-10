@@ -25,6 +25,7 @@ from payment_simulator.ai_cash_mgmt import (
     SeedManager,
 )
 from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
+    DebugCallback,
     OptimizationResult,
 )
 from payment_simulator.ai_cash_mgmt.prompts import (
@@ -53,6 +54,59 @@ from castro.verbose_logging import (
 )
 
 console = Console()
+
+
+class VerboseLoggerDebugCallback:
+    """Adapter that implements DebugCallback protocol using VerboseLogger.
+
+    Bridges the PolicyOptimizer's debug callback protocol to the
+    VerboseLogger's debug methods.
+    """
+
+    def __init__(self, logger: VerboseLogger) -> None:
+        """Initialize the debug callback adapter.
+
+        Args:
+            logger: VerboseLogger instance to delegate to.
+        """
+        self._logger = logger
+
+    def on_attempt_start(self, agent_id: str, attempt: int, max_attempts: int) -> None:
+        """Called when starting an LLM request attempt."""
+        self._logger.log_debug_llm_request_start(agent_id, attempt)
+
+    def on_validation_error(
+        self,
+        agent_id: str,
+        attempt: int,
+        max_attempts: int,
+        errors: list[str],
+    ) -> None:
+        """Called when validation fails."""
+        self._logger.log_debug_validation_error(agent_id, attempt, max_attempts, errors)
+
+    def on_llm_error(
+        self,
+        agent_id: str,
+        attempt: int,
+        max_attempts: int,
+        error: str,
+    ) -> None:
+        """Called when the LLM call fails."""
+        self._logger.log_debug_llm_error(agent_id, attempt, max_attempts, error)
+
+    def on_validation_success(self, agent_id: str, attempt: int) -> None:
+        """Called when validation succeeds."""
+        self._logger.log_debug_validation_success(agent_id, attempt)
+
+    def on_all_retries_exhausted(
+        self,
+        agent_id: str,
+        max_attempts: int,
+        final_errors: list[str],
+    ) -> None:
+        """Called when all retry attempts are exhausted."""
+        self._logger.log_debug_all_retries_exhausted(agent_id, max_attempts, final_errors)
 
 
 @dataclass
@@ -122,6 +176,11 @@ class ExperimentRunner:
         self._run_id = run_id or generate_run_id(experiment.name)
         self._verbose_config = verbose_config or VerboseConfig()
         self._verbose_logger = VerboseLogger(self._verbose_config, console)
+        self._debug_callback: DebugCallback | None = (
+            VerboseLoggerDebugCallback(self._verbose_logger)
+            if self._verbose_config.debug
+            else None
+        )
         self._convergence_config = experiment.get_convergence_criteria()
         self._monte_carlo_config = experiment.get_monte_carlo_config()
         self._model_config = experiment.get_model_config()
@@ -288,6 +347,8 @@ class ExperimentRunner:
                         worst_seed=agent_sim_context.worst_seed,
                         best_seed_cost=agent_sim_context.best_seed_cost,
                         worst_seed_cost=agent_sim_context.worst_seed_cost,
+                        # Debug callback for retry logging
+                        debug_callback=self._debug_callback,
                     )
 
                     # Verbose: Log LLM call metadata

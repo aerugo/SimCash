@@ -93,6 +93,10 @@ def run(
         bool,
         typer.Option("--verbose-rejections", help="Show rejection analysis"),
     ] = False,
+    debug: Annotated[
+        bool,
+        typer.Option("--debug", "-d", help="Show debug output (validation errors, LLM retries)"),
+    ] = False,
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Suppress verbose output"),
@@ -146,6 +150,7 @@ def run(
             verbose_monte_carlo=verbose_monte_carlo if verbose_monte_carlo else None,
             verbose_llm=verbose_llm if verbose_llm else None,
             verbose_rejections=verbose_rejections if verbose_rejections else None,
+            debug=debug,
         )
 
     if experiment not in EXPERIMENTS:
