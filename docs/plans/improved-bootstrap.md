@@ -3,7 +3,9 @@
 **Status**: Draft
 **Author**: Claude
 **Date**: 2025-12-10
-**Version**: 2.1
+**Version**: 2.2
+
+**Revision 2.2 Notes**: Clarified "Liquidity Beats" remapping mechanism with explicit notation. Transactions are stored with relative offsets (deadline_offset, settlement_offset) and remapped to new arrival ticks while preserving these offsets. This ensures LSM/Q2/gridlock effects from historical data propagate correctly.
 
 **Revision 2.1 Notes**: Refined critical analysis based on review. Key insight: bootstrap captures more than initially assessed—strategic response is delayed but present via daily updates, LSM/Queue2 effects are preserved in historical settlement timing, and gridlock manifests as slow settlement distributions rather than explicit mechanism.
 
@@ -198,7 +200,104 @@ The bootstrap evaluator adopts a **single-agent perspective**. For agent A:
 
 ### 2.2 The "Liquidity Beats" Concept
 
-**Critical modeling choice**: We treat incoming settlements as **fixed external events**.
+**Critical modeling choice**: We treat incoming settlements as **fixed external events** that define when Agent A receives liquidity.
+
+#### The Remapping Mechanism
+
+When a historical transaction is bootstrapped, we preserve its **relative timing** (offsets from arrival) while assigning a **new arrival tick**:
+
+```
+HISTORICAL TRANSACTION (Tx: B → A)
+──────────────────────────────────
+v   = Value of Tx                    (e.g., $50,000)
+T   = Original arrival tick          (e.g., tick 5)
+TxD = Deadline tick                  (e.g., tick 15, so deadline_offset = 10)
+TxS = Actual settlement tick         (e.g., tick 10, so settlement_offset = 5)
+
+    T=5         TxS=10      TxD=15
+     │            │           │
+     ▼            ▼           ▼
+─────┼────────────┼───────────┼────────────────────► tick
+     │◄──settle──►│           │
+     │   offset=5 │           │
+     │◄────────deadline offset = 10─────────►│
+
+
+BOOTSTRAP REMAPPING (same Tx, drawn to arrive at tick t)
+────────────────────────────────────────────────────────
+t   = New arrival tick (randomly sampled)       (e.g., tick 2)
+txD = t + (TxD - T) = t + deadline_offset       (e.g., 2 + 10 = tick 12)
+txS = t + (TxS - T) = t + settlement_offset     (e.g., 2 + 5 = tick 7)
+
+    t=2          txS=7       txD=12
+     │            │           │
+     ▼            ▼           ▼
+─────┼────────────┼───────────┼────────────────────► tick
+     │◄──settle──►│           │
+     │   offset=5 │           │   (offsets PRESERVED)
+     │◄────────deadline offset = 10─────────►│
+
+
+EFFECT: Agent A receives liquidity v at tick txS (= tick 7)
+        This affects A's ability to settle its own outgoing transactions.
+```
+
+#### Why Preserve Settlement Offset?
+
+The historical `settlement_offset = TxS - T` encodes **all system dynamics** that affected that transaction:
+- Queue 2 waiting time (if sender had insufficient funds)
+- LSM cycles (if bilateral/multilateral offset occurred)
+- Gridlock effects (if system was congested)
+
+By preserving this offset, we implicitly capture these dynamics without modeling them explicitly.
+
+#### Implementation
+
+```python
+@dataclass(frozen=True)
+class TransactionRecord:
+    """Historical transaction with relative timing offsets."""
+    tx_id: str
+    sender_id: str
+    receiver_id: str
+    amount: int  # cents
+    priority: int
+
+    # Relative offsets (preserved during bootstrap)
+    deadline_offset: int      # ticks from arrival to deadline
+    settlement_offset: int    # ticks from arrival to actual settlement
+
+    # Original absolute ticks (for reference only)
+    original_arrival_tick: int
+
+    def remap_to_tick(self, new_arrival: int, eod_tick: int) -> "RemappedTransaction":
+        """Remap this transaction to a new arrival tick."""
+        return RemappedTransaction(
+            tx_id=self.tx_id,
+            sender_id=self.sender_id,
+            receiver_id=self.receiver_id,
+            amount=self.amount,
+            priority=self.priority,
+            arrival_tick=new_arrival,
+            deadline_tick=min(new_arrival + self.deadline_offset, eod_tick),
+            settlement_tick=min(new_arrival + self.settlement_offset, eod_tick),
+        )
+
+
+@dataclass(frozen=True)
+class RemappedTransaction:
+    """Transaction with absolute ticks after bootstrap remapping."""
+    tx_id: str
+    sender_id: str
+    receiver_id: str
+    amount: int
+    priority: int
+    arrival_tick: int
+    deadline_tick: int
+    settlement_tick: int  # When liquidity arrives (for incoming txns)
+```
+
+#### Timeline Visualization
 
 ```
 Timeline showing "liquidity beats" (incoming settlements to Agent A):
@@ -906,76 +1005,46 @@ After reviewing the architecture documentation:
 
 ### 6.3 Data Structures
 
+See Section 2.2 for the detailed `TransactionRecord` and `RemappedTransaction` dataclasses that implement the offset-based remapping mechanism.
+
 ```python
-@dataclass(frozen=True)
-class TransactionRecord:
-    """Immutable record of a transaction's lifecycle."""
-    tx_id: str
-    sender_id: str
-    receiver_id: str
-    amount: int  # cents (i64 equivalent)
-    priority: int
-    arrival_tick: int
-    deadline_tick: int
-    settlement_tick: int | None  # None if never settled
-    is_divisible: bool = True
-
-    @property
-    def ticks_to_settle(self) -> int | None:
-        """Ticks from arrival to settlement."""
-        if self.settlement_tick is None:
-            return None
-        return self.settlement_tick - self.arrival_tick
-
-    @property
-    def deadline_urgency(self) -> int:
-        """Ticks remaining until deadline at arrival."""
-        return self.deadline_tick - self.arrival_tick
-
-
 @dataclass
 class AgentTransactionHistory:
-    """Per-agent view of historical transactions."""
+    """Per-agent view of historical transactions with relative timing offsets."""
     agent_id: str
     outgoing: list[TransactionRecord]
-    incoming_settlements: list[TransactionRecord]
+    incoming: list[TransactionRecord]
 
     def summary_statistics(self) -> dict[str, float]:
         """Compute summary statistics for LLM context."""
+        settled_outgoing = [tx for tx in self.outgoing if tx.settlement_offset is not None]
         return {
             "num_outgoing": len(self.outgoing),
-            "num_incoming": len(self.incoming_settlements),
+            "num_incoming": len(self.incoming),
             "total_outgoing_volume": sum(tx.amount for tx in self.outgoing),
-            "total_incoming_volume": sum(tx.amount for tx in self.incoming_settlements),
-            "avg_outgoing_amount": np.mean([tx.amount for tx in self.outgoing]),
-            "avg_ticks_to_settle": np.mean([
-                tx.ticks_to_settle for tx in self.outgoing
-                if tx.ticks_to_settle is not None
-            ]),
-            "settlement_rate": sum(
-                1 for tx in self.outgoing if tx.settlement_tick is not None
-            ) / len(self.outgoing) if self.outgoing else 1.0,
+            "total_incoming_volume": sum(tx.amount for tx in self.incoming),
+            "avg_outgoing_amount": np.mean([tx.amount for tx in self.outgoing]) if self.outgoing else 0,
+            "avg_settlement_offset": np.mean([tx.settlement_offset for tx in settled_outgoing]) if settled_outgoing else 0,
+            "settlement_rate": len(settled_outgoing) / len(self.outgoing) if self.outgoing else 1.0,
         }
 
 
 @dataclass
 class BootstrapSample:
-    """One bootstrap sample for policy evaluation."""
+    """One bootstrap sample with remapped absolute ticks."""
     agent_id: str
-    outgoing_txns: list[TransactionRecord]
-    incoming_settlements: list[TransactionRecord]
+    outgoing_txns: list[RemappedTransaction]     # Agent's outgoing obligations (to evaluate policy on)
+    incoming_settlements: list[RemappedTransaction]  # "Liquidity beats" (fixed timing)
     total_ticks: int
+    eod_tick: int
 
-    def get_arrivals_at_tick(self, tick: int) -> list[TransactionRecord]:
-        """Get transactions arriving at this tick."""
+    def get_arrivals_at_tick(self, tick: int) -> list[RemappedTransaction]:
+        """Get outgoing transactions arriving at this tick."""
         return [tx for tx in self.outgoing_txns if tx.arrival_tick == tick]
 
     def get_incoming_liquidity_at_tick(self, tick: int) -> int:
-        """Get total incoming liquidity at this tick."""
-        return sum(
-            tx.amount for tx in self.incoming_settlements
-            if tx.settlement_tick == tick
-        )
+        """Get total incoming liquidity settling at this tick."""
+        return sum(tx.amount for tx in self.incoming_settlements if tx.settlement_tick == tick)
 
 
 @dataclass
