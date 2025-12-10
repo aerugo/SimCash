@@ -471,18 +471,63 @@ impl ArrivalGenerator {
             }
             AmountDistribution::Normal { mean, std_dev } => {
                 let z = self.sample_standard_normal(rng);
-                let amount = mean + ((*std_dev as f64) * z) as i64;
+                let raw = *mean as f64 + (*std_dev as f64) * z;
+                // CRITICAL: Guard against NaN/Inf before casting to i64
+                let amount = if raw.is_finite() && raw > 0.0 {
+                    raw.round().min(i64::MAX as f64) as i64
+                } else if raw.is_finite() {
+                    1 // Negative or zero → clamp to 1
+                } else {
+                    1 // NaN/Inf → default to 1
+                };
                 amount.max(1) // Ensure positive
             }
             AmountDistribution::LogNormal { mean, std_dev } => {
+                // CRITICAL FIX: Convert from moment parameters (mean, std_dev of AMOUNT)
+                // to log-space parameters (μ, σ of the underlying normal).
+                //
+                // If M = desired mean and S = desired stddev of the amount:
+                //   variance V = S²
+                //   σ² = ln(1 + V/M²)
+                //   μ = ln(M) - σ²/2
+                //
+                // Then: log_amount = μ + σ*z, amount = exp(log_amount)
+                let m = *mean;
+                let s = *std_dev;
+
+                // Guard against invalid parameters
+                if m <= 0.0 || s < 0.0 {
+                    return 1; // Invalid → default to 1
+                }
+
+                let variance = s * s;
+                let sigma_squared = (1.0 + variance / (m * m)).ln();
+                let sigma = sigma_squared.sqrt();
+                let mu = m.ln() - sigma_squared / 2.0;
+
                 let z = self.sample_standard_normal(rng);
-                let log_amount = mean + std_dev * z;
-                let amount = log_amount.exp() as i64;
+                let log_amount = mu + sigma * z;
+
+                // CRITICAL: Guard against NaN/Inf before casting to i64
+                let raw = log_amount.exp();
+                let amount = if raw.is_finite() && raw > 0.0 {
+                    raw.round().min(i64::MAX as f64) as i64
+                } else {
+                    m.round() as i64 // Fallback to mean if overflow
+                };
                 amount.max(1) // Ensure positive
             }
             AmountDistribution::Exponential { rate } => {
                 let u = rng.next_f64();
-                let amount = (-u.ln() / rate) as i64;
+                // Guard against u=0 which gives -Inf from ln
+                let u_safe = u.max(f64::MIN_POSITIVE);
+                let raw = -u_safe.ln() / rate;
+                // CRITICAL: Guard against NaN/Inf before casting to i64
+                let amount = if raw.is_finite() && raw > 0.0 {
+                    raw.round().min(i64::MAX as f64) as i64
+                } else {
+                    1 // Invalid → default to 1
+                };
                 amount.max(1) // Ensure positive
             }
         }
