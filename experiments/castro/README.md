@@ -142,6 +142,9 @@ Verbose Output:
   --verbose-monte-carlo      Show per-seed Monte Carlo results
   --verbose-llm              Show LLM call metadata (tokens, latency)
   --verbose-rejections       Show rejection analysis details
+
+Debug Output:
+  -d, --debug                Show debug output (validation errors, LLM retries)
 ```
 
 #### Verbose Output Examples
@@ -168,6 +171,43 @@ The verbose flags provide granular control over experiment output:
 | `--verbose-monte-carlo` | Per-seed results with best/worst seed identification |
 | `--verbose-llm` | Model name, token counts, latency, context summary |
 | `--verbose-rejections` | Validation errors, rejection reasons, retry counts |
+
+#### Debug Mode
+
+The `--debug` flag shows real-time progress during LLM optimization, which is useful for diagnosing stalls or understanding retry behavior:
+
+```bash
+# Run with debug output
+uv run castro run exp2 --debug
+
+# Combine with verbose for full visibility
+uv run castro run exp2 --verbose --debug
+```
+
+Debug output shows:
+- When LLM requests start
+- Retry attempts with attempt numbers
+- Validation failures with specific error messages
+- LLM API errors
+- When validation succeeds (especially after retries)
+
+Example debug output:
+```
+Iteration 1
+  Total cost: $2665.39
+  ...
+  Optimizing BANK_A...
+    → Sending LLM request for BANK_A...
+    ✗ Validation failed (attempt 1/3)
+      - Parameter 'urgency_threshold' value 25 exceeds max 20
+    → Retry attempt 2 for BANK_A...
+    ✓ Validation passed on attempt 2
+    Policy improved: $150.00 → $140.00
+```
+
+This helps distinguish between:
+- **Slow LLM responses**: You'll see "Sending LLM request" but no follow-up
+- **Validation retry loops**: You'll see validation errors and retry messages
 
 ### `replay` - Replay experiment output
 
