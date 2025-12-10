@@ -661,3 +661,95 @@ fn test_deadline_calculation_differs_with_cap() {
         "All deadlines should differ between cap and no-cap"
     );
 }
+
+// ============================================================================
+// Test 13: Arrivals at or past episode_end_tick (Castro exp3 bug fix)
+// ============================================================================
+
+#[test]
+fn test_arrivals_at_episode_end_tick() {
+    // Edge case: arrivals generated at tick >= episode_end_tick
+    // This happens when evaluation_ticks > ticks_per_day * num_days
+    // e.g., exp3 config with ticks_per_day=3, num_days=1, but evaluation_ticks=10
+    //
+    // Without the fix, deadline would be capped to episode_end_tick (3),
+    // which equals arrival_tick (3), violating deadline > arrival invariant.
+
+    let config = create_arrival_config_with_range(1, 3);
+    let mut configs = HashMap::new();
+    configs.insert("BANK_A".to_string(), config);
+
+    let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
+    let ticks_per_day = 3;
+    let num_days = 1;
+    let episode_end = ticks_per_day * num_days; // 3
+
+    let mut generator = ArrivalGenerator::new(
+        configs,
+        all_agents,
+        episode_end,
+        ticks_per_day,
+        true, // deadline_cap_at_eod = true
+    );
+
+    // Test arrivals at tick 3 (at episode_end_tick)
+    let mut rng = RngManager::new(42);
+    let arrival_tick = 3;
+    let arrivals = generator.generate_for_agent("BANK_A", arrival_tick, &mut rng);
+
+    // All deadlines must be > arrival_tick (Transaction invariant)
+    for tx in &arrivals {
+        assert!(
+            tx.deadline_tick() > tx.arrival_tick(),
+            "Deadline {} must be > arrival {} even at episode_end_tick",
+            tx.deadline_tick(),
+            tx.arrival_tick()
+        );
+    }
+}
+
+#[test]
+fn test_arrivals_past_episode_end_tick() {
+    // Even more extreme: arrivals at ticks well past episode_end_tick
+    // This tests the safeguard: capped.max(arrival_tick + 1)
+
+    let config = create_arrival_config_with_range(1, 3);
+    let mut configs = HashMap::new();
+    configs.insert("BANK_A".to_string(), config);
+
+    let all_agents = vec!["BANK_A".to_string(), "BANK_B".to_string()];
+    let ticks_per_day = 3;
+    let num_days = 1;
+    let episode_end = ticks_per_day * num_days; // 3
+
+    let mut generator = ArrivalGenerator::new(
+        configs,
+        all_agents,
+        episode_end,
+        ticks_per_day,
+        true, // deadline_cap_at_eod = true
+    );
+
+    // Test arrivals at various ticks past episode_end
+    for arrival_tick in 3..10 {
+        let mut rng = RngManager::new(42 + arrival_tick as u64);
+        let arrivals = generator.generate_for_agent("BANK_A", arrival_tick, &mut rng);
+
+        // All deadlines must be > arrival_tick
+        for tx in &arrivals {
+            assert!(
+                tx.deadline_tick() > tx.arrival_tick(),
+                "At tick {}: deadline {} must be > arrival {}",
+                arrival_tick,
+                tx.deadline_tick(),
+                tx.arrival_tick()
+            );
+            // Deadline should be exactly arrival + 1 when capped
+            assert_eq!(
+                tx.deadline_tick(),
+                arrival_tick + 1,
+                "Deadline should be arrival + 1 when heavily capped"
+            );
+        }
+    }
+}
