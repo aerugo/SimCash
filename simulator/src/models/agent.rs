@@ -806,7 +806,8 @@ impl Agent {
     /// assert_eq!(agent.balance(), 1000000);
     /// ```
     pub fn adjust_balance(&mut self, delta: i64) {
-        self.balance += delta;
+        // Use saturating arithmetic to prevent overflow with extreme values
+        self.balance = self.balance.saturating_add(delta);
     }
 
     /// Check if agent is currently using intraday credit
@@ -1368,17 +1369,19 @@ impl Agent {
     /// ```
     pub fn queue1_liquidity_gap(&self, state: &crate::models::state::SimulationState) -> i64 {
         // Sum up all pending Queue 1 transaction amounts
+        // Use saturating_add to prevent overflow with large transaction volumes
         let mut total_pending = 0i64;
 
         for tx_id in self.outgoing_queue() {
             if let Some(tx) = state.get_transaction(tx_id) {
-                total_pending += tx.remaining_amount();
+                total_pending = total_pending.saturating_add(tx.remaining_amount());
             }
         }
 
         // Gap = total pending - available liquidity
         // If negative, there's no gap (surplus liquidity)
-        (total_pending - self.available_liquidity()).max(0)
+        // Use saturating_sub to handle potential overflow
+        total_pending.saturating_sub(self.available_liquidity()).max(0)
     }
 
     /// Get top N counterparties by historical transaction volume (Phase 2.2)
@@ -1754,9 +1757,11 @@ impl Agent {
     /// Returns true if within limits, false if exceeds limits
     pub fn record_outflow(&mut self, receiver_id: &str, amount: i64) {
         // Update bilateral outflow for this counterparty
-        *self.bilateral_outflows.entry(receiver_id.to_string()).or_insert(0) += amount;
+        // Use saturating arithmetic to prevent overflow
+        let entry = self.bilateral_outflows.entry(receiver_id.to_string()).or_insert(0);
+        *entry = entry.saturating_add(amount);
         // Update total outflow for multilateral limit
-        self.total_outflow += amount;
+        self.total_outflow = self.total_outflow.saturating_add(amount);
     }
 
     /// Check if a payment is within bilateral limit
