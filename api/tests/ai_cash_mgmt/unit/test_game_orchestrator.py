@@ -19,7 +19,7 @@ class TestGameOrchestratorCreation:
         from payment_simulator.ai_cash_mgmt.config.game_config import (
             ConvergenceCriteria,
             GameConfig,
-            MonteCarloConfig,
+            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -42,7 +42,7 @@ class TestGameOrchestratorCreation:
                 type=OptimizationScheduleType.EVERY_X_TICKS,
                 interval_ticks=50,
             ),
-            monte_carlo=MonteCarloConfig(),
+            bootstrap=BootstrapConfig(),
             convergence=ConvergenceCriteria(),
         )
 
@@ -65,7 +65,7 @@ class TestGameOrchestratorCreation:
         from payment_simulator.ai_cash_mgmt.config.game_config import (
             ConvergenceCriteria,
             GameConfig,
-            MonteCarloConfig,
+            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -88,7 +88,7 @@ class TestGameOrchestratorCreation:
                 type=OptimizationScheduleType.EVERY_X_TICKS,
                 interval_ticks=50,
             ),
-            monte_carlo=MonteCarloConfig(),
+            bootstrap=BootstrapConfig(),
             convergence=ConvergenceCriteria(),
         )
 
@@ -114,7 +114,7 @@ class TestGameOrchestratorScheduling:
         from payment_simulator.ai_cash_mgmt.config.game_config import (
             ConvergenceCriteria,
             GameConfig,
-            MonteCarloConfig,
+            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -137,7 +137,7 @@ class TestGameOrchestratorScheduling:
                 type=OptimizationScheduleType.EVERY_X_TICKS,
                 interval_ticks=50,
             ),
-            monte_carlo=MonteCarloConfig(),
+            bootstrap=BootstrapConfig(),
             convergence=ConvergenceCriteria(),
         )
 
@@ -163,7 +163,7 @@ class TestGameOrchestratorScheduling:
         from payment_simulator.ai_cash_mgmt.config.game_config import (
             ConvergenceCriteria,
             GameConfig,
-            MonteCarloConfig,
+            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -186,7 +186,7 @@ class TestGameOrchestratorScheduling:
                 type=OptimizationScheduleType.AFTER_EOD,
                 min_remaining_days=1,
             ),
-            monte_carlo=MonteCarloConfig(),
+            bootstrap=BootstrapConfig(),
             convergence=ConvergenceCriteria(),
         )
 
@@ -213,7 +213,7 @@ class TestGameOrchestratorOptimization:
         from payment_simulator.ai_cash_mgmt.config.game_config import (
             ConvergenceCriteria,
             GameConfig,
-            MonteCarloConfig,
+            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -248,7 +248,7 @@ class TestGameOrchestratorOptimization:
                 type=OptimizationScheduleType.EVERY_X_TICKS,
                 interval_ticks=50,
             ),
-            monte_carlo=MonteCarloConfig(num_samples=5),
+            bootstrap=BootstrapConfig(num_samples=5),
             convergence=ConvergenceCriteria(),
         )
 
@@ -330,7 +330,7 @@ class TestGameOrchestratorConvergence:
         from payment_simulator.ai_cash_mgmt.config.game_config import (
             ConvergenceCriteria,
             GameConfig,
-            MonteCarloConfig,
+            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -353,7 +353,7 @@ class TestGameOrchestratorConvergence:
                 type=OptimizationScheduleType.EVERY_X_TICKS,
                 interval_ticks=50,
             ),
-            monte_carlo=MonteCarloConfig(),
+            bootstrap=BootstrapConfig(),
             convergence=ConvergenceCriteria(
                 stability_threshold=0.05,
                 stability_window=3,
@@ -378,7 +378,7 @@ class TestGameOrchestratorConvergence:
         from payment_simulator.ai_cash_mgmt.config.game_config import (
             ConvergenceCriteria,
             GameConfig,
-            MonteCarloConfig,
+            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -401,7 +401,7 @@ class TestGameOrchestratorConvergence:
                 type=OptimizationScheduleType.EVERY_X_TICKS,
                 interval_ticks=50,
             ),
-            monte_carlo=MonteCarloConfig(),
+            bootstrap=BootstrapConfig(),
             convergence=ConvergenceCriteria(
                 stability_threshold=0.05,
                 stability_window=3,
@@ -437,7 +437,7 @@ class TestGameOrchestratorDeterminism:
         from payment_simulator.ai_cash_mgmt.config.game_config import (
             ConvergenceCriteria,
             GameConfig,
-            MonteCarloConfig,
+            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -460,7 +460,7 @@ class TestGameOrchestratorDeterminism:
                 type=OptimizationScheduleType.EVERY_X_TICKS,
                 interval_ticks=50,
             ),
-            monte_carlo=MonteCarloConfig(),
+            bootstrap=BootstrapConfig(),
             convergence=ConvergenceCriteria(),
         )
 

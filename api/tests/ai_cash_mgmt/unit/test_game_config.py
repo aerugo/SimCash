@@ -338,7 +338,7 @@ default_llm_config:
 optimization_schedule:
   type: after_eod
   min_remaining_days: 2
-monte_carlo:
+bootstrap:
   num_samples: 30
   sample_method: bootstrap
 convergence:
@@ -356,7 +356,7 @@ convergence:
         assert config.master_seed == 12345
         assert "BANK_A" in config.optimized_agents
         assert "BANK_B" in config.optimized_agents
-        assert config.monte_carlo.num_samples == 30
+        assert config.bootstrap.num_samples == 30
         assert config.convergence.max_iterations == 100
 
         # Verify per-agent LLM configs

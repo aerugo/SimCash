@@ -30,7 +30,7 @@ class VerboseConfig:
     """
 
     show_iterations: bool = False
-    show_monte_carlo: bool = False
+    show_bootstrap: bool = False
     show_llm_calls: bool = False
     show_policy_changes: bool = False
     show_rejections: bool = False
@@ -40,7 +40,7 @@ class VerboseConfig:
         """Create config with all verbose output enabled."""
         return cls(
             show_iterations=True,
-            show_monte_carlo=True,
+            show_bootstrap=True,
             show_llm_calls=True,
             show_policy_changes=True,
             show_rejections=True,
@@ -51,7 +51,7 @@ class VerboseConfig:
         cls,
         verbose: bool = False,
         verbose_iterations: bool = False,
-        verbose_monte_carlo: bool = False,
+        verbose_bootstrap: bool = False,
         verbose_llm: bool = False,
         verbose_policy: bool = False,
         verbose_rejections: bool = False,
@@ -61,7 +61,7 @@ class VerboseConfig:
         Args:
             verbose: Enable all verbose output
             verbose_iterations: Show iteration starts
-            verbose_monte_carlo: Show Monte Carlo evaluations
+            verbose_bootstrap: Show bootstrap evaluations
             verbose_llm: Show LLM call details
             verbose_policy: Show policy changes
             verbose_rejections: Show rejection details
@@ -74,7 +74,7 @@ class VerboseConfig:
 
         return cls(
             show_iterations=verbose_iterations,
-            show_monte_carlo=verbose_monte_carlo,
+            show_bootstrap=verbose_bootstrap,
             show_llm_calls=verbose_llm,
             show_policy_changes=verbose_policy,
             show_rejections=verbose_rejections,
@@ -156,8 +156,8 @@ def _display_event(
         display_experiment_start(event, console)
     elif event_type == "iteration_start" and config.show_iterations:
         display_iteration_start(event, console)
-    elif event_type == "monte_carlo_evaluation" and config.show_monte_carlo:
-        display_monte_carlo(event, console)
+    elif event_type == "bootstrap_evaluation" and config.show_bootstrap:
+        display_bootstrap_evaluation(event, console)
     elif event_type == "llm_call" and config.show_llm_calls:
         display_llm_call(event, console)
     elif event_type == "policy_change" and config.show_policy_changes:
@@ -216,7 +216,7 @@ def display_experiment_start(event: ExperimentEvent, console: Console) -> None:
     if "max_iterations" in details:
         console.print(f"  Max iterations: {details['max_iterations']}")
     if "num_samples" in details:
-        console.print(f"  Monte Carlo samples: {details['num_samples']}")
+        console.print(f"  Bootstrap samples: {details['num_samples']}")
     if "model" in details:
         console.print(f"  LLM model: {details['model']}")
     console.print()
@@ -237,11 +237,11 @@ def display_iteration_start(event: ExperimentEvent, console: Console) -> None:
     console.print(f"  Total cost: {_format_cost(total_cost)}")
 
 
-def display_monte_carlo(event: ExperimentEvent, console: Console) -> None:
-    """Display Monte Carlo evaluation event.
+def display_bootstrap_evaluation(event: ExperimentEvent, console: Console) -> None:
+    """Display bootstrap evaluation event.
 
     Args:
-        event: monte_carlo_evaluation event
+        event: bootstrap_evaluation event
         console: Console for output
     """
     details = event.details
@@ -249,7 +249,7 @@ def display_monte_carlo(event: ExperimentEvent, console: Console) -> None:
     mean_cost = details.get("mean_cost", 0)
     std_cost = details.get("std_cost", 0)
 
-    console.print(f"\n[bold]Monte Carlo Evaluation ({len(seed_results)} samples):[/bold]")
+    console.print(f"\n[bold]Bootstrap Evaluation ({len(seed_results)} samples):[/bold]")
 
     # Create results table
     table = Table(show_header=True, header_style="bold")

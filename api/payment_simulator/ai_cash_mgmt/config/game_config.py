@@ -1,8 +1,8 @@
 """Game configuration models for ai_cash_mgmt.
 
 Defines the complete configuration for an AI cash management game session,
-including optimization schedules, Monte Carlo settings, convergence criteria,
-and policy constraints.
+including optimization schedules, bootstrap evaluation settings, convergence
+criteria, and policy constraints.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ class OptimizationScheduleType(str, Enum):
 
 
 class SampleMethod(str, Enum):
-    """Monte Carlo sampling methods."""
+    """Bootstrap sampling methods."""
 
     BOOTSTRAP = "bootstrap"
     PERMUTATION = "permutation"
@@ -90,23 +90,29 @@ class OptimizationSchedule(BaseModel):
         return self
 
 
-class MonteCarloConfig(BaseModel):
-    """Monte Carlo evaluation configuration.
+class BootstrapConfig(BaseModel):
+    """Bootstrap evaluation configuration.
+
+    Bootstrap resampling evaluates policies by sampling with replacement
+    from historical transactions to estimate cost variance.
+
+    Note: This was formerly called MonteCarloConfig, but bootstrap resampling
+    is the correct terminology for sampling with replacement from data.
 
     Example:
-        >>> config = MonteCarloConfig(
+        >>> config = BootstrapConfig(
         ...     num_samples=30,
         ...     sample_method="bootstrap",
         ...     evaluation_ticks=200,
         ... )
 
         >>> # Deterministic mode (single evaluation, no sampling)
-        >>> config = MonteCarloConfig(deterministic=True)
+        >>> config = BootstrapConfig(deterministic=True)
     """
 
     deterministic: bool = Field(
         default=False,
-        description="Skip Monte Carlo sampling; run single deterministic evaluation",
+        description="Skip bootstrap sampling; run single deterministic evaluation",
     )
     num_samples: int = Field(
         default=20,
@@ -133,7 +139,7 @@ class MonteCarloConfig(BaseModel):
     model_config = {"use_enum_values": True}
 
     @model_validator(mode="after")
-    def validate_deterministic_samples(self) -> MonteCarloConfig:
+    def validate_deterministic_samples(self) -> BootstrapConfig:
         """Validate and enforce sample constraints based on deterministic mode."""
         if self.deterministic:
             # Force num_samples to 1 in deterministic mode
@@ -147,6 +153,10 @@ class MonteCarloConfig(BaseModel):
                 msg = "evaluation_ticks must be >= 10 when not in deterministic mode"
                 raise ValueError(msg)
         return self
+
+
+# Backward compatibility alias
+MonteCarloConfig = BootstrapConfig
 
 
 class ConvergenceCriteria(BaseModel):
@@ -327,9 +337,9 @@ class GameConfig(BaseModel):
         ...,
         description="When to run optimization",
     )
-    monte_carlo: MonteCarloConfig = Field(
-        default_factory=MonteCarloConfig,
-        description="Monte Carlo evaluation settings",
+    bootstrap: BootstrapConfig = Field(
+        default_factory=BootstrapConfig,
+        description="Bootstrap evaluation settings",
     )
     convergence: ConvergenceCriteria = Field(
         default_factory=ConvergenceCriteria,

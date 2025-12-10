@@ -81,9 +81,9 @@ def run(
         bool,
         typer.Option("--verbose-policy", help="Show policy parameter changes"),
     ] = False,
-    verbose_monte_carlo: Annotated[
+    verbose_bootstrap: Annotated[
         bool,
-        typer.Option("--verbose-monte-carlo", help="Show per-seed Monte Carlo results"),
+        typer.Option("--verbose-bootstrap", help="Show per-sample bootstrap results"),
     ] = False,
     verbose_llm: Annotated[
         bool,
@@ -128,7 +128,7 @@ def run(
         castro run exp1 --verbose
 
         # Specific verbose modes
-        castro run exp1 --verbose-policy --verbose-monte-carlo
+        castro run exp1 --verbose-policy --verbose-bootstrap
     """
     from castro.verbose_logging import VerboseConfig
 
@@ -147,7 +147,7 @@ def run(
         verbose_config = VerboseConfig.from_flags(
             verbose=verbose,
             verbose_policy=verbose_policy if verbose_policy else None,
-            verbose_monte_carlo=verbose_monte_carlo if verbose_monte_carlo else None,
+            verbose_bootstrap=verbose_bootstrap if verbose_bootstrap else None,
             verbose_llm=verbose_llm if verbose_llm else None,
             verbose_rejections=verbose_rejections if verbose_rejections else None,
             debug=debug,
@@ -252,7 +252,7 @@ def info(
     table.add_row("Master Seed", str(exp.master_seed))
     table.add_row("Output Directory", str(exp.output_dir))
     table.add_row("", "")
-    table.add_row("[bold]Monte Carlo (Bootstrap)[/bold]", "")
+    table.add_row("[bold]Bootstrap Evaluation[/bold]", "")
     table.add_row("  Deterministic", "Yes" if exp.deterministic else "No")
     table.add_row("  Samples", str(exp.num_samples))
     table.add_row("  Evaluation Ticks", str(exp.evaluation_ticks))
@@ -364,9 +364,9 @@ def replay(
         bool,
         typer.Option("--verbose-iterations", help="Show iteration starts"),
     ] = False,
-    verbose_monte_carlo: Annotated[
+    verbose_bootstrap: Annotated[
         bool,
-        typer.Option("--verbose-monte-carlo", help="Show Monte Carlo evaluations"),
+        typer.Option("--verbose-bootstrap", help="Show bootstrap evaluations"),
     ] = False,
     verbose_llm: Annotated[
         bool,
@@ -470,7 +470,7 @@ def replay(
         verbose_config = VerboseConfig.from_flags(
             verbose=verbose,
             verbose_iterations=verbose_iterations,
-            verbose_monte_carlo=verbose_monte_carlo,
+            verbose_bootstrap=verbose_bootstrap,
             verbose_llm=verbose_llm,
             verbose_policy=verbose_policy,
         )

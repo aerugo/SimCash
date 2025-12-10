@@ -446,38 +446,48 @@ TEST RESULTS:
 
 ### Phase 4.6: Terminology Cleanup
 
-**Status:** Not Started
+**Status:** COMPLETED (2025-12-10)
 
 **Purpose:** Fix incorrect terminology - use "bootstrap" consistently, NOT "Monte Carlo"
 or "Bootstrap Monte Carlo". Bootstrap sampling is a resampling technique, not Monte Carlo.
 
-**Files to Update:**
-- [ ] `api/payment_simulator/ai_cash_mgmt/bootstrap/__init__.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/bootstrap/models.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/bootstrap/sampler.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/config/game_config.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/core/game_orchestrator.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/core/game_session.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/optimization/policy_evaluator.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/persistence/models.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/persistence/repository.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/sampling/__init__.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/sampling/seed_manager.py`
-- [ ] `api/payment_simulator/ai_cash_mgmt/sampling/transaction_sampler.py`
-- [ ] `api/payment_simulator/cli/commands/ai_game.py`
-- [ ] `experiments/castro/castro/runner.py`
-- [ ] Documentation files
+**Files Updated:**
+- [x] `api/payment_simulator/ai_cash_mgmt/config/game_config.py` - Renamed MonteCarloConfig → BootstrapConfig
+- [x] `api/payment_simulator/ai_cash_mgmt/config/__init__.py` - Updated exports
+- [x] `api/payment_simulator/ai_cash_mgmt/__init__.py` - Updated exports
+- [x] `api/payment_simulator/ai_cash_mgmt/core/game_orchestrator.py` - Updated attribute access
+- [x] `api/payment_simulator/ai_cash_mgmt/core/game_session.py` - Updated docstrings
+- [x] `api/payment_simulator/ai_cash_mgmt/sampling/__init__.py` - Updated docstring
+- [x] `api/payment_simulator/ai_cash_mgmt/sampling/seed_manager.py` - Updated docstrings
+- [x] `api/payment_simulator/ai_cash_mgmt/sampling/transaction_sampler.py` - Updated docstrings
+- [x] `api/tests/ai_cash_mgmt/unit/test_game_config.py` - Updated YAML and assertions
+- [x] `api/tests/ai_cash_mgmt/unit/test_game_orchestrator.py` - Updated to use BootstrapConfig
+- [x] `api/tests/ai_cash_mgmt/unit/test_game_session.py` - Updated to use BootstrapConfig
+- [x] `experiments/castro/cli.py` - --verbose-monte-carlo → --verbose-bootstrap
+- [x] `experiments/castro/castro/verbose_logging.py` - Renamed config/method/class names
+- [x] `experiments/castro/castro/display.py` - Renamed config attributes and functions
+- [x] `experiments/castro/castro/experiments.py` - Renamed get_monte_carlo_config → get_bootstrap_config
 
-**Terminology Changes:**
-- "Monte Carlo" → "bootstrap" or "bootstrap sampling"
-- "monte_carlo" → "bootstrap" (variable/function names)
-- "Bootstrap Monte Carlo" → "bootstrap" (this term doesn't exist)
-- "--verbose-monte-carlo" → "--verbose-bootstrap" (CLI flag)
+**Terminology Changes Applied:**
+- `MonteCarloConfig` → `BootstrapConfig` (with backward compat alias)
+- `monte_carlo` attribute → `bootstrap` attribute on GameConfig
+- `--verbose-monte-carlo` → `--verbose-bootstrap` CLI flag
+- `log_monte_carlo_evaluation()` → `log_bootstrap_evaluation()`
+- `MonteCarloSeedResult` → `BootstrapSampleResult` (with backward compat alias)
+- `get_monte_carlo_config()` → `get_bootstrap_config()`
 
 **Notes:**
 ```
-(Add notes as work progresses)
+2025-12-10: PHASE 4.6 COMPLETE
+
+DESIGN DECISIONS:
+- Added backward compatibility aliases (MonteCarloConfig = BootstrapConfig)
+- Both old and new names work for API compatibility
+- Event types changed: "monte_carlo_evaluation" → "bootstrap_evaluation"
+
+TEST RESULTS:
+- All 389 ai_cash_mgmt tests pass
+- All 35 core config/orchestrator/session tests pass
 ```
 
 ---
