@@ -1603,20 +1603,20 @@ This is **not optional** - persistence is required for research reproducibility 
    - Flag regressions or anomalies
    - Automatic rejection of unsafe policies
 
-#### Bootstrap Monte Carlo Policy Evaluation
+#### Bootstrap Policy Evaluation
 
 **Theoretical Foundation**: Bootstrap resampling provides a principled statistical approach to policy evaluation that aligns with how a real-world AI cash manager would reason about performance under uncertainty.
 
-**The Core Problem**: A bank's AI cash manager cannot know the true distribution of future payment arrivals. It can only observe what has happened historically and reason about what might happen based on that data. Traditional synthetic Monte Carlo assumes we know the true distribution (e.g., "arrivals follow Poisson(λ=5) with LogNormal amounts"), but this assumption may be wrong.
+**The Core Problem**: A bank's AI cash manager cannot know the true distribution of future payment arrivals. It can only observe what has happened historically and reason about what might happen based on that data. Traditional parametric Monte Carlo assumes we know the true distribution (e.g., "arrivals follow Poisson(λ=5) with LogNormal amounts"), but this assumption may be wrong.
 
 **Why Bootstrap?** (Efron, 1979): The bootstrap treats the empirical distribution of observed data as an approximation of the unknown true distribution:
 
 ```
-Traditional Monte Carlo:
+Parametric Monte Carlo:
   "Assume arrivals follow Poisson(λ=5). Generate synthetic days."
   Problem: How do we know λ=5 is correct?
 
-Bootstrap Monte Carlo:
+Bootstrap:
   "I don't know the true distribution. Resample from observed history."
   Advantage: No parametric assumptions required.
 ```
