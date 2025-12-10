@@ -22,7 +22,659 @@ This document provides the phase-by-phase implementation plan for the AI Cash Ma
 
 ---
 
-## Phase 0: Preparation (Pre-Refactor)
+## Phase 0: Fix Bootstrap Paired Comparison Bug (Critical)
+
+**Duration**: 1 day
+**Risk**: Low (contained change)
+**Breaking Changes**: None (bug fix)
+
+### Problem Analysis
+
+**Current behavior** (BROKEN):
+```
+Iteration N:
+  1. Generate samples S1
+  2. Evaluate old_policy on S1 → cost_old
+  3. LLM proposes new_policy
+  4. Generate samples S2 (DIFFERENT!)
+  5. Evaluate new_policy on S2 → cost_new
+  6. Accept if cost_new < cost_old
+```
+
+**Expected behavior** (CORRECT):
+```
+Iteration N:
+  1. Generate samples S
+  2. LLM proposes new_policy
+  3. For each sample in S:
+     - Evaluate old_policy → cost_old_i
+     - Evaluate new_policy → cost_new_i
+     - delta_i = cost_new_i - cost_old_i
+  4. Accept if mean(delta) < 0
+```
+
+**Impact**: The `compute_paired_deltas()` method EXISTS in `BootstrapPolicyEvaluator` but is NEVER called!
+
+### TDD Tests
+
+```python
+# tests/experiments/castro/test_bootstrap_paired_comparison.py
+"""Tests for paired comparison bug fix."""
+
+import pytest
+from unittest.mock import MagicMock
+
+
+class TestPairedComparison:
+    """Tests verifying paired comparison is used."""
+
+    def test_same_samples_used_for_old_and_new_policy(self) -> None:
+        """Same bootstrap samples must be used for both policies."""
+        # Setup: Create evaluator with deterministic seed
+        evaluator = create_test_evaluator(seed=42)
+
+        # Generate samples once
+        samples = evaluator.generate_samples(agent_id="BANK_A")
+
+        # Evaluate OLD policy on samples
+        old_results = [evaluator.evaluate_sample(s, old_policy) for s in samples]
+
+        # Evaluate NEW policy on SAME samples
+        new_results = [evaluator.evaluate_sample(s, new_policy) for s in samples]
+
+        # Verify: sample indices match
+        for old, new in zip(old_results, new_results):
+            assert old.sample_idx == new.sample_idx
+            assert old.seed == new.seed
+
+    def test_acceptance_based_on_paired_delta(self) -> None:
+        """Policy acceptance must use paired delta, not absolute costs."""
+        # Setup: Mock evaluator where new policy is better on SAME samples
+        evaluator = MockEvaluator()
+        evaluator.set_paired_results([
+            # sample_idx, old_cost, new_cost
+            (0, 1000, 900),   # delta = -100 (improvement)
+            (1, 1200, 1100),  # delta = -100 (improvement)
+            (2, 800, 850),    # delta = +50 (regression)
+        ])
+
+        comparison = evaluator.compare(old_policy, new_policy, "BANK_A")
+
+        # Mean delta = (-100 + -100 + 50) / 3 = -50 (improvement)
+        assert comparison.delta < 0
+        assert comparison.should_accept is True
+
+    def test_compute_paired_deltas_is_called(self) -> None:
+        """Verify compute_paired_deltas is actually called during optimization."""
+        runner = create_test_runner()
+        runner._bootstrap_evaluator = MagicMock()
+
+        # Run one optimization iteration
+        asyncio.run(runner._optimize_agent("BANK_A", samples))
+
+        # Verify paired comparison was used
+        runner._bootstrap_evaluator.compute_paired_deltas.assert_called_once()
+```
+
+### Implementation
+
+**Changes to `experiments/castro/castro/runner.py`**:
+
+```python
+# In _evaluate_policies(), return samples for reuse
+async def _evaluate_policies(
+    self,
+    iteration: int,
+    ...
+) -> tuple[int, dict[str, int], dict[str, Any], list[dict], list[BootstrapSample]]:
+    """Evaluate policies and return samples for paired comparison."""
+    samples = self._bootstrap_sampler.generate_samples(...)
+    results = self._bootstrap_evaluator.evaluate_samples(samples, policy)
+    return total_cost, per_agent_costs, context, seed_results, samples
+
+# In optimization loop - use SAME samples for comparison
+async def _run_iteration(self, iteration: int) -> None:
+    # First evaluation with current policy - CAPTURE SAMPLES
+    total_cost, per_agent_costs, context, seed_results, samples = (
+        await self._evaluate_policies(iteration, ...)
+    )
+
+    # For each agent optimization
+    for agent_id in self._experiment.optimized_agents:
+        old_policy = self._policies[agent_id]
+
+        # Get LLM proposal
+        result = await self._optimize_agent(agent_id, context[agent_id])
+
+        if result.was_accepted and result.new_policy:
+            # CRITICAL: Use SAME samples for paired comparison
+            deltas = self._bootstrap_evaluator.compute_paired_deltas(
+                samples=samples,
+                policy_a=old_policy,
+                policy_b=result.new_policy,
+                agent_id=agent_id,
+            )
+            mean_delta = sum(deltas) / len(deltas)
+
+            if mean_delta < 0:  # New policy is better
+                self._policies[agent_id] = result.new_policy
+                self._log_acceptance(agent_id, mean_delta)
+            else:
+                self._log_rejection(agent_id, mean_delta)
+```
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `experiments/castro/castro/runner.py` | Store and reuse bootstrap samples |
+| `api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py` | Ensure `compute_paired_deltas()` works correctly |
+
+### Verification
+
+```bash
+# Run specific test
+cd api && .venv/bin/python -m pytest tests/experiments/castro/test_bootstrap_paired_comparison.py -v
+
+# Run full Castro test suite
+cd experiments/castro && python -m pytest tests/ -v
+
+# Manual verification: Run experiment and check logs show paired deltas
+castro run exp1 --verbose-monte-carlo
+```
+
+---
+
+## Phase 0.5: Add Event Tracing to Bootstrap Sandbox
+
+**Duration**: 2-3 days
+**Risk**: Medium (modifying core evaluation path)
+**Breaking Changes**: None (additive)
+
+### Problem Analysis
+
+**Current Context/Evaluation Mismatch**:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Evaluation Path                   Context Path                 │
+│                                                                 │
+│  BootstrapSampler                  Full Simulation              │
+│       ↓                                 ↓                       │
+│  3-Agent Sandbox                   VerboseOutputCapture         │
+│       ↓                                 ↓                       │
+│  EvaluationResult                  MonteCarloContextBuilder     │
+│  (actual costs)                    (placeholder data!)          │
+│       ↓                                 ↓                       │
+│  Accept/Reject Decision       →    LLM Prompt                   │
+│                                                                 │
+│  PROBLEM: Context doesn't match what produced the costs!        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Target Architecture**:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Single Evaluation + Context Path                               │
+│                                                                 │
+│  BootstrapSampler                                               │
+│       ↓                                                         │
+│  3-Agent Sandbox (with event capture)                           │
+│       ↓                                                         │
+│  EnrichedEvaluationResult                                       │
+│  ├── total_cost (for accept/reject)                             │
+│  ├── event_trace (for LLM context)                              │
+│  └── cost_breakdown (for LLM learning)                          │
+│       ↓                                                         │
+│  BootstrapContextBuilder                                        │
+│       ↓                                                         │
+│  LLM Prompt (context matches costs!)                            │
+│                                                                 │
+│  GOAL: Single source of truth for both evaluation and context   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### TDD Tests
+
+```python
+# tests/ai_cash_mgmt/bootstrap/test_enriched_evaluation.py
+"""Tests for enriched bootstrap evaluation."""
+
+import pytest
+from payment_simulator.ai_cash_mgmt.bootstrap.models import (
+    BootstrapEvent,
+    CostBreakdown,
+    EnrichedEvaluationResult,
+)
+
+
+class TestBootstrapEvent:
+    """Tests for BootstrapEvent dataclass."""
+
+    def test_is_frozen(self) -> None:
+        """BootstrapEvent is immutable."""
+        event = BootstrapEvent(tick=0, event_type="arrival", details={})
+        with pytest.raises(AttributeError):
+            event.tick = 1  # type: ignore
+
+    def test_stores_all_fields(self) -> None:
+        """BootstrapEvent stores tick, type, and details."""
+        event = BootstrapEvent(
+            tick=5,
+            event_type="PolicyDecision",
+            details={"action": "release", "tx_id": "tx-001"},
+        )
+        assert event.tick == 5
+        assert event.event_type == "PolicyDecision"
+        assert event.details["action"] == "release"
+
+
+class TestCostBreakdown:
+    """Tests for CostBreakdown dataclass."""
+
+    def test_total_property_sums_all_costs(self) -> None:
+        """total property returns sum of all cost types."""
+        breakdown = CostBreakdown(
+            delay_cost=100,
+            overdraft_cost=50,
+            deadline_penalty=200,
+            eod_penalty=0,
+        )
+        assert breakdown.total == 350
+
+    def test_all_costs_are_integer_cents(self) -> None:
+        """All cost values are integers (INV-1)."""
+        breakdown = CostBreakdown(
+            delay_cost=100,
+            overdraft_cost=50,
+            deadline_penalty=200,
+            eod_penalty=0,
+        )
+        assert isinstance(breakdown.delay_cost, int)
+        assert isinstance(breakdown.overdraft_cost, int)
+        assert isinstance(breakdown.total, int)
+
+
+class TestEnrichedEvaluationResult:
+    """Tests for EnrichedEvaluationResult dataclass."""
+
+    def test_contains_event_trace(self) -> None:
+        """EnrichedEvaluationResult includes event trace for LLM context."""
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=42,
+            total_cost=1000,
+            settlement_rate=0.95,
+            avg_delay=2.5,
+            event_trace=[
+                BootstrapEvent(tick=0, event_type="arrival", details={}),
+                BootstrapEvent(tick=1, event_type="settlement", details={}),
+            ],
+            cost_breakdown=CostBreakdown(
+                delay_cost=100, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+        )
+        assert len(result.event_trace) == 2
+        assert result.cost_breakdown.total == 100
+
+
+# tests/experiments/castro/test_bootstrap_context.py
+"""Tests for BootstrapContextBuilder."""
+
+from castro.bootstrap_context import BootstrapContextBuilder
+
+
+class TestBootstrapContextBuilder:
+    """Tests for BootstrapContextBuilder."""
+
+    def test_get_best_result_returns_lowest_cost(self) -> None:
+        """get_best_result returns result with minimum cost."""
+        results = [
+            create_result(sample_idx=0, total_cost=1000),
+            create_result(sample_idx=1, total_cost=500),  # Best
+            create_result(sample_idx=2, total_cost=800),
+        ]
+        builder = BootstrapContextBuilder(results, "BANK_A")
+
+        best = builder.get_best_result()
+        assert best.total_cost == 500
+        assert best.sample_idx == 1
+
+    def test_get_worst_result_returns_highest_cost(self) -> None:
+        """get_worst_result returns result with maximum cost."""
+        results = [
+            create_result(sample_idx=0, total_cost=1000),  # Worst
+            create_result(sample_idx=1, total_cost=500),
+            create_result(sample_idx=2, total_cost=800),
+        ]
+        builder = BootstrapContextBuilder(results, "BANK_A")
+
+        worst = builder.get_worst_result()
+        assert worst.total_cost == 1000
+
+    def test_format_event_trace_limits_events(self) -> None:
+        """format_event_trace_for_llm limits number of events."""
+        result = create_result_with_many_events(100)
+        builder = BootstrapContextBuilder([result], "BANK_A")
+
+        formatted = builder.format_event_trace_for_llm(result, max_events=20)
+
+        # Should be limited to 20 events
+        assert formatted.count("tick") <= 20
+```
+
+### Implementation
+
+**Step 0.5.1: Add enriched models**
+
+```python
+# api/payment_simulator/ai_cash_mgmt/bootstrap/models.py
+
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(frozen=True)
+class BootstrapEvent:
+    """Event captured during bootstrap evaluation.
+
+    Minimal format optimized for LLM consumption.
+    All monetary values in integer cents (INV-1).
+    """
+    tick: int
+    event_type: str  # "arrival", "decision", "settlement", "cost"
+    details: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class CostBreakdown:
+    """Breakdown of costs by type (integer cents)."""
+    delay_cost: int
+    overdraft_cost: int
+    deadline_penalty: int
+    eod_penalty: int
+
+    @property
+    def total(self) -> int:
+        return self.delay_cost + self.overdraft_cost + self.deadline_penalty + self.eod_penalty
+
+
+@dataclass(frozen=True)
+class EnrichedEvaluationResult:
+    """Evaluation result with context for LLM prompts."""
+    sample_idx: int
+    seed: int
+    total_cost: int  # Integer cents (INV-1)
+    settlement_rate: float
+    avg_delay: float
+    event_trace: list[BootstrapEvent]
+    cost_breakdown: CostBreakdown
+```
+
+**Step 0.5.2: Add evaluate_sample_enriched method**
+
+```python
+# api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py
+
+def evaluate_sample_enriched(
+    self,
+    sample: BootstrapSample,
+    policy: dict[str, Any],
+) -> EnrichedEvaluationResult:
+    """Evaluate with full event capture for LLM context."""
+    # Build and run sandbox
+    config = self._config_builder.build_config(sample, policy, ...)
+    ffi_config = config.to_ffi_dict()
+    orchestrator = Orchestrator.new(ffi_config)
+
+    # Run with event capture
+    events: list[BootstrapEvent] = []
+    for tick in range(sample.total_ticks):
+        orchestrator.tick()
+
+        # Capture relevant events from this tick
+        tick_events = orchestrator.get_tick_events(tick)
+        for event in tick_events:
+            if self._is_relevant_event(event, sample.agent_id):
+                events.append(self._convert_to_bootstrap_event(event))
+
+    # Extract metrics and cost breakdown
+    metrics = self._extract_agent_metrics(orchestrator, sample.agent_id)
+    cost_breakdown = self._extract_cost_breakdown(orchestrator, sample.agent_id)
+
+    return EnrichedEvaluationResult(
+        sample_idx=sample.sample_idx,
+        seed=sample.seed,
+        total_cost=int(metrics["total_cost"]),
+        settlement_rate=float(metrics["settlement_rate"]),
+        avg_delay=float(metrics["avg_delay"]),
+        event_trace=events,
+        cost_breakdown=cost_breakdown,
+    )
+
+def _is_relevant_event(self, event: dict, agent_id: str) -> bool:
+    """Filter for events relevant to the target agent."""
+    relevant_types = {
+        "Arrival", "PolicyDecision", "RtgsImmediateSettlement",
+        "Queue2LiquidityRelease", "DelayCostAccrual", "OverdraftCostAccrual",
+    }
+    if event.get("event_type") not in relevant_types:
+        return False
+    return (
+        event.get("sender_id") == agent_id
+        or event.get("receiver_id") == agent_id
+        or event.get("agent_id") == agent_id
+    )
+
+def _convert_to_bootstrap_event(self, event: dict) -> BootstrapEvent:
+    """Convert FFI event dict to BootstrapEvent."""
+    return BootstrapEvent(
+        tick=event.get("tick", 0),
+        event_type=event.get("event_type", "unknown"),
+        details={k: v for k, v in event.items() if k not in ("tick", "event_type")},
+    )
+```
+
+**Step 0.5.3: Create BootstrapContextBuilder**
+
+```python
+# experiments/castro/castro/bootstrap_context.py
+"""Bootstrap-native context builder for LLM prompts."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from payment_simulator.ai_cash_mgmt.bootstrap.models import (
+        BootstrapEvent,
+        EnrichedEvaluationResult,
+    )
+    from payment_simulator.ai_cash_mgmt.prompts.context import AgentSimulationContext
+
+
+class BootstrapContextBuilder:
+    """Builds LLM context directly from enriched bootstrap results.
+
+    Unlike MonteCarloContextBuilder, works natively with bootstrap
+    evaluation results - no adapters or placeholder data.
+    """
+
+    def __init__(
+        self,
+        results: list[EnrichedEvaluationResult],
+        agent_id: str,
+    ) -> None:
+        self._results = results
+        self._agent_id = agent_id
+
+    def get_best_result(self) -> EnrichedEvaluationResult:
+        """Get result with lowest cost."""
+        return min(self._results, key=lambda r: r.total_cost)
+
+    def get_worst_result(self) -> EnrichedEvaluationResult:
+        """Get result with highest cost."""
+        return max(self._results, key=lambda r: r.total_cost)
+
+    def format_event_trace_for_llm(
+        self,
+        result: EnrichedEvaluationResult,
+        max_events: int = 50,
+    ) -> str:
+        """Format event trace for LLM prompt.
+
+        Filters to most informative events:
+        - Policy decisions (shows decision points)
+        - High-cost events (shows what to optimize)
+        - Settlement failures (shows problems)
+        """
+        # Prioritize events by informativeness
+        events = sorted(
+            result.event_trace,
+            key=lambda e: self._event_priority(e),
+            reverse=True,
+        )[:max_events]
+
+        # Sort by tick for chronological presentation
+        events = sorted(events, key=lambda e: e.tick)
+
+        return self._format_events(events)
+
+    def _event_priority(self, event: BootstrapEvent) -> int:
+        """Score event by informativeness for LLM."""
+        priority_map = {
+            "PolicyDecision": 100,
+            "DelayCostAccrual": 80,
+            "OverdraftCostAccrual": 90,
+            "RtgsImmediateSettlement": 50,
+            "Queue2LiquidityRelease": 60,
+            "Arrival": 30,
+        }
+        return priority_map.get(event.event_type, 10)
+
+    def _format_events(self, events: list[BootstrapEvent]) -> str:
+        """Format events as readable text."""
+        lines = []
+        for event in events:
+            lines.append(f"Tick {event.tick}: {event.event_type}")
+            for key, value in event.details.items():
+                if key in ("amount", "cost"):
+                    lines.append(f"  {key}: ${value / 100:.2f}")
+                else:
+                    lines.append(f"  {key}: {value}")
+        return "\n".join(lines)
+
+    def build_agent_context(self) -> AgentSimulationContext:
+        """Build context matching SingleAgentContext format."""
+        from payment_simulator.ai_cash_mgmt.prompts.context import AgentSimulationContext
+        import statistics
+
+        best = self.get_best_result()
+        worst = self.get_worst_result()
+        costs = [r.total_cost for r in self._results]
+
+        return AgentSimulationContext(
+            agent_id=self._agent_id,
+            best_seed=best.seed,
+            best_seed_cost=best.total_cost,
+            best_seed_output=self.format_event_trace_for_llm(best),
+            worst_seed=worst.seed,
+            worst_seed_cost=worst.total_cost,
+            worst_seed_output=self.format_event_trace_for_llm(worst),
+            mean_cost=int(statistics.mean(costs)),
+            cost_std=int(statistics.stdev(costs)) if len(costs) > 1 else 0,
+        )
+```
+
+**Step 0.5.4: Update runner to use enriched evaluation**
+
+```python
+# experiments/castro/castro/runner.py
+
+async def _evaluate_policies(
+    self,
+    iteration: int,
+) -> tuple[int, dict[str, int], dict[str, BootstrapContextBuilder], list[BootstrapSample]]:
+    """Evaluate using enriched bootstrap results.
+
+    Returns context builders per agent that have REAL event data,
+    not placeholder SimulationResults.
+    """
+    all_results: dict[str, list[EnrichedEvaluationResult]] = {}
+    all_samples: dict[str, list[BootstrapSample]] = {}
+
+    for agent_id in self._experiment.optimized_agents:
+        samples = self._bootstrap_sampler.generate_samples(agent_id, ...)
+        all_samples[agent_id] = samples
+
+        # Use enriched evaluation
+        results = [
+            self._bootstrap_evaluator.evaluate_sample_enriched(
+                sample, self._policies[agent_id]
+            )
+            for sample in samples
+        ]
+        all_results[agent_id] = results
+
+    # Build context builders with REAL data
+    context_builders = {
+        agent_id: BootstrapContextBuilder(results, agent_id)
+        for agent_id, results in all_results.items()
+    }
+
+    # Compute costs
+    total_cost = sum(
+        sum(r.total_cost for r in results) // len(results)
+        for results in all_results.values()
+    )
+    per_agent_costs = {
+        agent_id: sum(r.total_cost for r in results) // len(results)
+        for agent_id, results in all_results.items()
+    }
+
+    # Return samples for paired comparison (Phase 0)
+    samples_list = list(all_samples.values())[0]
+    return total_cost, per_agent_costs, context_builders, samples_list
+```
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `api/payment_simulator/ai_cash_mgmt/bootstrap/models.py` | `BootstrapEvent`, `CostBreakdown`, `EnrichedEvaluationResult` |
+| `experiments/castro/castro/bootstrap_context.py` | `BootstrapContextBuilder` |
+| `api/tests/ai_cash_mgmt/bootstrap/test_enriched_evaluation.py` | Tests for enriched models |
+| `api/tests/experiments/castro/test_bootstrap_context.py` | Tests for context builder |
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py` | Add `evaluate_sample_enriched()` |
+| `experiments/castro/castro/runner.py` | Use enriched evaluation and `BootstrapContextBuilder` |
+
+### Files to Deprecate (Later)
+
+| File | Reason |
+|------|--------|
+| `experiments/castro/castro/context_builder.py` | Replaced by `bootstrap_context.py` |
+
+### Verification
+
+```bash
+# Run enriched evaluation tests
+cd api && .venv/bin/python -m pytest tests/ai_cash_mgmt/bootstrap/test_enriched_evaluation.py -v
+
+# Run context builder tests
+cd experiments/castro && python -m pytest tests/test_bootstrap_context.py -v
+
+# Manual verification: Check LLM receives real event data
+castro run exp1 --verbose-llm
+```
+
+---
+
+## Phase 1: Preparation (Pre-Refactor)
 
 **Duration**: 1-2 days
 **Risk**: Low
@@ -143,7 +795,7 @@ cd api && .venv/bin/python -m pytest
 
 ---
 
-## Phase 1: LLM Module Extraction
+## Phase 2: LLM Module Extraction
 
 **Duration**: 2-3 days
 **Risk**: Medium
@@ -625,7 +1277,7 @@ cd api && .venv/bin/python -m pytest tests/llm/ -v
 
 ---
 
-## Phase 2: Experiment Configuration Framework
+## Phase 3: Experiment Configuration Framework
 
 **Duration**: 2-3 days
 **Risk**: Medium
@@ -963,7 +1615,7 @@ cd api && .venv/bin/python -m pytest tests/experiments/config/ -v
 
 ---
 
-## Phase 3: Experiment Runner Framework
+## Phase 4: Experiment Runner Framework
 
 **Duration**: 3-4 days
 **Risk**: Medium
@@ -1069,7 +1721,7 @@ cd api && .venv/bin/python -m pytest tests/experiments/runner/ -v
 
 ---
 
-## Phase 4: CLI Commands
+## Phase 5: CLI Commands
 
 **Duration**: 2 days
 **Risk**: Low
@@ -1467,7 +2119,7 @@ payment-sim experiment validate tests/fixtures/experiment.yaml
 
 ---
 
-## Phase 5: Castro Migration
+## Phase 6: Castro Migration
 
 **Duration**: 2-3 days
 **Risk**: Medium
@@ -1537,7 +2189,7 @@ master_seed: 42
 
 ---
 
-## Phase 6: Documentation
+## Phase 7: Documentation
 
 **Duration**: 2-3 days
 **Risk**: Low
@@ -1617,20 +2269,55 @@ Before final merge:
 
 ---
 
+## Files to Delete (After Migration Complete)
+
+After all phases are complete, the following files can be safely deleted:
+
+### Castro Files (Moved to Core Modules)
+
+| File | Reason | Replacement |
+|------|--------|-------------|
+| `experiments/castro/castro/pydantic_llm_client.py` | Moved to `payment_simulator.llm` | `llm/pydantic_client.py` |
+| `experiments/castro/castro/model_config.py` | Merged into LLM config | `llm/config.py` |
+| `experiments/castro/castro/context_builder.py` | Replaced by bootstrap context | `castro/bootstrap_context.py` |
+| `experiments/castro/castro/simulation.py` | No longer needed (bootstrap replaces full sim) | Bootstrap evaluation |
+
+### Castro Persistence (Unified into Core)
+
+| File | Reason | Replacement |
+|------|--------|-------------|
+| `experiments/castro/castro/persistence/models.py` | Merged into core persistence | `experiments/persistence/events.py` |
+| `experiments/castro/castro/persistence/repository.py` | Merged into core persistence | `experiments/persistence/repository.py` |
+
+### Deprecated Python Factories
+
+| File | Reason | Replacement |
+|------|--------|-------------|
+| `experiments/castro/castro/experiments.py` | Replaced by YAML configs | `experiments/castro/experiments/*.yaml` |
+
+**Important**: Do NOT delete these files until:
+1. All tests pass with the new implementations
+2. Castro CLI works with YAML configs
+3. Replay functionality verified
+
+---
+
 ## Timeline Summary
 
 | Phase | Duration | Dependencies |
 |-------|----------|--------------|
-| Phase 0: Preparation | 1-2 days | None |
-| Phase 1: LLM Module | 2-3 days | Phase 0 |
-| Phase 2: Experiment Config | 2-3 days | Phase 0 |
-| Phase 3: Experiment Runner | 3-4 days | Phases 1, 2 |
-| Phase 4: CLI Commands | 2 days | Phase 3 |
-| Phase 5: Castro Migration | 2-3 days | Phase 4 |
-| Phase 6: Documentation | 2-3 days | Phase 5 |
+| Phase 0: Bootstrap Bug Fix | 1 day | None |
+| Phase 0.5: Event Tracing | 2-3 days | Phase 0 |
+| Phase 1: Preparation | 1-2 days | Phase 0.5 |
+| Phase 2: LLM Module | 2-3 days | Phase 1 |
+| Phase 3: Experiment Config | 2-3 days | Phase 1 |
+| Phase 4: Experiment Runner | 3-4 days | Phases 2, 3 |
+| Phase 5: CLI Commands | 2 days | Phase 4 |
+| Phase 6: Castro Migration | 2-3 days | Phase 5 |
+| Phase 7: Documentation | 2-3 days | Phase 6 |
 
-**Total: ~15-20 days**
+**Total: ~18-24 days**
 
 ---
 
-*Document Version 1.0 - Initial Draft*
+*Document Version 1.1 - Added Phase 0, 0.5, and Files to Delete*
