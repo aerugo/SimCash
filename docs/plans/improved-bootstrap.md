@@ -3,7 +3,9 @@
 **Status**: Draft
 **Author**: Claude
 **Date**: 2025-12-10
-**Version**: 2.0
+**Version**: 2.1
+
+**Revision 2.1 Notes**: Refined critical analysis based on review. Key insight: bootstrap captures more than initially assessed—strategic response is delayed but present via daily updates, LSM/Queue2 effects are preserved in historical settlement timing, and gridlock manifests as slow settlement distributions rather than explicit mechanism.
 
 ---
 
@@ -336,82 +338,104 @@ Policy B wins! But only if incoming liquidity is reliable.
 
 ### 3.1 What Bootstrap Captures vs. What It Misses
 
-| Aspect | Bootstrap Captures | Bootstrap Misses |
-|--------|-------------------|------------------|
-| Transaction uncertainty | ✓ Resampling variation | ✗ Truly novel transactions |
-| Amount distribution | ✓ Empirical distribution | ✗ Black swan events |
-| Timing patterns | ✓ Historical clustering | ✗ Regime changes |
-| Counterparty behavior | ✗ Fixed to historical | ✗ Strategic responses |
-| System dynamics | ✗ Simplified | ✗ LSM, gridlock |
+| Aspect | Bootstrap Captures | Limitation |
+|--------|-------------------|------------|
+| Transaction uncertainty | ✓ Resampling variation | Novel transaction types unseen in history |
+| Amount distribution | ✓ Empirical distribution | Black swan events beyond observed range |
+| Timing patterns | ✓ Historical clustering | Sudden regime changes |
+| Counterparty behavior | ✓ Delayed response (daily updates) | Same-day strategic adaptation |
+| LSM/Queue 2 effects | ✓ Via historical `ticks_to_settle` | Outgoing settlement timing is simplified |
+| Gridlock | ✓ As outcome distribution (slow settlements) | Not as explicit mechanism |
 
-### 3.2 The Strategic Response Problem
+**Key insight**: Many effects that appear "missing" are actually captured implicitly through historical settlement timing data. When yesterday had gridlock, settlements were slow, and those slow settlement times propagate through bootstrap samples.
 
-**Critical limitation**: Bootstrap treats other agents' behavior as fixed.
+### 3.2 Strategic Response: Delayed But Present
+
+**Original concern**: Bootstrap treats other agents' behavior as fixed within an evaluation.
+
+**Counterargument**: In production, optimization runs **daily** (or every N ticks). Each day:
+1. Bootstrap from previous N days of transactions
+2. Evaluate and update policy
+3. Other agents are doing the same thing!
+
+This creates **best-response dynamics** with a one-day lag:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    WHAT BOOTSTRAP ASSUMES                            │
+│                 ASYNCHRONOUS BEST-RESPONSE DYNAMICS                  │
 │                                                                       │
-│  Agent A changes policy ───────► Agent A's costs change              │
+│  Day T:                                                              │
+│    - Agent A uses policy π_A^t (optimized yesterday)                │
+│    - Agent B uses policy π_B^t (optimized yesterday)                │
+│    - Both observe settlement outcomes                                │
 │                                                                       │
-│  Agent B's behavior ────────────► UNCHANGED (historical pattern)     │
-│  Agent C's behavior ────────────► UNCHANGED (historical pattern)     │
+│  Day T+1:                                                            │
+│    - Agent A bootstraps from Day T transactions                      │
+│    - Agent A updates policy: π_A^{t+1} = best_response(history_T)   │
+│    - Agent B does the same                                           │
 │                                                                       │
-└─────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────┐
-│                    WHAT ACTUALLY HAPPENS                             │
+│  Over many days:                                                     │
+│    - Policies converge toward equilibrium                            │
+│    - Each agent is responding to others' YESTERDAY behavior          │
+│    - This IS strategic response, just delayed by one period          │
 │                                                                       │
-│  Agent A changes policy ───────► Agent A's costs change              │
-│                         ───────► Agent A's payments to B change      │
-│                         ───────► B's incoming liquidity changes      │
-│                         ───────► B may respond strategically         │
-│                         ───────► B's payments to A change            │
-│                         ───────► A's incoming liquidity changes!     │
-│                                                                       │
-│  THIS FEEDBACK LOOP IS NOT MODELED IN BOOTSTRAP                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**When is this assumption valid?**
-- Agent A is a **small bank** that doesn't significantly affect the system
-- Other agents use **fixed rule-based policies** (not adaptive)
-- We're evaluating **marginal policy changes** (not radical shifts)
+**This is realistic!** Real treasury departments don't react instantaneously to competitor strategies. They observe outcomes, analyze data, and adjust policies periodically.
 
-**When does it break down?**
-- Agent A is a **major liquidity provider**
-- All agents are simultaneously learning (multi-agent RL)
-- Policy change causes **regime shift** (e.g., triggers gridlock)
+**What bootstrap DOES capture**:
+- Response to counterparty patterns (delayed by bootstrap window)
+- Adaptation to system-wide conditions (via historical settlement timing)
+- Learning from gridlock episodes (reflected in slow settlement data)
 
-### 3.3 The Simplified Settlement Model
+**What bootstrap does NOT capture**:
+- Same-day strategic adaptation (but real banks don't do this either!)
+- Instantaneous game-theoretic equilibration (a theoretical construct)
 
-**What the real simulation does**:
+### 3.3 Settlement Model: Incoming vs. Outgoing
+
+**Key distinction**: Bootstrap handles incoming and outgoing settlements differently.
+
+#### Incoming Settlements (Liquidity Beats)
+
+Incoming settlements are treated as **fixed external events** with **historical timing preserved**:
 
 ```
-Agent A releases payment to B:
-  1. Check A's balance + credit
-  2. If sufficient: immediate settlement
-  3. If insufficient: enter Queue 2
-  4. LSM may find offset with B→A payment
-  5. Multilateral cycle may clear payment
-  6. Settlement time is ENDOGENOUS (depends on system state)
+Historical observation:
+  - Tick 5: Bank B paid us $50k (settled after 3 ticks in Queue 2)
+  - Tick 8: Bank C paid us $30k (LSM bilateral offset, instant)
+
+Bootstrap treatment:
+  - Tick 5: We receive $50k (timing from history)
+  - Tick 8: We receive $30k (timing from history)
+
+  ✓ LSM effects ARE captured (historical settlement timing reflects LSM success)
+  ✓ Queue 2 effects ARE captured (ticks_to_settle includes queue time)
+  ✓ Gridlock effects ARE captured (slow days = slow settlement times)
 ```
 
-**What bootstrap evaluator does**:
+**This is the "liquidity beats" concept**: incoming cash arrives at historically-observed times, which implicitly encode all the system dynamics that affected those settlements.
+
+#### Outgoing Settlements (Simplified Model)
+
+Outgoing settlements use a **simplified instant-or-queue model**:
 
 ```
 Agent A releases payment:
   1. Check A's balance
   2. If sufficient: instant settlement, debit balance
   3. If insufficient: stays in queue, accrues delay cost
-  4. NO LSM, NO CYCLE DETECTION
-  5. Settlement time is INSTANT (if funds available)
+
+This is a CONSERVATIVE estimate:
+  - Real world: LSM might find bilateral offset, settling sooner
+  - Bootstrap: Assumes no such luck, must have balance on hand
 ```
 
 **Implications**:
-- Bootstrap **understates** the benefit of LSM (no bilateral/multilateral offsets)
-- Bootstrap **understates** gridlock risk (no circular waiting)
-- Bootstrap **overstates** delay costs (no Queue 2 eventual settlement)
+- Bootstrap is **conservative** on outgoing settlements (assumes worst case)
+- If a policy works well under bootstrap, it will likely work better in reality
+- For research purposes: use full simulation to see actual LSM benefits
 
 ### 3.4 Statistical Validity of Bootstrap
 
@@ -450,17 +474,50 @@ ci_upper = np.percentile(bootstrap_costs, 97.5)
 # "With 95% confidence, the true expected cost lies in [ci_lower, ci_upper]"
 ```
 
-### 3.5 What's Missing: A Checklist
+### 3.5 Revised Assessment: What's Captured vs. Simplified
 
-| Missing Element | Impact | Mitigation |
-|-----------------|--------|------------|
-| LSM bilateral offsets | Underestimates liquidity efficiency | Could add simple offset model |
-| LSM multilateral cycles | Underestimates complex settlement | Hard to model without full sim |
-| Queue 2 dynamics | Overestimates delay costs | Could add queue release model |
-| Credit headroom | Understates liquidity options | Add credit limit to model |
-| Collateral posting | Misses liquidity-cost tradeoff | Add collateral in Phase 2 |
-| Gridlock detection | Misses coordination failures | Fundamental limitation |
-| Strategic response | Assumes fixed counterparties | Multi-agent extension needed |
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| LSM effects (incoming) | ✓ Captured | Via historical `ticks_to_settle` |
+| LSM effects (outgoing) | ~ Conservative | Assumes no beneficial offsets |
+| Queue 2 dynamics (incoming) | ✓ Captured | Wait time included in settlement timing |
+| Queue 2 dynamics (outgoing) | ~ Simplified | Instant-or-wait model |
+| Credit headroom | ◯ Add in Phase 2 | Important for realistic cash mgmt |
+| Collateral posting | ◯ Add in Phase 2 | Liquidity-cost tradeoff |
+| Gridlock (as outcome) | ✓ Captured | Slow settlement days propagate |
+| Gridlock (as mechanism) | ✗ Not modeled | Would need explicit Q2 simulation |
+| Strategic response | ✓ Delayed | Via daily re-optimization |
+| Same-day adaptation | ✗ Not modeled | But realistic (banks don't do this either) |
+
+**Legend**: ✓ = captured, ~ = partially/conservatively, ◯ = future enhancement, ✗ = not modeled
+
+### 3.6 Data Scope Configuration
+
+**For production (daily optimization)**:
+- Bootstrap from past N days (configurable, e.g., N=5)
+- Each day: update policy, run simulation, collect new transactions
+- Older data ages out of bootstrap window
+
+**For research (full simulation first)**:
+- Run complete simulation (all ticks) with initial policies
+- Bootstrap from entire simulation history
+- Iterate on policies until convergence
+- Then verify with fresh full simulation
+
+```python
+@dataclass
+class BootstrapConfig:
+    """Configuration for bootstrap data scope."""
+
+    # Number of days of history to use
+    history_days: int = 5
+
+    # Minimum transactions required before bootstrap is valid
+    min_transactions: int = 30
+
+    # Whether to weight recent transactions more heavily
+    recency_weighted: bool = False
+```
 
 ---
 
