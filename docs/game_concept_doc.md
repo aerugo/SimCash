@@ -666,38 +666,126 @@ The simulation is designed to explore questions like:
 
 ---
 
+## Future Directions
+
+The simulation platform is designed to support advanced research beyond basic policy optimization.
+
+### Advanced Learning Techniques
+
+**Multi-Agent Reinforcement Learning (MARL)**
+- Replace decision trees with neural network policies
+- Train with PPO/SAC on continuous action spaces
+- Self-play with population-based training
+- Study emergent coordination strategies
+
+**Causal Inference**
+- Identify causal relationships (e.g., "early submission → lower systemic delay")
+- Estimate treatment effects (e.g., "LSM enablement → 30% liquidity reduction")
+- Support counterfactual queries ("What if agent A changed policy?")
+
+**Meta-Learning**
+- Learn to adapt policies quickly to new regimes
+- Few-shot adaptation to shocks
+- Transfer learning across currencies/jurisdictions
+
+### Extensions & Variants
+
+**Regulatory Scenarios**
+- Basel III NSFR/LCR constraints
+- CPMI-IOSCO PFMI compliance monitoring
+- Throughput guidelines enforcement
+
+**Market Microstructure**
+- Intraday repo markets (borrow/lend liquidity)
+- Collateral haircuts and margin calls
+- Nostro funding optimization
+
+**Crisis Simulations**
+- Bank runs (sudden outflow shocks)
+- Interbank contagion (bilateral exposure chains)
+- Central bank interventions (emergency liquidity, rate changes)
+
+**Privacy-Preserving Simulation**
+- Federated learning (banks train locally, share updates)
+- Differential privacy (add noise to published throughput signals)
+- Secure multi-party computation (joint settlement without revealing balances)
+
+### Open Research Questions
+
+Beyond the applied research questions, several foundational questions remain open:
+
+1. **What throughput targets are Pareto-optimal?**
+   - Too strict → costly hoarding
+   - Too loose → gridlock risk
+   - Can we characterize optimal thresholds?
+
+2. **How do policies co-evolve in multi-agent learning?**
+   - Do we converge to Nash equilibria?
+   - Are there oscillations or limit cycles?
+   - Can we design coordination mechanisms to stabilize?
+
+3. **What are the welfare implications of LSM design?**
+   - Who benefits from bilateral offsetting vs. cycles?
+   - Are there distributional effects (large banks vs. small)?
+   - How to design fair LSM algorithms?
+
+4. **How resilient are learned policies to regime shifts?**
+   - If overdraft pricing changes, do policies adapt?
+   - Can we measure robustness to shocks?
+   - What safety margins should policies maintain?
+
+---
+
 ## Glossary
 
 | Term | Definition |
 |------|------------|
+| **Agent** | A bank participant in the simulation (holds settlement balance at central bank) |
 | **Algorithm Sequencing** | Formal order of LSM algorithms: FIFO → Bilateral → Multilateral |
+| **Arrival** | New payment order entering a bank's Queue 1 |
+| **Balance** | Bank's settlement account balance at central bank (can go negative with credit) |
 | **Best Response** | Optimal policy given fixed counterparty behaviors (building block for equilibrium) |
 | **Bilateral Limit** | Maximum outflow to a specific counterparty per day |
 | **Bilateral Offset** | Settling two opposing payments at net liquidity cost (Algorithm 2) |
 | **Bootstrap** | Statistical resampling technique for estimating distributions from observed data (Efron, 1979) |
+| **Cash Manager** | Treasury operations role making intraday payment decisions (modeled by policies) |
+| **Collateral** | Assets posted to secure intraday credit (incurs opportunity cost) |
 | **Collateral Cost** | Opportunity cost of securities posted to secure credit lines (distinct from overdraft cost) |
 | **Credit Headroom** | Available intraday credit from central bank |
+| **Credit Limit** | Maximum intraday overdraft allowed (balance can go to `balance - credit_limit`) |
+| **Cycle** | Circular payment chain (A→B→C→A) settleable with net-zero liquidity |
+| **Deadline** | Latest tick for transaction settlement (penalties apply if missed) |
 | **Decision Tree** | Policy representation using condition/action nodes to make payment decisions |
 | **Deferred Crediting** | Settlement mode where credits apply at tick end, preventing within-tick recycling |
+| **Determinism** | Property that same seed produces identical outcomes (essential for replay) |
+| **DNS (Deferred Net Settlement)** | Batch netting rail (contrasts with RTGS gross settlement) |
 | **Entry Disposition** | Offset check performed when payment enters Queue 2 |
 | **EOD Penalty** | Large penalty for transactions unsettled at end of day |
+| **Episode** | Complete simulation run (one or more business days) |
 | **Finality** | Irreversibility of settled payments |
 | **Gridlock** | Circular dependency where all parties wait for each other |
+| **Headroom** | Remaining unused credit capacity (`credit_limit + balance` if balance > 0) |
 | **Internal Priority** | Bank's own urgency rating (0-10) for internal queue ordering |
 | **Liquidity Beats** | Sequence of incoming settlements as fixed external events in policy evaluation |
+| **Liquidity Pressure** | Metric of how constrained an agent's liquidity is (0-1 scale) |
 | **LSM** | Liquidity-Saving Mechanism—algorithms that reduce liquidity needs through smart grouping |
 | **Multilateral Cycle** | Settling a ring of payments simultaneously (Algorithm 3) |
 | **Multilateral Limit** | Maximum total outflow to all counterparties per day |
+| **Nostro** | Account held at correspondent bank for cross-border settlements |
 | **Overdue Multiplier** | Factor applied to delay costs after deadline passes (default 5×) |
 | **Policy** | Decision-making program that evaluates context and chooses actions (release, hold, split) |
 | **Priority Band** | Grouping of priorities: Urgent (8-10), Normal (4-7), Low (0-3) |
 | **Priority Escalation** | Automatic priority boost as transaction deadline approaches |
 | **Queue 1** | Bank's internal queue (strategic holding) |
 | **Queue 2** | Central system queue (awaiting liquidity) |
+| **Recycling** | Using incoming settlement proceeds to fund outgoing payments |
 | **RTGS** | Real-Time Gross Settlement—payments settle individually and immediately |
 | **RTGS Priority** | Declared priority for Queue 2: Highly Urgent, Urgent, or Normal |
 | **Settlement Offset** | Time from transaction arrival to actual settlement (captures LSM/queue delays) |
+| **Shadow Replay** | Re-evaluation of past episodes with new policy (validation technique) |
 | **Split Friction** | Operational cost incurred when dividing a payment into multiple parts |
+| **Splitting** | Voluntary division of large payment into N separate instructions (agent pacing) |
+| **Throughput** | Cumulative value settled / cumulative value arrived (0-1 ratio) |
 | **Tick** | Discrete time unit in the simulation |
 
 ---
@@ -706,11 +794,18 @@ The simulation is designed to explore questions like:
 
 The simulation draws on concepts from:
 
+### Academic Papers
+
+1. **Efron, B. (1979)** - "Bootstrap methods: Another look at the jackknife" (*Annals of Statistics*) - Foundation for statistical resampling in policy evaluation
+2. **Danmarks Nationalbank (2001)** - "Gridlock Resolution in Payment Systems" - Key result: LSM reduces gridlock duration by 40-60% under constrained liquidity
+3. **ECB Economic Bulletin (2020)** - "Liquidity Distribution and Settlement in TARGET2" - Key result: Bilateral offsetting provides 30-40% liquidity savings in typical operations
+4. **BIS Quarterly Review (2021)** - "Central Bank Digital Currency: Opportunities and Challenges" - RTGS design principles apply to CBDC settlement layers
+
+### Technical Documentation
+
 1. **European Central Bank** - TARGET2 documentation and business descriptions
-2. **Nationalbanken** - "Gridlock Resolution in Payment Systems" research
-3. **Riksbank** - RIX-RTGS documentation and T2 integration plans
-4. **Bank for International Settlements** - CPMI reports on payment system design
-5. **Efron, B. (1979)** - "Bootstrap methods: Another look at the jackknife" (*Annals of Statistics*) - Foundation for statistical resampling in policy evaluation
+2. **Riksbank** - RIX-RTGS documentation and T2 integration plans
+3. **Bank for International Settlements** - CPMI-IOSCO Principles for Financial Market Infrastructures (2012)
 
 For implementation details, see the technical documentation in `CLAUDE.md` and the architecture guide in `docs/architecture.md`.
 
