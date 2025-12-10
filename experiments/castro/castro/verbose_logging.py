@@ -2,7 +2,7 @@
 
 Provides structured verbose output for:
 1. Policy parameter changes (--verbose-policy)
-2. Monte Carlo run details (--verbose-monte-carlo)
+2. Bootstrap evaluation details (--verbose-bootstrap)
 3. LLM interaction metadata (--verbose-llm)
 4. Rejection analysis (--verbose-rejections)
 
@@ -30,19 +30,19 @@ class VerboseConfig:
 
     Each flag controls a category of verbose output:
     - policy: Show before/after policy parameters
-    - monte_carlo: Show per-seed simulation results
+    - bootstrap: Show per-sample bootstrap evaluation results
     - llm: Show LLM call metadata (model, tokens, latency)
     - rejections: Show why policies are rejected
     - debug: Show detailed debug info (validation errors, retries, LLM progress)
 
     Example:
-        >>> config = VerboseConfig(policy=True, monte_carlo=True)
+        >>> config = VerboseConfig(policy=True, bootstrap=True)
         >>> if config.policy:
         ...     print("Policy logging enabled")
     """
 
     policy: bool = False
-    monte_carlo: bool = False
+    bootstrap: bool = False
     llm: bool = False
     rejections: bool = False
     debug: bool = False
@@ -54,7 +54,7 @@ class VerboseConfig:
         Returns:
             True if at least one verbose flag is enabled.
         """
-        return self.policy or self.monte_carlo or self.llm or self.rejections or self.debug
+        return self.policy or self.bootstrap or self.llm or self.rejections or self.debug
 
     @classmethod
     def all(cls) -> VerboseConfig:
@@ -63,7 +63,7 @@ class VerboseConfig:
         Returns:
             VerboseConfig with all flags set to True.
         """
-        return cls(policy=True, monte_carlo=True, llm=True, rejections=True, debug=False)
+        return cls(policy=True, bootstrap=True, llm=True, rejections=True, debug=False)
 
     @classmethod
     def from_flags(
@@ -71,7 +71,7 @@ class VerboseConfig:
         *,
         verbose: bool = False,
         verbose_policy: bool | None = None,
-        verbose_monte_carlo: bool | None = None,
+        verbose_bootstrap: bool | None = None,
         verbose_llm: bool | None = None,
         verbose_rejections: bool | None = None,
         debug: bool = False,
@@ -84,7 +84,7 @@ class VerboseConfig:
         Args:
             verbose: Enable all verbose output.
             verbose_policy: Override policy verbose flag.
-            verbose_monte_carlo: Override monte_carlo verbose flag.
+            verbose_bootstrap: Override bootstrap verbose flag.
             verbose_llm: Override llm verbose flag.
             verbose_rejections: Override rejections verbose flag.
             debug: Enable debug output (validation errors, retries).
@@ -96,7 +96,7 @@ class VerboseConfig:
         if verbose:
             return cls(
                 policy=verbose_policy if verbose_policy is not None else True,
-                monte_carlo=verbose_monte_carlo if verbose_monte_carlo is not None else True,
+                bootstrap=verbose_bootstrap if verbose_bootstrap is not None else True,
                 llm=verbose_llm if verbose_llm is not None else True,
                 rejections=verbose_rejections if verbose_rejections is not None else True,
                 debug=debug,
@@ -105,7 +105,7 @@ class VerboseConfig:
         # Otherwise use individual flags
         return cls(
             policy=verbose_policy or False,
-            monte_carlo=verbose_monte_carlo or False,
+            bootstrap=verbose_bootstrap or False,
             llm=verbose_llm or False,
             rejections=verbose_rejections or False,
             debug=debug,
@@ -113,8 +113,8 @@ class VerboseConfig:
 
 
 @dataclass
-class MonteCarloSeedResult:
-    """Result from a single Monte Carlo seed.
+class BootstrapSampleResult:
+    """Result from a single bootstrap sample evaluation.
 
     Attributes:
         seed: The RNG seed used.
@@ -150,6 +150,10 @@ class MonteCarloSeedResult:
             # Edge case: zero baseline
             return 0.0 if self.cost == 0 else None
         return (self.baseline_cost - self.cost) / self.baseline_cost * 100
+
+
+# Backward compatibility alias
+MonteCarloSeedResult = BootstrapSampleResult
 
 
 @dataclass
@@ -331,17 +335,17 @@ class VerboseLogger:
 
         self._console.print()
 
-    def log_monte_carlo_evaluation(
+    def log_bootstrap_evaluation(
         self,
-        seed_results: list[MonteCarloSeedResult],
+        seed_results: list[BootstrapSampleResult],
         mean_cost: int,
         std_cost: int,
         deterministic: bool = False,
         is_baseline_run: bool | None = None,
     ) -> None:
-        """Log Monte Carlo evaluation results.
+        """Log bootstrap evaluation results.
 
-        Shows per-seed breakdown with best/worst identification based on
+        Shows per-sample breakdown with best/worst identification based on
         improvement percentage (delta) when comparing to baseline.
 
         On baseline run (iteration 1): No Best/Worst labels shown since
@@ -351,14 +355,14 @@ class VerboseLogger:
         (highest improvement = Best, lowest/regression = Worst).
 
         Args:
-            seed_results: Results from each seed.
-            mean_cost: Mean cost across seeds.
+            seed_results: Results from each sample.
+            mean_cost: Mean cost across samples.
             std_cost: Standard deviation of costs.
             deterministic: If True, show deterministic mode output (no statistics).
             is_baseline_run: If True, this is iteration 1 (establishing baseline).
                 If None, auto-detect from whether baseline_cost is set.
         """
-        if not self._config.monte_carlo:
+        if not self._config.bootstrap:
             return
 
         num_samples = len(seed_results)
@@ -385,19 +389,19 @@ class VerboseLogger:
         # Check if we have delta information
         has_deltas = any(r.delta_percent is not None for r in seed_results)
 
-        # Monte Carlo mode: full statistics
+        # Bootstrap mode: full statistics
         if is_baseline_run:
             self._console.print(
-                f"\n[bold]Monte Carlo Baseline ({num_samples} samples):[/bold]"
+                f"\n[bold]Bootstrap Baseline ({num_samples} samples):[/bold]"
             )
         else:
             self._console.print(
-                f"\n[bold]Monte Carlo Evaluation ({num_samples} samples):[/bold]"
+                f"\n[bold]Bootstrap Evaluation ({num_samples} samples):[/bold]"
             )
 
-        # Find best and worst seeds based on delta (improvement percentage)
-        best_result: MonteCarloSeedResult | None = None
-        worst_result: MonteCarloSeedResult | None = None
+        # Find best and worst samples based on delta (improvement percentage)
+        best_result: BootstrapSampleResult | None = None
+        worst_result: BootstrapSampleResult | None = None
 
         if seed_results and has_deltas and not is_baseline_run:
             # Best = highest delta (most improvement)

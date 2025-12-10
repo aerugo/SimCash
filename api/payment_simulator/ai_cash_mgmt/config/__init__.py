@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from payment_simulator.ai_cash_mgmt.config.game_config import (
+    BootstrapConfig,
     ConvergenceCriteria,
     GameConfig,
-    MonteCarloConfig,
+    MonteCarloConfig,  # Backward compatibility alias
     OptimizationSchedule,
     OptimizationScheduleType,
     OutputConfig,
@@ -23,11 +24,12 @@ __all__ = [
     # LLM Config
     "AgentOptimizationConfig",
     # Game Config
+    "BootstrapConfig",
     "ConvergenceCriteria",
     "GameConfig",
     "LLMConfig",
     "LLMProviderType",
-    "MonteCarloConfig",
+    "MonteCarloConfig",  # Backward compatibility alias
     "OptimizationSchedule",
     "OptimizationScheduleType",
     "OutputConfig",

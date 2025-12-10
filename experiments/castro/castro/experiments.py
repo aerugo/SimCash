@@ -14,8 +14,8 @@ from pathlib import Path
 
 from payment_simulator.ai_cash_mgmt import (
     AgentOptimizationConfig,
+    BootstrapConfig,
     ConvergenceCriteria,
-    MonteCarloConfig,
     OptimizationSchedule,
     OptimizationScheduleType,
     OutputConfig,
@@ -63,7 +63,7 @@ class CastroExperiment:
         ...     reasoning_effort="high",
         ... )
 
-        >>> # Deterministic mode (single evaluation, no Monte Carlo sampling)
+        >>> # Deterministic mode (single evaluation, no bootstrap sampling)
         >>> exp = CastroExperiment(
         ...     name="exp1",
         ...     description="2-Period Deterministic",
@@ -79,11 +79,11 @@ class CastroExperiment:
     # Scenario
     scenario_path: Path
 
-    # Deterministic mode - skip Monte Carlo sampling
+    # Deterministic mode - skip bootstrap sampling
     deterministic: bool = False
-    """When True, run single deterministic evaluation instead of Monte Carlo sampling."""
+    """When True, run single deterministic evaluation instead of bootstrap sampling."""
 
-    # Monte Carlo settings (ignored if deterministic=True)
+    # Bootstrap settings (ignored if deterministic=True)
     # Policy evaluation uses bootstrap resampling:
     # 1. Runs a single full simulation to collect transaction history
     # 2. Uses bootstrap resampling to generate policy evaluation samples
@@ -116,13 +116,13 @@ class CastroExperiment:
     output_dir: Path = field(default_factory=lambda: Path("results"))
     master_seed: int = 42
 
-    def get_monte_carlo_config(self) -> MonteCarloConfig:
-        """Get Monte Carlo configuration for this experiment.
+    def get_bootstrap_config(self) -> BootstrapConfig:
+        """Get bootstrap configuration for this experiment.
 
         Returns:
-            MonteCarloConfig instance.
+            BootstrapConfig instance.
         """
-        return MonteCarloConfig(
+        return BootstrapConfig(
             deterministic=self.deterministic,
             num_samples=self.num_samples,
             sample_method=SampleMethod.BOOTSTRAP,
@@ -216,7 +216,7 @@ def create_exp1(
         name="exp1",
         description="2-Period Deterministic Nash Equilibrium",
         scenario_path=Path("configs/exp1_2period.yaml"),
-        deterministic=True,  # No Monte Carlo - scenario is deterministic
+        deterministic=True,  # No bootstrap sampling - scenario is deterministic
         evaluation_ticks=2,  # Only 2 ticks in scenario
         max_iterations=25,
         stability_threshold=0.05,
@@ -243,7 +243,7 @@ def create_exp2(
     Setup:
     - 12 ticks per day
     - Poisson arrivals, LogNormal amounts
-    - 10 bootstrap samples for Monte Carlo evaluation
+    - 10 bootstrap samples for evaluation
 
     Args:
         output_dir: Output directory for results.
@@ -258,7 +258,7 @@ def create_exp2(
         name="exp2",
         description="12-Period Stochastic LVTS-Style",
         scenario_path=Path("configs/exp2_12period.yaml"),
-        num_samples=10,  # Bootstrap samples for Monte Carlo evaluation
+        num_samples=10,  # Bootstrap samples for evaluation
         evaluation_ticks=12,
         max_iterations=25,
         stability_threshold=0.05,
@@ -285,7 +285,7 @@ def create_exp3(
     Setup:
     - 3 ticks per day (evaluated over 10 ticks minimum)
     - Tests interaction between liquidity and timing decisions
-    - 10 bootstrap samples for Monte Carlo evaluation
+    - 10 bootstrap samples for evaluation
 
     Note: Uses minimum evaluation_ticks of 10 for MonteCarloConfig validation.
     The scenario runs 3 ticks per day, remaining ticks are idle.
@@ -303,7 +303,7 @@ def create_exp3(
         name="exp3",
         description="Joint Liquidity & Timing Optimization",
         scenario_path=Path("configs/exp3_joint.yaml"),
-        num_samples=10,  # Bootstrap samples for Monte Carlo evaluation
+        num_samples=10,  # Bootstrap samples for evaluation
         evaluation_ticks=10,  # Minimum for MonteCarloConfig (ticks 3-9 are idle)
         max_iterations=25,
         stability_threshold=0.05,

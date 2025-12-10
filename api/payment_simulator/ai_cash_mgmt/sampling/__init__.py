@@ -1,4 +1,4 @@
-"""Transaction sampling and seed management for Monte Carlo evaluation."""
+"""Transaction sampling and seed management for bootstrap evaluation."""
 
 from __future__ import annotations
 

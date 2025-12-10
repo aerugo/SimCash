@@ -1721,6 +1721,142 @@ cd api && .venv/bin/python -m pytest tests/experiments/runner/ -v
 
 ---
 
+## Phase 4.5: Bootstrap Integration Tests with Mocked LLM
+
+**Duration**: 1-2 days
+**Risk**: Low
+**Breaking Changes**: None (tests only)
+
+### Objectives
+
+1. Create comprehensive integration tests for bootstrap policy evaluation
+2. Verify bootstrap samples are processed by both old and new policies
+3. Verify delta costs are correctly calculated
+4. Verify policies are accepted/rejected based on paired comparison
+
+### TDD Tests
+
+```python
+# tests/experiments/integration/test_bootstrap_policy_acceptance.py
+"""Integration tests for bootstrap policy acceptance."""
+
+import pytest
+from unittest.mock import AsyncMock
+
+from payment_simulator.llm import LLMClientProtocol
+
+
+class MockLLMClient:
+    """Mock LLM that returns deterministic policy updates."""
+
+    def __init__(self, improved_policy: dict) -> None:
+        self._improved_policy = improved_policy
+
+    async def generate_structured_output(
+        self,
+        prompt: str,
+        response_model: type,
+        system_prompt: str | None = None,
+    ) -> dict:
+        """Return the improved policy."""
+        return self._improved_policy
+
+
+class TestBootstrapPolicyAcceptance:
+    """Tests for policy acceptance based on bootstrap evaluation."""
+
+    @pytest.mark.asyncio
+    async def test_samples_evaluated_with_old_policy(self) -> None:
+        """Bootstrap samples are evaluated with old policy."""
+        # Arrange: Create evaluator with known seed
+        # Act: Run evaluation
+        # Assert: Verify samples were evaluated with old policy
+        ...
+
+    @pytest.mark.asyncio
+    async def test_same_samples_used_for_new_policy(self) -> None:
+        """Same bootstrap samples are used for new policy evaluation."""
+        # This is CRITICAL - samples must be identical for paired comparison
+        ...
+
+    @pytest.mark.asyncio
+    async def test_paired_delta_computed_correctly(self) -> None:
+        """Paired delta = old_cost - new_cost for same sample."""
+        ...
+
+    @pytest.mark.asyncio
+    async def test_policy_accepted_when_mean_delta_positive(self) -> None:
+        """Policy is ACCEPTED when mean_delta > 0 (new policy cheaper)."""
+        ...
+
+    @pytest.mark.asyncio
+    async def test_policy_rejected_when_mean_delta_negative(self) -> None:
+        """Policy is REJECTED when mean_delta <= 0 (old policy better)."""
+        ...
+
+    @pytest.mark.asyncio
+    async def test_end_to_end_with_mocked_llm(self) -> None:
+        """Full experiment run with mocked LLM returning valid policy."""
+        ...
+```
+
+### Implementation
+
+- Create mock LLM client that returns deterministic policy updates
+- Create test scenarios with known cost outcomes
+- Verify exact sample reuse between old/new policy evaluation
+
+### Verification
+
+```bash
+cd api && .venv/bin/python -m pytest tests/experiments/integration/ -v
+```
+
+---
+
+## Phase 4.6: Terminology Cleanup
+
+**Duration**: 0.5 days
+**Risk**: Low
+**Breaking Changes**: CLI flag rename (`--verbose-monte-carlo` → `--verbose-bootstrap`)
+
+### Objectives
+
+Fix incorrect terminology throughout the codebase:
+- Use "bootstrap" or "bootstrap sampling" instead of "Monte Carlo"
+- "Bootstrap Monte Carlo" is NOT a valid term and should be removed
+
+### Files to Update
+
+| File | Changes |
+|------|---------|
+| `api/payment_simulator/ai_cash_mgmt/bootstrap/*.py` | Update docstrings |
+| `api/payment_simulator/ai_cash_mgmt/config/*.py` | Rename fields/methods |
+| `api/payment_simulator/ai_cash_mgmt/core/*.py` | Update docstrings |
+| `api/payment_simulator/ai_cash_mgmt/sampling/*.py` | Update docstrings |
+| `api/payment_simulator/cli/commands/ai_game.py` | Rename CLI flags |
+| `experiments/castro/castro/runner.py` | Update variable names |
+| `api/migrations/*.sql` | Update column names (with migration) |
+
+### Terminology Changes
+
+| Old Term | New Term |
+|----------|----------|
+| Monte Carlo | bootstrap |
+| monte_carlo | bootstrap |
+| Bootstrap Monte Carlo | bootstrap |
+| `--verbose-monte-carlo` | `--verbose-bootstrap` |
+| `MonteCarloContextBuilder` | `BootstrapContextBuilder` |
+
+### Verification
+
+```bash
+# Verify no remaining Monte Carlo references (except historical docs)
+grep -r "Monte Carlo" api/ --include="*.py" | grep -v "# Historical"
+```
+
+---
+
 ## Phase 5: CLI Commands
 
 **Duration**: 2 days
