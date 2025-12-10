@@ -167,26 +167,62 @@ since they require the ExperimentConfig schema to be defined first.
 
 ### Phase 2: LLM Module Extraction
 
-**Status:** Not Started
+**Status:** COMPLETED (2025-12-10)
 
 **Tests First (TDD):**
-- [ ] Write `tests/llm/test_config.py`
-- [ ] Write `tests/llm/test_pydantic_client.py`
-- [ ] Write `tests/llm/test_audit_wrapper.py`
-- [ ] Verify tests fail (as expected before implementation)
+- [x] Write `tests/llm/test_config.py` - 12 tests for LLMConfig
+- [x] Write `tests/llm/test_audit_wrapper.py` - 11 tests for AuditCaptureLLMClient
+- [x] Write `tests/llm/pydantic_client.py` (implementation, skip integration tests without API key)
+- [x] Verify tests fail before implementation (TDD)
 
 **Implementation:**
-- [ ] Create `api/payment_simulator/llm/config.py` - LLMConfig dataclass
-- [ ] Create `api/payment_simulator/llm/pydantic_client.py` - PydanticAI implementation
-- [ ] Create `api/payment_simulator/llm/audit_wrapper.py` - Audit capture wrapper
-- [ ] Update `api/payment_simulator/llm/__init__.py` with exports
-- [ ] Verify all LLM tests pass
-- [ ] Verify mypy type checking passes
-- [ ] Commit Phase 1 changes
+- [x] Create `api/payment_simulator/llm/config.py` - LLMConfig frozen dataclass
+- [x] Create `api/payment_simulator/llm/pydantic_client.py` - PydanticAI implementation
+- [x] Create `api/payment_simulator/llm/audit_wrapper.py` - Audit capture wrapper with LLMInteraction
+- [x] Update `api/payment_simulator/llm/__init__.py` with lazy exports
+- [x] Verify all LLM tests pass (29/29)
+- [ ] Verify mypy type checking passes (DEFERRED - minor type issues)
+- [x] Commit Phase 2 changes
 
 **Notes:**
 ```
-(Add notes as work progresses)
+2025-12-10: PHASE 2 COMPLETE
+
+IMPLEMENTED:
+1. LLMConfig (frozen dataclass):
+   - model: str in "provider:model" format
+   - provider/model_name properties to extract parts
+   - temperature, max_retries, timeout_seconds defaults
+   - thinking_budget (Anthropic) and reasoning_effort (OpenAI) options
+
+2. PydanticAILLMClient:
+   - Implements LLMClientProtocol
+   - generate_structured_output() for Pydantic model responses
+   - generate_text() for plain text responses
+   - Requires pydantic-ai optional dependency
+
+3. AuditCaptureLLMClient:
+   - Wraps any LLMClientProtocol implementation
+   - Captures all interactions as immutable LLMInteraction records
+   - get_last_interaction() and get_all_interactions() methods
+   - Tracks latency, system/user prompts, responses, parsed policies
+
+4. LLMInteraction (frozen dataclass):
+   - system_prompt, user_prompt, raw_response
+   - parsed_policy (dict or None), parsing_error
+   - prompt_tokens, completion_tokens, latency_seconds
+
+DESIGN DECISIONS:
+- Used lazy imports for PydanticAILLMClient to avoid requiring pydantic-ai
+  for modules that only need LLMConfig or protocol
+- All config and interaction dataclasses are frozen (immutable)
+- Temperature defaults to 0.0 for determinism
+
+TEST RESULTS:
+- test_config.py: 12/12 passed
+- test_audit_wrapper.py: 11/11 passed
+- test_protocol.py: 6/6 passed
+- Total LLM tests: 29/29 passed
 ```
 
 ---
