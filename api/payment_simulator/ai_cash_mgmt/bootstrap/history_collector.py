@@ -117,17 +117,18 @@ class TransactionHistoryCollector:
             events: List of event dictionaries from simulation.
         """
         for event in events:
-            event_type = event.get("event_type")
+            event_type = event.get("event_type", "")
 
-            if event_type == "arrival":
+            # Handle both PascalCase (Rust FFI) and snake_case event types
+            if event_type in ("arrival", "Arrival"):
                 self._process_arrival(event)
-            elif event_type == "rtgs_immediate_settlement":
+            elif event_type in ("rtgs_immediate_settlement", "RtgsImmediateSettlement"):
                 self._process_rtgs_settlement(event)
-            elif event_type == "queue2_liquidity_release":
+            elif event_type in ("queue2_liquidity_release", "Queue2LiquidityRelease"):
                 self._process_queue2_release(event)
-            elif event_type == "lsm_bilateral_offset":
+            elif event_type in ("lsm_bilateral_offset", "LsmBilateralOffset"):
                 self._process_lsm_bilateral(event)
-            elif event_type == "lsm_cycle_settlement":
+            elif event_type in ("lsm_cycle_settlement", "LsmCycleSettlement"):
                 self._process_lsm_cycle(event)
             # Ignore other event types
 
@@ -137,7 +138,14 @@ class TransactionHistoryCollector:
         sender_id = str(event["sender_id"])
         receiver_id = str(event["receiver_id"])
         tick = int(event["tick"])
-        deadline_tick = int(event["deadline_tick"])
+
+        # Handle both field name conventions:
+        # - "deadline_tick": absolute tick (test fixtures) → offset = deadline_tick - tick
+        # - "deadline": already an offset (Rust FFI) → offset = deadline
+        if "deadline_tick" in event:
+            deadline_offset = int(event["deadline_tick"]) - tick
+        else:
+            deadline_offset = int(event.get("deadline", 0))
 
         record = _PendingRecord(
             tx_id=tx_id,
@@ -146,7 +154,7 @@ class TransactionHistoryCollector:
             amount=int(event["amount"]),
             priority=int(event["priority"]),
             original_arrival_tick=tick,
-            deadline_offset=deadline_tick - tick,
+            deadline_offset=deadline_offset,
         )
 
         # Store for settlement matching

@@ -84,6 +84,10 @@ class CastroExperiment:
     """When True, run single deterministic evaluation instead of Monte Carlo sampling."""
 
     # Monte Carlo settings (ignored if deterministic=True)
+    # Policy evaluation uses bootstrap resampling:
+    # 1. Runs a single full simulation to collect transaction history
+    # 2. Uses bootstrap resampling to generate policy evaluation samples
+    # 3. Evaluates policies on 3-agent sandbox (SOURCE, TARGET, SINK)
     num_samples: int = 1
     evaluation_ticks: int = 100
 
@@ -239,7 +243,7 @@ def create_exp2(
     Setup:
     - 12 ticks per day
     - Poisson arrivals, LogNormal amounts
-    - 10 seeds for Monte Carlo evaluation
+    - 10 bootstrap samples for Monte Carlo evaluation
 
     Args:
         output_dir: Output directory for results.
@@ -254,7 +258,7 @@ def create_exp2(
         name="exp2",
         description="12-Period Stochastic LVTS-Style",
         scenario_path=Path("configs/exp2_12period.yaml"),
-        num_samples=10,  # Monte Carlo with 10 seeds
+        num_samples=10,  # Bootstrap samples for Monte Carlo evaluation
         evaluation_ticks=12,
         max_iterations=25,
         stability_threshold=0.05,
@@ -281,6 +285,7 @@ def create_exp3(
     Setup:
     - 3 ticks per day (evaluated over 10 ticks minimum)
     - Tests interaction between liquidity and timing decisions
+    - 10 bootstrap samples for Monte Carlo evaluation
 
     Note: Uses minimum evaluation_ticks of 10 for MonteCarloConfig validation.
     The scenario runs 3 ticks per day, remaining ticks are idle.
@@ -298,7 +303,7 @@ def create_exp3(
         name="exp3",
         description="Joint Liquidity & Timing Optimization",
         scenario_path=Path("configs/exp3_joint.yaml"),
-        num_samples=10,  # Monte Carlo with 10 seeds
+        num_samples=10,  # Bootstrap samples for Monte Carlo evaluation
         evaluation_ticks=10,  # Minimum for MonteCarloConfig (ticks 3-9 are idle)
         max_iterations=25,
         stability_threshold=0.05,
