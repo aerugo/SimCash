@@ -41,7 +41,7 @@ def main(
 from payment_simulator.cli.commands.ai_game import ai_game_app
 from payment_simulator.cli.commands.checkpoint import checkpoint_app
 from payment_simulator.cli.commands.db import db_app
-from payment_simulator.cli.commands.experiment import experiment_app
+from payment_simulator.experiments.cli.commands import experiment_app
 from payment_simulator.cli.commands.policy_schema import policy_schema
 from payment_simulator.cli.commands.replay import replay_simulation
 from payment_simulator.cli.commands.run import run_simulation
