@@ -9,8 +9,8 @@
 name: exp2
 description: "12-Period Stochastic LVTS-Style"
 
-# Scenario configuration
-scenario: configs/exp2_12period.yaml
+# Scenario configuration (relative to this file's directory)
+scenario: ../configs/exp2_12period.yaml
 
 # Evaluation settings
 evaluation:
