@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** Phases 0-13 COMPLETED
+**Status:** Phases 0-13 COMPLETED, Phase 14 PLANNED
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -1380,6 +1380,151 @@ for now - the important persistence layer (runner and results) is migrated.
 - Castro display now uses dict events from core (not CastroEvent objects)
 
 See `docs/plans/refactor/phases/phase_13.md` for detailed plan.
+
+---
+
+### Phase 14: Verbose Logging, Audit Display, and CLI Integration to Core
+
+**Status:** PLANNED
+
+**Purpose:** Complete the extraction of reusable experiment infrastructure to core SimCash modules:
+- Task 14.1: Move VerboseConfig and VerboseLogger to core `experiments/runner/verbose.py`
+- Task 14.2: Move `display_experiment_output()` to core `experiments/runner/display.py`
+- Task 14.3: Move `display_audit_output()` to core `experiments/runner/audit.py`
+- Task 14.4: Create generic experiment CLI in core `experiments/cli/`
+- Task 14.5: Update Castro CLI to be thin wrapper using core
+- Task 14.6: Update Castro runner to import verbose/display from core
+- Task 14.7: Delete redundant Castro files
+- Task 14.8: Update documentation
+
+**Components to Move:**
+
+| Component | Current Location | Target Location | Lines |
+|-----------|------------------|-----------------|-------|
+| `VerboseConfig` | `castro/verbose_logging.py` | `experiments/runner/verbose.py` | ~80 |
+| `VerboseLogger` | `castro/verbose_logging.py` | `experiments/runner/verbose.py` | ~350 |
+| `display_experiment_output()` | `castro/display.py` | `experiments/runner/display.py` | ~200 |
+| `display_audit_output()` | `castro/audit_display.py` | `experiments/runner/audit.py` | ~200 |
+| CLI commands | `castro/cli.py` | `experiments/cli/` | ~500 |
+
+**TDD Checklist - Task 14.1: VerboseConfig and VerboseLogger**
+- [ ] Write `api/tests/experiments/runner/test_verbose_core.py`
+- [ ] Test: VerboseConfig default has all flags disabled
+- [ ] Test: VerboseConfig.all_enabled() creates config with all flags True
+- [ ] Test: VerboseConfig.from_cli_flags(verbose=True) enables all
+- [ ] Test: VerboseConfig.any property detects any enabled flag
+- [ ] Test: VerboseLogger creates with VerboseConfig
+- [ ] Test: VerboseLogger.log_iteration_start outputs when enabled
+- [ ] Test: VerboseLogger methods are silent when disabled
+- [ ] Run tests → FAIL
+- [ ] Create `api/payment_simulator/experiments/runner/verbose.py`
+- [ ] Update `__init__.py` exports
+- [ ] Run tests → PASS
+- [ ] Update Castro to import from core
+
+**TDD Checklist - Task 14.2: display_experiment_output()**
+- [ ] Write `api/tests/experiments/runner/test_display_core.py`
+- [ ] Test: display_experiment_output imports from experiments.runner
+- [ ] Test: displays header with run_id
+- [ ] Test: displays events from provider
+- [ ] Test: respects VerboseConfig settings
+- [ ] Run tests → FAIL
+- [ ] Create `api/payment_simulator/experiments/runner/display.py`
+- [ ] Run tests → PASS
+- [ ] Update Castro display.py to re-export from core
+
+**TDD Checklist - Task 14.3: display_audit_output()**
+- [ ] Write `api/tests/experiments/runner/test_audit_core.py`
+- [ ] Test: display_audit_output imports from experiments.runner
+- [ ] Test: displays LLM interaction events
+- [ ] Test: filters by iteration range
+- [ ] Test: displays prompts and responses
+- [ ] Run tests → FAIL
+- [ ] Create `api/payment_simulator/experiments/runner/audit.py`
+- [ ] Run tests → PASS
+- [ ] Delete Castro audit_display.py
+
+**TDD Checklist - Task 14.4: Generic Experiment CLI**
+- [ ] Write `api/tests/experiments/cli/test_cli_core.py`
+- [ ] Test: run command requires config path
+- [ ] Test: run command validates config
+- [ ] Test: replay command requires run_id
+- [ ] Test: results command lists experiments
+- [ ] Test: verbose flags work correctly
+- [ ] Run tests → FAIL
+- [ ] Create `api/payment_simulator/experiments/cli/` package
+  - [ ] `__init__.py` - exports experiment_app
+  - [ ] `run.py` - run command
+  - [ ] `replay.py` - replay command
+  - [ ] `results.py` - results listing
+  - [ ] `common.py` - shared utilities
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 14.5: Update Castro CLI**
+- [ ] Write `experiments/castro/tests/test_cli_uses_core.py`
+- [ ] Test: Castro cli imports from core experiments.cli
+- [ ] Test: Castro cli provides Castro-specific defaults
+- [ ] Run tests → FAIL
+- [ ] Update Castro cli.py to be thin wrapper
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 14.6: Update Castro Runner**
+- [ ] Write `experiments/castro/tests/test_runner_uses_core_verbose.py`
+- [ ] Test: runner imports VerboseConfig from core
+- [ ] Test: runner imports VerboseLogger from core
+- [ ] Run tests → FAIL
+- [ ] Update runner.py imports
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 14.7: Delete Redundant Files**
+- [ ] Write `experiments/castro/tests/test_castro_verbose_deleted.py`
+- [ ] Test: castro/verbose_logging.py doesn't exist
+- [ ] Test: castro/audit_display.py doesn't exist
+- [ ] Run tests → FAIL
+- [ ] Delete verbose_logging.py
+- [ ] Delete audit_display.py
+- [ ] Update display.py to be thin re-export
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 14.8: Update Documentation**
+- [ ] Create `docs/reference/experiments/verbose.md`
+- [ ] Create `docs/reference/experiments/display.md`
+- [ ] Create `docs/reference/experiments/cli.md`
+- [ ] Update `docs/reference/castro/index.md`
+- [ ] Update `docs/reference/experiments/index.md`
+
+**Expected Outcomes:**
+- Core experiments/runner gains ~650 lines (verbose, display, audit)
+- Core experiments/cli gains ~500 lines
+- Castro verbose_logging.py deleted (~430 lines)
+- Castro display.py becomes thin re-export (~30 lines, -170)
+- Castro audit_display.py deleted (~200 lines)
+- Castro cli.py becomes thin wrapper (~100 lines, -400)
+- Net Castro reduction: ~1200 lines
+
+**Notes:**
+```
+2025-12-11: PHASE 14 PLANNED
+
+This phase completes the refactor by moving the last major pieces of reusable
+infrastructure from Castro to core:
+
+1. VerboseConfig/VerboseLogger - generic experiment verbose output
+2. display_experiment_output() - generic experiment display
+3. display_audit_output() - generic LLM audit trail display
+4. CLI commands - generic experiment run/replay/results
+
+After Phase 14, Castro will contain only:
+- constraints.py - CASTRO_CONSTRAINTS (experiment-specific)
+- experiment_config.py - YamlExperimentConfig loading
+- experiment_loader.py - YAML loading utilities
+- runner.py - CastroExperimentRunner (uses core verbose/display)
+- pydantic_llm_client.py - Policy-specific LLM client
+- cli.py - Thin wrapper (~100 lines)
+- display.py - Thin re-export (~30 lines)
+
+See docs/plans/refactor/phases/phase_14.md for detailed TDD specifications.
+```
 
 ---
 
