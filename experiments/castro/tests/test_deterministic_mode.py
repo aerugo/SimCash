@@ -72,7 +72,7 @@ class TestCastroExperimentDeterministic:
 
     def test_experiment_deterministic_default_false(self) -> None:
         """Experiments default to non-deterministic."""
-        from castro.experiments import CastroExperiment
+        from castro.experiment_config import CastroExperiment
 
         exp = CastroExperiment(
             name="test",
@@ -84,7 +84,7 @@ class TestCastroExperimentDeterministic:
 
     def test_experiment_deterministic_explicit_true(self) -> None:
         """Experiments can be set to deterministic mode."""
-        from castro.experiments import CastroExperiment
+        from castro.experiment_config import CastroExperiment
 
         exp = CastroExperiment(
             name="test",
@@ -96,7 +96,7 @@ class TestCastroExperimentDeterministic:
 
     def test_experiment_deterministic_propagates_to_bootstrap_config(self) -> None:
         """Deterministic flag flows to BootstrapConfig."""
-        from castro.experiments import CastroExperiment
+        from castro.experiment_config import CastroExperiment
 
         exp = CastroExperiment(
             name="test",
@@ -112,7 +112,7 @@ class TestCastroExperimentDeterministic:
 
     def test_experiment_non_deterministic_respects_num_samples(self) -> None:
         """Non-deterministic experiments respect num_samples."""
-        from castro.experiments import CastroExperiment
+        from castro.experiment_config import CastroExperiment
 
         exp = CastroExperiment(
             name="test",
@@ -132,16 +132,21 @@ class TestExp1Deterministic:
 
     def test_exp1_is_deterministic(self) -> None:
         """Exp1 (2-period Nash) should use deterministic mode."""
-        from castro.experiments import create_exp1
+        from castro.experiment_config import YamlExperimentConfig
+        from castro.experiment_loader import load_experiment
 
-        exp = create_exp1()
-        assert exp.deterministic is True
+        config_dict = load_experiment("exp1")
+        exp = YamlExperimentConfig(config_dict)
+        bootstrap_config = exp.get_bootstrap_config()
+        assert bootstrap_config.deterministic is True
 
     def test_exp1_bootstrap_config_is_deterministic(self) -> None:
         """Exp1's BootstrapConfig should be deterministic with 1 sample."""
-        from castro.experiments import create_exp1
+        from castro.experiment_config import YamlExperimentConfig
+        from castro.experiment_loader import load_experiment
 
-        exp = create_exp1()
+        config_dict = load_experiment("exp1")
+        exp = YamlExperimentConfig(config_dict)
         mc_config = exp.get_bootstrap_config()
 
         assert mc_config.deterministic is True
@@ -279,7 +284,7 @@ class TestEvaluatePoliciesDeterministic:
         """In deterministic mode, only one simulation runs."""
         # This test will verify the runner behavior once implemented
         # For now, just verify the config is set up correctly
-        from castro.experiments import CastroExperiment
+        from castro.experiment_config import CastroExperiment
 
         exp = CastroExperiment(
             name="test",

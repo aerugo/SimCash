@@ -932,15 +932,68 @@ See [phases/phase_10.md](./phases/phase_10.md) for detailed TDD test specificati
 
 ---
 
+## Phase 11: Infrastructure Generalization - StateProvider and Persistence
+
+Phase 11 addresses the high-risk tasks deferred from Phase 10. These involve generalizing Castro's infrastructure patterns into core SimCash modules.
+
+### Components to Move to Core
+
+| Component | Current Location | Target Location | Risk |
+|-----------|------------------|-----------------|------|
+| `StateProvider` protocol | `castro/state_provider.py` | `experiments/runner/state_provider.py` | High |
+| `ExperimentRepository` | `castro/persistence/` | `experiments/persistence/repository.py` | High |
+
+### Key Features
+
+1. **StateProvider Protocol**: Enables replay identity - identical output when replaying from database
+2. **Unified Persistence**: Single repository pattern for all experiment types
+
+### Tasks
+
+| Task | Description | Risk |
+|------|-------------|------|
+| 11.1 | Generalize StateProvider Protocol | High |
+| 11.2 | Unify Persistence Layer | High |
+
+### TDD Test Coverage
+
+| Test File | Tests |
+|-----------|-------|
+| `test_state_provider_core.py` | ~15 tests for protocol and implementations |
+| `test_experiment_repository.py` | ~20 tests for repository operations |
+| **Total** | **~35 new tests** |
+
+### Expected Outcomes
+
+| Category | Change |
+|----------|--------|
+| Core experiments/runner | +150 lines |
+| Core experiments/persistence | +300 lines |
+| Castro state_provider.py | -200 lines |
+| Castro persistence/ | -200 lines |
+| **Net Castro Reduction** | **~400 lines** |
+
+**Total reduction after Phase 9+10+11**: ~1125 lines
+
+### Risk Mitigation
+
+- **StateProvider**: Start with minimal protocol, extend as needed
+- **Persistence**: New tables alongside old, migration script with dry-run mode, backup before migration
+
+See [phases/phase_11.md](./phases/phase_11.md) for detailed TDD test specifications.
+
+---
+
 ## Related Documents
 
 - [Development Plan](./development-plan.md) - Phase-by-phase implementation
 - [Work Notes](./work_notes.md) - Progress tracking
 - [Phase 9 Plan](./phases/phase_9.md) - Castro Module Slimming
 - [Phase 10 Plan](./phases/phase_10.md) - Deep Integration
+- [Phase 11 Plan](./phases/phase_11.md) - Infrastructure Generalization
 - [Castro Architecture Refactor](../castro-architecture-refactor.md) - Bug fixes
 - [Bootstrap Refactor](../bootstrap-refactor/refactor-conceptual-plan.md) - Completed
 
 ---
 
-*Document Version 1.2 - Added Phase 10 (Deep Integration)*
+*Document Version 1.3 - Added Phase 11 (Infrastructure Generalization)*
