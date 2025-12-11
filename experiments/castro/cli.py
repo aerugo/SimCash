@@ -422,10 +422,8 @@ def replay(
         # Show audit trail for iterations 2-3
         castro replay exp1-20251209-143022-a1b2c3 --audit --start 2 --end 3
     """
-    import duckdb
-
     from castro.display import VerboseConfig, display_experiment_output
-    from castro.state_provider import DatabaseExperimentProvider
+    from payment_simulator.experiments.persistence import ExperimentRepository
 
     # Validate audit options
     if start is not None and start < 0:
@@ -447,21 +445,21 @@ def replay(
         console.print(f"[red]Database not found: {db}[/red]")
         raise typer.Exit(1)
 
-    # Connect to database
+    # Open repository (uses core ExperimentRepository)
     try:
-        conn = duckdb.connect(str(db), read_only=True)
+        repo = ExperimentRepository(db)
     except Exception as e:
         console.print(f"[red]Failed to open database: {e}[/red]")
         raise typer.Exit(1) from e
 
-    # Create provider
-    provider = DatabaseExperimentProvider(conn=conn, run_id=run_id)
+    # Create provider using StateProvider pattern
+    provider = repo.as_state_provider(run_id)
 
     # Check run exists
     metadata = provider.get_run_metadata()
     if metadata is None:
         console.print(f"[red]Run not found: {run_id}[/red]")
-        conn.close()
+        repo.close()
         raise typer.Exit(1)
 
     # Handle audit mode
@@ -488,7 +486,7 @@ def replay(
         # Display output using unified function
         display_experiment_output(provider, console, verbose_config)
 
-    conn.close()
+    repo.close()
 
 
 @app.command()

@@ -7,14 +7,14 @@ Provides detailed audit trail output for replay --audit mode, including:
 
 Example:
     >>> from castro.audit_display import display_audit_output
-    >>> from castro.state_provider import DatabaseExperimentProvider
-    >>> provider = DatabaseExperimentProvider(conn, "exp1-20251209-143022")
+    >>> from payment_simulator.experiments.runner import DatabaseStateProvider
+    >>> provider = repo.as_state_provider("exp1-20251209-143022")
     >>> display_audit_output(provider, console, start_iteration=2, end_iteration=3)
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -22,23 +22,30 @@ from rich.syntax import Syntax
 
 from payment_simulator.ai_cash_mgmt.events import EVENT_LLM_INTERACTION
 
-from castro.event_compat import CastroEvent
-
 if TYPE_CHECKING:
-    from typing import Any
+    from payment_simulator.experiments.runner import ExperimentStateProviderProtocol
 
-    from castro.state_provider import ExperimentStateProvider
-
-# Backward compatibility alias
-ExperimentEvent = CastroEvent
+# Event type alias - events are dicts from core StateProvider
+ExperimentEvent = dict[str, Any]
 
 
-def _get_event_data(event: Any) -> dict[str, Any]:
-    """Get event data from either CastroEvent or EventRecord.
+def _get_event_data(event: ExperimentEvent) -> dict[str, Any]:
+    """Get event data from event dict.
 
-    CastroEvent has .details, EventRecord has .event_data.
-    This helper supports both.
+    Core StateProvider returns events as dicts with all data directly in the dict.
+    This helper exists for backward compatibility with code that expected
+    separate .details or .event_data attributes.
+
+    Args:
+        event: Event dict from StateProvider.get_all_events()
+
+    Returns:
+        The event dict itself (data is directly in the dict)
     """
+    # Events from core are already dicts with all data
+    if isinstance(event, dict):
+        return event
+    # Legacy support for objects with attributes
     if hasattr(event, "details"):
         return event.details
     if hasattr(event, "event_data"):
@@ -47,7 +54,7 @@ def _get_event_data(event: Any) -> dict[str, Any]:
 
 
 def display_audit_output(
-    provider: ExperimentStateProvider,
+    provider: ExperimentStateProviderProtocol,
     console: Console,
     start_iteration: int | None = None,
     end_iteration: int | None = None,
@@ -58,7 +65,7 @@ def display_audit_output(
     including raw LLM prompts, responses, validation results, and evaluation data.
 
     Args:
-        provider: State provider (DatabaseExperimentProvider for replay).
+        provider: State provider (core ExperimentStateProviderProtocol).
         console: Rich Console for output.
         start_iteration: First iteration to display (inclusive). None = from start.
         end_iteration: Last iteration to display (inclusive). None = to end.
@@ -84,19 +91,19 @@ def display_audit_output(
     )
     console.print()
 
-    # Get all events
+    # Get all events (events are dicts from core StateProvider)
     all_events = list(provider.get_all_events())
 
-    # Filter to LLM interaction events
-    llm_events = [e for e in all_events if e.event_type == EVENT_LLM_INTERACTION]
+    # Filter to LLM interaction events (event_type is a key in the dict)
+    llm_events = [e for e in all_events if e.get("event_type") == EVENT_LLM_INTERACTION]
 
     if not llm_events:
         console.print("[yellow]No LLM interaction events found for this run.[/yellow]")
         console.print("Note: Audit data is only available for runs that captured LLM interactions.")
         return
 
-    # Get unique iterations and apply filters
-    iterations = sorted({e.iteration for e in llm_events})
+    # Get unique iterations and apply filters (iteration is a key in the dict)
+    iterations = sorted({e.get("iteration", 0) for e in llm_events})
 
     if start_iteration is not None:
         iterations = [i for i in iterations if i >= start_iteration]
@@ -113,7 +120,7 @@ def display_audit_output(
         console.print()
 
         # Get events for this iteration
-        iter_events = [e for e in llm_events if e.iteration == iteration]
+        iter_events = [e for e in llm_events if e.get("iteration") == iteration]
 
         # Group by agent
         agents = sorted({_get_event_data(e).get("agent_id", "unknown") for e in iter_events})
