@@ -42,7 +42,7 @@ from rich.console import Console
 from castro.constraints import CASTRO_CONSTRAINTS
 from castro.context_builder import BootstrapContextBuilder
 from castro.events import create_llm_interaction_event
-from castro.experiments import CastroExperiment
+from castro.experiment_config import CastroExperiment
 from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
 from castro.pydantic_llm_client import (
     AuditCaptureLLMClient,
@@ -187,7 +187,7 @@ class ExperimentRunner:
             else None
         )
         self._convergence_config = experiment.get_convergence_criteria()
-        self._monte_carlo_config = experiment.get_monte_carlo_config()
+        self._bootstrap_config = experiment.get_bootstrap_config()
         self._model_config = experiment.get_model_config()
 
         # Core components
@@ -277,12 +277,12 @@ class ExperimentRunner:
             console.print(f"  [bold]Run ID: {self._run_id}[/bold]")
             console.print(f"  Description: {self._experiment.description}")
             console.print(f"  Max iterations: {self._convergence_config.max_iterations}")
-            if self._monte_carlo_config.deterministic:
+            if self._bootstrap_config.deterministic:
                 console.print("  Evaluation mode: [cyan]Deterministic[/cyan] (single evaluation)")
             else:
                 console.print(
                     f"  Evaluation mode: [green]Bootstrap[/green] "
-                    f"({self._monte_carlo_config.num_samples} samples)"
+                    f"({self._bootstrap_config.num_samples} samples)"
                 )
             console.print(f"  LLM model: {self._model_config.model}")
             console.print()
@@ -326,7 +326,7 @@ class ExperimentRunner:
                         seed_results=seed_results,
                         mean_cost=mean_cost,
                         std_cost=std_cost,
-                        deterministic=self._monte_carlo_config.deterministic,
+                        deterministic=self._bootstrap_config.deterministic,
                         is_baseline_run=is_baseline_run,
                     )
 
@@ -686,7 +686,7 @@ class ExperimentRunner:
         result = self._sim_runner.run_simulation(
             policy=policy,
             seed=seed,
-            ticks=self._monte_carlo_config.evaluation_ticks,
+            ticks=self._bootstrap_config.evaluation_ticks,
             capture_verbose=True,  # Need events for history collection
         )
 
@@ -757,7 +757,7 @@ class ExperimentRunner:
             msg = "Bootstrap components not initialized"
             raise RuntimeError(msg)
 
-        num_samples = self._monte_carlo_config.num_samples
+        num_samples = self._bootstrap_config.num_samples
         total_costs: list[int] = []
         per_agent_totals: dict[str, list[int]] = {
             agent_id: [] for agent_id in self._experiment.optimized_agents
@@ -787,7 +787,7 @@ class ExperimentRunner:
                 n_samples=num_samples,
                 outgoing_records=history.outgoing,
                 incoming_records=history.incoming,
-                total_ticks=self._monte_carlo_config.evaluation_ticks,
+                total_ticks=self._bootstrap_config.evaluation_ticks,
             )
 
             # Store samples for paired comparison
@@ -871,8 +871,8 @@ class ExperimentRunner:
             master_seed=self._experiment.master_seed,
             game_mode="campaign_learning",
             config_json=json.dumps({
-                "num_samples": self._monte_carlo_config.num_samples,
-                "evaluation_ticks": self._monte_carlo_config.evaluation_ticks,
+                "num_samples": self._bootstrap_config.num_samples,
+                "evaluation_ticks": self._bootstrap_config.evaluation_ticks,
                 "max_iterations": self._convergence_config.max_iterations,
             }),
             started_at=datetime.now(),
@@ -902,7 +902,7 @@ class ExperimentRunner:
             game_id=self._experiment.name,
             agent_id=result.agent_id,
             iteration_number=iteration,
-            trigger_tick=iteration * self._monte_carlo_config.evaluation_ticks,
+            trigger_tick=iteration * self._bootstrap_config.evaluation_ticks,
             old_policy_json=json.dumps(result.old_policy),
             new_policy_json=json.dumps(result.new_policy) if result.new_policy else "{}",
             old_cost=result.old_cost,
