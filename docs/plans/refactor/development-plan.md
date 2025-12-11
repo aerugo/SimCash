@@ -2438,6 +2438,187 @@ After all phases are complete, the following files can be safely deleted:
 
 ---
 
+---
+
+## Phase 9: Castro Module Slimming
+
+**Duration**: 1-2 days
+**Risk**: Low
+**Breaking Changes**: None (internal cleanup)
+
+### Objectives
+
+Reduce Castro module complexity by removing redundant code and leveraging core SimCash modules.
+
+### Current State Analysis
+
+After meticulous review of every file in `experiments/castro/`, the following issues were identified:
+
+| Issue | Severity | File(s) |
+|-------|----------|---------|
+| Terminology bug (monte_carlo → bootstrap) | High | `events.py` |
+| Duplicate VerboseConfig classes | High | `verbose_logging.py`, `display.py` |
+| Redundant experiments.py | High | `experiments.py` |
+| Obsolete context_builder.py | Medium | `context_builder.py` |
+| Complex runner.py | Medium | `runner.py` |
+
+### Tasks
+
+#### 9.1: Fix Terminology Bug in events.py
+
+**File**: `experiments/castro/castro/events.py`
+
+| Old | New |
+|-----|-----|
+| `EVENT_MONTE_CARLO_EVALUATION` | `EVENT_BOOTSTRAP_EVALUATION` |
+| `create_monte_carlo_event()` | `create_bootstrap_evaluation_event()` |
+
+#### 9.2: Consolidate VerboseConfig
+
+**Problem**: Two different VerboseConfig classes with different field names:
+- `verbose_logging.py`: `policy`, `bootstrap`, `llm`, `rejections`, `debug`
+- `display.py`: `show_iterations`, `show_bootstrap`, `show_llm_calls`, `show_policy_changes`, `show_rejections`
+
+**Solution**:
+1. Keep `verbose_logging.py` VerboseConfig as the single source of truth
+2. Update `display.py` to import from `verbose_logging.py`
+3. Align field names to be consistent
+
+#### 9.3: Delete experiments.py
+
+**Problem**: `experiments.py` contains:
+- `CastroExperiment` dataclass (~50 lines)
+- `create_exp1()`, `create_exp2()`, `create_exp3()` factories (~100 lines each)
+- `EXPERIMENTS` dict
+
+**Solution**:
+1. Already have `experiments/exp1.yaml`, `exp2.yaml`, `exp3.yaml`
+2. Create YAML loader to replace Python factories
+3. Delete `experiments.py`
+
+**Migration**:
+```python
+# OLD (experiments.py)
+from castro.experiments import EXPERIMENTS
+exp = EXPERIMENTS["exp1"](model="anthropic:claude-sonnet-4-5")
+
+# NEW (YAML-based)
+from castro.experiment_loader import load_experiment
+exp = load_experiment("exp1", model_override="anthropic:claude-sonnet-4-5")
+```
+
+#### 9.4: Delete context_builder.py
+
+**Problem**: `context_builder.py` contains `BootstrapContextBuilder` that works with `SimulationResult` objects (old pattern).
+
+**Reason to delete**: `bootstrap_context.py` contains `EnrichedBootstrapContextBuilder` that works with `EnrichedEvaluationResult` (new pattern from Phase 0.5).
+
+**Verification before deletion**:
+```bash
+grep -r "from castro.context_builder import" experiments/castro/
+grep -r "BootstrapContextBuilder" experiments/castro/ --include="*.py"
+```
+
+#### 9.5: Simplify runner.py
+
+**Current**: 936 lines with many responsibilities.
+
+**Target changes**:
+- Extract experiment loading to separate module
+- Use YAML configs instead of `CastroExperiment` dataclass
+- Remove any unused helper methods
+- Target: < 700 lines
+
+#### 9.6: Update cli.py
+
+**Current**: Imports from `experiments.py` EXPERIMENTS dict.
+
+**Change**: Import from YAML-based experiment loader.
+
+### Files Summary
+
+| Action | File | Reason |
+|--------|------|--------|
+| DELETE | `experiments.py` | Redundant with YAML configs |
+| DELETE | `context_builder.py` | Replaced by `bootstrap_context.py` |
+| MODIFY | `events.py` | Fix terminology |
+| MODIFY | `display.py` | Remove duplicate VerboseConfig |
+| MODIFY | `verbose_logging.py` | Keep as single VerboseConfig source |
+| MODIFY | `runner.py` | Simplify, use YAML loading |
+| MODIFY | `cli.py` | Update imports |
+| MODIFY | `__init__.py` | Update exports |
+| CREATE | `experiment_loader.py` | YAML experiment loading (~50 lines) |
+
+### TDD Tests
+
+```python
+# tests/test_experiment_loader.py
+"""Tests for YAML experiment loading."""
+
+import pytest
+from pathlib import Path
+from castro.experiment_loader import load_experiment, list_experiments
+
+
+class TestExperimentLoader:
+    """Tests for experiment loading from YAML."""
+
+    def test_load_experiment_from_yaml(self) -> None:
+        """load_experiment loads config from YAML file."""
+        exp = load_experiment("exp1")
+        assert exp.name == "exp1"
+        assert exp.description == "2-Period Deterministic Nash Equilibrium"
+
+    def test_load_experiment_with_model_override(self) -> None:
+        """load_experiment allows model override."""
+        exp = load_experiment("exp1", model_override="openai:gpt-4o")
+        assert exp.get_model_config().model == "openai:gpt-4o"
+
+    def test_list_experiments_returns_available(self) -> None:
+        """list_experiments returns all YAML experiment names."""
+        exps = list_experiments()
+        assert "exp1" in exps
+        assert "exp2" in exps
+        assert "exp3" in exps
+
+    def test_load_nonexistent_experiment_raises(self) -> None:
+        """load_experiment raises for unknown experiment."""
+        with pytest.raises(FileNotFoundError):
+            load_experiment("nonexistent")
+```
+
+### Verification
+
+```bash
+# Run Castro tests
+cd experiments/castro && uv run pytest tests/ -v
+
+# Verify no remaining Monte Carlo terminology
+grep -r "monte_carlo" experiments/castro/castro/ --include="*.py"
+grep -r "MONTE_CARLO" experiments/castro/castro/ --include="*.py"
+
+# Verify experiments still work
+uv run castro run exp1 --max-iter 1 --verbose
+
+# Verify replay still works
+uv run castro replay <run_id> --verbose
+```
+
+### Expected Outcome
+
+**Lines of code removed**: ~400
+- `experiments.py`: ~350 lines
+- `context_builder.py`: ~100 lines
+- Duplicate VerboseConfig: ~50 lines
+
+**Lines of code added**: ~100
+- `experiment_loader.py`: ~50 lines
+- Tests: ~50 lines
+
+**Net reduction**: ~300 lines
+
+---
+
 ## Timeline Summary
 
 | Phase | Duration | Dependencies |
@@ -2448,12 +2629,16 @@ After all phases are complete, the following files can be safely deleted:
 | Phase 2: LLM Module | 2-3 days | Phase 1 |
 | Phase 3: Experiment Config | 2-3 days | Phase 1 |
 | Phase 4: Experiment Runner | 3-4 days | Phases 2, 3 |
-| Phase 5: CLI Commands | 2 days | Phase 4 |
+| Phase 4.5: Bootstrap Integration Tests | 1-2 days | Phase 4 |
+| Phase 4.6: Terminology Cleanup | 0.5 days | Phase 4.5 |
+| Phase 5: CLI Commands | 2 days | Phase 4.6 |
 | Phase 6: Castro Migration | 2-3 days | Phase 5 |
 | Phase 7: Documentation | 2-3 days | Phase 6 |
+| Phase 8: LLMConfig Migration | 1 day | Phase 7 |
+| **Phase 9: Castro Slimming** | **1-2 days** | **Phase 8** |
 
-**Total: ~18-24 days**
+**Total: ~20-28 days**
 
 ---
 
-*Document Version 1.1 - Added Phase 0, 0.5, and Files to Delete*
+*Document Version 1.2 - Added Phase 9 (Castro Module Slimming)*
