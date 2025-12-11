@@ -29,7 +29,7 @@ optimized_agents: <dict>             # Required: Agents to optimize
 default_llm_config: <LLMConfig>      # Required: Default LLM settings
 
 optimization_schedule: <Schedule>    # Default: on_simulation_end
-monte_carlo: <MonteCarloConfig>      # Default: see below
+bootstrap: <BootstrapConfig>         # Default: see below
 convergence: <ConvergenceCriteria>   # Default: see below
 output: <OutputConfig>               # Optional: Persistence settings
 ```
@@ -148,16 +148,16 @@ optimization_schedule:
 
 ---
 
-#### `monte_carlo`
+#### `bootstrap`
 
-**Type**: `MonteCarloConfig`
+**Type**: `BootstrapConfig`
 **Required**: No
-**Default**: See MonteCarloConfig defaults
+**Default**: See BootstrapConfig defaults
 
-Monte Carlo sampling configuration.
+Bootstrap sampling configuration for policy evaluation.
 
 ```yaml
-monte_carlo:
+bootstrap:
   num_samples: 20
   sample_method: bootstrap
   evaluation_ticks: 100
@@ -335,9 +335,9 @@ thinking_budget: 32000
 
 ---
 
-## MonteCarloConfig
+## BootstrapConfig
 
-Monte Carlo sampling configuration.
+Bootstrap sampling configuration for policy evaluation.
 
 ### Schema
 
@@ -357,7 +357,7 @@ parallel_workers: <int>              # Default: 1
 **Constraint**: `5 <= num_samples <= 1000`
 **Default**: `20`
 
-Number of Monte Carlo samples per evaluation.
+Number of bootstrap samples per evaluation.
 
 ```yaml
 num_samples: 20
@@ -373,7 +373,7 @@ num_samples: 20
 
 | Value | Description | Use Case |
 |-------|-------------|----------|
-| `bootstrap` | Sample with replacement | Standard Monte Carlo |
+| `bootstrap` | Sample with replacement | Standard bootstrap resampling |
 | `permutation` | Shuffle order, preserve all | Test arrival order effects |
 | `stratified` | Sample within quartiles | Preserve amount distribution |
 
@@ -604,7 +604,7 @@ default_llm_config:
 optimization_schedule:
   type: on_simulation_end
 
-monte_carlo:
+bootstrap:
   num_samples: 10
   sample_method: bootstrap
   evaluation_ticks: 12
@@ -629,7 +629,7 @@ output:
 |-----------|------|
 | GameConfig | `api/payment_simulator/ai_cash_mgmt/config/game_config.py` |
 | LLMConfig | `api/payment_simulator/ai_cash_mgmt/config/llm_config.py` |
-| MonteCarloConfig | `api/payment_simulator/ai_cash_mgmt/config/game_config.py` |
+| BootstrapConfig | `api/payment_simulator/ai_cash_mgmt/config/game_config.py` |
 | ConvergenceCriteria | `api/payment_simulator/ai_cash_mgmt/config/game_config.py` |
 | CLI validation | `api/payment_simulator/cli/commands/ai_game.py` |
 
