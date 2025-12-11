@@ -332,3 +332,58 @@ output:
 
         config = ExperimentConfig.from_yaml(yaml_path)
         assert config.llm.thinking_budget == 8000
+
+    def test_with_seed_returns_new_config(self, valid_yaml_path: Path) -> None:
+        """with_seed() returns new config with different seed."""
+        from payment_simulator.experiments.config.experiment_config import (
+            ExperimentConfig,
+        )
+
+        config = ExperimentConfig.from_yaml(valid_yaml_path)
+        original_seed = config.master_seed
+
+        new_config = config.with_seed(99999)
+
+        # New config has new seed
+        assert new_config.master_seed == 99999
+        # Original config unchanged (frozen)
+        assert config.master_seed == original_seed
+        # Other fields preserved
+        assert new_config.name == config.name
+        assert new_config.evaluation == config.evaluation
+        assert new_config.convergence == config.convergence
+        assert new_config.llm == config.llm
+        assert new_config.optimized_agents == config.optimized_agents
+
+    def test_with_seed_preserves_all_fields(self, valid_yaml_path: Path) -> None:
+        """with_seed() preserves all other config fields."""
+        from payment_simulator.experiments.config.experiment_config import (
+            ExperimentConfig,
+        )
+
+        config = ExperimentConfig.from_yaml(valid_yaml_path)
+        new_config = config.with_seed(12345)
+
+        # All fields should be identical except master_seed
+        assert new_config.name == config.name
+        assert new_config.description == config.description
+        assert new_config.scenario_path == config.scenario_path
+        assert new_config.evaluation == config.evaluation
+        assert new_config.convergence == config.convergence
+        assert new_config.llm == config.llm
+        assert new_config.optimized_agents == config.optimized_agents
+        assert new_config.constraints_module == config.constraints_module
+        assert new_config.output == config.output
+        assert new_config.policy_constraints == config.policy_constraints
+
+    def test_with_seed_returns_frozen_config(self, valid_yaml_path: Path) -> None:
+        """with_seed() returns a frozen (immutable) config."""
+        from payment_simulator.experiments.config.experiment_config import (
+            ExperimentConfig,
+        )
+
+        config = ExperimentConfig.from_yaml(valid_yaml_path)
+        new_config = config.with_seed(12345)
+
+        with pytest.raises(AttributeError):
+            new_config.master_seed = 99999  # type: ignore

@@ -554,9 +554,10 @@ def run(
     # Show what we loaded
     console.print(f"[cyan]Loaded experiment: {config.name}[/cyan]")
 
-    # Handle seed override (note: frozen dataclass, so we log but can't modify)
+    # Handle seed override
     if seed is not None:
-        console.print(f"[yellow]Note: Seed override ({seed}) not yet implemented[/yellow]")
+        config = config.with_seed(seed)
+        console.print(f"[cyan]Using seed override: {seed}[/cyan]")
 
     # Dry run mode - just validate
     if dry_run:
