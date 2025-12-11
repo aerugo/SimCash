@@ -1,6 +1,6 @@
 ---
 name: docs-navigator
-description: Documentation finder for this codebase. Use PROACTIVELY when user asks "where is X documented?", needs documentation structure, is new to the codebase, or asks about conventions and patterns.
+description: Documentation finder for this codebase. Use PROACTIVELY when user or another agent asks "where is X documented?", "how do I run/configure/use X?", needs to find CLI command docs, wants to understand the documentation structure, is new to the codebase, or asks about conventions, patterns, or best practices. The docs are extensive so this agent helps find the right reference quickly.
 tools: Read, Glob, Grep
 model: haiku
 ---
