@@ -554,18 +554,18 @@ DESIGN DECISIONS:
 
 ### Phase 6: Castro Migration
 
-**Status:** Not Started
+**Status:** In Progress (2025-12-10)
 
 **Preparation:**
-- [ ] Audit current Castro code for dependencies
-- [ ] Document current experiment definitions (exp1, exp2, exp3)
-- [ ] Create migration checklist for each experiment
+- [x] Audit current Castro code for dependencies
+- [x] Document current experiment definitions (exp1, exp2, exp3)
+- [x] Create migration checklist for each experiment
 
 **YAML Creation:**
-- [ ] Create `experiments/castro/experiments/exp1.yaml`
-- [ ] Create `experiments/castro/experiments/exp2.yaml`
-- [ ] Create `experiments/castro/experiments/exp3.yaml`
-- [ ] Validate YAML files with experiment framework
+- [x] Create `experiments/castro/experiments/exp1.yaml`
+- [x] Create `experiments/castro/experiments/exp2.yaml`
+- [x] Create `experiments/castro/experiments/exp3.yaml`
+- [x] Validate YAML files with experiment framework
 
 **Code Migration:**
 - [ ] Update Castro CLI to use `payment_simulator.llm`
@@ -581,11 +581,39 @@ DESIGN DECISIONS:
 - [ ] Run `castro run exp3` - verify works
 - [ ] Run `castro replay` - verify works
 - [ ] All Castro tests pass
-- [ ] Commit Phase 5 changes
+- [ ] Commit Phase 6 changes
 
 **Notes:**
 ```
-(Add notes as work progresses)
+2025-12-10: YAML CONFIGS CREATED
+
+Created experiment YAML configs in experiments/castro/experiments/:
+1. exp1.yaml - 2-Period Deterministic Nash Equilibrium
+   - Mode: deterministic (no bootstrap sampling)
+   - Ticks: 2
+   - Validates fixed transaction scenarios
+
+2. exp2.yaml - 12-Period Stochastic LVTS-Style
+   - Mode: bootstrap (10 samples)
+   - Ticks: 12
+   - Poisson arrivals, LogNormal amounts
+
+3. exp3.yaml - Joint Liquidity & Timing Optimization
+   - Mode: bootstrap (10 samples)
+   - Ticks: 10
+   - Tests interaction between liquidity and timing
+
+All YAML configs validated with `payment-sim experiment validate`.
+Listed successfully with `payment-sim experiment list`.
+
+REMAINING CODE MIGRATION:
+Castro currently has its own:
+- model_config.py (similar to LLMConfig)
+- pydantic_llm_client.py (similar to PydanticAILLMClient)
+- experiments.py (factory functions, can load from YAML)
+
+These can be gradually migrated to use payment_simulator modules.
+The YAML configs enable loading experiments without code changes.
 ```
 
 ---

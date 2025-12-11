@@ -1,0 +1,52 @@
+# Experiment 3: Joint Liquidity & Timing
+# Optimizes both initial collateral AND payment timing jointly.
+#
+# Setup:
+# - 3 ticks per day (evaluated over 10 ticks minimum)
+# - Tests interaction between liquidity and timing decisions
+# - 10 bootstrap samples for evaluation
+#
+# Note: Uses minimum evaluation_ticks of 10 for BootstrapConfig validation.
+# The scenario runs 3 ticks per day, remaining ticks are idle.
+
+name: exp3
+description: "Joint Liquidity & Timing Optimization"
+
+# Scenario configuration
+scenario: configs/exp3_joint.yaml
+
+# Evaluation settings
+evaluation:
+  mode: bootstrap
+  num_samples: 10  # Bootstrap samples for evaluation
+  ticks: 10  # Minimum for BootstrapConfig (ticks 3-9 are idle)
+
+# Convergence criteria
+convergence:
+  max_iterations: 25
+  stability_threshold: 0.05
+  stability_window: 5
+
+# LLM configuration
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+  temperature: 0.0
+  max_retries: 3
+  timeout_seconds: 120
+
+# Agents to optimize
+optimized_agents:
+  - BANK_A
+  - BANK_B
+
+# Constraints module (Castro-specific)
+constraints: castro.constraints.CASTRO_CONSTRAINTS
+
+# Output settings
+output:
+  directory: results
+  database: exp3.db
+  verbose: true
+
+# Master seed for reproducibility
+master_seed: 42

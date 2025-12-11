@@ -1,0 +1,49 @@
+# Experiment 2: 12-Period Stochastic
+# LVTS-style realistic scenario with stochastic arrivals.
+#
+# Setup:
+# - 12 ticks per day
+# - Poisson arrivals, LogNormal amounts
+# - 10 bootstrap samples for evaluation
+
+name: exp2
+description: "12-Period Stochastic LVTS-Style"
+
+# Scenario configuration
+scenario: configs/exp2_12period.yaml
+
+# Evaluation settings
+evaluation:
+  mode: bootstrap
+  num_samples: 10  # Bootstrap samples for evaluation
+  ticks: 12
+
+# Convergence criteria
+convergence:
+  max_iterations: 25
+  stability_threshold: 0.05
+  stability_window: 5
+
+# LLM configuration
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+  temperature: 0.0
+  max_retries: 3
+  timeout_seconds: 120
+
+# Agents to optimize
+optimized_agents:
+  - BANK_A
+  - BANK_B
+
+# Constraints module (Castro-specific)
+constraints: castro.constraints.CASTRO_CONSTRAINTS
+
+# Output settings
+output:
+  directory: results
+  database: exp2.db
+  verbose: true
+
+# Master seed for reproducibility
+master_seed: 42
