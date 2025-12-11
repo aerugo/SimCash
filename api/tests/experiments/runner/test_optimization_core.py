@@ -30,6 +30,7 @@ class TestOptimizationLoopImport:
 
         # Use mock config
         mock_config = MagicMock(spec=ExperimentConfig)
+        mock_config.name = "test_experiment"
         mock_config.convergence = MagicMock()
         mock_config.convergence.max_iterations = 10
         mock_config.convergence.stability_threshold = 0.05
@@ -37,6 +38,7 @@ class TestOptimizationLoopImport:
         mock_config.convergence.improvement_threshold = 0.01
         mock_config.evaluation = MagicMock()
         mock_config.evaluation.mode = "deterministic"
+        mock_config.evaluation.num_samples = 1
         mock_config.evaluation.ticks = 2
         mock_config.optimized_agents = ("BANK_A",)
         mock_config.get_constraints.return_value = None
