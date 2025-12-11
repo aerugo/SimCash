@@ -294,14 +294,14 @@ class TestValidatePolicyCommand:
 
     def test_validate_bundled_fifo_policy(self, runner, app):
         """Bundled fifo.json should pass validation."""
-        fifo_path = Path(__file__).parents[3] / "backend" / "policies" / "fifo.json"
+        fifo_path = Path(__file__).parents[3] / "simulator" / "policies" / "fifo.json"
         if fifo_path.exists():
             result = runner.invoke(app, ["validate-policy", str(fifo_path)])
             assert result.exit_code == 0
 
     def test_validate_bundled_liquidity_splitting_policy(self, runner, app):
         """Bundled liquidity_splitting.json should pass validation."""
-        policy_path = Path(__file__).parents[3] / "backend" / "policies" / "liquidity_splitting.json"
+        policy_path = Path(__file__).parents[3] / "simulator" / "policies" / "liquidity_splitting.json"
         if policy_path.exists():
             result = runner.invoke(app, ["validate-policy", str(policy_path)])
             assert result.exit_code == 0
