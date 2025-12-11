@@ -476,6 +476,69 @@ def list_experiments(
 
 
 @experiment_app.command()
+def template(
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "-o",
+            "--output",
+            help="Output file path (stdout if not specified)",
+        ),
+    ] = None,
+) -> None:
+    """Generate an experiment configuration template.
+
+    Creates a YAML template with sensible defaults and all required fields.
+    You can modify this template to create your own experiments.
+
+    Examples:
+        # Print template to stdout
+        payment-sim experiment template
+
+        # Save template to file
+        payment-sim experiment template -o my_experiment.yaml
+    """
+    template_config = {
+        "name": "my_experiment",
+        "description": "Description of your experiment",
+        "scenario": "configs/scenario.yaml",
+        "evaluation": {
+            "mode": "bootstrap",
+            "num_samples": 10,
+            "ticks": 12,
+        },
+        "convergence": {
+            "max_iterations": 50,
+            "stability_threshold": 0.05,
+            "stability_window": 5,
+            "improvement_threshold": 0.01,
+        },
+        "llm": {
+            "model": "anthropic:claude-sonnet-4-5",
+            "temperature": 0.0,
+            "max_retries": 3,
+            "timeout_seconds": 120,
+        },
+        "optimized_agents": ["BANK_A"],
+        "constraints": "your_module.constraints.YOUR_CONSTRAINTS",
+        "output": {
+            "directory": "results",
+            "database": "experiments.db",
+            "verbose": True,
+        },
+        "master_seed": 42,
+    }
+
+    yaml_content = yaml.dump(template_config, default_flow_style=False, sort_keys=False)
+
+    if output:
+        output.write_text(yaml_content)
+        console.print(f"[green]Template written to {output}[/green]")
+    else:
+        console.print(yaml_content)
+
+
+@experiment_app.command()
 def run(
     config_path: Annotated[
         Path,
