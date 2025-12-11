@@ -183,13 +183,13 @@ class TestDisplayEventHandlers:
         assert "Iteration 1" in text
         assert "$150.00" in text  # 15000 cents = $150.00
 
-    def test_display_monte_carlo_event(self) -> None:
-        """display_monte_carlo formats correctly."""
-        from castro.display import display_monte_carlo
+    def test_display_bootstrap_evaluation_event(self) -> None:
+        """display_bootstrap_evaluation formats correctly."""
+        from castro.display import display_bootstrap_evaluation
         from castro.events import ExperimentEvent
 
         event = ExperimentEvent(
-            event_type="monte_carlo_evaluation",
+            event_type="bootstrap_evaluation",
             run_id="exp1-20251209-143022-a1b2c3",
             iteration=1,
             timestamp=datetime.now(),
@@ -206,10 +206,10 @@ class TestDisplayEventHandlers:
         output = StringIO()
         console = Console(file=output, force_terminal=True, width=120)
 
-        display_monte_carlo(event, console)
+        display_bootstrap_evaluation(event, console)
 
         text = strip_ansi(output.getvalue())
-        assert "Monte Carlo" in text
+        assert "Bootstrap" in text
         # Should show mean cost
         assert "$155.00" in text or "15500" in text
 
@@ -283,7 +283,7 @@ class TestVerboseConfig:
         config = VerboseConfig()
 
         assert config.show_iterations is False
-        assert config.show_monte_carlo is False
+        assert config.show_bootstrap is False
         assert config.show_llm_calls is False
         assert config.show_policy_changes is False
 
@@ -294,7 +294,7 @@ class TestVerboseConfig:
         config = VerboseConfig.all_enabled()
 
         assert config.show_iterations is True
-        assert config.show_monte_carlo is True
+        assert config.show_bootstrap is True
         assert config.show_llm_calls is True
         assert config.show_policy_changes is True
 
@@ -305,12 +305,12 @@ class TestVerboseConfig:
         # --verbose enables all
         config = VerboseConfig.from_flags(verbose=True)
         assert config.show_iterations is True
-        assert config.show_monte_carlo is True
+        assert config.show_bootstrap is True
 
         # Individual flags
         config = VerboseConfig.from_flags(
             verbose=False,
-            verbose_monte_carlo=True,
+            verbose_bootstrap=True,
         )
-        assert config.show_monte_carlo is True
+        assert config.show_bootstrap is True
         assert config.show_iterations is False

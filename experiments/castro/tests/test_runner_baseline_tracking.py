@@ -1,9 +1,9 @@
-"""Tests for Monte Carlo baseline tracking in ExperimentRunner.
+"""Tests for bootstrap baseline tracking in ExperimentRunner.
 
 TDD tests for ensuring the runner:
 1. Uses consistent seeds across iterations (for valid comparison)
 2. Stores baseline costs on iteration 1
-3. Passes baseline_cost to MonteCarloSeedResult on iteration 2+
+3. Passes baseline_cost to BootstrapSampleResult on iteration 2+
 4. Passes is_baseline_run flag to verbose logger
 """
 
@@ -61,7 +61,7 @@ class TestBaselineCostTracking:
         pytest.skip("Requires full runner integration - will implement after unit tests pass")
 
     def test_runner_passes_baseline_cost_to_seed_results(self) -> None:
-        """On iteration 2+, MonteCarloSeedResult should have baseline_cost set."""
+        """On iteration 2+, BootstrapSampleResult should have baseline_cost set."""
         pytest.skip("Requires full runner integration - will implement after unit tests pass")
 
 

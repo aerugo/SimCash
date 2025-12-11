@@ -85,35 +85,35 @@ class TestOptimizationSchedule:
         assert schedule.min_remaining_repetitions == 1
 
 
-class TestMonteCarloConfig:
-    """Test Monte Carlo configuration."""
+class TestBootstrapConfig:
+    """Test Bootstrap configuration."""
 
-    def test_monte_carlo_defaults(self) -> None:
-        """MonteCarloConfig should have sensible defaults."""
-        from payment_simulator.ai_cash_mgmt.config.game_config import MonteCarloConfig
+    def test_bootstrap_defaults(self) -> None:
+        """BootstrapConfig should have sensible defaults."""
+        from payment_simulator.ai_cash_mgmt.config.game_config import BootstrapConfig
 
-        config = MonteCarloConfig()
+        config = BootstrapConfig()
 
         assert config.num_samples == 20
         assert config.sample_method == "bootstrap"
         assert config.evaluation_ticks == 100
         assert config.parallel_workers == 8
 
-    def test_monte_carlo_validates_num_samples(self) -> None:
+    def test_bootstrap_validates_num_samples(self) -> None:
         """num_samples must be between 5 and 1000."""
-        from payment_simulator.ai_cash_mgmt.config.game_config import MonteCarloConfig
+        from payment_simulator.ai_cash_mgmt.config.game_config import BootstrapConfig
         from pydantic import ValidationError
 
         # Valid
-        MonteCarloConfig(num_samples=5)
-        MonteCarloConfig(num_samples=1000)
+        BootstrapConfig(num_samples=5)
+        BootstrapConfig(num_samples=1000)
 
         # Invalid
         with pytest.raises(ValidationError):
-            MonteCarloConfig(num_samples=4)
+            BootstrapConfig(num_samples=4)
 
         with pytest.raises(ValidationError):
-            MonteCarloConfig(num_samples=1001)
+            BootstrapConfig(num_samples=1001)
 
 
 class TestConvergenceCriteria:

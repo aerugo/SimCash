@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from castro.model_config import ModelConfig
+from payment_simulator.llm import LLMConfig
 
 
 @dataclass
@@ -204,24 +204,24 @@ class PydanticAILLMClient:
         - google: Gemini models with optional thinking config
 
     Example:
-        >>> config = ModelConfig("anthropic:claude-sonnet-4-5")
+        >>> config = LLMConfig(model="anthropic:claude-sonnet-4-5")
         >>> client = PydanticAILLMClient(config)
         >>> policy = await client.generate_policy(prompt, current, context)
 
         >>> # With extended thinking
-        >>> config = ModelConfig("anthropic:claude-sonnet-4-5", thinking_budget=8000)
+        >>> config = LLMConfig(model="anthropic:claude-sonnet-4-5", thinking_budget=8000)
         >>> client = PydanticAILLMClient(config)
 
         >>> # With high reasoning
-        >>> config = ModelConfig("openai:gpt-5.1", reasoning_effort="high")
+        >>> config = LLMConfig(model="openai:gpt-5.1", reasoning_effort="high")
         >>> client = PydanticAILLMClient(config)
     """
 
-    def __init__(self, config: ModelConfig) -> None:
+    def __init__(self, config: LLMConfig) -> None:
         """Initialize the PydanticAI LLM client.
 
         Args:
-            config: Model configuration with provider:model string.
+            config: LLMConfig with provider:model string.
         """
         self._config = config
         self._agent = Agent(
@@ -460,7 +460,7 @@ def create_llm_client(
         >>> client = create_llm_client("anthropic:claude-sonnet-4-5")
         >>> client = create_llm_client("openai:gpt-5.1", reasoning_effort="high")
     """
-    config = ModelConfig(
+    config = LLMConfig(
         model=model,
         temperature=temperature,
         thinking_budget=thinking_budget,

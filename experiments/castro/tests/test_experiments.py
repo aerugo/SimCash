@@ -104,7 +104,7 @@ class TestExperiments:
         exp = create_exp3()
 
         assert exp.name == "exp3"
-        # Minimum evaluation_ticks for MonteCarloConfig validation
+        # Minimum evaluation_ticks for BootstrapConfig validation
         assert exp.evaluation_ticks == 10  # Ticks 3-9 are idle
 
     def test_experiments_registry(self) -> None:
@@ -131,13 +131,13 @@ class TestExperiments:
         exp = create_exp1(output_dir=custom_dir)
         assert exp.output_dir == custom_dir
 
-    def test_monte_carlo_config(self) -> None:
-        """get_monte_carlo_config should return valid config."""
+    def test_bootstrap_config(self) -> None:
+        """get_bootstrap_config should return valid config."""
         exp = create_exp2()
-        mc_config = exp.get_monte_carlo_config()
+        bootstrap_config = exp.get_bootstrap_config()
 
-        assert mc_config.num_samples == 10
-        assert mc_config.evaluation_ticks == 12
+        assert bootstrap_config.num_samples == 10
+        assert bootstrap_config.evaluation_ticks == 12
 
     def test_convergence_criteria(self) -> None:
         """get_convergence_criteria should return valid config."""
@@ -192,7 +192,7 @@ class TestScenarioConfigs:
         assert config["simulation"]["ticks_per_day"] == 12
         # Should have arrival configs
         for agent in config["agents"]:
-            assert "arrivals" in agent
+            assert "arrival_config" in agent
 
     def test_deferred_crediting_enabled(self, configs_dir: Path) -> None:
         """All configs should have deferred_crediting enabled (Castro rule)."""
