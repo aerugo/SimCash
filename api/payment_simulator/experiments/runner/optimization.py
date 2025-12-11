@@ -6,19 +6,38 @@ All behavior is determined by ExperimentConfig - no hardcoded experiment logic.
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
 if TYPE_CHECKING:
-    from payment_simulator.experiments.config import ExperimentConfig
     from payment_simulator.ai_cash_mgmt.constraints import ScenarioConstraints
+    from payment_simulator.experiments.config import ExperimentConfig
 
 from payment_simulator._core import Orchestrator
 from payment_simulator.ai_cash_mgmt import ConvergenceDetector
 from payment_simulator.config import SimulationConfig
+from payment_simulator.experiments.runner.state_provider import LiveStateProvider
+
+
+def _generate_run_id(experiment_name: str) -> str:
+    """Generate a unique run ID.
+
+    Format: {experiment_name}-{timestamp}-{random_suffix}
+
+    Args:
+        experiment_name: Name of the experiment.
+
+    Returns:
+        Unique run ID string.
+    """
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    suffix = secrets.token_hex(3)
+    return f"{experiment_name}-{timestamp}-{suffix}"
 
 
 @dataclass(frozen=True)
@@ -94,6 +113,7 @@ class OptimizationLoop:
         self,
         config: ExperimentConfig,
         config_dir: Path | None = None,
+        run_id: str | None = None,
     ) -> None:
         """Initialize the optimization loop.
 
@@ -101,9 +121,11 @@ class OptimizationLoop:
             config: ExperimentConfig with all settings.
             config_dir: Directory containing the experiment config (for resolving
                         relative scenario paths). If None, uses current directory.
+            run_id: Optional run ID. If not provided, one is generated.
         """
         self._config = config
         self._config_dir = config_dir or Path.cwd()
+        self._run_id = run_id or _generate_run_id(config.name)
 
         # Get convergence settings
         conv = config.convergence
@@ -129,6 +151,19 @@ class OptimizationLoop:
 
         # LLM client (lazy initialized)
         self._llm_client: Any = None
+
+        # Initialize state provider for event capture (replay identity)
+        self._state_provider = LiveStateProvider(
+            experiment_name=config.name,
+            experiment_type="generic",
+            config={
+                "master_seed": config.master_seed,
+                "max_iterations": config.convergence.max_iterations,
+                "evaluation_mode": config.evaluation.mode,
+                "num_samples": config.evaluation.num_samples,
+            },
+            run_id=self._run_id,
+        )
 
     @property
     def max_iterations(self) -> int:
@@ -176,10 +211,26 @@ class OptimizationLoop:
             Subclasses or the GenericExperimentRunner should implement
             actual evaluation and policy generation.
         """
+        # Record experiment start event
+        self._state_provider.record_event(
+            iteration=0,
+            event_type="experiment_start",
+            event_data={
+                "experiment_name": self._config.name,
+                "max_iterations": self.max_iterations,
+                "num_samples": self._config.evaluation.num_samples,
+                "model": self._config.llm.model,
+                "evaluation_mode": self._config.evaluation.mode,
+            },
+        )
+
         # Initialize policies if not set
         for agent_id in self.optimized_agents:
             if agent_id not in self._policies:
                 self._policies[agent_id] = self._create_default_policy(agent_id)
+
+        # Track per_agent_costs for final result
+        per_agent_costs: dict[str, int] = {}
 
         # Optimization loop
         while self._current_iteration < self.max_iterations:
@@ -187,6 +238,24 @@ class OptimizationLoop:
 
             # Evaluate current policies (to be implemented by subclass)
             total_cost, per_agent_costs = await self._evaluate_policies()
+
+            # Record iteration start event
+            self._state_provider.record_event(
+                iteration=self._current_iteration - 1,  # 0-indexed
+                event_type="iteration_start",
+                event_data={
+                    "iteration": self._current_iteration,
+                    "total_cost": total_cost,
+                },
+            )
+
+            # Record iteration data for state provider
+            self._state_provider.record_iteration(
+                iteration=self._current_iteration - 1,  # 0-indexed
+                costs_per_agent=per_agent_costs,
+                accepted_changes={},  # Updated after optimization
+                policies=self._policies.copy(),
+            )
 
             # Record metrics
             self._convergence.record_metric(float(total_cost))
@@ -207,16 +276,39 @@ class OptimizationLoop:
             for agent_id in self.optimized_agents:
                 await self._optimize_agent(agent_id, per_agent_costs.get(agent_id, 0))
 
+        # Get final cost
+        final_cost = self._iteration_history[-1] if self._iteration_history else 0
+        converged = self._convergence.is_converged
+        convergence_reason = self._convergence.convergence_reason or "max_iterations"
+
+        # Record experiment end event
+        self._state_provider.record_event(
+            iteration=self._current_iteration - 1,
+            event_type="experiment_end",
+            event_data={
+                "final_cost": final_cost,
+                "best_cost": self._best_cost,
+                "converged": converged,
+                "convergence_reason": convergence_reason,
+                "num_iterations": self._current_iteration,
+            },
+        )
+
+        # Set final result in provider
+        self._state_provider.set_final_result(
+            final_cost=final_cost,
+            best_cost=self._best_cost,
+            converged=converged,
+            convergence_reason=convergence_reason,
+        )
+
         return OptimizationResult(
             num_iterations=self._current_iteration,
-            converged=self._convergence.is_converged,
-            convergence_reason=self._convergence.convergence_reason or "max_iterations",
-            final_cost=self._iteration_history[-1] if self._iteration_history else 0,
+            converged=converged,
+            convergence_reason=convergence_reason,
+            final_cost=final_cost,
             best_cost=self._best_cost,
-            per_agent_costs={
-                agent_id: per_agent_costs.get(agent_id, 0)
-                for agent_id in self.optimized_agents
-            } if "per_agent_costs" in dir() else {},
+            per_agent_costs=per_agent_costs,
             final_policies=self._policies.copy(),
             iteration_history=self._iteration_history.copy(),
         )
@@ -329,6 +421,7 @@ class OptimizationLoop:
 
         # Bootstrap mode: run multiple simulations and average
         total_costs: list[int] = []
+        seed_results: list[dict[str, Any]] = []
         per_agent_totals: dict[str, list[int]] = {
             agent_id: [] for agent_id in self.optimized_agents
         }
@@ -341,12 +434,34 @@ class OptimizationLoop:
             for agent_id in self.optimized_agents:
                 per_agent_totals[agent_id].append(agent_costs.get(agent_id, 0))
 
-        # Compute mean costs (as integers)
+            # Track seed results for bootstrap event
+            seed_results.append({
+                "seed": seed,
+                "cost": cost,
+                "settled": 0,  # Would need to track from simulation
+                "total": 0,
+                "settlement_rate": 0.0,
+            })
+
+        # Compute mean and std costs (as integers)
         mean_total = int(sum(total_costs) / len(total_costs))
+        variance = sum((c - mean_total) ** 2 for c in total_costs) / len(total_costs)
+        std_total = int(variance ** 0.5)
         mean_per_agent = {
             agent_id: int(sum(costs) / len(costs))
             for agent_id, costs in per_agent_totals.items()
         }
+
+        # Record bootstrap evaluation event
+        self._state_provider.record_event(
+            iteration=self._current_iteration - 1,  # 0-indexed
+            event_type="bootstrap_evaluation",
+            event_data={
+                "seed_results": seed_results,
+                "mean_cost": mean_total,
+                "std_cost": std_total,
+            },
+        )
 
         return mean_total, mean_per_agent
 
@@ -381,7 +496,6 @@ class OptimizationLoop:
         Returns:
             List of costs (one per sample).
         """
-        import copy
 
         # Temporarily set the policy for evaluation
         original_policy = self._policies.get(agent_id)
