@@ -12,6 +12,7 @@ from typing import Any
 
 import yaml
 
+from payment_simulator.ai_cash_mgmt.constraints import ScenarioConstraints
 from payment_simulator.llm.config import LLMConfig
 
 
@@ -92,9 +93,22 @@ class ExperimentConfig:
           max_iterations: 25
         llm:
           model: "anthropic:claude-sonnet-4-5"
+          system_prompt: |
+            You are an expert in payment optimization.
         optimized_agents:
           - BANK_A
-        constraints: castro.constraints.CASTRO_CONSTRAINTS
+        policy_constraints:
+          allowed_parameters:
+            - name: threshold
+              param_type: int
+              min_value: 0
+              max_value: 100
+          allowed_fields:
+            - balance
+          allowed_actions:
+            payment_tree:
+              - Release
+              - Hold
         output:
           directory: results
 
@@ -106,7 +120,8 @@ class ExperimentConfig:
         convergence: Convergence criteria.
         llm: LLM configuration.
         optimized_agents: Tuple of agent IDs to optimize.
-        constraints_module: Python module path for constraints.
+        constraints_module: Python module path for constraints (legacy).
+        policy_constraints: Inline constraints from YAML (preferred).
         output: Output settings.
         master_seed: Master RNG seed for reproducibility.
     """
@@ -121,6 +136,7 @@ class ExperimentConfig:
     constraints_module: str
     output: OutputConfig
     master_seed: int = 42
+    policy_constraints: ScenarioConstraints | None = None
 
     @classmethod
     def from_yaml(cls, path: Path) -> ExperimentConfig:
@@ -144,20 +160,25 @@ class ExperimentConfig:
         with open(path) as f:
             data = yaml.safe_load(f)
 
-        return cls._from_dict(data)
+        # Pass the YAML directory for resolving relative paths
+        return cls._from_dict(data, yaml_dir=path.parent)
 
     @classmethod
-    def _from_dict(cls, data: dict[str, Any]) -> ExperimentConfig:
+    def _from_dict(
+        cls, data: dict[str, Any], yaml_dir: Path | None = None
+    ) -> ExperimentConfig:
         """Create config from dictionary.
 
         Args:
             data: Dictionary loaded from YAML.
+            yaml_dir: Directory of the YAML file (for resolving relative paths).
 
         Returns:
             ExperimentConfig instance.
 
         Raises:
             ValueError: If required fields are missing.
+            FileNotFoundError: If system_prompt_file doesn't exist.
         """
         # Validate required fields
         required = [
@@ -190,8 +211,10 @@ class ExperimentConfig:
             improvement_threshold=conv_data.get("improvement_threshold", 0.01),
         )
 
-        # Parse LLM config
+        # Parse LLM config with system_prompt handling
         llm_data = data["llm"]
+        system_prompt = cls._resolve_system_prompt(llm_data, yaml_dir)
+
         llm = LLMConfig(
             model=llm_data["model"],
             temperature=llm_data.get("temperature", 0.0),
@@ -199,6 +222,7 @@ class ExperimentConfig:
             timeout_seconds=llm_data.get("timeout_seconds", 120),
             thinking_budget=llm_data.get("thinking_budget"),
             reasoning_effort=llm_data.get("reasoning_effort"),
+            system_prompt=system_prompt,
         )
 
         # Parse output config
@@ -208,6 +232,13 @@ class ExperimentConfig:
             database=out_data.get("database", "experiments.db"),
             verbose=out_data.get("verbose", True),
         )
+
+        # Parse inline policy_constraints if present
+        policy_constraints: ScenarioConstraints | None = None
+        if "policy_constraints" in data:
+            policy_constraints = ScenarioConstraints.model_validate(
+                data["policy_constraints"]
+            )
 
         return cls(
             name=data["name"],
@@ -220,10 +251,55 @@ class ExperimentConfig:
             constraints_module=data.get("constraints", ""),
             output=output,
             master_seed=data.get("master_seed", 42),
+            policy_constraints=policy_constraints,
         )
 
-    def load_constraints(self) -> Any:
+    @classmethod
+    def _resolve_system_prompt(
+        cls, llm_data: dict[str, Any], yaml_dir: Path | None
+    ) -> str | None:
+        """Resolve system_prompt from inline or file.
+
+        Priority:
+        1. Inline system_prompt (takes precedence)
+        2. system_prompt_file (loaded from path)
+        3. None if neither specified
+
+        Args:
+            llm_data: The llm section of the config.
+            yaml_dir: Directory of YAML file for resolving relative paths.
+
+        Returns:
+            System prompt string or None.
+
+        Raises:
+            FileNotFoundError: If system_prompt_file doesn't exist.
+        """
+        # Inline system_prompt takes precedence
+        if "system_prompt" in llm_data:
+            prompt: str = llm_data["system_prompt"]
+            return prompt
+
+        # Load from file if specified
+        if "system_prompt_file" in llm_data:
+            prompt_path = Path(llm_data["system_prompt_file"])
+
+            # Resolve relative path from YAML directory
+            if not prompt_path.is_absolute() and yaml_dir is not None:
+                prompt_path = yaml_dir / prompt_path
+
+            if not prompt_path.exists():
+                msg = f"System prompt file not found: {prompt_path}"
+                raise FileNotFoundError(msg)
+
+            return prompt_path.read_text()
+
+        return None
+
+    def load_constraints(self) -> ScenarioConstraints | None:
         """Dynamically load constraints from module path.
+
+        DEPRECATED: Use get_constraints() instead, which supports inline constraints.
 
         Returns:
             ScenarioConstraints loaded from constraints_module.
@@ -245,4 +321,25 @@ class ExperimentConfig:
 
         module_path, variable_name = parts
         module = importlib.import_module(module_path)
-        return getattr(module, variable_name)
+        constraints: ScenarioConstraints = getattr(module, variable_name)
+        return constraints
+
+    def get_constraints(self) -> ScenarioConstraints | None:
+        """Get policy constraints (inline or from module).
+
+        Returns inline policy_constraints if present, otherwise falls back
+        to loading from constraints_module (legacy support).
+
+        Returns:
+            ScenarioConstraints if configured, None otherwise.
+
+        Raises:
+            ValueError: If constraints_module format is invalid.
+            ImportError: If constraints module cannot be imported.
+        """
+        # Prefer inline policy_constraints
+        if self.policy_constraints is not None:
+            return self.policy_constraints
+
+        # Fall back to legacy module loading
+        return self.load_constraints()
