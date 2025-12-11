@@ -822,7 +822,39 @@ balance: int = 100050  # $1,000.50
 
 ---
 
-*Last updated: 2025-11-29*
+## 🎯 Proactive Agent Delegation
+
+**IMPORTANT**: Before answering questions directly, check if a specialized agent should handle the task.
+
+### docs-navigator — DELEGATE FIRST for Documentation Questions
+
+**Trigger immediately when user asks:**
+- "Where is X documented?" or "How do I use X?"
+- Questions about CLI commands, configuration, or workflows
+- Finding reference docs in `docs/reference/`
+- Understanding the documentation structure
+
+**Agent file**: `.claude/agents/docs-navigator.md`
+
+### Python-Specific Agents
+
+| Agent | Trigger When | File |
+|-------|--------------|------|
+| **python-stylist** | Type annotations, Pydantic patterns, modern Python idioms | `.claude/agents/python-stylist.md` |
+| **ffi-specialist** | PyO3 patterns, Rust↔Python boundary issues | `.claude/agents/ffi-specialist.md` |
+| **test-engineer** | Writing pytest tests, test strategy, mocking | `.claude/agents/test-engineer.md` |
+
+### How to Use
+
+Read the agent file for specialized context before answering:
+```bash
+.claude/agents/docs-navigator.md  # For documentation questions
+.claude/agents/python-stylist.md  # For Python typing questions
+```
+
+---
+
+*Last updated: 2025-12-11*
 *For consolidated patterns and invariants, see `docs/reference/patterns-and-conventions.md`*
 *For Rust patterns, see `/simulator/CLAUDE.md`*
 *For project overview, see root `/CLAUDE.md`*

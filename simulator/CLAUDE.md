@@ -1379,14 +1379,47 @@ pub enum PolicyExecutor {
 
 ---
 
+## 🎯 Proactive Agent Delegation
+
+**IMPORTANT**: Before answering questions directly, check if a specialized agent should handle the task.
+
+### docs-navigator — DELEGATE FIRST for Documentation Questions
+
+**Trigger immediately when user asks:**
+- "Where is X documented?" or "How do I use X?"
+- Questions about architecture, settlement engines, or events
+- Finding reference docs in `docs/reference/`
+- Understanding patterns and conventions
+
+**Agent file**: `.claude/agents/docs-navigator.md`
+
+### Rust-Specific Agents
+
+| Agent | Trigger When | File |
+|-------|--------------|------|
+| **ffi-specialist** | PyO3 patterns, FFI boundary issues, Python↔Rust errors | `.claude/agents/ffi-specialist.md` |
+| **performance** | Profiling, optimization, benchmarking | `.claude/agents/performance.md` |
+| **test-engineer** | Writing Rust tests, property-based testing | `.claude/agents/test-engineer.md` |
+
+### How to Use
+
+Read the agent file for specialized context before answering:
+```bash
+.claude/agents/docs-navigator.md  # For documentation questions
+.claude/agents/ffi-specialist.md  # For FFI questions
+```
+
+---
+
 ## When to Ask for Help
 
-1. **FFI not working?** → Consider using the `ffi-specialist` subagent
-2. **Complex algorithm needed?** → Use `ultrathink` mode
-3. **Performance issue?** → Profile first, optimize second
-4. **Not sure about pattern?** → Check `docs/reference/patterns-and-conventions.md` first, then look for similar code in codebase
-5. **Determinism broken?** → Check RNG usage and HashMap iteration
-6. **Adding new events?** → Follow the event workflow in the patterns document
+1. **Documentation question?** → Use the `docs-navigator` agent FIRST
+2. **FFI not working?** → Use the `ffi-specialist` agent
+3. **Complex algorithm needed?** → Use `ultrathink` mode
+4. **Performance issue?** → Use `performance` agent, profile first
+5. **Not sure about pattern?** → Check `docs/reference/patterns-and-conventions.md` first, then look for similar code in codebase
+6. **Determinism broken?** → Check RNG usage and HashMap iteration
+7. **Adding new events?** → Follow the event workflow in the patterns document
 
 ---
 
@@ -1408,7 +1441,8 @@ pub enum PolicyExecutor {
 
 ---
 
-*Last updated: 2025-11-29*
+*Last updated: 2025-12-11*
+*For documentation questions, use `.claude/agents/docs-navigator.md`*
 *For Python/FFI guidance, see `/api/CLAUDE.md`*
 *For consolidated patterns and invariants, see `docs/reference/patterns-and-conventions.md`*
 *For general guidance, see root `/CLAUDE.md`*
