@@ -325,14 +325,14 @@ class ExperimentRunner:
                     for result in seed_results:
                         self._baseline_costs[result.seed] = result.cost
 
-                # Verbose: Log Monte Carlo results
+                # Verbose: Log bootstrap evaluation results
                 if seed_results:
                     import math
                     costs = [r.cost for r in seed_results]
                     mean_cost = sum(costs) // len(costs) if costs else 0
                     variance = sum((c - mean_cost) ** 2 for c in costs) / len(costs) if costs else 0
                     std_cost = int(math.sqrt(variance))
-                    self._verbose_logger.log_monte_carlo_evaluation(
+                    self._verbose_logger.log_bootstrap_evaluation(
                         seed_results=seed_results,
                         mean_cost=mean_cost,
                         std_cost=std_cost,
@@ -732,11 +732,15 @@ class ExperimentRunner:
                 agent_credit = agent_cfg.get("unsecured_cap", agent_credit)
                 break
 
+        # Extract cost_rates from scenario config
+        scenario_cost_rates = self._sim_runner._base_config.get("cost_rates", {})
+
         # Initialize bootstrap sampler and evaluator
         self._bootstrap_sampler = BootstrapSampler(seed=self._experiment.master_seed)
         self._bootstrap_evaluator = BootstrapPolicyEvaluator(
             opening_balance=agent_balance,
             credit_limit=agent_credit,
+            cost_rates=scenario_cost_rates if scenario_cost_rates else None,
         )
 
         console.print(
