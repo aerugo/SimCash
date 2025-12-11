@@ -22,7 +22,7 @@ def test_settlement_rate_fix_with_policy_that_splits():
     """
     
     # Use the liquidity_splitting policy which will split large transactions
-    policy_path = Path(__file__).parent.parent.parent.parent / "backend" / "policies" / "liquidity_splitting.json"
+    policy_path = Path(__file__).parent.parent.parent.parent / "simulator" / "policies" / "liquidity_splitting.json"
     with open(policy_path) as f:
         policy_json = f.read()
     
