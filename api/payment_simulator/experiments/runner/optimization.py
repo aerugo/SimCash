@@ -272,11 +272,11 @@ class OptimizationLoop:
         sim_config = SimulationConfig.from_dict(scenario_dict)
         return sim_config.to_ffi_dict()
 
-    async def _evaluate_policies(self) -> tuple[int, dict[str, int]]:
-        """Evaluate current policies by running a simulation.
+    def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
+        """Run a single simulation with the given seed.
 
-        Runs a full simulation with the current policies and extracts
-        total cost and per-agent costs.
+        Args:
+            seed: RNG seed for this simulation.
 
         Returns:
             Tuple of (total_cost, per_agent_costs) in integer cents.
@@ -284,8 +284,8 @@ class OptimizationLoop:
         # Build config with current policies
         ffi_config = self._build_simulation_config()
 
-        # Override seed with iteration-specific seed for reproducibility
-        ffi_config["rng_seed"] = self._config.master_seed + self._current_iteration
+        # Override seed
+        ffi_config["rng_seed"] = seed
 
         # Create orchestrator
         orch = Orchestrator.new(ffi_config)
@@ -310,11 +310,103 @@ class OptimizationLoop:
 
         return total_cost, per_agent_costs
 
+    async def _evaluate_policies(self) -> tuple[int, dict[str, int]]:
+        """Evaluate current policies by running simulation(s).
+
+        For deterministic mode: runs a single simulation.
+        For bootstrap mode: runs N simulations with different seeds and averages.
+
+        Returns:
+            Tuple of (total_cost, per_agent_costs) in integer cents.
+        """
+        eval_mode = self._config.evaluation.mode
+        num_samples = self._config.evaluation.num_samples or 1
+
+        if eval_mode == "deterministic" or num_samples <= 1:
+            # Single simulation - deterministic mode
+            seed = self._config.master_seed + self._current_iteration
+            return self._run_single_simulation(seed)
+
+        # Bootstrap mode: run multiple simulations and average
+        total_costs: list[int] = []
+        per_agent_totals: dict[str, list[int]] = {
+            agent_id: [] for agent_id in self.optimized_agents
+        }
+
+        for sample_idx in range(num_samples):
+            # Use deterministic seed derivation for reproducibility
+            seed = self._derive_sample_seed(sample_idx)
+            cost, agent_costs = self._run_single_simulation(seed)
+            total_costs.append(cost)
+            for agent_id in self.optimized_agents:
+                per_agent_totals[agent_id].append(agent_costs.get(agent_id, 0))
+
+        # Compute mean costs (as integers)
+        mean_total = int(sum(total_costs) / len(total_costs))
+        mean_per_agent = {
+            agent_id: int(sum(costs) / len(costs))
+            for agent_id, costs in per_agent_totals.items()
+        }
+
+        return mean_total, mean_per_agent
+
+    def _derive_sample_seed(self, sample_idx: int) -> int:
+        """Derive a deterministic seed for a bootstrap sample.
+
+        Uses SHA-256 for deterministic derivation, ensuring same
+        sample_idx always produces the same seed (reproducibility).
+
+        Args:
+            sample_idx: Sample index.
+
+        Returns:
+            Derived seed for this sample.
+        """
+        import hashlib
+
+        key = f"{self._config.master_seed}:sample:{sample_idx}"
+        hash_bytes = hashlib.sha256(key.encode()).digest()
+        return int.from_bytes(hash_bytes[:8], byteorder="big") % (2**31)
+
+    def _evaluate_policy_on_samples(
+        self, policy: dict[str, Any], agent_id: str, num_samples: int
+    ) -> list[int]:
+        """Evaluate a policy on multiple samples for paired comparison.
+
+        Args:
+            policy: Policy dict to evaluate.
+            agent_id: Agent to evaluate for.
+            num_samples: Number of samples to run.
+
+        Returns:
+            List of costs (one per sample).
+        """
+        import copy
+
+        # Temporarily set the policy for evaluation
+        original_policy = self._policies.get(agent_id)
+        self._policies[agent_id] = policy
+
+        costs: list[int] = []
+        for sample_idx in range(num_samples):
+            seed = self._derive_sample_seed(sample_idx)
+            _, agent_costs = self._run_single_simulation(seed)
+            costs.append(agent_costs.get(agent_id, 0))
+
+        # Restore original policy
+        if original_policy is not None:
+            self._policies[agent_id] = original_policy
+        elif agent_id in self._policies:
+            del self._policies[agent_id]
+
+        return costs
+
     async def _optimize_agent(self, agent_id: str, current_cost: int) -> None:
         """Optimize policy for a single agent using LLM.
 
         Calls the LLM to generate an improved policy for the agent,
-        validates it against constraints, and updates if valid.
+        validates it against constraints, and accepts/rejects based on
+        paired comparison (in bootstrap mode) or direct cost comparison.
 
         Args:
             agent_id: Agent to optimize.
@@ -372,12 +464,59 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                     # Keep current policy if validation fails
                     return
 
-            # Update policy
-            self._policies[agent_id] = new_policy
+            # Accept/reject based on evaluation mode
+            should_accept = await self._should_accept_policy(
+                agent_id=agent_id,
+                old_policy=current_policy,
+                new_policy=new_policy,
+            )
+
+            if should_accept:
+                self._policies[agent_id] = new_policy
 
         except Exception:
             # Keep current policy on error
             pass
+
+    async def _should_accept_policy(
+        self,
+        agent_id: str,
+        old_policy: dict[str, Any],
+        new_policy: dict[str, Any],
+    ) -> bool:
+        """Determine whether to accept a new policy.
+
+        For deterministic mode: always accept (rely on convergence detection).
+        For bootstrap mode: use paired comparison - accept if mean_delta > 0.
+
+        Args:
+            agent_id: Agent being optimized.
+            old_policy: Current policy.
+            new_policy: Proposed new policy.
+
+        Returns:
+            True if new policy should be accepted.
+        """
+        eval_mode = self._config.evaluation.mode
+        num_samples = self._config.evaluation.num_samples or 1
+
+        if eval_mode == "deterministic" or num_samples <= 1:
+            # In deterministic mode, always accept - convergence detection
+            # will handle stability checking
+            return True
+
+        # Bootstrap mode: paired comparison
+        # Evaluate both policies on the SAME samples
+        old_costs = self._evaluate_policy_on_samples(old_policy, agent_id, num_samples)
+        new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, num_samples)
+
+        # Compute paired deltas: delta = old - new
+        # Positive delta means new policy is cheaper (better)
+        deltas = [old - new for old, new in zip(old_costs, new_costs, strict=True)]
+        mean_delta = sum(deltas) / len(deltas)
+
+        # Accept if mean_delta > 0 (new policy is cheaper on average)
+        return mean_delta > 0
 
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
