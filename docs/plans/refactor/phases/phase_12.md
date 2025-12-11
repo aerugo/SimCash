@@ -1,220 +1,136 @@
-# Phase 12: Castro Migration to Core Infrastructure
+# Phase 12: Castro Migration to Core Infrastructure (Revised)
 
 **Status:** Planned
 **Created:** 2025-12-11
+**Revised:** 2025-12-11
 **Dependencies:** Phase 11 (StateProvider Protocol and Unified Persistence)
-**Risk:** Medium (backward compatibility, replay identity preservation)
-**Breaking Changes:** None (maintains Castro's public API)
+**Risk:** Medium (large deletion, but well-tested core modules)
+**Breaking Changes:** Castro internal APIs removed (intentional simplification)
 
 ---
 
 ## Purpose
 
-Phase 12 migrates Castro experiments to use the core infrastructure created in Phase 11:
+Phase 12 eliminates Castro's duplicated infrastructure by:
 
-1. **StateProvider Migration** (Task 12.1): Castro uses core `ExperimentStateProviderProtocol`
-2. **Persistence Migration** (Task 12.2): Castro uses core `ExperimentRepository`
-3. **Event System Alignment** (Task 12.3): Align Castro events with core `EventRecord`
+1. **Moving event system to core** - Event types and helpers belong in `ai_cash_mgmt`
+2. **Deleting Castro infrastructure** - Use core `experiments/` directly
+3. **Reducing Castro to configs + CLI** - Castro becomes a thin entry point
 
-**Target outcome**: Reduce Castro code by ~400 lines while maintaining full backward compatibility and replay identity.
+**Target outcome**: Castro reduced from ~1,500 lines to ~200 lines. All infrastructure in core.
 
 ---
 
-## Current State Analysis
+## Key Insight: What Belongs Where?
 
-### Castro's StateProvider (`castro/state_provider.py` ~354 lines)
+### Core `ai_cash_mgmt/` - LLM-Driven Policy Optimization
+- Bootstrap evaluation ✅ (already there)
+- LLM prompts ✅ (already there)
+- Policy representations ✅ (already there)
+- **Event types for LLM optimization** ❌ (currently in Castro)
+- **Event creation helpers** ❌ (currently in Castro)
 
-```python
-# Castro's current protocol
-@runtime_checkable
-class ExperimentStateProvider(Protocol):
-    @property
-    def run_id(self) -> str: ...
-    def get_run_metadata(self) -> dict[str, Any] | None: ...
-    def get_all_events(self) -> Iterator[ExperimentEvent]: ...
-    def get_events_for_iteration(self, iteration: int) -> list[ExperimentEvent]: ...
-    def get_final_result(self) -> dict[str, Any]: ...
+### Core `experiments/` - Generic Experiment Infrastructure
+- ExperimentRunnerProtocol ✅ (already there)
+- ExperimentStateProviderProtocol ✅ (Phase 11)
+- ExperimentRepository ✅ (Phase 11)
+- EventRecord ✅ (Phase 11)
 
-# Implementations
-class LiveExperimentProvider: ...  # ~90 lines
-class DatabaseExperimentProvider: ...  # ~120 lines
-class EventEmitter: ...  # ~40 lines
+### Castro - Specific Experiment Definitions
+- YAML configs (exp1, exp2, exp3)
+- CLI entry point
+- **Nothing else**
+
+---
+
+## Current Castro Structure (~1,500 lines)
+
 ```
-
-### Castro's Persistence (`castro/persistence/` ~400 lines)
-
-```python
-# castro/persistence/repository.py
-class ExperimentEventRepository:
-    def initialize_schema(self) -> None: ...
-    def save_run_record(self, record: ExperimentRunRecord) -> None: ...
-    def get_run_record(self, run_id: str) -> ExperimentRunRecord | None: ...
-    def update_run_status(self, run_id: str, ...) -> None: ...
-    def list_runs(self, ...) -> list[ExperimentRunRecord]: ...
-    def save_event(self, event: ExperimentEvent) -> None: ...
-    def get_events_for_run(self, run_id: str) -> Iterator[ExperimentEvent]: ...
-    def get_events_for_iteration(self, run_id: str, iteration: int) -> Iterator[ExperimentEvent]: ...
-
-# castro/persistence/models.py
-@dataclass
-class ExperimentRunRecord: ...
-```
-
-### Castro's Events (`castro/events.py` ~418 lines)
-
-```python
-# Event types
-EVENT_EXPERIMENT_START = "experiment_start"
-EVENT_ITERATION_START = "iteration_start"
-EVENT_BOOTSTRAP_EVALUATION = "bootstrap_evaluation"
-EVENT_LLM_CALL = "llm_call"
-EVENT_LLM_INTERACTION = "llm_interaction"
-EVENT_POLICY_CHANGE = "policy_change"
-EVENT_POLICY_REJECTED = "policy_rejected"
-EVENT_EXPERIMENT_END = "experiment_end"
-
-@dataclass
-class ExperimentEvent:
-    event_type: str
-    run_id: str
-    iteration: int
-    timestamp: datetime
-    details: dict[str, Any]
-
-# Event creation helpers (~250 lines)
-def create_experiment_start_event(...) -> ExperimentEvent: ...
-def create_iteration_start_event(...) -> ExperimentEvent: ...
-# ... etc
-```
-
-### Core Modules (from Phase 11)
-
-```python
-# Core StateProvider Protocol
-@runtime_checkable
-class ExperimentStateProviderProtocol(Protocol):
-    def get_experiment_info(self) -> dict[str, Any]: ...
-    def get_total_iterations(self) -> int: ...
-    def get_iteration_events(self, iteration: int) -> list[dict[str, Any]]: ...
-    def get_iteration_policies(self, iteration: int) -> dict[str, Any]: ...
-    def get_iteration_costs(self, iteration: int) -> dict[str, int]: ...
-    def get_iteration_accepted_changes(self, iteration: int) -> dict[str, bool]: ...
-
-# Core Persistence
-class ExperimentRepository:
-    def save_experiment(self, record: ExperimentRecord) -> None: ...
-    def load_experiment(self, run_id: str) -> ExperimentRecord | None: ...
-    def save_iteration(self, record: IterationRecord) -> None: ...
-    def get_iterations(self, run_id: str) -> list[IterationRecord]: ...
-    def save_event(self, event: EventRecord) -> None: ...
-    def get_events(self, run_id: str, iteration: int) -> list[EventRecord]: ...
-    def as_state_provider(self, run_id: str) -> ExperimentStateProviderProtocol: ...
+experiments/castro/castro/
+├── __init__.py
+├── cli.py                    # CLI - KEEP (modify to use core)
+├── events.py                 # ~418 lines - MOVE to ai_cash_mgmt
+├── state_provider.py         # ~354 lines - DELETE (use core)
+├── persistence/
+│   ├── __init__.py
+│   ├── repository.py         # ~300 lines - DELETE (use core)
+│   └── models.py             # ~48 lines - DELETE (use core)
+├── runner.py                 # ~200 lines - KEEP (uses core)
+├── display.py                # ~150 lines - KEEP (Castro-specific output)
+└── configs/                  # KEEP
+    ├── exp1.yaml
+    ├── exp2.yaml
+    └── exp3.yaml
 ```
 
 ---
 
-## Migration Strategy
+## Target Castro Structure (~200 lines)
 
-### Option A: Full Replacement (NOT RECOMMENDED)
-- Replace all Castro classes with core classes
-- Risk: Breaking changes, loss of Castro-specific features
-- Rejected
-
-### Option B: Adapter Pattern (RECOMMENDED)
-- Castro keeps its public API
-- Internal implementation wraps core modules
-- Castro-specific features (LLM events) remain in Castro
-- Gradual, safe migration
-
-### Option C: Re-export with Thin Wrappers
-- Similar to Option B but simpler
-- Castro re-exports core classes where API matches
-- Thin wrappers where API differs
-
-**Selected: Option B (Adapter Pattern)**
-
-Rationale:
-- Maintains backward compatibility for existing Castro users
-- Allows Castro-specific extensions (LLM interaction events)
-- Reduces code while keeping clear separation
-- Can be done incrementally
+```
+experiments/castro/castro/
+├── __init__.py               # Re-exports from core
+├── cli.py                    # CLI entry point (~100 lines)
+├── runner.py                 # Thin wrapper using core (~50 lines)
+├── display.py                # Castro-specific output (~50 lines)
+└── configs/
+    ├── exp1.yaml
+    ├── exp2.yaml
+    └── exp3.yaml
+```
 
 ---
 
 ## Phase 12 Tasks
 
-### Task 12.1: Adapt Castro StateProvider to Core Protocol
+### Task 12.1: Move Event System to Core
 
-**Impact:** ~200 lines removed from Castro
-**Risk:** Medium - protocol method signature alignment
-**TDD Test File:** `experiments/castro/tests/test_state_provider_migration.py`
+**Location:** `api/payment_simulator/ai_cash_mgmt/events.py`
+**Impact:** Move ~418 lines from Castro to core
+**Risk:** Low - just relocating code
 
-**Goals:**
-1. Make `LiveExperimentProvider` implement core protocol
-2. Make `DatabaseExperimentProvider` use core `DatabaseStateProvider` internally
-3. Keep Castro's `ExperimentEvent` for event-specific features
-4. Deprecate `EventEmitter` (merge into LiveExperimentProvider)
+Event types and creation helpers are about LLM-driven policy optimization, not Castro-specific.
 
-**API Mapping:**
-
-| Castro Method | Core Method | Notes |
-|---------------|-------------|-------|
-| `run_id` property | N/A (pass as param) | Keep in Castro |
-| `get_run_metadata()` | `get_experiment_info()` | Rename wrapper |
-| `get_all_events()` | N/A | Castro-specific, keep |
-| `get_events_for_iteration()` | `get_iteration_events()` | Adapt return type |
-| `get_final_result()` | N/A | Castro-specific, keep |
-| N/A | `get_total_iterations()` | Add to Castro |
-| N/A | `get_iteration_policies()` | Add to Castro |
-| N/A | `get_iteration_costs()` | Add to Castro |
-| N/A | `get_iteration_accepted_changes()` | Add to Castro |
+**What to move:**
+- Event type constants (`EVENT_LLM_INTERACTION`, `EVENT_POLICY_CHANGE`, etc.)
+- Event creation helpers (`create_llm_interaction_event()`, etc.)
+- Convert to return core `EventRecord` instead of Castro `ExperimentEvent`
 
 ---
 
-### Task 12.2: Migrate Castro Persistence to Core Repository
+### Task 12.2: Delete Castro Infrastructure
 
-**Impact:** ~200 lines removed from Castro
-**Risk:** Medium - database schema compatibility
-**TDD Test File:** `experiments/castro/tests/test_persistence_migration.py`
+**Impact:** Delete ~700 lines
+**Risk:** Medium - ensure nothing breaks
 
-**Goals:**
-1. `ExperimentEventRepository` wraps core `ExperimentRepository`
-2. Castro keeps `ExperimentRunRecord` as facade over `ExperimentRecord`
-3. Castro keeps its `ExperimentEvent` for typed events
-4. Add schema migration for existing databases (optional)
-
-**Database Schema Mapping:**
-
-| Castro Table | Core Table | Migration |
-|--------------|------------|-----------|
-| `experiment_runs` | `experiments` | Adapter handles both |
-| `experiment_events` | `experiment_events` | Compatible |
-| N/A | `experiment_iterations` | New in core |
+**Files to delete:**
+- `castro/state_provider.py` (~354 lines)
+- `castro/persistence/repository.py` (~300 lines)
+- `castro/persistence/models.py` (~48 lines)
+- `castro/events.py` (after moving to core)
 
 ---
 
-### Task 12.3: Event System Alignment
+### Task 12.3: Update Castro to Use Core Directly
 
-**Impact:** ~100 lines refactored
-**Risk:** Low - events are self-contained
-**TDD Test File:** `experiments/castro/tests/test_event_migration.py`
+**Impact:** Modify ~200 lines
+**Risk:** Low - straightforward replacements
 
-**Goals:**
-1. Castro's `ExperimentEvent` can convert to/from core `EventRecord`
-2. Event creation helpers remain in Castro (domain-specific)
-3. Persistence uses core `EventRecord` internally
+**Changes:**
+- `runner.py`: Use core `LiveStateProvider`, `ExperimentRepository`
+- `cli.py`: Use core persistence for replay
+- `display.py`: Use core `DatabaseStateProvider` for replay
 
 ---
 
 ## TDD Test Specifications
 
-### Test File 1: `experiments/castro/tests/test_state_provider_migration.py`
+### Test File 1: `api/tests/ai_cash_mgmt/test_events.py`
 
 ```python
-"""TDD tests for Castro StateProvider migration to core.
+"""TDD tests for LLM optimization event system.
 
-Verifies Castro providers implement core protocol while
-maintaining backward compatibility.
+Tests for event types and creation helpers moved from Castro to core.
 
 Write these tests FIRST, then implement.
 """
@@ -222,707 +138,608 @@ Write these tests FIRST, then implement.
 from __future__ import annotations
 
 import pytest
-from typing import Any
-
-
-class TestCastroProviderImplementsCoreProtocol:
-    """Tests that Castro providers implement core protocol."""
-
-    def test_live_provider_is_core_protocol_instance(self) -> None:
-        """LiveExperimentProvider should satisfy core protocol isinstance."""
-        from castro.state_provider import LiveExperimentProvider
-        from payment_simulator.experiments.runner import (
-            ExperimentStateProviderProtocol,
-        )
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="test",
-            description="Test experiment",
-            model="test-model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        assert isinstance(provider, ExperimentStateProviderProtocol)
-
-    def test_live_provider_has_get_experiment_info(self) -> None:
-        """LiveExperimentProvider should have get_experiment_info."""
-        from castro.state_provider import LiveExperimentProvider
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="test",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        info = provider.get_experiment_info()
-        assert isinstance(info, dict)
-        assert "experiment_name" in info
-
-    def test_live_provider_has_get_total_iterations(self) -> None:
-        """LiveExperimentProvider should have get_total_iterations."""
-        from castro.state_provider import LiveExperimentProvider
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="test",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        count = provider.get_total_iterations()
-        assert isinstance(count, int)
-        assert count >= 0
-
-    def test_live_provider_has_get_iteration_events(self) -> None:
-        """LiveExperimentProvider should have get_iteration_events."""
-        from castro.state_provider import LiveExperimentProvider
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="test",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        events = provider.get_iteration_events(0)
-        assert isinstance(events, list)
-
-    def test_live_provider_has_get_iteration_costs(self) -> None:
-        """LiveExperimentProvider should have get_iteration_costs."""
-        from castro.state_provider import LiveExperimentProvider
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="test",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        costs = provider.get_iteration_costs(0)
-        assert isinstance(costs, dict)
-
-    def test_live_provider_costs_are_integer_cents(self) -> None:
-        """All costs must be integer cents (INV-1)."""
-        from castro.state_provider import LiveExperimentProvider
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="test",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        # Simulate recording iteration with costs
-        provider.record_iteration_costs(0, {"BANK_A": 100050})
-
-        costs = provider.get_iteration_costs(0)
-        for agent_id, cost in costs.items():
-            assert isinstance(cost, int), f"Cost for {agent_id} must be int"
-
-
-class TestCastroBackwardCompatibility:
-    """Tests that Castro's existing API still works."""
-
-    def test_run_id_property_still_works(self) -> None:
-        """run_id property should still work."""
-        from castro.state_provider import LiveExperimentProvider
-
-        provider = LiveExperimentProvider(
-            run_id="test-run-123",
-            experiment_name="test",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        assert provider.run_id == "test-run-123"
-
-    def test_get_run_metadata_still_works(self) -> None:
-        """get_run_metadata should still work (backward compat)."""
-        from castro.state_provider import LiveExperimentProvider
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="my_experiment",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        metadata = provider.get_run_metadata()
-        assert metadata["experiment_name"] == "my_experiment"
-
-    def test_get_events_for_iteration_still_works(self) -> None:
-        """get_events_for_iteration should still work."""
-        from castro.state_provider import LiveExperimentProvider
-        from castro.events import create_iteration_start_event
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="test",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        # Capture an event
-        event = create_iteration_start_event("test-run", 0, 1000)
-        provider.capture_event(event)
-
-        # Old API should still work
-        events = provider.get_events_for_iteration(0)
-        assert len(events) == 1
-
-    def test_capture_event_still_works(self) -> None:
-        """capture_event should still work."""
-        from castro.state_provider import LiveExperimentProvider
-        from castro.events import ExperimentEvent
-        from datetime import datetime
-
-        provider = LiveExperimentProvider(
-            run_id="test-run",
-            experiment_name="test",
-            description="desc",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-
-        event = ExperimentEvent(
-            event_type="test_event",
-            run_id="test-run",
-            iteration=0,
-            timestamp=datetime.now(),
-            details={"key": "value"},
-        )
-
-        provider.capture_event(event)
-        events = provider.get_events_for_iteration(0)
-        assert len(events) == 1
-
-
-class TestDatabaseProviderMigration:
-    """Tests for DatabaseExperimentProvider migration."""
-
-    def test_database_provider_implements_core_protocol(
-        self, tmp_path: Any
-    ) -> None:
-        """DatabaseExperimentProvider should implement core protocol."""
-        import duckdb
-        from castro.state_provider import DatabaseExperimentProvider
-        from castro.persistence import ExperimentEventRepository
-        from payment_simulator.experiments.runner import (
-            ExperimentStateProviderProtocol,
-        )
-
-        # Setup database
-        conn = duckdb.connect(str(tmp_path / "test.db"))
-        repo = ExperimentEventRepository(conn)
-        repo.initialize_schema()
-
-        # Create provider (will have no data, but should still work)
-        provider = DatabaseExperimentProvider(conn, "test-run")
-
-        # Should implement protocol
-        assert hasattr(provider, "get_experiment_info")
-        assert hasattr(provider, "get_total_iterations")
-        assert hasattr(provider, "get_iteration_events")
-        assert hasattr(provider, "get_iteration_costs")
-
-        conn.close()
-
-    def test_database_provider_has_get_experiment_info(
-        self, tmp_path: Any
-    ) -> None:
-        """DatabaseExperimentProvider should have get_experiment_info."""
-        import duckdb
-        from castro.state_provider import DatabaseExperimentProvider
-        from castro.persistence import ExperimentEventRepository
-
-        conn = duckdb.connect(str(tmp_path / "test.db"))
-        repo = ExperimentEventRepository(conn)
-        repo.initialize_schema()
-
-        provider = DatabaseExperimentProvider(conn, "test-run")
-        info = provider.get_experiment_info()
-
-        # Should return dict (empty or with data)
-        assert isinstance(info, dict)
-        conn.close()
-```
-
----
-
-### Test File 2: `experiments/castro/tests/test_persistence_migration.py`
-
-```python
-"""TDD tests for Castro persistence migration to core.
-
-Verifies Castro repository can use core ExperimentRepository
-while maintaining backward compatibility.
-
-Write these tests FIRST, then implement.
-"""
-
-from __future__ import annotations
-
-import pytest
-from pathlib import Path
-from typing import Any
 from datetime import datetime
-
-
-class TestCastroRepositoryUsesCoreInternally:
-    """Tests that Castro repository wraps core repository."""
-
-    def test_castro_repo_creates_core_tables(self, tmp_path: Path) -> None:
-        """Castro repository should create core-compatible tables."""
-        import duckdb
-        from castro.persistence import ExperimentEventRepository
-
-        db_path = tmp_path / "test.db"
-        conn = duckdb.connect(str(db_path))
-        repo = ExperimentEventRepository(conn)
-        repo.initialize_schema()
-
-        # Check tables exist
-        tables = conn.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema='main'"
-        ).fetchall()
-        table_names = [t[0] for t in tables]
-
-        # Should have experiment tables
-        assert "experiment_runs" in table_names or "experiments" in table_names
-        assert "experiment_events" in table_names
-
-        conn.close()
-
-    def test_castro_repo_can_use_core_repository(self, tmp_path: Path) -> None:
-        """Castro repository should be able to wrap core repository."""
-        from castro.persistence import ExperimentEventRepository
-        from payment_simulator.experiments.persistence import ExperimentRepository
-
-        # Both should be able to use same database
-        db_path = tmp_path / "shared.db"
-
-        # Create via core
-        core_repo = ExperimentRepository(db_path)
-        core_repo.close()
-
-        # Castro should work with same database
-        import duckdb
-        conn = duckdb.connect(str(db_path))
-        castro_repo = ExperimentEventRepository(conn)
-        # Should not fail
-        castro_repo.initialize_schema()
-        conn.close()
-
-
-class TestCastroRepositoryBackwardCompat:
-    """Tests that Castro repository API still works."""
-
-    @pytest.fixture
-    def castro_repo(self, tmp_path: Path) -> Any:
-        """Create Castro repository."""
-        import duckdb
-        from castro.persistence import ExperimentEventRepository
-
-        conn = duckdb.connect(str(tmp_path / "test.db"))
-        repo = ExperimentEventRepository(conn)
-        repo.initialize_schema()
-        yield repo
-        conn.close()
-
-    def test_save_run_record_still_works(self, castro_repo: Any) -> None:
-        """save_run_record should still work."""
-        from castro.persistence.models import ExperimentRunRecord
-
-        record = ExperimentRunRecord(
-            run_id="test-run",
-            experiment_name="test",
-            started_at=datetime.now(),
-            status="running",
-        )
-
-        castro_repo.save_run_record(record)
-        loaded = castro_repo.get_run_record("test-run")
-
-        assert loaded is not None
-        assert loaded.run_id == "test-run"
-
-    def test_save_event_still_works(self, castro_repo: Any) -> None:
-        """save_event should still work with ExperimentEvent."""
-        from castro.events import ExperimentEvent
-
-        event = ExperimentEvent(
-            event_type="test_event",
-            run_id="test-run",
-            iteration=0,
-            timestamp=datetime.now(),
-            details={"key": "value"},
-        )
-
-        castro_repo.save_event(event)
-        events = list(castro_repo.get_events_for_run("test-run"))
-
-        assert len(events) == 1
-        assert events[0].event_type == "test_event"
-
-    def test_get_events_for_iteration_still_works(self, castro_repo: Any) -> None:
-        """get_events_for_iteration should still work."""
-        from castro.events import ExperimentEvent
-
-        # Save events for different iterations
-        for i in range(3):
-            event = ExperimentEvent(
-                event_type=f"event_{i}",
-                run_id="test-run",
-                iteration=i,
-                timestamp=datetime.now(),
-                details={},
-            )
-            castro_repo.save_event(event)
-
-        # Get events for specific iteration
-        events = list(castro_repo.get_events_for_iteration("test-run", 1))
-
-        assert len(events) == 1
-        assert events[0].event_type == "event_1"
-
-    def test_list_runs_still_works(self, castro_repo: Any) -> None:
-        """list_runs should still work."""
-        from castro.persistence.models import ExperimentRunRecord
-
-        # Save multiple runs
-        for i in range(3):
-            record = ExperimentRunRecord(
-                run_id=f"run-{i}",
-                experiment_name="test",
-                started_at=datetime.now(),
-                status="completed",
-            )
-            castro_repo.save_run_record(record)
-
-        runs = castro_repo.list_runs()
-        assert len(runs) == 3
-
-
-class TestCastroEventConversion:
-    """Tests for converting between Castro and core event formats."""
-
-    def test_experiment_event_to_event_record(self) -> None:
-        """ExperimentEvent should convert to EventRecord."""
-        from castro.events import ExperimentEvent
-        from payment_simulator.experiments.persistence import EventRecord
-
-        castro_event = ExperimentEvent(
-            event_type="bootstrap_evaluation",
-            run_id="test-run",
-            iteration=0,
-            timestamp=datetime.now(),
-            details={"mean_cost": 1000, "std_cost": 100},
-        )
-
-        # Should be able to convert
-        core_record = EventRecord(
-            run_id=castro_event.run_id,
-            iteration=castro_event.iteration,
-            event_type=castro_event.event_type,
-            event_data=castro_event.details,
-            timestamp=castro_event.timestamp.isoformat(),
-        )
-
-        assert core_record.event_type == "bootstrap_evaluation"
-        assert core_record.event_data["mean_cost"] == 1000
-
-    def test_event_record_to_experiment_event(self) -> None:
-        """EventRecord should convert to ExperimentEvent."""
-        from castro.events import ExperimentEvent
-        from payment_simulator.experiments.persistence import EventRecord
-
-        core_record = EventRecord(
-            run_id="test-run",
-            iteration=0,
-            event_type="policy_change",
-            event_data={"agent_id": "BANK_A", "accepted": True},
-            timestamp="2025-12-11T10:00:00",
-        )
-
-        # Should be able to convert
-        castro_event = ExperimentEvent.from_dict({
-            "event_type": core_record.event_type,
-            "run_id": core_record.run_id,
-            "iteration": core_record.iteration,
-            "timestamp": core_record.timestamp,
-            "details": core_record.event_data,
-        })
-
-        assert castro_event.event_type == "policy_change"
-        assert castro_event.details["agent_id"] == "BANK_A"
-```
-
----
-
-### Test File 3: `experiments/castro/tests/test_replay_identity_preserved.py`
-
-```python
-"""TDD tests ensuring replay identity is preserved after migration.
-
-This is the CRITICAL test - migration must not break replay identity.
-
-Write these tests FIRST, then implement.
-"""
-
-from __future__ import annotations
-
-import pytest
-from pathlib import Path
 from typing import Any
 
 
-class TestReplayIdentityPreserved:
-    """Tests that replay produces identical output after migration."""
+class TestEventTypeConstants:
+    """Tests for event type constants."""
 
-    @pytest.fixture
-    def sample_experiment_db(self, tmp_path: Path) -> Path:
-        """Create a sample experiment database with known data."""
-        import duckdb
-        from castro.persistence import ExperimentEventRepository
-        from castro.persistence.models import ExperimentRunRecord
-        from castro.events import (
-            create_experiment_start_event,
-            create_iteration_start_event,
-            create_bootstrap_evaluation_event,
-            create_experiment_end_event,
+    def test_event_types_importable(self) -> None:
+        """Event type constants should be importable from ai_cash_mgmt."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            EVENT_EXPERIMENT_START,
+            EVENT_ITERATION_START,
+            EVENT_BOOTSTRAP_EVALUATION,
+            EVENT_LLM_CALL,
+            EVENT_LLM_INTERACTION,
+            EVENT_POLICY_CHANGE,
+            EVENT_POLICY_REJECTED,
+            EVENT_EXPERIMENT_END,
         )
-        from datetime import datetime
 
-        db_path = tmp_path / "experiment.db"
-        conn = duckdb.connect(str(db_path))
-        repo = ExperimentEventRepository(conn)
-        repo.initialize_schema()
+        assert EVENT_EXPERIMENT_START == "experiment_start"
+        assert EVENT_LLM_INTERACTION == "llm_interaction"
+        assert EVENT_POLICY_CHANGE == "policy_change"
 
-        # Create run record
-        run_record = ExperimentRunRecord(
-            run_id="replay-test",
+    def test_all_event_types_list(self) -> None:
+        """ALL_EVENT_TYPES should contain all event types."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            ALL_EVENT_TYPES,
+            EVENT_EXPERIMENT_START,
+            EVENT_LLM_INTERACTION,
+        )
+
+        assert EVENT_EXPERIMENT_START in ALL_EVENT_TYPES
+        assert EVENT_LLM_INTERACTION in ALL_EVENT_TYPES
+        assert len(ALL_EVENT_TYPES) == 8
+
+
+class TestEventCreationHelpers:
+    """Tests for event creation helpers."""
+
+    def test_create_experiment_start_event(self) -> None:
+        """Should create experiment start event."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_experiment_start_event,
+            EVENT_EXPERIMENT_START,
+        )
+        from payment_simulator.experiments.persistence import EventRecord
+
+        event = create_experiment_start_event(
+            run_id="test-run",
             experiment_name="exp1",
-            started_at=datetime(2025, 12, 11, 10, 0, 0),
-            status="completed",
-            completed_at=datetime(2025, 12, 11, 10, 30, 0),
-            final_cost=1000,
-            best_cost=900,
-            num_iterations=3,
+            description="Test experiment",
+            model="claude-3",
+            max_iterations=10,
+            num_samples=5,
+        )
+
+        assert isinstance(event, EventRecord)
+        assert event.event_type == EVENT_EXPERIMENT_START
+        assert event.run_id == "test-run"
+        assert event.iteration == 0
+        assert event.event_data["experiment_name"] == "exp1"
+        assert event.event_data["model"] == "claude-3"
+
+    def test_create_iteration_start_event(self) -> None:
+        """Should create iteration start event."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_iteration_start_event,
+            EVENT_ITERATION_START,
+        )
+        from payment_simulator.experiments.persistence import EventRecord
+
+        event = create_iteration_start_event(
+            run_id="test-run",
+            iteration=5,
+            total_cost=100000,  # Integer cents (INV-1)
+        )
+
+        assert isinstance(event, EventRecord)
+        assert event.event_type == EVENT_ITERATION_START
+        assert event.iteration == 5
+        assert event.event_data["total_cost"] == 100000
+
+    def test_create_bootstrap_evaluation_event(self) -> None:
+        """Should create bootstrap evaluation event."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_bootstrap_evaluation_event,
+            EVENT_BOOTSTRAP_EVALUATION,
+        )
+        from payment_simulator.experiments.persistence import EventRecord
+
+        seed_results = [
+            {"seed": 1, "cost": 1000, "settled": 95, "total": 100},
+            {"seed": 2, "cost": 1100, "settled": 94, "total": 100},
+        ]
+
+        event = create_bootstrap_evaluation_event(
+            run_id="test-run",
+            iteration=0,
+            seed_results=seed_results,
+            mean_cost=1050,  # Integer cents
+            std_cost=50,     # Integer cents
+        )
+
+        assert isinstance(event, EventRecord)
+        assert event.event_type == EVENT_BOOTSTRAP_EVALUATION
+        assert event.event_data["mean_cost"] == 1050
+        assert len(event.event_data["seed_results"]) == 2
+
+    def test_create_llm_interaction_event(self) -> None:
+        """Should create LLM interaction event with full audit data."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_llm_interaction_event,
+            EVENT_LLM_INTERACTION,
+        )
+        from payment_simulator.experiments.persistence import EventRecord
+
+        event = create_llm_interaction_event(
+            run_id="test-run",
+            iteration=1,
+            agent_id="BANK_A",
+            system_prompt="You are a policy optimizer...",
+            user_prompt="Current cost is 1000. Suggest improvement.",
+            raw_response="```json\n{\"type\": \"release\"}\n```",
+            parsed_policy={"type": "release"},
+            parsing_error=None,
+            model="claude-3",
+            prompt_tokens=100,
+            completion_tokens=50,
+            latency_seconds=1.5,
+        )
+
+        assert isinstance(event, EventRecord)
+        assert event.event_type == EVENT_LLM_INTERACTION
+        assert event.event_data["agent_id"] == "BANK_A"
+        assert event.event_data["system_prompt"] == "You are a policy optimizer..."
+        assert event.event_data["parsed_policy"] == {"type": "release"}
+
+    def test_create_policy_change_event(self) -> None:
+        """Should create policy change event."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_policy_change_event,
+            EVENT_POLICY_CHANGE,
+        )
+        from payment_simulator.experiments.persistence import EventRecord
+
+        event = create_policy_change_event(
+            run_id="test-run",
+            iteration=1,
+            agent_id="BANK_A",
+            old_policy={"type": "hold"},
+            new_policy={"type": "release"},
+            old_cost=1000,  # Integer cents
+            new_cost=800,   # Integer cents
+            accepted=True,
+        )
+
+        assert isinstance(event, EventRecord)
+        assert event.event_type == EVENT_POLICY_CHANGE
+        assert event.event_data["old_cost"] == 1000
+        assert event.event_data["new_cost"] == 800
+        assert event.event_data["accepted"] is True
+
+    def test_create_policy_rejected_event(self) -> None:
+        """Should create policy rejected event."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_policy_rejected_event,
+            EVENT_POLICY_REJECTED,
+        )
+        from payment_simulator.experiments.persistence import EventRecord
+
+        event = create_policy_rejected_event(
+            run_id="test-run",
+            iteration=1,
+            agent_id="BANK_A",
+            proposed_policy={"type": "invalid"},
+            validation_errors=["Unknown policy type"],
+            rejection_reason="validation_failed",
+        )
+
+        assert isinstance(event, EventRecord)
+        assert event.event_type == EVENT_POLICY_REJECTED
+        assert "Unknown policy type" in event.event_data["validation_errors"]
+
+    def test_create_experiment_end_event(self) -> None:
+        """Should create experiment end event."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_experiment_end_event,
+            EVENT_EXPERIMENT_END,
+        )
+        from payment_simulator.experiments.persistence import EventRecord
+
+        event = create_experiment_end_event(
+            run_id="test-run",
+            iteration=10,
+            final_cost=800,   # Integer cents
+            best_cost=750,    # Integer cents
             converged=True,
             convergence_reason="stability",
-            model="test-model",
-            master_seed=42,
+            duration_seconds=120.5,
         )
-        repo.save_run_record(run_record)
 
-        # Create events
-        events = [
-            create_experiment_start_event(
-                "replay-test", "exp1", "Test", "model", 10, 5
-            ),
-            create_iteration_start_event("replay-test", 0, 1000),
-            create_bootstrap_evaluation_event(
-                "replay-test", 0,
-                [{"seed": 1, "cost": 1000}],
-                1000, 0
-            ),
-            create_iteration_start_event("replay-test", 1, 950),
-            create_bootstrap_evaluation_event(
-                "replay-test", 1,
-                [{"seed": 1, "cost": 950}],
-                950, 0
-            ),
-            create_experiment_end_event(
-                "replay-test", 2, 900, 900, True, "stability", 30.0
-            ),
-        ]
-        for event in events:
-            repo.save_event(event)
+        assert isinstance(event, EventRecord)
+        assert event.event_type == EVENT_EXPERIMENT_END
+        assert event.event_data["converged"] is True
+        assert event.event_data["final_cost"] == 800
 
-        conn.close()
-        return db_path
 
-    def test_live_and_database_provider_same_events(
-        self, sample_experiment_db: Path
-    ) -> None:
-        """Live and database provider should return same events."""
-        import duckdb
-        from castro.state_provider import (
-            LiveExperimentProvider,
-            DatabaseExperimentProvider,
-        )
-        from castro.events import (
-            create_experiment_start_event,
+class TestCostsAreIntegerCents:
+    """Tests ensuring all costs are integer cents (INV-1)."""
+
+    def test_iteration_start_cost_is_integer(self) -> None:
+        """Iteration start total_cost must be integer cents."""
+        from payment_simulator.ai_cash_mgmt.events import (
             create_iteration_start_event,
         )
 
-        # Create live provider and capture same events
-        live_provider = LiveExperimentProvider(
-            run_id="replay-test",
-            experiment_name="exp1",
-            description="Test",
-            model="model",
-            max_iterations=10,
-            num_samples=5,
-        )
-        live_provider.capture_event(
-            create_experiment_start_event(
-                "replay-test", "exp1", "Test", "model", 10, 5
-            )
-        )
-        live_provider.capture_event(
-            create_iteration_start_event("replay-test", 0, 1000)
+        event = create_iteration_start_event(
+            run_id="test",
+            iteration=0,
+            total_cost=100050,  # $1,000.50 in cents
         )
 
-        # Create database provider
-        conn = duckdb.connect(str(sample_experiment_db))
-        db_provider = DatabaseExperimentProvider(conn, "replay-test")
+        assert isinstance(event.event_data["total_cost"], int)
 
-        # Compare iteration 0 events
-        live_events = live_provider.get_iteration_events(0)
-        db_events = db_provider.get_iteration_events(0)
-
-        # Event types should match
-        live_types = [e["event_type"] for e in live_events]
-        db_types = [e["event_type"] for e in db_events]
-
-        assert "iteration_start" in live_types
-        assert "iteration_start" in db_types
-
-        conn.close()
-
-    def test_core_protocol_methods_work_on_both_providers(
-        self, sample_experiment_db: Path
-    ) -> None:
-        """Core protocol methods should work on both providers."""
-        import duckdb
-        from castro.state_provider import (
-            LiveExperimentProvider,
-            DatabaseExperimentProvider,
+    def test_bootstrap_costs_are_integers(self) -> None:
+        """Bootstrap mean_cost and std_cost must be integer cents."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_bootstrap_evaluation_event,
         )
 
-        # Live provider
-        live = LiveExperimentProvider(
+        event = create_bootstrap_evaluation_event(
+            run_id="test",
+            iteration=0,
+            seed_results=[],
+            mean_cost=100050,
+            std_cost=5025,
+        )
+
+        assert isinstance(event.event_data["mean_cost"], int)
+        assert isinstance(event.event_data["std_cost"], int)
+
+    def test_policy_change_costs_are_integers(self) -> None:
+        """Policy change old_cost and new_cost must be integer cents."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_policy_change_event,
+        )
+
+        event = create_policy_change_event(
+            run_id="test",
+            iteration=0,
+            agent_id="BANK_A",
+            old_policy={},
+            new_policy={},
+            old_cost=100050,
+            new_cost=90025,
+            accepted=True,
+        )
+
+        assert isinstance(event.event_data["old_cost"], int)
+        assert isinstance(event.event_data["new_cost"], int)
+
+
+class TestEventTimestamps:
+    """Tests for event timestamps."""
+
+    def test_events_have_iso_timestamp(self) -> None:
+        """All events should have ISO format timestamp."""
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_experiment_start_event,
+        )
+
+        event = create_experiment_start_event(
             run_id="test",
             experiment_name="exp1",
             description="Test",
-            model="model",
+            model="claude-3",
             max_iterations=10,
             num_samples=5,
         )
 
-        # Database provider
-        conn = duckdb.connect(str(sample_experiment_db))
-        db = DatabaseExperimentProvider(conn, "replay-test")
+        # Should be ISO format string
+        assert isinstance(event.timestamp, str)
+        # Should be parseable
+        from datetime import datetime
+        parsed = datetime.fromisoformat(event.timestamp)
+        assert parsed is not None
+```
 
-        # Both should have these methods
-        assert callable(getattr(live, "get_experiment_info", None))
-        assert callable(getattr(db, "get_experiment_info", None))
+---
 
-        assert callable(getattr(live, "get_total_iterations", None))
-        assert callable(getattr(db, "get_total_iterations", None))
+### Test File 2: `experiments/castro/tests/test_castro_uses_core.py`
 
-        assert callable(getattr(live, "get_iteration_events", None))
-        assert callable(getattr(db, "get_iteration_events", None))
+```python
+"""TDD tests verifying Castro uses core modules directly.
 
-        conn.close()
+Tests that Castro infrastructure is deleted and core is used instead.
 
-    def test_costs_remain_integer_cents(self, sample_experiment_db: Path) -> None:
-        """Costs must remain integer cents after migration (INV-1)."""
-        import duckdb
-        from castro.state_provider import DatabaseExperimentProvider
+Write these tests FIRST, then implement.
+"""
 
-        conn = duckdb.connect(str(sample_experiment_db))
-        provider = DatabaseExperimentProvider(conn, "replay-test")
+from __future__ import annotations
 
-        # If provider has costs, they must be integers
-        costs = provider.get_iteration_costs(0)
-        for agent_id, cost in costs.items():
-            assert isinstance(cost, int), f"Cost for {agent_id} must be int"
+import pytest
+from pathlib import Path
+from typing import Any
 
-        conn.close()
+
+class TestCastroInfrastructureDeleted:
+    """Tests that Castro infrastructure files are deleted."""
+
+    def test_castro_state_provider_deleted(self) -> None:
+        """castro/state_provider.py should not exist."""
+        castro_path = Path(__file__).parent.parent / "castro" / "state_provider.py"
+        assert not castro_path.exists(), "state_provider.py should be deleted"
+
+    def test_castro_persistence_repository_deleted(self) -> None:
+        """castro/persistence/repository.py should not exist."""
+        castro_path = (
+            Path(__file__).parent.parent / "castro" / "persistence" / "repository.py"
+        )
+        assert not castro_path.exists(), "persistence/repository.py should be deleted"
+
+    def test_castro_persistence_models_deleted(self) -> None:
+        """castro/persistence/models.py should not exist."""
+        castro_path = (
+            Path(__file__).parent.parent / "castro" / "persistence" / "models.py"
+        )
+        assert not castro_path.exists(), "persistence/models.py should be deleted"
+
+    def test_castro_events_deleted(self) -> None:
+        """castro/events.py should not exist (moved to core)."""
+        castro_path = Path(__file__).parent.parent / "castro" / "events.py"
+        assert not castro_path.exists(), "events.py should be moved to core"
+
+
+class TestCastroImportsCore:
+    """Tests that Castro imports from core modules."""
+
+    def test_castro_imports_event_types_from_core(self) -> None:
+        """Castro should import event types from ai_cash_mgmt."""
+        # This import should work (Castro re-exports from core)
+        from payment_simulator.ai_cash_mgmt.events import (
+            EVENT_LLM_INTERACTION,
+            EVENT_POLICY_CHANGE,
+            create_llm_interaction_event,
+        )
+
+        assert EVENT_LLM_INTERACTION == "llm_interaction"
+
+    def test_castro_imports_state_provider_from_core(self) -> None:
+        """Castro should use StateProvider from core."""
+        from payment_simulator.experiments.runner import (
+            LiveStateProvider,
+            DatabaseStateProvider,
+            ExperimentStateProviderProtocol,
+        )
+
+        assert LiveStateProvider is not None
+        assert DatabaseStateProvider is not None
+
+    def test_castro_imports_repository_from_core(self) -> None:
+        """Castro should use ExperimentRepository from core."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+            IterationRecord,
+            EventRecord,
+        )
+
+        assert ExperimentRepository is not None
+        assert EventRecord is not None
+
+
+class TestCastroRunnerUsesCore:
+    """Tests that Castro runner uses core infrastructure."""
+
+    def test_runner_uses_core_state_provider(self) -> None:
+        """Castro runner should use core LiveStateProvider."""
+        # Import Castro runner
+        from castro.runner import CastroRunner
+        from payment_simulator.experiments.runner import LiveStateProvider
+
+        # Runner should accept or create LiveStateProvider
+        # (exact API depends on implementation)
+        assert hasattr(CastroRunner, "run") or hasattr(CastroRunner, "__call__")
+
+    def test_runner_uses_core_repository(self) -> None:
+        """Castro runner should use core ExperimentRepository."""
+        from payment_simulator.experiments.persistence import ExperimentRepository
+
+        # ExperimentRepository should be usable by Castro
+        assert ExperimentRepository is not None
+
+
+class TestCastroReplayUsesCore:
+    """Tests that Castro replay uses core infrastructure."""
+
+    def test_replay_uses_core_database_provider(self, tmp_path: Path) -> None:
+        """Castro replay should use core DatabaseStateProvider."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+            EventRecord,
+        )
+        from payment_simulator.experiments.runner import DatabaseStateProvider
+        from payment_simulator.ai_cash_mgmt.events import (
+            create_experiment_start_event,
+        )
+
+        # Create database with core
+        db_path = tmp_path / "test.db"
+        repo = ExperimentRepository(db_path)
+
+        # Save experiment
+        record = ExperimentRecord(
+            run_id="test-run",
+            experiment_name="exp1",
+            experiment_type="castro",
+            config={},
+            created_at="2025-12-11T10:00:00",
+            completed_at=None,
+            num_iterations=0,
+            converged=False,
+            convergence_reason=None,
+        )
+        repo.save_experiment(record)
+
+        # Save event using core event helper
+        event = create_experiment_start_event(
+            run_id="test-run",
+            experiment_name="exp1",
+            description="Test",
+            model="claude-3",
+            max_iterations=10,
+            num_samples=5,
+        )
+        repo.save_event(event)
+
+        # Create provider for replay
+        provider = DatabaseStateProvider(repo, "test-run")
+
+        # Should work
+        info = provider.get_experiment_info()
+        assert info["experiment_name"] == "exp1"
+
+        events = provider.get_iteration_events(0)
+        assert len(events) == 1
+        assert events[0]["event_type"] == "experiment_start"
+
+        repo.close()
+```
+
+---
+
+### Test File 3: `experiments/castro/tests/test_castro_minimal.py`
+
+```python
+"""TDD tests verifying Castro is minimal.
+
+Tests that Castro only contains configs and CLI.
+
+Write these tests FIRST, then implement.
+"""
+
+from __future__ import annotations
+
+import pytest
+from pathlib import Path
+
+
+class TestCastroStructure:
+    """Tests for Castro's minimal structure."""
+
+    def test_castro_has_configs_directory(self) -> None:
+        """Castro should have configs directory."""
+        configs_path = Path(__file__).parent.parent / "castro" / "configs"
+        # Or wherever YAML configs are stored
+        assert configs_path.exists() or (
+            Path(__file__).parent.parent / "configs"
+        ).exists()
+
+    def test_castro_has_cli(self) -> None:
+        """Castro should have CLI module."""
+        cli_path = Path(__file__).parent.parent / "castro" / "cli.py"
+        assert cli_path.exists()
+
+    def test_castro_has_runner(self) -> None:
+        """Castro should have runner module (thin wrapper)."""
+        runner_path = Path(__file__).parent.parent / "castro" / "runner.py"
+        assert runner_path.exists()
+
+
+class TestCastroLineCount:
+    """Tests that Castro code is minimal."""
+
+    def test_castro_total_lines_under_500(self) -> None:
+        """Total Castro Python code should be under 500 lines."""
+        castro_dir = Path(__file__).parent.parent / "castro"
+
+        total_lines = 0
+        for py_file in castro_dir.glob("**/*.py"):
+            if "__pycache__" not in str(py_file):
+                with open(py_file) as f:
+                    # Count non-empty, non-comment lines
+                    lines = [
+                        line for line in f.readlines()
+                        if line.strip() and not line.strip().startswith("#")
+                    ]
+                    total_lines += len(lines)
+
+        assert total_lines < 500, f"Castro has {total_lines} lines, should be <500"
+
+
+class TestCastroNoInfrastructure:
+    """Tests that Castro has no infrastructure code."""
+
+    def test_no_protocol_definitions(self) -> None:
+        """Castro should not define any Protocol classes."""
+        castro_dir = Path(__file__).parent.parent / "castro"
+
+        for py_file in castro_dir.glob("**/*.py"):
+            if "__pycache__" not in str(py_file):
+                content = py_file.read_text()
+                assert "class " not in content or "Protocol" not in content, (
+                    f"{py_file} should not define Protocol classes"
+                )
+
+    def test_no_database_code(self) -> None:
+        """Castro should not have database code."""
+        castro_dir = Path(__file__).parent.parent / "castro"
+
+        for py_file in castro_dir.glob("**/*.py"):
+            if "__pycache__" not in str(py_file):
+                content = py_file.read_text()
+                # Should not import duckdb directly
+                assert "import duckdb" not in content, (
+                    f"{py_file} should not import duckdb directly"
+                )
 ```
 
 ---
 
 ## Implementation Plan
 
-### Task 12.1: Adapt Castro StateProvider (Medium Risk)
+### Task 12.1: Move Event System to Core
+
+**TDD Test File:** `api/tests/ai_cash_mgmt/test_events.py`
 
 **Steps:**
 1. Write TDD tests (above)
-2. Run tests -> FAIL
-3. Add core protocol methods to `LiveExperimentProvider`:
-   - `get_experiment_info()` - wraps `get_run_metadata()`
-   - `get_total_iterations()` - new method
-   - `get_iteration_events()` - wraps `get_events_for_iteration()`, converts return type
-   - `get_iteration_policies()` - new method (track internally)
-   - `get_iteration_costs()` - new method (track internally)
-   - `get_iteration_accepted_changes()` - new method (track internally)
-4. Add core protocol methods to `DatabaseExperimentProvider`:
-   - Same methods, query from database
-5. Keep existing methods for backward compatibility
-6. Run tests -> PASS
-7. Optionally merge `EventEmitter` into `LiveExperimentProvider`
+2. Run tests → FAIL
+3. Create `api/payment_simulator/ai_cash_mgmt/events.py`:
+   - Copy event type constants from Castro
+   - Copy event creation helpers from Castro
+   - Modify helpers to return `EventRecord` instead of `ExperimentEvent`
+4. Update `api/payment_simulator/ai_cash_mgmt/__init__.py` to export
+5. Run tests → PASS
+
+**Files to create:**
+- `api/payment_simulator/ai_cash_mgmt/events.py`
 
 **Files to modify:**
-- `experiments/castro/castro/state_provider.py`
+- `api/payment_simulator/ai_cash_mgmt/__init__.py`
 
 ---
 
-### Task 12.2: Migrate Castro Persistence (Medium Risk)
+### Task 12.2: Delete Castro Infrastructure
+
+**TDD Test File:** `experiments/castro/tests/test_castro_uses_core.py`
 
 **Steps:**
 1. Write TDD tests (above)
-2. Run tests -> FAIL
-3. Option A: Castro repo wraps core repo internally
-   - `ExperimentEventRepository.__init__` creates internal `ExperimentRepository`
-   - Existing methods delegate to core
-4. Option B: Castro repo uses core tables directly
-   - Modify Castro schema to match core
-   - Add compatibility layer for old API
-5. Add conversion methods: `ExperimentEvent <-> EventRecord`
-6. Run tests -> PASS
-7. Update Castro runner to use migrated repository
-
-**Files to modify:**
-- `experiments/castro/castro/persistence/repository.py`
-- `experiments/castro/castro/persistence/models.py` (add conversion methods)
+2. Run tests → FAIL (files still exist)
+3. Delete Castro infrastructure:
+   - `castro/state_provider.py`
+   - `castro/persistence/repository.py`
+   - `castro/persistence/models.py`
+   - `castro/events.py`
+   - `castro/persistence/__init__.py` (if empty)
+4. Run tests → PASS
 
 ---
 
-### Task 12.3: Event System Alignment (Low Risk)
+### Task 12.3: Update Castro to Use Core
+
+**TDD Test File:** `experiments/castro/tests/test_castro_minimal.py`
 
 **Steps:**
 1. Write TDD tests (above)
-2. Run tests -> FAIL
-3. Add `to_event_record()` method to `ExperimentEvent`
-4. Add `from_event_record()` class method to `ExperimentEvent`
-5. Keep all event creation helpers (domain-specific)
-6. Run tests -> PASS
-
-**Files to modify:**
-- `experiments/castro/castro/events.py`
+2. Run tests → FAIL
+3. Update `castro/runner.py`:
+   - Import `LiveStateProvider` from core
+   - Import `ExperimentRepository` from core
+   - Import event helpers from `ai_cash_mgmt.events`
+   - Remove all infrastructure code
+4. Update `castro/cli.py`:
+   - Use core `DatabaseStateProvider` for replay
+   - Use core `ExperimentRepository` for persistence
+5. Update `castro/__init__.py`:
+   - Re-export from core for convenience
+6. Run tests → PASS
 
 ---
 
@@ -930,26 +747,26 @@ class TestReplayIdentityPreserved:
 
 ### Before Starting
 - [ ] All Phase 11 tests pass
-- [ ] All Castro tests pass
-- [ ] Record baseline test counts
+- [ ] All Castro tests pass (baseline)
+- [ ] Record Castro line count
 
 ### TDD Verification
-- [ ] Task 12.1: `test_state_provider_migration.py` all pass
-- [ ] Task 12.2: `test_persistence_migration.py` all pass
-- [ ] Task 12.3: `test_replay_identity_preserved.py` all pass
+- [ ] `test_events.py` all pass (Task 12.1)
+- [ ] `test_castro_uses_core.py` all pass (Task 12.2)
+- [ ] `test_castro_minimal.py` all pass (Task 12.3)
 
 ### Integration Verification
 - [ ] All API tests pass
 - [ ] All Castro tests pass
-- [ ] Type checking passes: `mypy castro/`
-- [ ] Castro CLI still works: `castro run exp1 --max-iter 1 --dry-run`
-- [ ] Replay identity preserved: `castro replay <db>` matches original
+- [ ] Type checking passes: `mypy`
+- [ ] Castro CLI works: `castro run exp1 --max-iter 1 --dry-run`
+- [ ] Castro replay works: `castro replay <db>`
 
-### Backward Compatibility
-- [ ] Existing Castro scripts work without changes
-- [ ] Existing databases can be read
-- [ ] `ExperimentStateProvider` protocol still works
-- [ ] All event creation helpers still work
+### Deletion Verification
+- [ ] `castro/state_provider.py` deleted
+- [ ] `castro/persistence/` deleted
+- [ ] `castro/events.py` deleted
+- [ ] Castro line count < 500
 
 ---
 
@@ -959,46 +776,51 @@ class TestReplayIdentityPreserved:
 
 | Category | Before Phase 12 | After Phase 12 | Delta |
 |----------|-----------------|----------------|-------|
-| Castro state_provider.py | ~354 | ~200 | -154 |
-| Castro persistence/ | ~400 | ~200 | -200 |
-| Castro events.py | ~418 | ~440 | +22 |
-| **Net Castro Reduction** | | | **~332** |
+| Castro state_provider.py | ~354 | 0 | -354 |
+| Castro persistence/ | ~348 | 0 | -348 |
+| Castro events.py | ~418 | 0 | -418 |
+| Core ai_cash_mgmt/events.py | 0 | ~350 | +350 |
+| Castro runner.py | ~200 | ~50 | -150 |
+| Castro cli.py | ~100 | ~100 | 0 |
+| **Net Castro Reduction** | ~1,420 | ~200 | **-1,220** |
+| **Net Core Addition** | | | **+350** |
 
-### New Tests Added
+### Test Summary
 
 | Test File | Test Count |
 |-----------|------------|
-| test_state_provider_migration.py | ~15 |
-| test_persistence_migration.py | ~12 |
-| test_replay_identity_preserved.py | ~5 |
-| **Total** | **~32** |
+| test_events.py | ~20 |
+| test_castro_uses_core.py | ~10 |
+| test_castro_minimal.py | ~5 |
+| **Total New Tests** | **~35** |
 
 ---
 
-## Risk Mitigation
+## What Castro Becomes
 
-### Replay Identity
-- **Risk:** Migration breaks replay - different output from same database
-- **Mitigation:**
-  1. Golden test: Capture known-good output before migration
-  2. Compare output after migration
-  3. Test at event level, not just final output
-- **Fallback:** Revert migration, keep Castro separate
+```
+experiments/castro/
+├── castro/
+│   ├── __init__.py       # Re-exports from core (~10 lines)
+│   ├── cli.py            # CLI entry point (~100 lines)
+│   ├── runner.py         # Thin wrapper (~50 lines)
+│   └── display.py        # Castro output formatting (~50 lines)
+├── configs/
+│   ├── exp1.yaml
+│   ├── exp2.yaml
+│   └── exp3.yaml
+├── tests/
+│   └── ...
+└── pyproject.toml
+```
 
-### Database Compatibility
-- **Risk:** New schema incompatible with old databases
-- **Mitigation:**
-  1. Castro keeps its own tables
-  2. Core tables are additional (not replacement)
-  3. Migration script with dry-run
-- **Fallback:** Castro keeps own persistence entirely
+**Castro is now just:**
+1. YAML experiment configurations
+2. CLI entry point that invokes core
+3. Thin runner wrapper
+4. Output formatting (optional)
 
-### API Breaking Changes
-- **Risk:** Existing Castro users see errors
-- **Mitigation:**
-  1. All existing methods remain (deprecation warnings optional)
-  2. New methods are additions, not replacements
-  3. Test backward compatibility explicitly
+All infrastructure lives in core where it belongs.
 
 ---
 
@@ -1007,9 +829,7 @@ class TestReplayIdentityPreserved:
 - [Phase 11: StateProvider and Persistence](./phase_11.md) - Core infrastructure
 - [Conceptual Plan](../refactor-conceptual-plan.md) - Architecture overview
 - [Development Plan](../development-plan.md) - Timeline
-- [Castro StateProvider](../../../../experiments/castro/castro/state_provider.py) - Current implementation
-- [Castro Persistence](../../../../experiments/castro/castro/persistence/) - Current implementation
 
 ---
 
-*Phase 12 Plan v1.0 - 2025-12-11*
+*Phase 12 Plan v2.0 (Revised) - 2025-12-11*

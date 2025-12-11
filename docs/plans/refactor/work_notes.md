@@ -1138,61 +1138,64 @@ CODE ADDED:
 
 ---
 
-### Phase 12: Castro Migration to Core Infrastructure
+### Phase 12: Castro Migration to Core Infrastructure (REVISED)
 
-**Status:** PLANNED (2025-12-11)
+**Status:** PLANNED (2025-12-11, Revised)
 
-**Purpose:** Migrate Castro experiments to use core infrastructure from Phase 11:
-- Task 12.1: Adapt Castro StateProvider to core protocol
-- Task 12.2: Migrate Castro Persistence to core repository
-- Task 12.3: Event system alignment
+**Purpose:** Eliminate Castro's duplicated infrastructure:
+- Task 12.1: Move event system to core `ai_cash_mgmt/events.py`
+- Task 12.2: Delete Castro infrastructure (state_provider, persistence, events)
+- Task 12.3: Update Castro to use core directly (configs + CLI only)
 
-**TDD Checklist - Task 12.1: StateProvider Migration**
-- [ ] Write `experiments/castro/tests/test_state_provider_migration.py`
-- [ ] Test: LiveExperimentProvider implements core protocol
-- [ ] Test: DatabaseExperimentProvider implements core protocol
-- [ ] Test: Backward compatibility with existing API
+**TDD Checklist - Task 12.1: Move Event System to Core**
+- [ ] Write `api/tests/ai_cash_mgmt/test_events.py`
+- [ ] Test: Event type constants importable from ai_cash_mgmt
+- [ ] Test: Event creation helpers return core EventRecord
 - [ ] Test: Costs are integer cents (INV-1)
+- [ ] Test: Timestamps are ISO format strings
 - [ ] Run tests → FAIL
-- [ ] Add core protocol methods to Castro providers
+- [ ] Create `api/payment_simulator/ai_cash_mgmt/events.py`
 - [ ] Run tests → PASS
 
-**TDD Checklist - Task 12.2: Persistence Migration**
-- [ ] Write `experiments/castro/tests/test_persistence_migration.py`
-- [ ] Test: Castro repository can wrap core repository
-- [ ] Test: Existing API still works (save_run_record, save_event, etc.)
-- [ ] Test: Event conversion works both ways
+**TDD Checklist - Task 12.2: Delete Castro Infrastructure**
+- [ ] Write `experiments/castro/tests/test_castro_uses_core.py`
+- [ ] Test: castro/state_provider.py deleted
+- [ ] Test: castro/persistence/ deleted
+- [ ] Test: castro/events.py deleted
+- [ ] Test: Castro imports from core modules
 - [ ] Run tests → FAIL
-- [ ] Update Castro repository to use core internally
+- [ ] Delete Castro infrastructure files
 - [ ] Run tests → PASS
 
-**TDD Checklist - Task 12.3: Event System Alignment**
-- [ ] Write `experiments/castro/tests/test_replay_identity_preserved.py`
-- [ ] Test: Events convert to/from core EventRecord
-- [ ] Test: Replay identity preserved after migration
+**TDD Checklist - Task 12.3: Update Castro to Use Core**
+- [ ] Write `experiments/castro/tests/test_castro_minimal.py`
+- [ ] Test: Castro has configs + CLI only
+- [ ] Test: Castro line count < 500
+- [ ] Test: No Protocol definitions in Castro
+- [ ] Test: No direct database imports in Castro
 - [ ] Run tests → FAIL
-- [ ] Add conversion methods to ExperimentEvent
+- [ ] Update Castro runner/cli to use core
 - [ ] Run tests → PASS
 
 **Notes:**
 ```
-2025-12-11: PHASE 12 PLANNED
+2025-12-11: PHASE 12 REVISED
 
-Building on Phase 11 core infrastructure:
-- Core ExperimentStateProviderProtocol (Phase 11)
-- Core ExperimentRepository (Phase 11)
-- Core record classes (Phase 11)
+REVISED APPROACH: Direct Integration (not Adapter Pattern)
+- Event types belong in ai_cash_mgmt (LLM optimization events)
+- Castro keeps NO infrastructure - uses core directly
+- Castro becomes: YAML configs + CLI entry point only
 
-MIGRATION APPROACH: Adapter Pattern
-- Castro keeps its public API (backward compat)
-- Internal implementation wraps core modules
-- Castro-specific features remain in Castro
+KEY INSIGHT:
+- Core ai_cash_mgmt/ already has LLM experiment logic
+- Core experiments/ already has StateProvider + Repository
+- Castro's infrastructure was just duplication
 
 EXPECTED OUTCOMES:
-- ~330 lines removed from Castro
-- ~32 new tests
-- Full backward compatibility
-- Replay identity preserved
+- ~1,220 lines removed from Castro
+- ~350 lines added to core (events.py)
+- Castro reduced to ~200 lines (configs + CLI)
+- ~35 new tests
 
 See phases/phase_12.md for detailed TDD specifications.
 ```
