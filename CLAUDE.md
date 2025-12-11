@@ -722,36 +722,45 @@ async def test_full_simulation_via_api(client: TestClient):
 
 ---
 
-## When to Use Subagents
+## 🎯 Proactive Agent Delegation (MANDATORY)
 
-Claude Code has a powerful subagent feature that keeps main context clean. Use subagents for:
+**IMPORTANT**: Before attempting to answer questions directly, Claude MUST check if a specialized agent should handle the task. Delegate to agents proactively—don't wait for the user to ask.
 
-1. **FFI Specialist** (`/agents ffi-specialist`)
-   - When: Working on Rust↔Python boundary
-   - Keeps: PyO3 patterns, error handling, type conversions
-   
-2. **Test Engineer** (`/agents test-engineer`)
-   - When: Writing comprehensive test suites
-   - Keeps: Test patterns, edge cases, mocking strategies
-   
-3. **Performance Analyst** (`/agents performance`)
-   - When: Profiling and optimizing hot paths
-   - Keeps: Benchmarking code, flamegraphs, optimization patterns
-   
-4. **Documentation Maintainer** (`/agents docs`)
-   - When: Keeping docs in sync with code
-   - Keeps: Documentation style, examples, API references
+### docs-navigator — DELEGATE FIRST for Documentation Questions
 
-**How to use**: 
+**Trigger immediately when user asks:**
+- "Where is X documented?"
+- "How do I [run/configure/use] X?" (CLI commands, experiments, workflows)
+- "What's the documentation structure?"
+- Questions about conventions, patterns, or best practices
+- New contributor orientation
+- Finding reference docs or example configs
+
+**Agent file**: `.claude/agents/docs-navigator.md`
+
+**Why delegate?** The docs-navigator has curated knowledge of all documentation locations and can point users to authoritative sources faster than searching the codebase.
+
+### Other Specialized Agents
+
+| Agent | Trigger When | File |
+|-------|--------------|------|
+| **ffi-specialist** | Working on Rust↔Python boundary, PyO3 patterns, FFI errors | `.claude/agents/ffi-specialist.md` |
+| **test-engineer** | Writing test suites, debugging flaky tests, test strategy | `.claude/agents/test-engineer.md` |
+| **performance** | Profiling, optimizing hot paths, benchmarking | `.claude/agents/performance.md` |
+| **python-stylist** | Python typing, modern patterns, Pydantic/Typer usage | `.claude/agents/python-stylist.md` |
+
+### How to Use Agents
+
+Use the Task tool with the agent's content as context, or reference the agent file directly:
+
 ```bash
-# Create a subagent
-/agents ffi-specialist
+# Read agent definition for context
+.claude/agents/docs-navigator.md
 
-# Then in your prompt:
-"@ffi-specialist: How should I expose this Rust function to Python?"
+# Then apply the agent's specialized knowledge to answer the question
 ```
 
-The subagent will work in parallel, analyze relevant docs/code, and return only the essential answer to your main session.
+The agent will analyze relevant docs/code and provide authoritative guidance.
 
 ---
 
@@ -787,6 +796,7 @@ The subagent will work in parallel, analyze relevant docs/code, and return only 
 - `sim_config_example.yaml` - Full setup with automatic arrivals
 
 ### Subagent Definitions
+- `.claude/agents/docs-navigator.md` - **Documentation finder (use FIRST for "where is X" questions)**
 - `.claude/agents/ffi-specialist.md` - FFI boundary expert
 - `.claude/agents/test-engineer.md` - Testing specialist
 - `.claude/agents/performance.md` - Performance optimization expert
