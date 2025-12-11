@@ -12,6 +12,8 @@ Components:
     - ExperimentStateProviderProtocol: Protocol for experiment state access
     - LiveStateProvider: State provider for live experiments
     - DatabaseStateProvider: State provider for database replay
+    - VerboseConfig: Configuration for verbose logging flags
+    - VerboseLogger: Logger for structured verbose experiment output
 
 Example:
     >>> from payment_simulator.experiments.runner import (
@@ -19,6 +21,8 @@ Example:
     ...     ExperimentState,
     ...     SilentOutput,
     ...     LiveStateProvider,
+    ...     VerboseConfig,
+    ...     VerboseLogger,
     ... )
     >>> state = ExperimentState(experiment_name="test")
     >>> output = SilentOutput()
@@ -27,6 +31,8 @@ Example:
     ...     experiment_type="castro",
     ...     config={},
     ... )
+    >>> verbose_config = VerboseConfig.all_enabled()
+    >>> logger = VerboseLogger(verbose_config)
 """
 
 from payment_simulator.experiments.runner.output import (
@@ -44,6 +50,30 @@ from payment_simulator.experiments.runner.state_provider import (
     ExperimentStateProviderProtocol,
     LiveStateProvider,
 )
+from payment_simulator.experiments.runner.verbose import (
+    BootstrapSampleResult,
+    LLMCallMetadata,
+    RejectionDetail,
+    VerboseConfig,
+    VerboseLogger,
+)
+from payment_simulator.experiments.runner.display import (
+    display_experiment_output,
+)
+from payment_simulator.experiments.runner.audit import (
+    display_audit_output,
+)
+from payment_simulator.experiments.runner.llm_client import (
+    ExperimentLLMClient,
+    LLMInteraction,
+)
+from payment_simulator.experiments.runner.optimization import (
+    OptimizationLoop,
+    OptimizationResult,
+)
+from payment_simulator.experiments.runner.experiment_runner import (
+    GenericExperimentRunner,
+)
 
 __all__ = [
     # Output handling
@@ -59,4 +89,21 @@ __all__ = [
     "ExperimentStateProviderProtocol",
     "LiveStateProvider",
     "DatabaseStateProvider",
+    # Verbose logging (Phase 14)
+    "VerboseConfig",
+    "VerboseLogger",
+    "BootstrapSampleResult",
+    "LLMCallMetadata",
+    "RejectionDetail",
+    # Display functions (Phase 14)
+    "display_experiment_output",
+    "display_audit_output",
+    # LLM client (Phase 16)
+    "ExperimentLLMClient",
+    "LLMInteraction",
+    # Optimization loop (Phase 16)
+    "OptimizationLoop",
+    "OptimizationResult",
+    # Generic experiment runner (Phase 16)
+    "GenericExperimentRunner",
 ]

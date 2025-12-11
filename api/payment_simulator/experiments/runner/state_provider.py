@@ -484,7 +484,11 @@ class DatabaseStateProvider:
         """Iterate over all events across all iterations."""
         events = self._repository.get_all_events(self._run_id)
         for event in events:
-            yield {"event_type": event.event_type, **event.event_data}
+            yield {
+                "event_type": event.event_type,
+                "iteration": event.iteration,
+                **event.event_data,
+            }
 
     def get_final_result(self) -> dict[str, Any] | None:
         """Get final experiment result."""

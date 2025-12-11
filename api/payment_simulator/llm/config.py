@@ -35,6 +35,14 @@ class LLMConfig:
         >>> config.full_model_string
         'anthropic:claude-sonnet-4-5'
 
+        >>> # With system prompt
+        >>> config = LLMConfig(
+        ...     model="anthropic:claude-sonnet-4-5",
+        ...     system_prompt="You are an expert in payment optimization.",
+        ... )
+        >>> config.system_prompt
+        'You are an expert in payment optimization.'
+
     Attributes:
         model: Model specification in provider:model format.
         temperature: Sampling temperature (default 0.0 for determinism).
@@ -44,6 +52,7 @@ class LLMConfig:
         thinking_budget: Anthropic extended thinking budget tokens.
         reasoning_effort: OpenAI reasoning effort level (low/medium/high).
         thinking_config: Google Gemini thinking configuration.
+        system_prompt: System prompt for the LLM (loaded from YAML or file).
     """
 
     # Model specification in provider:model format
@@ -59,6 +68,9 @@ class LLMConfig:
     thinking_budget: int | None = None  # Anthropic extended thinking
     reasoning_effort: str | None = None  # OpenAI: low, medium, high
     thinking_config: dict[str, Any] | None = None  # Google Gemini thinking
+
+    # System prompt (from YAML or loaded from file)
+    system_prompt: str | None = None
 
     @property
     def provider(self) -> str:
