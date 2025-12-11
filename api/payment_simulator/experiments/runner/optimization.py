@@ -13,12 +13,21 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 if TYPE_CHECKING:
-    from payment_simulator.experiments.config import ExperimentConfig
+    from rich.console import Console
+
     from payment_simulator.ai_cash_mgmt.constraints import ScenarioConstraints
+    from payment_simulator.experiments.config import ExperimentConfig
 
 from payment_simulator._core import Orchestrator
 from payment_simulator.ai_cash_mgmt import ConvergenceDetector
 from payment_simulator.config import SimulationConfig
+from payment_simulator.experiments.runner.verbose import (
+    BootstrapSampleResult,
+    LLMCallMetadata,
+    RejectionDetail,
+    VerboseConfig,
+    VerboseLogger,
+)
 
 
 @dataclass(frozen=True)
@@ -94,6 +103,8 @@ class OptimizationLoop:
         self,
         config: ExperimentConfig,
         config_dir: Path | None = None,
+        verbose_config: VerboseConfig | None = None,
+        console: Console | None = None,
     ) -> None:
         """Initialize the optimization loop.
 
@@ -101,6 +112,8 @@ class OptimizationLoop:
             config: ExperimentConfig with all settings.
             config_dir: Directory containing the experiment config (for resolving
                         relative scenario paths). If None, uses current directory.
+            verbose_config: Optional verbose logging configuration.
+            console: Optional Rich console for verbose output.
         """
         self._config = config
         self._config_dir = config_dir or Path.cwd()
@@ -129,6 +142,12 @@ class OptimizationLoop:
 
         # LLM client (lazy initialized)
         self._llm_client: Any = None
+
+        # Verbose logging
+        self._verbose_config = verbose_config or VerboseConfig()
+        self._verbose_logger: VerboseLogger | None = None
+        if self._verbose_config.any:
+            self._verbose_logger = VerboseLogger(self._verbose_config, console=console)
 
     @property
     def max_iterations(self) -> int:
@@ -181,12 +200,21 @@ class OptimizationLoop:
             if agent_id not in self._policies:
                 self._policies[agent_id] = self._create_default_policy(agent_id)
 
+        # Track per_agent_costs across iterations for result
+        per_agent_costs: dict[str, int] = {}
+
         # Optimization loop
         while self._current_iteration < self.max_iterations:
             self._current_iteration += 1
 
             # Evaluate current policies (to be implemented by subclass)
             total_cost, per_agent_costs = await self._evaluate_policies()
+
+            # Log iteration start with cost
+            if self._verbose_logger and self._verbose_config.iterations:
+                self._verbose_logger.log_iteration_start(
+                    self._current_iteration, total_cost
+                )
 
             # Record metrics
             self._convergence.record_metric(float(total_cost))
@@ -216,7 +244,7 @@ class OptimizationLoop:
             per_agent_costs={
                 agent_id: per_agent_costs.get(agent_id, 0)
                 for agent_id in self.optimized_agents
-            } if "per_agent_costs" in dir() else {},
+            },
             final_policies=self._policies.copy(),
             iteration_history=self._iteration_history.copy(),
         )
@@ -332,6 +360,7 @@ class OptimizationLoop:
         per_agent_totals: dict[str, list[int]] = {
             agent_id: [] for agent_id in self.optimized_agents
         }
+        bootstrap_results: list[BootstrapSampleResult] = []
 
         for sample_idx in range(num_samples):
             # Use deterministic seed derivation for reproducibility
@@ -341,12 +370,40 @@ class OptimizationLoop:
             for agent_id in self.optimized_agents:
                 per_agent_totals[agent_id].append(agent_costs.get(agent_id, 0))
 
+            # Collect bootstrap sample result for verbose logging
+            if self._verbose_logger and self._verbose_config.bootstrap:
+                bootstrap_results.append(
+                    BootstrapSampleResult(
+                        seed=seed,
+                        cost=cost,
+                        settled=0,  # Not tracked at this level
+                        total=0,  # Not tracked at this level
+                        settlement_rate=0.0,  # Not tracked at this level
+                        baseline_cost=None,  # First iteration has no baseline
+                    )
+                )
+
         # Compute mean costs (as integers)
         mean_total = int(sum(total_costs) / len(total_costs))
         mean_per_agent = {
             agent_id: int(sum(costs) / len(costs))
             for agent_id, costs in per_agent_totals.items()
         }
+
+        # Log bootstrap evaluation summary
+        if self._verbose_logger and self._verbose_config.bootstrap and bootstrap_results:
+            import statistics
+
+            std_cost = (
+                int(statistics.stdev(total_costs)) if len(total_costs) > 1 else 0
+            )
+            self._verbose_logger.log_bootstrap_evaluation(
+                seed_results=bootstrap_results,
+                mean_cost=mean_total,
+                std_cost=std_cost,
+                deterministic=False,
+                is_baseline_run=(self._current_iteration == 1),
+            )
 
         return mean_total, mean_per_agent
 
@@ -412,6 +469,8 @@ class OptimizationLoop:
             agent_id: Agent to optimize.
             current_cost: Current cost for this agent in integer cents.
         """
+        import time
+
         # Skip LLM optimization if no system prompt configured
         if self._config.llm.system_prompt is None:
             return
@@ -445,12 +504,30 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
 """
 
         try:
+            # Track timing for verbose logging
+            start_time = time.time()
+
             # Generate new policy
             new_policy = await self._llm_client.generate_policy(
                 prompt=prompt,
                 current_policy=current_policy,
                 context=context,
             )
+
+            latency = time.time() - start_time
+
+            # Log LLM call metadata
+            if self._verbose_logger and self._verbose_config.llm:
+                self._verbose_logger.log_llm_call(
+                    LLMCallMetadata(
+                        agent_id=agent_id,
+                        model=self._config.llm.model,
+                        prompt_tokens=0,  # Not available without more instrumentation
+                        completion_tokens=0,  # Not available without more instrumentation
+                        latency_seconds=latency,
+                        context_summary={"current_cost": current_cost},
+                    )
+                )
 
             # Validate against constraints if configured
             if self._constraints is not None:
@@ -461,6 +538,21 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 validator = ConstraintValidator(self._constraints)
                 result = validator.validate(new_policy)
                 if not result.is_valid:
+                    # Log rejection
+                    if self._verbose_logger and self._verbose_config.rejections:
+                        violations = (
+                            result.violations
+                            if hasattr(result, "violations")
+                            else [str(result)]
+                        )
+                        self._verbose_logger.log_rejection(
+                            RejectionDetail(
+                                agent_id=agent_id,
+                                proposed_policy=new_policy,
+                                validation_errors=violations,
+                                rejection_reason="constraint_violation",
+                            )
+                        )
                     # Keep current policy if validation fails
                     return
 
@@ -473,6 +565,17 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
 
             if should_accept:
                 self._policies[agent_id] = new_policy
+            elif self._verbose_logger and self._verbose_config.rejections:
+                # Log paired comparison rejection
+                self._verbose_logger.log_rejection(
+                    RejectionDetail(
+                        agent_id=agent_id,
+                        proposed_policy=new_policy,
+                        rejection_reason="cost_not_improved",
+                        old_cost=current_cost,
+                        new_cost=current_cost,  # Approximate; actual requires re-evaluation
+                    )
+                )
 
         except Exception:
             # Keep current policy on error

@@ -151,9 +151,11 @@ class GenericExperimentRunner:
         start_time = time.time()
 
         # Create optimization loop with config directory for relative path resolution
+        # and verbose config for logging
         loop = OptimizationLoop(
             config=self._config,
             config_dir=self._config_dir,
+            verbose_config=self._verbose_config,
         )
 
         # Run optimization
