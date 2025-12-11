@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** COMPLETED (Phases 0-10)
+**Status:** Phases 0-10 COMPLETED, Phase 11 PLANNED
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -1057,6 +1057,73 @@ DEFERRED TASKS (too risky):
 
 All 386 Castro tests pass, 12 skipped.
 Phase 10 complete!
+```
+
+---
+
+### Phase 11: Infrastructure Generalization - StateProvider and Persistence
+
+**Status:** PLANNED (2025-12-11)
+
+**Purpose:** Address high-risk tasks deferred from Phase 10:
+- Task 11.1: Generalize StateProvider Protocol to core
+- Task 11.2: Unify Persistence Layer
+
+**TDD Checklist - Task 11.1: StateProvider Protocol**
+- [ ] Write `api/tests/experiments/runner/test_state_provider_core.py`
+- [ ] Test: Protocol importable from `experiments.runner`
+- [ ] Test: Protocol is @runtime_checkable
+- [ ] Test: Protocol has required methods
+- [ ] Test: DatabaseStateProvider implements protocol
+- [ ] Test: LiveStateProvider implements protocol
+- [ ] Test: Costs are integer cents (INV-1)
+- [ ] Test: Castro backward compatibility
+- [ ] Run tests → FAIL
+- [ ] Create `api/payment_simulator/experiments/runner/state_provider.py`
+- [ ] Update `__init__.py` exports
+- [ ] Update Castro to use core protocol
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 11.2: Unified Persistence**
+- [ ] Write `api/tests/experiments/persistence/test_experiment_repository.py`
+- [ ] Test: ExperimentRepository importable
+- [ ] Test: Record classes importable
+- [ ] Test: Creates database file and tables
+- [ ] Test: Save and load experiment record
+- [ ] Test: List experiments by type
+- [ ] Test: Save and retrieve iterations
+- [ ] Test: Costs are integer cents (INV-1)
+- [ ] Test: StateProvider integration via `as_state_provider()`
+- [ ] Run tests → FAIL
+- [ ] Create `api/payment_simulator/experiments/persistence/repository.py`
+- [ ] Update `__init__.py` exports
+- [ ] Create migration script for Castro databases
+- [ ] Run tests → PASS
+
+**Notes:**
+```
+2025-12-11: PHASE 11 PLANNED
+
+Deferred tasks from Phase 10:
+- 10.4 → 11.1: StateProvider Protocol (High Risk)
+- 10.5 → 11.2: Unified Persistence (High Risk)
+
+RISK MITIGATION:
+1. StateProvider: Start with minimal protocol, extend as needed
+2. Persistence: New tables alongside old, migration script with dry-run
+
+EXPECTED OUTCOMES:
+- Core experiments/runner: +150 lines
+- Core experiments/persistence: +300 lines
+- Castro state_provider.py: -200 lines
+- Castro persistence/: -200 lines
+- Net Castro reduction: ~400 lines
+
+TDD test files:
+- test_state_provider_core.py: ~15 tests
+- test_experiment_repository.py: ~20 tests
+
+See phases/phase_11.md for detailed TDD specifications.
 ```
 
 ---
