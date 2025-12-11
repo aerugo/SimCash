@@ -1,0 +1,51 @@
+# Experiment 1: 2-Period Deterministic
+# Validates Nash equilibrium with deferred crediting.
+#
+# Setup:
+# - 2 ticks per day, 1 day
+# - Deterministic payment arrivals
+# - Expected: Bank A posts 0, Bank B posts 20000
+#
+# Uses deterministic mode (single evaluation) since the scenario has
+# no stochastic elements - all transactions are fixed at specific ticks.
+
+name: exp1
+description: "2-Period Deterministic Nash Equilibrium"
+
+# Scenario configuration
+scenario: configs/exp1_2period.yaml
+
+# Evaluation settings
+evaluation:
+  mode: deterministic  # No bootstrap sampling - scenario is deterministic
+  ticks: 2  # Only 2 ticks in scenario
+
+# Convergence criteria
+convergence:
+  max_iterations: 25
+  stability_threshold: 0.05
+  stability_window: 5
+
+# LLM configuration
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+  temperature: 0.0
+  max_retries: 3
+  timeout_seconds: 120
+
+# Agents to optimize
+optimized_agents:
+  - BANK_A
+  - BANK_B
+
+# Constraints module (Castro-specific)
+constraints: castro.constraints.CASTRO_CONSTRAINTS
+
+# Output settings
+output:
+  directory: results
+  database: exp1.db
+  verbose: true
+
+# Master seed for reproducibility
+master_seed: 42
