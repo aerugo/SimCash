@@ -783,13 +783,92 @@ The refactor is complete when:
 
 ---
 
+---
+
+## Phase 9: Castro Module Slimming
+
+Following the completion of Phases 0-8, the Castro module still contains significant redundant code that can be removed or simplified. This phase focuses on making Castro as thin as possible by leveraging core SimCash modules.
+
+### Current State Analysis
+
+After reviewing every file in `experiments/castro/`, the following issues were identified:
+
+| Issue | Location | Severity |
+|-------|----------|----------|
+| **Terminology bug** | `events.py` | High - `EVENT_MONTE_CARLO_EVALUATION` should be `EVENT_BOOTSTRAP_EVALUATION` |
+| **Duplicate VerboseConfig** | `verbose_logging.py` and `display.py` | High - Two different VerboseConfig classes with different field names |
+| **Redundant experiments.py** | `experiments.py` | High - Python dataclasses duplicate YAML experiment configs |
+| **Complex runner.py** | `runner.py` (936 lines) | Medium - Does too many things, could be split |
+| **Potentially obsolete context_builder.py** | `context_builder.py` | Medium - May be superseded by `bootstrap_context.py` |
+| **Monte Carlo terminology in docstrings** | Multiple files | Low - Documentation inconsistency |
+
+### Files to DELETE
+
+| File | Reason | Migration |
+|------|--------|-----------|
+| `experiments.py` | Redundant with `experiments/*.yaml` | Use YAML-driven experiment loading |
+| `context_builder.py` | Superseded by `bootstrap_context.py` | Update `runner.py` to use EnrichedBootstrapContextBuilder |
+
+### Files to MODIFY
+
+| File | Changes |
+|------|---------|
+| `events.py` | Rename `EVENT_MONTE_CARLO_EVALUATION` → `EVENT_BOOTSTRAP_EVALUATION`, update `create_monte_carlo_event` → `create_bootstrap_evaluation_event` |
+| `display.py` | Remove duplicate VerboseConfig, import from `verbose_logging.py` |
+| `verbose_logging.py` | Unify VerboseConfig to be the single source of truth |
+| `runner.py` | Simplify by extracting helpers, use YAML experiment loading |
+| `cli.py` | Update to use YAML experiment loading instead of EXPERIMENTS dict |
+
+### Files to KEEP (Castro-specific, no redundancy)
+
+| File | Reason |
+|------|--------|
+| `constraints.py` | CASTRO_CONSTRAINTS is experiment-specific |
+| `pydantic_llm_client.py` | Policy-specific SYSTEM_PROMPT and JSON parsing |
+| `bootstrap_context.py` | Works with EnrichedEvaluationResult (new pattern) |
+| `state_provider.py` | Castro replay/audit infrastructure |
+| `persistence/` | Castro-specific event schema |
+| `audit_display.py` | Castro audit trail display |
+| `verbose_capture.py` | Simulation event capture |
+| `run_id.py` | Simple, Castro-specific |
+
+### Expected Outcome
+
+After Phase 9:
+
+```
+experiments/castro/castro/
+├── __init__.py                  # Public API
+├── audit_display.py             # Audit trail display
+├── bootstrap_context.py         # LLM context from enriched results
+├── constraints.py               # CASTRO_CONSTRAINTS
+├── display.py                   # Unified display (no duplicate VerboseConfig)
+├── events.py                    # Event model (bootstrap terminology)
+├── persistence/                 # Persistence layer
+├── pydantic_llm_client.py       # PydanticAI client with policy prompt
+├── run_id.py                    # Run ID generation
+├── runner.py                    # Simplified runner
+├── state_provider.py            # StateProvider pattern
+├── verbose_capture.py           # Simulation capture
+└── verbose_logging.py           # VerboseConfig (single source of truth)
+
+# DELETED:
+# - experiments.py (use YAML configs)
+# - context_builder.py (use bootstrap_context.py)
+```
+
+Lines of code reduction target: ~400 lines (removing experiments.py, context_builder.py, duplicate VerboseConfig)
+
+---
+
 ## Related Documents
 
 - [Development Plan](./development-plan.md) - Phase-by-phase implementation
 - [Work Notes](./work_notes.md) - Progress tracking
+- [Phase 9 Plan](./phases/phase-9-castro-slimming.md) - Detailed implementation plan
 - [Castro Architecture Refactor](../castro-architecture-refactor.md) - Bug fixes
 - [Bootstrap Refactor](../bootstrap-refactor/refactor-conceptual-plan.md) - Completed
 
 ---
 
-*Document Version 1.0 - Initial Draft*
+*Document Version 1.1 - Added Phase 9 (Castro Module Slimming)*
