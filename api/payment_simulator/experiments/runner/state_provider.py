@@ -14,7 +14,7 @@ All costs are integer cents (INV-1 compliance).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Iterator, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from payment_simulator.experiments.persistence.repository import (
@@ -99,6 +99,45 @@ class ExperimentStateProviderProtocol(Protocol):
         """
         ...
 
+    # =========================================================================
+    # Audit Methods (Phase 13)
+    # =========================================================================
+
+    @property
+    def run_id(self) -> str | None:
+        """Get the run identifier.
+
+        Returns:
+            Run ID string, or None if not set
+        """
+        ...
+
+    def get_run_metadata(self) -> dict[str, Any] | None:
+        """Get run metadata for display.
+
+        Returns:
+            Dict with experiment_name, experiment_type, run_id, config,
+            or None if not available
+        """
+        ...
+
+    def get_all_events(self) -> Iterator[dict[str, Any]]:
+        """Iterate over all events across all iterations.
+
+        Returns:
+            Iterator yielding event dicts with 'event_type' key
+        """
+        ...
+
+    def get_final_result(self) -> dict[str, Any] | None:
+        """Get final experiment result.
+
+        Returns:
+            Dict with final_cost, best_cost, converged, convergence_reason,
+            or None if experiment not completed
+        """
+        ...
+
 
 # =============================================================================
 # Iteration Record (for internal storage)
@@ -156,6 +195,7 @@ class LiveStateProvider:
         self._iterations: list[IterationData] = []
         self._converged: bool = False
         self._convergence_reason: str | None = None
+        self._final_result: dict[str, Any] | None = None
 
     def get_experiment_info(self) -> dict[str, Any]:
         """Get experiment metadata."""
@@ -273,6 +313,62 @@ class LiveStateProvider:
         self._converged = converged
         self._convergence_reason = reason
 
+    # =========================================================================
+    # Audit Methods (Phase 13)
+    # =========================================================================
+
+    @property
+    def run_id(self) -> str | None:
+        """Get the run identifier."""
+        return self._run_id
+
+    def get_run_metadata(self) -> dict[str, Any] | None:
+        """Get run metadata for display."""
+        return {
+            "experiment_name": self._experiment_name,
+            "experiment_type": self._experiment_type,
+            "run_id": self._run_id,
+            "config": self._config,
+            "converged": self._converged,
+            "convergence_reason": self._convergence_reason,
+        }
+
+    def get_all_events(self) -> Iterator[dict[str, Any]]:
+        """Iterate over all events across all iterations."""
+        for iteration_data in self._iterations:
+            yield from iteration_data.events
+
+    def get_final_result(self) -> dict[str, Any] | None:
+        """Get final experiment result."""
+        return self._final_result
+
+    def set_final_result(
+        self,
+        final_cost: int,
+        best_cost: int,
+        converged: bool,
+        convergence_reason: str | None = None,
+    ) -> None:
+        """Set final experiment result.
+
+        All costs must be integer cents (INV-1 compliance).
+
+        Args:
+            final_cost: Final cost at end of experiment (integer cents)
+            best_cost: Best cost achieved during experiment (integer cents)
+            converged: Whether experiment converged
+            convergence_reason: Reason for convergence/stopping
+        """
+        self._final_result = {
+            "final_cost": final_cost,
+            "best_cost": best_cost,
+            "converged": converged,
+            "convergence_reason": convergence_reason,
+        }
+        # Also update convergence status
+        self._converged = converged
+        self._convergence_reason = convergence_reason
+
 
 # =============================================================================
 # Database Implementation
@@ -357,3 +453,60 @@ class DatabaseStateProvider:
         if self._iterations is None or iteration >= len(self._iterations):
             return {}
         return self._iterations[iteration].accepted_changes
+
+    # =========================================================================
+    # Audit Methods (Phase 13)
+    # =========================================================================
+
+    @property
+    def run_id(self) -> str:
+        """Get the run identifier."""
+        return self._run_id
+
+    def get_run_metadata(self) -> dict[str, Any] | None:
+        """Get run metadata for display."""
+        if self._experiment_record is None:
+            return None
+
+        return {
+            "experiment_name": self._experiment_record.experiment_name,
+            "experiment_type": self._experiment_record.experiment_type,
+            "run_id": self._experiment_record.run_id,
+            "config": self._experiment_record.config,
+            "converged": self._experiment_record.converged,
+            "convergence_reason": self._experiment_record.convergence_reason,
+            "created_at": self._experiment_record.created_at,
+            "completed_at": self._experiment_record.completed_at,
+            "num_iterations": self._experiment_record.num_iterations,
+        }
+
+    def get_all_events(self) -> Iterator[dict[str, Any]]:
+        """Iterate over all events across all iterations."""
+        events = self._repository.get_all_events(self._run_id)
+        for event in events:
+            yield {"event_type": event.event_type, **event.event_data}
+
+    def get_final_result(self) -> dict[str, Any] | None:
+        """Get final experiment result."""
+        if self._experiment_record is None:
+            return None
+
+        # Check if experiment is completed
+        if self._experiment_record.completed_at is None:
+            return None
+
+        # Get costs from config (stored there by runner)
+        config = self._experiment_record.config
+        final_cost = config.get("final_cost")
+        best_cost = config.get("best_cost")
+
+        # Return None if no cost data
+        if final_cost is None:
+            return None
+
+        return {
+            "final_cost": int(final_cost),  # Ensure integer (INV-1)
+            "best_cost": int(best_cost) if best_cost is not None else int(final_cost),
+            "converged": self._experiment_record.converged,
+            "convergence_reason": self._experiment_record.convergence_reason,
+        }

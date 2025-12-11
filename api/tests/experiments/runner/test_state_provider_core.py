@@ -40,6 +40,8 @@ class TestExperimentStateProviderProtocol:
 
     def test_protocol_is_runtime_checkable(self) -> None:
         """Protocol should be @runtime_checkable for isinstance checks."""
+        from typing import Iterator
+
         from payment_simulator.experiments.runner import (
             ExperimentStateProviderProtocol,
         )
@@ -65,6 +67,20 @@ class TestExperimentStateProviderProtocol:
                 self, iteration: int
             ) -> dict[str, bool]:
                 return {}
+
+            # Audit methods (Phase 13)
+            @property
+            def run_id(self) -> str | None:
+                return None
+
+            def get_run_metadata(self) -> dict[str, Any] | None:
+                return None
+
+            def get_all_events(self) -> Iterator[dict[str, Any]]:
+                return iter([])
+
+            def get_final_result(self) -> dict[str, Any] | None:
+                return None
 
         provider = MockProvider()
         assert isinstance(provider, ExperimentStateProviderProtocol)
