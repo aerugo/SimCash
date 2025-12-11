@@ -1804,20 +1804,41 @@ master_seed: 42
 
 ### Phase 15: Extend Experiment Config Schema for YAML-Only
 
-**Status:** PLANNED
+**Status:** COMPLETED (2025-12-11)
 **Purpose:** Extend experiment YAML schema to include system_prompt and policy_constraints
 
-**Tasks:**
-- 15.1: Add `system_prompt` field to experiment config schema
-- 15.2: Add `policy_constraints` field to experiment config schema
-- 15.3: Create YAML-based constraint validator in core
-- 15.4: Update experiment config loader to parse new fields
-- 15.5: Write TDD tests for extended schema
+**Tests First (TDD):**
+- [x] Write `tests/experiments/config/test_system_prompt.py` (10 tests)
+- [x] Write `tests/experiments/config/test_inline_constraints.py` (11 tests)
+- [x] All 21 new tests pass
+
+**Implementation:**
+- [x] Add `system_prompt: str | None` field to `LLMConfig`
+- [x] Add `policy_constraints: ScenarioConstraints | None` field to `ExperimentConfig`
+- [x] Add `_resolve_system_prompt()` method for inline or file-based prompts
+- [x] Add `get_constraints()` method (prefers inline, falls back to module)
+- [x] Support `system_prompt_file` for external prompt files
+- [x] Support relative paths resolved from YAML directory
+- [x] mypy passes on all modified files
+- [x] 49 config tests pass (28 existing + 21 new)
+
+**Files Modified:**
+- `api/payment_simulator/llm/config.py` - Added `system_prompt` field
+- `api/payment_simulator/experiments/config/experiment_config.py` - Added `policy_constraints`, `get_constraints()`, `_resolve_system_prompt()`
+
+**Notes:**
+```
+2025-12-11: PHASE 15 COMPLETE
+- Experiments can now define system_prompt inline in YAML
+- Experiments can now define policy_constraints inline in YAML
+- No Python code needed for experiment-specific prompts/constraints
+- Backward compatible: constraints_module still works for legacy
+```
 
 **Expected Outcome:**
-- Experiment YAML can contain full system prompt
-- Experiment YAML can contain policy constraints
-- Core validates constraints from YAML (no Python code needed)
+- ✅ Experiment YAML can contain full system prompt
+- ✅ Experiment YAML can contain policy constraints
+- ✅ Core validates constraints from YAML (no Python code needed)
 
 ---
 
