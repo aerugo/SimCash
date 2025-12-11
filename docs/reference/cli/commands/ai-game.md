@@ -160,7 +160,7 @@ optimized_agents:
 
 default_llm_config:
   provider: openai
-  model: gpt-5.1
+  model: gpt-5.2
   reasoning_effort: high
   temperature: 0.0
   max_retries: 3

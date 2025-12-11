@@ -22,12 +22,8 @@ class TestGameSessionPersistence:
 
     def test_game_session_persisted_to_database(self, tmp_path: Path) -> None:
         """Should persist game session metadata to database."""
-        from payment_simulator.ai_cash_mgmt.persistence.models import (
-            GameSessionRecord,
-        )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.models import GameSessionRecord
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -62,12 +58,8 @@ class TestGameSessionPersistence:
 
     def test_game_session_update_status(self, tmp_path: Path) -> None:
         """Should update game session status."""
-        from payment_simulator.ai_cash_mgmt.persistence.models import (
-            GameSessionRecord,
-        )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.models import GameSessionRecord
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -112,9 +104,7 @@ class TestPolicyIterationTracking:
             GameSessionRecord,
             PolicyIterationRecord,
         )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -149,7 +139,7 @@ class TestPolicyIterationTracking:
                 cost_improvement=200.0,
                 was_accepted=True,
                 validation_errors=[],
-                llm_model="openai/gpt-5.1",
+                llm_model="openai/gpt-5.2",
                 llm_latency_seconds=1.5,
                 tokens_used=500,
                 created_at=datetime.now(),
@@ -171,9 +161,7 @@ class TestPolicyIterationTracking:
             GameSessionRecord,
             PolicyIterationRecord,
         )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -209,7 +197,7 @@ class TestPolicyIterationTracking:
                     cost_improvement=100.0,
                     was_accepted=True,
                     validation_errors=[],
-                    llm_model="openai/gpt-5.1",
+                    llm_model="openai/gpt-5.2",
                     llm_latency_seconds=1.2,
                     tokens_used=400,
                     created_at=datetime.now(),
@@ -240,7 +228,7 @@ class TestPolicyIterationTracking:
             bank_a_iters = repo.get_policy_iterations("test_game_004", "BANK_A")
             bank_b_iters = repo.get_policy_iterations("test_game_004", "BANK_B")
 
-            assert bank_a_iters[0].llm_model == "openai/gpt-5.1"
+            assert bank_a_iters[0].llm_model == "openai/gpt-5.2"
             assert bank_b_iters[0].llm_model == "anthropic/claude-3-opus"
 
     def test_multiple_iterations_for_same_agent(self, tmp_path: Path) -> None:
@@ -249,9 +237,7 @@ class TestPolicyIterationTracking:
             GameSessionRecord,
             PolicyIterationRecord,
         )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -288,7 +274,7 @@ class TestPolicyIterationTracking:
                         cost_improvement=50.0,
                         was_accepted=True,
                         validation_errors=[],
-                        llm_model="openai/gpt-5.1",
+                        llm_model="openai/gpt-5.2",
                         llm_latency_seconds=1.0,
                         tokens_used=400,
                         created_at=datetime.now(),
@@ -312,9 +298,7 @@ class TestPolicyDiffTracking:
             GameSessionRecord,
             PolicyIterationRecord,
         )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -358,7 +342,7 @@ class TestPolicyDiffTracking:
                 cost_improvement=150.0,
                 was_accepted=True,
                 validation_errors=[],
-                llm_model="openai/gpt-5.1",
+                llm_model="openai/gpt-5.2",
                 llm_latency_seconds=1.5,
                 tokens_used=500,
                 created_at=datetime.now(),
@@ -383,9 +367,7 @@ class TestDatabaseSharing:
 
     def test_game_shares_database_with_simcash(self, tmp_path: Path) -> None:
         """Game tables should coexist with SimCash tables in same database."""
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "shared.db"
@@ -423,9 +405,7 @@ class TestMonteCarloNonPersistence:
 
     def test_monte_carlo_results_not_persisted(self, tmp_path: Path) -> None:
         """Monte Carlo evaluation runs should not be saved to database."""
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -457,9 +437,7 @@ class TestValidationErrorTracking:
             GameSessionRecord,
             PolicyIterationRecord,
         )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -498,7 +476,7 @@ class TestValidationErrorTracking:
                 cost_improvement=0.0,
                 was_accepted=False,
                 validation_errors=errors,
-                llm_model="openai/gpt-5.1",
+                llm_model="openai/gpt-5.2",
                 llm_latency_seconds=1.0,
                 tokens_used=300,
                 created_at=datetime.now(),
@@ -518,12 +496,8 @@ class TestQueryInterface:
 
     def test_list_game_sessions(self, tmp_path: Path) -> None:
         """Should list all game sessions."""
-        from payment_simulator.ai_cash_mgmt.persistence.models import (
-            GameSessionRecord,
-        )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.models import GameSessionRecord
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -563,9 +537,7 @@ class TestQueryInterface:
             GameSessionRecord,
             PolicyIterationRecord,
         )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -597,15 +569,17 @@ class TestQueryInterface:
                         iteration_number=i + 1,
                         trigger_tick=50 * (i + 1),
                         old_policy_json="{}",
-                        new_policy_json=json.dumps({"version": f"{i + 1}.0"})
-                        if i < 2
-                        else json.dumps(best_policy),
+                        new_policy_json=(
+                            json.dumps({"version": f"{i + 1}.0"})
+                            if i < 2
+                            else json.dumps(best_policy)
+                        ),
                         old_cost=1000.0 - (i * 100),
                         new_cost=900.0 - (i * 100),
                         cost_improvement=100.0,
                         was_accepted=True,
                         validation_errors=[],
-                        llm_model="openai/gpt-5.1",
+                        llm_model="openai/gpt-5.2",
                         llm_latency_seconds=1.0,
                         tokens_used=400,
                         created_at=datetime.now(),
@@ -625,9 +599,7 @@ class TestQueryInterface:
             GameSessionRecord,
             PolicyIterationRecord,
         )
-        from payment_simulator.ai_cash_mgmt.persistence.repository import (
-            GameRepository,
-        )
+        from payment_simulator.ai_cash_mgmt.persistence.repository import GameRepository
         from payment_simulator.persistence.connection import DatabaseManager
 
         db_path = tmp_path / "test.db"
@@ -664,7 +636,7 @@ class TestQueryInterface:
                         cost_improvement=50.0,
                         was_accepted=True,
                         validation_errors=[],
-                        llm_model="openai/gpt-5.1",
+                        llm_model="openai/gpt-5.2",
                         llm_latency_seconds=1.0 + (i * 0.1),
                         tokens_used=400 + (i * 10),
                         created_at=datetime.now(),

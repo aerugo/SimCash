@@ -178,7 +178,7 @@ Supports multiple providers with unified `provider:model` format:
 | Provider | Example Models | API Key |
 |----------|----------------|---------|
 | `anthropic` | `claude-sonnet-4-5`, `claude-opus-4` | `ANTHROPIC_API_KEY` |
-| `openai` | `gpt-4o`, `gpt-5.1`, `o1`, `o3` | `OPENAI_API_KEY` |
+| `openai` | `gpt-4o`, `gpt-5.2`, `o1`, `o3` | `OPENAI_API_KEY` |
 | `google` | `gemini-2.5-flash`, `gemini-2.5-pro` | `GOOGLE_API_KEY` |
 
 Set API keys via environment variables:

@@ -47,7 +47,7 @@ class TestLLMConfig:
 
         config = LLMConfig(
             provider="openai",
-            model="gpt-5.1",
+            model="gpt-5.2",
             reasoning_effort="high",
         )
 
@@ -135,14 +135,14 @@ class TestLLMConfig:
 
         config = LLMConfig(
             provider="openai",
-            model="gpt-5.1",
+            model="gpt-5.2",
             reasoning_effort="high",
         )
 
         data = config.model_dump()
 
         assert data["provider"] == "openai"
-        assert data["model"] == "gpt-5.1"
+        assert data["model"] == "gpt-5.2"
         assert data["reasoning_effort"] == "high"
 
     def test_llm_config_from_dict(self) -> None:
@@ -196,7 +196,7 @@ class TestAgentOptimizationConfig:
         data = {
             "llm_config": {
                 "provider": "openai",
-                "model": "gpt-5.1",
+                "model": "gpt-5.2",
                 "reasoning_effort": "high",
             }
         }

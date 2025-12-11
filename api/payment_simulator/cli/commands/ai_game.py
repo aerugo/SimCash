@@ -50,9 +50,8 @@ def validate_config(
     Checks the configuration against the GameConfig schema and reports
     any validation errors.
     """
-    from pydantic import ValidationError
-
     from payment_simulator.ai_cash_mgmt.config.game_config import GameConfig
+    from pydantic import ValidationError
 
     # Check file exists
     if not config_path.exists():
@@ -155,14 +154,16 @@ def generate_config_template(
         },
         "default_llm_config": {
             "provider": "openai",
-            "model": "gpt-5.1",
+            "model": "gpt-5.2",
             "reasoning_effort": "high",
             "temperature": 0.0,
             "max_retries": 3,
             "timeout_seconds": 120,
         },
         "optimization_schedule": {
-            "type": "every_x_ticks" if mode == "rl_optimization" else "on_simulation_end",
+            "type": (
+                "every_x_ticks" if mode == "rl_optimization" else "on_simulation_end"
+            ),
             "interval_ticks": 50 if mode == "rl_optimization" else None,
         },
         "monte_carlo": {
