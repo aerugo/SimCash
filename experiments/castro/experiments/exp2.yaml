@@ -30,14 +30,115 @@ llm:
   temperature: 0.0
   max_retries: 3
   timeout_seconds: 120
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
+
+    Policy structure:
+    {
+      "version": "2.0",
+      "policy_id": "<unique_policy_name>",
+      "parameters": {
+        "initial_liquidity_fraction": <float 0.0-1.0>,
+        "urgency_threshold": <float 0-20>,
+        "liquidity_buffer_factor": <float 0.5-3.0>
+      },
+      "payment_tree": { decision tree for payment actions },
+      "strategic_collateral_tree": { decision tree for collateral at t=0 }
+    }
+
+    CRITICAL: Every node MUST have a unique "node_id" string field!
+
+    Decision tree node types:
+    1. Action node: {"type": "action", "node_id": "<unique_id>", "action": "Release" or "Hold"}
+    2. Condition node: {
+         "type": "condition",
+         "node_id": "<unique_id>",
+         "condition": {"op": "<operator>", "left": {...}, "right": {...}},
+         "on_true": <node>,
+         "on_false": <node>
+       }
+    3. Collateral action node: {
+         "type": "action",
+         "node_id": "<unique_id>",
+         "action": "PostCollateral" or "HoldCollateral",
+         "parameters": {
+           "amount": {"compute": {...} or "value": <number>},
+           "reason": {"value": "InitialAllocation" or "LiquidityTopup"}
+         }
+       }
+
+    Condition operands:
+    - {"field": "<field_name>"} - context fields: ticks_to_deadline, system_tick_in_day,
+      remaining_collateral_capacity
+    - {"param": "<param_name>"} - policy parameter reference
+    - {"value": <literal>} - literal number value
+
+    Operators: "<", "<=", ">", ">=", "==", "!="
+
+    Compute expressions: {"compute": {"op": "*", "left": {...}, "right": {...}}}
+
+    Rules:
+    - EVERY node must have a unique node_id field (REQUIRED by parser)
+    - payment_tree actions: "Release" or "Hold" only
+    - strategic_collateral_tree: Post collateral at tick 0, hold otherwise
+    - Use remaining_collateral_capacity field for collateral amount calculations
+    - All numeric values must respect parameter bounds
+    - Output ONLY valid JSON, no markdown or explanation
+
+# Policy constraints (Castro-specific)
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+      description: "Fraction of collateral to post at t=0"
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+      description: "Ticks before deadline to release payment"
+    - name: liquidity_buffer
+      param_type: float
+      min_value: 0.5
+      max_value: 3.0
+      description: "Multiplier for required liquidity"
+
+  allowed_fields:
+    # Time context
+    - system_tick_in_day
+    - ticks_remaining_in_day
+    - current_tick
+    # Agent liquidity state
+    - balance
+    - effective_liquidity
+    # Transaction context
+    - ticks_to_deadline
+    - remaining_amount
+    - amount
+    - priority
+    # Queue state
+    - queue1_total_value
+    - outgoing_queue_size
+    # Collateral
+    - max_collateral_capacity
+    - posted_collateral
+
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
+    bank_tree:
+      - NoAction
+    collateral_tree:
+      - PostCollateral
+      - HoldCollateral
 
 # Agents to optimize
 optimized_agents:
   - BANK_A
   - BANK_B
-
-# Constraints module (Castro-specific)
-constraints: castro.constraints.CASTRO_CONSTRAINTS
 
 # Output settings
 output:
