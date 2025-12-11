@@ -1,7 +1,7 @@
 """Generic experiment CLI commands.
 
-Provides replay and results commands that work with any experiment type
-via the StateProvider pattern.
+Provides replay, results, run, list, info, and validate commands that work
+with any experiment type via the StateProvider pattern.
 """
 
 from __future__ import annotations
@@ -10,10 +10,12 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+import yaml
 from rich.console import Console
 from rich.table import Table
 
 from payment_simulator.experiments.cli.common import build_verbose_config
+from payment_simulator.experiments.config import ExperimentConfig
 from payment_simulator.experiments.persistence import ExperimentRepository
 from payment_simulator.experiments.runner import (
     display_audit_output,
@@ -25,7 +27,7 @@ DEFAULT_DB_PATH = Path("results/experiments.db")
 
 experiment_app = typer.Typer(
     name="experiments",
-    help="Generic experiment commands for replay and results",
+    help="Generic experiment commands for run, list, info, validate, replay, and results",
     no_args_is_help=True,
 )
 console = Console()
@@ -268,3 +270,340 @@ def results(
 
     console.print(table)
     console.print(f"\n[dim]Showing {len(runs)} run(s)[/dim]")
+
+
+@experiment_app.command()
+def validate(
+    config_path: Annotated[
+        Path,
+        typer.Argument(help="Path to experiment YAML config file"),
+    ],
+) -> None:
+    """Validate experiment YAML configuration.
+
+    Checks that the configuration file is valid YAML and contains all
+    required fields for running an experiment.
+
+    Examples:
+        # Validate a config file
+        experiments validate exp1.yaml
+
+        # Validate from experiments directory
+        experiments validate experiments/castro/experiments/exp1.yaml
+    """
+    if not config_path.exists():
+        console.print(f"[red]Error: File not found: {config_path}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        config = ExperimentConfig.from_yaml(config_path)
+        console.print(f"[green]Configuration valid: {config.name}[/green]")
+
+        # Show summary
+        console.print(f"  Evaluation mode: {config.evaluation.mode}")
+        console.print(f"  Max iterations: {config.convergence.max_iterations}")
+        console.print(f"  Optimized agents: {', '.join(config.optimized_agents)}")
+
+    except yaml.YAMLError as e:
+        console.print(f"[red]YAML syntax error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except FileNotFoundError as e:
+        console.print(f"[red]File error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except ValueError as e:
+        console.print(f"[red]Validation error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@experiment_app.command()
+def info(
+    config_path: Annotated[
+        Path,
+        typer.Argument(help="Path to experiment YAML config file"),
+    ],
+) -> None:
+    """Show detailed experiment information.
+
+    Displays all configuration details for an experiment including
+    evaluation settings, convergence criteria, LLM configuration,
+    and optimized agents.
+
+    Examples:
+        # Show info for an experiment
+        experiments info exp1.yaml
+
+        # Show info from experiments directory
+        experiments info experiments/castro/experiments/exp1.yaml
+    """
+    if not config_path.exists():
+        console.print(f"[red]Error: File not found: {config_path}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        config = ExperimentConfig.from_yaml(config_path)
+    except Exception as e:
+        console.print(f"[red]Error loading config: {e}[/red]")
+        raise typer.Exit(1) from e
+
+    # Name and description
+    console.print(f"[bold cyan]Experiment: {config.name}[/bold cyan]")
+    if config.description:
+        console.print(f"Description: {config.description}")
+    console.print()
+
+    # Scenario
+    console.print("[bold]Scenario:[/bold]")
+    console.print(f"  Path: {config.scenario_path}")
+    console.print()
+
+    # Evaluation settings
+    console.print("[bold]Evaluation:[/bold]")
+    console.print(f"  Mode: {config.evaluation.mode}")
+    console.print(f"  Ticks: {config.evaluation.ticks}")
+    if config.evaluation.mode == "bootstrap" and config.evaluation.num_samples:
+        console.print(f"  Samples: {config.evaluation.num_samples}")
+    console.print()
+
+    # Convergence settings
+    console.print("[bold]Convergence:[/bold]")
+    console.print(f"  Max iterations: {config.convergence.max_iterations}")
+    console.print(f"  Stability threshold: {config.convergence.stability_threshold}")
+    console.print(f"  Stability window: {config.convergence.stability_window}")
+    console.print(f"  Improvement threshold: {config.convergence.improvement_threshold}")
+    console.print()
+
+    # LLM settings
+    console.print("[bold]LLM:[/bold]")
+    console.print(f"  Model: {config.llm.model}")
+    console.print(f"  Temperature: {config.llm.temperature}")
+    if config.llm.system_prompt:
+        prompt_preview = config.llm.system_prompt[:100]
+        if len(config.llm.system_prompt) > 100:
+            prompt_preview += "..."
+        console.print(f"  System prompt: {len(config.llm.system_prompt)} chars")
+        console.print(f"    Preview: {prompt_preview!r}")
+    console.print()
+
+    # Agents
+    console.print("[bold]Optimized Agents:[/bold]")
+    for agent in config.optimized_agents:
+        console.print(f"  - {agent}")
+    console.print()
+
+    # Output settings
+    console.print("[bold]Output:[/bold]")
+    console.print(f"  Directory: {config.output.directory}")
+    console.print(f"  Database: {config.output.database}")
+    console.print(f"  Master seed: {config.master_seed}")
+
+
+@experiment_app.command("list")
+def list_experiments(
+    directory: Annotated[
+        Path,
+        typer.Argument(help="Directory containing experiment YAML files"),
+    ] = Path("."),
+) -> None:
+    """List available experiments in directory.
+
+    Scans the specified directory for YAML files and displays
+    experiment names, descriptions, and key configuration details.
+
+    Examples:
+        # List experiments in current directory
+        experiments list
+
+        # List experiments in specific directory
+        experiments list experiments/castro/experiments/
+    """
+    if not directory.exists():
+        console.print(f"[red]Error: Directory not found: {directory}[/red]")
+        raise typer.Exit(1)
+
+    if not directory.is_dir():
+        console.print(f"[red]Error: Not a directory: {directory}[/red]")
+        raise typer.Exit(1)
+
+    # Scan for YAML files
+    yaml_files = sorted(
+        list(directory.glob("*.yaml")) + list(directory.glob("*.yml"))
+    )
+
+    if not yaml_files:
+        console.print(f"[yellow]No experiment YAML files found in {directory}[/yellow]")
+        return
+
+    # Create table
+    table = Table(title=f"Experiments in {directory}")
+    table.add_column("Name", style="cyan")
+    table.add_column("Description")
+    table.add_column("Mode")
+    table.add_column("Agents")
+    table.add_column("File", style="dim")
+
+    valid_count = 0
+    for yaml_file in yaml_files:
+        try:
+            config = ExperimentConfig.from_yaml(yaml_file)
+            # Truncate description if too long
+            desc = config.description
+            if len(desc) > 40:
+                desc = desc[:37] + "..."
+
+            agents = ", ".join(config.optimized_agents)
+            if len(agents) > 30:
+                agents = agents[:27] + "..."
+
+            table.add_row(
+                config.name,
+                desc,
+                config.evaluation.mode,
+                agents,
+                yaml_file.name,
+            )
+            valid_count += 1
+        except Exception as e:
+            console.print(f"[yellow]Warning: Skipping {yaml_file.name}: {e}[/yellow]")
+
+    if valid_count > 0:
+        console.print(table)
+        console.print(f"\n[dim]Found {valid_count} valid experiment(s)[/dim]")
+    else:
+        console.print("[yellow]No valid experiment configurations found[/yellow]")
+
+
+@experiment_app.command()
+def run(
+    config_path: Annotated[
+        Path,
+        typer.Argument(help="Path to experiment YAML config file"),
+    ],
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate config without executing"),
+    ] = False,
+    seed: Annotated[
+        int | None,
+        typer.Option("--seed", "-s", help="Override master seed from config"),
+    ] = None,
+    db: Annotated[
+        Path,
+        typer.Option("--db", "-d", help="Path to database file for persistence"),
+    ] = DEFAULT_DB_PATH,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Enable all verbose output"),
+    ] = False,
+    verbose_iterations: Annotated[
+        bool,
+        typer.Option("--verbose-iterations", help="Show iteration starts"),
+    ] = False,
+    verbose_bootstrap: Annotated[
+        bool,
+        typer.Option("--verbose-bootstrap", help="Show bootstrap evaluations"),
+    ] = False,
+    verbose_llm: Annotated[
+        bool,
+        typer.Option("--verbose-llm", help="Show LLM call details"),
+    ] = False,
+    verbose_policy: Annotated[
+        bool,
+        typer.Option("--verbose-policy", help="Show policy changes"),
+    ] = False,
+) -> None:
+    """Run experiment from YAML configuration.
+
+    Loads the experiment configuration, creates a runner, and executes
+    the optimization loop. Results are persisted to the database.
+
+    Use --dry-run to validate the configuration without executing.
+
+    Examples:
+        # Run an experiment
+        experiments run exp1.yaml
+
+        # Dry run (validate only)
+        experiments run exp1.yaml --dry-run
+
+        # Run with seed override
+        experiments run exp1.yaml --seed 12345
+
+        # Run with verbose output
+        experiments run exp1.yaml --verbose
+
+        # Run with custom database
+        experiments run exp1.yaml --db results/custom.db
+    """
+    if not config_path.exists():
+        console.print(f"[red]Error: File not found: {config_path}[/red]")
+        raise typer.Exit(1)
+
+    # Load and validate config
+    try:
+        config = ExperimentConfig.from_yaml(config_path)
+    except yaml.YAMLError as e:
+        console.print(f"[red]YAML syntax error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Error loading config: {e}[/red]")
+        raise typer.Exit(1) from e
+
+    # Show what we loaded
+    console.print(f"[cyan]Loaded experiment: {config.name}[/cyan]")
+
+    # Handle seed override (note: frozen dataclass, so we log but can't modify)
+    if seed is not None:
+        console.print(f"[yellow]Note: Seed override ({seed}) not yet implemented[/yellow]")
+
+    # Dry run mode - just validate
+    if dry_run:
+        console.print("[green]Configuration valid! (dry run - not executing)[/green]")
+        console.print(f"  Evaluation mode: {config.evaluation.mode}")
+        console.print(f"  Max iterations: {config.convergence.max_iterations}")
+        console.print(f"  Optimized agents: {', '.join(config.optimized_agents)}")
+        return
+
+    # Build verbose config
+    verbose_config = build_verbose_config(
+        verbose=verbose,
+        verbose_iterations=verbose_iterations if verbose_iterations else None,
+        verbose_bootstrap=verbose_bootstrap if verbose_bootstrap else None,
+        verbose_llm=verbose_llm if verbose_llm else None,
+        verbose_policy=verbose_policy if verbose_policy else None,
+    )
+
+    # Import runner here to avoid circular imports
+    from payment_simulator.experiments.runner import GenericExperimentRunner
+
+    # Create and run experiment
+    console.print("[cyan]Starting experiment...[/cyan]")
+
+    try:
+        import asyncio
+
+        runner = GenericExperimentRunner(
+            config=config,
+            verbose_config=verbose_config,
+        )
+        result = asyncio.run(runner.run())
+
+        # Display results
+        console.print()
+        console.print("[green]Experiment completed![/green]")
+        console.print(f"  Iterations: {result.num_iterations}")
+        console.print(f"  Converged: {result.converged}")
+        if result.convergence_reason:
+            console.print(f"  Reason: {result.convergence_reason}")
+
+        # Show costs (in dollars from cents)
+        if result.final_costs:
+            console.print("  Final costs:")
+            for agent_id, cost in result.final_costs.items():
+                console.print(f"    {agent_id}: ${cost / 100:.2f}")
+
+    except Exception as e:
+        console.print(f"[red]Error running experiment: {e}[/red]")
+        raise typer.Exit(1) from e
