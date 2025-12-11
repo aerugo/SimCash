@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** Phases 0-14.3 COMPLETED, Phase 14.4-14.8 OPTIONAL
+**Status:** Phases 0-14.3 COMPLETED, Phase 14.4 COMPLETED, Phases 15-18 PLANNED (YAML-only experiments)
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -1656,6 +1656,307 @@ cd api && .venv/bin/python -m pytest
 | Castro Experiments | `experiments/castro/` |
 | Test Fixtures | `api/tests/fixtures/experiments/` |
 | Reference Docs | `docs/reference/` |
+
+---
+
+## YAML-Only Experiments Vision (Phases 15-18)
+
+### 2025-12-11: Architecture Analysis
+
+**Current State:**
+Castro experiments directory contains:
+- `experiments/` - YAML experiment configs (exp1.yaml, etc.)
+- `configs/` - YAML scenario configs (exp1_2period.yaml, etc.)
+- `castro/` - ~4200 lines of Python code:
+  - runner.py (958 lines) - optimization loop
+  - pydantic_llm_client.py (469 lines) - LLM client + SYSTEM_PROMPT
+  - context_builder.py (377 lines) - prompt building
+  - verbose_logging.py (713 lines) - verbose output
+  - display.py (359 lines) - display functions
+  - audit_display.py (272 lines) - audit display
+  - experiment_config.py (279 lines) - YAML config wrapper
+  - experiment_loader.py (123 lines) - loads configs
+  - simulation.py (241 lines) - simulation helpers
+  - constraints.py (86 lines) - policy constraints
+  - + other supporting files
+
+**Question:** What if experiments contained ONLY YAML and NO code?
+
+**Analysis - What's truly experiment-specific vs generic:**
+
+| Component | Currently | Should Be | Rationale |
+|-----------|-----------|-----------|-----------|
+| Scenario configs | YAML | YAML | Already generic |
+| Experiment configs | YAML | YAML | Already generic |
+| System prompt | Python code | **YAML** | Can be defined per-experiment |
+| Policy constraints | Python code | **YAML** | Can be defined per-experiment |
+| Optimization loop | Python (runner.py) | **Core** | Same for all experiments |
+| LLM client | Python (pydantic_llm_client.py) | **Core** | Same for all experiments |
+| Bootstrap evaluation | Python | **Core** | Same for all experiments |
+| Verbose output | Python | **Core** | Same for all experiments |
+| Display functions | Python | **Core** | Same for all experiments |
+| Persistence | Python | **Core** | Same for all experiments |
+| CLI | Python (cli.py) | **Core** | Same for all experiments |
+
+**Target Architecture:**
+```
+experiments/castro/
+├── experiments/
+│   ├── exp1.yaml       # Experiment config with inline system_prompt and constraints
+│   ├── exp2.yaml
+│   └── exp3.yaml
+├── configs/
+│   ├── exp1_2period.yaml   # Scenario configs
+│   ├── exp2_12period.yaml
+│   └── exp3_joint.yaml
+├── papers/
+│   └── castro_et_al_2025.pdf
+└── README.md               # Documentation
+
+api/payment_simulator/
+├── experiments/
+│   ├── cli/               # Generic CLI (run, replay, results, list, info, validate)
+│   ├── runner/            # Generic experiment runner
+│   │   ├── optimization.py    # Optimization loop
+│   │   ├── llm_client.py      # Generic LLM client (reads prompt from config)
+│   │   ├── constraints.py     # Generic constraint validator (reads from config)
+│   │   └── ...
+│   └── persistence/       # Experiment persistence
+└── ai_cash_mgmt/          # Policy evaluation infrastructure
+```
+
+**Key Insight:** The SYSTEM_PROMPT and CONSTRAINTS can be moved to YAML:
+
+```yaml
+# experiments/castro/experiments/exp1.yaml
+name: exp1
+description: "2-Period Deterministic Nash Equilibrium"
+
+scenario: configs/exp1_2period.yaml
+
+evaluation:
+  mode: deterministic
+  ticks: 2
+
+convergence:
+  max_iterations: 25
+  stability_threshold: 0.05
+  stability_window: 5
+
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+  temperature: 0.0
+
+  # NEW: System prompt moved to YAML
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
+
+    Policy structure:
+    {
+      "version": "2.0",
+      "policy_id": "<unique_policy_name>",
+      "parameters": {
+        "initial_liquidity_fraction": <float 0.0-1.0>,
+        "urgency_threshold": <float 0-20>,
+        "liquidity_buffer_factor": <float 0.5-3.0>
+      },
+      "payment_tree": { decision tree },
+      "strategic_collateral_tree": { decision tree }
+    }
+    ...
+
+# NEW: Policy constraints moved to YAML
+policy_constraints:
+  parameters:
+    initial_liquidity_fraction:
+      min: 0.0
+      max: 1.0
+      type: float
+    urgency_threshold:
+      min: 0
+      max: 20
+      type: float
+    liquidity_buffer_factor:
+      min: 0.5
+      max: 3.0
+      type: float
+
+  trees:
+    payment_tree:
+      allowed_actions: ["Release", "Hold"]
+    strategic_collateral_tree:
+      allowed_actions: ["PostCollateral", "HoldCollateral"]
+
+optimized_agents:
+  - BANK_A
+  - BANK_B
+
+output:
+  directory: results
+  database: exp1.db
+  verbose: true
+
+master_seed: 42
+```
+
+---
+
+### Phase 15: Extend Experiment Config Schema for YAML-Only
+
+**Status:** PLANNED
+**Purpose:** Extend experiment YAML schema to include system_prompt and policy_constraints
+
+**Tasks:**
+- 15.1: Add `system_prompt` field to experiment config schema
+- 15.2: Add `policy_constraints` field to experiment config schema
+- 15.3: Create YAML-based constraint validator in core
+- 15.4: Update experiment config loader to parse new fields
+- 15.5: Write TDD tests for extended schema
+
+**Expected Outcome:**
+- Experiment YAML can contain full system prompt
+- Experiment YAML can contain policy constraints
+- Core validates constraints from YAML (no Python code needed)
+
+---
+
+### Phase 16: Create Generic Experiment Runner in Core
+
+**Status:** PLANNED
+**Purpose:** Move ALL runner logic from Castro to core
+
+**Tasks:**
+- 16.1: Create `api/payment_simulator/experiments/runner/optimization.py` - generic optimization loop
+- 16.2: Create `api/payment_simulator/experiments/runner/llm_client.py` - reads system_prompt from config
+- 16.3: Create `api/payment_simulator/experiments/runner/constraint_validator.py` - reads constraints from config
+- 16.4: Create `api/payment_simulator/experiments/runner/policy_parser.py` - generic policy parsing
+- 16.5: Update core experiment runner to use config-driven components
+- 16.6: Write TDD tests
+
+**Key Design:**
+```python
+# Core runner reads everything from config
+class ExperimentRunner:
+    def __init__(self, config: ExperimentConfig):
+        self.llm_client = LLMClient(
+            model=config.llm.model,
+            system_prompt=config.llm.system_prompt,  # From YAML
+        )
+        self.validator = ConstraintValidator(
+            constraints=config.policy_constraints,  # From YAML
+        )
+        self.evaluator = BootstrapPolicyEvaluator(config.evaluation)
+```
+
+**Expected Outcome:**
+- Runner requires NO experiment-specific code
+- All behavior configured via YAML
+
+---
+
+### Phase 17: Create Generic CLI in Core
+
+**Status:** PARTIALLY DONE (Phase 14.4)
+**Purpose:** Move ALL CLI commands to core
+
+**Tasks:**
+- 17.1: ✅ Create `experiments/cli/commands.py` with replay and results (DONE in Phase 14.4)
+- 17.2: Add `run` command to core CLI (reads experiment YAML, runs generic runner)
+- 17.3: Add `list` command to core CLI (scans experiment directories)
+- 17.4: Add `info` command to core CLI (shows experiment details)
+- 17.5: Add `validate` command to core CLI (validates experiment YAML)
+- 17.6: Add experiment directory discovery (configurable base path)
+- 17.7: Write TDD tests
+
+**CLI Usage:**
+```bash
+# Generic CLI works with any experiment directory
+payment-sim experiment run experiments/castro/experiments/exp1.yaml
+payment-sim experiment list experiments/castro/experiments/
+payment-sim experiment info experiments/castro/experiments/exp1.yaml
+payment-sim experiment validate experiments/castro/experiments/exp1.yaml
+payment-sim experiment replay <run-id> --db results/exp1.db
+payment-sim experiment results --db results/exp1.db
+```
+
+**Expected Outcome:**
+- Single generic CLI for ALL experiment types
+- No Castro-specific CLI code
+
+---
+
+### Phase 18: Delete Castro Python Code
+
+**Status:** PLANNED
+**Purpose:** Remove all Python code from Castro, keep only YAML
+
+**Tasks:**
+- 18.1: Update Castro experiment YAMLs with system_prompt and policy_constraints
+- 18.2: Delete `experiments/castro/castro/` directory entirely
+- 18.3: Delete `experiments/castro/cli.py`
+- 18.4: Delete `experiments/castro/tests/` (tests move to API)
+- 18.5: Update `experiments/castro/pyproject.toml` (minimal, just docs)
+- 18.6: Update `experiments/castro/README.md` with new usage instructions
+- 18.7: Verify experiments work via core CLI
+
+**Files Deleted (~4200 lines):**
+- castro/runner.py
+- castro/pydantic_llm_client.py
+- castro/context_builder.py
+- castro/verbose_logging.py
+- castro/display.py
+- castro/audit_display.py
+- castro/experiment_config.py
+- castro/experiment_loader.py
+- castro/simulation.py
+- castro/constraints.py
+- castro/bootstrap_context.py
+- castro/verbose_capture.py
+- castro/run_id.py
+- castro/__init__.py
+- cli.py
+- tests/*
+
+**Final Castro Structure:**
+```
+experiments/castro/
+├── experiments/           # YAML experiment configs
+│   ├── exp1.yaml
+│   ├── exp2.yaml
+│   └── exp3.yaml
+├── configs/               # YAML scenario configs
+│   ├── exp1_2period.yaml
+│   ├── exp2_12period.yaml
+│   └── exp3_joint.yaml
+├── papers/                # Research papers
+│   └── castro_et_al_2025.pdf
+├── README.md              # Documentation
+└── pyproject.toml         # Minimal (metadata only)
+```
+
+**Expected Outcome:**
+- Castro = YAML configs + papers + docs
+- ALL Python code in core
+- New experiments created by writing YAML only
+
+---
+
+### Benefits of YAML-Only Experiments
+
+1. **Simplicity:** Adding a new experiment = writing a YAML file
+2. **No Code Duplication:** All runner logic in one place
+3. **Easier Maintenance:** Fix bugs once in core, all experiments benefit
+4. **Research Focus:** Researchers define experiments without coding
+5. **Consistency:** All experiments use same CLI, same persistence, same display
+
+### Risks and Mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| System prompt in YAML is verbose | Support `system_prompt_file: prompts/policy.md` to reference external file |
+| Complex constraints need code | Support `constraints_module: custom.constraints` as escape hatch |
+| Breaking existing Castro usage | Phased migration with backward compat in Phase 15-16 |
 
 ---
 
