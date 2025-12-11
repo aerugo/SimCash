@@ -74,7 +74,7 @@ class TestLiveExperimentProvider:
 
     def test_live_provider_capture_event(self) -> None:
         """LiveExperimentProvider.capture_event stores events."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
         from castro.state_provider import LiveExperimentProvider
 
         provider = LiveExperimentProvider(
@@ -102,7 +102,7 @@ class TestLiveExperimentProvider:
 
     def test_live_provider_get_events_for_iteration(self) -> None:
         """LiveExperimentProvider.get_events_for_iteration filters by iteration."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
         from castro.state_provider import LiveExperimentProvider
 
         provider = LiveExperimentProvider(
@@ -168,7 +168,7 @@ class TestDatabaseExperimentProvider:
     @pytest.fixture
     def repo_with_data(self, db_conn: duckdb.DuckDBPyConnection) -> Any:
         """Create a repository with test data."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
         from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
 
         repo = ExperimentEventRepository(db_conn)
@@ -341,7 +341,7 @@ class TestEventEmitter:
         self, db_conn: duckdb.DuckDBPyConnection
     ) -> None:
         """EventEmitter.emit captures event and persists to database."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
         from castro.persistence import ExperimentEventRepository
         from castro.state_provider import EventEmitter, LiveExperimentProvider
 

@@ -16,14 +16,15 @@ import pytest
 from rich.console import Console
 from typer.testing import CliRunner
 
-from castro.events import (
+from payment_simulator.ai_cash_mgmt.events import (
     EVENT_BOOTSTRAP_EVALUATION,
     EVENT_LLM_INTERACTION,
     EVENT_POLICY_CHANGE,
     EVENT_POLICY_REJECTED,
-    ExperimentEvent,
     create_llm_interaction_event,
 )
+
+from castro.event_compat import CastroEvent as ExperimentEvent
 from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
 
 

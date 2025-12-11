@@ -26,7 +26,7 @@ class TestDisplayExperimentOutput:
     def test_display_with_live_provider(self) -> None:
         """display_experiment_output works with LiveExperimentProvider."""
         from castro.display import display_experiment_output
-        from castro.events import (
+        from payment_simulator.ai_cash_mgmt.events import (
             create_experiment_end_event,
             create_experiment_start_event,
             create_iteration_start_event,
@@ -93,7 +93,7 @@ class TestDisplayExperimentOutput:
         import duckdb
 
         from castro.display import display_experiment_output
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
         from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
         from castro.state_provider import DatabaseExperimentProvider
 
@@ -164,7 +164,7 @@ class TestDisplayEventHandlers:
     def test_display_iteration_start_event(self) -> None:
         """display_iteration_start formats correctly."""
         from castro.display import display_iteration_start
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         event = ExperimentEvent(
             event_type="iteration_start",
@@ -186,7 +186,7 @@ class TestDisplayEventHandlers:
     def test_display_bootstrap_evaluation_event(self) -> None:
         """display_bootstrap_evaluation formats correctly."""
         from castro.display import display_bootstrap_evaluation
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         event = ExperimentEvent(
             event_type="bootstrap_evaluation",
@@ -216,7 +216,7 @@ class TestDisplayEventHandlers:
     def test_display_llm_call_event(self) -> None:
         """display_llm_call formats correctly."""
         from castro.display import display_llm_call
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         event = ExperimentEvent(
             event_type="llm_call",
@@ -245,7 +245,7 @@ class TestDisplayEventHandlers:
     def test_display_policy_change_event(self) -> None:
         """display_policy_change formats correctly."""
         from castro.display import display_policy_change
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         event = ExperimentEvent(
             event_type="policy_change",

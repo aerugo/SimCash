@@ -15,19 +15,19 @@ class TestEventTypeConstants:
 
     def test_bootstrap_evaluation_constant_exists(self) -> None:
         """EVENT_BOOTSTRAP_EVALUATION constant should exist."""
-        from castro.events import EVENT_BOOTSTRAP_EVALUATION
+        from payment_simulator.ai_cash_mgmt.events import EVENT_BOOTSTRAP_EVALUATION
 
         assert EVENT_BOOTSTRAP_EVALUATION == "bootstrap_evaluation"
 
     def test_monte_carlo_constant_removed(self) -> None:
         """EVENT_MONTE_CARLO_EVALUATION constant should NOT exist."""
-        from castro import events
+        from payment_simulator.ai_cash_mgmt import events
 
         assert not hasattr(events, "EVENT_MONTE_CARLO_EVALUATION")
 
     def test_all_event_types_contains_bootstrap(self) -> None:
         """ALL_EVENT_TYPES should contain bootstrap_evaluation."""
-        from castro.events import ALL_EVENT_TYPES
+        from payment_simulator.ai_cash_mgmt.events import ALL_EVENT_TYPES
 
         assert "bootstrap_evaluation" in ALL_EVENT_TYPES
         assert "monte_carlo_evaluation" not in ALL_EVENT_TYPES
@@ -38,21 +38,21 @@ class TestBootstrapEventCreation:
 
     def test_create_bootstrap_evaluation_event_exists(self) -> None:
         """create_bootstrap_evaluation_event function should exist."""
-        from castro.events import create_bootstrap_evaluation_event
+        from payment_simulator.ai_cash_mgmt.events import create_bootstrap_evaluation_event
 
         assert callable(create_bootstrap_evaluation_event)
 
     def test_create_monte_carlo_event_removed(self) -> None:
         """create_monte_carlo_event function should NOT exist."""
-        from castro import events
+        from payment_simulator.ai_cash_mgmt import events
 
         assert not hasattr(events, "create_monte_carlo_event")
 
     def test_create_bootstrap_evaluation_event_returns_correct_type(self) -> None:
         """Event should have event_type='bootstrap_evaluation'."""
-        from castro.events import (
-            create_bootstrap_evaluation_event,
+        from payment_simulator.ai_cash_mgmt.events import (
             EVENT_BOOTSTRAP_EVALUATION,
+            create_bootstrap_evaluation_event,
         )
 
         event = create_bootstrap_evaluation_event(
@@ -66,8 +66,12 @@ class TestBootstrapEventCreation:
         assert event.event_type == "bootstrap_evaluation"
 
     def test_create_bootstrap_evaluation_event_has_required_details(self) -> None:
-        """Event details should contain seed_results, mean_cost, std_cost."""
-        from castro.events import create_bootstrap_evaluation_event
+        """Event event_data should contain seed_results, mean_cost, std_cost.
+
+        Note: Core create_*_event functions return EventRecord which uses
+        'event_data' not 'details'.
+        """
+        from payment_simulator.ai_cash_mgmt.events import create_bootstrap_evaluation_event
 
         seed_results = [
             {"seed": 42, "cost": 1000, "settled": 5, "total": 6},
@@ -80,14 +84,14 @@ class TestBootstrapEventCreation:
             mean_cost=1100,
             std_cost=141,
         )
-        assert event.details["seed_results"] == seed_results
-        assert event.details["mean_cost"] == 1100
-        assert event.details["std_cost"] == 141
+        assert event.event_data["seed_results"] == seed_results
+        assert event.event_data["mean_cost"] == 1100
+        assert event.event_data["std_cost"] == 141
         assert event.iteration == 2
 
     def test_bootstrap_event_costs_are_integers(self) -> None:
         """Costs should be integers (INV-1 compliance)."""
-        from castro.events import create_bootstrap_evaluation_event
+        from payment_simulator.ai_cash_mgmt.events import create_bootstrap_evaluation_event
 
         event = create_bootstrap_evaluation_event(
             run_id="test-run",
@@ -96,42 +100,49 @@ class TestBootstrapEventCreation:
             mean_cost=1000,
             std_cost=100,
         )
-        assert isinstance(event.details["mean_cost"], int)
-        assert isinstance(event.details["std_cost"], int)
+        assert isinstance(event.event_data["mean_cost"], int)
+        assert isinstance(event.event_data["std_cost"], int)
 
 
 class TestEventSerialization:
-    """Tests for event serialization with new naming."""
+    """Tests for event serialization with new naming.
+
+    Note: Core create_*_event returns EventRecord which doesn't have to_dict().
+    To test serialization, wrap in CastroEvent first.
+    """
 
     def test_bootstrap_event_to_dict_has_correct_type(self) -> None:
         """Serialized event should have event_type='bootstrap_evaluation'."""
-        from castro.events import create_bootstrap_evaluation_event
+        from payment_simulator.ai_cash_mgmt.events import create_bootstrap_evaluation_event
+        from castro.event_compat import CastroEvent
 
-        event = create_bootstrap_evaluation_event(
+        record = create_bootstrap_evaluation_event(
             run_id="test-run",
             iteration=1,
             seed_results=[],
             mean_cost=0,
             std_cost=0,
         )
+        # Wrap EventRecord in CastroEvent for serialization
+        event = CastroEvent.from_event_record(record)
         event_dict = event.to_dict()
         assert event_dict["event_type"] == "bootstrap_evaluation"
 
     def test_bootstrap_event_round_trip(self) -> None:
         """Event should survive serialization round-trip."""
-        from castro.events import (
-            create_bootstrap_evaluation_event,
-            ExperimentEvent,
-        )
+        from payment_simulator.ai_cash_mgmt.events import create_bootstrap_evaluation_event
+        from castro.event_compat import CastroEvent
 
-        original = create_bootstrap_evaluation_event(
+        record = create_bootstrap_evaluation_event(
             run_id="test-run",
             iteration=5,
             seed_results=[{"seed": 99, "cost": 500}],
             mean_cost=500,
             std_cost=0,
         )
+        # Wrap EventRecord in CastroEvent for serialization
+        original = CastroEvent.from_event_record(record)
         event_dict = original.to_dict()
-        restored = ExperimentEvent.from_dict(event_dict)
+        restored = CastroEvent.from_dict(event_dict)
         assert restored.event_type == original.event_type
         assert restored.details == original.details

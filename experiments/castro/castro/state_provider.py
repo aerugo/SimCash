@@ -5,6 +5,8 @@ Defines a common interface for accessing experiment state, implemented by:
 - DatabaseExperimentProvider (wraps database for replay)
 
 This enables unified display functions that work identically in both modes.
+
+Phase 12: Uses CastroEvent (compatibility wrapper for core EventRecord)
 """
 
 from __future__ import annotations
@@ -17,7 +19,10 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 if TYPE_CHECKING:
     import duckdb
 
-from castro.events import ExperimentEvent
+from castro.event_compat import CastroEvent
+
+# Backward compatibility alias
+ExperimentEvent = CastroEvent
 
 
 # =============================================================================
@@ -138,9 +143,16 @@ class LiveExperimentProvider:
     def capture_event(self, event: ExperimentEvent) -> None:
         """Capture an event during execution.
 
+        Accepts both CastroEvent and core EventRecord. EventRecord
+        is automatically wrapped in CastroEvent for compatibility.
+
         Args:
-            event: Event to capture
+            event: Event to capture (CastroEvent or EventRecord)
         """
+        # Convert EventRecord to CastroEvent if needed
+        if hasattr(event, "event_data") and not hasattr(event, "details"):
+            # This is a core EventRecord, wrap it
+            event = CastroEvent.from_event_record(event)
         self._events.append(event)
 
     def get_all_events(self) -> Iterator[ExperimentEvent]:
@@ -295,18 +307,23 @@ class DatabaseExperimentProvider:
             "num_iterations": self._run_record["num_iterations"],
         }
 
-    def _row_to_event(self, row: tuple[Any, ...]) -> ExperimentEvent:
-        """Convert database row to ExperimentEvent."""
-        details = row[4]
-        if isinstance(details, str):
-            details = json.loads(details)
+    def _row_to_event(self, row: tuple[Any, ...]) -> CastroEvent:
+        """Convert database row to CastroEvent."""
+        event_data = row[4]
+        if isinstance(event_data, str):
+            event_data = json.loads(event_data)
 
-        return ExperimentEvent(
+        # Convert timestamp to string if datetime
+        timestamp = row[3]
+        if isinstance(timestamp, datetime):
+            timestamp = timestamp.isoformat()
+
+        return CastroEvent(
             event_type=row[0],
             run_id=row[1],
             iteration=row[2],
-            timestamp=row[3],
-            details=details,
+            timestamp=timestamp,
+            event_data=event_data,
         )
 
 
