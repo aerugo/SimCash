@@ -588,6 +588,7 @@ def run(
         runner = GenericExperimentRunner(
             config=config,
             verbose_config=verbose_config,
+            config_dir=config_path.parent,  # Pass config directory for relative path resolution
         )
         result = asyncio.run(runner.run())
 
