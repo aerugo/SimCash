@@ -1,6 +1,131 @@
 # Experiment Runner
 
-> Runner protocols and result dataclasses
+> Runner protocols, GenericExperimentRunner, and result dataclasses
+
+**Version**: 2.0 (YAML-only experiments)
+
+## Overview
+
+The experiment runner module provides:
+- `GenericExperimentRunner`: Works with any YAML configuration
+- `VerboseConfig`: Structured verbose logging control
+- `ExperimentResult`: Final experiment results
+- `ExperimentState`: Runtime state snapshot
+
+## GenericExperimentRunner
+
+The primary runner for YAML-only experiments. No experiment-specific Python code required.
+
+### Import
+
+```python
+from payment_simulator.experiments.runner import GenericExperimentRunner
+from payment_simulator.experiments.config import ExperimentConfig
+```
+
+### Basic Usage
+
+```python
+from pathlib import Path
+from payment_simulator.experiments.config import ExperimentConfig
+from payment_simulator.experiments.runner import GenericExperimentRunner
+
+# Load config from YAML
+config = ExperimentConfig.from_yaml(Path("experiments/exp1.yaml"))
+
+# Create and run
+runner = GenericExperimentRunner(config)
+result = await runner.run()
+
+print(f"Converged: {result.converged}")
+print(f"Final cost: ${result.final_costs['total'] / 100:.2f}")
+```
+
+### With Verbose Logging
+
+```python
+from payment_simulator.experiments.runner import GenericExperimentRunner, VerboseConfig
+
+# Enable all verbose output
+verbose_config = VerboseConfig.all_enabled()
+
+runner = GenericExperimentRunner(config, verbose_config=verbose_config)
+result = await runner.run()
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `run_id` | `str` | Unique run identifier |
+| `experiment_name` | `str` | Name from config |
+| `scenario_path` | `Path` | Path to scenario YAML |
+| `system_prompt` | `str \| None` | System prompt from config.llm |
+| `constraints` | `ScenarioConstraints \| None` | Policy constraints from config |
+
+## VerboseConfig
+
+Controls verbose output categories. Each flag enables a category of output.
+
+### Import
+
+```python
+from payment_simulator.experiments.runner import VerboseConfig
+```
+
+### Definition
+
+```python
+@dataclass
+class VerboseConfig:
+    iterations: bool = False   # Iteration start messages
+    policy: bool = False       # Before/after policy parameters
+    bootstrap: bool = False    # Per-sample bootstrap results
+    llm: bool = False          # LLM call metadata (model, tokens)
+    rejections: bool = False   # Policy rejection reasons
+    debug: bool = False        # Debug info (validation errors, retries)
+```
+
+### Factory Methods
+
+```python
+# Enable all main flags (not debug)
+config = VerboseConfig.all_enabled()
+
+# Create from CLI flags
+config = VerboseConfig.from_cli_flags(
+    verbose=True,            # Enable all
+    verbose_policy=False,    # Override: disable policy
+    debug=True,              # Enable debug
+)
+```
+
+### Example Output
+
+With `VerboseConfig(iterations=True, policy=True, bootstrap=True)`:
+
+```
+Iteration 1
+  Total cost: $1,250.00
+
+Bootstrap Baseline (10 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃ Seed       ┃ Cost       ┃ Settled  ┃ Rate  ┃ Note  ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0x12345678 │ $1,250.00  │ 8/10     │ 80.0% │       │
+│ 0x23456789 │ $1,180.00  │ 9/10     │ 90.0% │       │
+└────────────┴────────────┴──────────┴───────┴───────┘
+  Mean: $1,215.00 (std: $35.00)
+
+Policy Change: BANK_A
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━━┳━━━━━━━━┓
+┃ Parameter        ┃ Old  ┃ New  ┃ Delta  ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━━╇━━━━━━━━┩
+│ urgency_threshold│ 5    │ 3    │ -40%   │
+└──────────────────┴──────┴──────┴────────┘
+  Evaluation: $1,250.00 → $1,100.00 (-12.0%)
+  Decision: ACCEPTED
+```
 
 ## ExperimentRunnerProtocol
 
@@ -261,45 +386,74 @@ Never use floats for money values.
 ## Example: Full Workflow
 
 ```python
+import asyncio
 from pathlib import Path
 from payment_simulator.experiments.config import ExperimentConfig
-from payment_simulator.experiments.runner import SilentOutput
-from payment_simulator.llm import LLMConfig, PydanticAILLMClient
+from payment_simulator.experiments.runner import GenericExperimentRunner, VerboseConfig
 
-# Load config
-config = ExperimentConfig.from_yaml(Path("experiments/exp1.yaml"))
+async def run_experiment():
+    # Load config from YAML (all settings included)
+    config = ExperimentConfig.from_yaml(Path("experiments/exp1.yaml"))
 
-# Create components
-llm_client = PydanticAILLMClient(config.llm)
-output = SilentOutput()
+    # Optionally override seed
+    config = config.with_seed(12345)
 
-# Create runner (implementation-specific)
-runner = create_experiment_runner(
-    config=config,
-    llm_client=llm_client,
-    output=output,
-)
+    # Configure verbose output
+    verbose_config = VerboseConfig(
+        iterations=True,
+        bootstrap=True,
+        policy=True,
+    )
 
-# Run experiment
-result = await runner.run()
+    # Create runner (no manual LLM client setup needed)
+    runner = GenericExperimentRunner(
+        config=config,
+        verbose_config=verbose_config,
+    )
 
-# Process results
-print(f"Experiment: {result.experiment_name}")
-print(f"Iterations: {result.num_iterations}")
-print(f"Final Cost: ${result.final_cost / 100:.2f}")
-print(f"Converged: {result.converged} ({result.convergence_reason})")
+    # Run experiment
+    result = await runner.run()
 
-# Analyze iterations
-for record in result.iteration_records:
-    status = "ACCEPT" if record.policy_accepted else "reject"
-    print(f"  Iter {record.iteration}: ${record.total_cost / 100:.2f} [{status}]")
+    # Process results
+    print(f"Experiment: {result.experiment_name}")
+    print(f"Iterations: {result.num_iterations}")
+    print(f"Converged: {result.converged} ({result.convergence_reason})")
+
+    # Per-agent costs (integer cents)
+    for agent_id, cost in result.final_costs.items():
+        if agent_id != "total":
+            print(f"  {agent_id}: ${cost / 100:.2f}")
+
+    return result
+
+# Run
+result = asyncio.run(run_experiment())
+```
+
+## CLI Usage
+
+The recommended way to run experiments is via the CLI:
+
+```bash
+# Run experiment (uses GenericExperimentRunner internally)
+payment-sim experiment run experiments/exp1.yaml
+
+# With verbose output
+payment-sim experiment run experiments/exp1.yaml --verbose
+
+# Override seed
+payment-sim experiment run experiments/exp1.yaml --seed 12345
+
+# Dry run (validate without LLM calls)
+payment-sim experiment run experiments/exp1.yaml --dry-run
 ```
 
 ## Related Documentation
 
 - [Experiment Configuration](configuration.md) - YAML config reference
 - [Experiment CLI](../cli/commands/experiment.md) - CLI commands
+- [Castro Experiments](../castro/index.md) - Example YAML experiments
 
 ---
 
-*Last updated: 2025-12-10*
+*Last updated: 2025-12-11*

@@ -1,7 +1,7 @@
 # Patterns, Invariants, and Conventions
 
-**Version**: 1.0
-**Last Updated**: 2025-11-29
+**Version**: 2.0
+**Last Updated**: 2025-12-11
 
 This document consolidates all architectural patterns, critical invariants, coding conventions, and styleguides for SimCash. This serves as the authoritative reference for Claude Code agents and contributors.
 
@@ -230,7 +230,51 @@ Replay Mode:  simulation_events table → Python → Display
 - ❌ Manual reconstruction from multiple tables
 - ❌ Storing partial event data
 
-### Pattern 5: Workflow for Adding New Events
+### Pattern 5: YAML-Only Experiments
+
+**Purpose**: Experiments are defined entirely in YAML—no Python code required.
+
+```yaml
+# Inline system prompt and policy constraints
+name: exp1
+scenario: configs/exp1.yaml
+
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies...
+
+policy_constraints:
+  allowed_parameters:
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+  allowed_fields:
+    - system_tick_in_day
+    - balance
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
+
+optimized_agents:
+  - BANK_A
+  - BANK_B
+```
+
+**Key Components**:
+- `ExperimentConfig.from_yaml()`: Loads all configuration including inline prompts/constraints
+- `GenericExperimentRunner`: Runs any YAML experiment, no experiment-specific code needed
+- `VerboseConfig`: Structured verbose logging control
+
+**Anti-patterns**:
+- ❌ Creating experiment-specific Python code
+- ❌ External constraint modules (use inline `policy_constraints`)
+- ❌ External prompt files (use inline `system_prompt`)
+
+### Pattern 6: Workflow for Adding New Events
 
 When adding a new event type that should appear in verbose output:
 
@@ -587,6 +631,10 @@ git commit -m "feat: Add --foo option to run command"
 | Topic | Location |
 |-------|----------|
 | System Overview | `docs/reference/architecture/01-system-overview.md` |
+| Experiments | `docs/reference/experiments/index.md` |
+| CLI Reference | `docs/reference/cli/index.md` |
+| LLM Module | `docs/reference/llm/index.md` |
+| Castro Experiments | `docs/reference/castro/index.md` |
 | StateProvider | `docs/reference/api/state-provider.md` |
 | OutputStrategies | `docs/reference/api/output-strategies.md` |
 | Event System | `docs/reference/architecture/08-event-system.md` |

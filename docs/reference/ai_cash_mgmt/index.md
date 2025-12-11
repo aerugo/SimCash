@@ -287,13 +287,24 @@ class SimulationRunnerProtocol(Protocol):
 
 ---
 
+## Relationship with Experiments Module
+
+The AI Cash Management module provides the core optimization components (PolicyOptimizer, ConstraintValidator, TransactionSampler, etc.) that are used by the `payment_simulator.experiments` module. The experiments module provides a higher-level YAML-only interface:
+
+- **AI Cash Management**: Low-level components, programmatic API
+- **Experiments**: YAML-driven configuration, `GenericExperimentRunner`, CLI integration
+
+For most use cases, prefer the experiments CLI:
+```bash
+payment-sim experiment run experiments/exp1.yaml
+```
+
 ## Related Documentation
 
+- [Experiments Module](../experiments/index.md) - YAML-driven experiment framework (recommended)
 - [Policy Reference](../policy/index.md) - Policy DSL documentation
 - [Scenario Configuration](../scenario/index.md) - Scenario YAML format
 - [CLI Reference](../cli/index.md) - Command-line interface
-- [Architecture: Policy System](../architecture/07-policy-system.md) - Policy implementation
-- [Experiments Module](../experiments/index.md) - YAML-driven experiment framework
 - [LLM Module](../llm/index.md) - LLM client protocols and configuration
 
 ---

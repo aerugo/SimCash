@@ -2,6 +2,8 @@
 
 > YAML-driven LLM policy optimization experiments
 
+**Version**: 2.0 (YAML-only experiments)
+
 The `payment_simulator.experiments` module provides a framework for running LLM-based policy optimization experiments with bootstrap evaluation and statistical validation.
 
 ## Documentation
@@ -9,44 +11,48 @@ The `payment_simulator.experiments` module provides a framework for running LLM-
 | Document | Description |
 |----------|-------------|
 | [Configuration](configuration.md) | ExperimentConfig YAML reference |
-| [Runner](runner.md) | Runner protocols and result dataclasses |
+| [Runner](runner.md) | GenericExperimentRunner and VerboseConfig |
 
 ## Key Features
 
-- **YAML Configuration**: Define experiments declaratively
+- **YAML-Only Configuration**: No Python code required
+- **Inline System Prompts**: LLM prompts defined in YAML
+- **Inline Policy Constraints**: Parameter bounds, allowed fields/actions in YAML
 - **Bootstrap Evaluation**: Statistical policy comparison with paired samples
 - **Deterministic Execution**: Same seed = same results
 - **Multiple LLM Providers**: Anthropic, OpenAI, Google
-- **Audit Trail**: Full LLM interaction capture
+- **Structured Verbose Logging**: Granular control via VerboseConfig
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Experiment Configuration                      │
+│                    Experiment Configuration (YAML)               │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  experiment.yaml                                         │    │
 │  │  ├── name, description                                   │    │
 │  │  ├── scenario: path/to/scenario.yaml                     │    │
 │  │  ├── evaluation: {mode, num_samples, ticks}              │    │
 │  │  ├── convergence: {max_iterations, stability_*}          │    │
-│  │  ├── llm: {model, temperature, thinking_budget}          │    │
+│  │  ├── llm: {model, temperature, system_prompt}            │    │
+│  │  ├── policy_constraints: {allowed_parameters, ...}       │    │
 │  │  └── optimized_agents: [BANK_A, BANK_B]                  │    │
 │  └─────────────────────────────────────────────────────────┘    │
 └──────────────────────────────┬──────────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Experiment Runner                             │
+│                    GenericExperimentRunner                       │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  For each iteration:                                     │    │
 │  │  1. Generate bootstrap samples                           │    │
 │  │  2. Evaluate current policy (old) on samples             │    │
-│  │  3. LLM proposes new policy                              │    │
-│  │  4. Evaluate new policy on SAME samples (paired)         │    │
-│  │  5. Compute delta = old_cost - new_cost                  │    │
-│  │  6. Accept if mean_delta > 0 (new is cheaper)            │    │
-│  │  7. Check convergence                                    │    │
+│  │  3. LLM proposes new policy (using inline system_prompt) │    │
+│  │  4. Validate against policy_constraints                  │    │
+│  │  5. Evaluate new policy on SAME samples (paired)         │    │
+│  │  6. Compute delta = old_cost - new_cost                  │    │
+│  │  7. Accept if mean_delta > 0 (new is cheaper)            │    │
+│  │  8. Check convergence                                    │    │
 │  └─────────────────────────────────────────────────────────┘    │
 └──────────────────────────────┬──────────────────────────────────┘
                                │
@@ -54,11 +60,9 @@ The `payment_simulator.experiments` module provides a framework for running LLM-
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Experiment Result                             │
 │  ├── run_id, experiment_name                                    │
-│  ├── final_cost, best_cost                                      │
-│  ├── num_iterations, converged                                  │
+│  ├── final_costs, num_iterations, converged                     │
 │  ├── convergence_reason                                         │
-│  ├── per_agent_costs                                            │
-│  └── iteration_records[]                                        │
+│  └── total_duration_seconds                                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -85,6 +89,23 @@ convergence:
 llm:
   model: "anthropic:claude-sonnet-4-5"
   temperature: 0.0
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
+
+policy_constraints:
+  allowed_parameters:
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+  allowed_fields:
+    - system_tick_in_day
+    - balance
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
 
 optimized_agents:
   - BANK_A
@@ -154,6 +175,26 @@ Experiment stops when:
 - Cost stable within `stability_threshold` for `stability_window` iterations, OR
 - No improvement greater than `improvement_threshold`
 
+## Integration with Castro
+
+The Castro experiments demonstrate YAML-only experiment configuration:
+
+```bash
+# List Castro experiments
+payment-sim experiment list experiments/castro/experiments/
+
+# Validate Castro experiment
+payment-sim experiment validate experiments/castro/experiments/exp1.yaml
+
+# Run Castro experiment (uses GenericExperimentRunner)
+payment-sim experiment run experiments/castro/experiments/exp1.yaml
+
+# With verbose output
+payment-sim experiment run experiments/castro/experiments/exp1.yaml --verbose
+```
+
+Castro experiments include inline `system_prompt` and `policy_constraints` - no Python code required.
+
 ## Module Structure
 
 ```
@@ -164,33 +205,18 @@ payment_simulator/experiments/
 │   └── experiment_config.py    # ExperimentConfig, EvaluationConfig
 └── runner/
     ├── __init__.py
-    ├── protocol.py             # ExperimentRunnerProtocol
-    ├── result.py               # ExperimentResult, IterationRecord
-    └── output.py               # OutputHandlerProtocol, SilentOutput
-```
-
-## Integration with Castro
-
-The Castro experiments use this framework:
-
-```bash
-# List Castro experiments
-payment-sim experiment list experiments/castro/experiments/
-
-# Validate Castro experiment
-payment-sim experiment validate experiments/castro/experiments/exp1.yaml
-
-# Run Castro experiment
-castro run exp1  # Castro CLI wrapper
+    ├── experiment_runner.py    # GenericExperimentRunner
+    ├── result.py               # ExperimentResult, ExperimentState
+    ├── verbose.py              # VerboseConfig, VerboseLogger
+    └── optimization.py         # OptimizationLoop
 ```
 
 ## Related Documentation
 
 - [CLI Commands](../cli/commands/experiment.md) - Command reference
 - [LLM Module](../llm/index.md) - LLM configuration
-- [AI Cash Management](../ai_cash_mgmt/index.md) - Bootstrap evaluation details
-- [Castro Reference](../castro/index.md) - Castro-specific documentation
+- [Castro Reference](../castro/index.md) - Example YAML experiments
 
 ---
 
-*Last updated: 2025-12-10*
+*Last updated: 2025-12-11*

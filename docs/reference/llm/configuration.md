@@ -20,6 +20,7 @@ from payment_simulator.llm import LLMConfig
 | `temperature` | `float` | `0.0` | Sampling temperature (0.0 = deterministic) |
 | `max_retries` | `int` | `3` | Maximum retry attempts on failure |
 | `timeout_seconds` | `int` | `120` | Request timeout in seconds |
+| `system_prompt` | `str \| None` | `None` | Default system prompt for requests |
 | `thinking_budget` | `int \| None` | `None` | Anthropic extended thinking budget (tokens) |
 | `reasoning_effort` | `str \| None` | `None` | OpenAI reasoning effort: `low`, `medium`, `high` |
 
@@ -150,10 +151,15 @@ llm:
   temperature: 0.0
   max_retries: 3
   timeout_seconds: 120
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
   # Optional provider-specific:
   # thinking_budget: 8000      # Anthropic only
   # reasoning_effort: high     # OpenAI only
 ```
+
+The `system_prompt` field allows defining the prompt inline in the YAML. For experiments, this is the **preferred approach** as it makes the experiment self-contained.
 
 ## Complete Examples
 
@@ -218,4 +224,4 @@ API keys are typically configured via environment variables:
 
 ---
 
-*Last updated: 2025-12-10*
+*Last updated: 2025-12-11*
