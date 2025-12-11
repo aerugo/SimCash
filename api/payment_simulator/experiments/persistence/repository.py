@@ -263,12 +263,14 @@ class ExperimentRepository:
     def list_experiments(
         self,
         experiment_type: str | None = None,
+        experiment_name: str | None = None,
         limit: int = 100,
     ) -> list[ExperimentRecord]:
         """List experiments with optional filtering.
 
         Args:
             experiment_type: Filter by type (optional)
+            experiment_name: Filter by name (optional)
             limit: Maximum results to return
 
         Returns:
@@ -280,6 +282,10 @@ class ExperimentRepository:
         if experiment_type is not None:
             query += " AND experiment_type = ?"
             params.append(experiment_type)
+
+        if experiment_name is not None:
+            query += " AND experiment_name = ?"
+            params.append(experiment_name)
 
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
