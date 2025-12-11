@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** Phases 0-16 COMPLETED, Phases 17-18 PLANNED (YAML-only experiments)
+**Status:** Phases 0-17 COMPLETED, Phase 18 PLANNED (YAML-only experiments)
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -1894,32 +1894,77 @@ master_seed: 42
 
 ### Phase 17: Create Generic CLI in Core
 
-**Status:** PARTIALLY DONE (Phase 14.4)
+**Status:** COMPLETED (2025-12-11)
 **Purpose:** Move ALL CLI commands to core
 
 **Tasks:**
 - 17.1: ✅ Create `experiments/cli/commands.py` with replay and results (DONE in Phase 14.4)
-- 17.2: Add `run` command to core CLI (reads experiment YAML, runs generic runner)
-- 17.3: Add `list` command to core CLI (scans experiment directories)
-- 17.4: Add `info` command to core CLI (shows experiment details)
-- 17.5: Add `validate` command to core CLI (validates experiment YAML)
-- 17.6: Add experiment directory discovery (configurable base path)
-- 17.7: Write TDD tests
+- 17.2: ✅ Add `run` command to core CLI (reads experiment YAML, runs generic runner)
+- 17.3: ✅ Add `list` command to core CLI (scans experiment directories)
+- 17.4: ✅ Add `info` command to core CLI (shows experiment details)
+- 17.5: ✅ Add `validate` command to core CLI (validates experiment YAML)
+- 17.6: N/A - Directory discovery via command argument
+- 17.7: ✅ Write TDD tests (37 new tests)
 
 **CLI Usage:**
 ```bash
 # Generic CLI works with any experiment directory
-payment-sim experiment run experiments/castro/experiments/exp1.yaml
-payment-sim experiment list experiments/castro/experiments/
-payment-sim experiment info experiments/castro/experiments/exp1.yaml
-payment-sim experiment validate experiments/castro/experiments/exp1.yaml
-payment-sim experiment replay <run-id> --db results/exp1.db
-payment-sim experiment results --db results/exp1.db
+payment-sim experiments run experiments/castro/experiments/exp1.yaml
+payment-sim experiments list experiments/castro/experiments/
+payment-sim experiments info experiments/castro/experiments/exp1.yaml
+payment-sim experiments validate experiments/castro/experiments/exp1.yaml
+payment-sim experiments replay <run-id> --db results/exp1.db
+payment-sim experiments results --db results/exp1.db
 ```
 
-**Expected Outcome:**
+**TDD Tests (37 new tests):**
+- TestValidateCommand: 7 tests (command exists, requires path, success/error messages)
+- TestInfoCommand: 10 tests (shows name, description, evaluation, convergence, LLM, agents)
+- TestListCommand: 8 tests (scans directory, shows experiments, handles empty/invalid)
+- TestRunCommand: 8 tests (dry-run, seed override, verbose flags, db path)
+- TestRunCommandVerboseFlags: 4 tests (--verbose-iterations/bootstrap/llm/policy)
+
+**Notes:**
+```
+2025-12-11: PHASE 17 COMPLETE
+
+IMPLEMENTED:
+1. validate command:
+   - Validates experiment YAML config
+   - Shows success/error messages
+   - Displays config summary on success
+
+2. info command:
+   - Shows detailed experiment information
+   - Includes evaluation, convergence, LLM, agents sections
+   - Shows system_prompt preview if defined
+
+3. list command:
+   - Scans directory for YAML files
+   - Shows table with name, description, mode, agents
+   - Handles invalid YAML with warnings
+
+4. run command:
+   - Loads config and runs GenericExperimentRunner
+   - --dry-run validates without executing
+   - --seed for seed override
+   - --db for persistence path
+   - All verbose flags supported
+
+TEST RESULTS:
+- 37 new tests for CLI commands (all pass)
+- 66 total CLI tests (all pass)
+- 115 CLI + config tests (all pass)
+- mypy passes on commands.py
+
+FILES MODIFIED:
+- api/payment_simulator/experiments/cli/commands.py (~340 lines added)
+- api/tests/experiments/cli/test_cli_commands.py (new, ~400 lines)
+```
+
+**Expected Outcome:** ✅ ACHIEVED
 - Single generic CLI for ALL experiment types
-- No Castro-specific CLI code
+- No Castro-specific CLI code needed
 
 ---
 
