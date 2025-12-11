@@ -17,8 +17,8 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from castro.events import (
+    EVENT_BOOTSTRAP_EVALUATION,
     EVENT_LLM_INTERACTION,
-    EVENT_MONTE_CARLO_EVALUATION,
     EVENT_POLICY_CHANGE,
     EVENT_POLICY_REJECTED,
     ExperimentEvent,
@@ -106,9 +106,9 @@ Please optimize the policy to reduce costs.
             )
             repo.save_event(llm_event)
 
-            # Monte Carlo evaluation event
+            # Bootstrap evaluation event
             mc_event = ExperimentEvent(
-                event_type=EVENT_MONTE_CARLO_EVALUATION,
+                event_type=EVENT_BOOTSTRAP_EVALUATION,
                 run_id="integration-test-run",
                 iteration=iteration,
                 timestamp=datetime.now(),

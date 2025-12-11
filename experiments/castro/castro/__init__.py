@@ -7,11 +7,17 @@ for LLM-based policy optimization in payment systems.
 from __future__ import annotations
 
 __all__ = [
+    # Core exports
     "CASTRO_CONSTRAINTS",
-    "EXPERIMENTS",
-    "CastroExperiment",
     "ExperimentResult",
     "ExperimentRunner",
+    # Experiment loading (preferred)
+    "list_experiments",
+    "load_experiment",
+    "get_llm_config",
+    # Legacy exports (deprecated - use experiment_loader instead)
+    "EXPERIMENTS",
+    "CastroExperiment",
     "create_exp1",
     "create_exp2",
     "create_exp3",
@@ -24,6 +30,10 @@ def __getattr__(name: str) -> object:
         from castro.constraints import CASTRO_CONSTRAINTS
 
         return CASTRO_CONSTRAINTS
+    if name in ("list_experiments", "load_experiment", "get_llm_config"):
+        from castro import experiment_loader
+
+        return getattr(experiment_loader, name)
     if name in ("EXPERIMENTS", "CastroExperiment", "create_exp1", "create_exp2", "create_exp3"):
         from castro import experiments
 

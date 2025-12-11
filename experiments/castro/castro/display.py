@@ -6,79 +6,20 @@ Both run and replay use these same functions with different providers.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 from rich.table import Table
 
+# Import unified VerboseConfig from verbose_logging (single source of truth)
+from castro.verbose_logging import VerboseConfig
+
 if TYPE_CHECKING:
     from castro.events import ExperimentEvent
     from castro.state_provider import ExperimentStateProvider
 
-
-# =============================================================================
-# Verbose Configuration
-# =============================================================================
-
-
-@dataclass
-class VerboseConfig:
-    """Configuration for verbose output.
-
-    Controls which event types are displayed during output.
-    """
-
-    show_iterations: bool = False
-    show_bootstrap: bool = False
-    show_llm_calls: bool = False
-    show_policy_changes: bool = False
-    show_rejections: bool = False
-
-    @classmethod
-    def all_enabled(cls) -> VerboseConfig:
-        """Create config with all verbose output enabled."""
-        return cls(
-            show_iterations=True,
-            show_bootstrap=True,
-            show_llm_calls=True,
-            show_policy_changes=True,
-            show_rejections=True,
-        )
-
-    @classmethod
-    def from_flags(
-        cls,
-        verbose: bool = False,
-        verbose_iterations: bool = False,
-        verbose_bootstrap: bool = False,
-        verbose_llm: bool = False,
-        verbose_policy: bool = False,
-        verbose_rejections: bool = False,
-    ) -> VerboseConfig:
-        """Create config from CLI flags.
-
-        Args:
-            verbose: Enable all verbose output
-            verbose_iterations: Show iteration starts
-            verbose_bootstrap: Show bootstrap evaluations
-            verbose_llm: Show LLM call details
-            verbose_policy: Show policy changes
-            verbose_rejections: Show rejection details
-
-        Returns:
-            VerboseConfig instance
-        """
-        if verbose:
-            return cls.all_enabled()
-
-        return cls(
-            show_iterations=verbose_iterations,
-            show_bootstrap=verbose_bootstrap,
-            show_llm_calls=verbose_llm,
-            show_policy_changes=verbose_policy,
-            show_rejections=verbose_rejections,
-        )
+# Re-export for backward compatibility
+__all__ = ["VerboseConfig", "display_experiment_output"]
 
 
 # =============================================================================
@@ -154,15 +95,15 @@ def _display_event(
 
     if event_type == "experiment_start":
         display_experiment_start(event, console)
-    elif event_type == "iteration_start" and config.show_iterations:
+    elif event_type == "iteration_start" and config.iterations:
         display_iteration_start(event, console)
-    elif event_type == "bootstrap_evaluation" and config.show_bootstrap:
+    elif event_type == "bootstrap_evaluation" and config.bootstrap:
         display_bootstrap_evaluation(event, console)
-    elif event_type == "llm_call" and config.show_llm_calls:
+    elif event_type == "llm_call" and config.llm:
         display_llm_call(event, console)
-    elif event_type == "policy_change" and config.show_policy_changes:
+    elif event_type == "policy_change" and config.policy:
         display_policy_change(event, console)
-    elif event_type == "policy_rejected" and config.show_rejections:
+    elif event_type == "policy_rejected" and config.rejections:
         display_policy_rejected(event, console)
     elif event_type == "experiment_end":
         display_experiment_end(event, console)

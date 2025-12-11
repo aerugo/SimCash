@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
+from castro.experiment_loader import list_experiments
 from castro.experiments import DEFAULT_MODEL, EXPERIMENTS
 from castro.runner import ExperimentRunner
 
@@ -153,9 +154,10 @@ def run(
             debug=debug,
         )
 
-    if experiment not in EXPERIMENTS:
+    available_experiments = list_experiments()
+    if experiment not in available_experiments:
         console.print(f"[red]Unknown experiment: {experiment}[/red]")
-        console.print(f"Available: {', '.join(EXPERIMENTS.keys())}")
+        console.print(f"Available: {', '.join(available_experiments)}")
         raise typer.Exit(1)
 
     # Create experiment configuration with new model format
@@ -232,9 +234,10 @@ def info(
     ],
 ) -> None:
     """Show detailed experiment configuration."""
-    if experiment not in EXPERIMENTS:
+    available_experiments = list_experiments()
+    if experiment not in available_experiments:
         console.print(f"[red]Unknown experiment: {experiment}[/red]")
-        console.print(f"Available: {', '.join(EXPERIMENTS.keys())}")
+        console.print(f"Available: {', '.join(available_experiments)}")
         raise typer.Exit(1)
 
     exp = EXPERIMENTS[experiment]()
@@ -289,8 +292,10 @@ def validate(
 
     Checks that scenario config exists and is valid.
     """
-    if experiment not in EXPERIMENTS:
+    available_experiments = list_experiments()
+    if experiment not in available_experiments:
         console.print(f"[red]Unknown experiment: {experiment}[/red]")
+        console.print(f"Available: {', '.join(available_experiments)}")
         raise typer.Exit(1)
 
     exp = EXPERIMENTS[experiment]()
