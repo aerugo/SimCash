@@ -494,30 +494,60 @@ TEST RESULTS:
 
 ### Phase 5: CLI Commands
 
-**Status:** Not Started
+**Status:** COMPLETED (2025-12-10)
 
 **Tests First (TDD):**
-- [ ] Write `tests/cli/test_experiment_commands.py`
-- [ ] Test `run` command with mock runner
-- [ ] Test `validate` command
-- [ ] Test `list` command
-- [ ] Test `info` command
-- [ ] Test `template` command
+- [x] Write `tests/cli/test_experiment_commands.py`
+- [x] Test `run` command with mock runner
+- [x] Test `validate` command
+- [x] Test `list` command
+- [x] Test `info` command
+- [x] Test `template` command
 
 **Implementation:**
-- [ ] Create `api/payment_simulator/cli/commands/experiment.py`
-- [ ] Implement `run` command
-- [ ] Implement `validate` command
-- [ ] Implement `list` command
-- [ ] Implement `info` command
-- [ ] Implement `template` command
-- [ ] Register commands in main CLI app
-- [ ] Test CLI manually
-- [ ] Commit Phase 5 changes
+- [x] Create `api/payment_simulator/cli/commands/experiment.py`
+- [x] Implement `run` command
+- [x] Implement `validate` command
+- [x] Implement `list` command
+- [x] Implement `info` command
+- [x] Implement `template` command
+- [x] Register commands in main CLI app
+- [x] Test CLI manually
+- [x] Commit Phase 5 changes
 
 **Notes:**
 ```
-(Add notes as work progresses)
+2025-12-10: PHASE 5 COMPLETE
+
+IMPLEMENTED:
+1. experiment_app (Typer sub-app):
+   - Registered in main.py as 'experiment' command group
+   - 5 subcommands: validate, info, template, list, run
+
+2. Commands implemented:
+   - validate: Loads and validates experiment YAML using ExperimentConfig.from_yaml()
+   - info: Shows module info, evaluation modes, features, available commands
+   - template: Generates experiment config YAML template with all required fields
+   - list: Lists experiments from a directory, showing names/descriptions
+   - run: Loads config and runs experiment (placeholder for Phase 6 integration)
+
+3. CLI usage:
+   payment-sim experiment --help
+   payment-sim experiment validate config.yaml
+   payment-sim experiment info
+   payment-sim experiment template -o new_exp.yaml
+   payment-sim experiment list experiments/
+   payment-sim experiment run config.yaml --dry-run
+
+TEST RESULTS:
+- tests/cli/test_experiment_commands.py: 20/20 passed
+
+DESIGN DECISIONS:
+- run command has --dry-run flag to validate without executing
+- run command has --seed flag to override master_seed from config
+- list command shows experiment metadata (name, description, mode, agents)
+- template command outputs to stdout or file with -o flag
+- Follows existing CLI patterns from ai_game.py
 ```
 
 ---
