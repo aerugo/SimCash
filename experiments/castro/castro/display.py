@@ -15,8 +15,10 @@ from rich.table import Table
 from castro.verbose_logging import VerboseConfig
 
 if TYPE_CHECKING:
-    from castro.events import ExperimentEvent
-    from castro.state_provider import ExperimentStateProvider
+    from payment_simulator.experiments.runner import ExperimentStateProviderProtocol
+
+# Event type alias for display functions - events are dicts from core
+ExperimentEvent = dict[str, Any]
 
 # Re-export for backward compatibility
 __all__ = ["VerboseConfig", "display_experiment_output"]
@@ -28,7 +30,7 @@ __all__ = ["VerboseConfig", "display_experiment_output"]
 
 
 def display_experiment_output(
-    provider: ExperimentStateProvider,
+    provider: ExperimentStateProviderProtocol,
     console: Console | None = None,
     verbose_config: VerboseConfig | None = None,
 ) -> None:
@@ -85,13 +87,14 @@ def _display_event(
     """Display a single event.
 
     Routes to appropriate handler based on event type.
+    Events are dicts with 'event_type' key from core StateProvider.
 
     Args:
-        event: Event to display
+        event: Event dict to display
         console: Console for output
         config: VerboseConfig controlling what to show
     """
-    event_type = event.event_type
+    event_type = event.get("event_type", "")
 
     if event_type == "experiment_start":
         display_experiment_start(event, console)
@@ -147,19 +150,19 @@ def display_experiment_start(event: ExperimentEvent, console: Console) -> None:
     """Display experiment start event.
 
     Args:
-        event: experiment_start event
+        event: experiment_start event dict
         console: Console for output
     """
-    details = event.details
-    console.print(f"\n[bold]Starting {details.get('experiment_name', 'experiment')}[/bold]")
-    if "description" in details:
-        console.print(f"  Description: {details['description']}")
-    if "max_iterations" in details:
-        console.print(f"  Max iterations: {details['max_iterations']}")
-    if "num_samples" in details:
-        console.print(f"  Bootstrap samples: {details['num_samples']}")
-    if "model" in details:
-        console.print(f"  LLM model: {details['model']}")
+    # Event data is directly in the event dict (no separate .details)
+    console.print(f"\n[bold]Starting {event.get('experiment_name', 'experiment')}[/bold]")
+    if "description" in event:
+        console.print(f"  Description: {event['description']}")
+    if "max_iterations" in event:
+        console.print(f"  Max iterations: {event['max_iterations']}")
+    if "num_samples" in event:
+        console.print(f"  Bootstrap samples: {event['num_samples']}")
+    if "model" in event:
+        console.print(f"  LLM model: {event['model']}")
     console.print()
 
 
@@ -167,12 +170,11 @@ def display_iteration_start(event: ExperimentEvent, console: Console) -> None:
     """Display iteration start event.
 
     Args:
-        event: iteration_start event
+        event: iteration_start event dict
         console: Console for output
     """
-    details = event.details
-    iteration = event.iteration
-    total_cost = details.get("total_cost", 0)
+    iteration = event.get("iteration", 0)
+    total_cost = event.get("total_cost", 0)
 
     console.print(f"\n[bold]Iteration {iteration}[/bold]")
     console.print(f"  Total cost: {_format_cost(total_cost)}")
@@ -182,13 +184,12 @@ def display_bootstrap_evaluation(event: ExperimentEvent, console: Console) -> No
     """Display bootstrap evaluation event.
 
     Args:
-        event: bootstrap_evaluation event
+        event: bootstrap_evaluation event dict
         console: Console for output
     """
-    details = event.details
-    seed_results = details.get("seed_results", [])
-    mean_cost = details.get("mean_cost", 0)
-    std_cost = details.get("std_cost", 0)
+    seed_results = event.get("seed_results", [])
+    mean_cost = event.get("mean_cost", 0)
+    std_cost = event.get("std_cost", 0)
 
     console.print(f"\n[bold]Bootstrap Evaluation ({len(seed_results)} samples):[/bold]")
 
@@ -227,15 +228,14 @@ def display_llm_call(event: ExperimentEvent, console: Console) -> None:
     """Display LLM call event.
 
     Args:
-        event: llm_call event
+        event: llm_call event dict
         console: Console for output
     """
-    details = event.details
-    agent_id = details.get("agent_id", "unknown")
-    model = details.get("model", "unknown")
-    prompt_tokens = details.get("prompt_tokens", 0)
-    completion_tokens = details.get("completion_tokens", 0)
-    latency = details.get("latency_seconds", 0.0)
+    agent_id = event.get("agent_id", "unknown")
+    model = event.get("model", "unknown")
+    prompt_tokens = event.get("prompt_tokens", 0)
+    completion_tokens = event.get("completion_tokens", 0)
+    latency = event.get("latency_seconds", 0.0)
 
     console.print(f"\n[bold]LLM Call for {agent_id}:[/bold]")
     console.print(f"  Model: {model}")
@@ -244,7 +244,7 @@ def display_llm_call(event: ExperimentEvent, console: Console) -> None:
     console.print(f"  Latency: {latency:.1f}s")
 
     # Show context summary if available
-    context = details.get("context_summary", {})
+    context = event.get("context_summary", {})
     if context:
         console.print("  Key context provided:")
         for key, value in context.items():
@@ -258,16 +258,15 @@ def display_policy_change(event: ExperimentEvent, console: Console) -> None:
     """Display policy change event.
 
     Args:
-        event: policy_change event
+        event: policy_change event dict
         console: Console for output
     """
-    details = event.details
-    agent_id = details.get("agent_id", "unknown")
-    old_cost = details.get("old_cost", 0)
-    new_cost = details.get("new_cost", 0)
-    accepted = details.get("accepted", False)
-    old_policy = details.get("old_policy", {})
-    new_policy = details.get("new_policy", {})
+    agent_id = event.get("agent_id", "unknown")
+    old_cost = event.get("old_cost", 0)
+    new_cost = event.get("new_cost", 0)
+    accepted = event.get("accepted", False)
+    old_policy = event.get("old_policy", {})
+    new_policy = event.get("new_policy", {})
 
     if accepted:
         console.print(f"\n[green]Policy improved:[/green] {_format_cost(old_cost)} → {_format_cost(new_cost)}")
@@ -314,13 +313,12 @@ def display_policy_rejected(event: ExperimentEvent, console: Console) -> None:
     """Display policy rejected event.
 
     Args:
-        event: policy_rejected event
+        event: policy_rejected event dict
         console: Console for output
     """
-    details = event.details
-    agent_id = details.get("agent_id", "unknown")
-    reason = details.get("rejection_reason", "unknown")
-    errors = details.get("validation_errors", [])
+    agent_id = event.get("agent_id", "unknown")
+    reason = event.get("rejection_reason", "unknown")
+    errors = event.get("validation_errors", [])
 
     console.print(f"\n[red]Policy rejected for {agent_id}[/red]")
     console.print(f"  Reason: {reason}")

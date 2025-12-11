@@ -52,6 +52,27 @@ from payment_simulator.ai_cash_mgmt.core import (
     GameSession,
 )
 
+# Events - LLM optimization event types and helpers (Phase 12)
+from payment_simulator.ai_cash_mgmt.events import (
+    ALL_EVENT_TYPES,
+    EVENT_BOOTSTRAP_EVALUATION,
+    EVENT_EXPERIMENT_END,
+    EVENT_EXPERIMENT_START,
+    EVENT_ITERATION_START,
+    EVENT_LLM_CALL,
+    EVENT_LLM_INTERACTION,
+    EVENT_POLICY_CHANGE,
+    EVENT_POLICY_REJECTED,
+    create_bootstrap_evaluation_event,
+    create_experiment_end_event,
+    create_experiment_start_event,
+    create_iteration_start_event,
+    create_llm_call_event,
+    create_llm_interaction_event,
+    create_policy_change_event,
+    create_policy_rejected_event,
+)
+
 # Optimization
 from payment_simulator.ai_cash_mgmt.optimization import (
     ConstraintValidator,
@@ -81,35 +102,53 @@ __all__ = [
     # Configuration
     "AgentOptimizationConfig",
     "BootstrapConfig",
-    # Optimization
-    "ConstraintValidator",
     "ConvergenceCriteria",
-    "ConvergenceDetector",
     "GameConfig",
-    # Core
-    "GameMode",
-    "GameOrchestrator",
-    # Persistence
-    "GameRepository",
-    "GameSession",
-    "GameSessionRecord",
-    "GameStatus",
-    # Sampling
-    "HistoricalTransaction",
     "LLMConfig",
     "LLMProviderType",
     "OptimizationSchedule",
     "OptimizationScheduleType",
     "OutputConfig",
-    # Constraints
-    "ParameterSpec",
     "PolicyConstraints",
-    "PolicyEvaluator",
-    "PolicyIterationRecord",
-    "PolicyOptimizer",
     "ReasoningEffortType",
     "SampleMethod",
+    # Constraints
+    "ParameterSpec",
     "ScenarioConstraints",
+    # Core
+    "GameMode",
+    "GameOrchestrator",
+    "GameSession",
+    # Events
+    "ALL_EVENT_TYPES",
+    "EVENT_BOOTSTRAP_EVALUATION",
+    "EVENT_EXPERIMENT_END",
+    "EVENT_EXPERIMENT_START",
+    "EVENT_ITERATION_START",
+    "EVENT_LLM_CALL",
+    "EVENT_LLM_INTERACTION",
+    "EVENT_POLICY_CHANGE",
+    "EVENT_POLICY_REJECTED",
+    "create_bootstrap_evaluation_event",
+    "create_experiment_end_event",
+    "create_experiment_start_event",
+    "create_iteration_start_event",
+    "create_llm_call_event",
+    "create_llm_interaction_event",
+    "create_policy_change_event",
+    "create_policy_rejected_event",
+    # Optimization
+    "ConstraintValidator",
+    "ConvergenceDetector",
+    "PolicyEvaluator",
+    "PolicyOptimizer",
+    # Persistence
+    "GameRepository",
+    "GameSessionRecord",
+    "GameStatus",
+    "PolicyIterationRecord",
+    # Sampling
+    "HistoricalTransaction",
     "SeedManager",
     "TransactionSampler",
     # Version
