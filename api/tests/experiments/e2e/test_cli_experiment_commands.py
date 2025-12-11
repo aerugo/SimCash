@@ -786,7 +786,7 @@ class TestCLICommandValidation:
         """validate command should fail gracefully on invalid YAML."""
         from typer.testing import CliRunner
 
-        from payment_simulator.cli.commands.experiment import experiment_app
+        from payment_simulator.experiments.cli.commands import experiment_app
 
         runner = CliRunner()
 
@@ -797,7 +797,7 @@ class TestCLICommandValidation:
         try:
             result = runner.invoke(experiment_app, ["validate", str(temp_path)])
             assert result.exit_code == 1
-            assert "Error" in result.output or "Invalid" in result.output
+            assert "error" in result.output.lower()
         finally:
             temp_path.unlink()
 
@@ -805,7 +805,7 @@ class TestCLICommandValidation:
         """validate command should fail gracefully on missing file."""
         from typer.testing import CliRunner
 
-        from payment_simulator.cli.commands.experiment import experiment_app
+        from payment_simulator.experiments.cli.commands import experiment_app
 
         runner = CliRunner()
         result = runner.invoke(experiment_app, ["validate", "/nonexistent/path.yaml"])
@@ -813,25 +813,50 @@ class TestCLICommandValidation:
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
-    def test_info_command_shows_framework_info(self) -> None:
-        """info command should display framework information."""
+    def test_info_command_shows_experiment_details(self) -> None:
+        """info command should display experiment configuration details."""
         from typer.testing import CliRunner
 
-        from payment_simulator.cli.commands.experiment import experiment_app
+        from payment_simulator.experiments.cli.commands import experiment_app
 
-        runner = CliRunner()
-        result = runner.invoke(experiment_app, ["info"])
+        # Create a valid experiment config
+        config = {
+            "name": "test_info_exp",
+            "description": "Test experiment for info command",
+            "scenario": "configs/test.yaml",
+            "evaluation": {
+                "mode": "bootstrap",
+                "num_samples": 10,
+                "ticks": 12,
+            },
+            "convergence": {
+                "max_iterations": 25,
+            },
+            "llm": {
+                "model": "anthropic:claude-sonnet-4-5",
+            },
+            "optimized_agents": ["BANK_A"],
+        }
 
-        assert result.exit_code == 0
-        assert "Experiment Framework" in result.output
-        assert "bootstrap" in result.output.lower()
-        assert "deterministic" in result.output.lower()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(config, f)
+            temp_path = Path(f.name)
+
+        try:
+            runner = CliRunner()
+            result = runner.invoke(experiment_app, ["info", str(temp_path)])
+
+            assert result.exit_code == 0
+            assert "test_info_exp" in result.output
+            assert "bootstrap" in result.output.lower()
+        finally:
+            temp_path.unlink()
 
     def test_template_command_generates_valid_yaml(self) -> None:
         """template command should generate valid experiment config."""
         from typer.testing import CliRunner
 
-        from payment_simulator.cli.commands.experiment import experiment_app
+        from payment_simulator.experiments.cli.commands import experiment_app
 
         runner = CliRunner()
         result = runner.invoke(experiment_app, ["template"])
