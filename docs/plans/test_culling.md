@@ -294,8 +294,137 @@ Before removing any test file:
 
 ---
 
+## Category 8: Placeholder Tests with `assert True` (CRITICAL - REMOVE)
+
+**9 tests that do NOTHING - they always pass regardless of code changes:**
+
+| File | Line | Test Name | Message |
+|------|------|-----------|---------|
+| `test_event_persistence.py` | 403 | `test_query_events_by_tick` | "Query function implementation needed" |
+| `test_event_persistence.py` | 414 | `test_query_events_by_agent_id` | "Query function implementation needed" |
+| `test_event_persistence.py` | 422 | `test_query_events_by_event_type` | "Query function implementation needed" |
+| `test_event_persistence.py` | 430 | `test_query_events_with_pagination` | "Query function implementation needed" |
+| `test_event_persistence.py` | 451 | `test_event_persistence_overhead` | "Performance testing pending implementation" |
+| `test_event_persistence.py` | 512 | `test_event_count_matches_rust_event_log` | "Event integrity check pending implementation" |
+| `test_event_persistence.py` | 522 | `test_event_ordering_preserved` | "Event ordering check pending implementation" |
+| `test_event_persistence.py` | 530 | `test_no_duplicate_events` | "Duplicate check pending implementation" |
+| `test_prioritization_replay_identity.py` | 312 | (unnamed) | "FFI structure verified by code inspection" |
+
+**Impact:** These provide ZERO protection against bugs. They're TDD scaffolding that was never completed.
+
+---
+
+## Category 9: Trivial Import/Existence Tests (REMOVE ~65 tests)
+
+**Pattern: Tests that only verify imports succeed**
+
+These tests are useless because:
+1. If an import fails, hundreds of other tests would fail too
+2. They don't test any actual behavior
+3. They're TDD scaffolding that should have been removed
+
+### Files with Trivial Import Tests (partial list)
+
+| File | Trivial Tests | Examples |
+|------|---------------|----------|
+| `test_module_structure.py` | 4 | `test_experiments_module_can_be_imported`, `test_experiments_has_config_submodule` |
+| `test_experiment_repository.py` | 4 | `test_importable_from_persistence`, `test_importable_from_repository_module` |
+| `test_state_provider_core.py` | 6 | `test_protocol_importable_from_runner`, `test_importable_from_state_provider` |
+| `test_cli_core.py` | 4 | `test_import_experiment_app`, `test_import_from_cli_module` |
+| `test_display_core.py` | 2 | `test_import_from_experiments_runner`, `test_import_from_display_module` |
+| `test_audit_core.py` | 2 | `test_import_from_experiments_runner`, `test_import_from_audit_module` |
+| `test_verbose_core.py` | 4+ | Multiple import tests |
+| `test_protocol.py` | 2 | `test_can_import_from_runner_module` |
+| `test_data_service.py` | 3 | `test_data_service_importable`, `test_get_costs_exists` |
+
+**Total count across all files: ~65 trivial import/existence tests**
+
+### Pattern Examples
+
+```python
+# USELESS - if import fails, 100s of other tests fail too
+def test_importable_from_persistence(self) -> None:
+    from payment_simulator.experiments.persistence import ExperimentRepository
+    assert ExperimentRepository is not None  # Always true if import succeeds
+
+# USELESS - checking existence, not behavior
+def test_get_costs_exists(self) -> None:
+    service = DataService(mock_provider)
+    assert hasattr(service, "get_costs")  # Doesn't test that it works
+
+# USELESS - entire file just tests imports
+class TestExperimentsModuleStructure:
+    def test_experiments_module_can_be_imported(self) -> None:
+        import payment_simulator.experiments
+        assert payment_simulator.experiments is not None
+```
+
+### Files to Delete Entirely
+
+```bash
+# Files that ONLY contain import tests
+rm tests/experiments/test_module_structure.py  # 4 useless tests
+```
+
+---
+
+## Category 10: Trivial `test_is_frozen` Tests (EVALUATE ~14 tests)
+
+Multiple tests just verify that dataclasses are frozen (immutable):
+
+| File | Count |
+|------|-------|
+| `test_experiment_repository.py` | 3 |
+| `test_result.py` | 3 |
+| `test_experiment_config.py` | 4 |
+| `test_enriched_evaluation.py` | 3 |
+| `test_audit_wrapper.py` | 1 |
+
+**Example:**
+```python
+def test_is_frozen(self) -> None:
+    record = ExperimentRecord(...)
+    with pytest.raises(FrozenInstanceError):
+        record.run_id = "new_id"
+```
+
+**Assessment:** These are LOW VALUE but not completely useless - they verify an intentional design constraint. Consider keeping 1 test per dataclass file rather than per-class.
+
+---
+
+## Revised Expected Results
+
+| Category | Tests to Remove | Notes |
+|----------|-----------------|-------|
+| Cat 1: Debug/Investigation | 5 | High confidence |
+| Cat 2: Replay Identity | 60-70 | High confidence |
+| Cat 8: Placeholder `assert True` | 9 | **CRITICAL - immediate removal** |
+| Cat 9: Import/Existence | 65 | High confidence |
+| Cat 10: `is_frozen` tests | 7-10 | Medium confidence (keep some) |
+| Cat 4-7: Various | 30-50 | Requires evaluation |
+
+**Revised Total: 175-210 tests (7-8.5% of suite)**
+
+---
+
+## Priority Actions (Immediate)
+
+### Highest Priority (Zero Risk)
+
+1. **Delete placeholder tests** - 9 tests with `assert True`
+2. **Delete `test_module_structure.py`** - 4 useless import tests
+3. **Delete debug/investigation files** - 5 tests
+
+### High Priority (Low Risk)
+
+4. **Remove import-only test classes** from files that have them
+5. **Consolidate replay identity tests** into gold standard
+
+---
+
 ## Notes
 
 - The trace tests (test_trace_*.py) look like debugging artifacts by name but are actually legitimate policy branch coverage tests using the PolicyScenarioTest framework
 - The replay identity tests are the highest value targets for consolidation
 - Consider adding test markers to distinguish fast vs slow tests for CI optimization
+- TDD scaffolding tests (`test_*_exists`, `test_*_importable`) should be removed after implementation is complete
