@@ -336,7 +336,6 @@ fn test_lsm_respects_credit_limit_cycle() {
 
 /// Test that demonstrates how policies should use credit_headroom
 #[test]
-#[ignore] // Will enable after field is added
 fn test_policy_usage_credit_headroom() {
     use payment_simulator_core_rs::policy::tree::EvalContext;
     use payment_simulator_core_rs::orchestrator::CostRates;
@@ -362,7 +361,6 @@ fn test_policy_usage_credit_headroom() {
 }
 
 #[test]
-#[ignore] // Will enable after field is added
 fn test_policy_usage_is_overdraft_capped() {
     use payment_simulator_core_rs::policy::tree::EvalContext;
     use payment_simulator_core_rs::orchestrator::CostRates;
