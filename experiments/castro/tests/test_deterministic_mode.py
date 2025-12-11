@@ -105,7 +105,7 @@ class TestCastroExperimentDeterministic:
             deterministic=True,
             num_samples=10,  # Should be ignored/overridden
         )
-        mc_config = exp.get_monte_carlo_config()
+        mc_config = exp.get_bootstrap_config()
 
         assert mc_config.deterministic is True
         assert mc_config.num_samples == 1
@@ -121,7 +121,7 @@ class TestCastroExperimentDeterministic:
             deterministic=False,
             num_samples=10,
         )
-        mc_config = exp.get_monte_carlo_config()
+        mc_config = exp.get_bootstrap_config()
 
         assert mc_config.deterministic is False
         assert mc_config.num_samples == 10
@@ -142,18 +142,18 @@ class TestExp1Deterministic:
         from castro.experiments import create_exp1
 
         exp = create_exp1()
-        mc_config = exp.get_monte_carlo_config()
+        mc_config = exp.get_bootstrap_config()
 
         assert mc_config.deterministic is True
         assert mc_config.num_samples == 1
 
 
 class TestContextBuilderSingleSample:
-    """Tests for MonteCarloContextBuilder with single sample."""
+    """Tests for BootstrapContextBuilder with single sample."""
 
     def test_single_sample_best_equals_worst(self) -> None:
         """With one sample, best and worst seed are identical."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
         # Create a mock result
         mock_result = MagicMock()
@@ -162,7 +162,7 @@ class TestContextBuilderSingleSample:
         mock_result.settlement_rate = 1.0
         mock_result.verbose_output = None
 
-        builder = MonteCarloContextBuilder(results=[mock_result], seeds=[12345])
+        builder = BootstrapContextBuilder(results=[mock_result], seeds=[12345])
         ctx = builder.get_agent_simulation_context("BANK_A")
 
         assert ctx.best_seed == ctx.worst_seed == 12345
@@ -170,7 +170,7 @@ class TestContextBuilderSingleSample:
 
     def test_single_sample_std_is_zero(self) -> None:
         """With one sample, standard deviation is 0."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
         mock_result = MagicMock()
         mock_result.total_cost = 500
@@ -178,14 +178,14 @@ class TestContextBuilderSingleSample:
         mock_result.settlement_rate = 1.0
         mock_result.verbose_output = None
 
-        builder = MonteCarloContextBuilder(results=[mock_result], seeds=[12345])
+        builder = BootstrapContextBuilder(results=[mock_result], seeds=[12345])
         ctx = builder.get_agent_simulation_context("BANK_A")
 
         assert ctx.cost_std == 0.0
 
     def test_single_sample_mean_equals_value(self) -> None:
         """With one sample, mean equals the single value."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
         mock_result = MagicMock()
         mock_result.total_cost = 500
@@ -193,7 +193,7 @@ class TestContextBuilderSingleSample:
         mock_result.settlement_rate = 1.0
         mock_result.verbose_output = None
 
-        builder = MonteCarloContextBuilder(results=[mock_result], seeds=[12345])
+        builder = BootstrapContextBuilder(results=[mock_result], seeds=[12345])
         ctx = builder.get_agent_simulation_context("BANK_A")
 
         assert ctx.mean_cost == 300.0
@@ -205,19 +205,19 @@ class TestVerboseLoggerDeterministic:
     def test_deterministic_display_no_std_shown(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Deterministic mode doesn't show standard deviation."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
         from rich.console import Console
 
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         console = Console(force_terminal=True, width=120)
         logger = VerboseLogger(config, console)
 
         # Single result (deterministic)
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=12345,
                 cost=50000,
                 settled=10,
@@ -226,7 +226,7 @@ class TestVerboseLoggerDeterministic:
             )
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=50000,
             std_cost=0,
@@ -242,24 +242,24 @@ class TestVerboseLoggerDeterministic:
     ) -> None:
         """Non-deterministic mode shows mean and std statistics."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
         from rich.console import Console
 
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         console = Console(force_terminal=True, width=120)
         logger = VerboseLogger(config, console)
 
         # Multiple results (non-deterministic)
         seed_results = [
-            MonteCarloSeedResult(seed=1, cost=45000, settled=9, total=10, settlement_rate=0.9),
-            MonteCarloSeedResult(seed=2, cost=50000, settled=10, total=10, settlement_rate=1.0),
-            MonteCarloSeedResult(seed=3, cost=55000, settled=10, total=10, settlement_rate=1.0),
+            BootstrapSampleResult(seed=1, cost=45000, settled=9, total=10, settlement_rate=0.9),
+            BootstrapSampleResult(seed=2, cost=50000, settled=10, total=10, settlement_rate=1.0),
+            BootstrapSampleResult(seed=3, cost=55000, settled=10, total=10, settlement_rate=1.0),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=50000,
             std_cost=4082,
@@ -287,7 +287,7 @@ class TestEvaluatePoliciesDeterministic:
             scenario_path=Path("configs/exp1_2period.yaml"),
             deterministic=True,
         )
-        mc_config = exp.get_monte_carlo_config()
+        mc_config = exp.get_bootstrap_config()
 
         assert mc_config.num_samples == 1
 

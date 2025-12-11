@@ -150,7 +150,7 @@ class TestMonteCarloLoggingDeltaComparison:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         # Baseline run: no baseline_cost set on any result
@@ -166,7 +166,7 @@ class TestMonteCarloLoggingDeltaComparison:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=1346666,
             std_cost=24944,
@@ -192,7 +192,7 @@ class TestMonteCarloLoggingDeltaComparison:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         # Subsequent run: all results have baseline_cost
@@ -223,7 +223,7 @@ class TestMonteCarloLoggingDeltaComparison:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=1270000,
             std_cost=70000,
@@ -252,7 +252,7 @@ class TestMonteCarloLoggingDeltaComparison:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
@@ -266,7 +266,7 @@ class TestMonteCarloLoggingDeltaComparison:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=9000,
             std_cost=0,
@@ -289,7 +289,7 @@ class TestMonteCarloLoggingDeltaComparison:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
@@ -302,7 +302,7 @@ class TestMonteCarloLoggingDeltaComparison:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=10000,
             std_cost=0,
@@ -313,7 +313,7 @@ class TestMonteCarloLoggingDeltaComparison:
 
         # Should NOT show Delta column (since there's nothing to compare)
         # Output should still work but without delta info
-        assert "Monte Carlo" in output
+        assert "Bootstrap" in output
 
 
 class TestBestWorstDeltaLogic:
@@ -337,7 +337,7 @@ class TestBestWorstDeltaLogic:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
@@ -367,7 +367,7 @@ class TestBestWorstDeltaLogic:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=9000,
             std_cost=500,
@@ -394,7 +394,7 @@ class TestBestWorstDeltaLogic:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
@@ -424,7 +424,7 @@ class TestBestWorstDeltaLogic:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=9833,
             std_cost=850,
@@ -450,7 +450,7 @@ class TestBestWorstDeltaLogic:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
@@ -464,7 +464,7 @@ class TestBestWorstDeltaLogic:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=12000,
             std_cost=0,
@@ -498,7 +498,7 @@ class TestMeanDeltaStatistics:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
@@ -520,7 +520,7 @@ class TestMeanDeltaStatistics:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=8500,
             std_cost=500,
@@ -548,7 +548,7 @@ class TestBackwardCompatibility:
     def test_existing_api_still_works_without_new_params(
         self, string_console: tuple[Console, io.StringIO]
     ) -> None:
-        """Existing code calling log_monte_carlo_evaluation should still work."""
+        """Existing code calling log_bootstrap_evaluation should still work."""
         from castro.verbose_logging import (
             BootstrapSampleResult,
             VerboseConfig,
@@ -556,7 +556,7 @@ class TestBackwardCompatibility:
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         # Old-style call without is_baseline_run or baseline_cost
@@ -578,7 +578,7 @@ class TestBackwardCompatibility:
         ]
 
         # Should not raise - is_baseline_run defaults appropriately
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=1350000,
             std_cost=30000,
@@ -587,7 +587,7 @@ class TestBackwardCompatibility:
         output = buffer.getvalue()
 
         # Should produce valid output
-        assert "Monte Carlo" in output
+        assert "Bootstrap" in output
         # Without baselines, should treat as baseline run (no delta comparison)
 
 

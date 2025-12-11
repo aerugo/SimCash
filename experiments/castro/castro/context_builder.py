@@ -1,4 +1,4 @@
-"""Build per-agent context from Monte Carlo simulation results.
+"""Build per-agent context from bootstrap simulation results.
 
 This module provides functionality to:
 1. Identify best/worst seeds per agent (based on that agent's costs)
@@ -10,8 +10,8 @@ Key invariants:
 - INV-4: Context structure follows SingleAgentContext format
 
 Example:
-    >>> from castro.context_builder import MonteCarloContextBuilder
-    >>> builder = MonteCarloContextBuilder(results, seeds)
+    >>> from castro.context_builder import BootstrapContextBuilder
+    >>> builder = BootstrapContextBuilder(results, seeds)
     >>> context = builder.build_context_for_agent(
     ...     agent_id="BANK_A",
     ...     iteration=3,
@@ -107,8 +107,8 @@ class AgentSimulationContext:
     cost_std: float
 
 
-class MonteCarloContextBuilder:
-    """Builds per-agent context from Monte Carlo samples.
+class BootstrapContextBuilder:
+    """Builds per-agent context from bootstrap samples.
 
     After running multiple simulations with different seeds,
     this class:
@@ -122,7 +122,7 @@ class MonteCarloContextBuilder:
 
     Example:
         >>> results = [runner.run_simulation(policy, seed) for seed in seeds]
-        >>> builder = MonteCarloContextBuilder(results, seeds)
+        >>> builder = BootstrapContextBuilder(results, seeds)
         >>> context = builder.build_context_for_agent(
         ...     agent_id="BANK_A",
         ...     iteration=3,
@@ -137,7 +137,7 @@ class MonteCarloContextBuilder:
         results: list[Any],  # list[SimulationResultProtocol]
         seeds: list[int],
     ) -> None:
-        """Initialize with Monte Carlo results.
+        """Initialize with bootstrap results.
 
         Args:
             results: List of SimulationResult from each sample.
@@ -375,3 +375,7 @@ class MonteCarloContextBuilder:
 
         # Get agent IDs from first result's per_agent_costs
         return list(self._results[0].per_agent_costs.keys())
+
+
+# Backward compatibility alias
+MonteCarloContextBuilder = BootstrapContextBuilder

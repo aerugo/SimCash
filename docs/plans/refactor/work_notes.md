@@ -614,6 +614,43 @@ Castro currently has its own:
 
 These can be gradually migrated to use payment_simulator modules.
 The YAML configs enable loading experiments without code changes.
+
+2025-12-11: PHASE 6.2 MIGRATION ANALYSIS
+
+CURRENT STATE (post Phase 8 terminology cleanup):
+- Backward compatibility aliases removed (MonteCarloConfig, MonteCarloSeedResult)
+- castro still imports from local model_config.py and pydantic_llm_client.py
+- MonteCarloContextBuilder class still exists (should use BootstrapContextBuilder)
+
+KEY DEPENDENCIES TO MIGRATE:
+1. castro/runner.py imports:
+   - castro.pydantic_llm_client.AuditCaptureLLMClient
+   - castro.pydantic_llm_client.PydanticAILLMClient
+   - castro.model_config.ModelConfig (via experiments.py)
+   - castro.context_builder.MonteCarloContextBuilder
+
+2. castro/experiments.py imports:
+   - castro.model_config.ModelConfig
+
+MIGRATION CHALLENGE:
+castro/model_config.py::ModelConfig has features NOT in payment_simulator.llm.LLMConfig:
+- max_tokens field
+- thinking_config field (Google)
+- full_model_string property (maps google → google-gla)
+- to_model_settings() method (creates PydanticAI settings dict)
+
+castro/pydantic_llm_client.py is SPECIALIZED for policy generation:
+- SYSTEM_PROMPT for policy format
+- generate_policy() and generate_policy_with_audit() methods
+- Policy parsing logic (_parse_policy, _ensure_node_ids)
+- LLMInteractionResult and AuditCaptureLLMClient
+
+MIGRATION STRATEGY:
+Phase 6.2: Extend LLMConfig with missing features needed by castro
+Phase 6.3: Update castro to import from payment_simulator.llm
+Phase 6.4: Rename MonteCarloContextBuilder → BootstrapContextBuilder
+Phase 6.5: Delete deprecated castro files (model_config.py only initially)
+Phase 6.6: Verification testing
 ```
 
 ---
