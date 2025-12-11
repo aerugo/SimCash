@@ -270,11 +270,12 @@ class GenericExperimentRunner:
         # Save experiment record at start
         self._save_experiment_start()
 
-        # Create optimization loop with config directory for relative path resolution
-        # Pass run_id to ensure consistency and repository for persistence
+        # Create optimization loop with config directory for relative path resolution,
+        # verbose config for logging, run_id for consistency, and repository for persistence
         self._loop = OptimizationLoop(
             config=self._config,
             config_dir=self._config_dir,
+            verbose_config=self._verbose_config,
             run_id=self._run_id,
             repository=self._repository,
         )
