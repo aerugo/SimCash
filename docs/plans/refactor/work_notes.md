@@ -890,6 +890,63 @@ TEST RESULTS:
 
 ---
 
+### Phase 9.5: Runner Decoupling and Legacy Module Deletion
+
+**Status:** PLANNED (2025-12-11)
+
+**Purpose:** Complete Phase 9 deferred tasks by decoupling runner.py from CastroExperiment, enabling deletion of experiments.py.
+
+**Dependencies:** Phase 9 (partial completion)
+
+**Detailed Plan:** See `docs/plans/refactor/phases/phase_9_5.md`
+
+**Tasks Planned:**
+
+| Task | Description | TDD Test File |
+|------|-------------|---------------|
+| 9.5.1 | Create ExperimentConfigProtocol | `test_experiment_config_protocol.py` |
+| 9.5.2 | Create YamlExperimentConfig | `test_yaml_experiment_config.py` |
+| 9.5.3 | Update runner.py type hints | `test_runner_protocol_compatibility.py` |
+| 9.5.4 | Update CLI to use YamlExperimentConfig | (manual verification) |
+| 9.5.5 | Delete experiments.py | `test_experiments_py_deleted.py` |
+| 9.5.6 | Update existing tests | (full test suite) |
+
+**Expected Outcomes:**
+- Delete `experiments.py` (~350 lines)
+- Create `experiment_config.py` (~150 lines)
+- Net reduction: ~200 lines
+- ~44 new tests
+
+**Notes:**
+```
+2025-12-11: PHASE 9.5 PLANNED
+
+PROBLEM ANALYSIS:
+Phase 9 could not delete experiments.py because runner.py (936 lines)
+is tightly coupled to CastroExperiment dataclass:
+- 25 property accesses (name, description, master_seed, scenario_path, optimized_agents)
+- 4 method calls (get_convergence_criteria, get_bootstrap_config, get_model_config, get_output_config)
+
+SOLUTION: Protocol-Based Decoupling
+1. Define ExperimentConfigProtocol - interface that runner.py needs
+2. Create YamlExperimentConfig - wrapper around dict implementing protocol
+3. Update runner.py type hints to use protocol
+4. Update CLI to use YamlExperimentConfig
+5. Delete experiments.py
+
+WHY PROTOCOL-BASED:
+- Incremental migration (both old and new work during transition)
+- Type safety (protocol provides compile-time checking)
+- Follows codebase patterns (StateProvider uses same approach)
+
+context_builder.py DELETION DEFERRED:
+- Requires migrating to EnrichedBootstrapContextBuilder
+- Different data structures (SimulationResult vs EnrichedEvaluationResult)
+- Should be Phase 9.6 or Phase 10 after 9.5 stabilizes
+```
+
+---
+
 ### Phase 10: Deep Integration - Core Module Consolidation
 
 **Status:** PLANNED (2025-12-11)
