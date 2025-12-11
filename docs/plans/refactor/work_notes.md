@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** Phases 0-17 COMPLETED, Phase 18 PLANNED (YAML-only experiments)
+**Status:** Phases 0-18 COMPLETED, Phase 19 PLANNED (Documentation Overhaul)
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -1970,17 +1970,17 @@ FILES MODIFIED:
 
 ### Phase 18: Delete Castro Python Code
 
-**Status:** PLANNED
+**Status:** COMPLETED (2025-12-11)
 **Purpose:** Remove all Python code from Castro, keep only YAML
 
 **Tasks:**
-- 18.1: Update Castro experiment YAMLs with system_prompt and policy_constraints
-- 18.2: Delete `experiments/castro/castro/` directory entirely
-- 18.3: Delete `experiments/castro/cli.py`
-- 18.4: Delete `experiments/castro/tests/` (tests move to API)
-- 18.5: Update `experiments/castro/pyproject.toml` (minimal, just docs)
-- 18.6: Update `experiments/castro/README.md` with new usage instructions
-- 18.7: Verify experiments work via core CLI
+- 18.1: ✅ Update Castro experiment YAMLs with system_prompt and policy_constraints
+- 18.2: ✅ Delete `experiments/castro/castro/` directory entirely
+- 18.3: ✅ Delete `experiments/castro/cli.py`
+- 18.4: ✅ Delete `experiments/castro/tests/`
+- 18.5: ✅ Update `experiments/castro/pyproject.toml` (minimal, just metadata)
+- 18.6: ✅ Update `experiments/castro/README.md` with new usage instructions
+- 18.7: ✅ Verify experiments work via core CLI
 
 **Files Deleted (~4200 lines):**
 - castro/runner.py
@@ -2017,10 +2017,69 @@ experiments/castro/
 └── pyproject.toml         # Minimal (metadata only)
 ```
 
-**Expected Outcome:**
+**Expected Outcome:** ✅ ACHIEVED
 - Castro = YAML configs + papers + docs
 - ALL Python code in core
 - New experiments created by writing YAML only
+
+**Notes:**
+```
+2025-12-11: PHASE 18 COMPLETE
+
+IMPLEMENTATION:
+1. Updated exp1.yaml, exp2.yaml, exp3.yaml with:
+   - Full SYSTEM_PROMPT inline (1905 chars each)
+   - Full CASTRO_CONSTRAINTS inline (policy_constraints section)
+   - Removed reference to castro.constraints module
+
+2. Verified all experiments work via core CLI:
+   - payment-sim experiment validate ../experiments/castro/experiments/exp1.yaml
+   - payment-sim experiment list ../experiments/castro/experiments/
+   - payment-sim experiment run ../experiments/castro/experiments/exp1.yaml --dry-run
+
+3. Deleted Castro Python code:
+   - experiments/castro/castro/ (14 Python files)
+   - experiments/castro/cli.py
+   - experiments/castro/tests/ (24 test files)
+   - experiments/castro/CLAUDE.md
+   - experiments/castro/uv.lock
+
+4. Updated pyproject.toml:
+   - Removed all dependencies (YAML-only)
+   - Removed [project.scripts]
+   - Removed tool configs (mypy, ruff, pyright, pytest)
+   - Minimal metadata only
+
+5. Updated README.md:
+   - Removed all programmatic usage examples
+   - Removed Python module structure
+   - Added core CLI usage examples
+   - Simplified to YAML-only documentation
+
+6. Updated api/payment_simulator/cli/commands/experiment.py:
+   - Wired _run_experiment_async() to GenericExperimentRunner
+   - Replaced placeholder with actual implementation
+
+TEST RESULTS:
+- 66 experiments CLI tests pass
+- All 3 Castro YAML configs validate
+- Core CLI run/list/validate/info commands work
+
+FILES DELETED (~4200 lines):
+- experiments/castro/castro/ (entire directory)
+- experiments/castro/cli.py
+- experiments/castro/tests/ (entire directory)
+- experiments/castro/CLAUDE.md
+- experiments/castro/uv.lock
+
+FILES MODIFIED:
+- experiments/castro/experiments/exp1.yaml (added inline system_prompt, constraints)
+- experiments/castro/experiments/exp2.yaml (added inline system_prompt, constraints)
+- experiments/castro/experiments/exp3.yaml (added inline system_prompt, constraints)
+- experiments/castro/pyproject.toml (minimal metadata only)
+- experiments/castro/README.md (YAML-only documentation)
+- api/payment_simulator/cli/commands/experiment.py (wired to runner)
+```
 
 ---
 
@@ -2039,6 +2098,89 @@ experiments/castro/
 | System prompt in YAML is verbose | Support `system_prompt_file: prompts/policy.md` to reference external file |
 | Complex constraints need code | Support `constraints_module: custom.constraints` as escape hatch |
 | Breaking existing Castro usage | Phased migration with backward compat in Phase 15-16 |
+
+---
+
+### Phase 19: Documentation Overhaul for Production Release
+
+**Status:** COMPLETED (2025-12-11)
+**Purpose:** Update all documentation to reflect completed refactor (Phases 0-18)
+
+**Completed Tasks:**
+- [x] 19.1: Update Castro documentation (deleted 3 obsolete files, rewrote index.md)
+- [x] 19.2: Update root README.md (added LLM experiments section, updated diagram)
+- [x] 19.3: Update experiments documentation (YAML-only, GenericExperimentRunner, VerboseConfig)
+- [x] 19.4: Update CLI documentation (experiment commands with inline prompts/constraints)
+- [x] 19.5: Update LLM documentation (system_prompt field)
+- [x] 19.6: Update AI Cash Management documentation (added experiments relationship)
+- [x] 19.7: Update patterns and conventions (added Pattern 5: YAML-Only Experiments)
+- [x] 19.8: Review architecture documentation (added Experiment Framework container)
+- [x] 19.9: Final verification (14/14 Castro YAML tests pass)
+
+**Files Deleted:**
+- `docs/reference/castro/cli-commands.md`
+- `docs/reference/castro/state-provider.md`
+- `docs/reference/castro/events.md`
+
+**Files Rewritten/Updated:**
+- `docs/reference/castro/index.md` (complete rewrite for YAML-only)
+- `docs/reference/experiments/index.md`
+- `docs/reference/experiments/configuration.md`
+- `docs/reference/experiments/runner.md`
+- `docs/reference/cli/index.md`
+- `docs/reference/cli/commands/experiment.md`
+- `docs/reference/llm/index.md`
+- `docs/reference/llm/configuration.md`
+- `docs/reference/ai_cash_mgmt/index.md`
+- `docs/reference/patterns-and-conventions.md`
+- `docs/reference/architecture/index.md`
+- `README.md`
+
+**Notes:**
+```
+2025-12-11: PHASE 19 COMPLETE
+
+DOCUMENTATION UPDATES:
+1. Castro: Now correctly documents YAML-only experiments (no Python code)
+2. Experiments: Documents GenericExperimentRunner and VerboseConfig
+3. Configuration: Shows inline system_prompt and policy_constraints patterns
+4. CLI: Updated experiment command docs with YAML examples
+5. LLM: Added system_prompt field to configuration
+6. Architecture: Added Experiment Framework container, updated test count to 500+
+7. Patterns: Added Pattern 5: YAML-Only Experiments
+
+TEST RESULTS:
+- 14/14 Castro YAML experiment tests pass
+- All experiment YAML files validate
+- Core CLI commands work with Castro YAMLs
+```
+
+See [phases/phase_19.md](./phases/phase_19.md) for full plan.
+
+---
+
+## Summary: Refactor Complete (Phases 0-19)
+
+All phases of the refactor have been completed:
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 0-4 | Bootstrap evaluation foundation | ✅ |
+| 5 | CLI commands | ✅ |
+| 6-8 | GenericExperimentRunner | ✅ |
+| 9-11 | Castro migration prep | ✅ |
+| 12-14 | Inline prompts/constraints | ✅ |
+| 15-16 | CLI integration | ✅ |
+| 17 | Castro dry-run | ✅ |
+| 18 | Delete Castro Python code | ✅ |
+| 19 | Documentation overhaul | ✅ |
+
+**Key Achievements:**
+- Castro is now **YAML-only** (no Python code)
+- All experiments run via `payment-sim experiment` CLI
+- GenericExperimentRunner handles any YAML experiment
+- Inline system_prompt and policy_constraints in YAML
+- Production-ready documentation
 
 ---
 

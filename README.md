@@ -19,6 +19,7 @@ This simulator models that game. It implements:
 - **T2-Compliant LSM**: Bilateral offsetting, multilateral cycle detection, algorithm sequencing
 - **Programmable Policies**: JSON decision trees with 60+ context fields for AI-driven optimization
 - **Deterministic Execution**: Same seed = identical results for reproducible research
+- **LLM Experiments**: YAML-driven policy optimization with bootstrap evaluation
 
 For the full conceptual foundation, see **[Game Concept Document](docs/game_concept_doc.md)**.
 
@@ -65,6 +66,52 @@ uv run --directory api uvicorn payment_simulator.api.main:app --reload
 # Visit http://localhost:8000/docs for interactive API documentation
 ```
 
+## LLM Policy Optimization
+
+SimCash includes a YAML-driven experiment framework for LLM-based policy optimization:
+
+```bash
+# List available experiments
+payment-sim experiment list experiments/castro/experiments/
+
+# Validate experiment configuration
+payment-sim experiment validate experiments/castro/experiments/exp1.yaml
+
+# Run an experiment (requires LLM API key)
+payment-sim experiment run experiments/castro/experiments/exp1.yaml
+
+# Dry-run (validate without LLM calls)
+payment-sim experiment run experiments/castro/experiments/exp1.yaml --dry-run
+```
+
+Experiments are defined entirely in YAML—no Python code required:
+
+```yaml
+name: my_experiment
+description: "Policy optimization experiment"
+
+scenario: configs/scenario.yaml
+
+evaluation:
+  mode: bootstrap
+  num_samples: 10
+  ticks: 12
+
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+  temperature: 0.0
+  system_prompt: |
+    You are an expert in payment system optimization...
+
+optimized_agents:
+  - BANK_A
+  - BANK_B
+
+master_seed: 42
+```
+
+See [Experiment Framework](docs/reference/experiments/index.md) for details.
+
 ## Key Features
 
 | Feature | Description |
@@ -73,6 +120,7 @@ uv run --directory api uvicorn payment_simulator.api.main:app --reload
 | **LSM Optimization** | Bilateral offsets + multilateral cycles (T2-compliant) |
 | **Policy Trees** | JSON decision trees for programmable bank strategies |
 | **Scenario Events** | Scheduled interventions (liquidity shocks, collateral adjustments) |
+| **LLM Experiments** | YAML-driven policy optimization with multiple LLM providers |
 | **Data Persistence** | DuckDB storage with checkpoint/replay support |
 | **High Performance** | 1,000+ ticks/second, 200+ agent scale tested |
 
@@ -86,6 +134,8 @@ uv run --directory api uvicorn payment_simulator.api.main:app --reload
 | Topic | Documentation |
 |-------|---------------|
 | **CLI** | [docs/reference/cli/](docs/reference/cli/index.md) — Commands, output modes, filtering |
+| **Experiments** | [docs/reference/experiments/](docs/reference/experiments/index.md) — YAML experiment framework |
+| **LLM** | [docs/reference/llm/](docs/reference/llm/index.md) — LLM client protocols and configuration |
 | **Policy DSL** | [docs/reference/policy/](docs/reference/policy/index.md) — Decision trees, context fields, actions |
 | **Configuration** | [docs/reference/orchestrator/](docs/reference/orchestrator/index.md) — Agent config, cost rates, scenario events |
 | **Architecture** | [docs/reference/architecture/](docs/reference/architecture/) — System design, Rust-Python bridge |
@@ -99,6 +149,14 @@ uv run --directory api uvicorn payment_simulator.api.main:app --reload
 ┌─────────────────────────────────────────────────┐
 │  CLI (payment-sim) / REST API (FastAPI)         │
 │  • Scenario loading, output modes               │
+│  • Experiment commands (run, validate, list)    │
+└──────────────────┬──────────────────────────────┘
+                   │
+┌──────────────────▼──────────────────────────────┐
+│  Experiment Framework                           │
+│  • YAML configuration loading                   │
+│  • Bootstrap policy evaluation                  │
+│  • LLM integration (Anthropic, OpenAI, Google)  │
 └──────────────────┬──────────────────────────────┘
                    │ FFI (PyO3)
 ┌──────────────────▼──────────────────────────────┐
@@ -112,6 +170,7 @@ uv run --directory api uvicorn payment_simulator.api.main:app --reload
 - Rust owns state; Python orchestrates
 - FFI boundary is minimal and well-tested
 - All persistence via DuckDB at end of each simulated day
+- Experiments defined in YAML, no custom Python code needed
 
 ## Running Tests
 
@@ -137,6 +196,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
-**Status**: Active development | **Tests**: 280+ passing | **Performance**: 1,000+ ticks/s
+**Status**: Active development | **Tests**: 500+ passing | **Performance**: 1,000+ ticks/s
 
 *Built for researchers who demand reproducibility, performance, and correctness.*

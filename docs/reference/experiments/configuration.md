@@ -2,6 +2,12 @@
 
 > YAML configuration reference for experiments
 
+**Version**: 2.0 (YAML-only experiments)
+
+## Overview
+
+Experiments are defined entirely in YAML—no Python code required. All configuration including LLM system prompts and policy constraints are specified inline in the experiment YAML file.
+
 ## ExperimentConfig
 
 The `ExperimentConfig` class loads and validates experiment configuration from YAML files.
@@ -24,6 +30,8 @@ print(f"Name: {config.name}")
 print(f"Scenario: {config.scenario_path}")
 print(f"Mode: {config.evaluation.mode}")
 print(f"Agents: {config.optimized_agents}")
+print(f"System Prompt: {config.llm.system_prompt[:50]}...")  # Inline prompt
+print(f"Constraints: {config.get_constraints()}")  # Inline constraints
 ```
 
 ## YAML Schema
@@ -51,7 +59,7 @@ convergence:
   stability_window: 5        # Stable iterations required
   improvement_threshold: 0.01  # Minimum improvement to continue
 
-# LLM configuration
+# LLM configuration with inline system prompt
 llm:
   model: "anthropic:claude-sonnet-4-5"
   temperature: 0.0
@@ -59,14 +67,43 @@ llm:
   timeout_seconds: 120
   # thinking_budget: 8000   # Anthropic extended thinking (optional)
   # reasoning_effort: high  # OpenAI reasoning effort (optional)
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
+
+    When generating policies, consider:
+    - Cost minimization through strategic timing
+    - Liquidity efficiency using bilateral offsets
+    - Risk management via deadline awareness
+
+# Inline policy constraints (preferred over constraints module)
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+  allowed_fields:
+    - system_tick_in_day
+    - ticks_to_deadline
+    - balance
+    - effective_liquidity
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
+    collateral_tree:
+      - PostCollateral
+      - HoldCollateral
 
 # Agents to optimize
 optimized_agents:
   - BANK_A
   - BANK_B
-
-# Constraints module (Python import path)
-constraints: castro.constraints.CASTRO_CONSTRAINTS
 
 # Output settings
 output:
@@ -94,7 +131,8 @@ master_seed: 42
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `description` | string | `""` | Human-readable description |
-| `constraints` | string | `""` | Python module path for constraints |
+| `policy_constraints` | object | `null` | Inline policy constraints (preferred) |
+| `constraints` | string | `""` | Python module path (legacy, deprecated) |
 | `output` | object | see below | Output settings |
 | `master_seed` | integer | `42` | Master seed for determinism |
 
@@ -173,7 +211,7 @@ convergence:
 
 ### llm
 
-LLM provider configuration.
+LLM provider configuration with inline system prompt.
 
 ```yaml
 llm:
@@ -181,6 +219,9 @@ llm:
   temperature: 0.0
   max_retries: 3
   timeout_seconds: 120
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
 ```
 
 | Field | Type | Default | Description |
@@ -189,10 +230,74 @@ llm:
 | `temperature` | float | `0.0` | Sampling temperature |
 | `max_retries` | integer | `3` | Retry attempts on failure |
 | `timeout_seconds` | integer | `120` | Request timeout |
+| `system_prompt` | string | `null` | Inline system prompt (preferred) |
+| `system_prompt_file` | path | `null` | Path to prompt file (alternative) |
 | `thinking_budget` | integer | `null` | Anthropic thinking tokens |
 | `reasoning_effort` | string | `null` | OpenAI: `low`, `medium`, `high` |
 
+**System Prompt Priority**: If both `system_prompt` (inline) and `system_prompt_file` are specified, the inline `system_prompt` takes precedence.
+
 See [LLM Configuration](../llm/configuration.md) for details.
+
+### policy_constraints
+
+Inline policy constraints define what the LLM can generate. This is the **preferred** approach (replaces the legacy `constraints` module pattern).
+
+```yaml
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+  allowed_fields:
+    - system_tick_in_day
+    - ticks_to_deadline
+    - balance
+    - effective_liquidity
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
+    collateral_tree:
+      - PostCollateral
+      - HoldCollateral
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allowed_parameters` | list | Parameters the LLM can set |
+| `allowed_fields` | list | Context fields the LLM can use in conditions |
+| `allowed_actions` | object | Actions per tree type |
+
+#### allowed_parameters
+
+Each parameter has:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Parameter name |
+| `param_type` | string | `"int"` or `"float"` |
+| `min_value` | number | Minimum allowed value |
+| `max_value` | number | Maximum allowed value |
+
+#### allowed_actions
+
+Maps tree names to allowed action lists:
+
+```yaml
+allowed_actions:
+  payment_tree:      # Decision tree for payments
+    - Release        # Send payment immediately
+    - Hold           # Queue payment
+  collateral_tree:   # Decision tree for collateral
+    - PostCollateral
+    - HoldCollateral
+```
 
 ### output
 
@@ -216,23 +321,30 @@ output:
 ### ExperimentConfig
 
 ```python
-@dataclass
+@dataclass(frozen=True)
 class ExperimentConfig:
     name: str
     description: str
     scenario_path: Path
     evaluation: EvaluationConfig
-    convergence: ConvergenceCriteria
+    convergence: ConvergenceConfig
     llm: LLMConfig
-    optimized_agents: list[str]
-    constraints_module: str
+    optimized_agents: tuple[str, ...]
+    constraints_module: str  # Legacy, deprecated
     output: OutputConfig
     master_seed: int = 42
+    policy_constraints: ScenarioConstraints | None = None  # Preferred
 
     @classmethod
     def from_yaml(cls, path: Path) -> ExperimentConfig: ...
 
-    def load_constraints(self) -> Any: ...
+    def get_constraints(self) -> ScenarioConstraints | None:
+        """Get constraints (inline or from module). Prefers inline."""
+        ...
+
+    def with_seed(self, seed: int) -> ExperimentConfig:
+        """Return new config with updated seed (immutable)."""
+        ...
 ```
 
 ### EvaluationConfig
@@ -304,4 +416,4 @@ payment-sim experiment validate experiments/exp1.yaml
 
 ---
 
-*Last updated: 2025-12-10*
+*Last updated: 2025-12-11*
