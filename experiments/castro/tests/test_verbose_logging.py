@@ -2,7 +2,7 @@
 
 TDD tests for the verbose logging feature that shows:
 1. Policy parameter changes (--verbose-policy)
-2. Monte Carlo run details (--verbose-monte-carlo)
+2. Bootstrap evaluation details (--verbose-bootstrap)
 3. LLM interaction metadata (--verbose-llm)
 4. Rejection analysis (--verbose-rejections)
 
@@ -39,7 +39,7 @@ class TestVerboseConfig:
         config = VerboseConfig()
 
         assert config.policy is False
-        assert config.monte_carlo is False
+        assert config.bootstrap is False
         assert config.llm is False
         assert config.rejections is False
 
@@ -50,7 +50,7 @@ class TestVerboseConfig:
         config = VerboseConfig.all()
 
         assert config.policy is True
-        assert config.monte_carlo is True
+        assert config.bootstrap is True
         assert config.llm is True
         assert config.rejections is True
 
@@ -77,17 +77,17 @@ class TestVerboseConfig:
         # All verbose
         config = VerboseConfig.from_flags(verbose=True)
         assert config.policy is True
-        assert config.monte_carlo is True
+        assert config.bootstrap is True
         assert config.llm is True
         assert config.rejections is True
 
         # Specific flags
         config = VerboseConfig.from_flags(
             verbose_policy=True,
-            verbose_monte_carlo=True,
+            verbose_bootstrap=True,
         )
         assert config.policy is True
-        assert config.monte_carlo is True
+        assert config.bootstrap is True
         assert config.llm is False
         assert config.rejections is False
 
@@ -99,7 +99,7 @@ class TestVerboseConfig:
         # When verbose=True, individual flags control
         # If verbose=True and no individual flags, all are True
         # If verbose=True and some individual flags, use those
-        assert config.monte_carlo is True
+        assert config.bootstrap is True
         assert config.llm is True
         assert config.rejections is True
 
@@ -246,8 +246,8 @@ class TestPolicyChangeLogging:
         assert "REJECTED" in output or "rejected" in output.lower()
 
 
-class TestMonteCarloLogging:
-    """Tests for Monte Carlo run details logging."""
+class TestBootstrapLogging:
+    """Tests for bootstrap evaluation details logging."""
 
     @pytest.fixture
     def string_console(self) -> tuple[Console, io.StringIO]:
@@ -256,36 +256,36 @@ class TestMonteCarloLogging:
         console = Console(file=buffer, force_terminal=True, width=120)
         return console, buffer
 
-    def test_log_monte_carlo_shows_per_seed_results(
+    def test_log_bootstrap_shows_per_seed_results(
         self, string_console: tuple[Console, io.StringIO]
     ) -> None:
-        """Monte Carlo log shows individual seed results."""
+        """Bootstrap log shows individual seed results."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x7A3B1234,
                 cost=1320000,
                 settled=12,
                 total=12,
                 settlement_rate=1.0,
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x2F1C5678,
                 cost=1380000,
                 settled=11,
                 total=12,
                 settlement_rate=11 / 12,
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x8E4D9ABC,
                 cost=1340000,
                 settled=12,
@@ -294,7 +294,7 @@ class TestMonteCarloLogging:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=1346666,
             std_cost=24944,
@@ -302,8 +302,8 @@ class TestMonteCarloLogging:
 
         output = buffer.getvalue()
 
-        # Should show "Monte Carlo" header
-        assert "Monte Carlo" in output
+        # Should show "Bootstrap" header
+        assert "Bootstrap" in output
 
         # Should show number of samples
         assert "3" in output
@@ -321,29 +321,29 @@ class TestMonteCarloLogging:
         assert "Mean" in output or "mean" in output
         assert "std" in output.lower()
 
-    def test_log_monte_carlo_identifies_best_worst_seeds(
+    def test_log_bootstrap_identifies_best_worst_seeds(
         self, string_console: tuple[Console, io.StringIO]
     ) -> None:
-        """Monte Carlo log identifies best and worst seeds for debugging.
+        """Bootstrap log identifies best and worst seeds for debugging.
 
         Note: Best/Worst are now determined by delta_percent (improvement vs baseline),
         not raw cost. This test provides baseline_cost to enable comparison.
         """
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         # Provide baseline_cost so Best/Worst are determined by delta
         # Best = highest improvement (10% improvement for 0x7A3B)
         # Worst = lowest improvement (3% improvement for 0x2F1C)
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x7A3B,
                 cost=1320000,
                 settled=12,
@@ -351,7 +351,7 @@ class TestMonteCarloLogging:
                 settlement_rate=1.0,
                 baseline_cost=1466666,  # ~10% improvement
             ),  # Best
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x2F1C,
                 cost=1380000,
                 settled=11,
@@ -359,7 +359,7 @@ class TestMonteCarloLogging:
                 settlement_rate=11 / 12,
                 baseline_cost=1420000,  # ~3% improvement
             ),  # Worst
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x8E4D,
                 cost=1340000,
                 settled=12,
@@ -369,7 +369,7 @@ class TestMonteCarloLogging:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=1346666,
             std_cost=24944,
@@ -583,8 +583,8 @@ class TestVerboseLoggerIntegration:
     ) -> None:
         """VerboseLogger produces no output when all flags disabled."""
         from castro.verbose_logging import (
+            BootstrapSampleResult,
             LLMCallMetadata,
-            MonteCarloSeedResult,
             RejectionDetail,
             VerboseConfig,
             VerboseLogger,
@@ -603,9 +603,9 @@ class TestVerboseLoggerIntegration:
             new_cost=900,
             accepted=True,
         )
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=[
-                MonteCarloSeedResult(seed=1, cost=1000, settled=10, total=10, settlement_rate=1.0)
+                BootstrapSampleResult(seed=1, cost=1000, settled=10, total=10, settlement_rate=1.0)
             ],
             mean_cost=1000,
             std_cost=0,
