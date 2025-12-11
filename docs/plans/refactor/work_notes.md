@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** Phases 0-18 COMPLETED - YAML-Only Experiments Achieved!
+**Status:** Phases 0-18 COMPLETED, Phase 19 PLANNED (Documentation Overhaul)
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -2098,6 +2098,51 @@ FILES MODIFIED:
 | System prompt in YAML is verbose | Support `system_prompt_file: prompts/policy.md` to reference external file |
 | Complex constraints need code | Support `constraints_module: custom.constraints` as escape hatch |
 | Breaking existing Castro usage | Phased migration with backward compat in Phase 15-16 |
+
+---
+
+### Phase 19: Documentation Overhaul for Production Release
+
+**Status:** PLANNED
+**Purpose:** Update all documentation to reflect completed refactor (Phases 0-18)
+
+**Key Documentation Issues Identified:**
+
+| Document | Issue | Priority |
+|----------|-------|----------|
+| `docs/reference/castro/` | References deleted Python code | **P0** |
+| `README.md` | Missing experiments framework | **P1** |
+| `docs/reference/experiments/` | Needs YAML-only, GenericExperimentRunner | **P1** |
+| `docs/reference/cli/commands/experiment.md` | Needs new commands | **P1** |
+| `docs/reference/llm/` | Add system_prompt field | **P2** |
+| `docs/reference/ai_cash_mgmt/` | Monte Carlo → Bootstrap terminology | **P2** |
+
+**Tasks:**
+- 19.1: Update Castro documentation (CRITICAL - references deleted code)
+- 19.2: Update root README.md (add experiments section)
+- 19.3: Update experiments documentation (YAML-only, GenericExperimentRunner)
+- 19.4: Update CLI documentation (experiment commands)
+- 19.5: Update LLM documentation (system_prompt field)
+- 19.6: Update AI Cash Management documentation (Bootstrap terminology)
+- 19.7: Update patterns and conventions
+- 19.8: Review architecture documentation
+- 19.9: Final verification (broken links, deleted references)
+
+**Files to DELETE:**
+- `docs/reference/castro/cli-commands.md` (Castro CLI no longer exists)
+- `docs/reference/castro/state-provider.md` (StateProvider is in core)
+- `docs/reference/castro/events.md` (Events are in core)
+
+**Files to REWRITE:**
+- `docs/reference/castro/index.md` (complete structure change)
+
+**Expected Outcome:**
+- Authoritative, production-ready documentation
+- No references to deleted Castro Python code
+- Accurate CLI command documentation
+- Consistent Bootstrap terminology
+
+See [phases/phase_19.md](./phases/phase_19.md) for full plan.
 
 ---
 
