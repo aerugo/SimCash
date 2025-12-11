@@ -56,7 +56,7 @@ Events must contain ALL data needed for display. Never store just IDs that requi
 ```python
 # CORRECT: Self-contained event
 event = ExperimentEvent(
-    event_type="monte_carlo_evaluation",
+    event_type="bootstrap_evaluation",
     run_id="exp1-20251209-143022-a1b2c3",
     iteration=1,
     timestamp=datetime.now(),
@@ -72,7 +72,7 @@ event = ExperimentEvent(
 
 # WRONG: Requires lookup
 event = ExperimentEvent(
-    event_type="monte_carlo_evaluation",
+    event_type="bootstrap_evaluation",
     details={"evaluation_id": "eval-123"},  # Forces DB lookup for display!
 )
 ```
@@ -145,7 +145,7 @@ flowchart LR
     subgraph Lifecycle["Experiment Lifecycle"]
         Start["experiment_start"]
         IterStart["iteration_start"]
-        MC["monte_carlo_evaluation"]
+        BS["bootstrap_evaluation"]
         LLM["llm_call"]
         LLMInt["llm_interaction<br/>(audit)"]
         Policy["policy_change"]
@@ -154,8 +154,8 @@ flowchart LR
     end
 
     Start --> IterStart
-    IterStart --> MC
-    MC --> LLM
+    IterStart --> BS
+    BS --> LLM
     LLM --> LLMInt
     LLMInt --> Policy
     Policy --> Reject
@@ -174,7 +174,7 @@ flowchart LR
 ```python
 EVENT_EXPERIMENT_START = "experiment_start"
 EVENT_ITERATION_START = "iteration_start"
-EVENT_MONTE_CARLO_EVALUATION = "monte_carlo_evaluation"
+EVENT_BOOTSTRAP_EVALUATION = "bootstrap_evaluation"
 EVENT_LLM_CALL = "llm_call"
 EVENT_LLM_INTERACTION = "llm_interaction"  # Full audit data for replay
 EVENT_POLICY_CHANGE = "policy_change"
@@ -236,7 +236,7 @@ create_iteration_start_event(
 Emitted after bootstrap sampling completes.
 
 ```python
-create_monte_carlo_event(
+create_bootstrap_evaluation_event(
     run_id="exp1-20251209-143022-a1b2c3",
     iteration=1,
     seed_results=[
@@ -531,8 +531,8 @@ sequenceDiagram
         Runner->>Live: capture_event(iteration_start)
         Runner->>Repo: save_event(iteration_start)
 
-        Runner->>Live: capture_event(monte_carlo_evaluation)
-        Runner->>Repo: save_event(monte_carlo_evaluation)
+        Runner->>Live: capture_event(bootstrap_evaluation)
+        Runner->>Repo: save_event(bootstrap_evaluation)
 
         Runner->>Live: capture_event(llm_call)
         Runner->>Repo: save_event(llm_call)
