@@ -2,8 +2,32 @@
 
 Handles storing and retrieving experiment results.
 
-Note:
-    Implementation coming in later phases of the refactor plan.
+Components:
+    - ExperimentRepository: Unified repository for persistence
+    - ExperimentRecord: Immutable experiment metadata record
+    - IterationRecord: Immutable iteration data record
+    - EventRecord: Immutable event data record
+
+Example:
+    >>> from payment_simulator.experiments.persistence import (
+    ...     ExperimentRepository,
+    ...     ExperimentRecord,
+    ... )
+    >>> with ExperimentRepository(Path("experiments.db")) as repo:
+    ...     repo.save_experiment(record)
+    ...     loaded = repo.load_experiment("run-123")
 """
 
-__all__: list[str] = []
+from payment_simulator.experiments.persistence.repository import (
+    EventRecord,
+    ExperimentRecord,
+    ExperimentRepository,
+    IterationRecord,
+)
+
+__all__ = [
+    "ExperimentRepository",
+    "ExperimentRecord",
+    "IterationRecord",
+    "EventRecord",
+]
