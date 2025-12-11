@@ -2,6 +2,8 @@
 
 Commands for running LLM policy optimization experiments.
 
+**Version**: 2.0 (YAML-only experiments)
+
 ## Synopsis
 
 ```bash
@@ -10,7 +12,7 @@ payment-sim experiment <command> [OPTIONS]
 
 ## Description
 
-The `experiment` command group provides tools for running, validating, and managing LLM policy optimization experiments. Experiments are configured via YAML files and use bootstrap evaluation for statistical policy comparison.
+The `experiment` command group provides tools for running, validating, and managing LLM policy optimization experiments. Experiments are configured entirely via YAML files—no Python code required. Includes inline system prompts and policy constraints for self-contained experiment definitions.
 
 ## Commands
 
@@ -164,9 +166,24 @@ llm:
   temperature: 0.0
   max_retries: 3
   timeout_seconds: 120
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
+policy_constraints:
+  allowed_parameters:
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+  allowed_fields:
+    - system_tick_in_day
+    - balance
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
 optimized_agents:
   - BANK_A
-constraints: your_module.constraints.YOUR_CONSTRAINTS
 output:
   directory: results
   database: experiments.db
@@ -320,7 +337,8 @@ Experiments are configured via YAML files. See the full schema below.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `description` | string | `""` | Human-readable description |
-| `constraints` | string | `""` | Python module path for constraints |
+| `policy_constraints` | object | `null` | Inline policy constraints (preferred) |
+| `constraints` | string | `""` | Python module path (legacy, deprecated) |
 | `output` | object | see below | Output configuration |
 | `master_seed` | integer | `42` | Master seed for reproducibility |
 
@@ -355,6 +373,9 @@ llm:
   temperature: 0.0                       # Sampling temperature
   max_retries: 3                        # Retry attempts on failure
   timeout_seconds: 120                  # Request timeout
+  system_prompt: |                       # Inline system prompt (preferred)
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
   # Provider-specific (optional):
   # thinking_budget: 8000               # Anthropic extended thinking
   # reasoning_effort: high              # OpenAI reasoning effort
@@ -364,6 +385,38 @@ llm:
 - `anthropic:` - Claude models (claude-sonnet-4-5, etc.)
 - `openai:` - GPT models (gpt-4o, o1, o3, etc.)
 - `google:` - Gemini models (gemini-2.5-flash, etc.)
+
+### Policy Constraints Section (Inline)
+
+```yaml
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+  allowed_fields:
+    - system_tick_in_day
+    - ticks_to_deadline
+    - balance
+    - effective_liquidity
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
+    collateral_tree:
+      - PostCollateral
+      - HoldCollateral
+```
+
+Defines what the LLM can generate:
+- **allowed_parameters**: Parameter bounds (name, type, min/max)
+- **allowed_fields**: Context fields usable in conditions
+- **allowed_actions**: Valid actions per decision tree
 
 ### Output Section
 
@@ -398,12 +451,38 @@ llm:
   temperature: 0.0
   max_retries: 3
   timeout_seconds: 120
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
+
+    Key considerations:
+    - Minimize total cost (delay penalties + overdraft fees)
+    - Balance liquidity efficiency against settlement risk
+    - Consider timing based on ticks_to_deadline
+
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+  allowed_fields:
+    - system_tick_in_day
+    - ticks_to_deadline
+    - balance
+    - effective_liquidity
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
 
 optimized_agents:
   - BANK_A
   - BANK_B
-
-constraints: castro.constraints.CASTRO_CONSTRAINTS
 
 output:
   directory: results
@@ -435,4 +514,4 @@ The experiment command uses the experiment framework from `payment_simulator.exp
 
 ---
 
-*Last updated: 2025-12-10*
+*Last updated: 2025-12-11*

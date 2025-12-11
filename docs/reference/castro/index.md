@@ -1,213 +1,292 @@
 # Castro Experiments Reference
 
-**Version**: 1.0
+**Version**: 2.0
 **Last Updated**: 2025-12-11
 
 ---
 
 ## Overview
 
-Castro is the LLM-based policy optimization framework for SimCash. It orchestrates iterative experiments where an LLM agent proposes policy improvements based on bootstrap evaluation feedback.
+Castro is a collection of **YAML-only experiment configurations** for replicating the work from Castro et al. (2025) "Estimating Policy Functions in Payment Systems Using Reinforcement Learning".
 
-This documentation covers the **Replay Identity System** that ensures experiment outputs can be perfectly replayed from database records.
-
----
-
-## Quick Reference
-
-| Command | Description |
-|---------|-------------|
-| `castro run exp1` | Run experiment 1 |
-| `castro results` | List all experiment runs |
-| `castro replay <RUN_ID>` | Replay experiment output |
-| `castro replay <RUN_ID> --audit` | Replay with detailed LLM audit trail |
-| `castro list` | List available experiments |
-| `castro info exp1` | Show experiment configuration |
+**Important**: As of version 2.0, Castro contains **no Python code**. All experiment execution is handled by the core `payment_simulator.experiments` framework.
 
 ---
 
-## Architecture Overview
-
-```mermaid
-flowchart TB
-    subgraph CLI["CLI Layer"]
-        Run["castro run"]
-        Results["castro results"]
-        Replay["castro replay"]
-    end
-
-    subgraph Core["Core Components"]
-        Runner["ExperimentRunner"]
-        Events["Event Model"]
-        RunID["Run ID Generator"]
-    end
-
-    subgraph StateProvider["StateProvider Pattern"]
-        Protocol["ExperimentStateProvider<br/>(Protocol)"]
-        Live["LiveExperimentProvider"]
-        DB["DatabaseExperimentProvider"]
-    end
-
-    subgraph Display["Unified Display"]
-        Unified["display_experiment_output()"]
-        Handlers["Event Handlers"]
-    end
-
-    subgraph Persistence["Persistence"]
-        Repo["ExperimentEventRepository"]
-        DuckDB[(DuckDB)]
-    end
-
-    Run --> Runner
-    Runner --> Events
-    Runner --> RunID
-    Runner --> Live
-    Live --> Unified
-    Live --> Repo
-
-    Replay --> DB
-    DB --> Unified
-
-    Results --> Repo
-    Repo --> DuckDB
-
-    Protocol --> Live
-    Protocol --> DB
-
-    style CLI fill:#fff3e0
-    style StateProvider fill:#e8f5e9
-    style Display fill:#e3f2fd
-    style Persistence fill:#fce4ec
-```
-
----
-
-## Key Concepts
-
-### Run ID
-
-Every experiment execution gets a unique identifier:
+## Directory Structure
 
 ```
-{experiment_name}-{YYYYMMDD}-{HHMMSS}-{hex6}
-Example: exp1-20251209-143022-a1b2c3
+experiments/castro/
+├── experiments/               # Experiment YAML configurations
+│   ├── exp1.yaml             # 2-Period Deterministic Nash Equilibrium
+│   ├── exp2.yaml             # 12-Period Stochastic LVTS-Style
+│   └── exp3.yaml             # Joint Liquidity & Timing Optimization
+├── configs/                   # Scenario YAML configurations
+│   ├── exp1_2period.yaml
+│   ├── exp2_12period.yaml
+│   └── exp3_joint.yaml
+├── papers/                    # Reference papers
+│   └── castro_et_al.md
+├── README.md                  # Documentation
+└── pyproject.toml             # Minimal metadata (no dependencies)
 ```
-
-### Replay Identity
-
-The **StateProvider pattern** guarantees:
-
-```
-castro run exp1 --verbose    →  Output A
-castro replay <RUN_ID>       →  Output A  (identical!)
-```
-
-### Event-Driven Architecture
-
-All verbose output is driven by self-contained events stored in the database. No reconstruction required.
-
-### Audit Mode
-
-The replay command supports an **audit mode** (`--audit`) that displays detailed LLM interaction information:
-
-```bash
-# Show full audit trail for iterations 2-3
-castro replay <RUN_ID> --audit --start 2 --end 3
-```
-
-Audit mode displays:
-- Full system and user prompts sent to the LLM
-- Raw LLM responses before parsing
-- Validation results (success or parsing errors)
-- Token counts and latency metrics
-
----
-
-## Documentation Contents
-
-| Document | Description |
-|----------|-------------|
-| [state-provider.md](state-provider.md) | StateProvider pattern and replay identity |
-| [events.md](events.md) | Event model and persistence |
-| [cli-commands.md](cli-commands.md) | CLI command reference |
 
 ---
 
 ## Quick Start
 
-### Run an Experiment
+### Prerequisites
+
+Ensure you have the `api` package installed:
 
 ```bash
-# Run experiment 1
-uv run castro run exp1
-
-# Output shows Run ID:
-# Starting exp1
-#   Run ID: exp1-20251209-143022-a1b2c3
-#   Description: 2-Period Deterministic Nash Equilibrium
-#   ...
+cd /path/to/SimCash/api
+uv sync --extra dev
 ```
 
-### List Results
+### Running Experiments
+
+All experiments run via the core `payment-sim experiment` CLI:
 
 ```bash
-# List all experiment runs
-uv run castro results
+# List available experiments
+payment-sim experiment list experiments/castro/experiments/
 
-# Filter by experiment
-uv run castro results --experiment exp1
-```
+# Show experiment details
+payment-sim experiment info
 
-### Replay Output
+# Validate configuration
+payment-sim experiment validate experiments/castro/experiments/exp1.yaml
 
-```bash
-# Replay exact output from a run
-uv run castro replay exp1-20251209-143022-a1b2c3
+# Run an experiment (requires LLM API key)
+payment-sim experiment run experiments/castro/experiments/exp1.yaml
 
-# With verbose flags
-uv run castro replay exp1-20251209-143022-a1b2c3 --verbose
+# Run with verbose output
+payment-sim experiment run experiments/castro/experiments/exp1.yaml --verbose
+
+# Dry-run (validate without LLM calls)
+payment-sim experiment run experiments/castro/experiments/exp1.yaml --dry-run
 ```
 
 ---
 
-## File Organization
+## Experiments
 
-```
-experiments/castro/
-├── castro/
-│   ├── run_id.py           # Run ID generation
-│   ├── events.py           # Event model (incl. llm_interaction)
-│   ├── state_provider.py   # StateProvider pattern
-│   ├── display.py          # Unified display functions
-│   ├── audit_display.py    # Audit mode display functions
-│   ├── persistence/
-│   │   ├── models.py       # Database models
-│   │   └── repository.py   # Database operations
-│   ├── runner.py           # Experiment orchestration
-│   └── experiments.py      # Experiment definitions
-├── cli.py                  # CLI commands
-└── tests/
-    ├── test_run_id.py
-    ├── test_events.py
-    ├── test_state_provider.py
-    ├── test_display.py
-    ├── test_audit_display.py     # Audit display tests
-    ├── test_cli_audit.py         # CLI audit flag tests
-    ├── test_replay_audit_integration.py  # E2E audit tests
-    └── test_cli_commands.py
+| Experiment | Description | Mode | Ticks |
+|------------|-------------|------|-------|
+| **exp1** | 2-Period Deterministic Nash Equilibrium | deterministic | 2 |
+| **exp2** | 12-Period Stochastic LVTS-Style | bootstrap (10 samples) | 12 |
+| **exp3** | Joint Liquidity & Timing Optimization | bootstrap (10 samples) | 10 |
+
+### Experiment 1: 2-Period Deterministic
+
+Validates Nash equilibrium with deferred crediting:
+- 2 ticks per day, 1 day
+- Deterministic payment arrivals
+- Expected: Bank A posts 0%, Bank B posts 20%
+
+### Experiment 2: 12-Period Stochastic
+
+LVTS-style realistic scenario:
+- 12 ticks per day
+- Poisson arrivals, LogNormal amounts
+- Uses bootstrap sampling for statistical validation
+
+### Experiment 3: Joint Liquidity & Timing
+
+Optimizes both initial collateral AND payment timing:
+- Tests interaction between liquidity and timing decisions
+- Uses bootstrap sampling for evaluation
+
+---
+
+## YAML Configuration
+
+Each experiment YAML contains all configuration needed for execution:
+
+```yaml
+name: exp1
+description: "2-Period Deterministic Nash Equilibrium"
+
+scenario: configs/exp1_2period.yaml
+
+evaluation:
+  mode: deterministic  # or "bootstrap"
+  ticks: 2
+  num_samples: 10      # for bootstrap mode
+
+convergence:
+  max_iterations: 25
+  stability_threshold: 0.05
+  stability_window: 5
+
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+  temperature: 0.0
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies for the SimCash payment simulator.
+    ...
+
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+    - name: urgency_threshold
+      param_type: int
+      min_value: 0
+      max_value: 20
+  allowed_fields:
+    - system_tick_in_day
+    - ticks_to_deadline
+    - balance
+    - effective_liquidity
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
+    collateral_tree:
+      - PostCollateral
+      - HoldCollateral
+
+optimized_agents:
+  - BANK_A
+  - BANK_B
+
+output:
+  directory: results
+  database: exp1.db
+  verbose: true
+
+master_seed: 42
 ```
 
 ---
 
-## Related Documents
+## Key Features
 
-- [StateProvider Pattern](state-provider.md) - Core abstraction for replay identity
-- [Event Model](events.md) - Event types and persistence
-- [CLI Commands](cli-commands.md) - Command reference
-- [Payment Simulator StateProvider](../api/state-provider.md) - Original pattern implementation
-- [Experiments Module](../experiments/index.md) - YAML-driven experiment framework
+### Inline System Prompt
+
+The LLM system prompt is defined directly in the YAML, making experiments self-contained:
+
+```yaml
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+  system_prompt: |
+    You are an expert in payment system optimization.
+    Generate valid JSON policies...
+```
+
+### Inline Policy Constraints
+
+Policy constraints are also inline, defining what the LLM can generate:
+
+```yaml
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+```
+
+### Multiple LLM Providers
+
+Supports Anthropic, OpenAI, and Google models:
+
+```yaml
+# Anthropic
+llm:
+  model: "anthropic:claude-sonnet-4-5"
+
+# OpenAI
+llm:
+  model: "openai:gpt-4o"
+
+# Google
+llm:
+  model: "google:gemini-2.5-flash"
+```
+
+---
+
+## Environment Variables
+
+Set your API key for the LLM provider:
+
+```bash
+# Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# OpenAI
+export OPENAI_API_KEY=sk-...
+
+# Google
+export GOOGLE_API_KEY=...
+```
+
+---
+
+## Architecture
+
+Castro experiments use the core experiment framework:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Castro YAML Configuration                                       │
+│  ├── experiments/exp1.yaml                                       │
+│  ├── experiments/exp2.yaml                                       │
+│  └── experiments/exp3.yaml                                       │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Core Experiment Framework (payment_simulator.experiments)       │
+│  ├── ExperimentConfig.from_yaml()                               │
+│  ├── GenericExperimentRunner                                    │
+│  ├── Bootstrap evaluation                                        │
+│  └── CLI commands (run, validate, list, info)                   │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  LLM Module (payment_simulator.llm)                              │
+│  ├── PydanticAILLMClient                                        │
+│  └── AuditCaptureLLMClient                                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Migration from Version 1.x
+
+Version 2.0 removed all Python code from Castro. If you were using the old `castro` CLI:
+
+| Old Command | New Command |
+|-------------|-------------|
+| `castro run exp1` | `payment-sim experiment run experiments/castro/experiments/exp1.yaml` |
+| `castro list` | `payment-sim experiment list experiments/castro/experiments/` |
+| `castro info exp1` | `payment-sim experiment validate experiments/castro/experiments/exp1.yaml` |
+| `castro results` | Use experiment database directly |
+| `castro replay <id>` | Not yet available in core CLI |
+
+---
+
+## Related Documentation
+
+- [Experiment Framework](../experiments/index.md) - Core experiment infrastructure
 - [LLM Module](../llm/index.md) - LLM client protocols and configuration
+- [CLI Reference](../cli/commands/experiment.md) - Experiment CLI commands
+- [AI Cash Management](../ai_cash_mgmt/index.md) - Bootstrap evaluation details
 
 ---
 
-*Next: [state-provider.md](state-provider.md) - StateProvider pattern and replay identity*
+## Reference
+
+Castro, P., et al. (2025). "Estimating Policy Functions in Payment Systems Using Reinforcement Learning". ACM Transactions on Economics and Computation.
+
+---
+
+*Last updated: 2025-12-11*
