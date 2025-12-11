@@ -1292,6 +1292,74 @@ for now - the important persistence layer (runner and results) is migrated.
 
 ---
 
+### Phase 13: Complete Experiment StateProvider Migration
+
+**Status:** PLANNED (2025-12-11)
+
+**Purpose:** Complete the StateProvider pattern for experiments:
+- Task 13.1: Extend core protocol with audit methods (run_id, get_all_events, get_run_metadata, get_final_result)
+- Task 13.2: Update Castro display/audit_display to use core protocol
+- Task 13.3: Update CLI replay command to use core DatabaseStateProvider
+- Task 13.4: Delete Castro infrastructure (state_provider.py, persistence/, event_compat.py)
+- Task 13.5: Update all Castro test imports
+
+**TDD Checklist - Task 13.1: Extend Core Protocol**
+- [ ] Write tests/experiments/runner/test_state_provider_audit.py
+- [ ] Test: protocol has run_id property
+- [ ] Test: protocol has get_run_metadata() method
+- [ ] Test: protocol has get_all_events() iterator
+- [ ] Test: protocol has get_final_result() method
+- [ ] Test: LiveStateProvider implements all audit methods
+- [ ] Test: DatabaseStateProvider implements all audit methods
+- [ ] Run tests → FAIL
+- [ ] Implement audit methods in core state_provider.py
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 13.2: Update Castro Display**
+- [ ] Write experiments/castro/tests/test_display_uses_core_provider.py
+- [ ] Test: display.py imports from core
+- [ ] Test: audit_display.py imports from core
+- [ ] Test: display works with core LiveStateProvider
+- [ ] Test: audit works with core DatabaseStateProvider
+- [ ] Run tests → FAIL
+- [ ] Update display.py and audit_display.py imports
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 13.3: Update CLI Replay**
+- [ ] Write experiments/castro/tests/test_cli_replay_uses_core.py
+- [ ] Test: replay imports ExperimentRepository from core
+- [ ] Test: replay uses repo.as_state_provider()
+- [ ] Test: replay does not import castro.state_provider
+- [ ] Run tests → FAIL
+- [ ] Update cli.py replay command
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 13.4: Delete Infrastructure**
+- [ ] Write experiments/castro/tests/test_castro_infrastructure_deleted.py
+- [ ] Test: castro/state_provider.py doesn't exist
+- [ ] Test: castro/persistence/ doesn't exist
+- [ ] Test: castro/event_compat.py doesn't exist
+- [ ] Run tests → FAIL
+- [ ] Delete infrastructure files
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 13.5: Update Test Imports**
+- [ ] Test: no test files import castro.state_provider
+- [ ] Test: no test files import castro.persistence
+- [ ] Test: no test files import castro.event_compat
+- [ ] Run tests → FAIL
+- [ ] Update all test file imports
+- [ ] Run tests → PASS
+
+**Expected Outcomes:**
+- ~800 lines removed from Castro
+- Core experiments/ has complete StateProvider pattern
+- Full replay identity maintained
+
+See `docs/plans/refactor/phases/phase_13.md` for detailed plan.
+
+---
+
 ## General Notes
 
 ### Decisions Made
