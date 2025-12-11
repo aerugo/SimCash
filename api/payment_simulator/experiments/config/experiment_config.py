@@ -6,7 +6,7 @@ experiment configurations from YAML files.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -343,3 +343,27 @@ class ExperimentConfig:
 
         # Fall back to legacy module loading
         return self.load_constraints()
+
+    def with_seed(self, seed: int) -> ExperimentConfig:
+        """Return a new config with the specified master seed.
+
+        Since ExperimentConfig is frozen (immutable), this method creates
+        a new instance with the updated seed while preserving all other fields.
+
+        Args:
+            seed: The new master seed value.
+
+        Returns:
+            A new ExperimentConfig with the updated master_seed.
+
+        Example:
+            >>> config = ExperimentConfig.from_yaml(path)
+            >>> config.master_seed
+            42
+            >>> new_config = config.with_seed(12345)
+            >>> new_config.master_seed
+            12345
+            >>> config.master_seed  # Original unchanged
+            42
+        """
+        return replace(self, master_seed=seed)
