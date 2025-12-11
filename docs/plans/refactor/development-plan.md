@@ -2898,9 +2898,46 @@ See [phases/phase_11.md](./phases/phase_11.md) for full TDD test specifications.
 | Phase 9: Castro Slimming | 1-2 days | Phase 8 |
 | Phase 10: Deep Integration | 2-3 days | Phase 9 |
 | **Phase 11: Infrastructure Generalization** | **4-5 days** | **Phase 10** |
+| **Phase 12: Castro Migration** | **2-3 days** | **Phase 11** |
 
-**Total: ~26-36 days**
+**Total: ~28-39 days**
 
 ---
 
-*Document Version 1.4 - Added Phase 11 (Infrastructure Generalization)*
+## Phase 12: Castro Migration to Core Infrastructure
+
+**Status:** Planned
+**Dependencies:** Phase 11 (StateProvider Protocol and Unified Persistence)
+**Risk:** Medium (backward compatibility, replay identity preservation)
+
+Phase 12 migrates Castro experiments to use the core infrastructure created in Phase 11.
+
+### Tasks
+
+#### Task 12.1: Adapt Castro StateProvider to Core Protocol
+- Make `LiveExperimentProvider` implement core `ExperimentStateProviderProtocol`
+- Make `DatabaseExperimentProvider` use core methods
+- Keep Castro's `ExperimentEvent` for event-specific features
+- Maintain backward compatibility with existing API
+
+#### Task 12.2: Migrate Castro Persistence to Core Repository
+- `ExperimentEventRepository` wraps core `ExperimentRepository` internally
+- Castro keeps `ExperimentRunRecord` as facade over `ExperimentRecord`
+- Add conversion methods: `ExperimentEvent <-> EventRecord`
+
+#### Task 12.3: Event System Alignment
+- Add `to_event_record()` method to `ExperimentEvent`
+- Add `from_event_record()` class method to `ExperimentEvent`
+- Keep all event creation helpers (domain-specific)
+
+### Expected Outcomes
+- ~330 lines removed from Castro
+- ~32 new tests added
+- Full backward compatibility
+- Replay identity preserved
+
+See `phases/phase_12.md` for detailed TDD specifications.
+
+---
+
+*Document Version 1.5 - Added Phase 12 (Castro Migration)*

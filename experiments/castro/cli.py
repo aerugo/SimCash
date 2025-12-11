@@ -422,10 +422,8 @@ def replay(
         # Show audit trail for iterations 2-3
         castro replay exp1-20251209-143022-a1b2c3 --audit --start 2 --end 3
     """
-    import duckdb
-
     from castro.display import VerboseConfig, display_experiment_output
-    from castro.state_provider import DatabaseExperimentProvider
+    from payment_simulator.experiments.persistence import ExperimentRepository
 
     # Validate audit options
     if start is not None and start < 0:
@@ -447,21 +445,21 @@ def replay(
         console.print(f"[red]Database not found: {db}[/red]")
         raise typer.Exit(1)
 
-    # Connect to database
+    # Open repository (uses core ExperimentRepository)
     try:
-        conn = duckdb.connect(str(db), read_only=True)
+        repo = ExperimentRepository(db)
     except Exception as e:
         console.print(f"[red]Failed to open database: {e}[/red]")
         raise typer.Exit(1) from e
 
-    # Create provider
-    provider = DatabaseExperimentProvider(conn=conn, run_id=run_id)
+    # Create provider using StateProvider pattern
+    provider = repo.as_state_provider(run_id)
 
     # Check run exists
     metadata = provider.get_run_metadata()
     if metadata is None:
         console.print(f"[red]Run not found: {run_id}[/red]")
-        conn.close()
+        repo.close()
         raise typer.Exit(1)
 
     # Handle audit mode
@@ -488,7 +486,7 @@ def replay(
         # Display output using unified function
         display_experiment_output(provider, console, verbose_config)
 
-    conn.close()
+    repo.close()
 
 
 @app.command()
@@ -520,27 +518,28 @@ def results(
         # Use a specific database
         castro results --db results/custom.db
     """
-    import duckdb
-
-    from castro.persistence import ExperimentEventRepository
+    from payment_simulator.experiments.persistence import ExperimentRepository
 
     # Check database exists
     if not db.exists():
         console.print(f"[red]Database not found: {db}[/red]")
         raise typer.Exit(1)
 
-    # Connect to database
+    # Get runs using core ExperimentRepository
     try:
-        conn = duckdb.connect(str(db), read_only=True)
+        repo = ExperimentRepository(db)
     except Exception as e:
         console.print(f"[red]Failed to open database: {e}[/red]")
         raise typer.Exit(1) from e
 
-    # Get runs
-    repo = ExperimentEventRepository(conn)
-    runs = repo.list_runs(experiment_filter=experiment, limit=limit)
+    # List experiments (filtered by type "castro" and optionally by name)
+    runs = repo.list_experiments(
+        experiment_type="castro",
+        experiment_name=experiment,
+        limit=limit,
+    )
 
-    conn.close()
+    repo.close()
 
     if not runs:
         if experiment:
@@ -562,26 +561,25 @@ def results(
     table.add_column("Started", style="dim")
 
     for run in runs:
-        # Format costs
-        final_cost = f"${run.final_cost / 100:.2f}" if run.final_cost else "-"
-        best_cost = f"${run.best_cost / 100:.2f}" if run.best_cost else "-"
+        # Format costs from config dict (core stores costs there)
+        final_cost_val = run.config.get("final_cost")
+        best_cost_val = run.config.get("best_cost")
+        final_cost = f"${final_cost_val / 100:.2f}" if final_cost_val else "-"
+        best_cost = f"${best_cost_val / 100:.2f}" if best_cost_val else "-"
         iterations = str(run.num_iterations) if run.num_iterations else "-"
         converged = "Yes" if run.converged else "No" if run.converged is False else "-"
 
-        # Format status with color
-        status = run.status
-        if status == "completed":
+        # Format status based on completed_at and converged
+        if run.completed_at:
             status = "[green]completed[/green]"
-        elif status == "running":
+        else:
             status = "[yellow]running[/yellow]"
-        elif status == "failed":
-            status = "[red]failed[/red]"
 
-        # Format date
-        started = run.started_at.strftime("%Y-%m-%d %H:%M") if run.started_at else "-"
+        # Format date (core stores as ISO string)
+        started = run.created_at[:16].replace("T", " ") if run.created_at else "-"
 
         # Format model (truncate if long)
-        model = run.model or "-"
+        model = run.config.get("model", "-")
         if len(model) > 25:
             model = model[:22] + "..."
 

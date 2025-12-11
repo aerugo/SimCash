@@ -39,11 +39,17 @@ from payment_simulator.ai_cash_mgmt.prompts import (
 from payment_simulator.persistence.connection import DatabaseManager
 from rich.console import Console
 
+from payment_simulator.ai_cash_mgmt.events import create_llm_interaction_event
+
+from payment_simulator.experiments.persistence import (
+    EventRecord,
+    ExperimentRecord,
+    ExperimentRepository,
+)
+
 from castro.constraints import CASTRO_CONSTRAINTS
 from castro.context_builder import BootstrapContextBuilder
-from castro.events import create_llm_interaction_event
 from castro.experiment_config import CastroExperiment
-from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
 from castro.pydantic_llm_client import (
     AuditCaptureLLMClient,
     PydanticAILLMClient,
@@ -254,24 +260,28 @@ class ExperimentRunner:
             session_record = self._create_session_record()
             repo.save_game_session(session_record)
 
-            # Initialize experiment event database (for replay)
-            import duckdb
-
+            # Initialize experiment repository using core persistence
             castro_db_path = db_path.parent / "castro.db"
-            castro_conn = duckdb.connect(str(castro_db_path))
-            exp_repo = ExperimentEventRepository(castro_conn)
-            exp_repo.initialize_schema()
+            exp_repo = ExperimentRepository(castro_db_path)
 
-            # Create experiment run record
-            exp_run_record = ExperimentRunRecord(
+            # Create experiment record using core dataclass
+            exp_record = ExperimentRecord(
                 run_id=self._run_id,
                 experiment_name=self._experiment.name,
-                started_at=start_time,
-                status="running",
-                model=self._model_config.model,
-                master_seed=self._experiment.master_seed,
+                experiment_type="castro",
+                config={
+                    "model": self._model_config.model,
+                    "master_seed": self._experiment.master_seed,
+                    "num_samples": self._bootstrap_config.num_samples,
+                    "evaluation_ticks": self._bootstrap_config.evaluation_ticks,
+                },
+                created_at=start_time.isoformat(),
+                completed_at=None,
+                num_iterations=0,
+                converged=False,
+                convergence_reason=None,
             )
-            exp_repo.save_run_record(exp_run_record)
+            exp_repo.save_experiment(exp_record)
 
             console.print(f"\n[bold cyan]Starting {self._experiment.name}[/bold cyan]")
             console.print(f"  [bold]Run ID: {self._run_id}[/bold]")
@@ -567,20 +577,29 @@ class ExperimentRunner:
                 final_cost=self._best_cost,
             )
 
-            # Update experiment run record for replay
-            exp_repo.update_run_status(
+            # Update experiment record for replay (using save_experiment with updated record)
+            completed_record = ExperimentRecord(
                 run_id=self._run_id,
-                status="completed",
-                completed_at=datetime.now(),
-                final_cost=int(self._best_cost),
-                best_cost=int(self._best_cost),
+                experiment_name=self._experiment.name,
+                experiment_type="castro",
+                config={
+                    "model": self._model_config.model,
+                    "master_seed": self._experiment.master_seed,
+                    "num_samples": self._bootstrap_config.num_samples,
+                    "evaluation_ticks": self._bootstrap_config.evaluation_ticks,
+                    "final_cost": int(self._best_cost),
+                    "best_cost": int(self._best_cost),
+                },
+                created_at=start_time.isoformat(),
+                completed_at=datetime.now().isoformat(),
                 num_iterations=iteration,
                 converged=converged,
                 convergence_reason=convergence_reason,
             )
+            exp_repo.save_experiment(completed_record)
 
-            # Close experiment event database connection
-            castro_conn.close()
+            # Close experiment repository
+            exp_repo.close()
 
             return ExperimentResult(
                 run_id=self._run_id,
