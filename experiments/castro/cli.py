@@ -16,9 +16,13 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
-from castro.experiment_loader import list_experiments
-from castro.experiments import DEFAULT_MODEL, EXPERIMENTS
+from castro.experiment_config import YamlExperimentConfig
+from castro.experiment_loader import load_experiment
+from castro.experiment_loader import list_experiments as _list_experiments
 from castro.runner import ExperimentRunner
+
+# Default model for experiments
+DEFAULT_MODEL = "anthropic:claude-sonnet-4-5"
 
 # Load environment variables from .env file (if present)
 # This must happen before any LLM client initialization
@@ -154,26 +158,23 @@ def run(
             debug=debug,
         )
 
-    available_experiments = list_experiments()
+    available_experiments = _list_experiments()
     if experiment not in available_experiments:
         console.print(f"[red]Unknown experiment: {experiment}[/red]")
         console.print(f"Available: {', '.join(available_experiments)}")
         raise typer.Exit(1)
 
-    # Create experiment configuration with new model format
+    # Load experiment from YAML and create YamlExperimentConfig
     output_dir = output or Path("results")
-    exp = EXPERIMENTS[experiment](
-        output_dir=output_dir,
-        model=model,
+    config_dict = load_experiment(
+        experiment,
+        model_override=model if model != DEFAULT_MODEL else None,
         thinking_budget=thinking_budget,
         reasoning_effort=reasoning_effort,
+        max_iter_override=max_iter if max_iter != 25 else None,
+        seed_override=seed if seed != 42 else None,
     )
-
-    # Override settings if specified
-    if max_iter != 25:
-        exp.max_iterations = max_iter
-    if seed != 42:
-        exp.master_seed = seed
+    exp = YamlExperimentConfig(config_dict, output_dir=output_dir)
 
     # Run the experiment
     console.print(f"[bold]Running {experiment}...[/bold]")
@@ -212,15 +213,16 @@ def run(
 
 
 @app.command("list")
-def list_experiments() -> None:
+def list_experiments_command() -> None:
     """List available experiments."""
     table = Table(title="Castro Experiments")
     table.add_column("Key", style="cyan")
     table.add_column("Name", style="green")
     table.add_column("Description")
 
-    for key, factory in EXPERIMENTS.items():
-        exp = factory()
+    for key in _list_experiments():
+        config_dict = load_experiment(key)
+        exp = YamlExperimentConfig(config_dict)
         table.add_row(key, exp.name, exp.description)
 
     console.print(table)
@@ -234,13 +236,14 @@ def info(
     ],
 ) -> None:
     """Show detailed experiment configuration."""
-    available_experiments = list_experiments()
+    available_experiments = _list_experiments()
     if experiment not in available_experiments:
         console.print(f"[red]Unknown experiment: {experiment}[/red]")
         console.print(f"Available: {', '.join(available_experiments)}")
         raise typer.Exit(1)
 
-    exp = EXPERIMENTS[experiment]()
+    config_dict = load_experiment(experiment)
+    exp = YamlExperimentConfig(config_dict)
 
     console.print(f"[bold cyan]{exp.name}[/bold cyan]")
     console.print(f"Description: {exp.description}")
@@ -253,17 +256,18 @@ def info(
 
     table.add_row("Scenario Path", str(exp.scenario_path))
     table.add_row("Master Seed", str(exp.master_seed))
-    table.add_row("Output Directory", str(exp.output_dir))
     table.add_row("", "")
+    bootstrap_config = exp.get_bootstrap_config()
+    convergence_config = exp.get_convergence_criteria()
     table.add_row("[bold]Bootstrap Evaluation[/bold]", "")
-    table.add_row("  Deterministic", "Yes" if exp.deterministic else "No")
-    table.add_row("  Samples", str(exp.num_samples))
-    table.add_row("  Evaluation Ticks", str(exp.evaluation_ticks))
+    table.add_row("  Deterministic", "Yes" if bootstrap_config.deterministic else "No")
+    table.add_row("  Samples", str(bootstrap_config.num_samples))
+    table.add_row("  Evaluation Ticks", str(bootstrap_config.evaluation_ticks))
     table.add_row("", "")
     table.add_row("[bold]Convergence[/bold]", "")
-    table.add_row("  Max Iterations", str(exp.max_iterations))
-    table.add_row("  Stability Threshold", f"{exp.stability_threshold:.1%}")
-    table.add_row("  Stability Window", str(exp.stability_window))
+    table.add_row("  Max Iterations", str(convergence_config.max_iterations))
+    table.add_row("  Stability Threshold", f"{convergence_config.stability_threshold:.1%}")
+    table.add_row("  Stability Window", str(convergence_config.stability_window))
     table.add_row("", "")
     table.add_row("[bold]LLM[/bold]", "")
     model_config = exp.get_model_config()
@@ -292,13 +296,14 @@ def validate(
 
     Checks that scenario config exists and is valid.
     """
-    available_experiments = list_experiments()
+    available_experiments = _list_experiments()
     if experiment not in available_experiments:
         console.print(f"[red]Unknown experiment: {experiment}[/red]")
         console.print(f"Available: {', '.join(available_experiments)}")
         raise typer.Exit(1)
 
-    exp = EXPERIMENTS[experiment]()
+    config_dict = load_experiment(experiment)
+    exp = YamlExperimentConfig(config_dict)
     base_dir = Path(__file__).parent
     scenario_path = base_dir / exp.scenario_path
 

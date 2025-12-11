@@ -19,10 +19,18 @@ Enriched evaluation (Phase 0.5):
 - BootstrapEvent: Event captured during evaluation for LLM context
 - CostBreakdown: Itemized cost breakdown by type
 - EnrichedEvaluationResult: Full evaluation result with event trace
+
+Context building (Phase 10):
+- AgentSimulationContext: Context data for LLM prompts
+- EnrichedBootstrapContextBuilder: Builds context from enriched results
 """
 
 from __future__ import annotations
 
+from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+    AgentSimulationContext,
+    EnrichedBootstrapContextBuilder,
+)
 from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
     BootstrapEvent,
     CostBreakdown,
@@ -46,12 +54,14 @@ from payment_simulator.ai_cash_mgmt.bootstrap.sampler import BootstrapSampler
 from payment_simulator.ai_cash_mgmt.bootstrap.sandbox_config import SandboxConfigBuilder
 
 __all__ = [
+    "AgentSimulationContext",
     "AgentTransactionHistory",
     "BootstrapEvent",
     "BootstrapPolicyEvaluator",
     "BootstrapSample",
     "BootstrapSampler",
     "CostBreakdown",
+    "EnrichedBootstrapContextBuilder",
     "EnrichedEvaluationResult",
     "EvaluationResult",
     "PairedDelta",
