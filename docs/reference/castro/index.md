@@ -1,13 +1,13 @@
 # Castro Experiments Reference
 
 **Version**: 1.0
-**Last Updated**: 2025-12-09
+**Last Updated**: 2025-12-11
 
 ---
 
 ## Overview
 
-Castro is the LLM-based policy optimization framework for SimCash. It orchestrates iterative experiments where an LLM agent proposes policy improvements based on Monte Carlo simulation feedback.
+Castro is the LLM-based policy optimization framework for SimCash. It orchestrates iterative experiments where an LLM agent proposes policy improvements based on bootstrap evaluation feedback.
 
 This documentation covers the **Replay Identity System** that ensures experiment outputs can be perfectly replayed from database records.
 
@@ -205,6 +205,8 @@ experiments/castro/
 - [Event Model](events.md) - Event types and persistence
 - [CLI Commands](cli-commands.md) - Command reference
 - [Payment Simulator StateProvider](../api/state-provider.md) - Original pattern implementation
+- [Experiments Module](../experiments/index.md) - YAML-driven experiment framework
+- [LLM Module](../llm/index.md) - LLM client protocols and configuration
 
 ---
 

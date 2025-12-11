@@ -3,7 +3,7 @@
 > PolicyOptimizer, PolicyEvaluator, ConstraintValidator, ConvergenceDetector
 
 **Version**: 0.1.0
-**Last Updated**: 2025-12-09
+**Last Updated**: 2025-12-11
 
 ---
 
@@ -224,7 +224,7 @@ class AnthropicLLMClient:
 
 ## PolicyEvaluator
 
-Monte Carlo policy evaluation.
+Bootstrap policy evaluation.
 
 ### Synopsis
 
@@ -257,7 +257,7 @@ def __init__(
     """Initialize the evaluator.
 
     Args:
-        num_samples: Number of Monte Carlo samples.
+        num_samples: Number of bootstrap samples.
         evaluation_ticks: Simulation ticks per sample.
         parallel_workers: Parallel workers (future).
     """
@@ -267,7 +267,7 @@ def __init__(
 
 #### `evaluate`
 
-Evaluate a policy across Monte Carlo samples.
+Evaluate a policy across bootstrap samples.
 
 ```python
 def evaluate(
@@ -321,7 +321,7 @@ flowchart LR
 
 ## EvaluationResult
 
-Result of Monte Carlo policy evaluation.
+Result of bootstrap policy evaluation.
 
 ### Fields
 

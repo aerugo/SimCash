@@ -10,6 +10,7 @@ The `payment-sim` CLI is the primary interface for running simulations, replayin
 |----------|-------------|
 | [run](commands/run.md) | Execute a simulation from a configuration file |
 | [replay](commands/replay.md) | Replay a persisted simulation from database |
+| [experiment](commands/experiment.md) | LLM policy optimization experiments |
 | [ai-game](commands/ai-game.md) | AI Cash Management commands |
 | [validate-policy](commands/validate-policy.md) | Validate a policy tree JSON file |
 | [policy-schema](commands/policy-schema.md) | Generate policy schema documentation |
@@ -55,6 +56,12 @@ payment-sim
 ├── replay                 # Database replay
 ├── validate-policy        # Policy validation
 ├── policy-schema          # Schema documentation
+├── experiment             # Experiment framework subcommands
+│   ├── run                # Run experiment from YAML
+│   ├── validate           # Validate experiment config
+│   ├── list               # List experiments in directory
+│   ├── info               # Framework information
+│   └── template           # Generate config template
 ├── ai-game                # AI Cash Management subcommands
 │   ├── validate           # Validate game config
 │   ├── info               # Module information

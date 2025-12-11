@@ -13,10 +13,10 @@ The AI Cash Management module enables autonomous optimization of bank payment po
 
 | Document | Description |
 |----------|-------------|
-| [configuration](configuration.md) | GameConfig, LLMConfig, MonteCarloConfig, ConvergenceCriteria |
+| [configuration](configuration.md) | GameConfig, LLMConfig, BootstrapConfig, ConvergenceCriteria |
 | [components](components.md) | GameOrchestrator, GameSession, GameMode |
 | [optimization](optimization.md) | PolicyOptimizer, PolicyEvaluator, ConstraintValidator, ConvergenceDetector |
-| [sampling](sampling.md) | TransactionSampler, SeedManager, sampling methods |
+| [sampling](sampling.md) | TransactionSampler, SeedManager, bootstrap sampling methods |
 | [constraints](constraints.md) | ScenarioConstraints, ParameterSpec |
 | [persistence](persistence.md) | GameRepository, GameSessionRecord, PolicyIterationRecord |
 
@@ -29,7 +29,7 @@ flowchart TB
     subgraph Config["Configuration Layer"]
         GC[GameConfig]
         LLC[LLMConfig]
-        MCC[MonteCarloConfig]
+        BC[BootstrapConfig]
         CC[ConvergenceCriteria]
     end
 
@@ -65,7 +65,7 @@ flowchart TB
 
     GC --> GO
     LLC --> PO
-    MCC --> PE
+    BC --> PE
     CC --> CD
 
     GO --> GS
@@ -103,7 +103,7 @@ flowchart LR
     end
 
     subgraph Processing
-        Sample[Monte Carlo<br/>Sampling]
+        Sample[Bootstrap<br/>Sampling]
         Eval[Policy<br/>Evaluation]
         Opt[LLM<br/>Optimization]
     end
@@ -207,7 +207,7 @@ payment-sim ai-game schema game-config
 
 | Method | Description | Use Case |
 |--------|-------------|----------|
-| `bootstrap` | Sample with replacement | Standard Monte Carlo |
+| `bootstrap` | Sample with replacement | Standard bootstrap resampling |
 | `permutation` | Shuffle order, preserve all | Test ordering effects |
 | `stratified` | Maintain amount distribution | Preserve distribution |
 
@@ -293,7 +293,9 @@ class SimulationRunnerProtocol(Protocol):
 - [Scenario Configuration](../scenario/index.md) - Scenario YAML format
 - [CLI Reference](../cli/index.md) - Command-line interface
 - [Architecture: Policy System](../architecture/07-policy-system.md) - Policy implementation
+- [Experiments Module](../experiments/index.md) - YAML-driven experiment framework
+- [LLM Module](../llm/index.md) - LLM client protocols and configuration
 
 ---
 
-*Last updated: 2025-12-09*
+*Last updated: 2025-12-11*
