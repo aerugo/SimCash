@@ -40,7 +40,7 @@ from payment_simulator.persistence.connection import DatabaseManager
 from rich.console import Console
 
 from castro.constraints import CASTRO_CONSTRAINTS
-from castro.context_builder import MonteCarloContextBuilder
+from castro.context_builder import BootstrapContextBuilder
 from castro.events import create_llm_interaction_event
 from castro.experiments import CastroExperiment
 from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
@@ -51,8 +51,8 @@ from castro.pydantic_llm_client import (
 from castro.run_id import generate_run_id
 from castro.simulation import CastroSimulationRunner, SimulationResult
 from castro.verbose_logging import (
+    BootstrapSampleResult,
     LLMCallMetadata,
-    MonteCarloSeedResult,
     RejectionDetail,
     VerboseConfig,
     VerboseLogger,
@@ -350,7 +350,7 @@ class ExperimentRunner:
 
                     agent_cost = per_agent_costs.get(agent_id, 0)
 
-                    # Get per-agent context from MonteCarloContextBuilder
+                    # Get per-agent context from BootstrapContextBuilder
                     agent_sim_context = context_builder.get_agent_simulation_context(agent_id)
 
                     current_metrics = {
@@ -368,7 +368,7 @@ class ExperimentRunner:
                         llm_model=self._model_config.model,
                         current_cost=float(agent_cost),
                         iteration_history=self._iteration_history.get(agent_id, []),
-                        # Pass verbose context from MonteCarloContextBuilder
+                        # Pass verbose context from BootstrapContextBuilder
                         best_seed_output=agent_sim_context.best_seed_output,
                         worst_seed_output=agent_sim_context.worst_seed_output,
                         best_seed=agent_sim_context.best_seed,
@@ -733,8 +733,8 @@ class ExperimentRunner:
     ) -> tuple[
         int,
         dict[str, int],
-        MonteCarloContextBuilder,
-        list[MonteCarloSeedResult],
+        BootstrapContextBuilder,
+        list[BootstrapSampleResult],
         dict[str, list[BootstrapSample]],
     ]:
         """Evaluate current policies using bootstrap sampling.
@@ -763,7 +763,7 @@ class ExperimentRunner:
             agent_id: [] for agent_id in self._experiment.optimized_agents
         }
 
-        # For MonteCarloContextBuilder compatibility, we need SimulationResults
+        # For BootstrapContextBuilder compatibility, we need SimulationResults
         # We'll create minimal results from bootstrap evaluation
         results: list[SimulationResult] = []
         seeds: list[int] = []
@@ -840,14 +840,14 @@ class ExperimentRunner:
         }
 
         # Build context builder for per-agent context
-        context_builder = MonteCarloContextBuilder(results=results, seeds=seeds)
+        context_builder = BootstrapContextBuilder(results=results, seeds=seeds)
 
-        # Build MonteCarloSeedResult list for verbose logging
-        seed_results: list[MonteCarloSeedResult] = []
+        # Build BootstrapSampleResult list for verbose logging
+        seed_results: list[BootstrapSampleResult] = []
         for i, (seed, result) in enumerate(zip(seeds, results, strict=True)):
             baseline_cost = self._baseline_costs.get(seed)
             seed_results.append(
-                MonteCarloSeedResult(
+                BootstrapSampleResult(
                     seed=seed,
                     cost=result.total_cost,
                     settled=result.transactions_settled,

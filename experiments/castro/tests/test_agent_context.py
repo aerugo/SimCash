@@ -38,7 +38,7 @@ class TestBestWorstSeedSelection:
 
     NOTE: These tests demonstrate the concept using direct Orchestrator calls,
     but have FFI configuration issues. The same functionality is properly tested
-    in TestMonteCarloContextBuilder using mock results.
+    in TestBootstrapContextBuilder using mock results.
     """
 
     @pytest.fixture
@@ -503,10 +503,10 @@ class TestContextWithoutVerboseOutput:
         assert "Test output from best seed" in prompt
 
 
-class TestMonteCarloContextBuilder:
-    """Test MonteCarloContextBuilder for per-agent context construction.
+class TestBootstrapContextBuilder:
+    """Test BootstrapContextBuilder for per-agent context construction.
 
-    MonteCarloContextBuilder takes Monte Carlo simulation results and:
+    BootstrapContextBuilder takes bootstrap simulation results and:
     1. Identifies best/worst seeds per agent (by that agent's cost)
     2. Extracts filtered verbose output for those seeds
     3. Builds SingleAgentContext for each agent
@@ -516,7 +516,7 @@ class TestMonteCarloContextBuilder:
     def mock_simulation_results(self) -> list[dict]:
         """Create mock simulation results with different costs per agent.
 
-        Simulates 5 Monte Carlo runs with varying costs:
+        Simulates 5 bootstrap samples with varying costs:
         - Seeds: [100, 200, 300, 400, 500]
         - BANK_A best at seed 300 (cost=5000), worst at seed 500 (cost=15000)
         - BANK_B best at seed 500 (cost=4000), worst at seed 100 (cost=16000)
@@ -593,18 +593,18 @@ class TestMonteCarloContextBuilder:
         return {"results": results, "seeds": seeds}
 
     def test_import_monte_carlo_context_builder(self) -> None:
-        """MonteCarloContextBuilder should be importable."""
-        from castro.context_builder import MonteCarloContextBuilder
+        """BootstrapContextBuilder should be importable."""
+        from castro.context_builder import BootstrapContextBuilder
 
-        assert MonteCarloContextBuilder is not None
+        assert BootstrapContextBuilder is not None
 
     def test_builder_initializes_with_results_and_seeds(
         self, mock_simulation_results: dict
     ) -> None:
         """Builder should accept results and seeds."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -615,9 +615,9 @@ class TestMonteCarloContextBuilder:
         self, mock_simulation_results: dict
     ) -> None:
         """get_best_seed_for_agent returns seed with lowest cost for agent."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -631,9 +631,9 @@ class TestMonteCarloContextBuilder:
         self, mock_simulation_results: dict
     ) -> None:
         """get_worst_seed_for_agent returns seed with highest cost for agent."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -647,9 +647,9 @@ class TestMonteCarloContextBuilder:
         self, mock_simulation_results: dict
     ) -> None:
         """Different agents can have different best seeds (INV-3)."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -666,9 +666,9 @@ class TestMonteCarloContextBuilder:
         self, mock_simulation_results: dict
     ) -> None:
         """Different agents can have different worst seeds (INV-3)."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -685,9 +685,9 @@ class TestMonteCarloContextBuilder:
         self, mock_simulation_results: dict
     ) -> None:
         """Builder retrieves filtered verbose output for best seed."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -700,9 +700,9 @@ class TestMonteCarloContextBuilder:
         self, mock_simulation_results: dict
     ) -> None:
         """Builder retrieves filtered verbose output for worst seed."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -717,10 +717,10 @@ class TestMonteCarloContextBuilder:
         """Builder produces AgentSimulationContext with all fields."""
         from castro.context_builder import (
             AgentSimulationContext,
-            MonteCarloContextBuilder,
+            BootstrapContextBuilder,
         )
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -740,9 +740,9 @@ class TestMonteCarloContextBuilder:
         self, mock_simulation_results: dict
     ) -> None:
         """Builder computes mean and std dev of agent costs."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -759,9 +759,9 @@ class TestMonteCarloContextBuilder:
         self, mock_simulation_results: dict
     ) -> None:
         """Builder can construct full SingleAgentContext."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(
+        builder = BootstrapContextBuilder(
             results=mock_simulation_results["results"],
             seeds=mock_simulation_results["seeds"],
         )
@@ -805,9 +805,9 @@ class TestMonteCarloContextBuilder:
             ),
         ]
 
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(results=results, seeds=[100])
+        builder = BootstrapContextBuilder(results=results, seeds=[100])
 
         # Should not raise, but verbose output will be None
         output = builder.get_best_seed_verbose_output("BANK_A")
@@ -846,9 +846,9 @@ class TestMonteCarloContextBuilder:
             ),
         ]
 
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
 
-        builder = MonteCarloContextBuilder(results=results, seeds=[42])
+        builder = BootstrapContextBuilder(results=results, seeds=[42])
 
         # With single sample, best and worst are the same
         best_seed, best_cost = builder.get_best_seed_for_agent("BANK_A")

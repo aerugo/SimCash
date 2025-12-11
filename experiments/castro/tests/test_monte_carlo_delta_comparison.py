@@ -40,15 +40,15 @@ def strip_ansi(text: str) -> str:
     return ansi_escape.sub("", text)
 
 
-class TestMonteCarloSeedResultDeltaFields:
-    """Tests for MonteCarloSeedResult delta percentage fields."""
+class TestBootstrapSampleResultDeltaFields:
+    """Tests for BootstrapSampleResult delta percentage fields."""
 
     def test_seed_result_has_baseline_cost_field(self) -> None:
-        """MonteCarloSeedResult should have optional baseline_cost field."""
-        from castro.verbose_logging import MonteCarloSeedResult
+        """BootstrapSampleResult should have optional baseline_cost field."""
+        from castro.verbose_logging import BootstrapSampleResult
 
         # With baseline (iteration > 1)
-        result_with_baseline = MonteCarloSeedResult(
+        result_with_baseline = BootstrapSampleResult(
             seed=0x12345,
             cost=9000,  # Current cost with new policy
             settled=50,
@@ -59,7 +59,7 @@ class TestMonteCarloSeedResultDeltaFields:
         assert result_with_baseline.baseline_cost == 10000
 
         # Without baseline (iteration 1)
-        result_without_baseline = MonteCarloSeedResult(
+        result_without_baseline = BootstrapSampleResult(
             seed=0x12345,
             cost=10000,
             settled=50,
@@ -69,11 +69,11 @@ class TestMonteCarloSeedResultDeltaFields:
         assert result_without_baseline.baseline_cost is None
 
     def test_seed_result_computes_delta_percent(self) -> None:
-        """MonteCarloSeedResult should compute delta_percent property."""
-        from castro.verbose_logging import MonteCarloSeedResult
+        """BootstrapSampleResult should compute delta_percent property."""
+        from castro.verbose_logging import BootstrapSampleResult
 
         # 10% improvement: baseline=10000, new=9000
-        result = MonteCarloSeedResult(
+        result = BootstrapSampleResult(
             seed=0x12345,
             cost=9000,
             settled=50,
@@ -86,10 +86,10 @@ class TestMonteCarloSeedResultDeltaFields:
 
     def test_seed_result_delta_percent_negative_for_regression(self) -> None:
         """delta_percent should be negative when cost increased (regression)."""
-        from castro.verbose_logging import MonteCarloSeedResult
+        from castro.verbose_logging import BootstrapSampleResult
 
         # 20% regression: baseline=10000, new=12000
-        result = MonteCarloSeedResult(
+        result = BootstrapSampleResult(
             seed=0x12345,
             cost=12000,
             settled=50,
@@ -102,9 +102,9 @@ class TestMonteCarloSeedResultDeltaFields:
 
     def test_seed_result_delta_percent_none_without_baseline(self) -> None:
         """delta_percent should be None when baseline_cost is not set."""
-        from castro.verbose_logging import MonteCarloSeedResult
+        from castro.verbose_logging import BootstrapSampleResult
 
-        result = MonteCarloSeedResult(
+        result = BootstrapSampleResult(
             seed=0x12345,
             cost=10000,
             settled=50,
@@ -115,9 +115,9 @@ class TestMonteCarloSeedResultDeltaFields:
 
     def test_seed_result_delta_percent_handles_zero_baseline(self) -> None:
         """delta_percent should handle zero baseline gracefully."""
-        from castro.verbose_logging import MonteCarloSeedResult
+        from castro.verbose_logging import BootstrapSampleResult
 
-        result = MonteCarloSeedResult(
+        result = BootstrapSampleResult(
             seed=0x12345,
             cost=0,
             settled=50,
@@ -144,29 +144,29 @@ class TestMonteCarloLoggingDeltaComparison:
     ) -> None:
         """On baseline run (iteration 1), no Best/Worst labels should appear."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         # Baseline run: no baseline_cost set on any result
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x1111, cost=1320000, settled=42, total=42, settlement_rate=1.0
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x2222, cost=1380000, settled=61, total=61, settlement_rate=1.0
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x3333, cost=1340000, settled=48, total=48, settlement_rate=1.0
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=1346666,
             std_cost=24944,
@@ -186,18 +186,18 @@ class TestMonteCarloLoggingDeltaComparison:
     ) -> None:
         """After baseline, Best/Worst should be determined by delta_percent."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         # Subsequent run: all results have baseline_cost
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x1111,
                 cost=1260000,  # 5% improvement
                 settled=42,
@@ -205,7 +205,7 @@ class TestMonteCarloLoggingDeltaComparison:
                 settlement_rate=1.0,
                 baseline_cost=1320000,
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x2222,
                 cost=1360000,  # ~1.4% improvement (WORST)
                 settled=61,
@@ -213,7 +213,7 @@ class TestMonteCarloLoggingDeltaComparison:
                 settlement_rate=1.0,
                 baseline_cost=1380000,
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x3333,
                 cost=1190000,  # ~11.2% improvement (BEST)
                 settled=48,
@@ -223,7 +223,7 @@ class TestMonteCarloLoggingDeltaComparison:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=1270000,
             std_cost=70000,
@@ -246,17 +246,17 @@ class TestMonteCarloLoggingDeltaComparison:
     ) -> None:
         """Table should show Delta column when baselines are present."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x1111,
                 cost=9000,
                 settled=50,
@@ -266,7 +266,7 @@ class TestMonteCarloLoggingDeltaComparison:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=9000,
             std_cost=0,
@@ -283,17 +283,17 @@ class TestMonteCarloLoggingDeltaComparison:
     ) -> None:
         """Table should NOT show Delta column on baseline run."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x1111,
                 cost=10000,
                 settled=50,
@@ -302,7 +302,7 @@ class TestMonteCarloLoggingDeltaComparison:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=10000,
             std_cost=0,
@@ -313,7 +313,7 @@ class TestMonteCarloLoggingDeltaComparison:
 
         # Should NOT show Delta column (since there's nothing to compare)
         # Output should still work but without delta info
-        assert "Monte Carlo" in output
+        assert "Bootstrap" in output
 
 
 class TestBestWorstDeltaLogic:
@@ -331,17 +331,17 @@ class TestBestWorstDeltaLogic:
     ) -> None:
         """Best seed should have highest delta_percent (most improvement)."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0xAAAA,
                 cost=9500,
                 settled=50,
@@ -349,7 +349,7 @@ class TestBestWorstDeltaLogic:
                 settlement_rate=1.0,
                 baseline_cost=10000,  # 5% improvement
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0xBBBB,
                 cost=8500,
                 settled=60,
@@ -357,7 +357,7 @@ class TestBestWorstDeltaLogic:
                 settlement_rate=1.0,
                 baseline_cost=10000,  # 15% improvement - BEST
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0xCCCC,
                 cost=9000,
                 settled=55,
@@ -367,7 +367,7 @@ class TestBestWorstDeltaLogic:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=9000,
             std_cost=500,
@@ -388,17 +388,17 @@ class TestBestWorstDeltaLogic:
     ) -> None:
         """Worst seed should have lowest delta_percent (including regression)."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0xAAAA,
                 cost=9000,
                 settled=50,
@@ -406,7 +406,7 @@ class TestBestWorstDeltaLogic:
                 settlement_rate=1.0,
                 baseline_cost=10000,  # 10% improvement
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0xBBBB,
                 cost=11000,
                 settled=60,
@@ -414,7 +414,7 @@ class TestBestWorstDeltaLogic:
                 settlement_rate=1.0,
                 baseline_cost=10000,  # -10% regression - WORST
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0xCCCC,
                 cost=9500,
                 settled=55,
@@ -424,7 +424,7 @@ class TestBestWorstDeltaLogic:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=9833,
             std_cost=850,
@@ -444,17 +444,17 @@ class TestBestWorstDeltaLogic:
     ) -> None:
         """Regression (cost increased) should show negative delta."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0xAAAA,
                 cost=12000,  # 20% regression
                 settled=50,
@@ -464,7 +464,7 @@ class TestBestWorstDeltaLogic:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=12000,
             std_cost=0,
@@ -492,17 +492,17 @@ class TestMeanDeltaStatistics:
     ) -> None:
         """Output should show mean delta percentage when comparing to baseline."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x1111,
                 cost=9000,
                 settled=50,
@@ -510,7 +510,7 @@ class TestMeanDeltaStatistics:
                 settlement_rate=1.0,
                 baseline_cost=10000,  # 10% improvement
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x2222,
                 cost=8000,
                 settled=50,
@@ -520,7 +520,7 @@ class TestMeanDeltaStatistics:
             ),
         ]
 
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=8500,
             std_cost=500,
@@ -548,27 +548,27 @@ class TestBackwardCompatibility:
     def test_existing_api_still_works_without_new_params(
         self, string_console: tuple[Console, io.StringIO]
     ) -> None:
-        """Existing code calling log_monte_carlo_evaluation should still work."""
+        """Existing code calling log_bootstrap_evaluation should still work."""
         from castro.verbose_logging import (
-            MonteCarloSeedResult,
+            BootstrapSampleResult,
             VerboseConfig,
             VerboseLogger,
         )
 
         console, buffer = string_console
-        config = VerboseConfig(monte_carlo=True)
+        config = VerboseConfig(bootstrap=True)
         logger = VerboseLogger(config, console)
 
         # Old-style call without is_baseline_run or baseline_cost
         seed_results = [
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x7A3B,
                 cost=1320000,
                 settled=12,
                 total=12,
                 settlement_rate=1.0,
             ),
-            MonteCarloSeedResult(
+            BootstrapSampleResult(
                 seed=0x2F1C,
                 cost=1380000,
                 settled=11,
@@ -578,7 +578,7 @@ class TestBackwardCompatibility:
         ]
 
         # Should not raise - is_baseline_run defaults appropriately
-        logger.log_monte_carlo_evaluation(
+        logger.log_bootstrap_evaluation(
             seed_results=seed_results,
             mean_cost=1350000,
             std_cost=30000,
@@ -587,7 +587,7 @@ class TestBackwardCompatibility:
         output = buffer.getvalue()
 
         # Should produce valid output
-        assert "Monte Carlo" in output
+        assert "Bootstrap" in output
         # Without baselines, should treat as baseline run (no delta comparison)
 
 

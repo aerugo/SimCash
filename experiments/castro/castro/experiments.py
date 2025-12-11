@@ -21,8 +21,7 @@ from payment_simulator.ai_cash_mgmt import (
     OutputConfig,
     SampleMethod,
 )
-
-from castro.model_config import ModelConfig
+from payment_simulator.llm import LLMConfig
 
 # Default model for experiments
 DEFAULT_MODEL = "anthropic:claude-sonnet-4-5"
@@ -141,13 +140,13 @@ class CastroExperiment:
             max_iterations=self.max_iterations,
         )
 
-    def get_model_config(self) -> ModelConfig:
+    def get_model_config(self) -> LLMConfig:
         """Get unified model configuration for this experiment.
 
         Returns:
-            ModelConfig instance with all LLM settings.
+            LLMConfig instance with all LLM settings.
         """
-        return ModelConfig(
+        return LLMConfig(
             model=self.model,
             temperature=self.temperature,
             thinking_budget=self.thinking_budget,
@@ -287,7 +286,7 @@ def create_exp3(
     - Tests interaction between liquidity and timing decisions
     - 10 bootstrap samples for evaluation
 
-    Note: Uses minimum evaluation_ticks of 10 for MonteCarloConfig validation.
+    Note: Uses minimum evaluation_ticks of 10 for BootstrapConfig validation.
     The scenario runs 3 ticks per day, remaining ticks are idle.
 
     Args:
@@ -304,7 +303,7 @@ def create_exp3(
         description="Joint Liquidity & Timing Optimization",
         scenario_path=Path("configs/exp3_joint.yaml"),
         num_samples=10,  # Bootstrap samples for evaluation
-        evaluation_ticks=10,  # Minimum for MonteCarloConfig (ticks 3-9 are idle)
+        evaluation_ticks=10,  # Minimum for BootstrapConfig (ticks 3-9 are idle)
         max_iterations=25,
         stability_threshold=0.05,
         stability_window=5,

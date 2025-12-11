@@ -15,8 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from castro.model_config import ModelConfig
 from castro.pydantic_llm_client import SYSTEM_PROMPT
+from payment_simulator.llm import LLMConfig
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ def client(mock_agent):
     """Create a PydanticAILLMClient with mocked Agent."""
     from castro.pydantic_llm_client import PydanticAILLMClient
 
-    config = ModelConfig("anthropic:claude-sonnet-4-5")
+    config = LLMConfig(model="anthropic:claude-sonnet-4-5")
     return PydanticAILLMClient(config)
 
 
@@ -44,7 +44,7 @@ class TestClientInitialization:
         """Client should initialize with Anthropic model."""
         from castro.pydantic_llm_client import PydanticAILLMClient
 
-        config = ModelConfig("anthropic:claude-sonnet-4-5")
+        config = LLMConfig(model="anthropic:claude-sonnet-4-5")
         client = PydanticAILLMClient(config)
         assert client.model == "anthropic:claude-sonnet-4-5"
 
@@ -57,7 +57,7 @@ class TestClientInitialization:
         """Client should initialize with OpenAI model."""
         from castro.pydantic_llm_client import PydanticAILLMClient
 
-        config = ModelConfig("openai:gpt-5.1", reasoning_effort="high")
+        config = LLMConfig(model="openai:gpt-5.1", reasoning_effort="high")
         client = PydanticAILLMClient(config)
         assert client.model == "openai:gpt-5.1"
 
@@ -65,7 +65,7 @@ class TestClientInitialization:
         """Client should initialize with Google model (mapped to google-gla)."""
         from castro.pydantic_llm_client import PydanticAILLMClient
 
-        config = ModelConfig("google:gemini-2.5-flash")
+        config = LLMConfig(model="google:gemini-2.5-flash")
         client = PydanticAILLMClient(config)
         assert client.model == "google:gemini-2.5-flash"
 
@@ -232,7 +232,7 @@ class TestGeneratePolicy:
         """generate_policy should return parsed policy from agent."""
         from castro.pydantic_llm_client import PydanticAILLMClient
 
-        config = ModelConfig("anthropic:claude-sonnet-4-5")
+        config = LLMConfig(model="anthropic:claude-sonnet-4-5")
 
         # Configure mock return value
         mock_result = MagicMock()
@@ -259,7 +259,7 @@ class TestGeneratePolicy:
         """generate_policy should pass model settings to agent."""
         from castro.pydantic_llm_client import PydanticAILLMClient
 
-        config = ModelConfig(
+        config = LLMConfig(model=
             "anthropic:claude-sonnet-4-5",
             thinking_budget=8000,
             temperature=0.5,
@@ -291,7 +291,7 @@ class TestGeneratePolicy:
         """generate_policy should raise on invalid JSON response."""
         from castro.pydantic_llm_client import PydanticAILLMClient
 
-        config = ModelConfig("anthropic:claude-sonnet-4-5")
+        config = LLMConfig(model="anthropic:claude-sonnet-4-5")
 
         mock_result = MagicMock()
         mock_result.output = "not valid json"
