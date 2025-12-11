@@ -29,7 +29,7 @@ def test_smart_splitter_splits_under_stress():
     and PASS after the fix (policy splits using effective_liquidity).
     """
     # Load the smart_splitter policy JSON
-    policy_path = Path(__file__).parents[3] / "backend" / "policies" / "smart_splitter.json"
+    policy_path = Path(__file__).parents[3] / "simulator" / "policies" / "smart_splitter.json"
     with open(policy_path) as f:
         policy_json = f.read()
 
@@ -154,7 +154,7 @@ def test_smart_splitter_with_negative_balance_bug_reproduction():
     This is the most direct reproduction of the death spiral scenario.
     """
     # Load the smart_splitter policy JSON
-    policy_path = Path(__file__).parents[3] / "backend" / "policies" / "smart_splitter.json"
+    policy_path = Path(__file__).parents[3] / "simulator" / "policies" / "smart_splitter.json"
     with open(policy_path) as f:
         policy_json = f.read()
 

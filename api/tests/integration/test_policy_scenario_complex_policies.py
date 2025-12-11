@@ -37,7 +37,7 @@ def load_json_policy(policy_name: str) -> dict:
         Policy config dict with inline JSON string
     """
     # Path relative to api directory
-    policy_path = Path(__file__).parent.parent.parent.parent / "backend" / "policies" / f"{policy_name}.json"
+    policy_path = Path(__file__).parent.parent.parent.parent / "simulator" / "policies" / f"{policy_name}.json"
 
     if not policy_path.exists():
         raise FileNotFoundError(f"Policy file not found: {policy_path}")
