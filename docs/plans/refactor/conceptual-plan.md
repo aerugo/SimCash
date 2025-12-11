@@ -984,6 +984,165 @@ See [phases/phase_11.md](./phases/phase_11.md) for detailed TDD test specificati
 
 ---
 
+## Phase 12: Castro Migration to Core Infrastructure
+
+Phase 12 migrated Castro's runner and CLI to use the core `ExperimentRepository` from Phase 11.
+
+### Key Changes
+
+| Component | Before | After |
+|-----------|--------|-------|
+| Runner persistence | `castro.persistence.ExperimentEventRepository` | `experiments.persistence.ExperimentRepository` |
+| CLI results | Castro-specific repository | Core `ExperimentRepository.list_experiments()` |
+| Event creation | `castro.events.create_*` functions | `ai_cash_mgmt.events.create_*` functions |
+
+### Outcomes
+
+- Runner.py uses core `ExperimentRepository` for saving experiments, iterations, events
+- CLI results command uses core repository for listing experiments
+- Event system moved to `api/payment_simulator/ai_cash_mgmt/events.py`
+- Compatibility layer (`event_compat.py`) enables gradual migration
+
+See [phases/phase_12_completion.md](./phases/phase_12_completion.md) for detailed plan.
+
+---
+
+## Phase 13: Complete Experiment StateProvider Migration
+
+Phase 13 completed the StateProvider pattern migration:
+
+### Key Changes
+
+| Task | Description |
+|------|-------------|
+| 13.1 | Extended core protocol with audit methods (run_id, get_all_events, get_run_metadata, get_final_result) |
+| 13.2 | Updated Castro display/audit_display to use core protocol |
+| 13.3 | Updated CLI replay command to use core DatabaseStateProvider |
+| 13.4 | Deleted Castro infrastructure (state_provider.py, persistence/, event_compat.py) |
+| 13.5 | Updated all test imports to use core modules |
+
+### Outcomes
+
+- ~800+ lines removed from Castro
+- Core `experiments/` has complete StateProvider pattern with audit methods
+- Full replay identity maintained via core protocol
+- Castro display now uses dict events from core (not CastroEvent objects)
+
+See [phases/phase_13.md](./phases/phase_13.md) for detailed plan.
+
+---
+
+## Phase 14: Verbose Logging, Audit Display, and CLI Integration to Core
+
+Phase 14 completes the extraction of reusable experiment infrastructure to core SimCash modules, making Castro a truly thin experiment-specific layer.
+
+### Goal
+
+Move verbose logging, audit display, and CLI commands from Castro to core `experiments/` module, enabling any future experiment to leverage this infrastructure.
+
+### Components to Move to Core
+
+| Component | Current Location | Target Location | Lines |
+|-----------|------------------|-----------------|-------|
+| `VerboseConfig` | `castro/verbose_logging.py` | `experiments/runner/verbose.py` | ~80 |
+| `VerboseLogger` | `castro/verbose_logging.py` | `experiments/runner/verbose.py` | ~350 |
+| `display_experiment_output()` | `castro/display.py` | `experiments/runner/display.py` | ~200 |
+| `display_audit_output()` | `castro/audit_display.py` | `experiments/runner/audit.py` | ~200 |
+| CLI commands | `castro/cli.py` | `experiments/cli/` | ~500 |
+
+### Target Architecture
+
+After Phase 14, the experiment framework provides a complete CLI:
+
+```
+api/payment_simulator/experiments/
+├── runner/
+│   ├── verbose.py          # VerboseConfig, VerboseLogger (from castro)
+│   ├── display.py          # display_experiment_output() (from castro)
+│   └── audit.py            # display_audit_output() (from castro)
+├── cli/
+│   ├── __init__.py
+│   ├── run.py              # Generic experiment run command
+│   ├── replay.py           # Generic replay command
+│   ├── results.py          # Generic results listing
+│   └── common.py           # Shared CLI utilities
+└── ...
+```
+
+Castro becomes a thin wrapper:
+
+```
+experiments/castro/
+├── cli.py                  # Thin wrapper calling core CLI
+├── castro/
+│   ├── constraints.py      # CASTRO_CONSTRAINTS (experiment-specific)
+│   ├── experiment_config.py # YamlExperimentConfig
+│   ├── experiment_loader.py # YAML loading utilities
+│   ├── runner.py           # CastroExperimentRunner (uses core verbose/display)
+│   └── pydantic_llm_client.py # Policy-specific LLM client
+└── experiments/            # YAML experiment definitions
+```
+
+### Tasks
+
+| Task | Description | Risk |
+|------|-------------|------|
+| 14.1 | Move VerboseConfig and VerboseLogger to core | Low |
+| 14.2 | Move display_experiment_output() to core | Low |
+| 14.3 | Move display_audit_output() to core | Low |
+| 14.4 | Create generic experiment CLI in core | Medium |
+| 14.5 | Update Castro CLI to use core | Low |
+| 14.6 | Update Castro runner to import from core | Low |
+| 14.7 | Delete redundant Castro files | Low |
+| 14.8 | Update documentation | Low |
+
+### Expected Outcomes
+
+| Category | Change |
+|----------|--------|
+| Core experiments/runner | +650 lines |
+| Core experiments/cli | +500 lines |
+| Castro verbose_logging.py | Delete (~430 lines) |
+| Castro display.py | Thin wrapper (~30 lines, -170) |
+| Castro audit_display.py | Delete (~200 lines) |
+| Castro cli.py | Thin wrapper (~100 lines, -400) |
+| **Net Castro Reduction** | **~1200 lines** |
+
+### TDD Test Coverage
+
+| Test File | Tests |
+|-----------|-------|
+| `test_verbose_core.py` | ~20 tests for VerboseConfig, VerboseLogger |
+| `test_display_core.py` | ~15 tests for display functions |
+| `test_audit_core.py` | ~10 tests for audit display |
+| `test_cli_core.py` | ~25 tests for CLI commands |
+| **Total** | **~70 new tests** |
+
+### Final Castro State After Phase 14
+
+```
+experiments/castro/
+├── cli.py                  # Thin wrapper (~100 lines)
+├── castro/
+│   ├── __init__.py
+│   ├── constraints.py      # CASTRO_CONSTRAINTS only
+│   ├── experiment_config.py
+│   ├── experiment_loader.py
+│   ├── bootstrap_context.py  # Re-exports from core
+│   ├── run_id.py            # Re-exports from core
+│   ├── runner.py            # Uses core verbose/display
+│   └── pydantic_llm_client.py
+├── configs/                # Scenario YAML files
+├── experiments/            # Experiment YAML files
+└── tests/                  # Castro-specific tests only
+```
+
+**Total lines in Castro after Phase 14**: ~2000 (down from ~4500 at start of refactor)
+
+See [phases/phase_14.md](./phases/phase_14.md) for detailed TDD test specifications.
+
+---
+
 ## Related Documents
 
 - [Development Plan](./development-plan.md) - Phase-by-phase implementation
@@ -991,9 +1150,12 @@ See [phases/phase_11.md](./phases/phase_11.md) for detailed TDD test specificati
 - [Phase 9 Plan](./phases/phase_9.md) - Castro Module Slimming
 - [Phase 10 Plan](./phases/phase_10.md) - Deep Integration
 - [Phase 11 Plan](./phases/phase_11.md) - Infrastructure Generalization
+- [Phase 12 Plan](./phases/phase_12_completion.md) - Core Repository Migration
+- [Phase 13 Plan](./phases/phase_13.md) - StateProvider Migration
+- [Phase 14 Plan](./phases/phase_14.md) - Verbose Logging, Audit Display, and CLI
 - [Castro Architecture Refactor](../castro-architecture-refactor.md) - Bug fixes
 - [Bootstrap Refactor](../bootstrap-refactor/refactor-conceptual-plan.md) - Completed
 
 ---
 
-*Document Version 1.3 - Added Phase 11 (Infrastructure Generalization)*
+*Document Version 1.4 - Added Phases 12, 13, 14 (Core Migration Complete)*
