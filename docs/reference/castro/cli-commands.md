@@ -80,7 +80,7 @@ flowchart LR
 | `--seed` | `-s` | 42 | Master seed for determinism |
 | `--verbose` | `-v` | False | Enable all verbose output |
 | `--verbose-policy` | | False | Show policy parameter changes |
-| `--verbose-bootstrap` | | False | Show per-seed bootstrap results |
+| `--verbose-bootstrap` | | False | Show per-sample bootstrap results |
 | `--verbose-llm` | | False | Show LLM call metadata |
 | `--verbose-rejections` | | False | Show rejection analysis |
 | `--debug` | `-d` | False | Show debug output (validation errors, LLM retries) |

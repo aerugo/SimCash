@@ -11,7 +11,7 @@ This module replicates the experiments from "Estimating Policy Functions in Paym
 - LLM-based policy generation via **PydanticAI** (unified multi-provider support)
 - Support for Anthropic Claude, OpenAI GPT, and Google Gemini
 - Provider-specific reasoning features (thinking tokens, reasoning effort)
-- Monte Carlo policy evaluation
+- Bootstrap policy evaluation
 - Deterministic execution via seeded RNG
 - Full persistence to DuckDB
 
@@ -79,11 +79,12 @@ experiments/castro/
 ├── castro/
 │   ├── __init__.py              # Public API
 │   ├── audit_display.py         # Audit mode display functions
+│   ├── bootstrap_context.py     # EnrichedBootstrapContextBuilder for LLM context
 │   ├── constraints.py           # CASTRO_CONSTRAINTS
+│   ├── context_builder.py       # BootstrapContextBuilder (simulation context)
 │   ├── display.py               # Unified display functions (StateProvider pattern)
 │   ├── events.py                # Event model for replay identity
-│   ├── experiments.py           # Experiment definitions
-│   ├── model_config.py          # ModelConfig for PydanticAI settings
+│   ├── experiments.py           # Experiment definitions (YAML-driven)
 │   ├── persistence/
 │   │   ├── models.py            # Database models (ExperimentRunRecord)
 │   │   └── repository.py        # DuckDB persistence operations
@@ -97,19 +98,25 @@ experiments/castro/
 │   ├── exp1_2period.yaml        # 2-period scenario
 │   ├── exp2_12period.yaml       # 12-period scenario
 │   └── exp3_joint.yaml          # Joint optimization scenario
+├── experiments/
+│   ├── exp1.yaml                # 2-Period Deterministic Nash Equilibrium
+│   ├── exp2.yaml                # 12-Period Stochastic LVTS-Style
+│   └── exp3.yaml                # Joint Liquidity & Timing Optimization
 ├── tests/
 │   ├── test_audit_display.py    # Audit display tests
+│   ├── test_bootstrap_context.py # Bootstrap context builder tests
 │   ├── test_cli_audit.py        # CLI audit flag tests
 │   ├── test_cli_commands.py     # CLI command tests
+│   ├── test_deterministic_mode.py # Deterministic mode tests
 │   ├── test_display.py          # Display function tests
 │   ├── test_events.py           # Event model tests
 │   ├── test_event_persistence.py # Event persistence tests
 │   ├── test_experiments.py      # Experiment unit tests
-│   ├── test_model_config.py     # Model configuration tests
 │   ├── test_pydantic_llm_client.py  # PydanticAI client tests
 │   ├── test_replay_audit_integration.py  # End-to-end audit tests
 │   ├── test_run_id.py           # Run ID generation tests
 │   ├── test_state_provider.py   # StateProvider tests
+│   ├── test_verbose_context_integration.py # Verbose context tests
 │   └── test_verbose_logging.py  # Verbose logging tests
 ├── cli.py                       # Typer CLI
 ├── pyproject.toml               # Package config
@@ -139,7 +146,7 @@ Verbose Output:
   -v, --verbose              Enable all verbose output
   -q, --quiet                Suppress verbose output
   --verbose-policy           Show policy parameter changes (before/after)
-  --verbose-monte-carlo      Show per-seed Monte Carlo results
+  --verbose-bootstrap        Show per-seed bootstrap results
   --verbose-llm              Show LLM call metadata (tokens, latency)
   --verbose-rejections       Show rejection analysis details
 
@@ -156,11 +163,11 @@ uv run castro run exp1 --verbose
 # Show only policy changes
 uv run castro run exp2 --verbose-policy
 
-# Show Monte Carlo details and LLM metadata
-uv run castro run exp2 --verbose-monte-carlo --verbose-llm
+# Show bootstrap details and LLM metadata
+uv run castro run exp2 --verbose-bootstrap --verbose-llm
 
-# Enable all verbose but suppress Monte Carlo details
-uv run castro run exp2 --verbose --no-verbose-monte-carlo
+# Enable all verbose but suppress bootstrap details
+uv run castro run exp2 --verbose --no-verbose-bootstrap
 ```
 
 The verbose flags provide granular control over experiment output:
@@ -168,7 +175,7 @@ The verbose flags provide granular control over experiment output:
 | Flag | Shows |
 |------|-------|
 | `--verbose-policy` | Before/after policy parameters with percentage deltas |
-| `--verbose-monte-carlo` | Per-seed results with best/worst seed identification |
+| `--verbose-bootstrap` | Per-seed results with best/worst seed identification |
 | `--verbose-llm` | Model name, token counts, latency, context summary |
 | `--verbose-rejections` | Validation errors, rejection reasons, retry counts |
 
@@ -221,7 +228,7 @@ Options:
   -d, --db PATH                Database path [default: results/castro.db]
   -v, --verbose                Enable all verbose output
   --verbose-iterations         Show iteration starts
-  --verbose-monte-carlo        Show Monte Carlo evaluations
+  --verbose-bootstrap          Show bootstrap evaluations
   --verbose-llm                Show LLM call details
   --verbose-policy             Show policy changes
 
