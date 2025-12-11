@@ -21,8 +21,10 @@ from payment_simulator.ai_cash_mgmt import (
     OutputConfig,
     SampleMethod,
 )
+from payment_simulator.llm import LLMConfig
 
-from castro.model_config import ModelConfig
+# Backward compatibility alias
+ModelConfig = LLMConfig
 
 # Default model for experiments
 DEFAULT_MODEL = "anthropic:claude-sonnet-4-5"
@@ -141,13 +143,13 @@ class CastroExperiment:
             max_iterations=self.max_iterations,
         )
 
-    def get_model_config(self) -> ModelConfig:
+    def get_model_config(self) -> LLMConfig:
         """Get unified model configuration for this experiment.
 
         Returns:
-            ModelConfig instance with all LLM settings.
+            LLMConfig instance with all LLM settings.
         """
-        return ModelConfig(
+        return LLMConfig(
             model=self.model,
             temperature=self.temperature,
             thinking_budget=self.thinking_budget,
