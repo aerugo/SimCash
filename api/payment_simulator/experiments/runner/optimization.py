@@ -17,6 +17,7 @@ import yaml
 if TYPE_CHECKING:
     from payment_simulator.ai_cash_mgmt.constraints import ScenarioConstraints
     from payment_simulator.experiments.config import ExperimentConfig
+    from payment_simulator.experiments.persistence import ExperimentRepository
 
 from payment_simulator._core import Orchestrator
 from payment_simulator.ai_cash_mgmt import ConvergenceDetector
@@ -114,6 +115,7 @@ class OptimizationLoop:
         config: ExperimentConfig,
         config_dir: Path | None = None,
         run_id: str | None = None,
+        repository: ExperimentRepository | None = None,
     ) -> None:
         """Initialize the optimization loop.
 
@@ -122,10 +124,12 @@ class OptimizationLoop:
             config_dir: Directory containing the experiment config (for resolving
                         relative scenario paths). If None, uses current directory.
             run_id: Optional run ID. If not provided, one is generated.
+            repository: Optional ExperimentRepository for persistence.
         """
         self._config = config
         self._config_dir = config_dir or Path.cwd()
         self._run_id = run_id or _generate_run_id(config.name)
+        self._repository: ExperimentRepository | None = repository
 
         # Get convergence settings
         conv = config.convergence
@@ -145,6 +149,9 @@ class OptimizationLoop:
         self._best_cost: int = 0
         self._best_policies: dict[str, dict[str, Any]] = {}
         self._iteration_history: list[int] = []
+
+        # Track accepted changes per iteration
+        self._accepted_changes: dict[str, bool] = {}
 
         # Load scenario config once
         self._scenario_dict: dict[str, Any] | None = None
@@ -236,10 +243,13 @@ class OptimizationLoop:
         while self._current_iteration < self.max_iterations:
             self._current_iteration += 1
 
-            # Evaluate current policies (to be implemented by subclass)
+            # Reset accepted changes for this iteration
+            self._accepted_changes = {agent_id: False for agent_id in self.optimized_agents}
+
+            # Evaluate current policies
             total_cost, per_agent_costs = await self._evaluate_policies()
 
-            # Record iteration start event
+            # Record iteration start event via state provider
             self._state_provider.record_event(
                 iteration=self._current_iteration - 1,  # 0-indexed
                 event_type="iteration_start",
@@ -257,6 +267,9 @@ class OptimizationLoop:
                 policies=self._policies.copy(),
             )
 
+            # Save evaluation event to repository persistence
+            self._save_evaluation_event(total_cost, per_agent_costs)
+
             # Record metrics
             self._convergence.record_metric(float(total_cost))
             self._iteration_history.append(total_cost)
@@ -268,11 +281,14 @@ class OptimizationLoop:
                     k: v.copy() for k, v in self._policies.items()
                 }
 
+            # Save iteration record to repository persistence
+            self._save_iteration_record(per_agent_costs)
+
             # Check convergence
             if self._convergence.is_converged:
                 break
 
-            # Optimize each agent (to be implemented by subclass)
+            # Optimize each agent
             for agent_id in self.optimized_agents:
                 await self._optimize_agent(agent_id, per_agent_costs.get(agent_id, 0))
 
@@ -312,6 +328,53 @@ class OptimizationLoop:
             final_policies=self._policies.copy(),
             iteration_history=self._iteration_history.copy(),
         )
+
+    def _save_iteration_record(self, per_agent_costs: dict[str, int]) -> None:
+        """Save iteration record to repository.
+
+        Args:
+            per_agent_costs: Costs per agent in integer cents.
+        """
+        if self._repository is None:
+            return
+
+        from payment_simulator.experiments.persistence import IterationRecord
+
+        record = IterationRecord(
+            run_id=self._run_id,
+            iteration=self._current_iteration - 1,  # 0-indexed in storage
+            costs_per_agent=per_agent_costs,
+            accepted_changes=self._accepted_changes.copy(),
+            policies={k: v.copy() for k, v in self._policies.items()},
+            timestamp=datetime.now().isoformat(),
+        )
+        self._repository.save_iteration(record)
+
+    def _save_evaluation_event(
+        self, total_cost: int, per_agent_costs: dict[str, int]
+    ) -> None:
+        """Save evaluation event to repository.
+
+        Args:
+            total_cost: Total cost in integer cents.
+            per_agent_costs: Costs per agent in integer cents.
+        """
+        if self._repository is None:
+            return
+
+        from payment_simulator.experiments.persistence import EventRecord
+
+        event = EventRecord(
+            run_id=self._run_id,
+            iteration=self._current_iteration - 1,  # 0-indexed
+            event_type="evaluation",
+            event_data={
+                "total_cost": total_cost,
+                "per_agent_costs": per_agent_costs,
+            },
+            timestamp=datetime.now().isoformat(),
+        )
+        self._repository.save_event(event)
 
     def _load_scenario_config(self) -> dict[str, Any]:
         """Load scenario configuration from YAML file.
@@ -587,6 +650,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
 
             if should_accept:
                 self._policies[agent_id] = new_policy
+                self._accepted_changes[agent_id] = True
 
         except Exception:
             # Keep current policy on error
