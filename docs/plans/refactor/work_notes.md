@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** IN PROGRESS (Phase 9 Planned)
+**Status:** IN PROGRESS (Phase 9 & 10 Planned)
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -899,6 +899,93 @@ Detailed implementation plan in phases/phase_9.md.
 
 ---
 
+### Phase 10: Deep Integration - Core Module Consolidation
+
+**Status:** PLANNED (2025-12-11)
+
+**Purpose:** Move remaining Castro components to core SimCash modules where they can be reused by other experiments.
+
+**Dependencies:** Phase 9 must be completed first.
+
+**Tasks Planned:**
+
+| Task | Risk | TDD Test File |
+|------|------|---------------|
+| 10.1: Move EnrichedBootstrapContextBuilder to core | Low | `test_context_builder_core.py` |
+| 10.2: Extend PydanticAILLMClient with custom prompt | Medium | `test_pydantic_client_custom_prompt.py` |
+| 10.3: Move run_id.py to core | Very Low | `test_run_id_core.py` |
+| 10.4: Generalize StateProvider to core | High | DEFERRED |
+| 10.5: Unify Persistence | High | DEFERRED |
+
+**TDD Checklist - Task 10.1: EnrichedBootstrapContextBuilder**
+- [ ] Write `api/tests/ai_cash_mgmt/bootstrap/test_context_builder_core.py`
+- [ ] Test: Import from `payment_simulator.ai_cash_mgmt.bootstrap`
+- [ ] Test: Import from `payment_simulator.ai_cash_mgmt.bootstrap.context_builder`
+- [ ] Test: `get_best_result()` returns lowest cost
+- [ ] Test: `get_worst_result()` returns highest cost
+- [ ] Test: `format_event_trace_for_llm()` limits events
+- [ ] Test: `build_agent_context()` returns AgentSimulationContext
+- [ ] Test: All costs are integer cents (INV-1)
+- [ ] Test: Castro backward compatibility import
+- [ ] Run tests → FAIL
+- [ ] Copy to `api/payment_simulator/ai_cash_mgmt/bootstrap/context_builder.py`
+- [ ] Update `__init__.py` exports
+- [ ] Update Castro to re-export
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 10.2: PydanticAILLMClient Custom Prompt**
+- [ ] Write `api/tests/llm/test_pydantic_client_custom_prompt.py`
+- [ ] Test: `__init__` accepts `default_system_prompt`
+- [ ] Test: `generate_structured_output` accepts `system_prompt` parameter
+- [ ] Test: Custom prompt used in underlying Agent call
+- [ ] Test: Default prompt used when `system_prompt=None`
+- [ ] Test: Castro policy prompt works with core client
+- [ ] Run tests → FAIL
+- [ ] Add `default_system_prompt` to `pydantic_client.py`
+- [ ] Update Castro to use core client with custom prompt
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 10.3: run_id.py**
+- [ ] Write `api/tests/experiments/test_run_id_core.py`
+- [ ] Test: Import from `payment_simulator.experiments`
+- [ ] Test: Import from `payment_simulator.experiments.run_id`
+- [ ] Test: Returns string
+- [ ] Test: Unique IDs
+- [ ] Test: Valid format (alphanumeric)
+- [ ] Test: Castro backward compatibility import
+- [ ] Run tests → FAIL
+- [ ] Move to `api/payment_simulator/experiments/run_id.py`
+- [ ] Update exports
+- [ ] Update Castro to re-export
+- [ ] Run tests → PASS
+
+**Verification Checklist:**
+- [ ] All API tests pass: `cd api && .venv/bin/python -m pytest`
+- [ ] All Castro tests pass: `cd experiments/castro && uv run pytest tests/`
+- [ ] Type checking: `mypy payment_simulator/`
+- [ ] Castro CLI: `uv run castro run exp1 --max-iter 1 --dry-run`
+
+**Expected Outcomes:**
+- ~275 lines net reduction in Castro
+- 22 new tests added
+- Core modules gain reusable infrastructure
+
+**Notes:**
+```
+2025-12-11: PHASE 10 PLANNING COMPLETE
+
+DEFERRED TASKS:
+- 10.4: StateProvider generalization - High complexity, protocol design required
+- 10.5: Persistence unification - Database schema migration risk
+
+These tasks are documented in phases/phase_10.md but marked as DEFERRED
+due to their high risk and complexity. Can be revisited in future phases.
+
+Total Castro reduction after Phase 9+10: ~725 lines
+```
+
+---
+
 ## General Notes
 
 ### Decisions Made
@@ -1081,4 +1168,4 @@ cd api && .venv/bin/python -m pytest
 
 ---
 
-*Last updated: 2025-12-10*
+*Last updated: 2025-12-11*

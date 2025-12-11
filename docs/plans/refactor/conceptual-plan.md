@@ -861,14 +861,86 @@ Lines of code reduction target: ~400 lines (removing experiments.py, context_bui
 
 ---
 
+## Phase 10: Deep Integration - Core Module Consolidation
+
+Following Phase 9's slimming of Castro, Phase 10 moves remaining reusable components to core SimCash modules. This enables other experiments to leverage the same infrastructure.
+
+### Components to Move to Core
+
+| Component | Current Location | Target Location | Impact |
+|-----------|------------------|-----------------|--------|
+| `EnrichedBootstrapContextBuilder` | `castro/bootstrap_context.py` | `ai_cash_mgmt/bootstrap/context_builder.py` | ~200 lines |
+| `generate_run_id()` | `castro/run_id.py` | `experiments/run_id.py` | ~30 lines |
+| Custom prompt support | `castro/pydantic_llm_client.py` | Extend core `llm/pydantic_client.py` | ~150 lines reduced |
+
+### Components DEFERRED (High Risk)
+
+| Component | Reason for Deferral |
+|-----------|---------------------|
+| `StateProvider` | High complexity, protocol design required |
+| Persistence unification | Database schema migration risk |
+
+### Migration Strategy
+
+1. **Task 10.1: EnrichedBootstrapContextBuilder** (Low Risk)
+   - Copy to `api/payment_simulator/ai_cash_mgmt/bootstrap/context_builder.py`
+   - Castro re-exports from core for backward compatibility
+   - TDD tests verify functionality preserved
+
+2. **Task 10.2: PydanticAILLMClient Extension** (Medium Risk)
+   - Add `default_system_prompt` parameter to core client
+   - Castro uses core client with policy-specific prompt
+   - Reduces ~100 lines of duplicate code
+
+3. **Task 10.3: run_id.py** (Very Low Risk)
+   - Move to `api/payment_simulator/experiments/run_id.py`
+   - Castro re-exports from core
+   - Simple, zero-risk migration
+
+### Expected Castro State After Phase 10
+
+```
+experiments/castro/castro/
+├── __init__.py                  # Public API
+├── audit_display.py             # Castro-specific audit display
+├── bootstrap_context.py         # Re-exports EnrichedBootstrapContextBuilder from core
+├── constraints.py               # CASTRO_CONSTRAINTS (experiment-specific)
+├── display.py                   # Castro-specific display formatting
+├── events.py                    # Event model
+├── persistence/                 # Castro persistence layer
+├── pydantic_llm_client.py       # Thin wrapper using core client + policy prompt
+├── run_id.py                    # Re-exports generate_run_id from core
+├── runner.py                    # Castro runner
+├── state_provider.py            # StateProvider pattern
+├── verbose_capture.py           # Simulation capture
+└── verbose_logging.py           # VerboseConfig
+```
+
+**Net reduction**: ~275 additional lines removed from Castro
+**Total reduction after Phase 9+10**: ~725 lines
+
+### TDD Test Coverage
+
+| Test File | Tests |
+|-----------|-------|
+| `test_context_builder_core.py` | 8 tests for core context builder |
+| `test_run_id_core.py` | 8 tests for core run ID |
+| `test_pydantic_client_custom_prompt.py` | 6 tests for custom prompt support |
+| **Total** | **22 new tests** |
+
+See [phases/phase_10.md](./phases/phase_10.md) for detailed TDD test specifications.
+
+---
+
 ## Related Documents
 
 - [Development Plan](./development-plan.md) - Phase-by-phase implementation
 - [Work Notes](./work_notes.md) - Progress tracking
-- [Phase 9 Plan](./phases/phase-9-castro-slimming.md) - Detailed implementation plan
+- [Phase 9 Plan](./phases/phase_9.md) - Castro Module Slimming
+- [Phase 10 Plan](./phases/phase_10.md) - Deep Integration
 - [Castro Architecture Refactor](../castro-architecture-refactor.md) - Bug fixes
 - [Bootstrap Refactor](../bootstrap-refactor/refactor-conceptual-plan.md) - Completed
 
 ---
 
-*Document Version 1.1 - Added Phase 9 (Castro Module Slimming)*
+*Document Version 1.2 - Added Phase 10 (Deep Integration)*
