@@ -63,6 +63,17 @@ from payment_simulator.experiments.runner.display import (
 from payment_simulator.experiments.runner.audit import (
     display_audit_output,
 )
+from payment_simulator.experiments.runner.llm_client import (
+    ExperimentLLMClient,
+    LLMInteraction,
+)
+from payment_simulator.experiments.runner.optimization import (
+    OptimizationLoop,
+    OptimizationResult,
+)
+from payment_simulator.experiments.runner.experiment_runner import (
+    GenericExperimentRunner,
+)
 
 __all__ = [
     # Output handling
@@ -87,4 +98,12 @@ __all__ = [
     # Display functions (Phase 14)
     "display_experiment_output",
     "display_audit_output",
+    # LLM client (Phase 16)
+    "ExperimentLLMClient",
+    "LLMInteraction",
+    # Optimization loop (Phase 16)
+    "OptimizationLoop",
+    "OptimizationResult",
+    # Generic experiment runner (Phase 16)
+    "GenericExperimentRunner",
 ]
