@@ -651,6 +651,38 @@ Phase 6.3: Update castro to import from payment_simulator.llm
 Phase 6.4: Rename MonteCarloContextBuilder → BootstrapContextBuilder
 Phase 6.5: Delete deprecated castro files (model_config.py only initially)
 Phase 6.6: Verification testing
+
+2025-12-11: PHASE 6 COMPLETED
+
+PHASE 6.2 - COMPLETED:
+- Added max_tokens field (default 30000) to LLMConfig
+- Added thinking_config field for Google Gemini support
+- Added full_model_string property (maps google → google-gla)
+- Added to_model_settings() method for PydanticAI compatibility
+- All 44 LLM tests pass
+
+PHASE 6.3 - COMPLETED:
+- Updated castro/experiments.py to import LLMConfig from payment_simulator.llm
+- Updated castro/pydantic_llm_client.py to import LLMConfig from payment_simulator.llm
+- Added ModelConfig backward compatibility aliases in both files
+- Restored MonteCarloConfig backward compat alias in game_config.py
+
+PHASE 6.4 - COMPLETED:
+- Renamed MonteCarloContextBuilder → BootstrapContextBuilder
+- Updated runner.py to use BootstrapContextBuilder
+- Updated all test files with bootstrap terminology
+- Added backward compatibility aliases:
+  - MonteCarloContextBuilder = BootstrapContextBuilder
+  - MonteCarloSeedResult = BootstrapSampleResult
+
+PHASE 6.5 - COMPLETED:
+- Deleted experiments/castro/castro/model_config.py
+- Deleted experiments/castro/tests/test_model_config.py
+- Updated test_pydantic_llm_client.py to import ModelConfig from pydantic_llm_client
+
+PHASE 6.6 - IN PROGRESS:
+- 93 core castro tests pass
+- Need to fix remaining test files that have pydantic_ai dependency issues
 ```
 
 ---

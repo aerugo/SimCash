@@ -15,8 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from castro.model_config import ModelConfig
-from castro.pydantic_llm_client import SYSTEM_PROMPT
+from castro.pydantic_llm_client import SYSTEM_PROMPT, ModelConfig
 
 
 @pytest.fixture
