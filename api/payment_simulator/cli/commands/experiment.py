@@ -318,17 +318,50 @@ def _run_experiment_async(
     seed: int | None = None,
     verbose: bool = False,
 ) -> None:
-    """Run experiment asynchronously.
-
-    This is a placeholder for the actual experiment execution.
-    Phase 6 will wire this up to the actual runner.
+    """Run experiment asynchronously using GenericExperimentRunner.
 
     Args:
         config: Experiment configuration.
         seed: Optional seed override.
         verbose: Enable verbose output.
     """
-    # TODO: Phase 6 will implement actual experiment execution
-    # For now, just show a message
-    _echo("\n[Not implemented] Experiment execution requires Phase 6 (Castro Migration)")
-    _echo("Use 'castro run' for now to run experiments.")
+    import asyncio
+
+    from payment_simulator.experiments.runner import GenericExperimentRunner
+    from payment_simulator.experiments.runner.verbose import VerboseConfig
+
+    # Apply seed override if provided
+    if seed is not None:
+        config = config.with_seed(seed)
+
+    # Build verbose config
+    verbose_config = VerboseConfig(
+        iterations=verbose,
+        bootstrap=verbose,
+        llm=verbose,
+        policy=verbose,
+        rejections=verbose,
+    )
+
+    # Create and run the experiment
+    runner = GenericExperimentRunner(
+        config=config,
+        verbose_config=verbose_config,
+    )
+
+    try:
+        result = asyncio.run(runner.run())
+
+        _echo(f"\nExperiment completed!")
+        _echo(f"  Iterations: {result.num_iterations}")
+        _echo(f"  Converged: {result.converged}")
+        if result.convergence_reason:
+            _echo(f"  Reason: {result.convergence_reason}")
+
+        if result.final_costs:
+            _echo("  Final costs:")
+            for agent_id, cost in result.final_costs.items():
+                _echo(f"    {agent_id}: ${cost / 100:.2f}")
+    except Exception as e:
+        _echo_error(f"Experiment failed: {e}")
+        raise typer.Exit(1) from None
