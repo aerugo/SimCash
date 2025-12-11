@@ -15,12 +15,10 @@ __all__ = [
     "list_experiments",
     "load_experiment",
     "get_llm_config",
-    # Legacy exports (deprecated - use experiment_loader instead)
-    "EXPERIMENTS",
+    # Configuration classes
     "CastroExperiment",
-    "create_exp1",
-    "create_exp2",
-    "create_exp3",
+    "YamlExperimentConfig",
+    "ExperimentConfigProtocol",
 ]
 
 
@@ -34,10 +32,14 @@ def __getattr__(name: str) -> object:
         from castro import experiment_loader
 
         return getattr(experiment_loader, name)
-    if name in ("EXPERIMENTS", "CastroExperiment", "create_exp1", "create_exp2", "create_exp3"):
-        from castro import experiments
+    if name in (
+        "CastroExperiment",
+        "YamlExperimentConfig",
+        "ExperimentConfigProtocol",
+    ):
+        from castro import experiment_config
 
-        return getattr(experiments, name)
+        return getattr(experiment_config, name)
     if name in ("ExperimentResult", "ExperimentRunner"):
         from castro import runner
 
