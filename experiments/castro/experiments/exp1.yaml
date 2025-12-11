@@ -12,8 +12,8 @@
 name: exp1
 description: "2-Period Deterministic Nash Equilibrium"
 
-# Scenario configuration
-scenario: configs/exp1_2period.yaml
+# Scenario configuration (relative to this file's directory)
+scenario: ../configs/exp1_2period.yaml
 
 # Evaluation settings
 evaluation:

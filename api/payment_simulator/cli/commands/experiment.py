@@ -308,12 +308,15 @@ def run_experiment(
         _echo("\n[Dry run] Configuration is valid. Skipping execution.")
         return
 
+    _echo("\nStarting experiment...")
+
     # Run the experiment (async wrapper)
-    _run_experiment_async(config, seed=seed, verbose=verbose)
+    _run_experiment_async(config, config_path.parent, seed=seed, verbose=verbose)
 
 
 def _run_experiment_async(
     config: ExperimentConfig,
+    config_dir: Path,
     *,
     seed: int | None = None,
     verbose: bool = False,
@@ -322,6 +325,7 @@ def _run_experiment_async(
 
     Args:
         config: Experiment configuration.
+        config_dir: Directory containing the experiment config file.
         seed: Optional seed override.
         verbose: Enable verbose output.
     """
@@ -347,6 +351,7 @@ def _run_experiment_async(
     runner = GenericExperimentRunner(
         config=config,
         verbose_config=verbose_config,
+        config_dir=config_dir,
     )
 
     try:
@@ -357,6 +362,7 @@ def _run_experiment_async(
         _echo(f"  Converged: {result.converged}")
         if result.convergence_reason:
             _echo(f"  Reason: {result.convergence_reason}")
+        _echo(f"  Duration: {result.total_duration_seconds:.2f}s")
 
         if result.final_costs:
             _echo("  Final costs:")
