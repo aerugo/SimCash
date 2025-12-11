@@ -11,13 +11,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from payment_simulator.ai_cash_mgmt.constraints import ScenarioConstraints
     from payment_simulator.experiments.config import ExperimentConfig
     from payment_simulator.experiments.persistence import ExperimentRepository
-    from payment_simulator.ai_cash_mgmt.constraints import ScenarioConstraints
 
 from payment_simulator.experiments.runner.result import (
     ExperimentResult,
     ExperimentState,
+)
+from payment_simulator.experiments.runner.state_provider import (
+    ExperimentStateProviderProtocol,
 )
 from payment_simulator.experiments.runner.verbose import VerboseConfig
 
@@ -104,6 +107,9 @@ class GenericExperimentRunner:
         self._state = ExperimentState(experiment_name=config.name)
         self._current_iteration = 0
         self._policies: dict[str, dict[str, Any]] = {}
+
+        # Store reference to optimization loop for state_provider access
+        self._loop: Any = None
 
         # Initialize repository if output configured
         self._repository: ExperimentRepository | None = None
@@ -225,6 +231,21 @@ class GenericExperimentRunner:
         """Get the policy constraints from config."""
         return self._constraints
 
+    @property
+    def state_provider(self) -> ExperimentStateProviderProtocol | None:
+        """Get the state provider from the optimization loop.
+
+        Returns the LiveStateProvider used during experiment execution.
+        Available after run() has been called.
+
+        Returns:
+            ExperimentStateProviderProtocol or None if not yet run.
+        """
+        if self._loop is not None:
+            provider: ExperimentStateProviderProtocol = self._loop._state_provider
+            return provider
+        return None
+
     async def run(self) -> ExperimentResult:
         """Run experiment to completion.
 
@@ -250,16 +271,16 @@ class GenericExperimentRunner:
         self._save_experiment_start()
 
         # Create optimization loop with config directory for relative path resolution
-        # Pass repository for iteration/event persistence
-        loop = OptimizationLoop(
+        # Pass run_id to ensure consistency and repository for persistence
+        self._loop = OptimizationLoop(
             config=self._config,
             config_dir=self._config_dir,
+            run_id=self._run_id,
             repository=self._repository,
-            experiment_id=self._run_id,
         )
 
         # Run optimization
-        opt_result = await loop.run()
+        opt_result = await self._loop.run()
 
         duration = time.time() - start_time
 
