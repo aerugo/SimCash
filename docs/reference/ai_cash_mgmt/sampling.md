@@ -1,15 +1,15 @@
 # Sampling Components
 
-> TransactionSampler, SeedManager, and Monte Carlo Methods
+> TransactionSampler, SeedManager, and Bootstrap Sampling Methods
 
 **Version**: 0.1.0
-**Last Updated**: 2025-12-09
+**Last Updated**: 2025-12-11
 
 ---
 
 ## Overview
 
-The sampling layer provides deterministic Monte Carlo sampling of historical transactions:
+The sampling layer provides deterministic bootstrap sampling of historical transactions:
 
 ```mermaid
 flowchart TB
@@ -27,7 +27,7 @@ flowchart TB
 
 ## TransactionSampler
 
-Resamples historical transactions for Monte Carlo evaluation.
+Resamples historical transactions for bootstrap evaluation.
 
 ### Synopsis
 
@@ -103,7 +103,7 @@ sampler.collect_transactions(transactions)
 
 #### `create_samples`
 
-Generate Monte Carlo samples.
+Generate bootstrap samples.
 
 ```python
 def create_samples(
@@ -113,7 +113,7 @@ def create_samples(
     max_tick: int | None = None,
     method: str = "bootstrap",
 ) -> list[list[HistoricalTransaction]]:
-    """Create Monte Carlo samples.
+    """Create bootstrap samples.
 
     Args:
         agent_id: Filter to transactions involving this agent.
@@ -155,7 +155,7 @@ def derive_subseed(
 
 ### Bootstrap Sampling
 
-Sample **with replacement**. Standard Monte Carlo method.
+Sample **with replacement**. Standard bootstrap resampling method.
 
 ```mermaid
 flowchart LR
@@ -388,7 +388,7 @@ def simulation_seed(self, iteration: int) -> int:
 
 #### `sampling_seed`
 
-Get seed for Monte Carlo sampling.
+Get seed for bootstrap sampling.
 
 ```python
 def sampling_seed(self, iteration: int, agent_id: str) -> int:

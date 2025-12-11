@@ -3,7 +3,7 @@
 > AI Cash Management CLI commands for LLM-based policy optimization
 
 **Version**: 0.1.0
-**Last Updated**: 2025-12-09
+**Last Updated**: 2025-12-11
 
 ---
 
@@ -103,7 +103,7 @@ payment-sim ai-game info
 #     Inter-simulation optimization between complete runs
 #
 # Key Features:
-#   • Monte Carlo evaluation of policies
+#   • Bootstrap evaluation of policies
 #   • Per-agent LLM configuration (different banks, different models)
 #   • Deterministic execution (same seed = same results)
 #   • Convergence detection with configurable thresholds
@@ -170,7 +170,7 @@ optimization_schedule:
   type: every_x_ticks  # or on_simulation_end
   interval_ticks: 50
 
-monte_carlo:
+bootstrap:
   num_samples: 20
   sample_method: bootstrap
   evaluation_ticks: 100
@@ -207,7 +207,7 @@ payment-sim ai-game schema <schema-type>
 |------|-------------|
 | `game-config` | Full GameConfig schema |
 | `llm-config` | LLMConfig schema |
-| `monte-carlo` | MonteCarloConfig schema |
+| `bootstrap` | BootstrapConfig schema |
 | `convergence` | ConvergenceCriteria schema |
 
 ### Examples
@@ -220,7 +220,7 @@ payment-sim ai-game schema game-config
 payment-sim ai-game schema llm-config > llm-config.schema.json
 
 # Pipe to jq for pretty printing
-payment-sim ai-game schema monte-carlo | jq .
+payment-sim ai-game schema bootstrap | jq .
 ```
 
 ### Use Cases
@@ -258,7 +258,7 @@ optimization_schedule:
   type: after_eod
   min_remaining_days: 2
 
-monte_carlo:
+bootstrap:
   num_samples: 30
   sample_method: bootstrap
   evaluation_ticks: 200

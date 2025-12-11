@@ -1,7 +1,7 @@
 # Castro Events Model
 
 **Version**: 1.0
-**Last Updated**: 2025-12-09
+**Last Updated**: 2025-12-11
 
 ---
 
@@ -208,7 +208,7 @@ create_experiment_start_event(
 | `description` | str | Human-readable description |
 | `model` | str | LLM model in provider:model format |
 | `max_iterations` | int | Maximum optimization iterations |
-| `num_samples` | int | Monte Carlo sample count |
+| `num_samples` | int | Bootstrap sample count |
 
 ---
 
@@ -231,9 +231,9 @@ create_iteration_start_event(
 
 ---
 
-### monte_carlo_evaluation
+### bootstrap_evaluation
 
-Emitted after Monte Carlo sampling completes.
+Emitted after bootstrap sampling completes.
 
 ```python
 create_monte_carlo_event(

@@ -3,7 +3,7 @@
 > GameOrchestrator, GameSession, and GameMode
 
 **Version**: 0.1.0
-**Last Updated**: 2025-12-09
+**Last Updated**: 2025-12-11
 
 ---
 
@@ -143,7 +143,7 @@ def should_optimize_after_eod(self, remaining_days: int) -> bool:
 
 #### `get_sampling_seed`
 
-Get deterministic seed for Monte Carlo sampling.
+Get deterministic seed for bootstrap sampling.
 
 ```python
 def get_sampling_seed(self, iteration: int, agent_id: str) -> int:
@@ -387,7 +387,7 @@ def record_evaluation(
     Args:
         agent_id: Agent identifier.
         policy: Evaluated policy.
-        mean_cost: Mean cost across Monte Carlo samples.
+        mean_cost: Mean cost across bootstrap samples.
         iteration: Iteration number.
     """
 ```
