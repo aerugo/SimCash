@@ -75,6 +75,7 @@ def _create_mock_experiment_config(
     mock_config.master_seed = 42
     mock_config.name = "test_experiment"
     mock_config.scenario_path = Path("test_scenario.yaml")
+    mock_config.output = None  # No output/persistence config for tests
 
     return mock_config
 

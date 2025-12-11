@@ -607,3 +607,182 @@ class TestRunCommandVerboseFlags:
         runner = CliRunner()
         result = runner.invoke(experiment_app, ["run", "--help"])
         assert "--verbose-policy" in result.output
+
+
+class TestTemplateCommand:
+    """Tests for experiment template command (Phase 4 CLI Cleanup)."""
+
+    def test_template_command_exists(self) -> None:
+        """template command exists in experiment_app."""
+        from payment_simulator.experiments.cli import experiment_app
+
+        runner = CliRunner()
+        result = runner.invoke(experiment_app, ["template", "--help"])
+        assert result.exit_code == 0
+        assert "template" in result.output.lower() or "generate" in result.output.lower()
+
+    def test_template_generates_valid_yaml(self) -> None:
+        """template command generates valid experiment YAML."""
+        import yaml
+
+        from payment_simulator.experiments.cli import experiment_app
+
+        runner = CliRunner()
+        result = runner.invoke(experiment_app, ["template"])
+        assert result.exit_code == 0
+
+        # Parse the output as YAML
+        config = yaml.safe_load(result.output)
+
+        # Verify required fields
+        assert "name" in config
+        assert "evaluation" in config
+        assert "convergence" in config
+        assert "optimized_agents" in config
+
+    def test_template_has_required_fields(self) -> None:
+        """template output has all required fields for experiment config."""
+        import yaml
+
+        from payment_simulator.experiments.cli import experiment_app
+
+        runner = CliRunner()
+        result = runner.invoke(experiment_app, ["template"])
+        assert result.exit_code == 0
+
+        config = yaml.safe_load(result.output)
+
+        # Check all required fields for ExperimentConfig
+        assert "name" in config
+        assert "scenario" in config
+        assert "evaluation" in config
+        assert "mode" in config["evaluation"]
+        assert "ticks" in config["evaluation"]
+        assert "convergence" in config
+        assert "max_iterations" in config["convergence"]
+        assert "llm" in config
+        assert "model" in config["llm"]
+        assert "optimized_agents" in config
+        assert isinstance(config["optimized_agents"], list)
+
+    def test_template_can_write_to_file(self, tmp_path: Path) -> None:
+        """template command can write to output file."""
+        import yaml
+
+        from payment_simulator.experiments.cli import experiment_app
+
+        output_file = tmp_path / "template.yaml"
+        runner = CliRunner()
+        result = runner.invoke(experiment_app, ["template", "-o", str(output_file)])
+
+        assert result.exit_code == 0
+        assert output_file.exists()
+
+        # Verify file contents
+        with open(output_file) as f:
+            config = yaml.safe_load(f)
+        assert "name" in config
+
+    def test_template_output_option_long_form(self, tmp_path: Path) -> None:
+        """template command accepts --output option."""
+        import yaml
+
+        from payment_simulator.experiments.cli import experiment_app
+
+        output_file = tmp_path / "template.yaml"
+        runner = CliRunner()
+        result = runner.invoke(
+            experiment_app, ["template", "--output", str(output_file)]
+        )
+
+        assert result.exit_code == 0
+        assert output_file.exists()
+
+        with open(output_file) as f:
+            config = yaml.safe_load(f)
+        assert "name" in config
+
+    def test_template_shows_success_message_when_writing_file(
+        self, tmp_path: Path
+    ) -> None:
+        """template shows success message when writing to file."""
+        from payment_simulator.experiments.cli import experiment_app
+
+        output_file = tmp_path / "template.yaml"
+        runner = CliRunner()
+        result = runner.invoke(experiment_app, ["template", "-o", str(output_file)])
+
+        assert result.exit_code == 0
+        # Should show some confirmation message
+        assert "template" in result.output.lower() or str(output_file) in result.output
+
+
+class TestMainCLIIntegration:
+    """Tests for main CLI integration with experiment commands."""
+
+    def test_main_cli_has_experiment_subcommand(self) -> None:
+        """Main CLI has 'experiment' subcommand."""
+        from payment_simulator.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["experiment", "--help"])
+        assert result.exit_code == 0
+        assert "experiment" in result.output.lower()
+
+    def test_main_cli_experiment_run_accessible(self) -> None:
+        """Run command accessible via main CLI."""
+        from payment_simulator.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["experiment", "run", "--help"])
+        assert result.exit_code == 0
+        assert "run" in result.output.lower()
+
+    def test_main_cli_experiment_replay_accessible(self) -> None:
+        """Replay command accessible via main CLI."""
+        from payment_simulator.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["experiment", "replay", "--help"])
+        assert result.exit_code == 0
+        assert "replay" in result.output.lower()
+
+    def test_main_cli_experiment_results_accessible(self) -> None:
+        """Results command accessible via main CLI."""
+        from payment_simulator.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["experiment", "results", "--help"])
+        assert result.exit_code == 0
+
+    def test_main_cli_experiment_template_accessible(self) -> None:
+        """Template command accessible via main CLI."""
+        from payment_simulator.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["experiment", "template", "--help"])
+        assert result.exit_code == 0
+
+    def test_main_cli_experiment_validate_accessible(self) -> None:
+        """Validate command accessible via main CLI."""
+        from payment_simulator.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["experiment", "validate", "--help"])
+        assert result.exit_code == 0
+
+    def test_main_cli_experiment_list_accessible(self) -> None:
+        """List command accessible via main CLI."""
+        from payment_simulator.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["experiment", "list", "--help"])
+        assert result.exit_code == 0
+
+    def test_main_cli_experiment_info_accessible(self) -> None:
+        """Info command accessible via main CLI."""
+        from payment_simulator.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["experiment", "info", "--help"])
+        assert result.exit_code == 0

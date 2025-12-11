@@ -134,7 +134,7 @@ class ExperimentConfig:
     llm: LLMConfig
     optimized_agents: tuple[str, ...]
     constraints_module: str
-    output: OutputConfig
+    output: OutputConfig | None
     master_seed: int = 42
     policy_constraints: ScenarioConstraints | None = None
 
@@ -225,13 +225,15 @@ class ExperimentConfig:
             system_prompt=system_prompt,
         )
 
-        # Parse output config
-        out_data = data.get("output", {})
-        output = OutputConfig(
-            directory=Path(out_data.get("directory", "results")),
-            database=out_data.get("database", "experiments.db"),
-            verbose=out_data.get("verbose", True),
-        )
+        # Parse output config (only if explicitly specified)
+        output: OutputConfig | None = None
+        if "output" in data:
+            out_data = data["output"]
+            output = OutputConfig(
+                directory=Path(out_data.get("directory", "results")),
+                database=out_data.get("database", "experiments.db"),
+                verbose=out_data.get("verbose", True),
+            )
 
         # Parse inline policy_constraints if present
         policy_constraints: ScenarioConstraints | None = None
