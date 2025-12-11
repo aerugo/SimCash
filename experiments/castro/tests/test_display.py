@@ -282,10 +282,10 @@ class TestVerboseConfig:
 
         config = VerboseConfig()
 
-        assert config.show_iterations is False
-        assert config.show_bootstrap is False
-        assert config.show_llm_calls is False
-        assert config.show_policy_changes is False
+        assert config.iterations is False
+        assert config.bootstrap is False
+        assert config.llm is False
+        assert config.policy is False
 
     def test_verbose_config_all_enabled(self) -> None:
         """VerboseConfig with all enabled."""
@@ -293,10 +293,10 @@ class TestVerboseConfig:
 
         config = VerboseConfig.all_enabled()
 
-        assert config.show_iterations is True
-        assert config.show_bootstrap is True
-        assert config.show_llm_calls is True
-        assert config.show_policy_changes is True
+        assert config.iterations is True
+        assert config.bootstrap is True
+        assert config.llm is True
+        assert config.policy is True
 
     def test_verbose_config_from_flags(self) -> None:
         """VerboseConfig.from_flags creates config from CLI flags."""
@@ -304,13 +304,13 @@ class TestVerboseConfig:
 
         # --verbose enables all
         config = VerboseConfig.from_flags(verbose=True)
-        assert config.show_iterations is True
-        assert config.show_bootstrap is True
+        assert config.iterations is True
+        assert config.bootstrap is True
 
         # Individual flags
         config = VerboseConfig.from_flags(
             verbose=False,
             verbose_bootstrap=True,
         )
-        assert config.show_bootstrap is True
-        assert config.show_iterations is False
+        assert config.bootstrap is True
+        assert config.iterations is False

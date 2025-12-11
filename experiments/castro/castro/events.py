@@ -16,7 +16,7 @@ from typing import Any
 
 EVENT_EXPERIMENT_START = "experiment_start"
 EVENT_ITERATION_START = "iteration_start"
-EVENT_MONTE_CARLO_EVALUATION = "monte_carlo_evaluation"
+EVENT_BOOTSTRAP_EVALUATION = "bootstrap_evaluation"
 EVENT_LLM_CALL = "llm_call"
 EVENT_LLM_INTERACTION = "llm_interaction"  # Full audit data for replay
 EVENT_POLICY_CHANGE = "policy_change"
@@ -26,7 +26,7 @@ EVENT_EXPERIMENT_END = "experiment_end"
 ALL_EVENT_TYPES: list[str] = [
     EVENT_EXPERIMENT_START,
     EVENT_ITERATION_START,
-    EVENT_MONTE_CARLO_EVALUATION,
+    EVENT_BOOTSTRAP_EVALUATION,
     EVENT_LLM_CALL,
     EVENT_LLM_INTERACTION,
     EVENT_POLICY_CHANGE,
@@ -165,14 +165,14 @@ def create_iteration_start_event(
     )
 
 
-def create_monte_carlo_event(
+def create_bootstrap_evaluation_event(
     run_id: str,
     iteration: int,
     seed_results: list[dict[str, Any]],
     mean_cost: int,
     std_cost: int,
 ) -> ExperimentEvent:
-    """Create a Monte Carlo evaluation event.
+    """Create a bootstrap evaluation event.
 
     Args:
         run_id: Unique run identifier
@@ -183,10 +183,10 @@ def create_monte_carlo_event(
         std_cost: Standard deviation of costs (cents)
 
     Returns:
-        ExperimentEvent for Monte Carlo evaluation
+        ExperimentEvent for bootstrap evaluation
     """
     return ExperimentEvent(
-        event_type=EVENT_MONTE_CARLO_EVALUATION,
+        event_type=EVENT_BOOTSTRAP_EVALUATION,
         run_id=run_id,
         iteration=iteration,
         timestamp=datetime.now(),

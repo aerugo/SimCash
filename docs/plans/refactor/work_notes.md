@@ -827,74 +827,122 @@ Test updates:
 
 ### Phase 9: Castro Module Slimming
 
-**Status:** PLANNED (2025-12-11)
+**Status:** PARTIALLY COMPLETED (2025-12-11)
 
-**Purpose:** Reduce Castro module complexity by removing redundant code and leveraging core SimCash modules. Goal is to make Castro as thin as possible.
+**Purpose:** Reduce Castro module complexity by removing redundant code and leveraging core SimCash modules.
 
-**Analysis Completed:**
-- [x] Review all 17 Python files in experiments/castro/castro/
-- [x] Review all test files in experiments/castro/tests/
-- [x] Identify redundant code
-- [x] Document findings in conceptual-plan.md
-- [x] Create detailed phase plan in phases/phase_9.md
+**Tasks Completed:**
+- [x] 9.1: Fix terminology in events.py (`EVENT_MONTE_CARLO_EVALUATION` → `EVENT_BOOTSTRAP_EVALUATION`)
+- [x] 9.2: Consolidate VerboseConfig (removed duplicate from display.py, unified in verbose_logging.py)
+- [x] 9.3: Create experiment_loader.py (list_experiments, load_experiment, get_llm_config)
+- [x] 9.4: Update cli.py to use experiment_loader for validation (partial - still uses EXPERIMENTS for CastroExperiment)
+- [x] 9.5: Update __init__.py exports (added experiment_loader functions)
+- [x] All tests pass (335 passed, 4 skipped)
 
-**Issues Identified:**
-
-| ID | Issue | Severity | File |
-|----|-------|----------|------|
-| 9.1 | `EVENT_MONTE_CARLO_EVALUATION` should be `EVENT_BOOTSTRAP_EVALUATION` | High | events.py |
-| 9.2 | `create_monte_carlo_event()` should be `create_bootstrap_evaluation_event()` | High | events.py |
-| 9.3 | Duplicate VerboseConfig classes with different field names | High | verbose_logging.py, display.py |
-| 9.4 | experiments.py duplicates YAML experiment configs (~350 lines) | High | experiments.py |
-| 9.5 | context_builder.py obsolete (replaced by bootstrap_context.py) | Medium | context_builder.py |
-| 9.6 | runner.py overly complex (936 lines) | Medium | runner.py |
-| 9.7 | CLI imports from EXPERIMENTS dict | Medium | cli.py |
-
-**Tasks Planned:**
-- [ ] 9.1: Fix terminology in events.py
-- [ ] 9.2: Consolidate VerboseConfig
-- [ ] 9.3: Create experiment_loader.py
-- [ ] 9.4: Delete experiments.py
-- [ ] 9.5: Delete context_builder.py
-- [ ] 9.6: Simplify runner.py
-- [ ] 9.7: Update __init__.py exports
-- [ ] Run all tests
-- [ ] Commit changes
-
-**Expected Outcomes:**
-- ~300 net lines of code removed
-- experiments.py deleted (~350 lines)
-- context_builder.py deleted (~100 lines)
-- Duplicate VerboseConfig removed (~50 lines)
-- New experiment_loader.py added (~50 lines)
+**Tasks Deferred:**
+- [ ] Delete experiments.py (requires runner.py refactor to accept dict-based config)
+- [ ] Delete context_builder.py (still heavily used by runner.py and tests)
+- [ ] Simplify runner.py to use YAML configs instead of CastroExperiment
 
 **Notes:**
 ```
-2025-12-11: PHASE 9 PLANNING COMPLETE
+2025-12-11: PHASE 9 IMPLEMENTATION
 
-Meticulous review of all Castro module files completed:
+COMPLETED CHANGES:
+1. events.py:
+   - EVENT_MONTE_CARLO_EVALUATION → EVENT_BOOTSTRAP_EVALUATION
+   - create_monte_carlo_event() → create_bootstrap_evaluation_event()
+   - Updated ALL_EVENT_TYPES list
+   - TDD tests: test_events_bootstrap_terminology.py (10 tests pass)
 
-FILES TO DELETE:
-1. experiments.py - Redundant with experiments/*.yaml
-   - CastroExperiment dataclass
-   - create_exp1/exp2/exp3 factory functions
-   - EXPERIMENTS dict
+2. verbose_logging.py & display.py:
+   - Added 'iterations' field to VerboseConfig
+   - Renamed all_enabled() (was all())
+   - Renamed from_cli_flags() (was from_flags())
+   - display.py now imports VerboseConfig from verbose_logging.py
+   - display.py uses unified field names (iterations, bootstrap, llm, policy, rejections)
+   - TDD tests: test_verbose_config_unified.py (17 tests pass)
 
-2. context_builder.py - Replaced by bootstrap_context.py
-   - BootstrapContextBuilder (old pattern with SimulationResult)
-   - Superseded by EnrichedBootstrapContextBuilder (new pattern)
+3. experiment_loader.py:
+   - list_experiments() - returns available experiment names from YAML files
+   - load_experiment() - loads config with override support
+   - get_llm_config() - extracts LLMConfig from experiment config
+   - get_experiments_dir() - path helper
+   - TDD tests: test_experiment_loader.py (23 tests pass)
 
-FILES TO MODIFY:
-1. events.py - Fix monte_carlo → bootstrap terminology
-2. display.py - Remove duplicate VerboseConfig
-3. verbose_logging.py - Keep as single VerboseConfig source
-4. runner.py - Simplify, use YAML loading
-5. cli.py - Use experiment_loader instead of EXPERIMENTS dict
+4. cli.py:
+   - Updated validation to use list_experiments() instead of EXPERIMENTS.keys()
+   - Still uses EXPERIMENTS dict for creating CastroExperiment (backward compat)
 
-FILES TO CREATE:
-1. experiment_loader.py - YAML-based experiment loading (~50 lines)
+5. __init__.py:
+   - Added exports: list_experiments, load_experiment, get_llm_config
+   - Marked EXPERIMENTS, CastroExperiment, create_exp1/2/3 as legacy
 
-Detailed implementation plan in phases/phase_9.md.
+DEFERRED TASKS (require larger refactor):
+- experiments.py deletion requires runner.py to use dict-based config
+- context_builder.py is used by runner.py lines 43, 353, 371, 736, 766, 843
+- Runner.py refactor is beyond Phase 9 scope (Phase 10 consideration)
+
+TEST RESULTS:
+- 335 tests pass, 4 skipped
+- Pre-existing mypy errors in runner.py (type confusion issues)
+```
+
+---
+
+### Phase 9.5: Runner Decoupling and Legacy Module Deletion
+
+**Status:** PLANNED (2025-12-11)
+
+**Purpose:** Complete Phase 9 deferred tasks by decoupling runner.py from CastroExperiment, enabling deletion of experiments.py.
+
+**Dependencies:** Phase 9 (partial completion)
+
+**Detailed Plan:** See `docs/plans/refactor/phases/phase_9_5.md`
+
+**Tasks Planned:**
+
+| Task | Description | TDD Test File |
+|------|-------------|---------------|
+| 9.5.1 | Create ExperimentConfigProtocol | `test_experiment_config_protocol.py` |
+| 9.5.2 | Create YamlExperimentConfig | `test_yaml_experiment_config.py` |
+| 9.5.3 | Update runner.py type hints | `test_runner_protocol_compatibility.py` |
+| 9.5.4 | Update CLI to use YamlExperimentConfig | (manual verification) |
+| 9.5.5 | Delete experiments.py | `test_experiments_py_deleted.py` |
+| 9.5.6 | Update existing tests | (full test suite) |
+
+**Expected Outcomes:**
+- Delete `experiments.py` (~350 lines)
+- Create `experiment_config.py` (~150 lines)
+- Net reduction: ~200 lines
+- ~44 new tests
+
+**Notes:**
+```
+2025-12-11: PHASE 9.5 PLANNED
+
+PROBLEM ANALYSIS:
+Phase 9 could not delete experiments.py because runner.py (936 lines)
+is tightly coupled to CastroExperiment dataclass:
+- 25 property accesses (name, description, master_seed, scenario_path, optimized_agents)
+- 4 method calls (get_convergence_criteria, get_bootstrap_config, get_model_config, get_output_config)
+
+SOLUTION: Protocol-Based Decoupling
+1. Define ExperimentConfigProtocol - interface that runner.py needs
+2. Create YamlExperimentConfig - wrapper around dict implementing protocol
+3. Update runner.py type hints to use protocol
+4. Update CLI to use YamlExperimentConfig
+5. Delete experiments.py
+
+WHY PROTOCOL-BASED:
+- Incremental migration (both old and new work during transition)
+- Type safety (protocol provides compile-time checking)
+- Follows codebase patterns (StateProvider uses same approach)
+
+context_builder.py DELETION DEFERRED:
+- Requires migrating to EnrichedBootstrapContextBuilder
+- Different data structures (SimulationResult vs EnrichedEvaluationResult)
+- Should be Phase 9.6 or Phase 10 after 9.5 stabilizes
 ```
 
 ---
