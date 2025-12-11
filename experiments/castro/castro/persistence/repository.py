@@ -14,8 +14,11 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import duckdb
 
-from castro.events import ExperimentEvent
+from castro.event_compat import CastroEvent
 from castro.persistence.models import ExperimentRunRecord
+
+# Backward compatibility alias
+ExperimentEvent = CastroEvent
 
 
 class ExperimentEventRepository:
@@ -254,14 +257,18 @@ class ExperimentEventRepository:
     # Event Operations
     # =========================================================================
 
-    def save_event(self, event: ExperimentEvent) -> None:
+    def save_event(self, event: CastroEvent) -> None:
         """Save an experiment event.
 
+        Accepts both CastroEvent and core EventRecord.
+
         Args:
-            event: ExperimentEvent to persist
+            event: CastroEvent or EventRecord to persist
         """
         event_id = str(uuid.uuid4())
-        details_json = json.dumps(event.details)
+        # Handle both CastroEvent (.details) and EventRecord (.event_data)
+        event_data = getattr(event, "details", None) or getattr(event, "event_data", {})
+        details_json = json.dumps(event_data)
 
         self._conn.execute(
             """
@@ -279,11 +286,13 @@ class ExperimentEventRepository:
             ],
         )
 
-    def save_events_batch(self, events: list[ExperimentEvent]) -> None:
+    def save_events_batch(self, events: list[CastroEvent]) -> None:
         """Save multiple events efficiently.
 
+        Accepts both CastroEvent and core EventRecord.
+
         Args:
-            events: List of ExperimentEvent to persist
+            events: List of CastroEvent or EventRecord to persist
         """
         for event in events:
             self.save_event(event)
@@ -333,16 +342,21 @@ class ExperimentEventRepository:
         for row in results:
             yield self._row_to_event(row)
 
-    def _row_to_event(self, row: tuple[Any, ...]) -> ExperimentEvent:
-        """Convert database row to ExperimentEvent."""
-        details = row[4]
-        if isinstance(details, str):
-            details = json.loads(details)
+    def _row_to_event(self, row: tuple[Any, ...]) -> CastroEvent:
+        """Convert database row to CastroEvent."""
+        event_data = row[4]
+        if isinstance(event_data, str):
+            event_data = json.loads(event_data)
 
-        return ExperimentEvent(
+        # Convert timestamp to string if datetime
+        timestamp = row[3]
+        if isinstance(timestamp, datetime):
+            timestamp = timestamp.isoformat()
+
+        return CastroEvent(
             event_type=row[0],
             run_id=row[1],
             iteration=row[2],
-            timestamp=row[3],
-            details=details,
+            timestamp=timestamp,
+            event_data=event_data,
         )

@@ -243,7 +243,7 @@ class TestEventPersistence:
 
     def test_save_event(self, repo: Any) -> None:
         """save_event persists an event."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         event = ExperimentEvent(
             event_type="iteration_start",
@@ -266,7 +266,7 @@ class TestEventPersistence:
 
     def test_save_events_batch(self, repo: Any) -> None:
         """save_events_batch persists multiple events efficiently."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         events = [
             ExperimentEvent(
@@ -292,7 +292,7 @@ class TestEventPersistence:
 
     def test_get_events_for_run(self, repo: Any) -> None:
         """get_events_for_run retrieves all events for a run."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         # Save events
         for i in range(5):
@@ -314,7 +314,7 @@ class TestEventPersistence:
 
     def test_get_events_for_iteration(self, repo: Any) -> None:
         """get_events_for_iteration retrieves events for specific iteration."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         # Save events for multiple iterations
         for iteration in range(3):
@@ -335,7 +335,7 @@ class TestEventPersistence:
 
     def test_event_details_serialization(self, repo: Any) -> None:
         """Complex event details serialize and deserialize correctly."""
-        from castro.events import ExperimentEvent
+        from castro.event_compat import CastroEvent as ExperimentEvent
 
         complex_details = {
             "seed_results": [

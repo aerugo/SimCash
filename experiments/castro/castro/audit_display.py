@@ -20,10 +20,30 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 
-from castro.events import EVENT_LLM_INTERACTION, ExperimentEvent
+from payment_simulator.ai_cash_mgmt.events import EVENT_LLM_INTERACTION
+
+from castro.event_compat import CastroEvent
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from castro.state_provider import ExperimentStateProvider
+
+# Backward compatibility alias
+ExperimentEvent = CastroEvent
+
+
+def _get_event_data(event: Any) -> dict[str, Any]:
+    """Get event data from either CastroEvent or EventRecord.
+
+    CastroEvent has .details, EventRecord has .event_data.
+    This helper supports both.
+    """
+    if hasattr(event, "details"):
+        return event.details
+    if hasattr(event, "event_data"):
+        return event.event_data
+    return {}
 
 
 def display_audit_output(
@@ -96,11 +116,11 @@ def display_audit_output(
         iter_events = [e for e in llm_events if e.iteration == iteration]
 
         # Group by agent
-        agents = sorted({e.details.get("agent_id", "unknown") for e in iter_events})
+        agents = sorted({_get_event_data(e).get("agent_id", "unknown") for e in iter_events})
 
         for agent_id in agents:
             agent_events = [
-                e for e in iter_events if e.details.get("agent_id") == agent_id
+                e for e in iter_events if _get_event_data(e).get("agent_id") == agent_id
             ]
 
             for event in agent_events:
@@ -119,7 +139,7 @@ def display_agent_audit(event: ExperimentEvent, console: Console) -> None:
         event: LLM interaction event to display.
         console: Rich Console for output.
     """
-    agent_id = event.details.get("agent_id", "unknown")
+    agent_id = _get_event_data(event).get("agent_id", "unknown")
 
     console.print(format_agent_section_header(agent_id))
     console.print()
@@ -144,7 +164,7 @@ def display_llm_interaction_audit(event: ExperimentEvent, console: Console) -> N
         event: LLM interaction event to display.
         console: Rich Console for output.
     """
-    details = event.details
+    details = _get_event_data(event)
 
     # Model info header
     model = details.get("model", "unknown")
@@ -200,7 +220,7 @@ def display_validation_audit(event: ExperimentEvent, console: Console) -> None:
         event: LLM interaction event to display.
         console: Rich Console for output.
     """
-    details = event.details
+    details = _get_event_data(event)
     parsing_error = details.get("parsing_error")
     parsed_policy = details.get("parsed_policy")
 

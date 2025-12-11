@@ -16,7 +16,7 @@ import pytest
 from rich.console import Console
 from typer.testing import CliRunner
 
-from castro.events import ExperimentEvent
+from castro.event_compat import CastroEvent as ExperimentEvent
 from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
 
 

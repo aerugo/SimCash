@@ -39,9 +39,10 @@ from payment_simulator.ai_cash_mgmt.prompts import (
 from payment_simulator.persistence.connection import DatabaseManager
 from rich.console import Console
 
+from payment_simulator.ai_cash_mgmt.events import create_llm_interaction_event
+
 from castro.constraints import CASTRO_CONSTRAINTS
 from castro.context_builder import BootstrapContextBuilder
-from castro.events import create_llm_interaction_event
 from castro.experiment_config import CastroExperiment
 from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
 from castro.pydantic_llm_client import (

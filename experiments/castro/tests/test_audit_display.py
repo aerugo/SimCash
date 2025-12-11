@@ -14,11 +14,12 @@ import duckdb
 import pytest
 from rich.console import Console
 
-from castro.events import (
+from payment_simulator.ai_cash_mgmt.events import (
     EVENT_LLM_INTERACTION,
-    ExperimentEvent,
     create_llm_interaction_event,
 )
+
+from castro.event_compat import CastroEvent as ExperimentEvent
 from castro.persistence import ExperimentEventRepository, ExperimentRunRecord
 from castro.state_provider import DatabaseExperimentProvider
 

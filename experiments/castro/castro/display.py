@@ -15,8 +15,11 @@ from rich.table import Table
 from castro.verbose_logging import VerboseConfig
 
 if TYPE_CHECKING:
-    from castro.events import ExperimentEvent
+    from castro.event_compat import CastroEvent
     from castro.state_provider import ExperimentStateProvider
+
+# For type hints, use CastroEvent (backward compat alias)
+ExperimentEvent = "CastroEvent"
 
 # Re-export for backward compatibility
 __all__ = ["VerboseConfig", "display_experiment_output"]
