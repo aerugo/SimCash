@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** COMPLETED
+**Status:** IN PROGRESS (Phase 9 Planned)
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -821,6 +821,80 @@ Test updates:
 - test_display.py: display_monte_carlo → display_bootstrap_evaluation
 - test_deterministic_mode.py: monte_carlo terminology → bootstrap
 - test_verbose_context_integration.py: MonteCarloContextBuilder → BootstrapContextBuilder
+```
+
+---
+
+### Phase 9: Castro Module Slimming
+
+**Status:** PLANNED (2025-12-11)
+
+**Purpose:** Reduce Castro module complexity by removing redundant code and leveraging core SimCash modules. Goal is to make Castro as thin as possible.
+
+**Analysis Completed:**
+- [x] Review all 17 Python files in experiments/castro/castro/
+- [x] Review all test files in experiments/castro/tests/
+- [x] Identify redundant code
+- [x] Document findings in conceptual-plan.md
+- [x] Create detailed phase plan in phases/phase_9.md
+
+**Issues Identified:**
+
+| ID | Issue | Severity | File |
+|----|-------|----------|------|
+| 9.1 | `EVENT_MONTE_CARLO_EVALUATION` should be `EVENT_BOOTSTRAP_EVALUATION` | High | events.py |
+| 9.2 | `create_monte_carlo_event()` should be `create_bootstrap_evaluation_event()` | High | events.py |
+| 9.3 | Duplicate VerboseConfig classes with different field names | High | verbose_logging.py, display.py |
+| 9.4 | experiments.py duplicates YAML experiment configs (~350 lines) | High | experiments.py |
+| 9.5 | context_builder.py obsolete (replaced by bootstrap_context.py) | Medium | context_builder.py |
+| 9.6 | runner.py overly complex (936 lines) | Medium | runner.py |
+| 9.7 | CLI imports from EXPERIMENTS dict | Medium | cli.py |
+
+**Tasks Planned:**
+- [ ] 9.1: Fix terminology in events.py
+- [ ] 9.2: Consolidate VerboseConfig
+- [ ] 9.3: Create experiment_loader.py
+- [ ] 9.4: Delete experiments.py
+- [ ] 9.5: Delete context_builder.py
+- [ ] 9.6: Simplify runner.py
+- [ ] 9.7: Update __init__.py exports
+- [ ] Run all tests
+- [ ] Commit changes
+
+**Expected Outcomes:**
+- ~300 net lines of code removed
+- experiments.py deleted (~350 lines)
+- context_builder.py deleted (~100 lines)
+- Duplicate VerboseConfig removed (~50 lines)
+- New experiment_loader.py added (~50 lines)
+
+**Notes:**
+```
+2025-12-11: PHASE 9 PLANNING COMPLETE
+
+Meticulous review of all Castro module files completed:
+
+FILES TO DELETE:
+1. experiments.py - Redundant with experiments/*.yaml
+   - CastroExperiment dataclass
+   - create_exp1/exp2/exp3 factory functions
+   - EXPERIMENTS dict
+
+2. context_builder.py - Replaced by bootstrap_context.py
+   - BootstrapContextBuilder (old pattern with SimulationResult)
+   - Superseded by EnrichedBootstrapContextBuilder (new pattern)
+
+FILES TO MODIFY:
+1. events.py - Fix monte_carlo → bootstrap terminology
+2. display.py - Remove duplicate VerboseConfig
+3. verbose_logging.py - Keep as single VerboseConfig source
+4. runner.py - Simplify, use YAML loading
+5. cli.py - Use experiment_loader instead of EXPERIMENTS dict
+
+FILES TO CREATE:
+1. experiment_loader.py - YAML-based experiment loading (~50 lines)
+
+Detailed implementation plan in phases/phase_9.md.
 ```
 
 ---
