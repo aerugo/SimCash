@@ -12,8 +12,8 @@
 name: exp3
 description: "Joint Liquidity & Timing Optimization"
 
-# Scenario configuration
-scenario: configs/exp3_joint.yaml
+# Scenario configuration (relative to this file's directory)
+scenario: ../configs/exp3_joint.yaml
 
 # Evaluation settings
 evaluation:

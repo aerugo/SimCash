@@ -7,13 +7,18 @@ All behavior is determined by ExperimentConfig - no hardcoded experiment logic.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import yaml
 
 if TYPE_CHECKING:
     from payment_simulator.experiments.config import ExperimentConfig
     from payment_simulator.ai_cash_mgmt.constraints import ScenarioConstraints
 
+from payment_simulator._core import Orchestrator
 from payment_simulator.ai_cash_mgmt import ConvergenceDetector
+from payment_simulator.config import SimulationConfig
 
 
 @dataclass(frozen=True)
@@ -85,13 +90,20 @@ class OptimizationLoop:
         a SimulationRunner to be injected or created from config.
     """
 
-    def __init__(self, config: ExperimentConfig) -> None:
+    def __init__(
+        self,
+        config: ExperimentConfig,
+        config_dir: Path | None = None,
+    ) -> None:
         """Initialize the optimization loop.
 
         Args:
             config: ExperimentConfig with all settings.
+            config_dir: Directory containing the experiment config (for resolving
+                        relative scenario paths). If None, uses current directory.
         """
         self._config = config
+        self._config_dir = config_dir or Path.cwd()
 
         # Get convergence settings
         conv = config.convergence
@@ -111,6 +123,12 @@ class OptimizationLoop:
         self._best_cost: int = 0
         self._best_policies: dict[str, dict[str, Any]] = {}
         self._iteration_history: list[int] = []
+
+        # Load scenario config once
+        self._scenario_dict: dict[str, Any] | None = None
+
+        # LLM client (lazy initialized)
+        self._llm_client: Any = None
 
     @property
     def max_iterations(self) -> int:
@@ -203,33 +221,307 @@ class OptimizationLoop:
             iteration_history=self._iteration_history.copy(),
         )
 
-    async def _evaluate_policies(self) -> tuple[int, dict[str, int]]:
-        """Evaluate current policies.
+    def _load_scenario_config(self) -> dict[str, Any]:
+        """Load scenario configuration from YAML file.
 
-        Override this in subclass to provide actual evaluation.
+        Resolves the scenario path relative to the experiment config directory.
+
+        Returns:
+            Scenario configuration dictionary.
+
+        Raises:
+            FileNotFoundError: If scenario file doesn't exist.
+        """
+        if self._scenario_dict is not None:
+            return self._scenario_dict
+
+        scenario_path = self._config.scenario_path
+        if not scenario_path.is_absolute():
+            scenario_path = self._config_dir / scenario_path
+
+        if not scenario_path.exists():
+            msg = f"Scenario file not found: {scenario_path}"
+            raise FileNotFoundError(msg)
+
+        with open(scenario_path) as f:
+            self._scenario_dict = yaml.safe_load(f)
+
+        return self._scenario_dict
+
+    def _build_simulation_config(self) -> dict[str, Any]:
+        """Build FFI-compatible simulation config with current policies.
+
+        Merges the base scenario config with current agent policies.
+
+        Returns:
+            FFI-compatible configuration dictionary.
+        """
+        import copy
+
+        # Deep copy to avoid mutating the cached scenario config
+        scenario_dict = copy.deepcopy(self._load_scenario_config())
+
+        # Update agent policies in the scenario
+        if "agents" in scenario_dict:
+            for agent_config in scenario_dict["agents"]:
+                agent_id = agent_config.get("id")
+                if agent_id in self._policies:
+                    agent_config["policy"] = self._policies[agent_id]
+
+        # Convert to FFI format
+        sim_config = SimulationConfig.from_dict(scenario_dict)
+        return sim_config.to_ffi_dict()
+
+    def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
+        """Run a single simulation with the given seed.
+
+        Args:
+            seed: RNG seed for this simulation.
 
         Returns:
             Tuple of (total_cost, per_agent_costs) in integer cents.
         """
-        # Default implementation returns zeros
-        # Real implementation would run simulation
-        return 0, {}
+        # Build config with current policies
+        ffi_config = self._build_simulation_config()
+
+        # Override seed
+        ffi_config["rng_seed"] = seed
+
+        # Create orchestrator
+        orch = Orchestrator.new(ffi_config)
+
+        # Run simulation for the configured number of ticks
+        total_ticks = self._config.evaluation.ticks
+        for _ in range(total_ticks):
+            orch.tick()
+
+        # Extract total cost and per-agent costs
+        total_cost = 0
+        per_agent_costs: dict[str, int] = {}
+
+        for agent_id in self.optimized_agents:
+            try:
+                agent_costs = orch.get_agent_accumulated_costs(agent_id)
+                agent_total = int(agent_costs.get("total_cost", 0))
+                per_agent_costs[agent_id] = agent_total
+                total_cost += agent_total
+            except Exception:
+                per_agent_costs[agent_id] = 0
+
+        return total_cost, per_agent_costs
+
+    async def _evaluate_policies(self) -> tuple[int, dict[str, int]]:
+        """Evaluate current policies by running simulation(s).
+
+        For deterministic mode: runs a single simulation.
+        For bootstrap mode: runs N simulations with different seeds and averages.
+
+        Returns:
+            Tuple of (total_cost, per_agent_costs) in integer cents.
+        """
+        eval_mode = self._config.evaluation.mode
+        num_samples = self._config.evaluation.num_samples or 1
+
+        if eval_mode == "deterministic" or num_samples <= 1:
+            # Single simulation - deterministic mode
+            seed = self._config.master_seed + self._current_iteration
+            return self._run_single_simulation(seed)
+
+        # Bootstrap mode: run multiple simulations and average
+        total_costs: list[int] = []
+        per_agent_totals: dict[str, list[int]] = {
+            agent_id: [] for agent_id in self.optimized_agents
+        }
+
+        for sample_idx in range(num_samples):
+            # Use deterministic seed derivation for reproducibility
+            seed = self._derive_sample_seed(sample_idx)
+            cost, agent_costs = self._run_single_simulation(seed)
+            total_costs.append(cost)
+            for agent_id in self.optimized_agents:
+                per_agent_totals[agent_id].append(agent_costs.get(agent_id, 0))
+
+        # Compute mean costs (as integers)
+        mean_total = int(sum(total_costs) / len(total_costs))
+        mean_per_agent = {
+            agent_id: int(sum(costs) / len(costs))
+            for agent_id, costs in per_agent_totals.items()
+        }
+
+        return mean_total, mean_per_agent
+
+    def _derive_sample_seed(self, sample_idx: int) -> int:
+        """Derive a deterministic seed for a bootstrap sample.
+
+        Uses SHA-256 for deterministic derivation, ensuring same
+        sample_idx always produces the same seed (reproducibility).
+
+        Args:
+            sample_idx: Sample index.
+
+        Returns:
+            Derived seed for this sample.
+        """
+        import hashlib
+
+        key = f"{self._config.master_seed}:sample:{sample_idx}"
+        hash_bytes = hashlib.sha256(key.encode()).digest()
+        return int.from_bytes(hash_bytes[:8], byteorder="big") % (2**31)
+
+    def _evaluate_policy_on_samples(
+        self, policy: dict[str, Any], agent_id: str, num_samples: int
+    ) -> list[int]:
+        """Evaluate a policy on multiple samples for paired comparison.
+
+        Args:
+            policy: Policy dict to evaluate.
+            agent_id: Agent to evaluate for.
+            num_samples: Number of samples to run.
+
+        Returns:
+            List of costs (one per sample).
+        """
+        import copy
+
+        # Temporarily set the policy for evaluation
+        original_policy = self._policies.get(agent_id)
+        self._policies[agent_id] = policy
+
+        costs: list[int] = []
+        for sample_idx in range(num_samples):
+            seed = self._derive_sample_seed(sample_idx)
+            _, agent_costs = self._run_single_simulation(seed)
+            costs.append(agent_costs.get(agent_id, 0))
+
+        # Restore original policy
+        if original_policy is not None:
+            self._policies[agent_id] = original_policy
+        elif agent_id in self._policies:
+            del self._policies[agent_id]
+
+        return costs
 
     async def _optimize_agent(self, agent_id: str, current_cost: int) -> None:
-        """Optimize policy for a single agent.
+        """Optimize policy for a single agent using LLM.
 
-        Override this in subclass to provide actual LLM optimization.
+        Calls the LLM to generate an improved policy for the agent,
+        validates it against constraints, and accepts/rejects based on
+        paired comparison (in bootstrap mode) or direct cost comparison.
 
         Args:
             agent_id: Agent to optimize.
             current_cost: Current cost for this agent in integer cents.
         """
-        # Default implementation does nothing
-        # Real implementation would call LLM and update policy
-        pass
+        # Skip LLM optimization if no system prompt configured
+        if self._config.llm.system_prompt is None:
+            return
+
+        # Lazy initialize LLM client
+        if self._llm_client is None:
+            from payment_simulator.experiments.runner.llm_client import (
+                ExperimentLLMClient,
+            )
+
+            self._llm_client = ExperimentLLMClient(self._config.llm)
+
+        # Get current policy
+        current_policy = self._policies.get(agent_id, self._create_default_policy(agent_id))
+
+        # Build context for LLM
+        context: dict[str, Any] = {
+            "iteration": self._current_iteration,
+            "history": [
+                {"iteration": i + 1, "cost": cost}
+                for i, cost in enumerate(self._iteration_history)
+            ],
+        }
+
+        # Build optimization prompt
+        prompt = f"""Optimize policy for agent {agent_id}.
+Current cost: ${current_cost / 100:.2f}
+Iteration: {self._current_iteration}
+
+Your goal is to minimize total cost while ensuring payments are settled on time.
+"""
+
+        try:
+            # Generate new policy
+            new_policy = await self._llm_client.generate_policy(
+                prompt=prompt,
+                current_policy=current_policy,
+                context=context,
+            )
+
+            # Validate against constraints if configured
+            if self._constraints is not None:
+                from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import (
+                    ConstraintValidator,
+                )
+
+                validator = ConstraintValidator(self._constraints)
+                result = validator.validate(new_policy)
+                if not result.is_valid:
+                    # Keep current policy if validation fails
+                    return
+
+            # Accept/reject based on evaluation mode
+            should_accept = await self._should_accept_policy(
+                agent_id=agent_id,
+                old_policy=current_policy,
+                new_policy=new_policy,
+            )
+
+            if should_accept:
+                self._policies[agent_id] = new_policy
+
+        except Exception:
+            # Keep current policy on error
+            pass
+
+    async def _should_accept_policy(
+        self,
+        agent_id: str,
+        old_policy: dict[str, Any],
+        new_policy: dict[str, Any],
+    ) -> bool:
+        """Determine whether to accept a new policy.
+
+        For deterministic mode: always accept (rely on convergence detection).
+        For bootstrap mode: use paired comparison - accept if mean_delta > 0.
+
+        Args:
+            agent_id: Agent being optimized.
+            old_policy: Current policy.
+            new_policy: Proposed new policy.
+
+        Returns:
+            True if new policy should be accepted.
+        """
+        eval_mode = self._config.evaluation.mode
+        num_samples = self._config.evaluation.num_samples or 1
+
+        if eval_mode == "deterministic" or num_samples <= 1:
+            # In deterministic mode, always accept - convergence detection
+            # will handle stability checking
+            return True
+
+        # Bootstrap mode: paired comparison
+        # Evaluate both policies on the SAME samples
+        old_costs = self._evaluate_policy_on_samples(old_policy, agent_id, num_samples)
+        new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, num_samples)
+
+        # Compute paired deltas: delta = old - new
+        # Positive delta means new policy is cheaper (better)
+        deltas = [old - new for old, new in zip(old_costs, new_costs, strict=True)]
+        mean_delta = sum(deltas) / len(deltas)
+
+        # Accept if mean_delta > 0 (new policy is cheaper on average)
+        return mean_delta > 0
 
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
+
+        Creates a simple Release-always policy as a starting point.
 
         Args:
             agent_id: Agent ID.
@@ -240,6 +532,23 @@ class OptimizationLoop:
         return {
             "version": "2.0",
             "policy_id": f"{agent_id}_default",
-            "parameters": {},
-            "payment_tree": {"type": "action", "node_id": "default", "action": "Hold"},
+            "parameters": {
+                "initial_liquidity_fraction": 0.5,
+                "urgency_threshold": 5,
+                "liquidity_buffer_factor": 1.0,
+            },
+            "payment_tree": {
+                "type": "action",
+                "node_id": "default_release",
+                "action": "Release",
+            },
+            "strategic_collateral_tree": {
+                "type": "action",
+                "node_id": "default_collateral",
+                "action": "HoldCollateral",
+                "parameters": {
+                    "amount": {"value": 0},
+                    "reason": {"value": "InitialAllocation"},
+                },
+            },
         }

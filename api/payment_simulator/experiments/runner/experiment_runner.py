@@ -80,6 +80,7 @@ class GenericExperimentRunner:
         config: ExperimentConfig,
         verbose_config: VerboseConfig | None = None,
         run_id: str | None = None,
+        config_dir: Path | None = None,
     ) -> None:
         """Initialize the experiment runner.
 
@@ -87,10 +88,13 @@ class GenericExperimentRunner:
             config: ExperimentConfig with all settings.
             verbose_config: Optional verbose logging configuration.
             run_id: Optional run ID. If not provided, one is generated.
+            config_dir: Directory containing the experiment config (for resolving
+                        relative scenario paths). If None, uses current directory.
         """
         self._config = config
         self._verbose_config = verbose_config or VerboseConfig()
         self._run_id = run_id or _generate_run_id(config.name)
+        self._config_dir = config_dir or Path.cwd()
 
         # Get constraints from config (inline or module)
         self._constraints: ScenarioConstraints | None = config.get_constraints()
@@ -138,15 +142,24 @@ class GenericExperimentRunner:
             This base implementation provides the loop structure.
             Full simulation requires a SimulationRunner to be available.
         """
+        import time
+
         from payment_simulator.experiments.runner.optimization import (
             OptimizationLoop,
         )
 
-        # Create optimization loop
-        loop = OptimizationLoop(config=self._config)
+        start_time = time.time()
+
+        # Create optimization loop with config directory for relative path resolution
+        loop = OptimizationLoop(
+            config=self._config,
+            config_dir=self._config_dir,
+        )
 
         # Run optimization
         opt_result = await loop.run()
+
+        duration = time.time() - start_time
 
         # Build experiment result (using existing ExperimentResult fields)
         return ExperimentResult(
@@ -155,7 +168,7 @@ class GenericExperimentRunner:
             converged=opt_result.converged,
             convergence_reason=opt_result.convergence_reason,
             final_costs=opt_result.per_agent_costs,
-            total_duration_seconds=0.0,  # TODO: Track actual duration
+            total_duration_seconds=duration,
         )
 
     def get_current_state(self) -> ExperimentState:
