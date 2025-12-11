@@ -51,16 +51,19 @@ C4Container
     title Container Diagram - SimCash Architecture
 
     Container_Boundary(simcash, "SimCash") {
-        Container(cli, "CLI Tool", "Python/Typer", "Command-line interface for run, replay, checkpoint")
+        Container(cli, "CLI Tool", "Python/Typer", "Command-line interface for run, replay, experiment")
         Container(api, "REST API", "Python/FastAPI", "HTTP endpoints for programmatic access")
+        Container(exp, "Experiment Framework", "Python", "YAML-driven LLM policy optimization")
         Container(config, "Config Layer", "Python/Pydantic", "Configuration validation and loading")
         Container(engine, "Simulation Engine", "Rust", "Core tick loop, settlement, policies")
         Container(ffi, "FFI Bridge", "PyO3", "Python-Rust interop layer")
         ContainerDb(db, "DuckDB", "Database", "Event storage, metrics, checkpoints")
     }
 
+    Rel(cli, exp, "Runs experiments")
     Rel(cli, config, "Loads")
     Rel(cli, ffi, "Invokes")
+    Rel(exp, ffi, "Runs simulations")
     Rel(api, config, "Validates")
     Rel(api, ffi, "Invokes")
     Rel(ffi, engine, "Calls")
@@ -99,9 +102,9 @@ C4Container
 |--------|-------|
 | Rust Lines of Code | 19,445 |
 | Rust Source Files | 31 |
-| Python Source Files | 34 |
+| Python Source Files | 45+ |
 | Event Types | 50+ |
-| Test Count | 280+ |
+| Test Count | 500+ |
 
 ### Critical Invariants
 
@@ -162,10 +165,12 @@ flowchart LR
 
 ## Related Documentation
 
+- [Experiment Framework](../experiments/index.md) - YAML-driven LLM policy optimization
 - [CLI Reference](../cli/index.md) - Command-line interface
+- [LLM Module](../llm/index.md) - LLM client protocols and configuration
 - [Policy Reference](../policy/index.md) - Policy DSL documentation
 - [Scenario Configuration](../scenario/index.md) - YAML configuration format
 
 ---
 
-*Last updated: 2025-11-28*
+*Last updated: 2025-12-11*
