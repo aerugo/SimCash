@@ -34,7 +34,7 @@ flowchart TB
 
     subgraph Display["Unified Display"]
         Unified["display_experiment_output()"]
-        Handlers["display_iteration_start()<br/>display_monte_carlo()<br/>display_llm_call()<br/>display_policy_change()"]
+        Handlers["display_iteration_start()<br/>display_bootstrap_evaluation()<br/>display_llm_call()<br/>display_policy_change()"]
     end
 
     Protocol --> Live
@@ -399,7 +399,7 @@ sequenceDiagram
 
     loop Each Iteration
         Runner->>Live: capture_event(iteration_start)
-        Runner->>Live: capture_event(monte_carlo)
+        Runner->>Live: capture_event(bootstrap_evaluation)
         Runner->>Live: capture_event(policy_change)
         Runner->>Repo: save_event() (each event)
     end
@@ -442,7 +442,7 @@ class VerboseConfig:
     """Configuration for verbose output."""
 
     show_iterations: bool = False
-    show_monte_carlo: bool = False
+    show_bootstrap: bool = False
     show_llm_calls: bool = False
     show_policy_changes: bool = False
     show_rejections: bool = False
@@ -452,7 +452,7 @@ class VerboseConfig:
         """Create config with all verbose output enabled."""
         return cls(
             show_iterations=True,
-            show_monte_carlo=True,
+            show_bootstrap=True,
             show_llm_calls=True,
             show_policy_changes=True,
             show_rejections=True,
@@ -463,7 +463,7 @@ class VerboseConfig:
         cls,
         verbose: bool = False,
         verbose_iterations: bool = False,
-        verbose_monte_carlo: bool = False,
+        verbose_bootstrap: bool = False,
         verbose_llm: bool = False,
         verbose_policy: bool = False,
     ) -> VerboseConfig:
@@ -472,7 +472,7 @@ class VerboseConfig:
             return cls.all_enabled()
         return cls(
             show_iterations=verbose_iterations,
-            show_monte_carlo=verbose_monte_carlo,
+            show_bootstrap=verbose_bootstrap,
             show_llm_calls=verbose_llm,
             show_policy_changes=verbose_policy,
         )
@@ -534,7 +534,7 @@ uv run castro run exp1
 uv run castro replay exp1-20251209-143022-a1b2c3 --verbose
 
 # Selective verbose flags
-uv run castro replay exp1-20251209-143022-a1b2c3 --verbose-monte-carlo
+uv run castro replay exp1-20251209-143022-a1b2c3 --verbose-bootstrap
 ```
 
 ### Results Command
@@ -627,7 +627,7 @@ def display_results(provider: ExperimentStateProvider):
 
 ```python
 # BAD: Manual reconstruction is fragile
-def replay_monte_carlo(conn, run_id, iteration):
+def replay_bootstrap_evaluation(conn, run_id, iteration):
     # Query raw data and reconstruct - error prone!
     seeds = query_seeds(conn, run_id, iteration)
     costs = query_costs(conn, run_id, iteration)
@@ -638,7 +638,7 @@ def replay_monte_carlo(conn, run_id, iteration):
 
 ```python
 # GOOD: Events are self-contained
-event = create_monte_carlo_event(
+event = create_bootstrap_evaluation_event(
     run_id=run_id,
     iteration=iteration,
     seed_results=[...],  # ALL data included
