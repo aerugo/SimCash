@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** Phases 0-15 COMPLETED, Phases 16-18 PLANNED (YAML-only experiments)
+**Status:** Phases 0-16 COMPLETED, Phases 17-18 PLANNED (YAML-only experiments)
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -1844,33 +1844,49 @@ master_seed: 42
 
 ### Phase 16: Create Generic Experiment Runner in Core
 
-**Status:** PLANNED
+**Status:** COMPLETED (2025-12-11)
 **Purpose:** Move ALL runner logic from Castro to core
 
-**Tasks:**
-- 16.1: Create `api/payment_simulator/experiments/runner/optimization.py` - generic optimization loop
-- 16.2: Create `api/payment_simulator/experiments/runner/llm_client.py` - reads system_prompt from config
-- 16.3: Create `api/payment_simulator/experiments/runner/constraint_validator.py` - reads constraints from config
-- 16.4: Create `api/payment_simulator/experiments/runner/policy_parser.py` - generic policy parsing
-- 16.5: Update core experiment runner to use config-driven components
-- 16.6: Write TDD tests
+**TDD Tests:**
+- [x] Write `tests/experiments/runner/test_llm_client_core.py` (19 tests)
+- [x] Write `tests/experiments/runner/test_optimization_core.py` (14 tests)
+- [x] Write `tests/experiments/runner/test_experiment_runner_core.py` (13 tests)
+- [x] All 46 tests pass
 
-**Key Design:**
-```python
-# Core runner reads everything from config
-class ExperimentRunner:
-    def __init__(self, config: ExperimentConfig):
-        self.llm_client = LLMClient(
-            model=config.llm.model,
-            system_prompt=config.llm.system_prompt,  # From YAML
-        )
-        self.validator = ConstraintValidator(
-            constraints=config.policy_constraints,  # From YAML
-        )
-        self.evaluator = BootstrapPolicyEvaluator(config.evaluation)
+**Implementation:**
+- [x] Create `runner/llm_client.py` - ExperimentLLMClient, LLMInteraction
+- [x] Create `runner/optimization.py` - OptimizationLoop, OptimizationResult
+- [x] Create `runner/experiment_runner.py` - GenericExperimentRunner
+- [x] Update `runner/__init__.py` with new exports
+- [x] mypy passes on all new files
+
+**Key Classes Created:**
+- `ExperimentLLMClient`: Config-driven LLM client (uses system_prompt from config)
+- `LLMInteraction`: Frozen dataclass for audit capture
+- `OptimizationLoop`: Generic optimization loop (uses convergence from config)
+- `OptimizationResult`: Result with integer cents costs (INV-1)
+- `GenericExperimentRunner`: Complete runner implementing ExperimentRunnerProtocol
+
+**Plan Divergences (Simplifications):**
+1. ExperimentLLMClient doesn't take constraints param (validation is separate concern)
+2. generate_policy() signature aligned with Castro's existing interface
+3. OptimizationLoop simplified to only take config (creates components internally)
+4. Skipped separate constraint_validator.py and policy_parser.py (existing ConstraintValidator reused)
+
+**Notes:**
+```
+2025-12-11: PHASE 16 COMPLETE
+- 46 new tests written and passing
+- All costs use integer cents (INV-1 compliance)
+- No hardcoded prompts or constraints
+- GenericExperimentRunner implements ExperimentRunnerProtocol
+- mypy passes on all new files
+- System prompt read from config.llm.system_prompt
+- Constraints read from config.get_constraints()
+- Ready for Phase 17: Complete generic CLI
 ```
 
-**Expected Outcome:**
+**Expected Outcome:** ✅ ACHIEVED
 - Runner requires NO experiment-specific code
 - All behavior configured via YAML
 
