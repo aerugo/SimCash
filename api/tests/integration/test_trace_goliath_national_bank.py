@@ -164,9 +164,18 @@ class TestGoliathEODRush:
         Policy: GoliathNationalBank
         Branch: Not Urgent → EOD Rush → No 0.5× Buffer → Hold
 
-        Scenario: EOD rush, insufficient buffer ($30M + $25M = $55M needed, $40M available)
+        Scenario: EOD rush, insufficient buffer
         Expected: Hold (buffer protection)
         Verifies: EOD rush without buffer holds
+
+        Note: Buffer calculation = remaining_amount + (target_buffer * 0.5)
+              = $30k + ($500k * 0.5) = $30k + $250k = $280k needed
+              $40k balance < $280k required → Should hold
+
+        IMPORTANT: deadline_offset must be > 5 from end of simulation to prevent
+        the transaction from becoming urgent at the last tick. With deadline_offset=10
+        and payment at tick 95, ticks_to_deadline=5 at tick 100, triggering urgency!
+        Using deadline_offset=20 ensures transaction stays non-urgent throughout.
         """
         scenario = (
             ScenarioBuilder("Goliath_EOD_WithoutBuffer")
@@ -176,7 +185,7 @@ class TestGoliathEODRush:
             .with_seed(60202)
             .add_agent(
                 "BANK_A",
-                balance=4_000_000,  # $40k - below $55k requirement
+                balance=4_000_000,  # $40k - far below $280k requirement
                 arrival_rate=0.0,
             )
             .add_agent("BANK_B", balance=10_000_000)
@@ -185,7 +194,7 @@ class TestGoliathEODRush:
                 sender="BANK_A",
                 receiver="BANK_B",
                 amount=3_000_000,  # $30k
-                deadline_offset=10,  # Not urgent
+                deadline_offset=20,  # Must stay non-urgent (>5 from tick 100)
             )
             .build()
         )
