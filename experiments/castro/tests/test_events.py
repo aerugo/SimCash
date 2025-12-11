@@ -102,11 +102,11 @@ class TestEventTypes:
 
         assert EVENT_ITERATION_START == "iteration_start"
 
-    def test_monte_carlo_evaluation_event_type(self) -> None:
-        """EVENT_MONTE_CARLO_EVALUATION is defined."""
-        from castro.events import EVENT_MONTE_CARLO_EVALUATION
+    def test_bootstrap_evaluation_event_type(self) -> None:
+        """EVENT_BOOTSTRAP_EVALUATION is defined."""
+        from castro.events import EVENT_BOOTSTRAP_EVALUATION
 
-        assert EVENT_MONTE_CARLO_EVALUATION == "monte_carlo_evaluation"
+        assert EVENT_BOOTSTRAP_EVALUATION == "bootstrap_evaluation"
 
     def test_llm_call_event_type(self) -> None:
         """EVENT_LLM_CALL is defined."""
@@ -136,18 +136,18 @@ class TestEventTypes:
         """ALL_EVENT_TYPES contains all event types."""
         from castro.events import (
             ALL_EVENT_TYPES,
+            EVENT_BOOTSTRAP_EVALUATION,
             EVENT_EXPERIMENT_END,
             EVENT_EXPERIMENT_START,
             EVENT_ITERATION_START,
             EVENT_LLM_CALL,
-            EVENT_MONTE_CARLO_EVALUATION,
             EVENT_POLICY_CHANGE,
             EVENT_POLICY_REJECTED,
         )
 
         assert EVENT_EXPERIMENT_START in ALL_EVENT_TYPES
         assert EVENT_ITERATION_START in ALL_EVENT_TYPES
-        assert EVENT_MONTE_CARLO_EVALUATION in ALL_EVENT_TYPES
+        assert EVENT_BOOTSTRAP_EVALUATION in ALL_EVENT_TYPES
         assert EVENT_LLM_CALL in ALL_EVENT_TYPES
         assert EVENT_POLICY_CHANGE in ALL_EVENT_TYPES
         assert EVENT_POLICY_REJECTED in ALL_EVENT_TYPES
@@ -193,16 +193,19 @@ class TestEventCreationHelpers:
         assert event.iteration == 3
         assert event.details["total_cost"] == 15000
 
-    def test_create_monte_carlo_event(self) -> None:
-        """create_monte_carlo_event creates correct event."""
-        from castro.events import EVENT_MONTE_CARLO_EVALUATION, create_monte_carlo_event
+    def test_create_bootstrap_evaluation_event(self) -> None:
+        """create_bootstrap_evaluation_event creates correct event."""
+        from castro.events import (
+            EVENT_BOOTSTRAP_EVALUATION,
+            create_bootstrap_evaluation_event,
+        )
 
         seed_results = [
             {"seed": 42, "cost": 15000, "settled": 10, "total": 10, "settlement_rate": 1.0},
             {"seed": 43, "cost": 16000, "settled": 9, "total": 10, "settlement_rate": 0.9},
         ]
 
-        event = create_monte_carlo_event(
+        event = create_bootstrap_evaluation_event(
             run_id="exp1-20251209-143022-a1b2c3",
             iteration=1,
             seed_results=seed_results,
@@ -210,7 +213,7 @@ class TestEventCreationHelpers:
             std_cost=500,
         )
 
-        assert event.event_type == EVENT_MONTE_CARLO_EVALUATION
+        assert event.event_type == EVENT_BOOTSTRAP_EVALUATION
         assert event.details["seed_results"] == seed_results
         assert event.details["mean_cost"] == 15500
         assert event.details["std_cost"] == 500

@@ -29,6 +29,7 @@ class VerboseConfig:
     """Configuration for verbose logging flags.
 
     Each flag controls a category of verbose output:
+    - iterations: Show iteration start messages
     - policy: Show before/after policy parameters
     - bootstrap: Show per-sample bootstrap evaluation results
     - llm: Show LLM call metadata (model, tokens, latency)
@@ -41,6 +42,7 @@ class VerboseConfig:
         ...     print("Policy logging enabled")
     """
 
+    iterations: bool = False
     policy: bool = False
     bootstrap: bool = False
     llm: bool = False
@@ -54,22 +56,37 @@ class VerboseConfig:
         Returns:
             True if at least one verbose flag is enabled.
         """
-        return self.policy or self.bootstrap or self.llm or self.rejections or self.debug
+        return (
+            self.iterations
+            or self.policy
+            or self.bootstrap
+            or self.llm
+            or self.rejections
+            or self.debug
+        )
 
     @classmethod
-    def all(cls) -> VerboseConfig:
-        """Create config with all verbose flags enabled.
+    def all_enabled(cls) -> VerboseConfig:
+        """Create config with all verbose flags enabled (except debug).
 
         Returns:
-            VerboseConfig with all flags set to True.
+            VerboseConfig with all main flags set to True.
         """
-        return cls(policy=True, bootstrap=True, llm=True, rejections=True, debug=False)
+        return cls(
+            iterations=True,
+            policy=True,
+            bootstrap=True,
+            llm=True,
+            rejections=True,
+            debug=False,
+        )
 
     @classmethod
-    def from_flags(
+    def from_cli_flags(
         cls,
         *,
         verbose: bool = False,
+        verbose_iterations: bool | None = None,
         verbose_policy: bool | None = None,
         verbose_bootstrap: bool | None = None,
         verbose_llm: bool | None = None,
@@ -83,6 +100,7 @@ class VerboseConfig:
 
         Args:
             verbose: Enable all verbose output.
+            verbose_iterations: Override iterations verbose flag.
             verbose_policy: Override policy verbose flag.
             verbose_bootstrap: Override bootstrap verbose flag.
             verbose_llm: Override llm verbose flag.
@@ -95,6 +113,7 @@ class VerboseConfig:
         # If verbose=True and no individual flags, enable all
         if verbose:
             return cls(
+                iterations=verbose_iterations if verbose_iterations is not None else True,
                 policy=verbose_policy if verbose_policy is not None else True,
                 bootstrap=verbose_bootstrap if verbose_bootstrap is not None else True,
                 llm=verbose_llm if verbose_llm is not None else True,
@@ -104,10 +123,40 @@ class VerboseConfig:
 
         # Otherwise use individual flags
         return cls(
+            iterations=verbose_iterations or False,
             policy=verbose_policy or False,
             bootstrap=verbose_bootstrap or False,
             llm=verbose_llm or False,
             rejections=verbose_rejections or False,
+            debug=debug,
+        )
+
+    # Backward compatibility aliases
+    @classmethod
+    def all(cls) -> VerboseConfig:
+        """Alias for all_enabled() for backward compatibility."""
+        return cls.all_enabled()
+
+    @classmethod
+    def from_flags(
+        cls,
+        *,
+        verbose: bool = False,
+        verbose_iterations: bool | None = None,
+        verbose_policy: bool | None = None,
+        verbose_bootstrap: bool | None = None,
+        verbose_llm: bool | None = None,
+        verbose_rejections: bool | None = None,
+        debug: bool = False,
+    ) -> VerboseConfig:
+        """Alias for from_cli_flags() for backward compatibility."""
+        return cls.from_cli_flags(
+            verbose=verbose,
+            verbose_iterations=verbose_iterations,
+            verbose_policy=verbose_policy,
+            verbose_bootstrap=verbose_bootstrap,
+            verbose_llm=verbose_llm,
+            verbose_rejections=verbose_rejections,
             debug=debug,
         )
 
