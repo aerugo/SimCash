@@ -2754,6 +2754,131 @@ See [phases/phase_10.md](./phases/phase_10.md) for full TDD test specifications.
 
 ---
 
+## Phase 11: Infrastructure Generalization - StateProvider and Persistence
+
+**Duration**: 4-5 days
+**Risk**: High
+**Dependencies**: Phase 10
+**Breaking Changes**: Potentially (database migration required for 11.2)
+
+### Objectives
+
+Phase 11 addresses the high-risk tasks deferred from Phase 10:
+
+1. **Task 11.1: StateProvider Protocol** - Generalize for experiment replay identity
+2. **Task 11.2: Unified Persistence** - Consolidate experiment persistence
+
+### Task 11.1: Generalize StateProvider Protocol (High Risk)
+
+**Impact:** ~250 lines abstracted to core
+**TDD Test File:** `api/tests/experiments/runner/test_state_provider_core.py`
+
+**Protocol Definition:**
+```python
+@runtime_checkable
+class ExperimentStateProviderProtocol(Protocol):
+    """Protocol for accessing experiment state."""
+    def get_experiment_info(self) -> dict[str, Any]: ...
+    def get_total_iterations(self) -> int: ...
+    def get_iteration_events(self, iteration: int) -> list[dict[str, Any]]: ...
+    def get_iteration_policies(self, iteration: int) -> dict[str, Any]: ...
+    def get_iteration_costs(self, iteration: int) -> dict[str, int]: ...
+    def get_iteration_accepted_changes(self, iteration: int) -> dict[str, bool]: ...
+```
+
+**Steps:**
+1. Write TDD tests for protocol definition
+2. Write TDD tests for `DatabaseStateProvider`
+3. Write TDD tests for `LiveStateProvider`
+4. Run tests → FAIL
+5. Create `api/payment_simulator/experiments/runner/state_provider.py`
+6. Update exports in `__init__.py`
+7. Run tests → PASS
+8. Update Castro to use or implement core protocol
+
+### Task 11.2: Unify Persistence Layer (High Risk)
+
+**Impact:** ~300 lines unified
+**TDD Test File:** `api/tests/experiments/persistence/test_experiment_repository.py`
+
+**Database Schema:**
+```sql
+CREATE TABLE experiments (
+    run_id VARCHAR PRIMARY KEY,
+    experiment_name VARCHAR NOT NULL,
+    experiment_type VARCHAR NOT NULL,
+    config JSON NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP,
+    num_iterations INTEGER,
+    converged BOOLEAN,
+    convergence_reason VARCHAR
+);
+
+CREATE TABLE experiment_iterations (
+    run_id VARCHAR NOT NULL,
+    iteration INTEGER NOT NULL,
+    costs_per_agent JSON NOT NULL,
+    accepted_changes JSON NOT NULL,
+    policies JSON NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    PRIMARY KEY (run_id, iteration)
+);
+```
+
+**Steps:**
+1. Write TDD tests for `ExperimentRepository`
+2. Write TDD tests for record classes
+3. Write TDD tests for StateProvider integration
+4. Run tests → FAIL
+5. Create `api/payment_simulator/experiments/persistence/repository.py`
+6. Update exports in `__init__.py`
+7. Run tests → PASS
+8. Create migration script for existing Castro databases
+9. Update Castro to use core repository (optional - can be phased)
+
+### Risk Mitigation
+
+**StateProvider:**
+- Start with minimal protocol, extend as needed
+- Fallback: Castro keeps its own provider, imports core for type hints only
+
+**Persistence:**
+- New tables alongside old (don't modify existing schema)
+- Migration script with dry-run mode
+- Backup before migration
+- Fallback: Castro keeps own persistence, core repository is optional
+
+### Expected Outcome
+
+| Category | Change |
+|----------|--------|
+| Core experiments/runner | +150 lines |
+| Core experiments/persistence | +300 lines |
+| Castro state_provider.py | -200 lines |
+| Castro persistence/ | -200 lines |
+| **Net Castro Reduction** | **~400 lines** |
+
+### New Tests Added
+
+| Test File | Test Count |
+|-----------|------------|
+| test_state_provider_core.py | ~15 |
+| test_experiment_repository.py | ~20 |
+| **Total** | **~35** |
+
+### Verification Checklist
+
+- [ ] All API tests pass: `cd api && .venv/bin/python -m pytest`
+- [ ] All Castro tests pass: `cd experiments/castro && uv run pytest tests/`
+- [ ] Type checking passes: `mypy payment_simulator/`
+- [ ] Replay identity works: Same input produces same output
+- [ ] Migration script succeeds on test database
+
+See [phases/phase_11.md](./phases/phase_11.md) for full TDD test specifications.
+
+---
+
 ## Timeline Summary
 
 | Phase | Duration | Dependencies |
@@ -2771,10 +2896,11 @@ See [phases/phase_10.md](./phases/phase_10.md) for full TDD test specifications.
 | Phase 7: Documentation | 2-3 days | Phase 6 |
 | Phase 8: LLMConfig Migration | 1 day | Phase 7 |
 | Phase 9: Castro Slimming | 1-2 days | Phase 8 |
-| **Phase 10: Deep Integration** | **2-3 days** | **Phase 9** |
+| Phase 10: Deep Integration | 2-3 days | Phase 9 |
+| **Phase 11: Infrastructure Generalization** | **4-5 days** | **Phase 10** |
 
-**Total: ~22-31 days**
+**Total: ~26-36 days**
 
 ---
 
-*Document Version 1.3 - Added Phase 10 (Deep Integration)*
+*Document Version 1.4 - Added Phase 11 (Infrastructure Generalization)*
