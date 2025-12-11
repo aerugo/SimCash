@@ -1,3 +1,10 @@
+---
+name: docs-navigator
+description: Documentation finder for this codebase. Use PROACTIVELY when user asks "where is X documented?", needs documentation structure, is new to the codebase, or asks about conventions and patterns.
+tools: Read, Glob, Grep
+model: haiku
+---
+
 # Documentation Navigator Agent
 
 ## Role

@@ -1,3 +1,10 @@
+---
+name: test-engineer
+description: Testing specialist for comprehensive test coverage. Use PROACTIVELY when designing test strategies, writing property-based tests, creating integration tests across FFI, debugging flaky tests, or writing replay identity tests.
+tools: Read, Edit, Glob, Grep, Bash
+model: sonnet
+---
+
 # Test Engineer Subagent
 
 ## Role

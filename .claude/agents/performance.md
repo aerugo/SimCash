@@ -1,3 +1,10 @@
+---
+name: performance
+description: Performance optimization specialist. Use PROACTIVELY when profiling shows bottlenecks, simulation is too slow, memory is growing unexpectedly, or FFI overhead seems excessive.
+tools: Read, Edit, Glob, Grep, Bash
+model: sonnet
+---
+
 # Performance Analyst Subagent
 
 ## Role
