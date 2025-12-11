@@ -1,7 +1,7 @@
 # Castro CLI Commands
 
 **Version**: 1.0
-**Last Updated**: 2025-12-09
+**Last Updated**: 2025-12-11
 
 ---
 
@@ -44,7 +44,7 @@ flowchart LR
 
     subgraph Process
         Runner["ExperimentRunner"]
-        MC["Monte Carlo<br/>Evaluation"]
+        BS["Bootstrap<br/>Evaluation"]
         LLM["LLM<br/>Optimization"]
     end
 
@@ -54,8 +54,8 @@ flowchart LR
     end
 
     Input --> Runner
-    Runner --> MC
-    MC --> LLM
+    Runner --> BS
+    BS --> LLM
     LLM --> Console
     LLM --> DB
 
@@ -80,7 +80,7 @@ flowchart LR
 | `--seed` | `-s` | 42 | Master seed for determinism |
 | `--verbose` | `-v` | False | Enable all verbose output |
 | `--verbose-policy` | | False | Show policy parameter changes |
-| `--verbose-monte-carlo` | | False | Show per-seed Monte Carlo results |
+| `--verbose-bootstrap` | | False | Show per-seed bootstrap results |
 | `--verbose-llm` | | False | Show LLM call metadata |
 | `--verbose-rejections` | | False | Show rejection analysis |
 | `--debug` | `-d` | False | Show debug output (validation errors, LLM retries) |
@@ -102,7 +102,7 @@ castro run exp1 --model anthropic:claude-sonnet-4-5 --thinking-budget 8000
 castro run exp1 --verbose
 
 # Run with specific verbose modes
-castro run exp1 --verbose-policy --verbose-monte-carlo
+castro run exp1 --verbose-policy --verbose-bootstrap
 
 # Run with custom seed
 castro run exp1 --seed 12345
@@ -178,7 +178,7 @@ Running exp1...
 Starting 2-Agent Basic
   Description: Two banks, basic policy optimization
   Max iterations: 25
-  Monte Carlo samples: 5
+  Bootstrap samples: 5
   LLM model: anthropic:claude-sonnet-4-5
 
 ...
@@ -242,7 +242,7 @@ flowchart LR
 | `--db` | `-d` | `results/castro.db` | Path to database file |
 | `--verbose` | `-v` | False | Enable all verbose output |
 | `--verbose-iterations` | | False | Show iteration starts |
-| `--verbose-monte-carlo` | | False | Show Monte Carlo evaluations |
+| `--verbose-bootstrap` | | False | Show bootstrap evaluations |
 | `--verbose-llm` | | False | Show LLM call details |
 | `--verbose-policy` | | False | Show policy changes |
 
@@ -267,7 +267,7 @@ castro replay exp1-20251209-143022-a1b2c3 --verbose
 castro replay exp1-20251209-143022-a1b2c3 --db results/custom.db
 
 # Replay with specific verbose modes
-castro replay exp1-20251209-143022-a1b2c3 --verbose-monte-carlo --verbose-policy
+castro replay exp1-20251209-143022-a1b2c3 --verbose-bootstrap --verbose-policy
 
 # Show audit trail for all iterations
 castro replay exp1-20251209-143022-a1b2c3 --audit
@@ -525,7 +525,7 @@ Description: Two banks, basic policy optimization
 │ Master Seed           │ 42                           │
 │ Output Directory      │ results/                     │
 │                       │                              │
-│ Monte Carlo           │                              │
+│ Bootstrap             │                              │
 │   Samples             │ 5                            │
 │   Evaluation Ticks    │ 100                          │
 │                       │                              │
