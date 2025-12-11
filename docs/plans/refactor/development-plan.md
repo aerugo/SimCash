@@ -2940,4 +2940,412 @@ See `phases/phase_12.md` for detailed TDD specifications.
 
 ---
 
-*Document Version 1.5 - Added Phase 12 (Castro Migration)*
+## Phase 13: Complete Experiment StateProvider Migration
+
+**Status:** COMPLETED
+**Dependencies:** Phase 12
+**Risk:** Medium (API changes, test migrations)
+
+Phase 13 completes the StateProvider pattern migration by extending core protocol with audit methods and deleting Castro's redundant infrastructure.
+
+### Tasks
+
+#### Task 13.1: Extend Core Protocol with Audit Methods
+- Add `run_id` property to protocol
+- Add `get_run_metadata()` method
+- Add `get_all_events()` iterator
+- Add `get_final_result()` method
+- Implement in both `LiveStateProvider` and `DatabaseStateProvider`
+
+#### Task 13.2: Update Castro Display to Use Core Protocol
+- Update `display.py` to import from core
+- Update `audit_display.py` to import from core
+- Events are now dicts with `event_type` key, not objects
+
+#### Task 13.3: Update CLI Replay to Use Core
+- CLI `replay` command uses `ExperimentRepository.as_state_provider()`
+- Remove import of `DatabaseExperimentProvider` from castro
+
+#### Task 13.4: Delete Castro Infrastructure
+- Delete `castro/state_provider.py`
+- Delete `castro/persistence/` directory
+- Delete `castro/event_compat.py`
+
+#### Task 13.5: Update All Test Imports
+- Update all test files to import from core
+- Delete obsolete test files
+
+### Expected Outcomes
+- ~800+ lines removed from Castro
+- ~60 new tests added
+- Full replay identity preserved
+
+See [phases/phase_13.md](./phases/phase_13.md) for detailed TDD specifications.
+
+---
+
+## Phase 14: Verbose Logging, Audit Display, and CLI Integration to Core
+
+**Status:** PLANNED
+**Dependencies:** Phase 13
+**Risk:** Medium (Castro needs to stay functional during migration)
+
+Phase 14 completes the extraction of reusable experiment infrastructure to core SimCash modules, making Castro a truly thin experiment-specific layer.
+
+### Objectives
+
+1. Move `VerboseConfig` and `VerboseLogger` to core `experiments/runner/verbose.py`
+2. Move `display_experiment_output()` to core `experiments/runner/display.py`
+3. Move `display_audit_output()` to core `experiments/runner/audit.py`
+4. Create generic experiment CLI commands in core `experiments/cli/`
+5. Update Castro to be a thin wrapper using core infrastructure
+6. Update documentation
+
+### Task 14.1: Move VerboseConfig and VerboseLogger to Core (Low Risk)
+
+**TDD Tests First:**
+```python
+# api/tests/experiments/runner/test_verbose_core.py
+"""Tests for core verbose logging infrastructure."""
+
+import pytest
+from payment_simulator.experiments.runner.verbose import (
+    VerboseConfig,
+    VerboseLogger,
+)
+
+
+class TestVerboseConfig:
+    """Tests for VerboseConfig dataclass."""
+
+    def test_default_all_disabled(self) -> None:
+        """Default config has all flags disabled."""
+        config = VerboseConfig()
+        assert config.iterations is False
+        assert config.policy is False
+        assert config.bootstrap is False
+        assert config.llm is False
+        assert config.rejections is False
+
+    def test_all_enabled_factory(self) -> None:
+        """all_enabled() creates config with all flags True."""
+        config = VerboseConfig.all_enabled()
+        assert config.iterations is True
+        assert config.policy is True
+
+    def test_from_cli_flags_verbose_enables_all(self) -> None:
+        """from_cli_flags(verbose=True) enables all flags."""
+        config = VerboseConfig.from_cli_flags(verbose=True)
+        assert config.iterations is True
+
+    def test_any_property_detects_any_enabled(self) -> None:
+        """any property returns True if any flag is enabled."""
+        config = VerboseConfig(policy=True)
+        assert config.any is True
+
+
+class TestVerboseLogger:
+    """Tests for VerboseLogger class."""
+
+    def test_creates_with_config(self) -> None:
+        """VerboseLogger creates with VerboseConfig."""
+        config = VerboseConfig(policy=True)
+        logger = VerboseLogger(config)
+        assert logger.config.policy is True
+
+    def test_log_iteration_start_when_enabled(self) -> None:
+        """log_iteration_start outputs when iterations flag is True."""
+        from io import StringIO
+        from rich.console import Console
+
+        config = VerboseConfig(iterations=True)
+        output = StringIO()
+        console = Console(file=output, force_terminal=True)
+        logger = VerboseLogger(config, console=console)
+
+        logger.log_iteration_start(1, 10000)  # costs in cents
+
+        assert "Iteration" in output.getvalue()
+
+    def test_log_policy_change_when_disabled(self) -> None:
+        """log_policy_change is silent when policy flag is False."""
+        from io import StringIO
+        from rich.console import Console
+
+        config = VerboseConfig(policy=False)
+        output = StringIO()
+        console = Console(file=output, force_terminal=True)
+        logger = VerboseLogger(config, console=console)
+
+        logger.log_policy_change("BANK_A", {}, {})
+
+        assert output.getvalue() == ""
+```
+
+**Steps:**
+1. Write TDD tests for `VerboseConfig` and `VerboseLogger`
+2. Run tests → FAIL
+3. Create `api/payment_simulator/experiments/runner/verbose.py`
+4. Copy implementation from Castro with modifications
+5. Update `__init__.py` exports
+6. Run tests → PASS
+7. Update Castro to import from core
+
+### Task 14.2: Move display_experiment_output() to Core (Low Risk)
+
+**TDD Tests First:**
+```python
+# api/tests/experiments/runner/test_display_core.py
+"""Tests for core experiment display functions."""
+
+import pytest
+from payment_simulator.experiments.runner.display import display_experiment_output
+from payment_simulator.experiments.runner import LiveStateProvider
+
+
+class TestDisplayExperimentOutput:
+    """Tests for display_experiment_output function."""
+
+    def test_displays_header_with_run_id(self) -> None:
+        """Display includes run ID in header."""
+        from io import StringIO
+        from rich.console import Console
+
+        provider = LiveStateProvider(
+            experiment_name="exp1",
+            experiment_type="castro",
+            config={},
+            run_id="exp1-123",
+        )
+        output = StringIO()
+        console = Console(file=output, force_terminal=True)
+
+        display_experiment_output(provider, console)
+
+        assert "exp1-123" in output.getvalue()
+
+    def test_displays_events_from_provider(self) -> None:
+        """Display iterates over events from provider."""
+        from io import StringIO
+        from rich.console import Console
+
+        provider = LiveStateProvider(...)
+        provider.record_event(0, "experiment_start", {"experiment_name": "exp1"})
+
+        output = StringIO()
+        console = Console(file=output, force_terminal=True)
+
+        display_experiment_output(provider, console)
+
+        assert "exp1" in output.getvalue()
+
+    def test_respects_verbose_config(self) -> None:
+        """Display respects VerboseConfig settings."""
+        # Test that verbose flags control output visibility
+        ...
+```
+
+**Steps:**
+1. Write TDD tests for `display_experiment_output`
+2. Run tests → FAIL
+3. Create `api/payment_simulator/experiments/runner/display.py`
+4. Copy implementation from Castro
+5. Update to use core `VerboseConfig`
+6. Run tests → PASS
+7. Update Castro to re-export from core
+
+### Task 14.3: Move display_audit_output() to Core (Low Risk)
+
+**TDD Tests First:**
+```python
+# api/tests/experiments/runner/test_audit_core.py
+"""Tests for core audit display functions."""
+
+import pytest
+from payment_simulator.experiments.runner.audit import display_audit_output
+
+
+class TestDisplayAuditOutput:
+    """Tests for display_audit_output function."""
+
+    def test_displays_llm_interaction_events(self) -> None:
+        """Audit display shows LLM interaction details."""
+        ...
+
+    def test_filters_by_iteration_range(self) -> None:
+        """Audit respects start_iteration and end_iteration params."""
+        ...
+
+    def test_displays_prompts_and_responses(self) -> None:
+        """Audit shows full prompts and responses."""
+        ...
+```
+
+**Steps:**
+1. Write TDD tests for `display_audit_output`
+2. Run tests → FAIL
+3. Create `api/payment_simulator/experiments/runner/audit.py`
+4. Copy implementation from Castro
+5. Update to use core imports
+6. Run tests → PASS
+7. Delete Castro's `audit_display.py`
+
+### Task 14.4: Create Generic Experiment CLI in Core (Medium Risk)
+
+**TDD Tests First:**
+```python
+# api/tests/experiments/cli/test_cli_core.py
+"""Tests for core experiment CLI commands."""
+
+import pytest
+from typer.testing import CliRunner
+from payment_simulator.experiments.cli import experiment_app
+
+runner = CliRunner()
+
+
+class TestRunCommand:
+    """Tests for experiment run command."""
+
+    def test_run_requires_config_path(self) -> None:
+        """Run command requires config path argument."""
+        result = runner.invoke(experiment_app, ["run"])
+        assert result.exit_code != 0
+
+    def test_run_validates_config(self) -> None:
+        """Run validates experiment config."""
+        result = runner.invoke(experiment_app, ["run", "nonexistent.yaml"])
+        assert "not found" in result.output.lower() or result.exit_code != 0
+
+
+class TestReplayCommand:
+    """Tests for experiment replay command."""
+
+    def test_replay_requires_run_id(self) -> None:
+        """Replay command requires run ID argument."""
+        result = runner.invoke(experiment_app, ["replay"])
+        assert result.exit_code != 0
+
+
+class TestResultsCommand:
+    """Tests for experiment results command."""
+
+    def test_results_lists_experiments(self, tmp_path) -> None:
+        """Results command lists experiments from database."""
+        # Create test database with experiments
+        ...
+```
+
+**Steps:**
+1. Write TDD tests for CLI commands
+2. Run tests → FAIL
+3. Create `api/payment_simulator/experiments/cli/` package:
+   - `__init__.py` - exports `experiment_app`
+   - `run.py` - run command
+   - `replay.py` - replay command
+   - `results.py` - results listing
+   - `common.py` - shared utilities
+4. Implement generic commands that work with any experiment type
+5. Run tests → PASS
+
+### Task 14.5: Update Castro CLI to Use Core (Low Risk)
+
+**Steps:**
+1. Update Castro `cli.py` to be a thin wrapper:
+   - Import commands from core
+   - Add Castro-specific defaults (DEFAULT_MODEL, experiments directory)
+   - Keep Castro-specific argument handling
+2. Verify all Castro CLI tests pass
+3. Castro `cli.py` should be ~100 lines (down from ~500)
+
+### Task 14.6: Update Castro Runner to Import from Core (Low Risk)
+
+**Steps:**
+1. Update `runner.py` to import `VerboseConfig` from core
+2. Update `runner.py` to import `VerboseLogger` from core
+3. Verify all runner tests pass
+
+### Task 14.7: Delete Redundant Castro Files (Low Risk)
+
+**Files to Delete:**
+- `castro/verbose_logging.py` (~430 lines)
+- `castro/audit_display.py` (~200 lines)
+
+**Files to Reduce:**
+- `castro/display.py` - becomes thin re-export (~30 lines, -170)
+- `castro/cli.py` - becomes thin wrapper (~100 lines, -400)
+
+### Task 14.8: Update Documentation (Low Risk)
+
+**Steps:**
+1. Create `docs/reference/experiments/verbose.md` - verbose logging reference
+2. Create `docs/reference/experiments/display.md` - display functions reference
+3. Create `docs/reference/experiments/cli.md` - CLI commands reference (replaces existing)
+4. Update `docs/reference/castro/index.md` - note Castro uses core infrastructure
+5. Update `docs/reference/experiments/index.md` - add new modules
+
+### Expected Outcomes
+
+| Category | Before | After | Delta |
+|----------|--------|-------|-------|
+| Core experiments/runner | existing | +650 lines | +650 |
+| Core experiments/cli | 0 | +500 lines | +500 |
+| Castro verbose_logging.py | 430 | 0 (deleted) | -430 |
+| Castro display.py | 200 | 30 (re-export) | -170 |
+| Castro audit_display.py | 200 | 0 (deleted) | -200 |
+| Castro cli.py | 500 | 100 (wrapper) | -400 |
+| **Net Core Addition** | | | **+1150** |
+| **Net Castro Reduction** | | | **-1200** |
+
+### New Tests Added
+
+| Test File | Test Count |
+|-----------|------------|
+| test_verbose_core.py | ~20 |
+| test_display_core.py | ~15 |
+| test_audit_core.py | ~10 |
+| test_cli_core.py | ~25 |
+| **Total** | **~70** |
+
+### Verification Checklist
+
+- [ ] All API tests pass: `cd api && .venv/bin/python -m pytest`
+- [ ] All Castro tests pass: `cd experiments/castro && uv run pytest tests/`
+- [ ] Type checking passes: `mypy payment_simulator/experiments/`
+- [ ] Castro CLI still works: `castro run exp1 --max-iter 1 --dry-run`
+- [ ] Castro replay works: `castro replay <run_id> --verbose`
+- [ ] Core CLI works: `payment-sim experiment run experiments/castro/experiments/exp1.yaml --dry-run`
+- [ ] Documentation complete and accurate
+
+See [phases/phase_14.md](./phases/phase_14.md) for full TDD test specifications.
+
+---
+
+## Timeline Summary (Updated)
+
+| Phase | Duration | Status |
+|-------|----------|--------|
+| Phase 0: Bootstrap Bug Fix | 1 day | ✅ COMPLETED |
+| Phase 0.5: Event Tracing | 2-3 days | ✅ COMPLETED |
+| Phase 1: Preparation | 1-2 days | ✅ COMPLETED |
+| Phase 2: LLM Module | 2-3 days | ✅ COMPLETED |
+| Phase 3: Experiment Config | 2-3 days | ✅ COMPLETED |
+| Phase 4: Experiment Runner | 3-4 days | ✅ COMPLETED |
+| Phase 4.5: Bootstrap Integration Tests | 1-2 days | ✅ COMPLETED |
+| Phase 4.6: Terminology Cleanup | 0.5 days | ✅ COMPLETED |
+| Phase 5: CLI Commands | 2 days | ✅ COMPLETED |
+| Phase 6: Castro Migration | 2-3 days | ✅ COMPLETED |
+| Phase 7: Documentation | 2-3 days | ✅ COMPLETED |
+| Phase 8: LLMConfig Migration | 1 day | ✅ COMPLETED |
+| Phase 9: Castro Slimming | 1-2 days | ✅ COMPLETED |
+| Phase 10: Deep Integration | 2-3 days | ✅ COMPLETED |
+| Phase 11: Infrastructure Generalization | 4-5 days | ✅ COMPLETED |
+| Phase 12: Castro Migration | 2-3 days | ✅ COMPLETED |
+| Phase 13: StateProvider Migration | 2-3 days | ✅ COMPLETED |
+| **Phase 14: Verbose/Audit/CLI to Core** | **3-4 days** | **PLANNED** |
+
+**Phases 0-13 Complete. Phase 14 remaining.**
+
+---
+
+*Document Version 1.6 - Added Phases 13 and 14*
