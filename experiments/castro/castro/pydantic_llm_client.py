@@ -15,9 +15,6 @@ from pydantic_ai import Agent
 
 from payment_simulator.llm import LLMConfig
 
-# Backward compatibility alias
-ModelConfig = LLMConfig
-
 
 @dataclass
 class LLMInteractionResult:

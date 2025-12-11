@@ -375,7 +375,3 @@ class BootstrapContextBuilder:
 
         # Get agent IDs from first result's per_agent_costs
         return list(self._results[0].per_agent_costs.keys())
-
-
-# Backward compatibility alias
-MonteCarloContextBuilder = BootstrapContextBuilder

@@ -10,8 +10,8 @@ Key features:
 - Event trace formatting optimized for LLM consumption
 
 Example:
-    >>> from castro.bootstrap_context import BootstrapContextBuilder
-    >>> builder = BootstrapContextBuilder(enriched_results, "BANK_A")
+    >>> from castro.bootstrap_context import EnrichedBootstrapContextBuilder
+    >>> builder = EnrichedBootstrapContextBuilder(enriched_results, "BANK_A")
     >>> context = builder.build_agent_context()
     >>> best_trace = builder.format_event_trace_for_llm(builder.get_best_result())
 """
@@ -30,12 +30,12 @@ if TYPE_CHECKING:
 from castro.context_builder import AgentSimulationContext
 
 
-class BootstrapContextBuilder:
+class EnrichedBootstrapContextBuilder:
     """Builds LLM context directly from enriched bootstrap results.
 
-    Unlike MonteCarloContextBuilder which adapts full simulation results,
-    this builder works natively with EnrichedEvaluationResult objects
-    that contain real event traces from bootstrap sandbox evaluation.
+    Unlike BootstrapContextBuilder (in context_builder.py) which adapts
+    full simulation results, this builder works natively with
+    EnrichedEvaluationResult objects from bootstrap sandbox evaluation.
 
     This eliminates the context/evaluation mismatch - the LLM now sees
     exactly what happened during the evaluations that produced the costs.

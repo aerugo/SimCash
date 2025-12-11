@@ -1,4 +1,4 @@
-"""Tests for BootstrapContextBuilder.
+"""Tests for EnrichedBootstrapContextBuilder.
 
 These tests verify the context builder that transforms enriched bootstrap
 evaluation results into LLM-consumable context.
@@ -17,19 +17,19 @@ from typing import Any
 import pytest
 
 
-class TestBootstrapContextBuilderBestWorst:
+class TestEnrichedBootstrapContextBuilderBestWorst:
     """Tests for get_best_result and get_worst_result methods."""
 
     def test_get_best_result_returns_lowest_cost(self) -> None:
         """get_best_result returns result with minimum cost."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         results = [
             _create_enriched_result(sample_idx=0, total_cost=1000),
             _create_enriched_result(sample_idx=1, total_cost=500),  # Best
             _create_enriched_result(sample_idx=2, total_cost=800),
         ]
-        builder = BootstrapContextBuilder(results, "BANK_A")
+        builder = EnrichedBootstrapContextBuilder(results, "BANK_A")
 
         best = builder.get_best_result()
         assert best.total_cost == 500
@@ -37,14 +37,14 @@ class TestBootstrapContextBuilderBestWorst:
 
     def test_get_worst_result_returns_highest_cost(self) -> None:
         """get_worst_result returns result with maximum cost."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         results = [
             _create_enriched_result(sample_idx=0, total_cost=1000),  # Worst
             _create_enriched_result(sample_idx=1, total_cost=500),
             _create_enriched_result(sample_idx=2, total_cost=800),
         ]
-        builder = BootstrapContextBuilder(results, "BANK_A")
+        builder = EnrichedBootstrapContextBuilder(results, "BANK_A")
 
         worst = builder.get_worst_result()
         assert worst.total_cost == 1000
@@ -52,22 +52,22 @@ class TestBootstrapContextBuilderBestWorst:
 
     def test_single_result_is_both_best_and_worst(self) -> None:
         """With single result, best and worst are the same."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         results = [_create_enriched_result(sample_idx=0, total_cost=1000)]
-        builder = BootstrapContextBuilder(results, "BANK_A")
+        builder = EnrichedBootstrapContextBuilder(results, "BANK_A")
 
         best = builder.get_best_result()
         worst = builder.get_worst_result()
         assert best.sample_idx == worst.sample_idx
 
 
-class TestBootstrapContextBuilderFormatting:
+class TestEnrichedBootstrapContextBuilderFormatting:
     """Tests for format_event_trace_for_llm method."""
 
     def test_format_event_trace_limits_events(self) -> None:
         """format_event_trace_for_llm limits number of events."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
         from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
             BootstrapEvent,
         )
@@ -77,7 +77,7 @@ class TestBootstrapContextBuilderFormatting:
             for i in range(100)
         ]
         result = _create_enriched_result(sample_idx=0, total_cost=1000, events=events)
-        builder = BootstrapContextBuilder([result], "BANK_A")
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
 
         formatted = builder.format_event_trace_for_llm(result, max_events=20)
 
@@ -90,10 +90,10 @@ class TestBootstrapContextBuilderFormatting:
 
     def test_format_event_trace_returns_string(self) -> None:
         """format_event_trace_for_llm returns string."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         result = _create_enriched_result(sample_idx=0, total_cost=1000)
-        builder = BootstrapContextBuilder([result], "BANK_A")
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
 
         formatted = builder.format_event_trace_for_llm(result, max_events=50)
 
@@ -101,28 +101,28 @@ class TestBootstrapContextBuilderFormatting:
 
     def test_format_empty_event_trace(self) -> None:
         """format_event_trace_for_llm handles empty trace."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         result = _create_enriched_result(sample_idx=0, total_cost=1000, events=[])
-        builder = BootstrapContextBuilder([result], "BANK_A")
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
 
         formatted = builder.format_event_trace_for_llm(result, max_events=50)
 
         assert isinstance(formatted, str)
 
 
-class TestBootstrapContextBuilderAgentContext:
+class TestEnrichedBootstrapContextBuilderAgentContext:
     """Tests for build_agent_context method."""
 
     def test_build_agent_context_returns_context(self) -> None:
         """build_agent_context returns AgentSimulationContext."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         results = [
             _create_enriched_result(sample_idx=0, total_cost=1000),
             _create_enriched_result(sample_idx=1, total_cost=500),
         ]
-        builder = BootstrapContextBuilder(results, "BANK_A")
+        builder = EnrichedBootstrapContextBuilder(results, "BANK_A")
 
         context = builder.build_agent_context()
 
@@ -133,10 +133,10 @@ class TestBootstrapContextBuilderAgentContext:
 
     def test_build_agent_context_has_output_strings(self) -> None:
         """build_agent_context includes formatted event traces."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         results = [_create_enriched_result(sample_idx=0, total_cost=1000)]
-        builder = BootstrapContextBuilder(results, "BANK_A")
+        builder = EnrichedBootstrapContextBuilder(results, "BANK_A")
 
         context = builder.build_agent_context()
 
@@ -148,7 +148,7 @@ class TestBootstrapContextBuilderAgentContext:
 
     def test_build_agent_context_computes_std(self) -> None:
         """build_agent_context computes cost standard deviation."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         # Results with known variance
         results = [
@@ -156,7 +156,7 @@ class TestBootstrapContextBuilderAgentContext:
             _create_enriched_result(sample_idx=1, total_cost=1000),
             _create_enriched_result(sample_idx=2, total_cost=1000),
         ]
-        builder = BootstrapContextBuilder(results, "BANK_A")
+        builder = EnrichedBootstrapContextBuilder(results, "BANK_A")
 
         context = builder.build_agent_context()
 
@@ -164,18 +164,18 @@ class TestBootstrapContextBuilderAgentContext:
         assert context.cost_std == 0
 
 
-class TestBootstrapContextBuilderInvariants:
-    """Tests for project invariants in BootstrapContextBuilder."""
+class TestEnrichedBootstrapContextBuilderInvariants:
+    """Tests for project invariants in EnrichedBootstrapContextBuilder."""
 
     def test_mean_cost_is_integer(self) -> None:
         """mean_cost in context is integer (INV-1)."""
-        from castro.bootstrap_context import BootstrapContextBuilder
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder
 
         results = [
             _create_enriched_result(sample_idx=0, total_cost=1001),
             _create_enriched_result(sample_idx=1, total_cost=1002),
         ]
-        builder = BootstrapContextBuilder(results, "BANK_A")
+        builder = EnrichedBootstrapContextBuilder(results, "BANK_A")
 
         context = builder.build_agent_context()
 
