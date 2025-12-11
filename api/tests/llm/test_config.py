@@ -207,7 +207,7 @@ class TestLLMConfigExtended:
         from payment_simulator.llm.config import LLMConfig
 
         config = LLMConfig(
-            model="openai:gpt-5.1",
+            model="openai:gpt-5.2",
             reasoning_effort="high",
         )
         settings = config.to_model_settings()
@@ -219,7 +219,7 @@ class TestLLMConfigExtended:
         from payment_simulator.llm.config import LLMConfig
 
         config = LLMConfig(
-            model="openai:gpt-5.1",
+            model="openai:gpt-5.2",
             reasoning_effort="high",
             max_tokens=10000,  # Lower than 30000
         )

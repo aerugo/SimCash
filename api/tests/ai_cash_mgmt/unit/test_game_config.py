@@ -78,9 +78,7 @@ class TestOptimizationSchedule:
             OptimizationScheduleType,
         )
 
-        schedule = OptimizationSchedule(
-            type=OptimizationScheduleType.ON_SIMULATION_END
-        )
+        schedule = OptimizationSchedule(type=OptimizationScheduleType.ON_SIMULATION_END)
 
         assert schedule.min_remaining_repetitions == 1
 
@@ -270,7 +268,7 @@ class TestGameConfig:
             },
             default_llm_config=LLMConfig(
                 provider="openai",
-                model="gpt-5.1",
+                model="gpt-5.2",
                 reasoning_effort="high",
             ),
             optimization_schedule=OptimizationSchedule(
@@ -281,7 +279,7 @@ class TestGameConfig:
         llm_config = config.get_llm_config_for_agent("BANK_A")
 
         assert llm_config.provider == "openai"
-        assert llm_config.model == "gpt-5.1"
+        assert llm_config.model == "gpt-5.2"
         assert llm_config.reasoning_effort == "high"
 
     def test_get_optimized_agent_ids(self) -> None:
@@ -325,7 +323,7 @@ optimized_agents:
   BANK_A:
     llm_config:
       provider: openai
-      model: gpt-5.1
+      model: gpt-5.2
       reasoning_effort: high
   BANK_B:
     llm_config:
@@ -345,9 +343,7 @@ convergence:
   stability_threshold: 0.03
   max_iterations: 100
 """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_content)
             f.flush()
             config = GameConfig.from_yaml(f.name)

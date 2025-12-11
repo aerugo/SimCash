@@ -39,7 +39,7 @@ class LLMConfig(BaseModel):
         >>> # OpenAI with reasoning
         >>> config = LLMConfig(
         ...     provider="openai",
-        ...     model="gpt-5.1",
+        ...     model="gpt-5.2",
         ...     reasoning_effort="high",
         ... )
 

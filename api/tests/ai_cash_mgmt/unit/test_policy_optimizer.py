@@ -32,13 +32,13 @@ class TestOptimizationResult:
             validation_errors=[],
             llm_latency_seconds=1.5,
             tokens_used=500,
-            llm_model="gpt-5.1",
+            llm_model="gpt-5.2",
         )
 
         assert result.agent_id == "BANK_A"
         assert result.iteration == 5
         assert result.was_accepted is True
-        assert result.llm_model == "gpt-5.1"
+        assert result.llm_model == "gpt-5.2"
 
     def test_optimization_result_rejected(self) -> None:
         """OptimizationResult can represent rejected optimization."""
@@ -57,7 +57,7 @@ class TestOptimizationResult:
             validation_errors=["Unknown parameter: foo"],
             llm_latency_seconds=2.0,
             tokens_used=600,
-            llm_model="gpt-5.1",
+            llm_model="gpt-5.2",
         )
 
         assert result.was_accepted is False
@@ -148,7 +148,7 @@ class TestPolicyOptimizer:
             current_iteration=1,
             current_metrics={"total_cost_mean": 1000},
             llm_client=mock_llm_client,
-            llm_model="gpt-5.1",
+            llm_model="gpt-5.2",
         )
 
         assert result.new_policy is not None
@@ -199,7 +199,7 @@ class TestPolicyOptimizer:
             current_iteration=1,
             current_metrics={},
             llm_client=mock_llm_client,
-            llm_model="gpt-5.1",
+            llm_model="gpt-5.2",
         )
 
         # Should have retried and succeeded
@@ -245,7 +245,7 @@ class TestPolicyOptimizer:
             current_iteration=1,
             current_metrics={},
             llm_client=mock_llm_client,
-            llm_model="gpt-5.1",
+            llm_model="gpt-5.2",
         )
 
         assert result.new_policy is None
@@ -297,12 +297,14 @@ class TestPolicyOptimizer:
             current_iteration=1,
             current_metrics={},
             llm_client=mock_llm_client,
-            llm_model="gpt-5.1",
+            llm_model="gpt-5.2",
         )
 
         # Check second call includes error context in prompt
         second_call = mock_llm_client.generate_policy.call_args_list[1]
-        prompt = second_call[1].get("prompt", second_call[0][0] if second_call[0] else "")
+        prompt = second_call[1].get(
+            "prompt", second_call[0][0] if second_call[0] else ""
+        )
 
         # Retry prompt should contain validation error info
         assert "VALIDATION ERROR" in prompt
@@ -354,7 +356,7 @@ class TestPolicyOptimizer:
             current_iteration=2,
             current_metrics={"total_cost_mean": 12000},
             llm_client=mock_llm_client,
-            llm_model="gpt-5.1",
+            llm_model="gpt-5.2",
             iteration_history=iteration_history,
             cost_breakdown={"delay": 6000, "collateral": 4000},
             best_seed=42,

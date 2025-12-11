@@ -13,7 +13,6 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-
 runner = CliRunner()
 
 
@@ -31,11 +30,11 @@ class TestAiGameValidate:
             "master_seed": 42,
             "optimized_agents": {
                 "BANK_A": {},
-                "BANK_B": {"llm_config": {"model": "gpt-5.1"}},
+                "BANK_B": {"llm_config": {"model": "gpt-5.2"}},
             },
             "default_llm_config": {
                 "provider": "openai",
-                "model": "gpt-5.1",
+                "model": "gpt-5.2",
             },
             "optimization_schedule": {
                 "type": "every_x_ticks",
@@ -109,7 +108,10 @@ class TestAiGameInfo:
         result = runner.invoke(app, ["ai-game", "info"])
 
         assert result.exit_code == 0
-        assert "rl_optimization" in result.output.lower() or "optimization" in result.output.lower()
+        assert (
+            "rl_optimization" in result.output.lower()
+            or "optimization" in result.output.lower()
+        )
 
 
 class TestAiGameConfigTemplate:
@@ -120,7 +122,9 @@ class TestAiGameConfigTemplate:
         from payment_simulator.cli.main import app
 
         output_path = tmp_path / "template.yaml"
-        result = runner.invoke(app, ["ai-game", "config-template", "-o", str(output_path)])
+        result = runner.invoke(
+            app, ["ai-game", "config-template", "-o", str(output_path)]
+        )
 
         assert result.exit_code == 0
         assert output_path.exists()

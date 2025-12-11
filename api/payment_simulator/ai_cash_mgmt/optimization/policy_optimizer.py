@@ -124,7 +124,7 @@ class OptimizationResult:
         ...     validation_errors=[],
         ...     llm_latency_seconds=1.5,
         ...     tokens_used=500,
-        ...     llm_model="gpt-5.1",
+        ...     llm_model="gpt-5.2",
         ... )
     """
 
@@ -185,7 +185,7 @@ class PolicyOptimizer:
         ...     current_iteration=5,
         ...     current_metrics={"total_cost_mean": 12500},
         ...     llm_client=client,
-        ...     llm_model="gpt-5.1",
+        ...     llm_model="gpt-5.2",
         ... )
     """
 

@@ -17,9 +17,9 @@ class TestGameOrchestratorCreation:
     def test_orchestrator_creates_from_config(self) -> None:
         """GameOrchestrator should initialize from GameConfig."""
         from payment_simulator.ai_cash_mgmt.config.game_config import (
+            BootstrapConfig,
             ConvergenceCriteria,
             GameConfig,
-            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -63,9 +63,9 @@ class TestGameOrchestratorCreation:
     def test_orchestrator_creates_seed_manager(self) -> None:
         """GameOrchestrator should create SeedManager from master_seed."""
         from payment_simulator.ai_cash_mgmt.config.game_config import (
+            BootstrapConfig,
             ConvergenceCriteria,
             GameConfig,
-            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -112,9 +112,9 @@ class TestGameOrchestratorScheduling:
     def test_should_optimize_at_interval(self) -> None:
         """Should trigger optimization at configured tick intervals."""
         from payment_simulator.ai_cash_mgmt.config.game_config import (
+            BootstrapConfig,
             ConvergenceCriteria,
             GameConfig,
-            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -161,9 +161,9 @@ class TestGameOrchestratorScheduling:
     def test_should_optimize_after_eod(self) -> None:
         """Should trigger optimization after end of day."""
         from payment_simulator.ai_cash_mgmt.config.game_config import (
+            BootstrapConfig,
             ConvergenceCriteria,
             GameConfig,
-            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -211,9 +211,9 @@ class TestGameOrchestratorOptimization:
     async def test_run_optimization_step(self) -> None:
         """run_optimization_step should optimize all agents."""
         from payment_simulator.ai_cash_mgmt.config.game_config import (
+            BootstrapConfig,
             ConvergenceCriteria,
             GameConfig,
-            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -227,11 +227,11 @@ class TestGameOrchestratorOptimization:
             GameOrchestrator,
         )
         from payment_simulator.ai_cash_mgmt.core.game_session import GameSession
-        from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
-            OptimizationResult,
-        )
         from payment_simulator.ai_cash_mgmt.optimization.policy_evaluator import (
             EvaluationResult,
+        )
+        from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
+            OptimizationResult,
         )
         from payment_simulator.ai_cash_mgmt.sampling.transaction_sampler import (
             HistoricalTransaction,
@@ -273,7 +273,7 @@ class TestGameOrchestratorOptimization:
             validation_errors=[],
             llm_latency_seconds=1.5,
             tokens_used=500,
-            llm_model="openai/gpt-5.1",
+            llm_model="openai/gpt-5.2",
         )
         orchestrator._policy_optimizer = mock_optimizer
 
@@ -328,9 +328,9 @@ class TestGameOrchestratorConvergence:
     def test_orchestrator_creates_convergence_detector(self) -> None:
         """Orchestrator should create ConvergenceDetector from config."""
         from payment_simulator.ai_cash_mgmt.config.game_config import (
+            BootstrapConfig,
             ConvergenceCriteria,
             GameConfig,
-            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -376,9 +376,9 @@ class TestGameOrchestratorConvergence:
     def test_check_convergence_uses_detector(self) -> None:
         """check_convergence should use the ConvergenceDetector."""
         from payment_simulator.ai_cash_mgmt.config.game_config import (
+            BootstrapConfig,
             ConvergenceCriteria,
             GameConfig,
-            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
@@ -435,9 +435,9 @@ class TestGameOrchestratorDeterminism:
     def test_same_seed_produces_same_sampling_seeds(self) -> None:
         """Same master_seed should produce identical sampling seeds."""
         from payment_simulator.ai_cash_mgmt.config.game_config import (
+            BootstrapConfig,
             ConvergenceCriteria,
             GameConfig,
-            BootstrapConfig,
             OptimizationSchedule,
             OptimizationScheduleType,
         )
