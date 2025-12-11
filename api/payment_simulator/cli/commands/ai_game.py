@@ -202,16 +202,16 @@ def show_schema(
     Useful for editor autocompletion and documentation generation.
     """
     from payment_simulator.ai_cash_mgmt.config.game_config import (
+        BootstrapConfig,
         ConvergenceCriteria,
         GameConfig,
-        MonteCarloConfig,
     )
     from payment_simulator.ai_cash_mgmt.config.llm_config import LLMConfig
 
     schemas: dict[str, type[BaseModel]] = {
         "game-config": GameConfig,
         "llm-config": LLMConfig,
-        "monte-carlo": MonteCarloConfig,
+        "bootstrap": BootstrapConfig,
         "convergence": ConvergenceCriteria,
     }
 

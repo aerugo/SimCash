@@ -486,17 +486,17 @@ class TestEndToEndFlow:
 
 
 class TestExperimentRunnerVerboseIntegration:
-    """Phase 7 Tests: ExperimentRunner integration with MonteCarloContextBuilder.
+    """Phase 7 Tests: ExperimentRunner integration with BootstrapContextBuilder.
 
     These tests verify that ExperimentRunner:
-    1. Captures verbose output during Monte Carlo evaluation
-    2. Builds MonteCarloContextBuilder from results
+    1. Captures verbose output during bootstrap evaluation
+    2. Builds BootstrapContextBuilder from results
     3. Uses it to create per-agent context for LLM calls
     """
 
     def test_evaluate_policies_with_verbose_capture(self) -> None:
         """_evaluate_policies captures verbose output when enabled."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
         from castro.simulation import SimulationResult
 
         # Create mock results with verbose output to simulate capture
@@ -532,7 +532,7 @@ class TestExperimentRunnerVerboseIntegration:
             results.append(result)
 
         # Build context from results
-        builder = MonteCarloContextBuilder(results=results, seeds=seeds)
+        builder = BootstrapContextBuilder(results=results, seeds=seeds)
 
         # Verify builder can produce context
         context = builder.get_agent_simulation_context("BANK_A")
@@ -540,8 +540,8 @@ class TestExperimentRunnerVerboseIntegration:
         assert "BANK_A" in context.best_seed_output
 
     def test_monte_carlo_context_builder_with_real_verbose_output(self) -> None:
-        """MonteCarloContextBuilder works with actual VerboseOutput objects."""
-        from castro.context_builder import MonteCarloContextBuilder
+        """BootstrapContextBuilder works with actual VerboseOutput objects."""
+        from castro.context_builder import BootstrapContextBuilder
         from castro.verbose_capture import VerboseOutput
 
         # Create realistic verbose output
@@ -595,7 +595,7 @@ class TestExperimentRunnerVerboseIntegration:
             ),
         ]
 
-        builder = MonteCarloContextBuilder(results=results, seeds=[42])
+        builder = BootstrapContextBuilder(results=results, seeds=[42])
         output = builder.get_best_seed_verbose_output("BANK_A")
 
         assert output is not None
@@ -603,8 +603,8 @@ class TestExperimentRunnerVerboseIntegration:
         assert "Arrival" in output or "Settlement" in output
 
     def test_context_builder_produces_prompt_for_llm(self) -> None:
-        """MonteCarloContextBuilder context can be used with SingleAgentContextBuilder."""
-        from castro.context_builder import MonteCarloContextBuilder
+        """BootstrapContextBuilder context can be used with SingleAgentContextBuilder."""
+        from castro.context_builder import BootstrapContextBuilder
         from castro.verbose_capture import VerboseOutput
 
         # Create verbose outputs for best/worst cases
@@ -686,7 +686,7 @@ class TestExperimentRunnerVerboseIntegration:
             ),
         ]
 
-        builder = MonteCarloContextBuilder(results=results, seeds=[100, 200])
+        builder = BootstrapContextBuilder(results=results, seeds=[100, 200])
 
         # Build context for LLM
         context = builder.build_context_for_agent(
@@ -718,7 +718,7 @@ class TestLLMClientVerboseContext:
 
     def test_llm_client_prompt_includes_verbose_output(self) -> None:
         """LLM client receives prompt with verbose output."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
         from castro.verbose_capture import VerboseOutput
 
         # Create verbose output with events
@@ -773,7 +773,7 @@ class TestLLMClientVerboseContext:
             ),
         ]
 
-        builder = MonteCarloContextBuilder(results=results, seeds=[42])
+        builder = BootstrapContextBuilder(results=results, seeds=[42])
 
         # Build context using same method as ExperimentRunner
         context = builder.build_context_for_agent(
@@ -846,7 +846,7 @@ class TestLLMClientVerboseContext:
 
     def test_end_to_end_prompt_flow(self) -> None:
         """Full flow from verbose capture to LLM prompt includes verbose context."""
-        from castro.context_builder import MonteCarloContextBuilder
+        from castro.context_builder import BootstrapContextBuilder
         from castro.verbose_capture import VerboseOutput
         from payment_simulator.ai_cash_mgmt.prompts import (
             build_single_agent_context,
@@ -940,7 +940,7 @@ class TestLLMClientVerboseContext:
             ),
         ]
 
-        builder = MonteCarloContextBuilder(results=results, seeds=[100, 200])
+        builder = BootstrapContextBuilder(results=results, seeds=[100, 200])
 
         # Get agent simulation context
         agent_context = builder.get_agent_simulation_context("BANK_A")

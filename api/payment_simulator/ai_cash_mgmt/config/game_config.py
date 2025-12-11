@@ -155,10 +155,6 @@ class BootstrapConfig(BaseModel):
         return self
 
 
-# Backward compatibility alias
-MonteCarloConfig = BootstrapConfig
-
-
 class ConvergenceCriteria(BaseModel):
     """Convergence detection configuration.
 

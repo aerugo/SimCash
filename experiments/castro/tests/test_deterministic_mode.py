@@ -1,10 +1,10 @@
 """Tests for deterministic evaluation mode.
 
-TDD tests for the feature that allows disabling Monte Carlo sampling
+TDD tests for the feature that allows disabling bootstrap sampling
 when running experiments with deterministic scenarios.
 
 Tests cover:
-- MonteCarloConfig deterministic flag
+- BootstrapConfig deterministic flag
 - CastroExperiment deterministic flag propagation
 - Single-sample evaluation in runner
 - Context builder single-sample handling
@@ -21,48 +21,48 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from payment_simulator.ai_cash_mgmt.config.game_config import MonteCarloConfig
+from payment_simulator.ai_cash_mgmt.config.game_config import BootstrapConfig
 
 
-class TestMonteCarloConfigDeterministic:
-    """Tests for MonteCarloConfig deterministic mode."""
+class TestBootstrapConfigDeterministic:
+    """Tests for BootstrapConfig deterministic mode."""
 
     def test_deterministic_mode_default_false(self) -> None:
         """Deterministic mode defaults to False."""
-        config = MonteCarloConfig()
+        config = BootstrapConfig()
         assert config.deterministic is False
 
     def test_deterministic_mode_explicit_true(self) -> None:
         """Deterministic mode can be set explicitly to True."""
-        config = MonteCarloConfig(deterministic=True)
+        config = BootstrapConfig(deterministic=True)
         assert config.deterministic is True
 
     def test_deterministic_forces_num_samples_to_one(self) -> None:
         """When deterministic=True, num_samples is forced to 1."""
-        config = MonteCarloConfig(deterministic=True, num_samples=10)
+        config = BootstrapConfig(deterministic=True, num_samples=10)
         assert config.num_samples == 1
 
     def test_deterministic_allows_num_samples_one(self) -> None:
         """When deterministic=True, num_samples=1 is allowed."""
-        config = MonteCarloConfig(deterministic=True, num_samples=1)
+        config = BootstrapConfig(deterministic=True, num_samples=1)
         assert config.num_samples == 1
 
     def test_non_deterministic_requires_minimum_five_samples(self) -> None:
         """When deterministic=False, num_samples must be >= 5."""
         with pytest.raises(ValueError, match="num_samples must be >= 5"):
-            MonteCarloConfig(deterministic=False, num_samples=3)
+            BootstrapConfig(deterministic=False, num_samples=3)
 
     def test_non_deterministic_allows_five_or_more_samples(self) -> None:
         """When deterministic=False, num_samples >= 5 is valid."""
-        config = MonteCarloConfig(deterministic=False, num_samples=5)
+        config = BootstrapConfig(deterministic=False, num_samples=5)
         assert config.num_samples == 5
 
-        config = MonteCarloConfig(deterministic=False, num_samples=20)
+        config = BootstrapConfig(deterministic=False, num_samples=20)
         assert config.num_samples == 20
 
     def test_default_num_samples_valid_for_non_deterministic(self) -> None:
         """Default num_samples (20) is valid for non-deterministic mode."""
-        config = MonteCarloConfig()
+        config = BootstrapConfig()
         assert config.num_samples == 20
         assert config.deterministic is False
 
@@ -94,8 +94,8 @@ class TestCastroExperimentDeterministic:
         )
         assert exp.deterministic is True
 
-    def test_experiment_deterministic_propagates_to_monte_carlo_config(self) -> None:
-        """Deterministic flag flows to MonteCarloConfig."""
+    def test_experiment_deterministic_propagates_to_bootstrap_config(self) -> None:
+        """Deterministic flag flows to BootstrapConfig."""
         from castro.experiments import CastroExperiment
 
         exp = CastroExperiment(
@@ -137,8 +137,8 @@ class TestExp1Deterministic:
         exp = create_exp1()
         assert exp.deterministic is True
 
-    def test_exp1_monte_carlo_config_is_deterministic(self) -> None:
-        """Exp1's MonteCarloConfig should be deterministic with 1 sample."""
+    def test_exp1_bootstrap_config_is_deterministic(self) -> None:
+        """Exp1's BootstrapConfig should be deterministic with 1 sample."""
         from castro.experiments import create_exp1
 
         exp = create_exp1()

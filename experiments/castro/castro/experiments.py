@@ -23,9 +23,6 @@ from payment_simulator.ai_cash_mgmt import (
 )
 from payment_simulator.llm import LLMConfig
 
-# Backward compatibility alias
-ModelConfig = LLMConfig
-
 # Default model for experiments
 DEFAULT_MODEL = "anthropic:claude-sonnet-4-5"
 
@@ -289,7 +286,7 @@ def create_exp3(
     - Tests interaction between liquidity and timing decisions
     - 10 bootstrap samples for evaluation
 
-    Note: Uses minimum evaluation_ticks of 10 for MonteCarloConfig validation.
+    Note: Uses minimum evaluation_ticks of 10 for BootstrapConfig validation.
     The scenario runs 3 ticks per day, remaining ticks are idle.
 
     Args:
@@ -306,7 +303,7 @@ def create_exp3(
         description="Joint Liquidity & Timing Optimization",
         scenario_path=Path("configs/exp3_joint.yaml"),
         num_samples=10,  # Bootstrap samples for evaluation
-        evaluation_ticks=10,  # Minimum for MonteCarloConfig (ticks 3-9 are idle)
+        evaluation_ticks=10,  # Minimum for BootstrapConfig (ticks 3-9 are idle)
         max_iterations=25,
         stability_threshold=0.05,
         stability_window=5,

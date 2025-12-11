@@ -104,7 +104,7 @@ class TestExperiments:
         exp = create_exp3()
 
         assert exp.name == "exp3"
-        # Minimum evaluation_ticks for MonteCarloConfig validation
+        # Minimum evaluation_ticks for BootstrapConfig validation
         assert exp.evaluation_ticks == 10  # Ticks 3-9 are idle
 
     def test_experiments_registry(self) -> None:

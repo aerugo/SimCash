@@ -31,7 +31,6 @@ from payment_simulator.ai_cash_mgmt.config import (
     GameConfig,
     LLMConfig,
     LLMProviderType,
-    MonteCarloConfig,  # Backward compatibility alias
     OptimizationSchedule,
     OptimizationScheduleType,
     OutputConfig,
@@ -99,7 +98,6 @@ __all__ = [
     "HistoricalTransaction",
     "LLMConfig",
     "LLMProviderType",
-    "MonteCarloConfig",  # Backward compatibility alias
     "OptimizationSchedule",
     "OptimizationScheduleType",
     "OutputConfig",
