@@ -1,35 +1,303 @@
 # Castro Experiments
 
-Clean-slate implementation of Castro et al. (2025) experiments using the `ai_cash_mgmt` module.
+LLM-based replication of Castro et al. (2025) "Estimating Policy Functions in Payment Systems Using Reinforcement Learning" using the SimCash `ai_cash_mgmt` module.
 
 ## Overview
 
-This module replicates the experiments from "Estimating Policy Functions in Payment Systems Using Reinforcement Learning" (Castro et al., 2025) using LLM-based policy optimization instead of traditional RL methods.
+This module implements experiments from the Castro et al. (2025) paper, replacing the original reinforcement learning approach with **LLM-based policy optimization**. The goal is to validate whether large language models can discover optimal liquidity management policies in high-value payment systems (HVPS).
 
-**Key Features**:
-- Three experiments matching the paper's scenarios
+**Key Features:**
+- Three experiments matching the paper's scenarios (2-period, 12-period, joint optimization)
 - LLM-based policy generation via **PydanticAI** (unified multi-provider support)
 - Support for Anthropic Claude, OpenAI GPT, and Google Gemini
 - Provider-specific reasoning features (thinking tokens, reasoning effort)
-- Bootstrap policy evaluation
+- Bootstrap policy evaluation with paired comparison
 - Deterministic execution via seeded RNG
-- Full persistence to DuckDB
+- Full persistence to DuckDB with replay support
+
+---
+
+## Architecture
+
+### Module Structure
+
+```
+experiments/castro/
+├── castro/                          # Core implementation
+│   ├── __init__.py                  # Public API exports
+│   ├── audit_display.py             # Audit mode display (--audit flag)
+│   ├── bootstrap_context.py         # EnrichedBootstrapContextBuilder for LLM context
+│   ├── constraints.py               # CASTRO_CONSTRAINTS (paper-aligned rules)
+│   ├── context_builder.py           # BootstrapContextBuilder (simulation context)
+│   ├── display.py                   # Unified display (StateProvider pattern)
+│   ├── events.py                    # Event model for replay identity
+│   ├── experiments.py               # Experiment definitions (YAML-driven)
+│   ├── persistence/
+│   │   ├── models.py                # Database models (ExperimentRunRecord)
+│   │   └── repository.py            # DuckDB persistence operations
+│   ├── pydantic_llm_client.py       # PydanticAI LLM client (multi-provider)
+│   ├── run_id.py                    # Run ID generation
+│   ├── runner.py                    # ExperimentRunner orchestration
+│   ├── simulation.py                # CastroSimulationRunner
+│   ├── state_provider.py            # StateProvider pattern for replay
+│   ├── verbose_capture.py           # Verbose output capture
+│   └── verbose_logging.py           # VerboseConfig, VerboseLogger
+├── configs/                         # Scenario YAML configurations
+│   ├── exp1_2period.yaml            # 2-period deterministic scenario
+│   ├── exp2_12period.yaml           # 12-period stochastic scenario
+│   └── exp3_joint.yaml              # Joint optimization scenario
+├── experiments/                     # Experiment config YAML files
+│   ├── exp1.yaml                    # 2-Period Deterministic Nash Equilibrium
+│   ├── exp2.yaml                    # 12-Period Stochastic LVTS-Style
+│   └── exp3.yaml                    # Joint Liquidity & Timing Optimization
+├── papers/
+│   └── castro_et_al.md              # Full paper text for reference
+├── tests/                           # Comprehensive test suite
+│   ├── test_bootstrap_context.py    # Bootstrap context builder tests
+│   ├── test_cli_audit.py            # CLI audit flag tests
+│   ├── test_cli_commands.py         # CLI command tests
+│   ├── test_deterministic_mode.py   # Deterministic mode tests
+│   ├── test_display.py              # Display function tests
+│   ├── test_events.py               # Event model tests
+│   ├── test_experiments.py          # Experiment unit tests
+│   ├── test_pydantic_llm_client.py  # PydanticAI client tests
+│   ├── test_run_id.py               # Run ID tests
+│   ├── test_state_provider.py       # StateProvider tests
+│   └── test_verbose_logging.py      # Verbose logging tests
+├── cli.py                           # Typer CLI entry point
+├── pyproject.toml                   # Package configuration
+└── README.md                        # This file
+```
+
+### Integration with SimCash Components
+
+Castro experiments leverage the SimCash `ai_cash_mgmt` module for core functionality:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Castro Experiment Layer                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│  CastroExperiment      │  ExperimentRunner       │  PydanticAILLMClient │
+│  (config dataclass)    │  (orchestration loop)   │  (LLM integration)   │
+└────────────┬───────────┴───────────┬─────────────┴───────────┬──────────┘
+             │                       │                         │
+             ▼                       ▼                         ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     payment_simulator.ai_cash_mgmt                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│  BootstrapPolicyEvaluator  │  PolicyOptimizer    │  ConvergenceDetector │
+│  BootstrapSampler          │  ConstraintValidator│  SeedManager         │
+│  TransactionHistoryCollector│  GameRepository    │  SingleAgentPrompts  │
+└────────────┬───────────────┴───────────┬────────┴───────────┬───────────┘
+             │                           │                    │
+             ▼                           ▼                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     payment_simulator (Rust Core)                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Orchestrator              │  Settlement Engine   │  Policy Execution   │
+│  (tick loop, state mgmt)   │  (RTGS, queues)      │  (decision trees)   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Components Used:**
+
+| SimCash Component | Castro Usage |
+|------------------|--------------|
+| `BootstrapPolicyEvaluator` | Evaluates policies using bootstrap resampling |
+| `BootstrapSampler` | Generates bootstrap samples from transaction history |
+| `PolicyOptimizer` | LLM-based policy generation with validation |
+| `ConstraintValidator` | Enforces Castro paper rules (CASTRO_CONSTRAINTS) |
+| `ConvergenceDetector` | Detects policy stability for stopping criteria |
+| `SeedManager` | Manages deterministic RNG seeds |
+| `GameRepository` | Persists sessions and iterations to DuckDB |
+| `LLMConfig` | Unified LLM configuration (from `payment_simulator.llm`) |
+
+---
+
+## The Castro Paper
+
+### Reference
+
+Castro, P., Desai, A., Du, H., Garratt, R., & Rivadeneyra, F. (2025). *Estimating Policy Functions in Payment Systems Using Reinforcement Learning*. ACM Transactions on Economics and Computation, 13(1), Article 1.
+
+The full paper is available at: `papers/castro_et_al.md`
+
+### Paper Summary
+
+The paper addresses **liquidity management in high-value payment systems (HVPS)**, where banks must balance:
+
+1. **Initial liquidity cost** (`r_c`): Cost of posting collateral at the start of the day
+2. **Delay cost** (`r_d`): Cost of delaying customer payments
+3. **End-of-day borrowing cost** (`r_b`): Emergency borrowing from central bank
+
+Banks face a **strategic game**: posting more liquidity is costly, but delaying payments to wait for incoming funds risks customer dissatisfaction. The paper shows that RL agents can learn optimal policies even without complete knowledge of the environment.
+
+### Cost Structure (Paper Section 3)
+
+| Cost Type | Formula | When Incurred |
+|-----------|---------|---------------|
+| Initial liquidity | `r_c × ℓ₀` | Start of day (t=0) |
+| Delay | `r_d × P_t(1 - x_t)` | Each period with delayed payments |
+| End-of-day borrowing | `r_b × c_b` | End of day if shortfall |
+
+**Assumption:** `r_c < r_d < r_b` (collateral cheaper than delay, delay cheaper than emergency borrowing)
+
+---
+
+## Experiment Mapping: Paper → SimCash
+
+### Experiment 1: 2-Period Deterministic (Paper Section 4, 6.3)
+
+**Paper Setup:**
+- 2 time periods (T=2)
+- Known, fixed payment demands
+- Agent A: receives payment in period 1, pays in period 2
+- Agent B: pays in period 1, receives in period 2
+- Analytical Nash equilibrium exists
+
+**SimCash Implementation (`exp1`):**
+```yaml
+# configs/exp1_2period.yaml
+ticks_per_day: 2
+days: 1
+# Fixed transactions - no stochastic arrivals
+transactions:
+  - sender: BANK_A, receiver: BANK_B, amount: 15000, arrival_tick: 0
+  - sender: BANK_B, receiver: BANK_A, amount: 20000, arrival_tick: 0
+```
+
+**Expected Outcomes:**
+| Agent | Optimal Liquidity | Optimal Cost | Reasoning |
+|-------|-------------------|--------------|-----------|
+| Bank A | 0% | $0.00 | Free-rides on B's payment in period 1 |
+| Bank B | 20% (20,000 / collateral) | $20.00 | Must cover period-1 demand |
+
+**Validation Protocol:**
+1. Run `castro run exp1` until convergence
+2. Extract final `initial_liquidity_fraction` for each agent
+3. Compute Nash gap: `|learned - theoretical|`
+4. **Pass criteria:** Nash gap < 0.02 for both agents
+
+### Experiment 2: 12-Period Stochastic (Paper Section 6.4)
+
+**Paper Setup:**
+- 12 time periods (hourly, 6am-6pm)
+- Payment demands drawn from LVTS data (Poisson arrivals, LogNormal amounts)
+- No analytical solution; brute-force benchmark available
+- Agents learn to reduce costs over iterations
+
+**SimCash Implementation (`exp2`):**
+```yaml
+# configs/exp2_12period.yaml
+ticks_per_day: 12
+days: 1
+# Stochastic arrivals
+agent_configs:
+  - id: BANK_A
+    arrivals:
+      rate_per_tick: 2.5  # Poisson λ
+      amount_distribution: lognormal
+      amount_mean: 10000
+      amount_std: 5000
+```
+
+**Expected Outcomes:**
+- Total costs decrease monotonically over iterations
+- Higher-demand agent posts more collateral
+- Cost reduction > 30% from initial to final iteration
+- Policy stability in final 5 iterations (CV < 0.1)
+
+**Validation Protocol:**
+1. Run `castro run exp2 --seed 42`
+2. Track cost trajectory per iteration
+3. Compute cost reduction rate: `(initial - final) / initial`
+4. Verify liquidity ordering matches payment demand ordering
+5. **Pass criteria:** Cost reduction > 30%, convergence within max_iterations - 5
+
+### Experiment 3: Joint Liquidity & Timing (Paper Section 7)
+
+**Paper Setup:**
+- 3 time periods (T=3)
+- Agents choose BOTH initial liquidity AND intraday timing
+- Tests interaction between liquidity and delay decisions
+- Special case: indivisible payment in period 2
+
+**SimCash Implementation (`exp3`):**
+```yaml
+# configs/exp3_joint.yaml
+ticks_per_day: 3
+days: 1
+# Indivisible payment constraint for BANK_B in period 2
+constraints:
+  BANK_B:
+    period_2_indivisible: true
+```
+
+**Expected Outcomes:**
+- When `r_d < r_c`: Agents delay more, post less collateral
+- When `r_d > r_c`: Agents post more, delay less
+- Agent B (with indivisible payment) delays period-1 payments strategically
+
+**Validation Protocol:**
+1. Run under both cost orderings (`r_d < r_c` and `r_d > r_c`)
+2. Compare timing decisions between agents
+3. Verify asymmetric behavior matches payment structure
+4. **Pass criteria:** Timing strategy adapts correctly to cost structure
+
+---
+
+## Castro Constraints
+
+The `CASTRO_CONSTRAINTS` object enforces paper-aligned rules:
+
+```python
+from castro.constraints import CASTRO_CONSTRAINTS
+
+# Allowed policy parameters
+CASTRO_CONSTRAINTS.allowed_parameters = [
+    # Fraction of collateral to post at t=0 (paper: x_0 ∈ [0,1])
+    ParameterSpec(name="initial_liquidity_fraction", min=0.0, max=1.0),
+
+    # Ticks before deadline to release payment
+    ParameterSpec(name="urgency_threshold", min=0, max=20),
+
+    # Multiplier for required liquidity
+    ParameterSpec(name="liquidity_buffer", min=0.5, max=3.0),
+]
+
+# Allowed actions (paper: x_t ∈ {0, 1} for indivisible, [0,1] for divisible)
+CASTRO_CONSTRAINTS.allowed_actions = {
+    "payment_tree": ["Release", "Hold"],      # Send or delay
+    "collateral_tree": ["PostCollateral", "HoldCollateral"],
+    "bank_tree": ["NoAction"],                # No interbank borrowing
+}
+```
+
+---
 
 ## Quick Start
 
-```bash
-# Install dependencies (ALWAYS use UV, never pip!)
-cd experiments/castro
-uv sync --extra dev
+### Installation
 
+```bash
+# Navigate to castro experiments
+cd experiments/castro
+
+# Install dependencies (ALWAYS use UV, never pip!)
+uv sync --extra dev
+```
+
+### Running Experiments
+
+```bash
 # List available experiments
 uv run castro list
 
 # Run experiment 1 (2-period deterministic)
 uv run castro run exp1
 
-# Run with custom model (provider:model format)
-uv run castro run exp2 --model openai:gpt-4o --max-iter 50 --output ./results
+# Run with specific model
+uv run castro run exp2 --model anthropic:claude-sonnet-4-5
 
 # Run with Anthropic extended thinking
 uv run castro run exp1 --model anthropic:claude-sonnet-4-5 --thinking-budget 8000
@@ -38,94 +306,24 @@ uv run castro run exp1 --model anthropic:claude-sonnet-4-5 --thinking-budget 800
 uv run castro run exp1 --model openai:gpt-5.1 --reasoning-effort high
 ```
 
-## Experiments
-
-| Experiment | Description | Ticks | Samples |
-|------------|-------------|-------|---------|
-| `exp1` | 2-Period Deterministic Nash Equilibrium | 2 | 1 |
-| `exp2` | 12-Period Stochastic LVTS-Style | 12 | 10 |
-| `exp3` | Joint Liquidity & Timing Optimization | 3 | 10 |
-
-### Experiment 1: 2-Period Deterministic
-
-Validates Nash equilibrium with deferred crediting. Two banks exchange payments with known amounts and deadlines.
-
-**Expected Outcome**: Bank A posts 0 collateral, Bank B posts 20,000.
+### Viewing Results
 
 ```bash
-uv run castro run exp1
+# List experiment runs
+uv run castro results
+
+# Replay a specific run
+uv run castro replay exp1-20251210-143022-a1b2c3
+
+# Replay with audit trail (shows full LLM prompts/responses)
+uv run castro replay exp1-20251210-143022-a1b2c3 --audit --start 1 --end 3
 ```
 
-### Experiment 2: 12-Period Stochastic
+---
 
-LVTS-style realistic scenario with Poisson arrivals and LogNormal payment amounts.
+## CLI Reference
 
-```bash
-uv run castro run exp2 --seed 42
-```
-
-### Experiment 3: Joint Optimization
-
-Tests interaction between initial liquidity decisions and payment timing strategies.
-
-```bash
-uv run castro run exp3
-```
-
-## Architecture
-
-```
-experiments/castro/
-├── castro/
-│   ├── __init__.py              # Public API
-│   ├── audit_display.py         # Audit mode display functions
-│   ├── bootstrap_context.py     # EnrichedBootstrapContextBuilder for LLM context
-│   ├── constraints.py           # CASTRO_CONSTRAINTS
-│   ├── context_builder.py       # BootstrapContextBuilder (simulation context)
-│   ├── display.py               # Unified display functions (StateProvider pattern)
-│   ├── events.py                # Event model for replay identity
-│   ├── experiments.py           # Experiment definitions (YAML-driven)
-│   ├── persistence/
-│   │   ├── models.py            # Database models (ExperimentRunRecord)
-│   │   └── repository.py        # DuckDB persistence operations
-│   ├── pydantic_llm_client.py   # PydanticAI LLM client (multi-provider)
-│   ├── run_id.py                # Run ID generation
-│   ├── runner.py                # ExperimentRunner (uses SingleAgentIterationRecord)
-│   ├── simulation.py            # CastroSimulationRunner
-│   ├── state_provider.py        # StateProvider pattern implementation
-│   └── verbose_logging.py       # Verbose output (VerboseConfig, VerboseLogger)
-├── configs/
-│   ├── exp1_2period.yaml        # 2-period scenario
-│   ├── exp2_12period.yaml       # 12-period scenario
-│   └── exp3_joint.yaml          # Joint optimization scenario
-├── experiments/
-│   ├── exp1.yaml                # 2-Period Deterministic Nash Equilibrium
-│   ├── exp2.yaml                # 12-Period Stochastic LVTS-Style
-│   └── exp3.yaml                # Joint Liquidity & Timing Optimization
-├── tests/
-│   ├── test_audit_display.py    # Audit display tests
-│   ├── test_bootstrap_context.py # Bootstrap context builder tests
-│   ├── test_cli_audit.py        # CLI audit flag tests
-│   ├── test_cli_commands.py     # CLI command tests
-│   ├── test_deterministic_mode.py # Deterministic mode tests
-│   ├── test_display.py          # Display function tests
-│   ├── test_events.py           # Event model tests
-│   ├── test_event_persistence.py # Event persistence tests
-│   ├── test_experiments.py      # Experiment unit tests
-│   ├── test_pydantic_llm_client.py  # PydanticAI client tests
-│   ├── test_replay_audit_integration.py  # End-to-end audit tests
-│   ├── test_run_id.py           # Run ID generation tests
-│   ├── test_state_provider.py   # StateProvider tests
-│   ├── test_verbose_context_integration.py # Verbose context tests
-│   └── test_verbose_logging.py  # Verbose logging tests
-├── cli.py                       # Typer CLI
-├── pyproject.toml               # Package config
-└── README.md                    # This file
-```
-
-## CLI Commands
-
-### `run` - Run an experiment
+### `run` - Execute an experiment
 
 ```bash
 uv run castro run <experiment> [OPTIONS]
@@ -145,76 +343,14 @@ Options:
 Verbose Output:
   -v, --verbose              Enable all verbose output
   -q, --quiet                Suppress verbose output
-  --verbose-policy           Show policy parameter changes (before/after)
-  --verbose-bootstrap        Show per-seed bootstrap results
-  --verbose-llm              Show LLM call metadata (tokens, latency)
-  --verbose-rejections       Show rejection analysis details
+  --verbose-policy           Show policy parameter changes
+  --verbose-bootstrap        Show per-sample bootstrap results
+  --verbose-llm              Show LLM call metadata
+  --verbose-rejections       Show rejection analysis
 
 Debug Output:
-  -d, --debug                Show debug output (validation errors, LLM retries)
+  -d, --debug                Show debug output (validation errors, retries)
 ```
-
-#### Verbose Output Examples
-
-```bash
-# Enable all verbose output
-uv run castro run exp1 --verbose
-
-# Show only policy changes
-uv run castro run exp2 --verbose-policy
-
-# Show bootstrap details and LLM metadata
-uv run castro run exp2 --verbose-bootstrap --verbose-llm
-
-# Enable all verbose but suppress bootstrap details
-uv run castro run exp2 --verbose --no-verbose-bootstrap
-```
-
-The verbose flags provide granular control over experiment output:
-
-| Flag | Shows |
-|------|-------|
-| `--verbose-policy` | Before/after policy parameters with percentage deltas |
-| `--verbose-bootstrap` | Per-seed results with best/worst seed identification |
-| `--verbose-llm` | Model name, token counts, latency, context summary |
-| `--verbose-rejections` | Validation errors, rejection reasons, retry counts |
-
-#### Debug Mode
-
-The `--debug` flag shows real-time progress during LLM optimization, which is useful for diagnosing stalls or understanding retry behavior:
-
-```bash
-# Run with debug output
-uv run castro run exp2 --debug
-
-# Combine with verbose for full visibility
-uv run castro run exp2 --verbose --debug
-```
-
-Debug output shows:
-- When LLM requests start
-- Retry attempts with attempt numbers
-- Validation failures with specific error messages
-- LLM API errors
-- When validation succeeds (especially after retries)
-
-Example debug output:
-```
-Iteration 1
-  Total cost: $2665.39
-  ...
-  Optimizing BANK_A...
-    → Sending LLM request for BANK_A...
-    ✗ Validation failed (attempt 1/3)
-      - Parameter 'urgency_threshold' value 25 exceeds max 20
-    → Retry attempt 2 for BANK_A...
-    ✓ Validation passed on attempt 2
-    Policy improved: $150.00 → $140.00
-```
-
-This helps distinguish between:
-- **Slow LLM responses**: You'll see "Sending LLM request" but no follow-up
-- **Validation retry loops**: You'll see validation errors and retry messages
 
 ### `replay` - Replay experiment output
 
@@ -222,170 +358,130 @@ This helps distinguish between:
 uv run castro replay <run_id> [OPTIONS]
 
 Arguments:
-  run_id    Run ID to replay (e.g., exp1-20251209-143022-a1b2c3)
+  run_id    Run ID to replay
 
 Options:
   -d, --db PATH                Database path [default: results/castro.db]
   -v, --verbose                Enable all verbose output
-  --verbose-iterations         Show iteration starts
   --verbose-bootstrap          Show bootstrap evaluations
   --verbose-llm                Show LLM call details
   --verbose-policy             Show policy changes
 
 Audit Mode:
-  --audit                      Show detailed audit trail for each iteration
-  --start N                    Start iteration for audit output (inclusive)
-  --end M                      End iteration for audit output (inclusive)
+  --audit                      Show detailed audit trail
+  --start N                    Start iteration (inclusive)
+  --end M                      End iteration (inclusive)
 ```
 
-#### Replay Examples
+### Other Commands
 
 ```bash
-# Replay a specific run
-uv run castro replay exp1-20251209-143022-a1b2c3
-
-# Replay with verbose output
-uv run castro replay exp1-20251209-143022-a1b2c3 --verbose
-
-# Show audit trail for all iterations
-uv run castro replay exp1-20251209-143022-a1b2c3 --audit
-
-# Show audit trail for iterations 2-3 only
-uv run castro replay exp1-20251209-143022-a1b2c3 --audit --start 2 --end 3
-```
-
-#### Audit Mode
-
-The `--audit` flag provides a detailed audit trail for LLM interactions, useful for:
-- **Debugging**: Inspect exact prompts and responses
-- **Research**: Analyze LLM decision-making process
-- **Compliance**: Audit trail for policy optimization decisions
-
-Audit output includes for each iteration:
-- Full system and user prompts sent to the LLM optimizer
-- Raw LLM responses before parsing
-- Validation results (success or parsing errors)
-- Token counts and latency metrics
-- Per-agent breakdown
-
-Example audit output:
-```
-══════════════════════════════════════════════════════════════════════
- AUDIT: Iteration 2
-══════════════════════════════════════════════════════════════════════
-
-────────────────────────────────────────────────────────────
- Agent: BANK_A
-────────────────────────────────────────────────────────────
-Model: anthropic:claude-sonnet-4-5
-Tokens: 1,500 prompt + 200 completion = 1,700 total
-Latency: 2.34s
-
-System Prompt
-┌────────────────────────────────────────────────────────────┐
-│ You are optimizing payment timing policies for BANK_A...   │
-└────────────────────────────────────────────────────────────┘
-
-User Prompt
-┌────────────────────────────────────────────────────────────┐
-│ Current cost: $150.00. Previous best: $145.00...           │
-└────────────────────────────────────────────────────────────┘
-
-Raw Response
-┌────────────────────────────────────────────────────────────┐
-│ {                                                          │
-│   "initial_liquidity_fraction": 0.15,                      │
-│   "urgency_threshold": 8                                   │
-│ }                                                          │
-└────────────────────────────────────────────────────────────┘
-
-Validation
-  Policy valid
-```
-
-### `results` - List experiment runs
-
-```bash
-uv run castro results [OPTIONS]
-
-Options:
-  -d, --db PATH            Database path [default: results/castro.db]
-  -e, --experiment TEXT    Filter by experiment name
-  -n, --limit INT          Maximum number of results [default: 20]
-```
-
-### `list` - List experiments
-
-```bash
+# List experiments
 uv run castro list
-```
 
-### `info` - Show experiment details
-
-```bash
+# Show experiment details
 uv run castro info exp1
-```
 
-### `validate` - Validate configuration
-
-```bash
+# Validate experiment configuration
 uv run castro validate exp2
+
+# List all runs from database
+uv run castro results --experiment exp1 --limit 10
 ```
 
-## Configuration
+---
 
-### Castro Constraints
+## Evaluation and Analysis Protocol
 
-The module enforces Castro paper rules via `CASTRO_CONSTRAINTS`:
+### For AI Reviewers
 
+Use this structured protocol to evaluate experiment results:
+
+#### Phase 1: Data Extraction
+
+```
+FOR EACH EXPERIMENT RUN:
+1. Metadata: experiment_name, model, seed, max_iterations
+2. Per-Iteration: liquidity_fraction, costs (per agent), acceptance status
+3. Final State: best policies, convergence reason, total duration
+```
+
+#### Phase 2: Hypothesis Testing
+
+**H1 (Exp1 - Nash Equilibrium):**
 ```python
-from castro.constraints import CASTRO_CONSTRAINTS
+# Compute Nash gaps
+nash_gap_A = abs(bank_a_liquidity_frac - 0.0)
+nash_gap_B = abs(bank_b_liquidity_frac - 0.20)
 
-# Allowed parameters
-# - initial_liquidity_fraction: 0.0 - 1.0
-# - urgency_threshold: 0 - 20
-# - liquidity_buffer: 0.5 - 3.0
-
-# Allowed actions
-# - payment_tree: Release, Hold (no Split)
-# - collateral_tree: PostCollateral, HoldCollateral
-# - bank_tree: NoAction
+# Classification
+if nash_gap_A < 0.02 and nash_gap_B < 0.02:
+    result = "PASS - Nash equilibrium achieved"
+elif nash_gap_A < 0.05 and nash_gap_B < 0.05:
+    result = "PARTIAL PASS - Near Nash equilibrium"
+else:
+    result = "FAIL - Significant deviation"
 ```
 
-### LLM Providers
+**H2 (Exp2 - Learning):**
+```python
+# Cost reduction check
+reduction_rate = (costs[0] - costs[-1]) / costs[0]
+# Target: > 0.30 (30% reduction)
 
-Supports multiple providers via PydanticAI with unified `provider:model` format:
-
-```bash
-# Anthropic Claude (default)
-uv run castro run exp1 --model anthropic:claude-sonnet-4-5
-
-# Anthropic with extended thinking
-uv run castro run exp1 --model anthropic:claude-sonnet-4-5 --thinking-budget 8000
-
-# OpenAI GPT
-uv run castro run exp1 --model openai:gpt-4o
-
-# OpenAI with high reasoning effort
-uv run castro run exp1 --model openai:gpt-5.1 --reasoning-effort high
-
-# Google Gemini
-uv run castro run exp1 --model google:gemini-2.5-flash
+# Monotonicity check
+negative_deltas = sum(1 for i in range(1, len(costs)) if costs[i] < costs[i-1])
+monotonicity_score = negative_deltas / (len(costs) - 1)
+# Target: > 0.70 (70% of iterations reduce cost)
 ```
 
-**Supported Providers:**
-| Provider | Model Examples | Special Features |
-|----------|----------------|------------------|
-| `anthropic` | `claude-sonnet-4-5`, `claude-opus-4` | `--thinking-budget` for extended thinking |
-| `openai` | `gpt-4o`, `gpt-5.1`, `o1`, `o3` | `--reasoning-effort` (low/medium/high) |
-| `google` | `gemini-2.5-flash`, `gemini-pro` | Google AI thinking config |
-
-Set API keys via environment variables or `.env` file:
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-export OPENAI_API_KEY=sk-...
-export GOOGLE_API_KEY=...
+**H3 (Exp3 - Joint Optimization):**
+```python
+# Verify cost structure sensitivity
+if r_d < r_c:
+    assert more_delays_observed
+    assert lower_liquidity_allocation
+else:
+    assert fewer_delays
+    assert higher_liquidity_allocation
 ```
+
+### For Human Reviewers
+
+Generate these charts for visual analysis:
+
+1. **Cost Convergence** (Line Plot): X=iteration, Y=total cost
+2. **Liquidity Evolution** (Line Plot): X=iteration, Y=liquidity fraction
+3. **Cost Component Breakdown** (Stacked Bar): collateral/delay/borrowing
+4. **Nash Gap** (Line Plot, exp1 only): deviation from theoretical optimum
+
+### DuckDB Queries for Analysis
+
+```sql
+-- Get iteration costs
+SELECT iteration_number, agent_id, new_cost / 100.0 as cost_dollars
+FROM policy_iterations
+ORDER BY iteration_number, agent_id;
+
+-- Get final policies
+SELECT agent_id, policy_json
+FROM policy_iterations
+WHERE iteration_number = (SELECT MAX(iteration_number) FROM policy_iterations)
+AND was_accepted = true;
+
+-- Compute cost reduction
+WITH bounds AS (
+    SELECT MIN(iteration_number) as first_iter,
+           MAX(iteration_number) as last_iter
+    FROM policy_iterations
+)
+SELECT
+    (SELECT SUM(new_cost) FROM policy_iterations WHERE iteration_number = first_iter) as initial,
+    (SELECT SUM(new_cost) FROM policy_iterations WHERE iteration_number = last_iter) as final
+FROM bounds;
+```
+
+---
 
 ## Programmatic Usage
 
@@ -413,6 +509,7 @@ runner = ExperimentRunner(exp)
 result = asyncio.run(runner.run())
 
 # Access results
+print(f"Run ID: {result.run_id}")
 print(f"Final cost: ${result.final_cost / 100:.2f}")
 print(f"Converged: {result.converged}")
 print(f"Iterations: {result.num_iterations}")
@@ -423,477 +520,26 @@ for agent_id, cost in result.per_agent_costs.items():
 
 # Best policies found
 for agent_id, policy in result.best_policies.items():
-    print(f"{agent_id} policy: {policy}")
+    print(f"{agent_id}: {policy}")
 ```
 
-## Output
+---
 
-Results are persisted to DuckDB:
+## LLM Providers
 
-```
-results/
-├── exp1.db    # Experiment 1 results
-├── exp2.db    # Experiment 2 results
-└── exp3.db    # Experiment 3 results
-```
+Supports multiple providers via PydanticAI with unified `provider:model` format:
 
-Query results:
+| Provider | Example Models | Special Features |
+|----------|----------------|------------------|
+| `anthropic` | `claude-sonnet-4-5`, `claude-opus-4` | `--thinking-budget` for extended thinking |
+| `openai` | `gpt-4o`, `gpt-5.1`, `o1`, `o3` | `--reasoning-effort` (low/medium/high) |
+| `google` | `gemini-2.5-flash`, `gemini-2.5-pro` | Google AI thinking config |
 
-```python
-import duckdb
-
-conn = duckdb.connect("results/exp1.db")
-
-# View game sessions
-conn.execute("SELECT * FROM game_sessions").fetchall()
-
-# View policy iterations
-conn.execute("""
-    SELECT agent_id, iteration_number, old_cost, new_cost, was_accepted
-    FROM policy_iterations
-    ORDER BY iteration_number
-""").fetchall()
-```
-
-## Testing
-
+Set API keys via environment variables or `.env` file:
 ```bash
-cd experiments/castro
-uv run pytest tests/ -v
-```
-
-## Dependencies
-
-- `payment-simulator` - SimCash core with ai_cash_mgmt module
-- `pydantic-ai` - Unified LLM interface (supports Anthropic, OpenAI, Google)
-- `typer` - CLI framework
-- `rich` - Terminal formatting
-- `pyyaml` - YAML parsing
-- `python-dotenv` - Environment variable loading from .env files
-
-## Design Principles
-
-1. **No Legacy Code**: Built from scratch using only `ai_cash_mgmt`
-2. **No Backwards Compatibility**: Clean break from legacy Castro experiments
-3. **Deterministic**: Same seed produces identical results
-4. **Type Safe**: Full type annotations, mypy strict mode
-5. **Testable**: Comprehensive unit tests
-
----
-
-## Research Protocol: Evaluating Experiment Results
-
-This section provides a structured protocol for evaluating experiment results against the hypotheses and expected outcomes from Castro et al. (2025). The protocol is designed for:
-
-1. **AI Reviewer (Primary Analysis)**: Capable of processing long textual outputs, detailed numerical data, and structured logs. Should produce comprehensive text-based analysis.
-2. **Human Reviewer (Final Review)**: Requires visual summaries via charts for pattern recognition and presentation.
-
-### Reference Paper
-
-The original paper is available at: `papers/castro_et_al.md`
-
----
-
-## Core Hypotheses
-
-### H1: Nash Equilibrium Convergence (Exp1)
-
-**Hypothesis**: In a 2-period deterministic setting with known payment profiles, LLM-based policy optimization converges to the analytically-derived Nash equilibrium.
-
-**Theoretical Basis** (Section 4 of paper):
-- Given cost ordering `r_c < r_d < r_b` (collateral < delay < borrowing)
-- Agent B (first-period demand) must post liquidity = total demand to avoid delay/borrowing costs
-- Agent A (no first-period demand) can free-ride on B's liquidity, optimal: zero collateral
-
-**Expected Outcome**:
-- Bank A initial liquidity fraction: **0.0** (or very close)
-- Bank B initial liquidity fraction: **0.20** (matching total demand of 20,000 / 100,000 collateral)
-- Bank A total cost: **$0.00**
-- Bank B total cost: **$20.00** (collateral cost only: 20,000 × 0.001)
-
-### H2: Liquidity-Delay Tradeoff Learning (Exp2)
-
-**Hypothesis**: In a multi-period stochastic environment, agents learn to balance initial liquidity allocation against delay costs, reducing total payment processing costs over iterations.
-
-**Theoretical Basis** (Section 6 of paper):
-- With realistic payment profiles, no closed-form solution exists
-- Agents should reduce liquidity allocation over time as they learn incoming payment patterns
-- Higher-demand agents should post more collateral than lower-demand agents
-
-**Expected Outcomes**:
-- Total costs decrease monotonically (or near-monotonically) over iterations
-- Agents converge to stable liquidity fractions (variance < 10% in final 5 iterations)
-- Higher-demand agent posts more collateral
-
-### H3: Joint Policy Optimization (Exp3)
-
-**Hypothesis**: When optimizing both initial liquidity AND intraday payment timing, agents learn to exploit the interdependence between these decisions.
-
-**Theoretical Basis** (Section 7 of paper):
-- With `r_d < r_c` (delay cheaper than collateral): agents should delay more, post less collateral
-- With `r_d > r_c` (collateral cheaper than delay): agents should post more, delay less
-- Indivisible payments create inter-period tradeoffs affecting timing strategy
-
-**Expected Outcomes**:
-- Timing policies differ between agents based on payment structure
-- Cost reduction in joint optimization exceeds sum of individual optimizations
-- Agents learn to buffer liquidity before large indivisible payments
-
----
-
-## Evaluation Metrics
-
-### Primary Metrics
-
-| Metric | Formula | Target |
-|--------|---------|--------|
-| **Total System Cost** | `Σ agent_costs` | Minimize |
-| **Per-Agent Cost** | `collateral_cost + delay_cost + borrowing_cost` | Track per iteration |
-| **Cost Reduction Rate** | `(initial_cost - final_cost) / initial_cost` | > 50% |
-| **Convergence Iteration** | First iter where `|cost_t - cost_{t-1}| < ε` for 3 consecutive | < max_iter - 5 |
-
-### Convergence Metrics
-
-| Metric | Formula | Threshold |
-|--------|---------|-----------|
-| **Policy Stability** | `std(liquidity_frac[-5:])` | < 0.05 |
-| **Cost Stability** | `std(cost[-5:]) / mean(cost[-5:])` | < 0.1 |
-| **Nash Gap (Exp1 only)** | `|actual - theoretical|` | < 0.02 |
-
-### Component Costs (i64 cents)
-
-For each agent per iteration, track:
-- `collateral_cost`: `initial_liquidity × r_c`
-- `delay_cost`: `Σ delayed_amounts × r_d`
-- `borrowing_cost`: `end_of_day_shortfall × r_b`
-
----
-
-## AI Reviewer Analysis Protocol
-
-### Phase 1: Data Extraction
-
-Extract and organize the following from experiment output:
-
-```
-FOR EACH EXPERIMENT RUN:
-1. Metadata
-   - Experiment ID, timestamp, seed
-   - Model used, max iterations
-   - Configuration parameters
-
-2. Per-Iteration Data (tabular)
-   - Iteration number
-   - Per-agent: liquidity_fraction, urgency_threshold, liquidity_buffer
-   - Per-agent: collateral_cost, delay_cost, borrowing_cost, total_cost
-   - Policy acceptance status (was_accepted)
-
-3. Final State
-   - Best policies found (per agent)
-   - Total iterations to convergence (or max)
-   - Final cost breakdown
-```
-
-### Phase 2: Hypothesis Testing
-
-#### For H1 (Exp1 - Nash Equilibrium):
-
-```
-EVALUATION PROCEDURE:
-
-1. Extract final liquidity fractions for Bank A and Bank B
-
-2. Compute Nash Gap:
-   nash_gap_A = |bank_a_liquidity_frac - 0.0|
-   nash_gap_B = |bank_b_liquidity_frac - 0.20|
-
-3. Classify result:
-   IF nash_gap_A < 0.02 AND nash_gap_B < 0.02:
-       RESULT: "PASS - Nash equilibrium achieved"
-   ELIF nash_gap_A < 0.05 AND nash_gap_B < 0.05:
-       RESULT: "PARTIAL PASS - Near Nash equilibrium"
-   ELSE:
-       RESULT: "FAIL - Significant deviation from Nash"
-
-4. Verify cost structure:
-   ASSERT bank_a_cost ≈ 0 (within $1)
-   ASSERT bank_b_cost ≈ $20 (within $5)
-   ASSERT bank_b_cost > bank_a_cost
-
-5. Report deviations with magnitude and direction
-```
-
-#### For H2 (Exp2 - Liquidity-Delay Tradeoff):
-
-```
-EVALUATION PROCEDURE:
-
-1. Compute iteration-over-iteration cost changes:
-   delta_costs = [cost[i] - cost[i-1] for i in range(1, len(costs))]
-
-2. Monotonicity check:
-   negative_deltas = count(d < 0 for d in delta_costs)
-   monotonicity_score = negative_deltas / len(delta_costs)
-   # Target: > 0.7 (70% of iterations reduce cost)
-
-3. Convergence check:
-   final_5_costs = costs[-5:]
-   cost_variance = std(final_5_costs)
-   cost_cv = cost_variance / mean(final_5_costs)
-   # Target: CV < 0.1
-
-4. Liquidity ordering check:
-   IF payment_demand[agent_A] > payment_demand[agent_B]:
-       ASSERT liquidity_frac[agent_A] > liquidity_frac[agent_B]
-
-5. Cost reduction check:
-   reduction_rate = (costs[0] - costs[-1]) / costs[0]
-   # Target: > 0.3 (30% reduction)
-
-6. Report:
-   - Total cost trajectory (text table of costs per iteration)
-   - Convergence iteration (if achieved)
-   - Final liquidity allocations with demand context
-```
-
-#### For H3 (Exp3 - Joint Optimization):
-
-```
-EVALUATION PROCEDURE:
-
-1. Extract both policy dimensions per agent:
-   - Liquidity policy: initial_liquidity_fraction
-   - Timing policy: urgency_threshold, timing decisions
-
-2. Verify cost structure sensitivity:
-   IF r_d < r_c (delay cheaper):
-       ASSERT more delays observed
-       ASSERT lower liquidity allocation
-   IF r_d > r_c (liquidity cheaper):
-       ASSERT fewer delays
-       ASSERT higher liquidity allocation
-
-3. Inter-agent comparison:
-   - Compare timing strategies between agents
-   - Document asymmetries with payment structure explanations
-
-4. Report:
-   - Joint policy evolution (text table)
-   - Timing decision patterns
-   - Cost component breakdown
-```
-
-### Phase 3: Anomaly Detection
-
-Flag and report:
-
-```
-ANOMALIES TO DETECT:
-
-1. Non-convergence
-   - Cost increases in final 25% of iterations
-   - Policy oscillation (alternating high/low values)
-
-2. Constraint violations
-   - Liquidity fraction outside [0, 1]
-   - Negative costs (impossible)
-   - Borrowing when liquidity sufficient
-
-3. Inconsistent cost components
-   - Zero delay cost with unsettled payments
-   - Zero collateral cost with posted liquidity
-
-4. Seed reproducibility failures
-   - Different results with same seed (compare runs)
-```
-
-### Phase 4: Summary Report Format
-
-The AI reviewer should produce a report in this structure:
-
-```markdown
-# Experiment Analysis Report
-
-## Executive Summary
-- Experiment: [exp1/exp2/exp3]
-- Model: [model name]
-- Status: [PASS/PARTIAL PASS/FAIL]
-- Key Finding: [One sentence]
-
-## Hypothesis Evaluation
-
-### H[N]: [Hypothesis Name]
-- **Result**: [PASS/FAIL/PARTIAL]
-- **Evidence**:
-  - [Quantitative finding 1]
-  - [Quantitative finding 2]
-- **Deviation Analysis**: [If applicable]
-
-## Detailed Metrics
-
-### Cost Evolution
-| Iteration | Agent A Cost | Agent B Cost | Total | Delta |
-|-----------|--------------|--------------|-------|-------|
-| 0         | ...          | ...          | ...   | -     |
-| 1         | ...          | ...          | ...   | ...   |
-...
-
-### Policy Evolution
-| Iteration | Agent A Liquidity | Agent B Liquidity | A Threshold | B Threshold |
-|-----------|-------------------|-------------------|-------------|-------------|
-...
-
-### Convergence Analysis
-- Convergence iteration: [N or "Not converged"]
-- Final cost stability (CV): [value]
-- Policy stability (std): [value]
-
-## Anomalies Detected
-1. [Anomaly description if any]
-2. ...
-
-## Recommendations
-1. [If FAIL: suggested adjustments]
-2. [If PARTIAL: areas for investigation]
-
-## Raw Data Reference
-- Database: [path]
-- Queries for verification: [SQL snippets]
-```
-
----
-
-## Human Reviewer Visualization Requirements
-
-After AI analysis, generate these charts for human review:
-
-### Required Charts
-
-#### Chart 1: Cost Convergence (Line Plot)
-
-```
-Purpose: Show learning progress over iterations
-X-axis: Iteration number (0 to max_iter)
-Y-axis: Total cost (dollars)
-Series:
-  - Total system cost (solid line)
-  - Agent A cost (dashed)
-  - Agent B cost (dashed)
-Annotations:
-  - Horizontal line at theoretical optimum (if known)
-  - Vertical line at convergence point (if achieved)
-```
-
-#### Chart 2: Liquidity Allocation Evolution (Line Plot)
-
-```
-Purpose: Show policy convergence
-X-axis: Iteration number
-Y-axis: Liquidity fraction (0.0 to 1.0)
-Series:
-  - Agent A liquidity fraction
-  - Agent B liquidity fraction
-Annotations:
-  - Horizontal lines at theoretical optimal values (Exp1)
-  - 95% confidence band for final 5 iterations
-```
-
-#### Chart 3: Cost Component Breakdown (Stacked Bar)
-
-```
-Purpose: Show cost structure at key iterations
-X-axis: Iteration milestones (0, 25%, 50%, 75%, 100%)
-Y-axis: Cost (dollars)
-Stacks:
-  - Collateral cost (blue)
-  - Delay cost (orange)
-  - Borrowing cost (red)
-One group per agent, side by side
-```
-
-#### Chart 4: Nash Gap Evolution (Exp1 Only) (Line Plot)
-
-```
-Purpose: Show convergence to Nash equilibrium
-X-axis: Iteration number
-Y-axis: Nash gap (|actual - theoretical|)
-Series:
-  - Agent A Nash gap
-  - Agent B Nash gap
-Threshold line at 0.02 (acceptance threshold)
-```
-
-#### Chart 5: Policy Heatmap (Exp2/Exp3) (Heatmap)
-
-```
-Purpose: Show policy parameter evolution
-X-axis: Iteration number
-Y-axis: Policy parameters (liquidity_frac, urgency_threshold, liquidity_buffer)
-Color: Parameter value (normalized 0-1)
-Separate heatmap per agent
-```
-
-### Chart Generation Code Template
-
-```python
-# charts.py - Generate human-readable visualizations
-
-import matplotlib.pyplot as plt
-import pandas as pd
-import duckdb
-
-def generate_experiment_charts(db_path: str, output_dir: str) -> None:
-    """Generate all required charts from experiment database."""
-    conn = duckdb.connect(db_path)
-
-    # Load iteration data
-    df = conn.execute("""
-        SELECT
-            iteration_number,
-            agent_id,
-            old_cost,
-            new_cost,
-            -- Extract policy parameters from JSON
-        FROM policy_iterations
-        ORDER BY iteration_number, agent_id
-    """).fetchdf()
-
-    # Chart 1: Cost convergence
-    fig, ax = plt.subplots(figsize=(10, 6))
-    # ... plotting code ...
-    plt.savefig(f"{output_dir}/01_cost_convergence.png", dpi=150)
-
-    # Chart 2: Liquidity evolution
-    # ... etc ...
-```
-
-### Chart Interpretation Guide
-
-Include this legend with generated charts:
-
-```
-INTERPRETATION GUIDE FOR HUMAN REVIEWERS
-
-Cost Convergence Chart:
-- Downward slope = Learning is occurring
-- Flat line at end = Convergence achieved
-- Oscillation = Exploration or instability
-- Gap to optimal = Room for improvement
-
-Liquidity Allocation Chart:
-- Convergence to horizontal = Policy stabilized
-- Separation between agents = Asymmetric optima (expected)
-- High variance at end = Non-convergence
-
-Cost Breakdown Chart:
-- Shift from orange/red to blue = Learning to avoid delays/borrowing
-- Persistent orange = Delay strategy (may be optimal if r_d < r_c)
-- Any red at end = Suboptimal (should have posted more liquidity)
-
-Nash Gap Chart (Exp1):
-- Both lines below threshold = Nash equilibrium found
-- One above = Partial convergence
-- Both above = Failed to find equilibrium
+export ANTHROPIC_API_KEY=sk-ant-...
+export OPENAI_API_KEY=sk-...
+export GOOGLE_API_KEY=...
 ```
 
 ---
@@ -923,7 +569,6 @@ FOR EACH EXPERIMENT:
    Exp1: Is Nash gap < 0.02?
    Exp2: Is cost reduction > 30%?
    Exp3: Is joint optimization better than individual?
-
    NO → PARTIAL PASS (Learning but not optimal)
    YES → Continue
 
@@ -934,52 +579,39 @@ FOR EACH EXPERIMENT:
 
 ---
 
-## Appendix: Query Reference
+## Testing
 
-### DuckDB Queries for Analysis
+```bash
+cd experiments/castro
+uv run pytest tests/ -v
 
-```sql
--- Get iteration costs
-SELECT
-    iteration_number,
-    agent_id,
-    new_cost / 100.0 as cost_dollars
-FROM policy_iterations
-ORDER BY iteration_number, agent_id;
+# Run specific test file
+uv run pytest tests/test_experiments.py -v
 
--- Get final policies
-SELECT
-    agent_id,
-    policy_json
-FROM policy_iterations
-WHERE iteration_number = (SELECT MAX(iteration_number) FROM policy_iterations)
-AND was_accepted = true;
-
--- Cost component breakdown (requires event detail)
-SELECT
-    pi.iteration_number,
-    pi.agent_id,
-    -- Parse cost components from policy evaluation
-FROM policy_iterations pi;
-
--- Convergence detection
-WITH cost_deltas AS (
-    SELECT
-        iteration_number,
-        SUM(new_cost) as total_cost,
-        LAG(SUM(new_cost)) OVER (ORDER BY iteration_number) as prev_cost
-    FROM policy_iterations
-    GROUP BY iteration_number
-)
-SELECT
-    MIN(iteration_number) as convergence_iter
-FROM cost_deltas
-WHERE ABS(total_cost - prev_cost) < 100  -- $1 threshold
-AND iteration_number > 5;
+# Run with coverage
+uv run pytest tests/ --cov=castro --cov-report=html
 ```
+
+---
+
+## Design Principles
+
+1. **Paper Fidelity**: Experiments match Castro et al. (2025) setup
+2. **Deterministic Replay**: Same seed produces identical results
+3. **Type Safe**: Full type annotations, mypy strict mode
+4. **Testable**: Comprehensive unit and integration tests
+5. **Observable**: Rich verbose output and audit trails
+
+---
 
 ## References
 
 - Castro, M., et al. (2025). "Estimating Policy Functions in Payment Systems Using Reinforcement Learning"
 - [ai_cash_mgmt Documentation](../../docs/reference/ai_cash_mgmt/index.md)
+- [LLM Module Documentation](../../docs/reference/llm/index.md)
+- [Experiments Framework](../../docs/reference/experiments/index.md)
 - [SimCash Architecture](../../docs/architecture.md)
+
+---
+
+*Last updated: 2025-12-11*
