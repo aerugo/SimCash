@@ -783,6 +783,8 @@ Phase 7.4: Update Existing Docs - COMPLETED
 |------|-------|------------|
 | 2025-12-10 | runner.py generated NEW samples for each _evaluate_policies() call | Fixed by returning samples from _evaluate_policies() and using compute_paired_deltas() |
 | 2025-12-10 | Test policy had duplicate node_id "hold" in both trees | Fixed by using unique node_ids: "hold_payment" and "hold_collateral" |
+| 2025-12-11 | Phase 5 had no detailed plan file (phase_5.md) | Created retroactive phase_5.md documenting what was done |
+| 2025-12-11 | Backward compat aliases creating confusion | Removed all aliases (MonteCarloConfig, ModelConfig, etc.) |
 
 ### Performance Notes
 
