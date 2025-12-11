@@ -22,7 +22,7 @@ def test_lsm_releases_should_not_exceed_total_arrivals():
     """
     
     # Use a scenario likely to trigger LSM with splitting
-    policy_path = Path(__file__).parent.parent.parent.parent / "backend" / "policies" / "liquidity_splitting.json"
+    policy_path = Path(__file__).parent.parent.parent.parent / "simulator" / "policies" / "liquidity_splitting.json"
     with open(policy_path) as f:
         policy_json = f.read()
     
