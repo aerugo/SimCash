@@ -51,8 +51,8 @@ from castro.pydantic_llm_client import (
 from castro.run_id import generate_run_id
 from castro.simulation import CastroSimulationRunner, SimulationResult
 from castro.verbose_logging import (
+    BootstrapSampleResult,
     LLMCallMetadata,
-    MonteCarloSeedResult,
     RejectionDetail,
     VerboseConfig,
     VerboseLogger,
@@ -734,7 +734,7 @@ class ExperimentRunner:
         int,
         dict[str, int],
         MonteCarloContextBuilder,
-        list[MonteCarloSeedResult],
+        list[BootstrapSampleResult],
         dict[str, list[BootstrapSample]],
     ]:
         """Evaluate current policies using bootstrap sampling.
@@ -842,12 +842,12 @@ class ExperimentRunner:
         # Build context builder for per-agent context
         context_builder = MonteCarloContextBuilder(results=results, seeds=seeds)
 
-        # Build MonteCarloSeedResult list for verbose logging
-        seed_results: list[MonteCarloSeedResult] = []
+        # Build BootstrapSampleResult list for verbose logging
+        seed_results: list[BootstrapSampleResult] = []
         for i, (seed, result) in enumerate(zip(seeds, results, strict=True)):
             baseline_cost = self._baseline_costs.get(seed)
             seed_results.append(
-                MonteCarloSeedResult(
+                BootstrapSampleResult(
                     seed=seed,
                     cost=result.total_cost,
                     settled=result.transactions_settled,

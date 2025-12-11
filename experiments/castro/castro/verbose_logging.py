@@ -152,10 +152,6 @@ class BootstrapSampleResult:
         return (self.baseline_cost - self.cost) / self.baseline_cost * 100
 
 
-# Backward compatibility alias
-MonteCarloSeedResult = BootstrapSampleResult
-
-
 @dataclass
 class LLMCallMetadata:
     """Metadata from an LLM API call.
