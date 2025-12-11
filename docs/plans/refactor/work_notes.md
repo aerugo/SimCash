@@ -1,6 +1,6 @@
 # AI Cash Management Architecture Refactor - Work Notes
 
-**Status:** Phases 0-11 COMPLETED
+**Status:** Phases 0-11 COMPLETED, Phase 12 PLANNED
 **Created:** 2025-12-10
 **Last Updated:** 2025-12-11
 
@@ -1134,6 +1134,67 @@ CODE ADDED:
 - state_provider.py: ~360 lines
 - repository.py: ~470 lines
 - test files: ~900 lines
+```
+
+---
+
+### Phase 12: Castro Migration to Core Infrastructure
+
+**Status:** PLANNED (2025-12-11)
+
+**Purpose:** Migrate Castro experiments to use core infrastructure from Phase 11:
+- Task 12.1: Adapt Castro StateProvider to core protocol
+- Task 12.2: Migrate Castro Persistence to core repository
+- Task 12.3: Event system alignment
+
+**TDD Checklist - Task 12.1: StateProvider Migration**
+- [ ] Write `experiments/castro/tests/test_state_provider_migration.py`
+- [ ] Test: LiveExperimentProvider implements core protocol
+- [ ] Test: DatabaseExperimentProvider implements core protocol
+- [ ] Test: Backward compatibility with existing API
+- [ ] Test: Costs are integer cents (INV-1)
+- [ ] Run tests → FAIL
+- [ ] Add core protocol methods to Castro providers
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 12.2: Persistence Migration**
+- [ ] Write `experiments/castro/tests/test_persistence_migration.py`
+- [ ] Test: Castro repository can wrap core repository
+- [ ] Test: Existing API still works (save_run_record, save_event, etc.)
+- [ ] Test: Event conversion works both ways
+- [ ] Run tests → FAIL
+- [ ] Update Castro repository to use core internally
+- [ ] Run tests → PASS
+
+**TDD Checklist - Task 12.3: Event System Alignment**
+- [ ] Write `experiments/castro/tests/test_replay_identity_preserved.py`
+- [ ] Test: Events convert to/from core EventRecord
+- [ ] Test: Replay identity preserved after migration
+- [ ] Run tests → FAIL
+- [ ] Add conversion methods to ExperimentEvent
+- [ ] Run tests → PASS
+
+**Notes:**
+```
+2025-12-11: PHASE 12 PLANNED
+
+Building on Phase 11 core infrastructure:
+- Core ExperimentStateProviderProtocol (Phase 11)
+- Core ExperimentRepository (Phase 11)
+- Core record classes (Phase 11)
+
+MIGRATION APPROACH: Adapter Pattern
+- Castro keeps its public API (backward compat)
+- Internal implementation wraps core modules
+- Castro-specific features remain in Castro
+
+EXPECTED OUTCOMES:
+- ~330 lines removed from Castro
+- ~32 new tests
+- Full backward compatibility
+- Replay identity preserved
+
+See phases/phase_12.md for detailed TDD specifications.
 ```
 
 ---
