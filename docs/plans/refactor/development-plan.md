@@ -2641,4 +2641,140 @@ uv run castro replay <run_id> --verbose
 
 ---
 
-*Document Version 1.2 - Added Phase 9 (Castro Module Slimming)*
+## Phase 10: Deep Integration - Core Module Consolidation
+
+**Duration**: 2-3 days
+**Risk**: Medium-High
+**Breaking Changes**: None (internal refactoring)
+**Dependencies**: Phase 9
+
+### Objectives
+
+Move remaining Castro components to core SimCash modules where they can be reused:
+
+1. **EnrichedBootstrapContextBuilder** → `ai_cash_mgmt/bootstrap/`
+2. **PydanticAILLMClient (policy-specific)** → `llm/` with custom prompt support
+3. **run_id.py** → `experiments/` module
+4. **StateProvider pattern** → `experiments/runner/` (DEFERRED due to high complexity)
+5. **Persistence unification** → `experiments/persistence/` (DEFERRED due to migration risk)
+
+### Tasks
+
+#### 10.1: Move EnrichedBootstrapContextBuilder to Core (Low Risk)
+
+**Impact:** ~200 lines moved
+**TDD Test File:** `api/tests/ai_cash_mgmt/bootstrap/test_context_builder_core.py`
+
+**Steps:**
+1. Write TDD tests for core location import
+2. Write TDD tests for functionality preservation
+3. Write TDD tests for Castro backward compatibility
+4. Run tests → FAIL
+5. Copy `EnrichedBootstrapContextBuilder` to `api/payment_simulator/ai_cash_mgmt/bootstrap/context_builder.py`
+6. Update `api/payment_simulator/ai_cash_mgmt/bootstrap/__init__.py` to export
+7. Update Castro's `bootstrap_context.py` to re-export from core
+8. Run tests → PASS
+
+#### 10.2: Extend PydanticAILLMClient with Custom Prompt (Medium Risk)
+
+**Impact:** ~150 lines reduced from Castro
+**TDD Test File:** `api/tests/llm/test_pydantic_client_custom_prompt.py`
+
+**Steps:**
+1. Write TDD tests for custom system prompt support
+2. Write TDD tests for default system prompt
+3. Write TDD tests for Castro migration path
+4. Run tests → FAIL
+5. Modify `api/payment_simulator/llm/pydantic_client.py`:
+   - Add `default_system_prompt` parameter to `__init__`
+   - Use `default_system_prompt` when `system_prompt=None` in methods
+6. Update Castro's `pydantic_llm_client.py` to use core client with custom prompt
+7. Run tests → PASS
+
+#### 10.3: Move run_id.py to Core (Very Low Risk)
+
+**Impact:** ~30 lines moved
+**TDD Test File:** `api/tests/experiments/test_run_id_core.py`
+
+**Steps:**
+1. Write TDD tests for core location import
+2. Write TDD tests for run ID generation
+3. Write TDD tests for Castro backward compatibility
+4. Run tests → FAIL
+5. Move `run_id.py` to `api/payment_simulator/experiments/run_id.py`
+6. Update `api/payment_simulator/experiments/__init__.py` to export `generate_run_id`
+7. Update Castro's `run_id.py` to re-export from core
+8. Run tests → PASS
+
+#### 10.4: Generalize StateProvider to Core (DEFERRED - High Risk)
+
+**Rationale for deferral:**
+- High complexity
+- Touches many files
+- Requires careful protocol design
+- Can be done in a future phase
+
+#### 10.5: Unify Persistence (DEFERRED - High Risk)
+
+**Rationale for deferral:**
+- Database schema changes required
+- High migration risk
+- Can be done independently later
+
+### Expected Outcome
+
+| Category | Before Phase 10 | After Phase 10 | Delta |
+|----------|-----------------|----------------|-------|
+| Core ai_cash_mgmt | existing | +200 | +200 |
+| Core experiments | existing | +30 | +30 |
+| Core llm | existing | +20 | +20 |
+| Castro bootstrap_context.py | ~200 | ~50 (re-export) | -150 |
+| Castro pydantic_llm_client.py | ~200 | ~100 (wrapper) | -100 |
+| Castro run_id.py | ~30 | ~5 (re-export) | -25 |
+| **Net Castro Reduction** | | | **-275** |
+
+### New Tests Added
+
+| Test File | Test Count |
+|-----------|------------|
+| test_context_builder_core.py | 8 |
+| test_run_id_core.py | 8 |
+| test_pydantic_client_custom_prompt.py | 6 |
+| **Total** | **22** |
+
+### Verification Checklist
+
+- [ ] All API tests pass: `cd api && .venv/bin/python -m pytest`
+- [ ] All Castro tests pass: `cd experiments/castro && uv run pytest tests/`
+- [ ] Type checking passes: `mypy payment_simulator/`
+- [ ] Castro CLI still works: `uv run castro run exp1 --max-iter 1 --dry-run`
+- [ ] Net Castro reduction of ~275 lines
+
+See [phases/phase_10.md](./phases/phase_10.md) for full TDD test specifications.
+
+---
+
+## Timeline Summary
+
+| Phase | Duration | Dependencies |
+|-------|----------|--------------|
+| Phase 0: Bootstrap Bug Fix | 1 day | None |
+| Phase 0.5: Event Tracing | 2-3 days | Phase 0 |
+| Phase 1: Preparation | 1-2 days | Phase 0.5 |
+| Phase 2: LLM Module | 2-3 days | Phase 1 |
+| Phase 3: Experiment Config | 2-3 days | Phase 1 |
+| Phase 4: Experiment Runner | 3-4 days | Phases 2, 3 |
+| Phase 4.5: Bootstrap Integration Tests | 1-2 days | Phase 4 |
+| Phase 4.6: Terminology Cleanup | 0.5 days | Phase 4.5 |
+| Phase 5: CLI Commands | 2 days | Phase 4.6 |
+| Phase 6: Castro Migration | 2-3 days | Phase 5 |
+| Phase 7: Documentation | 2-3 days | Phase 6 |
+| Phase 8: LLMConfig Migration | 1 day | Phase 7 |
+| Phase 9: Castro Slimming | 1-2 days | Phase 8 |
+| **Phase 10: Deep Integration** | **2-3 days** | **Phase 9** |
+
+**Total: ~22-31 days**
+
+---
+
+*Document Version 1.3 - Added Phase 10 (Deep Integration)*
