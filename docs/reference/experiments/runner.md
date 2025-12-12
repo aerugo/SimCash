@@ -8,9 +8,12 @@
 
 The experiment runner module provides:
 - `GenericExperimentRunner`: Works with any YAML configuration
+- `OptimizationLoop`: Core loop with sophisticated LLM context building
 - `VerboseConfig`: Structured verbose logging control
 - `ExperimentResult`: Final experiment results
 - `ExperimentState`: Runtime state snapshot
+
+> **Sophisticated Prompt System**: The runner integrates with the optimizer prompt architecture to provide rich 50k+ token LLM context including best/worst seed analysis, cost breakdowns, and iteration history. See **[Optimizer Prompt Architecture](../ai_cash_mgmt/optimizer-prompt.md)** for details.
 
 ## GenericExperimentRunner
 
