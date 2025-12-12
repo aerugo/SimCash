@@ -51,6 +51,7 @@ from payment_simulator.experiments.runner.state_provider import (
     LiveStateProvider,
 )
 from payment_simulator.experiments.runner.verbose import (
+    BootstrapDeltaResult,
     BootstrapSampleResult,
     LLMCallMetadata,
     RejectionDetail,
@@ -95,6 +96,7 @@ __all__ = [
     # Verbose logging (Phase 14)
     "VerboseConfig",
     "VerboseLogger",
+    "BootstrapDeltaResult",
     "BootstrapSampleResult",
     "LLMCallMetadata",
     "RejectionDetail",
