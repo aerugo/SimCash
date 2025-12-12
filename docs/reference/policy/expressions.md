@@ -437,14 +437,3 @@ Many context fields are boolean-encoded as `0.0` or `1.0`:
 | `ParameterNotFound` | Referenced param not in policy parameters | Add parameter to `parameters` object |
 | `DivisionByZero` | Computation divided by zero | Use `div0` operator or check divisor |
 
----
-
-## Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| Expression enum | `simulator/src/policy/tree/types.rs` | 112-152 |
-| evaluate_expression() | `simulator/src/policy/tree/interpreter.rs` | 307-378 |
-| FLOAT_EPSILON constant | `simulator/src/policy/tree/interpreter.rs` | 268 |
-| Short-circuit AND | `simulator/src/policy/tree/interpreter.rs` | 351-360 |
-| Short-circuit OR | `simulator/src/policy/tree/interpreter.rs` | 362-371 |

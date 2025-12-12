@@ -45,8 +45,6 @@ Actions are the terminal decisions in policy trees. Each tree type supports spec
 
 **Resulting Decision**: `ReleaseDecision::SubmitFull`
 
-**Implementation**: `interpreter.rs:642-683`
-
 ---
 
 ## ReleaseWithCredit
@@ -67,8 +65,6 @@ Actions are the terminal decisions in policy trees. Each tree type supports spec
 **Parameters**: Same as Release
 
 **Resulting Decision**: `ReleaseDecision::SubmitFull`
-
-**Implementation**: `interpreter.rs:685-723`
 
 ---
 
@@ -134,8 +130,6 @@ Actions are the terminal decisions in policy trees. Each tree type supports spec
 }
 ```
 
-**Implementation**: `interpreter.rs:725-759`
-
 ---
 
 ## StaggerSplit
@@ -182,8 +176,6 @@ With `num_splits=5`, `stagger_first_now=2`, `stagger_gap_ticks=3`:
 
 **Resulting Decision**: `ReleaseDecision::StaggerSplit`
 
-**Implementation**: `interpreter.rs:761-809`
-
 ---
 
 ## Hold
@@ -220,8 +212,6 @@ With `num_splits=5`, `stagger_first_now=2`, `stagger_gap_ticks=3`:
 
 **Resulting Decision**: `ReleaseDecision::Hold`
 
-**Implementation**: `interpreter.rs:811-846`
-
 ---
 
 ## Drop
@@ -244,8 +234,6 @@ With `num_splits=5`, `stagger_first_now=2`, `stagger_gap_ticks=3`:
 **Note**: This action is **DEPRECATED**. Transactions should eventually settle, not be dropped. Used only for expired transactions.
 
 **Resulting Decision**: `ReleaseDecision::Drop`
-
-**Implementation**: `interpreter.rs:848`
 
 ---
 
@@ -279,8 +267,6 @@ With `num_splits=5`, `stagger_first_now=2`, `stagger_gap_ticks=3`:
 
 **Resulting Decision**: `ReleaseDecision::Reprioritize`
 
-**Implementation**: `interpreter.rs:850-868`
-
 ---
 
 ## WithdrawFromRtgs
@@ -305,8 +291,6 @@ With `num_splits=5`, `stagger_first_now=2`, `stagger_gap_ticks=3`:
 - Use `evaluate_single()` method for Queue 2 transactions
 
 **Resulting Decision**: `ReleaseDecision::WithdrawFromRtgs`
-
-**Implementation**: `interpreter.rs:890-892`
 
 ---
 
@@ -343,8 +327,6 @@ With `num_splits=5`, `stagger_first_now=2`, `stagger_gap_ticks=3`:
 **Note**: Transaction loses FIFO position and moves to back of new priority class.
 
 **Resulting Decision**: `ReleaseDecision::ResubmitToRtgs`
-
-**Implementation**: `interpreter.rs:894-932`
 
 ---
 
@@ -386,8 +368,6 @@ When payment_tree returns `Release`:
 
 **Resulting Decision**: `BankDecision::SetReleaseBudget`
 
-**Implementation**: `interpreter.rs:1137-1193`
-
 ---
 
 ## SetState
@@ -424,8 +404,6 @@ When payment_tree returns `Release`:
 
 **Resulting Decision**: `BankDecision::SetState`
 
-**Implementation**: `interpreter.rs:1195-1230`
-
 ---
 
 ## AddState
@@ -461,8 +439,6 @@ When payment_tree returns `Release`:
 
 **Resulting Decision**: `BankDecision::AddState`
 
-**Implementation**: `interpreter.rs:1232-1267`
-
 ---
 
 ## NoAction
@@ -485,8 +461,6 @@ When payment_tree returns `Release`:
 **Note**: Any unrecognized action in bank_tree also becomes NoAction.
 
 **Resulting Decision**: `BankDecision::NoAction`
-
-**Implementation**: `interpreter.rs:1269-1275`
 
 ---
 
@@ -534,8 +508,6 @@ When payment_tree returns `Release`:
 
 **Resulting Decision**: `CollateralDecision::Post`
 
-**Implementation**: `interpreter.rs:969-999`
-
 ---
 
 ## WithdrawCollateral
@@ -577,8 +549,6 @@ When payment_tree returns `Release`:
 
 **Resulting Decision**: `CollateralDecision::Withdraw`
 
-**Implementation**: `interpreter.rs:1001-1018`
-
 ---
 
 ## HoldCollateral
@@ -599,8 +569,6 @@ When payment_tree returns `Release`:
 **Parameters**: None
 
 **Resulting Decision**: `CollateralDecision::Hold`
-
-**Implementation**: `interpreter.rs:1020-1023`
 
 ---
 
@@ -625,17 +593,3 @@ When payment_tree returns `Release`:
 | PostCollateral | ❌ | ❌ | ✅ | ✅ |
 | WithdrawCollateral | ❌ | ❌ | ✅ | ✅ |
 | HoldCollateral | ❌ | ❌ | ✅ | ✅ |
-
----
-
-# Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| ActionType enum | `simulator/src/policy/tree/types.rs` | 275-347 |
-| ReleaseDecision enum | `simulator/src/policy/mod.rs` | 82-294 |
-| BankDecision enum | `simulator/src/policy/mod.rs` | 412-506 |
-| CollateralDecision enum | `simulator/src/policy/mod.rs` | 321-349 |
-| build_decision() | `simulator/src/policy/tree/interpreter.rs` | 622-933 |
-| build_bank_decision() | `simulator/src/policy/tree/interpreter.rs` | 1107-1276 |
-| build_collateral_decision() | `simulator/src/policy/tree/interpreter.rs` | 949-1044 |

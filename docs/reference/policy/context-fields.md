@@ -571,22 +571,3 @@ These fields are **only available in payment_tree**:
 
 Using these in bank_tree or collateral trees will cause validation error.
 
-## Validation Implementation
-
-See `simulator/src/policy/tree/validation.rs`:
-- `is_transaction_only_field()` - lines 327-353
-- `is_bank_level_field()` - lines 355-418
-- `validate_field_references()` - lines 244-324
-
----
-
-# Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| EvalContext struct | `simulator/src/policy/tree/context.rs` | 114-117 |
-| EvalContext::build() | `simulator/src/policy/tree/context.rs` | 152-611 |
-| EvalContext::bank_level() | `simulator/src/policy/tree/context.rs` | 646-869 |
-| get_field() | `simulator/src/policy/tree/context.rs` | 920-927 |
-| Transaction field validation | `simulator/src/policy/tree/validation.rs` | 327-353 |
-| Bank-level field validation | `simulator/src/policy/tree/validation.rs` | 355-418 |

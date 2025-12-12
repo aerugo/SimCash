@@ -90,8 +90,6 @@ pub trait CashManagerPolicy: Send + Sync {
 }
 ```
 
-**Implementation**: `simulator/src/policy/mod.rs:560-678`
-
 ---
 
 ## TreePolicy Implementation
@@ -164,8 +162,6 @@ fn evaluate_end_of_tick_collateral(&mut self, agent, state, tick, cost_rates, ti
     }
 }
 ```
-
-**Implementation**: `simulator/src/policy/tree/executor.rs`
 
 ---
 
@@ -494,17 +490,3 @@ impl DecisionPath {
 }
 ```
 
----
-
-## Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| CashManagerPolicy trait | `simulator/src/policy/mod.rs` | 560-678 |
-| TreePolicy struct | `simulator/src/policy/tree/executor.rs` | 50-100 |
-| TreePolicy::evaluate_queue() | `simulator/src/policy/tree/executor.rs` | 150-300 |
-| BudgetState | `simulator/src/policy/tree/executor.rs` | 30-45 |
-| DecisionPath | `simulator/src/policy/tree/types.rs` | 360-400 |
-| Agent.state_registers | `simulator/src/models/agent.rs` | 45-50 |
-| Orchestrator tick flow | `simulator/src/orchestrator/mod.rs` | 200-400 |
-| FFI exports | `simulator/src/ffi/orchestrator.rs` | 100-300 |

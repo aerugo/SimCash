@@ -488,15 +488,3 @@ def create(policy_type, json_path, params):
 - Field reference validation
 - Parameter reference validation
 
----
-
-## Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| SimulationConfig | `api/payment_simulator/config/schemas.py` | 200-350 |
-| AgentConfig | `api/payment_simulator/config/schemas.py` | 150-190 |
-| PolicyConfig | `api/payment_simulator/config/schemas.py` | 80-100 |
-| ArrivalConfig | `api/payment_simulator/config/schemas.py` | 110-145 |
-| PolicyFactory | `simulator/src/policy/tree/factory.rs` | 1-100 |
-| DecisionTreeDef | `simulator/src/policy/tree/types.rs` | 22-58 |
