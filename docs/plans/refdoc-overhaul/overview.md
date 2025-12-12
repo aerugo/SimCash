@@ -1,6 +1,6 @@
 # Reference Documentation Overhaul - Overview
 
-**Status**: In Progress
+**Status**: Complete
 **Created**: 2025-12-12
 **Location**: `docs/plans/refdoc-overhaul/`
 
@@ -24,8 +24,8 @@
 | 2 | Architecture Docs | **Complete** | [phase_2.md](phases/phase_2.md) |
 | 3 | Scenario Docs | **Complete** | [phase_3.md](phases/phase_3.md) |
 | 4 | Policy Docs | **Complete** | [phase_4.md](phases/phase_4.md) |
-| 5 | API/CLI Docs | Pending | [phase_5.md](phases/phase_5.md) |
-| 6 | Remaining Modules | Pending | [phase_6.md](phases/phase_6.md) |
+| 5 | API/CLI Docs | **Complete** | [phase_5.md](phases/phase_5.md) |
+| 6 | Remaining Modules | **Complete** | [phase_6.md](phases/phase_6.md) |
 
 ---
 
@@ -229,7 +229,9 @@ sequenceDiagram
 | 2025-12-12 | Phase 2 | Completed | Deleted meta-doc, removed line counts from architecture files |
 | 2025-12-12 | Phase 3 | Completed | Cleaned all 10 scenario files (removed Python/Rust code, line numbers, Implementation Location tables) |
 | 2025-12-12 | Phase 4 | Completed | Cleaned all 10 policy files (removed line numbers, Source Code Reference tables, Implementation sections) |
+| 2025-12-12 | Phase 5 | Completed | Reviewed API/CLI docs - already clean, no changes needed |
+| 2025-12-12 | Phase 6 | Completed | Reviewed remaining modules - already clean |
 
 ---
 
-*This overview is updated after each phase completion.*
+*All phases complete. Documentation overhaul finished 2025-12-12.*
