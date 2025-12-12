@@ -41,9 +41,10 @@ Reference documentation should:
 | File | Issue |
 |------|-------|
 | `cli/commands/run.md` | Good, but some implementation references |
-| `experiments/runner.md` | Needs review |
+| `experiments/runner.md` | Full dataclass definitions (`ExperimentResult`, `VerboseConfig`, etc.) |
 | `llm/configuration.md` | Needs review |
-| `ai_cash_mgmt/*.md` | Needs review |
+| `policy/context-fields.md` | Good tables, but has "Source Code Reference" with line numbers |
+| `architecture/appendix-a-module-reference.md` | Line counts will go stale |
 
 #### Good Examples (Keep patterns)
 | File | What works well |
@@ -51,6 +52,9 @@ Reference documentation should:
 | `cli/commands/run.md` | CLI synopsis, option tables, usage examples |
 | `architecture/02-rust-core-engine.md` | Mermaid diagrams (keep these!) |
 | `scenario/examples.md` | Configuration examples |
+| `ai_cash_mgmt/index.md` | Architecture diagrams, conceptual flow, minimal code |
+| `policy/context-fields.md` | Field reference tables (excellent format!) |
+| `experiments/runner.md` | CLI usage examples, output examples |
 
 ### Redundant Documentation
 
@@ -73,6 +77,73 @@ These are NOT duplicates - `scenario/agents.md` covers **configuration** (how to
 - Delete `orchestrator/01-configuration/` (duplicates `scenario/`)
 - Keep `orchestrator/02-models/` but remove code duplication (keep conceptual content)
 - Keep `architecture/05-domain-models.md` as the high-level overview
+
+---
+
+## Detailed File Observations
+
+Based on comprehensive review of the documentation files:
+
+### Excellent Patterns to Preserve
+
+#### `policy/context-fields.md` - Model Reference Doc
+This is the **gold standard** for reference documentation:
+- Field-by-field reference with Type, Unit, Description
+- Clear availability matrix (which tree types support which fields)
+- No struct definitions - just describes what each field represents
+- **ONE ISSUE**: "Source Code Reference" section at bottom has line numbers - remove this
+
+#### `ai_cash_mgmt/index.md` - Architecture Overview
+Well-structured module overview:
+- Mermaid architecture diagrams
+- Data flow diagrams
+- Quick start examples (minimal, purposeful code)
+- Key concepts table
+- Source code locations table (file paths only, no line numbers)
+
+#### `experiments/runner.md` - Mixed Quality
+**Good parts**:
+- VerboseConfig table with flags
+- ExperimentResult field reference table
+- CLI usage examples at bottom
+- Example output showing what verbose logging looks like
+
+**Problems to fix**:
+- Full `@dataclass` definitions copied from source
+- Protocol definitions (OK for interface docs, but verbose)
+
+### Specific Issues Found
+
+#### Line Number References (Remove All)
+Files with brittle line references:
+- `orchestrator/02-models/agent.md`: `agent.rs:144`, `agent.rs:152`, etc.
+- `orchestrator/02-models/transaction.md`: `transaction.rs:162-239`, etc.
+- `policy/nodes.md`: Various line references
+- `policy/context-fields.md`: `context.rs:114-117`, `validation.rs:327-353`
+
+**Replacement strategy**: Reference by function/struct name (e.g., "see `Agent::debit()`") or just remove if not essential.
+
+#### Full Struct/Class Definitions (Remove)
+Files copying source code:
+- `orchestrator/02-models/agent.md`: Full `Agent` struct (~40 fields)
+- `orchestrator/02-models/transaction.md`: Full `Transaction` struct
+- `experiments/runner.md`: Full `ExperimentResult`, `VerboseConfig`, `IterationRecord` dataclasses
+- `api/state-provider.md`: Full Protocol definitions
+
+**Replacement strategy**: Use field reference tables (like `policy/context-fields.md`).
+
+#### Stale Statistics (Remove or Mark)
+- `architecture/appendix-a-module-reference.md`: "Total Lines: ~19,445" will become stale
+- Module listing with line counts per file
+
+**Replacement strategy**: Remove line counts, keep file listings.
+
+### Files That Are Already Good
+
+These need minimal changes:
+- `cli/commands/run.md` - Clean CLI reference
+- `cli/exit-codes.md` - Simple table
+- `scenario/examples.md` - Just YAML examples
 
 ---
 
@@ -122,6 +193,74 @@ These are NOT duplicates - `scenario/agents.md` covers **configuration** (how to
 3. **Decision guides** - When to use what?
 4. **Error troubleshooting** - Common problems and solutions
 
+### Acceptable vs Unacceptable Code
+
+Not all code is bad in documentation. Here's the distinction:
+
+#### ✅ ACCEPTABLE Code
+
+**YAML/JSON Configuration** (user-facing):
+```yaml
+agents:
+  - id: BANK_A
+    opening_balance: 1000000
+```
+
+**CLI Examples** (user-facing):
+```bash
+payment-sim run --config scenario.yaml --verbose
+```
+
+**Import Statements** (showing how to use):
+```python
+from payment_simulator.experiments.runner import GenericExperimentRunner
+```
+
+**Short Usage Examples** (3-5 lines showing API):
+```python
+runner = GenericExperimentRunner(config)
+result = await runner.run()
+print(f"Cost: ${result.final_cost / 100:.2f}")
+```
+
+**Formulas** (mathematical, not implementation):
+```
+available_liquidity = balance + credit_headroom
+```
+
+#### ❌ UNACCEPTABLE Code
+
+**Full Struct/Class Definitions**:
+```rust
+pub struct Agent {
+    id: String,
+    balance: i64,
+    // 30 more fields...
+}
+```
+
+**Validator/Method Implementations**:
+```python
+@field_validator("id")
+def validate_id(cls, v):
+    if not v:
+        raise ValueError("...")
+    return v
+```
+
+**Full Protocol Definitions**:
+```python
+class StateProviderProtocol(Protocol):
+    def get_tick(self) -> int: ...
+    def get_agents(self) -> list[dict]: ...
+    # 20 more methods...
+```
+
+**Line Number References**:
+```
+**Location:** `agent.rs:144-278`
+```
+
 ---
 
 ## Per-Directory Plan
@@ -144,7 +283,8 @@ These are NOT duplicates - `scenario/agents.md` covers **configuration** (how to
 | `10-cli-architecture.md` | Keep component diagram |
 | `11-tick-loop-anatomy.md` | Keep flowchart (excellent) |
 | `12-cost-model.md` | Keep cost formulas, remove code |
-| `appendix-*.md` | Review for consolidation |
+| `appendix-a-module-reference.md` | Remove line counts per file, keep module listings |
+| `appendix-b-*.md` | Review for consolidation |
 | `ARCHITECTURE_DOCUMENTATION_PLAN.md` | Remove (meta-doc) |
 
 ### 2. `scenario/` (12 files)
@@ -214,11 +354,13 @@ Update to only reference `02-models/` after cleanup.
 | `computations.md` | Computation reference |
 | `values.md` | Value types reference |
 | `actions.md` | Action catalog with parameters |
-| `context-fields.md` | Field reference table |
+| `context-fields.md` | ✅ Excellent format - just remove "Source Code Reference" section at end |
 | `validation.md` | Validation rules, error messages |
 | `configuration.md` | YAML examples for policies |
 | `integration.md` | How to integrate custom policies |
 | `cross-reference.md` | Review for relevance |
+
+**Note**: `context-fields.md` is the **gold standard** for reference docs - use its field table format for other files.
 
 ### 5. `cli/` (9 files)
 
@@ -257,8 +399,13 @@ Update to only reference `02-models/` after cleanup.
 | File | Action |
 |------|--------|
 | `index.md` | Keep as overview |
-| `runner.md` | Review for code removal |
+| `runner.md` | Remove dataclass definitions, keep field tables and CLI examples |
 | `configuration.md` | YAML examples focus |
+
+**Specific changes for `runner.md`:**
+- ✅ Keep: `VerboseConfig` flag table, `ExperimentResult` field reference table, CLI usage examples, example output
+- ❌ Remove: Full `@dataclass` definitions, full Protocol definitions
+- Convert class definitions to field reference tables (model after `policy/context-fields.md`)
 
 ### 8. `ai_cash_mgmt/` (7 files)
 
@@ -266,7 +413,15 @@ Update to only reference `02-models/` after cleanup.
 
 | File | Action |
 |------|--------|
-| All files | Review for code removal, keep architecture |
+| `index.md` | ✅ Already good - keep Mermaid diagrams, minimal changes needed |
+| `configuration.md` | Review for code removal |
+| `components.md` | Review for code removal |
+| `optimization.md` | Review for code removal |
+| `sampling.md` | Review for code removal |
+| `constraints.md` | Review for code removal |
+| `persistence.md` | Review for code removal |
+
+**Note**: `index.md` is a good example of architecture documentation done right - has diagrams, data flow, key concepts, and only minimal purposeful code examples.
 
 ### 9. `llm/` (3 files)
 
@@ -442,6 +597,85 @@ See [Configuration Reference](../scenario/relevant.md).
 
 - [Related Component](link.md)
 ```
+
+---
+
+## Concrete Transformation Example
+
+### Before: `orchestrator/02-models/agent.md` (excerpt)
+
+```markdown
+## Struct Definition
+
+**Location:** `agent.rs:141-278`
+
+\`\`\`rust
+pub struct Agent {
+    // Identity
+    id: String,
+
+    // Settlement Account
+    balance: i64,
+
+    // Queue 1 (Internal)
+    outgoing_queue: Vec<String>,
+    incoming_expected: Vec<String>,
+    last_decision_tick: Option<usize>,
+    liquidity_buffer: i64,
+    // ... 30 more fields
+}
+\`\`\`
+
+---
+
+## Fields
+
+### Identity
+
+#### `id`
+
+**Type:** `String`
+**Location:** `agent.rs:144`
+
+Unique agent identifier (e.g., "BANK_A").
+```
+
+### After: Same section transformed
+
+```markdown
+## Agent State
+
+An Agent maintains the following categories of state during simulation:
+
+### Identity
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `String` | Unique agent identifier (e.g., "BANK_A") |
+
+### Settlement Account
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `balance` | `i64` (cents) | Current balance at central bank. Positive = reserves, negative = using credit |
+
+### Queue Management
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `outgoing_queue` | `Vec<String>` | Transaction IDs awaiting cash manager release decision |
+| `incoming_expected` | `Vec<String>` | Expected incoming transaction IDs for liquidity forecasting |
+| `liquidity_buffer` | `i64` (cents) | Target minimum balance to maintain |
+
+[Continue with other field categories...]
+```
+
+### Key Changes
+
+1. **Removed**: Full struct definition, line number references
+2. **Kept**: Field descriptions, type information, behavioral explanations
+3. **Added**: Grouped fields by category with tables
+4. **Format**: Tables instead of individual field sections
 
 ---
 
