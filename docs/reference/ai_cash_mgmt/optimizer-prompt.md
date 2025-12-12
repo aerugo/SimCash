@@ -26,29 +26,29 @@ This enables LLMs to make informed policy improvements by analyzing what worked 
 ```mermaid
 flowchart TB
     subgraph Simulation["Simulation Layer"]
-        SIM[Orchestrator.tick()] --> EVENTS[Events per Tick]
-        EVENTS --> ERR[EnrichedEvaluationResult]
+        SIM["Orchestrator.tick"] --> EVENTS["Events per Tick"]
+        EVENTS --> ERR["EnrichedEvaluationResult"]
     end
 
     subgraph Context["Context Building"]
-        ERR --> EBCB[EnrichedBootstrapContextBuilder]
-        EBCB --> ASC[AgentSimulationContext]
-        ASC --> SACB[SingleAgentContextBuilder]
+        ERR --> EBCB["EnrichedBootstrapContextBuilder"]
+        EBCB --> ASC["AgentSimulationContext"]
+        ASC --> SACB["SingleAgentContextBuilder"]
     end
 
     subgraph Prompt["Prompt Generation"]
-        SACB --> HEADER[1. Header]
-        SACB --> STATE[2. Current State]
-        SACB --> COST[3. Cost Analysis]
-        SACB --> GUIDE[4. Optimization Guidance]
-        SACB --> OUTPUT[5. Simulation Output]
-        SACB --> HISTORY[6. Iteration History]
-        SACB --> TRAJ[7. Parameter Trajectories]
-        SACB --> INSTR[8. Final Instructions]
+        SACB --> HEADER["1. Header"]
+        SACB --> STATE["2. Current State"]
+        SACB --> COST["3. Cost Analysis"]
+        SACB --> GUIDE["4. Optimization Guidance"]
+        SACB --> OUTPUT["5. Simulation Output"]
+        SACB --> HISTORY["6. Iteration History"]
+        SACB --> TRAJ["7. Parameter Trajectories"]
+        SACB --> INSTR["8. Final Instructions"]
     end
 
     subgraph Optimizer["PolicyOptimizer"]
-        HEADER --> FULL[Full Prompt ~50k tokens]
+        HEADER --> FULL["Full Prompt 50k+ tokens"]
         STATE --> FULL
         COST --> FULL
         GUIDE --> FULL
@@ -56,10 +56,10 @@ flowchart TB
         HISTORY --> FULL
         TRAJ --> FULL
         INSTR --> FULL
-        FULL --> LLM[LLM Call]
-        LLM --> VALIDATE[ConstraintValidator]
-        VALIDATE -->|Invalid| RETRY[Retry with Errors]
-        VALIDATE -->|Valid| RESULT[OptimizationResult]
+        FULL --> LLM["LLM Call"]
+        LLM --> VALIDATE["ConstraintValidator"]
+        VALIDATE -->|Invalid| RETRY["Retry with Errors"]
+        VALIDATE -->|Valid| RESULT["OptimizationResult"]
         RETRY --> LLM
     end
 
