@@ -19,10 +19,12 @@ The `experiment` command group provides tools for running, validating, and manag
 | Command | Description |
 |---------|-------------|
 | `validate` | Validate an experiment configuration file |
-| `info` | Show information about the experiment framework |
+| `info` | Show detailed experiment information |
 | `template` | Generate an experiment configuration template |
 | `list` | List experiments in a directory |
 | `run` | Run an experiment from configuration |
+| `replay` | Replay experiment output from database |
+| `results` | List experiment runs from database |
 
 ## validate
 
@@ -73,48 +75,75 @@ Master seed: 42
 
 ## info
 
-Show information about the experiment framework.
+Show detailed information about an experiment configuration.
 
 ### Synopsis
 
 ```bash
-payment-sim experiment info
+payment-sim experiment info <config-path>
 ```
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `config-path` | Path | Path to experiment YAML configuration file |
 
 ### Description
 
-Displays module capabilities, evaluation modes, key features, and available commands.
+Displays all configuration details for an experiment including scenario path, evaluation settings, convergence criteria, LLM configuration, optimized agents, and output settings.
+
+### Examples
+
+```bash
+# Show info for an experiment
+payment-sim experiment info experiments/exp1.yaml
+
+# Show info from experiments directory
+payment-sim experiment info experiments/castro/experiments/exp1.yaml
+```
 
 ### Output
 
 ```
-Experiment Framework
-========================================
+Experiment: exp1
+Description: 2-Period Deterministic Nash Equilibrium
 
-YAML-driven LLM policy optimization experiments.
+Scenario:
+  Path: configs/exp1_2period.yaml
 
-Evaluation Modes:
-  • bootstrap - Bootstrap resampling for statistical validation
-    Uses paired comparison: same samples, both policies
-    Accepts new policy when mean_delta > 0
+Evaluation:
+  Mode: deterministic
+  Ticks: 12
 
-  • deterministic - Single deterministic evaluation
-    Faster but no statistical confidence
+Convergence:
+  Max iterations: 25
+  Stability threshold: 0.05
+  Stability window: 5
+  Improvement threshold: 0.01
 
-Key Features:
-  • YAML configuration for experiments
-  • Bootstrap paired comparison for policy acceptance
-  • Configurable convergence criteria
-  • Per-agent LLM configuration
-  • Deterministic execution (same seed = same results)
+LLM:
+  Model: anthropic:claude-sonnet-4-5
+  Temperature: 0.0
+  System prompt: 1250 chars
+    Preview: 'You are an expert in payment system optimization...'
 
-Commands:
-  experiment validate <config.yaml>  - Validate a config file
-  experiment template                - Generate a config template
-  experiment list <directory>        - List experiments in directory
-  experiment run <config.yaml>       - Run an experiment
-  experiment info                    - Show this information
+Optimized Agents:
+  - BANK_A
+  - BANK_B
+
+Output:
+  Directory: results
+  Database: experiments.db
+  Master seed: 42
 ```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Configuration file not found or invalid |
 
 ---
 
@@ -329,6 +358,198 @@ Loaded experiment: exp1
 
 ---
 
+## replay
+
+Replay experiment output from a database, displaying the same output that was shown during the original run.
+
+### Synopsis
+
+```bash
+payment-sim experiment replay <run-id> [OPTIONS]
+```
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `run-id` | String | Run ID to replay (e.g., `exp1-20251209-143022-a1b2c3`) |
+
+### Options
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--db` | `-d` | Path | `results/experiments.db` | Path to database file |
+| `--verbose` | `-v` | Boolean | `false` | Enable all verbose output |
+| `--verbose-iterations` | - | Boolean | `false` | Show iteration starts |
+| `--verbose-bootstrap` | - | Boolean | `false` | Show bootstrap evaluations |
+| `--verbose-llm` | - | Boolean | `false` | Show LLM call details |
+| `--verbose-policy` | - | Boolean | `false` | Show policy changes |
+| `--audit` | - | Boolean | `false` | Show detailed audit trail for each iteration |
+| `--start` | - | Integer | `null` | Start iteration for audit output (inclusive) |
+| `--end` | - | Integer | `null` | End iteration for audit output (inclusive) |
+
+### Description
+
+The `replay` command reconstructs the output of a previous experiment run using persisted data from the database. This uses the **StateProvider pattern** to ensure output is identical to the original run.
+
+**Standard Replay Mode** (default): Displays iteration summaries, policy updates, and convergence information as they were shown during the original run.
+
+**Audit Mode** (`--audit`): Provides a detailed audit trail for debugging and analysis, showing:
+
+- **Raw LLM prompts**: The complete system prompt and user prompt sent to the model
+- **Raw LLM responses**: The full response text before parsing
+- **Model metadata**: Model name, token counts (prompt/completion), and latency
+- **Validation results**: Whether the policy was successfully parsed, plus any parsing errors
+- **Per-agent breakdown**: Each agent's LLM interactions displayed separately
+
+The `--start` and `--end` options allow you to focus on specific iterations when using audit mode.
+
+### Examples
+
+```bash
+# Replay a specific run with standard output
+payment-sim experiment replay exp1-20251209-143022-a1b2c3
+
+# Replay with verbose output (all verbose flags enabled)
+payment-sim experiment replay exp1-20251209-143022-a1b2c3 --verbose
+
+# Replay with specific verbose options
+payment-sim experiment replay exp1-20251209-143022-a1b2c3 --verbose-iterations --verbose-policy
+
+# Replay from a custom database
+payment-sim experiment replay exp1-20251209-143022-a1b2c3 --db results/custom.db
+
+# Show full audit trail for all iterations
+payment-sim experiment replay exp1-20251209-143022-a1b2c3 --audit
+
+# Show audit trail for a specific iteration range
+payment-sim experiment replay exp1-20251209-143022-a1b2c3 --audit --start 2 --end 5
+
+# Show audit trail for just iteration 3
+payment-sim experiment replay exp1-20251209-143022-a1b2c3 --audit --start 3 --end 3
+```
+
+### Audit Output Example
+
+```
+╭──────────────────────────────────────────────────╮
+│ AUDIT TRAIL                                      │
+│ Run: exp1-20251209-143022-a1b2c3                 │
+│ Experiment: exp1                                 │
+╰──────────────────────────────────────────────────╯
+
+======================================================================
+ AUDIT: Iteration 2
+======================================================================
+
+------------------------------------------------------------
+ Agent: BANK_A
+------------------------------------------------------------
+
+Model: anthropic:claude-sonnet-4-5
+Tokens: 1,234 prompt + 567 completion = 1,801 total
+Latency: 2.34s
+
+System Prompt
+╭────────────────────────────────────────────────────────────╮
+│ You are an expert in payment system optimization...        │
+╰────────────────────────────────────────────────────────────╯
+
+User Prompt
+╭────────────────────────────────────────────────────────────╮
+│ Generate a policy for BANK_A with the following context... │
+╰────────────────────────────────────────────────────────────╯
+
+Raw Response
+╭────────────────────────────────────────────────────────────╮
+│ {                                                          │
+│   "payment_tree": {                                        │
+│     "condition": "ticks_to_deadline < 5",                  │
+│     "true_branch": "Release",                              │
+│     "false_branch": "Hold"                                 │
+│   }                                                        │
+│ }                                                          │
+╰────────────────────────────────────────────────────────────╯
+
+Validation
+  Policy valid
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Database not found, run not found, or invalid options |
+
+---
+
+## results
+
+List experiment runs stored in the database.
+
+### Synopsis
+
+```bash
+payment-sim experiment results [OPTIONS]
+```
+
+### Options
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--db` | `-d` | Path | `results/experiments.db` | Path to database file |
+| `--experiment` | `-e` | String | `null` | Filter by experiment name |
+| `--type` | `-t` | String | `null` | Filter by experiment type |
+| `--limit` | `-n` | Integer | `20` | Maximum number of results to show |
+
+### Description
+
+Lists all experiment runs recorded in the database, showing run IDs, experiment names, status, costs, and convergence information. Use this command to find run IDs for the `replay` command.
+
+### Examples
+
+```bash
+# List all experiment runs
+payment-sim experiment results
+
+# Filter by experiment name
+payment-sim experiment results --experiment exp1
+
+# Filter by experiment type
+payment-sim experiment results --type castro
+
+# Use a custom database
+payment-sim experiment results --db results/custom.db
+
+# Limit results
+payment-sim experiment results --limit 10
+```
+
+### Output
+
+```
+                          Experiment Runs
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓
+┃ Run ID                         ┃ Experiment ┃ Type   ┃ Status    ┃ Final Cost ┃ Best Cost  ┃ Iterations ┃ Converged ┃ Started          ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━┩
+│ exp1-20251209-143022-a1b2c3    │ exp1       │ castro │ completed │ $125.50    │ $120.00    │ 15         │ Yes       │ 2025-12-09 14:30 │
+│ exp2-20251209-150045-d4e5f6    │ exp2       │ castro │ completed │ $89.25     │ $85.00     │ 23         │ Yes       │ 2025-12-09 15:00 │
+│ exp1-20251210-091500-g7h8i9    │ exp1       │ castro │ running   │ -          │ -          │ -          │ -         │ 2025-12-10 09:15 │
+└────────────────────────────────┴────────────┴────────┴───────────┴────────────┴────────────┴────────────┴───────────┴──────────────────┘
+
+Showing 3 run(s)
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Database not found |
+
+---
+
 ## Configuration File Format
 
 Experiments are configured via YAML files. See the full schema below.
@@ -526,4 +747,4 @@ The experiment command uses the experiment framework from `payment_simulator.exp
 
 ---
 
-*Last updated: 2025-12-11*
+*Last updated: 2025-12-12*
