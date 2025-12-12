@@ -754,6 +754,104 @@ class PolicyFeatureToggles(BaseModel):
         return set()  # No toggles means nothing forbidden
 
 
+# Valid cost categories from Rust CostCategory enum
+VALID_COST_CATEGORIES: set[str] = {
+    "PerTick",
+    "OneTime",
+    "Daily",
+    "Modifier",
+}
+
+
+class CostFeatureToggles(BaseModel):
+    """Feature toggles for cost types in this scenario.
+
+    Allows restricting which cost categories are relevant for documentation.
+    Only ONE of include or exclude can be specified.
+
+    Examples:
+        # Only show per-tick and one-time costs
+        cost_feature_toggles:
+          include:
+            - PerTick
+            - OneTime
+
+        # Show all except modifiers
+        cost_feature_toggles:
+          exclude:
+            - Modifier
+    """
+
+    include: list[str] | None = Field(
+        None,
+        description="Only include these cost categories (mutually exclusive with exclude)",
+    )
+    exclude: list[str] | None = Field(
+        None,
+        description="Exclude these cost categories (mutually exclusive with include)",
+    )
+
+    @field_validator("include", "exclude", mode="before")
+    @classmethod
+    def validate_categories(cls, v: list[str] | None) -> list[str] | None:
+        """Validate that all category names are valid."""
+        if v is None:
+            return v
+        for cat in v:
+            if cat not in VALID_COST_CATEGORIES:
+                raise ValueError(
+                    f"Unknown cost category: {cat}. "
+                    f"Valid categories: {sorted(VALID_COST_CATEGORIES)}"
+                )
+        return v
+
+    @model_validator(mode="after")
+    def validate_mutual_exclusion(self) -> "CostFeatureToggles":
+        """Ensure include and exclude are mutually exclusive."""
+        if self.include is not None and self.exclude is not None:
+            raise ValueError("Cannot specify both 'include' and 'exclude' - choose one")
+        return self
+
+    def is_category_allowed(self, category: str) -> bool:
+        """Check if a cost category is allowed by the toggles.
+
+        Args:
+            category: The category name to check.
+
+        Returns:
+            True if the category is allowed, False otherwise.
+        """
+        if self.include is not None:
+            return category in self.include
+        if self.exclude is not None:
+            return category not in self.exclude
+        return True  # No toggles means all allowed
+
+    def get_allowed_categories(self) -> set[str]:
+        """Get the set of allowed cost category names.
+
+        Returns:
+            Set of category names that are allowed.
+        """
+        if self.include is not None:
+            return set(self.include)
+        if self.exclude is not None:
+            return VALID_COST_CATEGORIES - set(self.exclude)
+        return VALID_COST_CATEGORIES.copy()
+
+    def get_forbidden_categories(self) -> set[str]:
+        """Get the set of forbidden cost category names.
+
+        Returns:
+            Set of category names that are forbidden.
+        """
+        if self.exclude is not None:
+            return set(self.exclude)
+        if self.include is not None:
+            return VALID_COST_CATEGORIES - set(self.include)
+        return set()  # No toggles means nothing forbidden
+
+
 # ============================================================================
 # Simulation Configuration
 # ============================================================================
@@ -778,6 +876,9 @@ class SimulationConfig(BaseModel):
     )
     policy_feature_toggles: PolicyFeatureToggles | None = Field(
         None, description="Restrict policy DSL features for this scenario"
+    )
+    cost_feature_toggles: CostFeatureToggles | None = Field(
+        None, description="Restrict cost schema categories for this scenario"
     )
     deferred_crediting: bool = Field(
         False,

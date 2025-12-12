@@ -36,7 +36,33 @@ def cost_schema(
     ] = OutputFormat.markdown,
     category: Annotated[
         list[CostCategory] | None,
-        typer.Option("--category", "-c", help="Filter to specific categories (can be repeated)"),
+        typer.Option(
+            "--category", "-c", help="Filter to specific categories (can be repeated)"
+        ),
+    ] = None,
+    exclude_category: Annotated[
+        list[CostCategory] | None,
+        typer.Option(
+            "--exclude-category",
+            "-x",
+            help="Exclude specific categories (can be repeated)",
+        ),
+    ] = None,
+    include: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--include", "-i", help="Include only specific cost names (can be repeated)"
+        ),
+    ] = None,
+    exclude: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--exclude", "-e", help="Exclude specific cost names (can be repeated)"
+        ),
+    ] = None,
+    scenario: Annotated[
+        Path | None,
+        typer.Option("--scenario", help="Filter schema based on scenario's cost_feature_toggles"),
     ] = None,
     output: Annotated[
         Path | None,
@@ -61,11 +87,23 @@ def cost_schema(
         # Per-tick costs only
         payment-sim cost-schema --category PerTick
 
+        # Exclude modifier costs
+        payment-sim cost-schema --exclude-category Modifier
+
+        # Include only specific costs
+        payment-sim cost-schema --include overdraft_bps_per_tick --include deadline_penalty
+
+        # Exclude specific costs
+        payment-sim cost-schema --exclude priority_delay_multipliers
+
         # JSON format for tools
         payment-sim cost-schema --format json
 
         # Compact table
         payment-sim cost-schema --compact
+
+        # Filter based on scenario
+        payment-sim cost-schema --scenario scenario.yaml
 
         # Save to file
         payment-sim cost-schema --output costs.md
@@ -74,11 +112,47 @@ def cost_schema(
     schema_json = get_cost_schema()
     schema = json.loads(schema_json)
 
-    # Apply category filter
+    # Apply filters from CLI options
     include_categories = {c.value for c in category} if category else None
+    exclude_categories = {c.value for c in exclude_category} if exclude_category else set()
+    include_names = set(include) if include else None
+    exclude_names = set(exclude) if exclude else set()
+
+    # Apply scenario cost feature toggles if provided
+    if scenario is not None:
+        from payment_simulator.config import load_config
+
+        try:
+            config = load_config(str(scenario))
+        except Exception as e:
+            typer.echo(f"Error loading scenario: {e}", err=True)
+            raise typer.Exit(code=1)
+
+        if config.cost_feature_toggles is not None:
+            toggles = config.cost_feature_toggles
+
+            if toggles.include is not None:
+                # Scenario has include list - merge with any CLI include
+                scenario_includes = set(toggles.include)
+                if include_categories is not None:
+                    # Intersection of CLI and scenario includes
+                    include_categories = include_categories & scenario_includes
+                else:
+                    include_categories = scenario_includes
+
+            if toggles.exclude is not None:
+                # Scenario has exclude list - merge with CLI excludes
+                scenario_excludes = set(toggles.exclude)
+                exclude_categories = exclude_categories | scenario_excludes
 
     # Filter schema
-    filtered_schema = filter_schema(schema, include_categories=include_categories)
+    filtered_schema = filter_schema(
+        schema,
+        include_categories=include_categories,
+        exclude_categories=exclude_categories,
+        include_names=include_names,
+        exclude_names=exclude_names,
+    )
 
     # Format output
     if format == OutputFormat.json:
@@ -97,6 +171,9 @@ def cost_schema(
 def filter_schema(
     schema: dict[str, Any],
     include_categories: set[str] | None = None,
+    exclude_categories: set[str] | None = None,
+    include_names: set[str] | None = None,
+    exclude_names: set[str] | None = None,
 ) -> dict[str, Any]:
     """Filter schema based on options."""
     result = {
@@ -106,8 +183,23 @@ def filter_schema(
     }
 
     for cost in schema.get("cost_types", []):
-        # Category filter
-        if include_categories and cost.get("category") not in include_categories:
+        cost_category = cost.get("category")
+        cost_name = cost.get("name")
+
+        # Category include filter
+        if include_categories and cost_category not in include_categories:
+            continue
+
+        # Category exclude filter
+        if exclude_categories and cost_category in exclude_categories:
+            continue
+
+        # Name include filter
+        if include_names and cost_name not in include_names:
+            continue
+
+        # Name exclude filter
+        if exclude_names and cost_name in exclude_names:
             continue
 
         result["cost_types"].append(cost)
