@@ -20,6 +20,7 @@
 // Module declarations
 pub mod arrivals;
 pub mod core;
+pub mod costs;
 pub mod events;
 pub mod models;
 pub mod orchestrator;
@@ -36,9 +37,10 @@ pub use models::{
     state::SimulationState,
     transaction::{RtgsPriority, Transaction, TransactionError, TransactionStatus},
 };
+pub use costs::{get_priority_band, CostRates, PriorityBand, PriorityDelayMultipliers};
 pub use orchestrator::{
-    AgentConfig, CostAccumulator, CostBreakdown, CostRates, Orchestrator, OrchestratorConfig,
-    PolicyConfig, SimulationError, TickResult,
+    AgentConfig, CostAccumulator, CostBreakdown, Orchestrator, OrchestratorConfig, PolicyConfig,
+    SimulationError, TickResult,
 };
 pub use rng::RngManager;
 pub use settlement::{try_settle, SettlementError};
@@ -62,6 +64,19 @@ use pyo3::prelude::*;
 #[pyo3(name = "get_policy_schema")]
 fn py_get_policy_schema() -> PyResult<String> {
     Ok(policy::tree::schema_docs::get_policy_schema())
+}
+
+/// Get the cost schema documentation as a JSON string.
+///
+/// This function generates comprehensive documentation of all cost type
+/// elements including per-tick costs, one-time penalties, and modifiers.
+///
+/// Returns a JSON string containing the CostSchemaDoc structure.
+#[cfg(feature = "pyo3")]
+#[pyfunction]
+#[pyo3(name = "get_cost_schema")]
+fn py_get_cost_schema() -> PyResult<String> {
+    Ok(costs::schema_docs::get_cost_schema())
 }
 
 /// Validate a policy tree JSON string.
@@ -196,6 +211,7 @@ fn payment_simulator_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ffi::orchestrator::PyOrchestrator>()?;
     m.add_class::<models::transaction::RtgsPriority>()?;
     m.add_function(wrap_pyfunction!(py_get_policy_schema, m)?)?;
+    m.add_function(wrap_pyfunction!(py_get_cost_schema, m)?)?;
     m.add_function(wrap_pyfunction!(py_validate_policy, m)?)?;
     Ok(())
 }

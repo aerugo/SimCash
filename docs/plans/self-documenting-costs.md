@@ -1,8 +1,50 @@
 # Self-Documenting Cost Types Plan
 
-**Status:** Draft
+**Status:** Implemented
 **Created:** 2025-12-12
 **Last Updated:** 2025-12-12
+**Implemented:** 2025-12-12
+
+## Implementation Summary
+
+This plan has been fully implemented. The following components are now available:
+
+### Rust Infrastructure
+- `simulator/src/costs/mod.rs` - Module entry point with re-exports
+- `simulator/src/costs/rates.rs` - CostRates, PriorityDelayMultipliers, PriorityBand
+- `simulator/src/costs/schema_docs.rs` - CostSchemaDocumented trait and implementation
+- FFI export `get_cost_schema()` in `lib.rs`
+
+### Python CLI
+- `api/payment_simulator/cli/commands/cost_schema.py` - CLI command implementation
+- Command registered as `payment-sim cost-schema`
+
+### Tests
+- Rust: `simulator/src/costs/schema_docs.rs` (21 tests)
+- Rust: `simulator/src/costs/rates.rs` (3 tests)
+- Python FFI: `api/tests/unit/test_cost_schema_ffi.py` (13 tests)
+- Python CLI: `api/tests/unit/test_cost_schema_cli.py` (14 tests)
+
+### Usage
+
+```bash
+# Full markdown documentation
+payment-sim cost-schema
+
+# Compact table format
+payment-sim cost-schema --compact
+
+# Filter by category
+payment-sim cost-schema --category PerTick
+
+# JSON output
+payment-sim cost-schema --format json
+
+# Save to file
+payment-sim cost-schema --output costs.md
+```
+
+---
 
 ## Overview
 
