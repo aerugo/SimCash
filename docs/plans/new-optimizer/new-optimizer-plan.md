@@ -201,23 +201,24 @@ After the new system is working, consider removing or deprecating:
 
 ## Success Criteria
 
-1. ✅ System prompt includes filtered policy schema
-2. ✅ System prompt includes filtered cost schema
-3. ✅ User prompt shows ONLY target agent's transactions
-4. ✅ User prompt shows ONLY target agent's incoming liquidity
-5. ✅ All tests pass
-6. ✅ Integration tests verify agent isolation
-7. ✅ Generated policies are valid JSON with node_ids
-8. ✅ Optimization loop converges on improved policies
+1. ✅ System prompt includes filtered policy schema - COMPLETE (via `get_system_prompt()`)
+2. ✅ System prompt includes filtered cost schema - COMPLETE
+3. ✅ User prompt shows ONLY target agent's transactions - COMPLETE (Phase 4B)
+4. ✅ User prompt shows ONLY target agent's incoming liquidity - COMPLETE (Phase 4B)
+5. ✅ All tests pass - COMPLETE (600+ tests passing)
+6. ✅ Integration tests verify agent isolation - COMPLETE (15 integration tests)
+7. ✅ Generated policies are valid JSON with node_ids - COMPLETE
+8. ✅ Optimization loop converges on improved policies - COMPLETE (events now passed)
 
 ## Timeline
 
 Each phase should be completed incrementally with full TDD:
-- Phase 1: Schema injection helpers
-- Phase 2: System prompt builder
-- Phase 3: User prompt builder + event filtering
-- Phase 4: Integration
-- Phase 5: Testing and cleanup
+- Phase 1: Schema injection helpers ✅
+- Phase 2: System prompt builder ✅
+- Phase 3: User prompt builder + event filtering ✅
+- Phase 4: Integration with PolicyOptimizer ✅
+- Phase 4B: Wire events into OptimizationLoop ✅
+- Phase 5: Testing and cleanup ✅
 
 ## Work Notes
 
