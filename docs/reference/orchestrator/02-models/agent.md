@@ -1,14 +1,14 @@
 # Agent Model
 
-**Location:** `simulator/src/models/agent.rs`
+> Runtime representation of a bank participating in the payment system
 
-Represents a bank participating in the payment system with settlement account, credit facilities, internal queue management, and policy state.
+An Agent represents a bank's position in the settlement system during simulation execution. For YAML configuration, see [Agent Configuration](../../scenario/agents.md).
 
 ---
 
 ## Overview
 
-An Agent represents a bank's position in the settlement system:
+An Agent maintains:
 - **Settlement account balance** (positive = reserves, negative = using credit)
 - **Credit facilities** (unsecured cap + collateralized credit)
 - **Queue 1** (internal queue for cash manager decisions)
@@ -17,311 +17,66 @@ An Agent represents a bank's position in the settlement system:
 
 ---
 
-## Struct Definition
-
-**Location:** `agent.rs:141-278`
-
-```rust
-pub struct Agent {
-    // Identity
-    id: String,
-
-    // Settlement Account
-    balance: i64,
-
-    // Queue 1 (Internal)
-    outgoing_queue: Vec<String>,
-    incoming_expected: Vec<String>,
-    last_decision_tick: Option<usize>,
-    liquidity_buffer: i64,
-
-    // Credit Facilities
-    posted_collateral: i64,
-    collateral_haircut: f64,
-    unsecured_cap: i64,
-    collateral_posted_at_tick: Option<usize>,
-
-    // Policy State (Phase 3.3+)
-    release_budget_max: Option<i64>,
-    release_budget_remaining: i64,
-    release_budget_focus_counterparties: Option<Vec<String>>,
-    release_budget_per_counterparty_limit: Option<i64>,
-    release_budget_per_counterparty_usage: HashMap<String, i64>,
-    collateral_withdrawal_timers: HashMap<usize, Vec<(i64, String, usize)>>,
-    state_registers: HashMap<String, f64>,
-
-    // TARGET2 Limits (Phase 1)
-    bilateral_limits: HashMap<String, i64>,
-    multilateral_limit: Option<i64>,
-    bilateral_outflows: HashMap<String, i64>,
-    total_outflow: i64,
-
-    // Liquidity Pool (Enhancement 11.2)
-    allocated_liquidity: i64,
-}
-```
-
----
-
-## Fields
+## State Fields
 
 ### Identity
 
-#### `id`
-
-**Type:** `String`
-**Location:** `agent.rs:144`
-
-Unique agent identifier (e.g., "BANK_A").
-
----
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `String` | Unique agent identifier (e.g., "BANK_A") |
 
 ### Settlement Account
 
-#### `balance`
+| Field | Type | Description |
+|-------|------|-------------|
+| `balance` | `i64` (cents) | Current balance at central bank. Positive = reserves, negative = using credit, zero = neither |
 
-**Type:** `i64` (cents)
-**Location:** `agent.rs:152`
-
-Current balance in settlement account at central bank.
-
-**Values:**
-- Positive: Funds available (reserves)
-- Negative: Using intraday credit
-- Zero: No reserves, not in overdraft
-
-**CRITICAL:** Always integer cents.
-
----
+**CRITICAL:** Balance is always integer cents (INV-1).
 
 ### Queue 1 (Internal Queue)
 
-#### `outgoing_queue`
-
-**Type:** `Vec<String>`
-**Location:** `agent.rs:161`
-
-Transaction IDs awaiting cash manager release decision.
-
-**Usage:**
-- Transactions enter when they arrive from clients
-- Cash manager policy decides when to release to RTGS
-- Ordered by arrival or by `Queue1Ordering` strategy
-
----
-
-#### `incoming_expected`
-
-**Type:** `Vec<String>`
-**Location:** `agent.rs:167`
-
-Expected incoming transaction IDs.
-
-**Usage:**
-- For liquidity forecasting
-- Populated when this agent is a receiver
-
----
-
-#### `last_decision_tick`
-
-**Type:** `Option<usize>`
-**Location:** `agent.rs:172`
-
-Last tick when cash manager made a policy decision.
-
-**Usage:**
-- Avoid redundant policy evaluations within same tick
-- `None` if never evaluated
-
----
-
-#### `liquidity_buffer`
-
-**Type:** `i64` (cents)
-**Default:** `0`
-**Location:** `agent.rs:178`
-
-Target minimum balance to maintain.
-
-**Usage:**
-- Cash manager policies may hold transactions if `balance - amount < buffer`
-- Override for urgent transactions
-
----
+| Field | Type | Description |
+|-------|------|-------------|
+| `outgoing_queue` | `Vec<String>` | Transaction IDs awaiting cash manager release decision |
+| `incoming_expected` | `Vec<String>` | Expected incoming transaction IDs for liquidity forecasting |
+| `last_decision_tick` | `Option<usize>` | Last tick when cash manager made a policy decision |
+| `liquidity_buffer` | `i64` (cents) | Target minimum balance to maintain (default: 0) |
 
 ### Credit Facilities
 
-#### `posted_collateral`
-
-**Type:** `i64` (cents)
-**Default:** `0`
-**Location:** `agent.rs:185`
-
-Collateral posted to secure intraday credit.
-
-**Effects:**
-- Provides credit capacity (discounted by haircut)
-- Accrues opportunity cost per tick
-
----
-
-#### `collateral_haircut`
-
-**Type:** `f64`
-**Default:** `0.02` (2%)
-**Location:** `agent.rs:197`
-
-Discount rate applied to collateral value.
-
-**Values:**
-- `0.00` = 0% haircut (high-quality bonds)
-- `0.02` = 2% haircut (typical T2/CLM)
-- `0.10` = 10% haircut (lower quality)
-
-**Formula:**
-```
-collateral_capacity = posted_collateral × (1 - haircut)
-```
-
----
-
-#### `unsecured_cap`
-
-**Type:** `i64` (cents)
-**Default:** `0`
-**Location:** `agent.rs:206`
-
-Unsecured daylight overdraft capacity.
-
-**Usage:**
-- Credit without collateral
-- Typically priced higher than collateralized
-
----
-
-#### `collateral_posted_at_tick`
-
-**Type:** `Option<usize>`
-**Location:** `agent.rs:213`
-
-Tick when collateral was last posted.
-
-**Usage:**
-- Enforce minimum holding period (default 5 ticks)
-- Prevent posting/withdrawal oscillation
-
----
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `posted_collateral` | `i64` (cents) | 0 | Collateral posted to secure intraday credit |
+| `collateral_haircut` | `f64` | 0.02 | Discount rate applied to collateral (0.02 = 2%) |
+| `unsecured_cap` | `i64` (cents) | 0 | Unsecured daylight overdraft capacity |
+| `collateral_posted_at_tick` | `Option<usize>` | None | Tick when collateral was last posted |
 
 ### Policy State
 
-#### `release_budget_max` / `release_budget_remaining`
-
-**Type:** `Option<i64>` / `i64`
-**Location:** `agent.rs:218-221`
-
-Release budget for current tick.
-
-- `release_budget_max`: Maximum budget set (None = unlimited)
-- `release_budget_remaining`: Amount remaining
-
-**Usage:**
-- Limit total releases per tick
-- Set by `SetBudget` policy instruction
-
----
-
-#### `release_budget_focus_counterparties`
-
-**Type:** `Option<Vec<String>>`
-**Location:** `agent.rs:226`
-
-Allowed counterparties for releases.
-
-- `None`: All counterparties allowed
-- `Some([])`: No counterparties (blocks all)
-- `Some([A, B])`: Only A and B allowed
-
----
-
-#### `release_budget_per_counterparty_limit` / `usage`
-
-**Type:** `Option<i64>` / `HashMap<String, i64>`
-**Location:** `agent.rs:230-234`
-
-Per-counterparty limits and tracking.
-
----
-
-#### `collateral_withdrawal_timers`
-
-**Type:** `HashMap<usize, Vec<(i64, String, usize)>>`
-**Location:** `agent.rs:240`
-
-Scheduled automatic collateral withdrawals.
-
-**Structure:**
-- Key: Tick number
-- Value: Vec of (amount, reason, posted_at_tick)
-
----
-
-#### `state_registers`
-
-**Type:** `HashMap<String, f64>`
-**Location:** `agent.rs:247`
-
-State registers for policy micro-memory.
-
-**Constraints:**
-- Maximum 10 per agent
-- Keys must be prefixed with "bank_state_"
-- Reset at EOD
-
----
+| Field | Type | Description |
+|-------|------|-------------|
+| `release_budget_max` | `Option<i64>` | Maximum release budget for current tick (None = unlimited) |
+| `release_budget_remaining` | `i64` | Remaining budget amount |
+| `release_budget_focus_counterparties` | `Option<Vec<String>>` | Allowed counterparties (None = all, Some([]) = none) |
+| `release_budget_per_counterparty_limit` | `Option<i64>` | Per-counterparty release limit |
+| `release_budget_per_counterparty_usage` | `HashMap<String, i64>` | Per-counterparty usage tracking |
+| `collateral_withdrawal_timers` | `HashMap<usize, Vec<...>>` | Scheduled automatic collateral withdrawals |
+| `state_registers` | `HashMap<String, f64>` | Policy micro-memory (max 10, reset at EOD) |
 
 ### TARGET2 Limits
 
-#### `bilateral_limits`
-
-**Type:** `HashMap<String, i64>`
-**Location:** `agent.rs:253`
-
-Maximum outflow per counterparty per day.
-
----
-
-#### `multilateral_limit`
-
-**Type:** `Option<i64>`
-**Location:** `agent.rs:257`
-
-Maximum total outflow per day.
-
----
-
-#### `bilateral_outflows` / `total_outflow`
-
-**Type:** `HashMap<String, i64>` / `i64`
-**Location:** `agent.rs:262-266`
-
-Daily outflow tracking (reset at start of each day).
-
----
+| Field | Type | Description |
+|-------|------|-------------|
+| `bilateral_limits` | `HashMap<String, i64>` | Maximum outflow per counterparty per day |
+| `multilateral_limit` | `Option<i64>` | Maximum total outflow per day |
+| `bilateral_outflows` | `HashMap<String, i64>` | Daily outflow tracking (reset at day start) |
+| `total_outflow` | `i64` | Total outflow tracking (reset at day start) |
 
 ### Liquidity Pool
 
-#### `allocated_liquidity`
-
-**Type:** `i64` (cents)
-**Default:** `0`
-**Location:** `agent.rs:277`
-
-Liquidity allocated from external pool.
-
-**Usage:**
-- Tracks allocation for opportunity cost calculation
-- Separate from opening_balance
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `allocated_liquidity` | `i64` (cents) | 0 | Liquidity allocated from external pool |
 
 ---
 
@@ -329,221 +84,69 @@ Liquidity allocated from external pool.
 
 ### Constructors
 
-#### `Agent::new(id, balance)`
-
-Create new agent with opening balance.
-
-```rust
-let agent = Agent::new("BANK_A".to_string(), 1_000_000);
-```
-
-#### `Agent::with_buffer(id, balance, liquidity_buffer)`
-
-Create agent with specified liquidity buffer.
-
-```rust
-let agent = Agent::with_buffer("BANK_A".to_string(), 1_000_000, 100_000);
-```
-
-#### `Agent::restore(data: AgentRestoreData)`
-
-Restore from checkpoint snapshot.
-
----
+| Method | Description |
+|--------|-------------|
+| `Agent::new(id, balance)` | Create agent with opening balance |
+| `Agent::with_buffer(id, balance, buffer)` | Create agent with specified liquidity buffer |
+| `Agent::restore(data)` | Restore from checkpoint snapshot |
 
 ### Balance Operations
 
-#### `balance() -> i64`
-
-Get current balance (cents).
-
-#### `credit_used() -> i64`
-
-Amount of credit in use (absolute value of negative balance).
-
-```rust
-let agent = Agent::new("A".to_string(), -50_000);
-assert_eq!(agent.credit_used(), 50_000);  // Using $500 credit
-```
-
-#### `available_liquidity() -> i64`
-
-Calculate total available liquidity.
-
-**Formula:**
-```
-available = max(0, balance) + max(0, headroom - credit_used)
-
-where:
-  headroom = unsecured_cap + floor(collateral × (1 - haircut))
-  credit_used = max(0, -balance)
-```
-
-#### `can_pay(amount) -> bool`
-
-Check if agent can afford payment.
-
-```rust
-if agent.can_pay(100_000) {
-    // Sufficient liquidity
-}
-```
-
-#### `debit(amount) -> Result<(), AgentError>`
-
-Debit agent's balance (payment outflow).
-
-**Errors:**
-- `InsufficientLiquidity` if `amount > available_liquidity()`
-
-#### `credit(amount)`
-
-Credit agent's balance (payment inflow). Always succeeds.
-
----
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `balance()` | `i64` | Current balance (cents) |
+| `credit_used()` | `i64` | Amount of credit in use (absolute value of negative balance) |
+| `available_liquidity()` | `i64` | Total available liquidity (see formula below) |
+| `can_pay(amount)` | `bool` | Check if agent can afford payment |
+| `debit(amount)` | `Result<(), AgentError>` | Debit balance (payment outflow) |
+| `credit(amount)` | `()` | Credit balance (payment inflow, always succeeds) |
 
 ### Credit Facility Methods
 
-#### `allowed_overdraft_limit() -> i64`
-
-Maximum negative balance allowed.
-
-**Formula:**
-```
-limit = floor(collateral × (1 - haircut)) + unsecured_cap
-```
-
-#### `headroom() -> i64`
-
-Remaining credit capacity.
-
-```
-headroom = allowed_overdraft_limit - credit_used
-```
-
-#### `max_withdrawable_collateral(buffer) -> i64`
-
-Maximum collateral that can be safely withdrawn.
-
-#### `collateral_capacity() -> i64`
-
-Credit capacity from collateral (after haircut).
-
----
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `allowed_overdraft_limit()` | `i64` | Maximum negative balance allowed |
+| `headroom()` | `i64` | Remaining credit capacity |
+| `max_withdrawable_collateral(buffer)` | `i64` | Maximum collateral safely withdrawable |
+| `collateral_capacity()` | `i64` | Credit capacity from collateral (after haircut) |
 
 ### Queue 1 Operations
 
-#### `queue_outgoing(tx_id)`
-
-Add transaction to Queue 1.
-
-```rust
-agent.queue_outgoing("tx_123".to_string());
-```
-
-#### `outgoing_queue() -> &Vec<String>`
-
-Get Queue 1 contents.
-
-#### `outgoing_queue_size() -> usize`
-
-Get Queue 1 size.
-
-#### `remove_from_outgoing(tx_id) -> bool`
-
-Remove transaction from Queue 1. Returns true if found.
-
-#### `replace_outgoing_queue(new_queue)`
-
-Replace entire Queue 1 (for reordering).
-
----
-
-### Collateral Operations
-
-#### `set_posted_collateral(amount)`
-
-Set collateral amount.
-
-#### `posted_collateral() -> i64`
-
-Get posted collateral.
-
-#### `set_collateral_haircut(haircut)`
-
-Set haircut rate (0.0 to 1.0).
-
-#### `collateral_haircut() -> f64`
-
-Get haircut rate.
-
----
+| Method | Description |
+|--------|-------------|
+| `queue_outgoing(tx_id)` | Add transaction to Queue 1 |
+| `outgoing_queue()` | Get Queue 1 contents |
+| `outgoing_queue_size()` | Get Queue 1 size |
+| `remove_from_outgoing(tx_id)` | Remove transaction from Queue 1 |
+| `replace_outgoing_queue(new_queue)` | Replace entire Queue 1 (for reordering) |
 
 ### Limit Operations
 
-#### `set_bilateral_limits(limits)`
-
-Set per-counterparty limits.
-
-#### `set_multilateral_limit(limit)`
-
-Set total outflow limit.
-
-#### `record_outflow(counterparty, amount)`
-
-Record outflow for limit tracking.
-
-#### `check_bilateral_limit(counterparty, amount) -> bool`
-
-Check if within bilateral limit.
-
-#### `check_multilateral_limit(amount) -> bool`
-
-Check if within multilateral limit.
-
-#### `reset_daily_outflows()`
-
-Reset outflow tracking (called at EOD).
-
----
+| Method | Description |
+|--------|-------------|
+| `set_bilateral_limits(limits)` | Set per-counterparty limits |
+| `set_multilateral_limit(limit)` | Set total outflow limit |
+| `record_outflow(counterparty, amount)` | Record outflow for limit tracking |
+| `check_bilateral_limit(counterparty, amount)` | Check if within bilateral limit |
+| `check_multilateral_limit(amount)` | Check if within multilateral limit |
+| `reset_daily_outflows()` | Reset outflow tracking (called at EOD) |
 
 ### State Register Operations
 
-#### `set_state_register(key, value) -> Result<(), String>`
-
-Set a state register value.
-
-**Constraints:**
-- Key must start with "bank_state_"
-- Maximum 10 registers
-
-#### `get_state_register(key) -> Option<f64>`
-
-Get state register value.
-
-#### `clear_state_registers()`
-
-Clear all state registers (called at EOD).
-
----
+| Method | Description |
+|--------|-------------|
+| `set_state_register(key, value)` | Set register (key must start with "bank_state_", max 10) |
+| `get_state_register(key)` | Get register value |
+| `clear_state_registers()` | Clear all registers (called at EOD) |
 
 ### Budget Operations
 
-#### `set_release_budget(max, focus, per_counterparty)`
-
-Configure release budget for tick.
-
-#### `can_release_to(counterparty, amount) -> bool`
-
-Check if release is allowed within budget.
-
-#### `record_release(counterparty, amount)`
-
-Record release against budget.
-
-#### `reset_release_budget()`
-
-Reset budget (called each tick).
+| Method | Description |
+|--------|-------------|
+| `set_release_budget(max, focus, per_counterparty)` | Configure release budget for tick |
+| `can_release_to(counterparty, amount)` | Check if release allowed within budget |
+| `record_release(counterparty, amount)` | Record release against budget |
+| `reset_release_budget()` | Reset budget (called each tick) |
 
 ---
 
@@ -598,62 +201,30 @@ At end of each day:
 
 ---
 
-## Related Types
+## Error Types
 
-### `AgentRestoreData`
+### AgentError
 
-**Location:** `agent.rs:84-115`
+| Variant | Description |
+|---------|-------------|
+| `InsufficientLiquidity { required, available }` | Payment exceeds available liquidity |
 
-Data structure for checkpoint restoration.
+### WithdrawError
 
-```rust
-pub struct AgentRestoreData {
-    pub id: String,
-    pub balance: i64,
-    pub unsecured_cap: i64,
-    pub outgoing_queue: Vec<String>,
-    pub incoming_expected: Vec<String>,
-    pub last_decision_tick: Option<usize>,
-    pub liquidity_buffer: i64,
-    pub posted_collateral: i64,
-    pub collateral_haircut: f64,
-    pub collateral_posted_at_tick: Option<usize>,
-    pub bilateral_limits: HashMap<String, i64>,
-    pub multilateral_limit: Option<i64>,
-    pub bilateral_outflows: HashMap<String, i64>,
-    pub total_outflow: i64,
-    pub allocated_liquidity: Option<i64>,
-}
-```
-
-### `AgentError`
-
-**Location:** `agent.rs:25-29`
-
-```rust
-pub enum AgentError {
-    InsufficientLiquidity { required: i64, available: i64 },
-}
-```
-
-### `WithdrawError`
-
-**Location:** `agent.rs:32-49`
-
-```rust
-pub enum WithdrawError {
-    NonPositive,
-    MinHoldingPeriodNotMet { ticks_remaining: usize, posted_at_tick: usize },
-    NoHeadroom { credit_used: i64, allowed_limit: i64, headroom: i64 },
-}
-```
+| Variant | Description |
+|---------|-------------|
+| `NonPositive` | Withdrawal amount must be positive |
+| `MinHoldingPeriodNotMet { ticks_remaining, posted_at_tick }` | Collateral minimum hold period not met |
+| `NoHeadroom { credit_used, allowed_limit, headroom }` | Insufficient headroom for withdrawal |
 
 ---
 
 ## Configuration Mapping
 
-| AgentConfig Field | Agent Field | Notes |
-|-------------------|-------------|-------|
+How `AgentConfig` YAML fields map to runtime `Agent` fields:
+
+| Config Field | Runtime Field | Notes |
+|--------------|---------------|-------|
 | `id` | `id` | Direct |
 | `opening_balance` | `balance` | Initial value |
 | `unsecured_cap` | `unsecured_cap` | Direct |
@@ -667,12 +238,10 @@ pub enum WithdrawError {
 
 ## See Also
 
-- [AgentConfig](../01-configuration/agent-config.md) - Configuration
+- [Agent Configuration](../../scenario/agents.md) - YAML configuration reference
 - [Transaction](transaction.md) - Transaction model
-- [SimulationState](simulation-state.md) - State management
-- [Queue1 Internal](../04-queues/queue1-internal.md) - Queue details
-- [Collateral Events](../07-events/collateral-events.md) - Collateral operations
+- [Architecture: Domain Models](../../architecture/05-domain-models.md) - High-level overview
 
 ---
 
-*Last Updated: 2025-11-28*
+*Last Updated: 2025-12-12*

@@ -272,21 +272,6 @@ class SimulationRunnerProtocol(Protocol):
 
 ---
 
-## Source Code Locations
-
-| Component | File |
-|-----------|------|
-| Configuration | `api/payment_simulator/ai_cash_mgmt/config/` |
-| Core | `api/payment_simulator/ai_cash_mgmt/core/` |
-| Optimization | `api/payment_simulator/ai_cash_mgmt/optimization/` |
-| Sampling | `api/payment_simulator/ai_cash_mgmt/sampling/` |
-| Constraints | `api/payment_simulator/ai_cash_mgmt/constraints/` |
-| Persistence | `api/payment_simulator/ai_cash_mgmt/persistence/` |
-| CLI | `api/payment_simulator/cli/commands/ai_game.py` |
-| Tests | `api/tests/ai_cash_mgmt/` |
-
----
-
 ## Relationship with Experiments Module
 
 The AI Cash Management module provides the core optimization components (PolicyOptimizer, ConstraintValidator, TransactionSampler, etc.) that are used by the `payment_simulator.experiments` module. The experiments module provides a higher-level YAML-only interface:

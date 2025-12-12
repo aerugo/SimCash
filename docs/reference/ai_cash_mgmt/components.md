@@ -593,17 +593,6 @@ print(f"Best cost: {orchestrator.convergence_detector.best_metric}")
 
 ---
 
-## Implementation Location
-
-| Component | File |
-|-----------|------|
-| GameOrchestrator | `api/payment_simulator/ai_cash_mgmt/core/game_orchestrator.py` |
-| GameSession | `api/payment_simulator/ai_cash_mgmt/core/game_session.py` |
-| GameMode | `api/payment_simulator/ai_cash_mgmt/core/game_mode.py` |
-| GameStatus | `api/payment_simulator/ai_cash_mgmt/persistence/models.py` |
-
----
-
 ## Navigation
 
 **Previous**: [Configuration](configuration.md)

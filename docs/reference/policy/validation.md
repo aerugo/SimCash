@@ -85,8 +85,6 @@ DuplicateNodeId("N1")
 }
 ```
 
-**Implementation**: `validation.rs:141-186`
-
 ---
 
 ## 2. Tree Depth Limits
@@ -117,8 +115,6 @@ N1 (depth 0)
 │       └── A3 (depth 3)
 └── A4 (depth 1)
 ```
-
-**Implementation**: `validation.rs:193-232`
 
 ---
 
@@ -169,8 +165,6 @@ These fields trigger validation error if used outside `payment_tree`:
 - Allowed in ALL tree types
 - Example: `bank_state_cooldown`, `bank_state_counter`
 
-**Implementation**: `validation.rs:244-324`
-
 ---
 
 ## 4. Parameter Reference Validation
@@ -213,8 +207,6 @@ InvalidParameterReference("undefined_threshold")
   }
 }
 ```
-
-**Implementation**: `validation.rs:455-523`
 
 ---
 
@@ -263,8 +255,6 @@ DivisionByZeroRisk("N1")
 }
 ```
 
-**Implementation**: `validation.rs:556-633`
-
 ---
 
 ## 6. Action Reachability
@@ -279,8 +269,6 @@ UnreachableAction("A5")
 ```
 
 **Detection**: Identifies orphaned action nodes that cannot be reached through any path.
-
-**Implementation**: `validation.rs:660-720`
 
 ---
 
@@ -398,18 +386,3 @@ Validate policies work when:
 - Balance is zero or negative
 - No transactions in Queue 2
 
----
-
-## Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| ValidationError enum | `simulator/src/policy/tree/validation.rs` | 19-38 |
-| validate_tree() | `simulator/src/policy/tree/validation.rs` | 95-134 |
-| Node ID uniqueness | `simulator/src/policy/tree/validation.rs` | 141-186 |
-| Tree depth | `simulator/src/policy/tree/validation.rs` | 193-232 |
-| Field references | `simulator/src/policy/tree/validation.rs` | 244-324 |
-| is_transaction_only_field() | `simulator/src/policy/tree/validation.rs` | 327-353 |
-| is_bank_level_field() | `simulator/src/policy/tree/validation.rs` | 355-418 |
-| Parameter references | `simulator/src/policy/tree/validation.rs` | 455-523 |
-| Division safety | `simulator/src/policy/tree/validation.rs` | 556-633 |

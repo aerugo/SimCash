@@ -655,17 +655,6 @@ print(f"Final cost: ${detector.best_metric / 100:.2f}")
 
 ---
 
-## Implementation Location
-
-| Component | File |
-|-----------|------|
-| PolicyOptimizer | `api/payment_simulator/ai_cash_mgmt/optimization/policy_optimizer.py` |
-| PolicyEvaluator | `api/payment_simulator/ai_cash_mgmt/optimization/policy_evaluator.py` |
-| ConstraintValidator | `api/payment_simulator/ai_cash_mgmt/optimization/constraint_validator.py` |
-| ConvergenceDetector | `api/payment_simulator/ai_cash_mgmt/optimization/convergence_detector.py` |
-
----
-
 ## Navigation
 
 **Previous**: [Components](components.md)

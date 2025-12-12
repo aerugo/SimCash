@@ -107,11 +107,6 @@ See [context-fields.md](context-fields.md) for full list. Includes:
 }
 ```
 
-### Implementation Location
-- Trait method: `CashManagerPolicy::evaluate_queue()` (calls bank tree first)
-- Tree traversal: `traverse_bank_tree()` in `interpreter.rs:474`
-- Decision builder: `build_bank_decision()` in `interpreter.rs:1107`
-
 ---
 
 ## 2. payment_tree
@@ -183,11 +178,6 @@ All fields from [context-fields.md](context-fields.md), including:
 }
 ```
 
-### Implementation Location
-- Trait method: `CashManagerPolicy::evaluate_queue()`
-- Tree traversal: `traverse_tree()` in `interpreter.rs:430`
-- Decision builder: `build_decision()` in `interpreter.rs:622`
-
 ---
 
 ## 3. strategic_collateral_tree
@@ -239,10 +229,6 @@ Same as `bank_tree` - all bank-level and system fields, plus state registers.
 }
 ```
 
-### Implementation Location
-- Tree traversal: `traverse_strategic_collateral_tree()` in `interpreter.rs:446`
-- Decision builder: `build_collateral_decision()` in `interpreter.rs:949`
-
 ---
 
 ## 4. end_of_tick_collateral_tree
@@ -292,10 +278,6 @@ Same as `strategic_collateral_tree`:
 }
 ```
 
-### Implementation Location
-- Tree traversal: `traverse_end_of_tick_collateral_tree()` in `interpreter.rs:460`
-- Decision builder: `build_collateral_decision()` in `interpreter.rs:949`
-
 ---
 
 ## Field Availability Matrix
@@ -335,16 +317,3 @@ All trees are **optional**. A valid policy file can have:
 }
 ```
 
----
-
-## Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| DecisionTreeDef struct | `simulator/src/policy/tree/types.rs` | 22-58 |
-| bank_tree field | `simulator/src/policy/tree/types.rs` | 37-38 |
-| payment_tree field | `simulator/src/policy/tree/types.rs` | 40-43 |
-| strategic_collateral_tree field | `simulator/src/policy/tree/types.rs` | 45-48 |
-| end_of_tick_collateral_tree field | `simulator/src/policy/tree/types.rs` | 50-53 |
-| EvalContext::build() | `simulator/src/policy/tree/context.rs` | 152-611 |
-| EvalContext::bank_level() | `simulator/src/policy/tree/context.rs` | 646-869 |

@@ -116,18 +116,6 @@ Instantly move balance from one agent to another.
 | `to_agent` | `str` | Must exist | Receiver agent ID |
 | `amount` | `int` | `> 0` | Transfer amount (cents) |
 
-### Implementation
-
-**Python Schema** (`schemas.py:304-316`):
-```python
-class DirectTransferEvent(BaseModel):
-    type: Literal["DirectTransfer"]
-    from_agent: str
-    to_agent: str
-    amount: int = Field(..., gt=0)
-    schedule: EventSchedule
-```
-
 ### Behavior
 
 - Immediate balance adjustment
@@ -178,21 +166,6 @@ Inject a specific transaction into the system.
 | `deadline` | `int` | `> 0` | Ticks until deadline |
 | `is_divisible` | `bool` | - | Can be split |
 
-### Implementation
-
-**Python Schema** (`schemas.py:319-332`):
-```python
-class CustomTransactionArrivalEvent(BaseModel):
-    type: Literal["CustomTransactionArrival"]
-    from_agent: str
-    to_agent: str
-    amount: int = Field(..., gt=0)
-    priority: Optional[int] = Field(None, ge=0, le=10)
-    deadline: Optional[int] = Field(None, gt=0)
-    is_divisible: Optional[bool] = None
-    schedule: EventSchedule
-```
-
 ### Behavior
 
 - Creates a real transaction
@@ -238,17 +211,6 @@ Add or remove collateral for an agent.
 |:------|:-----|:-----------|:------------|
 | `agent` | `str` | Must exist | Target agent |
 | `delta` | `int` | Any | Change amount (+ add, - remove) |
-
-### Implementation
-
-**Python Schema** (`schemas.py:335-344`):
-```python
-class CollateralAdjustmentEvent(BaseModel):
-    type: Literal["CollateralAdjustment"]
-    agent: str
-    delta: int
-    schedule: EventSchedule
-```
 
 ### Behavior
 
@@ -297,16 +259,6 @@ Multiply all agents' arrival rates.
 |:------|:-----|:-----------|:------------|
 | `multiplier` | `float` | `> 0` | Rate multiplier |
 
-### Implementation
-
-**Python Schema** (`schemas.py:347-354`):
-```python
-class GlobalArrivalRateChangeEvent(BaseModel):
-    type: Literal["GlobalArrivalRateChange"]
-    multiplier: float = Field(..., gt=0)
-    schedule: EventSchedule
-```
-
 ### Behavior
 
 - All `rate_per_tick` values multiplied
@@ -354,17 +306,6 @@ Multiply a single agent's arrival rate.
 | `agent` | `str` | Must exist | Target agent |
 | `multiplier` | `float` | `> 0` | Rate multiplier |
 
-### Implementation
-
-**Python Schema** (`schemas.py:357-365`):
-```python
-class AgentArrivalRateChangeEvent(BaseModel):
-    type: Literal["AgentArrivalRateChange"]
-    agent: str
-    multiplier: float = Field(..., gt=0)
-    schedule: EventSchedule
-```
-
 ### Behavior
 
 - Only affects specified agent
@@ -410,19 +351,6 @@ Adjust routing weights for an agent's outgoing payments.
 | `new_weight` | `float` | `0.0-1.0` | New weight |
 | `auto_balance_others` | `bool` | - | Redistribute remaining weight |
 
-### Implementation
-
-**Python Schema** (`schemas.py:368-378`):
-```python
-class CounterpartyWeightChangeEvent(BaseModel):
-    type: Literal["CounterpartyWeightChange"]
-    agent: str
-    counterparty: str
-    new_weight: float = Field(..., ge=0, le=1)
-    auto_balance_others: bool = False
-    schedule: EventSchedule
-```
-
 ### Behavior
 
 - Changes probability of routing to counterparty
@@ -467,23 +395,6 @@ Adjust deadline ranges for all agents.
 | `max_ticks_multiplier` | `float` | `> 0` | Multiply deadline max |
 
 **Constraint**: At least one multiplier must be specified.
-
-### Implementation
-
-**Python Schema** (`schemas.py:381-393`):
-```python
-class DeadlineWindowChangeEvent(BaseModel):
-    type: Literal["DeadlineWindowChange"]
-    min_ticks_multiplier: Optional[float] = Field(None, gt=0)
-    max_ticks_multiplier: Optional[float] = Field(None, gt=0)
-    schedule: EventSchedule
-
-    @model_validator(mode='after')
-    def validate_at_least_one_multiplier(self):
-        if self.min_ticks_multiplier is None and self.max_ticks_multiplier is None:
-            raise ValueError("At least one multiplier required")
-        return self
-```
 
 ### Behavior
 
@@ -661,17 +572,6 @@ Error: amount must be > 0
 ```
 
 **Fix**: Transaction amounts must be positive.
-
----
-
-## Implementation Location
-
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Python Schedule Types | `api/payment_simulator/config/schemas.py` | 288-301 |
-| Python Event Types | `api/payment_simulator/config/schemas.py` | 304-393 |
-| Python ScenarioEvent Union | `api/payment_simulator/config/schemas.py` | 432-443 |
-| FFI Event Parsing | `simulator/src/ffi/types.rs` | 1183-1406 |
 
 ---
 
