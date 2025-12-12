@@ -170,6 +170,106 @@ class TestBootstrapEvaluationFlow:
         assert results1 == results2
 
 
+class TestOptimizationLoopSeedMatrixIntegration:
+    """Test SeedMatrix integration with OptimizationLoop."""
+
+    def test_optimization_loop_creates_seed_matrix(self) -> None:
+        """OptimizationLoop creates SeedMatrix on initialization."""
+        from unittest.mock import MagicMock
+
+        from payment_simulator.experiments.runner import OptimizationLoop
+        from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
+        from payment_simulator.llm import LLMConfig
+
+        # Create mock config
+        mock_config = MagicMock()
+        mock_config.name = "test_experiment"
+        mock_config.master_seed = 42
+        mock_config.convergence = MagicMock()
+        mock_config.convergence.max_iterations = 10
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation = MagicMock()
+        mock_config.evaluation.mode = "bootstrap"
+        mock_config.evaluation.num_samples = 5
+        mock_config.evaluation.ticks = 2
+        mock_config.optimized_agents = ("BANK_A", "BANK_B")
+        mock_config.get_constraints.return_value = None
+        mock_config.llm = LLMConfig(model="anthropic:claude-sonnet-4-5")
+        mock_config.prompt_customization = None
+
+        loop = OptimizationLoop(config=mock_config)
+
+        # Verify SeedMatrix was created
+        assert hasattr(loop, "_seed_matrix")
+        assert isinstance(loop._seed_matrix, SeedMatrix)
+        assert loop._seed_matrix.master_seed == 42
+        assert loop._seed_matrix.max_iterations == 10
+        assert loop._seed_matrix.num_bootstrap_samples == 5
+
+    def test_seed_matrix_has_correct_agents(self) -> None:
+        """SeedMatrix includes all optimized agents."""
+        from unittest.mock import MagicMock
+
+        from payment_simulator.experiments.runner import OptimizationLoop
+        from payment_simulator.llm import LLMConfig
+
+        mock_config = MagicMock()
+        mock_config.name = "test"
+        mock_config.master_seed = 123
+        mock_config.convergence = MagicMock()
+        mock_config.convergence.max_iterations = 5
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation = MagicMock()
+        mock_config.evaluation.mode = "bootstrap"
+        mock_config.evaluation.num_samples = 3
+        mock_config.evaluation.ticks = 2
+        mock_config.optimized_agents = ("AGENT_1", "AGENT_2", "AGENT_3")
+        mock_config.get_constraints.return_value = None
+        mock_config.llm = LLMConfig(model="test")
+        mock_config.prompt_customization = None
+
+        loop = OptimizationLoop(config=mock_config)
+
+        # Verify all agents have seeds
+        for agent in ["AGENT_1", "AGENT_2", "AGENT_3"]:
+            seed = loop._seed_matrix.get_iteration_seed(0, agent)
+            assert seed is not None
+            assert isinstance(seed, int)
+
+    def test_delta_history_initialized_empty(self) -> None:
+        """OptimizationLoop initializes delta_history as empty list."""
+        from unittest.mock import MagicMock
+
+        from payment_simulator.experiments.runner import OptimizationLoop
+        from payment_simulator.llm import LLMConfig
+
+        mock_config = MagicMock()
+        mock_config.name = "test"
+        mock_config.master_seed = 42
+        mock_config.convergence = MagicMock()
+        mock_config.convergence.max_iterations = 5
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation = MagicMock()
+        mock_config.evaluation.mode = "deterministic"
+        mock_config.evaluation.num_samples = 1
+        mock_config.evaluation.ticks = 2
+        mock_config.optimized_agents = ("A",)
+        mock_config.get_constraints.return_value = None
+        mock_config.llm = LLMConfig(model="test")
+        mock_config.prompt_customization = None
+
+        loop = OptimizationLoop(config=mock_config)
+
+        assert hasattr(loop, "_delta_history")
+        assert loop._delta_history == []
+
+
 class TestProgressTracking:
     """Test delta-based progress tracking."""
 
