@@ -1168,7 +1168,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             self._save_llm_interaction_event(agent_id)
 
             # Accept/reject based on evaluation mode
-            should_accept = await self._should_accept_policy(
+            # Returns (should_accept, old_cost, new_cost) for accurate display
+            should_accept, eval_old_cost, eval_new_cost = await self._should_accept_policy(
                 agent_id=agent_id,
                 old_policy=current_policy,
                 new_policy=new_policy,
@@ -1191,8 +1192,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                         agent_id=agent_id,
                         old_policy=current_policy,
                         new_policy=new_policy,
-                        old_cost=current_cost,
-                        new_cost=current_cost,  # Will be evaluated next iteration
+                        old_cost=eval_old_cost,
+                        new_cost=eval_new_cost,
                         accepted=True,
                     )
             else:
@@ -1210,8 +1211,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                             agent_id=agent_id,
                             proposed_policy=new_policy,
                             rejection_reason="cost_not_improved",
-                            old_cost=current_cost,
-                            new_cost=current_cost,
+                            old_cost=eval_old_cost,
+                            new_cost=eval_new_cost,
                         )
                     )
 
@@ -1363,11 +1364,11 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         agent_id: str,
         old_policy: dict[str, Any],
         new_policy: dict[str, Any],
-    ) -> bool:
+    ) -> tuple[bool, int, int]:
         """Determine whether to accept a new policy.
 
         Uses cost comparison to accept only policies that reduce cost.
-        For deterministic mode: single sample comparison.
+        For deterministic mode: single sample comparison using iteration seed.
         For bootstrap mode: paired comparison across multiple samples.
 
         Args:
@@ -1376,18 +1377,19 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             new_policy: Proposed new policy.
 
         Returns:
-            True if new policy should be accepted (reduces cost).
+            Tuple of (should_accept, old_cost, new_cost) where costs are in cents.
         """
         eval_mode = self._config.evaluation.mode
         num_samples = self._config.evaluation.num_samples or 1
 
         if eval_mode == "deterministic" or num_samples <= 1:
             # Deterministic mode: compare costs with single sample
-            # Use same seed for fair comparison
-            old_costs = self._evaluate_policy_on_samples(old_policy, agent_id, 1)
-            new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, 1)
+            # CRITICAL: Use the SAME seed as the main iteration to match costs
+            seed = self._config.master_seed + self._current_iteration
+            old_cost = self._evaluate_policy_with_seed(old_policy, agent_id, seed)
+            new_cost = self._evaluate_policy_with_seed(new_policy, agent_id, seed)
             # Accept if new cost is lower (or equal, to allow exploration)
-            return new_costs[0] <= old_costs[0]
+            return new_cost <= old_cost, old_cost, new_cost
 
         # Bootstrap mode: paired comparison
         # Evaluate both policies on the SAME samples
@@ -1399,8 +1401,41 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         deltas = [old - new for old, new in zip(old_costs, new_costs, strict=True)]
         mean_delta = sum(deltas) / len(deltas)
 
+        # For bootstrap, return mean costs
+        mean_old = sum(old_costs) // len(old_costs)
+        mean_new = sum(new_costs) // len(new_costs)
+
         # Accept if mean_delta > 0 (new policy is cheaper on average)
-        return mean_delta > 0
+        return mean_delta > 0, mean_old, mean_new
+
+    def _evaluate_policy_with_seed(
+        self, policy: dict[str, Any], agent_id: str, seed: int
+    ) -> int:
+        """Evaluate a policy with a specific seed.
+
+        Args:
+            policy: Policy dict to evaluate.
+            agent_id: Agent to evaluate for.
+            seed: RNG seed to use.
+
+        Returns:
+            Cost for the specified agent in cents.
+        """
+        # Temporarily set the policy for evaluation
+        original_policy = self._policies.get(agent_id)
+        self._policies[agent_id] = policy
+
+        # Run simulation and get agent's cost
+        _, agent_costs = self._run_single_simulation(seed)
+        cost = agent_costs.get(agent_id, 0)
+
+        # Restore original policy
+        if original_policy is not None:
+            self._policies[agent_id] = original_policy
+        elif agent_id in self._policies:
+            del self._policies[agent_id]
+
+        return cost
 
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
