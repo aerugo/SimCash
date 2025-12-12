@@ -49,8 +49,6 @@ def build_system_prompt(
     builder = SystemPromptBuilder(constraints)
     if cost_rates:
         builder.with_cost_rates(cost_rates)
-    if castro_mode:
-        builder.with_castro_mode(True)
     builder.with_examples(include_examples)
     if customization:
         builder.with_customization(customization)
@@ -66,7 +64,6 @@ class SystemPromptBuilder:
         >>> prompt = (
         ...     SystemPromptBuilder(constraints)
         ...     .with_cost_rates(rates)
-        ...     .with_castro_mode(True)
         ...     .build()
         ... )
     """
@@ -79,7 +76,6 @@ class SystemPromptBuilder:
         """
         self._constraints = constraints
         self._cost_rates: dict[str, Any] | None = None
-        self._castro_mode = False
         self._include_examples = True
         self._customization: str | None = None
 
@@ -93,18 +89,6 @@ class SystemPromptBuilder:
             Self for method chaining.
         """
         self._cost_rates = rates
-        return self
-
-    def with_castro_mode(self, enabled: bool = True) -> SystemPromptBuilder:
-        """Enable or disable Castro paper alignment mode.
-
-        Args:
-            enabled: Whether to enable Castro mode.
-
-        Returns:
-            Self for method chaining.
-        """
-        self._castro_mode = enabled
         return self
 
     def with_examples(self, enabled: bool = True) -> SystemPromptBuilder:
@@ -151,10 +135,6 @@ class SystemPromptBuilder:
         if self._customization and self._customization.strip():
             sections.append(_build_customization_section(self._customization))
 
-        # Section 3: Castro mode content (if enabled)
-        if self._castro_mode:
-            sections.append(_build_castro_section())
-
         # Section 4: Domain explanation
         sections.append(_build_domain_explanation())
 
@@ -179,9 +159,7 @@ class SystemPromptBuilder:
         )
 
         # Section 10: Injected cost schema
-        sections.append(
-            get_filtered_cost_schema(cost_rates=self._cost_rates)
-        )
+        sections.append(get_filtered_cost_schema(cost_rates=self._cost_rates))
 
         # Section 11: Common errors to avoid
         sections.append(_build_common_errors())
