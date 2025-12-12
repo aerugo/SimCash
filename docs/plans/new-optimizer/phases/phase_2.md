@@ -157,27 +157,6 @@ class TestCostRateInjection:
         assert "delay" in prompt.lower()
 ```
 
-### Test Group 4: Castro Mode
-
-```python
-class TestCastroMode:
-    """Tests for Castro paper alignment mode."""
-
-    def test_castro_mode_adds_constraints():
-        """Castro mode includes paper alignment section."""
-        constraints = get_castro_constraints()
-        prompt = build_system_prompt(constraints, castro_mode=True)
-        # Castro-specific content
-        assert "Castro" in prompt or "t=0" in prompt or "initial" in prompt.lower()
-
-    def test_castro_mode_restricts_collateral():
-        """Castro mode emphasizes t=0 collateral decision."""
-        constraints = get_castro_constraints()
-        prompt = build_system_prompt(constraints, castro_mode=True)
-        # Should mention initial decision
-        assert "tick 0" in prompt.lower() or "t=0" in prompt
-```
-
 ## API Design
 
 ```python
@@ -222,9 +201,6 @@ class SystemPromptBuilder:
         ...
 
     def with_cost_rates(self, rates: dict[str, Any]) -> SystemPromptBuilder:
-        ...
-
-    def with_castro_mode(self, enabled: bool = True) -> SystemPromptBuilder:
         ...
 
     def with_examples(self, enabled: bool = True) -> SystemPromptBuilder:
