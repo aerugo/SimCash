@@ -395,8 +395,12 @@ def info(
 
     # Output settings
     console.print("[bold]Output:[/bold]")
-    console.print(f"  Directory: {config.output.directory}")
-    console.print(f"  Database: {config.output.database}")
+    if config.output:
+        console.print(f"  Directory: {config.output.directory}")
+        console.print(f"  Database: {config.output.database}")
+    else:
+        console.print("  Directory: (not configured)")
+        console.print("  Database: (not configured)")
     console.print(f"  Master seed: {config.master_seed}")
 
 
@@ -552,6 +556,18 @@ def run(
         int | None,
         typer.Option("--seed", "-s", help="Override master seed from config"),
     ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", "-m", help="Override LLM model (e.g., 'openai:gpt-4o', 'anthropic:claude-sonnet-4-5')"),
+    ] = None,
+    reasoning_effort: Annotated[
+        str | None,
+        typer.Option("--reasoning-effort", help="OpenAI reasoning effort level (low/medium/high)"),
+    ] = None,
+    thinking_budget: Annotated[
+        int | None,
+        typer.Option("--thinking-budget", help="Anthropic extended thinking budget tokens"),
+    ] = None,
     db: Annotated[
         Path,
         typer.Option("--db", "-d", help="Path to database file for persistence"),
@@ -594,6 +610,15 @@ def run(
         # Run with seed override
         experiments run exp1.yaml --seed 12345
 
+        # Run with a different model (overrides YAML config)
+        experiments run exp1.yaml --model openai:gpt-4o
+
+        # Run with OpenAI reasoning model with high effort
+        experiments run exp1.yaml --model openai:o1 --reasoning-effort high
+
+        # Run with Anthropic extended thinking
+        experiments run exp1.yaml --model anthropic:claude-sonnet-4-5 --thinking-budget 16000
+
         # Run with verbose output
         experiments run exp1.yaml --verbose
 
@@ -622,9 +647,24 @@ def run(
         config = config.with_seed(seed)
         console.print(f"[cyan]Using seed override: {seed}[/cyan]")
 
+    # Handle LLM overrides
+    if model is not None or reasoning_effort is not None or thinking_budget is not None:
+        config = config.with_llm_overrides(
+            model=model,
+            reasoning_effort=reasoning_effort,
+            thinking_budget=thinking_budget,
+        )
+        if model is not None:
+            console.print(f"[cyan]Using model override: {model}[/cyan]")
+        if reasoning_effort is not None:
+            console.print(f"[cyan]Using reasoning effort: {reasoning_effort}[/cyan]")
+        if thinking_budget is not None:
+            console.print(f"[cyan]Using thinking budget: {thinking_budget}[/cyan]")
+
     # Dry run mode - just validate
     if dry_run:
         console.print("[green]Configuration valid! (dry run - not executing)[/green]")
+        console.print(f"  Model: {config.llm.model}")
         console.print(f"  Evaluation mode: {config.evaluation.mode}")
         console.print(f"  Max iterations: {config.convergence.max_iterations}")
         console.print(f"  Optimized agents: {', '.join(config.optimized_agents)}")
