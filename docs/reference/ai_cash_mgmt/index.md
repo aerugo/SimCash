@@ -16,6 +16,7 @@ The AI Cash Management module enables autonomous optimization of bank payment po
 | [configuration](configuration.md) | GameConfig, LLMConfig, BootstrapConfig, ConvergenceCriteria |
 | [components](components.md) | GameOrchestrator, GameSession, GameMode |
 | [optimization](optimization.md) | PolicyOptimizer, PolicyEvaluator, ConstraintValidator, ConvergenceDetector |
+| [**optimizer-prompt**](optimizer-prompt.md) | **Sophisticated LLM prompt architecture (50k+ tokens)** |
 | [sampling](sampling.md) | TransactionSampler, SeedManager, bootstrap sampling methods |
 | [constraints](constraints.md) | ScenarioConstraints, ParameterSpec |
 | [persistence](persistence.md) | GameRepository, GameSessionRecord, PolicyIterationRecord |
