@@ -13,8 +13,7 @@ This document preserves the LLM system prompt used by the `RobustPolicyAgent` to
 1. [Overview](#overview)
 2. [Dynamically Injected Sections](#dynamically-injected-sections)
 3. [Complete System Prompt Template](#complete-system-prompt-template)
-4. [Castro Mode Extension](#castro-mode-extension)
-5. [Usage Context](#usage-context)
+4. [Usage Context](#usage-context)
 
 ---
 
@@ -44,7 +43,7 @@ The prompt template contains several placeholders that are filled at runtime bas
 
 **Injected when:** `castro_mode=True`
 
-Contains Castro paper alignment rules that restrict the policy to match the theoretical model from Castro et al. (2025). See [Castro Mode Extension](#castro-mode-extension) below.
+Contains Castro paper alignment rules that restrict the policy to match the theoretical model from Castro et al. (2025). See [Castro Paper Alignment Mode](./castro_constraints.md) for the full content of this injected section.
 
 ### `{tree_enablement}`
 
@@ -449,77 +448,6 @@ Keep trees simple (2-4 levels) for robustness.
 
 ---
 
-## Castro Mode Extension
-
-When `castro_mode=True`, the following section is prepended after the opening line:
-
-```
-################################################################################
-#                    CASTRO PAPER ALIGNMENT MODE                               #
-#           (Replicating Castro et al. 2025 Payment System Game)               #
-################################################################################
-
-This experiment follows the rules from:
-"Estimating Policy Functions in Payment Systems Using Reinforcement Learning"
-
-CASTRO MODEL CONSTRAINTS:
-
-1. INITIAL LIQUIDITY DECISION (t=0 ONLY):
-   - Choose fraction x₀ ∈ [0,1] of collateral B at day start: ℓ₀ = x₀ · B
-   - This is the ONLY collateral decision allowed
-   - strategic_collateral_tree MUST guard PostCollateral with tick == 0
-
-2. INTRADAY PAYMENT DECISIONS (t=1,...,T-1):
-   - Each period, choose x_t ∈ [0,1] of payments to send
-   - Release = send in full (x_t = 1)
-   - Hold = delay to next period (x_t = 0)
-   - Constraint: Can only send what liquidity covers: P_t · x_t ≤ ℓ_{t-1}
-
-3. COST STRUCTURE (r_c < r_d < r_b):
-   - r_c: Collateral opportunity cost (initial liquidity)
-   - r_d: Delay cost per tick (waiting payments)
-   - r_b: End-of-day borrowing cost (shortfall)
-
-4. LIQUIDITY EVOLUTION:
-   - ℓ_t = ℓ_{t-1} - (outflows) + (inflows)
-   - With deferred crediting: inflows available NEXT period only
-
-PROHIBITED IN CASTRO MODE:
-  ✗ Split, PaceAndRelease, StaggerSplit (continuous payments assumed)
-  ✗ ReleaseWithCredit (no interbank credit)
-  ✗ WithdrawCollateral (no mid-day collateral reduction)
-  ✗ PostCollateral after tick 0 (initial decision only)
-  ✗ SetReleaseBudget, SetState, AddState (no complex bank logic)
-
-REQUIRED STRATEGIC_COLLATERAL_TREE STRUCTURE:
-```json
-{
-  "type": "condition",
-  "node_id": "SC1",
-  "condition": {"op": "==", "left": {"field": "system_tick_in_day"}, "right": {"value": 0}},
-  "on_true": {
-    "type": "action",
-    "node_id": "SC2",
-    "action": "PostCollateral",
-    "parameters": {
-      "amount": {
-        "compute": {
-          "op": "*",
-          "left": {"field": "max_collateral_capacity"},
-          "right": {"param": "initial_liquidity_fraction"}
-        }
-      }
-    }
-  },
-  "on_false": {"type": "action", "node_id": "SC3", "action": "HoldCollateral"}
-}
-```
-
-################################################################################
-```
-
----
-
 ## Usage Context
 
 ### How the Prompt Was Used
@@ -574,9 +502,14 @@ The prompt is generated dynamically rather than being a static string because:
 
 ---
 
-## Related Files (Also Deleted)
+## Related Documentation
 
-These files worked together with the prompt:
+**Archived in this directory:**
+
+- [Castro Paper Alignment Mode](./castro_constraints.md) - The `{castro_section}` content injected when `castro_mode=True`
+- [Constraints System](./constraints.md) - The constraint infrastructure (`ScenarioConstraints`, `ParameterSpec`)
+
+**Original source files (deleted):**
 
 - `experiments/castro/prompts/templates.py` - Additional context templates for different tree types
 - `experiments/castro/prompts/builder.py` - `PolicyPromptBuilder` class for constructing user prompts
