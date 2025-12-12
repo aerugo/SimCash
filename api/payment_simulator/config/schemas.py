@@ -502,7 +502,10 @@ class AgentConfig(BaseModel):
     id: str = Field(..., description="Unique agent identifier")
     opening_balance: int = Field(..., description="Opening balance in cents")
     unsecured_cap: int = Field(0, description="Unsecured overdraft capacity in cents", ge=0)
-    policy: PolicyConfig = Field(..., description="Cash manager policy configuration")
+    policy: PolicyConfig = Field(
+        default_factory=FifoPolicy,
+        description="Cash manager policy configuration (defaults to Fifo)"
+    )
     arrival_config: ArrivalConfig | None = Field(None, description="Arrival generation config (if any)")
     # Enhancement 11.3: Per-Band Arrival Configuration
     arrival_bands: ArrivalBandsConfig | None = Field(
