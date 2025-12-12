@@ -33,7 +33,10 @@ llm:
   max_retries: 3
   timeout_seconds: 300
   reasoning_effort: "high"
-  system_prompt: |
+
+# Prompt customization - replaces system_prompt with structured per-agent support
+prompt_customization:
+  all: |
     # Castro Initial Liquidity Game - 2-Period Deterministic
 
     You are optimizing a ONE-SHOT strategic decision: how much collateral to post at t=0.
@@ -63,9 +66,6 @@ llm:
     ## Your Task
     Generate a policy that chooses `initial_liquidity_fraction` - the fraction of
     max_collateral_capacity to post at t=0.
-
-    **For Bank A: Should be 0.0** (use incoming liquidity instead).
-    **For Bank B: Should be 0.20** (20,000 / 100,000 = 0.20).
 
     ## Policy Structure (JSON)
     {
@@ -116,6 +116,14 @@ llm:
     - strategic_collateral_tree: Post collateral at tick 0 only
     - The ONLY parameter to tune is initial_liquidity_fraction
     - Output ONLY valid JSON, no markdown or explanation
+  BANK_A: |
+    **For BANK_A: The optimal initial_liquidity_fraction is 0.0**
+    You can fund your outgoing payment (15,000 at tick 1) using incoming liquidity
+    from BANK_B's payment that arrives at tick 0 (available at tick 1 via deferred crediting).
+  BANK_B: |
+    **For BANK_B: The optimal initial_liquidity_fraction is 0.20** (20,000 / 100,000)
+    You must send 20,000 total (15,000 + 5,000), and you cannot rely on incoming payments
+    since BANK_A's payment arrives at tick 1 (available at tick 2 via deferred crediting).
 
 # Policy constraints (Castro-specific - MINIMAL SET)
 # The Initial Liquidity Game has ONE decision: what fraction to post at t=0
