@@ -54,13 +54,25 @@ Reference documentation should:
 
 ### Redundant Documentation
 
-These file pairs cover the same topic:
+**Configuration docs (TRUE duplication - consolidate to `scenario/`):**
 1. `orchestrator/01-configuration/agent-config.md` ↔ `scenario/agents.md`
 2. `orchestrator/01-configuration/arrival-config.md` ↔ `scenario/arrivals.md`
 3. `orchestrator/01-configuration/cost-rates.md` ↔ `scenario/cost-rates.md`
 4. `orchestrator/01-configuration/lsm-config.md` ↔ `scenario/lsm-config.md`
+5. `orchestrator/01-configuration/orchestrator-config.md` ↔ `scenario/simulation-settings.md`
+6. `orchestrator/01-configuration/scenario-events.md` ↔ `scenario/scenario-events.md`
 
-**Decision needed**: Keep one location (recommend `scenario/`) and remove duplicates from `orchestrator/01-configuration/`.
+**Model docs (DIFFERENT purposes - keep both, but clean up code):**
+- `orchestrator/02-models/agent.md` = Deep-dive into Agent **runtime model** (methods, state, lifecycle)
+- `orchestrator/02-models/transaction.md` = Deep-dive into Transaction **runtime model**
+- `architecture/05-domain-models.md` = High-level overview with diagrams
+
+These are NOT duplicates - `scenario/agents.md` covers **configuration** (how to write YAML), while `orchestrator/02-models/agent.md` covers the **runtime struct** (methods like `debit()`, `credit()`, state registers, etc.).
+
+**Decision**:
+- Delete `orchestrator/01-configuration/` (duplicates `scenario/`)
+- Keep `orchestrator/02-models/` but remove code duplication (keep conceptual content)
+- Keep `architecture/05-domain-models.md` as the high-level overview
 
 ---
 
@@ -155,20 +167,39 @@ These file pairs cover the same topic:
 | `feature-toggles.md` | Merge into advanced-settings.md |
 | `examples.md` | Complete configuration examples |
 
-### 3. `orchestrator/` (Delete or merge)
+### 3. `orchestrator/` (Partial deletion + cleanup)
 
-**Recommendation**: Delete this directory. Content is duplicated in `scenario/` and `architecture/`.
+**Recommendation**: Delete `01-configuration/` (duplicates `scenario/`), keep `02-models/` but clean up code.
 
-| Current File | Merge Into |
-|--------------|------------|
-| `01-configuration/agent-config.md` | `scenario/agents.md` |
-| `01-configuration/arrival-config.md` | `scenario/arrivals.md` |
-| `01-configuration/cost-rates.md` | `scenario/cost-rates.md` |
-| `01-configuration/lsm-config.md` | `scenario/lsm-config.md` |
-| `01-configuration/orchestrator-config.md` | `scenario/simulation-settings.md` |
-| `01-configuration/scenario-events.md` | `scenario/scenario-events.md` |
-| `02-models/agent.md` | `architecture/05-domain-models.md` |
-| `02-models/transaction.md` | `architecture/05-domain-models.md` |
+#### Delete: `orchestrator/01-configuration/` (6 files)
+
+These duplicate `scenario/` docs and should be removed:
+
+| File to Delete | Already Exists In |
+|----------------|-------------------|
+| `agent-config.md` | `scenario/agents.md` |
+| `arrival-config.md` | `scenario/arrivals.md` |
+| `cost-rates.md` | `scenario/cost-rates.md` |
+| `lsm-config.md` | `scenario/lsm-config.md` |
+| `orchestrator-config.md` | `scenario/simulation-settings.md` |
+| `scenario-events.md` | `scenario/scenario-events.md` |
+
+#### Keep & Clean: `orchestrator/02-models/` (2 files)
+
+These cover **runtime models** (different from configuration docs):
+
+| File | Action |
+|------|--------|
+| `agent.md` | Remove struct definitions, keep method explanations, behavioral descriptions |
+| `transaction.md` | Remove struct definitions, keep lifecycle state machine, split transaction logic |
+
+**Why keep these?** They document the runtime behavior that isn't covered elsewhere:
+- Agent: `debit()`/`credit()` semantics, release budgets, state registers, daily resets
+- Transaction: Status lifecycle, split transactions, dual priority system, settlement flow
+
+#### Update: `orchestrator/index.md`
+
+Update to only reference `02-models/` after cleanup.
 
 ### 4. `policy/` (10 files)
 
@@ -267,9 +298,10 @@ These file pairs cover the same topic:
 ## Implementation Phases
 
 ### Phase 1: Remove Duplicates (Week 1)
-1. Delete `orchestrator/` directory entirely
-2. Ensure all content exists in canonical locations
-3. Update any internal links
+1. Delete `orchestrator/01-configuration/` directory (duplicates `scenario/`)
+2. Clean up `orchestrator/02-models/` (keep, but remove code blocks)
+3. Update `orchestrator/index.md` to only reference models
+4. Update any internal links pointing to deleted files
 
 ### Phase 2: Architecture Docs (Week 2)
 1. Transform `architecture/02-rust-core-engine.md`
@@ -438,7 +470,8 @@ See [Configuration Reference](../scenario/relevant.md).
 
 ## Open Questions
 
-1. Should `orchestrator/` be completely removed or kept as a redirect?
+1. Should `orchestrator/02-models/` be renamed to something clearer (e.g., `models/` or `runtime-models/`)?
 2. Should line numbers be replaced with function/struct names (e.g., "see `AgentConfig` struct")?
 3. Should we add auto-generated API docs from code comments?
 4. Should we consolidate all configuration docs into a single large file?
+5. Should `orchestrator/02-models/` content be merged into `architecture/05-domain-models.md` instead of kept separate?
