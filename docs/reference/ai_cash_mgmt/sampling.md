@@ -575,17 +575,6 @@ variance = sum((m - mean)**2 for m in sample_means) / (len(sample_means) - 1)
 
 ---
 
-## Implementation Location
-
-| Component | File |
-|-----------|------|
-| TransactionSampler | `api/payment_simulator/ai_cash_mgmt/sampling/transaction_sampler.py` |
-| HistoricalTransaction | `api/payment_simulator/ai_cash_mgmt/sampling/transaction_sampler.py` |
-| SeedManager | `api/payment_simulator/ai_cash_mgmt/sampling/seed_manager.py` |
-| SampleMethod | `api/payment_simulator/ai_cash_mgmt/config/game_config.py` |
-
----
-
 ## Navigation
 
 **Previous**: [Optimization](optimization.md)

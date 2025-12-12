@@ -158,14 +158,6 @@ simulation:
 | Arrival exclusivity | Cannot have both `arrival_config` AND `arrival_bands` |
 | Positive ticks | `ticks_per_day` and `num_days` must be > 0 |
 
-## Implementation Locations
-
-| Component | Python | Rust |
-|-----------|--------|------|
-| Schema Definitions | `api/payment_simulator/config/schemas.py` | `simulator/src/orchestrator/engine.rs` |
-| FFI Conversion | N/A | `simulator/src/ffi/types.rs` |
-| Config Loader | `api/payment_simulator/config/loader.py` | N/A |
-
 ## Related Documentation
 
 - [CLI run command](../cli/commands/run.md) - Running simulations
