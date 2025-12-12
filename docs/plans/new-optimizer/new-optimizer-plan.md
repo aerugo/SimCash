@@ -218,6 +218,7 @@ Each phase should be completed incrementally with full TDD:
 - Phase 3: User prompt builder + event filtering ✅
 - Phase 4: Integration with PolicyOptimizer ✅
 - Phase 4B: Wire events into OptimizationLoop ✅
+- Phase 4C: Wire dynamic system prompt to LLM client ✅
 - Phase 5: Testing and cleanup ✅
 
 ## Work Notes

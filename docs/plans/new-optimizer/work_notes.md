@@ -1,6 +1,54 @@
 # New Optimizer Work Notes
 
-## Current Session: 2025-12-12 (Review & Remediation)
+## Current Session: 2025-12-12 (Dynamic System Prompt Wiring)
+
+### Problem Identified
+
+During plan review, found that the dynamic system prompt was **built but never used**:
+- `PolicyOptimizer.get_system_prompt()` existed and built schema-filtered prompts
+- `ExperimentLLMClient` was still using `config.system_prompt` from YAML
+- A guard at line 1000 skipped optimization entirely if no YAML system_prompt was set
+
+**Impact**: The new prompt system was complete but not active in the optimization flow.
+
+### Solution Implemented
+
+1. **ExperimentLLMClient Enhancement** (`llm_client.py`):
+   - Added `_system_prompt_override` field
+   - Added `set_system_prompt(prompt)` method for dynamic injection
+   - Updated `system_prompt` property to prefer override over config
+
+2. **OptimizationLoop Wiring** (`optimization.py`):
+   - Removed guard that required `config.llm.system_prompt`
+   - Changed guard to check for `self._constraints is None` (required for dynamic prompt)
+   - After creating `PolicyOptimizer`, immediately call `get_system_prompt(cost_rates)`
+   - Inject dynamic prompt via `self._llm_client.set_system_prompt(dynamic_prompt)`
+
+3. **Tests Added** (`test_optimizer_runner_integration.py`):
+   - `TestDynamicSystemPromptWiring` class with 4 new tests:
+     - `test_llm_client_set_system_prompt_method`
+     - `test_dynamic_prompt_takes_precedence_over_config`
+     - `test_optimization_loop_sets_dynamic_prompt_on_client`
+     - `test_no_constraints_skips_optimization`
+
+### Files Modified
+- `api/payment_simulator/experiments/runner/llm_client.py`
+- `api/payment_simulator/experiments/runner/optimization.py`
+- `api/tests/experiments/integration/test_optimizer_runner_integration.py`
+
+### Behavior Change
+| Before | After |
+|--------|-------|
+| Required `system_prompt` in YAML config | Not required - dynamic prompt used |
+| Static system prompt from YAML | Dynamic schema-filtered system prompt |
+| Skipped optimization if no YAML prompt | Skips only if no constraints |
+
+### Backward Compatibility
+YAML configs with `system_prompt` still work but are overridden by the dynamic prompt.
+
+---
+
+## Previous Session: 2025-12-12 (Review & Remediation)
 
 ### Status Review
 
