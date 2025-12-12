@@ -26,67 +26,13 @@ convergence:
 
 # LLM configuration
 llm:
-  model: "anthropic:claude-sonnet-4-5"
-  temperature: 0.0
+  model: "openai:gpt-5.2"
+  temperature: 0.5
   max_retries: 3
-  timeout_seconds: 120
-  system_prompt: |
-    You are an expert in payment system optimization.
-    Generate valid JSON policies for the SimCash payment simulator.
+  timeout_seconds: 900
+  reasoning_effort: "high"
 
-    Policy structure:
-    {
-      "version": "2.0",
-      "policy_id": "<unique_policy_name>",
-      "parameters": {
-        "initial_liquidity_fraction": <float 0.0-1.0>,
-        "urgency_threshold": <float 0-20>,
-        "liquidity_buffer_factor": <float 0.5-3.0>
-      },
-      "payment_tree": { decision tree for payment actions },
-      "strategic_collateral_tree": { decision tree for collateral at t=0 }
-    }
-
-    CRITICAL: Every node MUST have a unique "node_id" string field!
-
-    Decision tree node types:
-    1. Action node: {"type": "action", "node_id": "<unique_id>", "action": "Release" or "Hold"}
-    2. Condition node: {
-         "type": "condition",
-         "node_id": "<unique_id>",
-         "condition": {"op": "<operator>", "left": {...}, "right": {...}},
-         "on_true": <node>,
-         "on_false": <node>
-       }
-    3. Collateral action node: {
-         "type": "action",
-         "node_id": "<unique_id>",
-         "action": "PostCollateral" or "HoldCollateral",
-         "parameters": {
-           "amount": {"compute": {...} or "value": <number>},
-           "reason": {"value": "InitialAllocation" or "LiquidityTopup"}
-         }
-       }
-
-    Condition operands:
-    - {"field": "<field_name>"} - context fields: ticks_to_deadline, system_tick_in_day,
-      remaining_collateral_capacity
-    - {"param": "<param_name>"} - policy parameter reference
-    - {"value": <literal>} - literal number value
-
-    Operators: "<", "<=", ">", ">=", "==", "!="
-
-    Compute expressions: {"compute": {"op": "*", "left": {...}, "right": {...}}}
-
-    Rules:
-    - EVERY node must have a unique node_id field (REQUIRED by parser)
-    - payment_tree actions: "Release" or "Hold" only
-    - strategic_collateral_tree: Post collateral at tick 0, hold otherwise
-    - Use remaining_collateral_capacity field for collateral amount calculations
-    - All numeric values must respect parameter bounds
-    - Output ONLY valid JSON, no markdown or explanation
-
-# Policy constraints (Castro-specific)
+# Policy constraints
 policy_constraints:
   allowed_parameters:
     - name: initial_liquidity_fraction
