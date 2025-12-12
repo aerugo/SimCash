@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from payment_simulator.ai_cash_mgmt.constraints import ScenarioConstraints
 from payment_simulator.ai_cash_mgmt.constraints.parameter_spec import ParameterSpec
 
@@ -18,7 +17,6 @@ from payment_simulator.ai_cash_mgmt.prompts.system_prompt_builder import (
     SystemPromptBuilder,
     build_system_prompt,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -150,7 +148,11 @@ class TestSystemPromptStructure:
         """Prompt includes RTGS/queue/settlement explanation."""
         prompt = build_system_prompt(minimal_constraints)
         # Should explain key domain concepts
-        assert "RTGS" in prompt or "real-time" in prompt.lower() or "settlement" in prompt.lower()
+        assert (
+            "RTGS" in prompt
+            or "real-time" in prompt.lower()
+            or "settlement" in prompt.lower()
+        )
         assert "queue" in prompt.lower()
 
     def test_prompt_includes_cost_objectives(
@@ -315,46 +317,6 @@ class TestCostRateInjection:
 
 
 # =============================================================================
-# Test Group 4: Castro Mode
-# =============================================================================
-
-
-class TestCastroMode:
-    """Tests for Castro paper alignment mode."""
-
-    def test_castro_mode_adds_constraints(
-        self, castro_constraints: ScenarioConstraints
-    ) -> None:
-        """Castro mode includes initial decision emphasis."""
-        prompt = build_system_prompt(castro_constraints, castro_mode=True)
-        # Castro-specific content about t=0 decision
-        has_castro_content = (
-            "initial" in prompt.lower()
-            or "t=0" in prompt
-            or "tick 0" in prompt.lower()
-        )
-        assert has_castro_content
-
-    def test_castro_mode_emphasizes_collateral_timing(
-        self, castro_constraints: ScenarioConstraints
-    ) -> None:
-        """Castro mode emphasizes collateral decision timing."""
-        prompt = build_system_prompt(castro_constraints, castro_mode=True)
-        # Should mention collateral and timing
-        assert "collateral" in prompt.lower()
-
-    def test_non_castro_mode_works(
-        self, minimal_constraints: ScenarioConstraints
-    ) -> None:
-        """Non-Castro mode produces valid prompt without Castro content."""
-        prompt = build_system_prompt(minimal_constraints, castro_mode=False)
-        # Should be a valid prompt
-        assert len(prompt) > 1000
-        # Should not have excessive Castro-specific content
-        # (Some mention of collateral might still exist if in constraints)
-
-
-# =============================================================================
 # Test Group 5: Builder Pattern
 # =============================================================================
 
@@ -381,16 +343,6 @@ class TestBuilderPattern:
         prompt = builder.with_cost_rates(sample_cost_rates).build()
         assert "0.001" in prompt
 
-    def test_builder_with_castro_mode(
-        self, castro_constraints: ScenarioConstraints
-    ) -> None:
-        """Builder accepts Castro mode flag."""
-        builder = SystemPromptBuilder(castro_constraints)
-        prompt = builder.with_castro_mode(True).build()
-        # Should have Castro content
-        has_castro = "initial" in prompt.lower() or "t=0" in prompt
-        assert has_castro
-
     def test_builder_method_chaining(
         self,
         castro_constraints: ScenarioConstraints,
@@ -400,7 +352,6 @@ class TestBuilderPattern:
         prompt = (
             SystemPromptBuilder(castro_constraints)
             .with_cost_rates(sample_cost_rates)
-            .with_castro_mode(True)
             .with_examples(True)
             .build()
         )
@@ -437,9 +388,7 @@ class TestPromptQuality:
         prompt = build_system_prompt(minimal_constraints)
         # Should explain how to reference values
         has_value_explanation = (
-            '"field"' in prompt
-            or '"param"' in prompt
-            or '{"field":' in prompt.lower()
+            '"field"' in prompt or '"param"' in prompt or '{"field":' in prompt.lower()
         )
         assert has_value_explanation
 
@@ -505,9 +454,7 @@ class TestEdgeCases:
         prompt = build_system_prompt(constraints)
         assert "Release" in prompt
 
-    def test_empty_cost_rates(
-        self, minimal_constraints: ScenarioConstraints
-    ) -> None:
+    def test_empty_cost_rates(self, minimal_constraints: ScenarioConstraints) -> None:
         """Prompt works with empty cost rates dict."""
         prompt = build_system_prompt(minimal_constraints, cost_rates={})
         # Should still have cost documentation
@@ -633,25 +580,13 @@ This is line 3 with special chars: $100, 50%."""
         )
         assert "Function-level customization test" in prompt
 
-    def test_customization_combined_with_castro_mode(
-        self, castro_constraints: ScenarioConstraints
-    ) -> None:
-        """Customization works alongside Castro mode."""
-        customization = "CASTRO_CUSTOM: Nash equilibrium expected"
-        builder = SystemPromptBuilder(castro_constraints)
-        prompt = (
-            builder
-            .with_castro_mode(True)
-            .with_customization(customization)
-            .build()
-        )
-
         # Both should be present
         assert "CASTRO_CUSTOM: Nash equilibrium expected" in prompt
         assert "collateral" in prompt.lower()  # Castro mode content
 
     def test_customization_order_in_builder(
-        self, minimal_constraints: ScenarioConstraints,
+        self,
+        minimal_constraints: ScenarioConstraints,
         sample_cost_rates: dict[str, Any],
     ) -> None:
         """Customization order doesn't affect builder output."""
