@@ -3,6 +3,10 @@
 from typing import Annotated
 
 import typer
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (looks in cwd and parent directories)
+load_dotenv()
 
 app = typer.Typer(
     name="payment-sim",
