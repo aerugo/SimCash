@@ -1024,6 +1024,9 @@ class OptimizationLoop:
 
         # Build cost breakdown dict for LLM context
         cost_breakdown: dict[str, int] | None = None
+        # Extract events from enriched results for agent isolation filtering
+        # Events are converted from BootstrapEvent to dict format
+        collected_events: list[dict[str, Any]] | None = None
         if self._current_enriched_results:
             # Aggregate cost breakdown across all samples
             total_delay = sum(r.cost_breakdown.delay_cost for r in self._current_enriched_results)
@@ -1037,6 +1040,17 @@ class OptimizationLoop:
                 "deadline_penalty": total_deadline // num_samples,
                 "eod_penalty": total_eod // num_samples,
             }
+
+            # Extract events from all enriched results
+            # These will be filtered by agent in the PolicyOptimizer
+            collected_events = []
+            for result in self._current_enriched_results:
+                for event in result.event_trace:
+                    collected_events.append({
+                        "tick": event.tick,
+                        "event_type": event.event_type,
+                        **event.details,
+                    })
 
         # Build current metrics dict
         current_metrics = {
@@ -1065,6 +1079,7 @@ class OptimizationLoop:
                     llm_model=self._config.llm.model,
                     current_cost=float(current_cost),
                     iteration_history=self._agent_iteration_history.get(agent_id),
+                    events=collected_events,  # Pass events for agent isolation filtering
                     best_seed_output=agent_context.best_seed_output,
                     worst_seed_output=agent_context.worst_seed_output,
                     best_seed=agent_context.best_seed,
