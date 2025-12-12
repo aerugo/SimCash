@@ -4,6 +4,18 @@ Agents represent **participating banks** in the payment system. Each agent has a
 
 ---
 
+## Quick Start
+
+```yaml
+agents:
+  - id: BANK_A
+    opening_balance: 10000000    # $100,000 in cents
+    policy:
+      type: Fifo
+```
+
+---
+
 ## Schema
 
 ```yaml
@@ -26,7 +38,7 @@ agents:
       bilateral_limits: <Dict[str, int]>  # Optional, per-counterparty limits
       multilateral_limit: <int>           # Optional, total daily outflow
 
-    # Enhancement 11.2: External liquidity pool
+    # External liquidity pool
     liquidity_pool: <int>                 # Optional, cents
     liquidity_allocation_fraction: <float> # Optional, 0.0-1.0
 ```
@@ -37,34 +49,13 @@ agents:
 
 ### `id`
 
-**Type**: `str`
-**Required**: Yes
-**Constraint**: Non-empty string, must be unique across all agents
-**Default**: None (required)
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `str` |
+| **Required** | Yes |
+| **Constraint** | Non-empty, unique across all agents |
 
-Unique identifier for the agent. Used in:
-- Transaction routing (sender/receiver references)
-- Counterparty weights
-- Limit configurations
-- Scenario event targeting
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:448-449`):
-```python
-id: str = Field(..., min_length=1)
-```
-
-**Validation** (`schemas.py:462-477`):
-```python
-@model_validator(mode='after')
-def validate_agent_ids_unique(self) -> 'SimulationConfig':
-    agent_ids = [a.id for a in self.agents]
-    if len(agent_ids) != len(set(agent_ids)):
-        raise ValueError("Agent IDs must be unique")
-```
-
-#### Best Practices
+Unique identifier for the agent. Used in transaction routing, counterparty weights, limit configurations, and scenario event targeting.
 
 ```yaml
 # GOOD: Clear, descriptive names
@@ -83,36 +74,21 @@ agents:
 
 ### `opening_balance`
 
-**Type**: `int` (cents)
-**Required**: Yes
-**Constraint**: None (can be negative)
-**Default**: None (required)
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `int` (cents) |
+| **Required** | Yes |
+| **Constraint** | None (can be negative) |
 
 Initial balance in the agent's settlement account at simulation start.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:450`):
-```python
-opening_balance: int
-```
-
-**Rust** (`engine.rs:251`):
-```rust
-pub opening_balance: i64,
-```
-
-#### Monetary Values
 
 **CRITICAL INVARIANT**: All monetary values are **integer cents**.
 
 | Dollars | Cents (Config Value) |
-|:--------|:---------------------|
+|---------|---------------------|
 | $1,000.00 | `100000` |
 | $100,000.00 | `10000000` |
 | -$5,000.00 | `-500000` |
-
-#### Use Cases
 
 ```yaml
 # Well-capitalized bank
@@ -129,32 +105,19 @@ opening_balance: -1000000    # -$10,000
 
 ### `unsecured_cap`
 
-**Type**: `int` (cents)
-**Required**: No
-**Constraint**: `>= 0`
-**Default**: `0`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `int` (cents) |
+| **Required** | No |
+| **Default** | `0` |
+| **Constraint** | `>= 0` |
 
 Maximum **unsecured overdraft capacity**. This is daylight credit that doesn't require collateral.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:451`):
-```python
-unsecured_cap: int = Field(default=0, ge=0)
-```
-
-**Rust** (`engine.rs:252`):
-```rust
-pub unsecured_cap: i64,
-```
-
-#### Behavior
-
+**Behavior:**
 - Allows balance to go negative up to `-unsecured_cap`
 - Subject to `overdraft_bps_per_tick` cost when used
 - Additional overdraft requires posted collateral
-
-#### Example
 
 ```yaml
 agents:
@@ -168,25 +131,22 @@ agents:
 
 ### `policy`
 
-**Type**: `PolicyConfig` (union type)
-**Required**: Yes
-**Constraint**: Must be valid policy type
-**Default**: None (required)
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `PolicyConfig` (union type) |
+| **Required** | Yes |
+| **Constraint** | Must be valid policy type |
 
 The decision-making strategy for the agent. See [policies.md](policies.md) for complete documentation.
 
-#### Quick Reference
-
 | Policy Type | Description |
-|:------------|:------------|
+|-------------|-------------|
 | `Fifo` | Submit all transactions immediately |
 | `Deadline` | Submit when deadline approaches |
 | `LiquidityAware` | Maintain target buffer |
 | `LiquiditySplitting` | Split large payments |
 | `MockSplitting` | Testing: deterministic splits |
 | `FromJson` | JSON DSL policy tree |
-
-#### Example
 
 ```yaml
 agents:
@@ -201,14 +161,13 @@ agents:
 
 ### `arrival_config`
 
-**Type**: `ArrivalConfig`
-**Required**: No
-**Constraint**: Mutually exclusive with `arrival_bands`
-**Default**: `None`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `ArrivalConfig` |
+| **Required** | No |
+| **Constraint** | Mutually exclusive with `arrival_bands` |
 
 Configuration for automatic transaction generation. See [arrivals.md](arrivals.md) for complete documentation.
-
-#### Quick Example
 
 ```yaml
 agents:
@@ -231,14 +190,13 @@ agents:
 
 ### `arrival_bands`
 
-**Type**: `ArrivalBandsConfig`
-**Required**: No
-**Constraint**: Mutually exclusive with `arrival_config`
-**Default**: `None`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `ArrivalBandsConfig` |
+| **Required** | No |
+| **Constraint** | Mutually exclusive with `arrival_config` |
 
-**Enhancement 11.3**: Per-priority-band arrival configuration. See [arrivals.md](arrivals.md) for complete documentation.
-
-#### Quick Example
+Per-priority-band arrival configuration. See [arrivals.md](arrivals.md) for complete documentation.
 
 ```yaml
 agents:
@@ -266,33 +224,19 @@ agents:
 
 ### `posted_collateral`
 
-**Type**: `int` (cents)
-**Required**: No
-**Constraint**: None
-**Default**: `None`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `int` (cents) |
+| **Required** | No |
+| **Default** | `None` |
 
 Initial collateral posted at simulation start.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:457`):
-```python
-posted_collateral: Optional[int] = None
-```
-
-**Rust** (`engine.rs:260`):
-```rust
-pub posted_collateral: Option<i64>,
-```
-
-#### Behavior
-
+**Behavior:**
 - Increases overdraft capacity beyond `unsecured_cap`
 - Subject to `collateral_cost_per_tick_bps` opportunity cost
 - Can be adjusted during simulation via `CollateralAdjustment` events
 - Dynamic posting/withdrawal available via policy collateral trees
-
-#### Example
 
 ```yaml
 agents:
@@ -307,30 +251,16 @@ agents:
 
 ### `collateral_haircut`
 
-**Type**: `float`
-**Required**: No
-**Constraint**: `0.0 <= value <= 1.0`
-**Default**: `None` (no haircut)
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `float` |
+| **Required** | No |
+| **Constraint** | `0.0 <= value <= 1.0` |
+| **Default** | `None` (no haircut) |
 
 Discount applied to posted collateral value.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:458`):
-```python
-collateral_haircut: Optional[float] = Field(None, ge=0.0, le=1.0)
-```
-
-**Rust** (`engine.rs:261`):
-```rust
-pub collateral_haircut: Option<f64>,
-```
-
-#### Behavior
-
-Effective collateral value = `posted_collateral × (1 - haircut)`
-
-#### Example
+**Formula:** `Effective collateral value = posted_collateral × (1 - haircut)`
 
 ```yaml
 agents:
@@ -344,14 +274,13 @@ agents:
 
 ### `limits`
 
-**Type**: `Dict` with `bilateral_limits` and/or `multilateral_limit`
-**Required**: No
-**Constraint**: Referenced agents must exist
-**Default**: `None`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | Object with `bilateral_limits` and/or `multilateral_limit` |
+| **Required** | No |
+| **Constraint** | Referenced agents must exist |
 
 Payment limits that constrain outflows.
-
-#### Schema
 
 ```yaml
 limits:
@@ -360,29 +289,11 @@ limits:
   multilateral_limit: <int>      # Total daily outflow limit (cents)
 ```
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:460-461`):
-```python
-limits: Optional[Dict] = None
-```
-
-**Rust Struct** (`engine.rs:329-339`):
-```rust
-pub struct AgentLimitsConfig {
-    pub bilateral_limits: HashMap<String, i64>,
-    pub multilateral_limit: Option<i64>,
-}
-```
-
-#### Behavior
-
+**Behavior:**
 - Limits reset at the start of each day
 - Transactions blocked when limits exceeded
 - LSM can help by finding offsetting transactions
 - Limit breaches are logged as events
-
-#### Example
 
 ```yaml
 agents:
@@ -394,43 +305,28 @@ agents:
       multilateral_limit: 7500000  # Max $75,000/day total outflow
 ```
 
-#### Use Cases
-
-- **Risk management**: Limit exposure to individual counterparties
-- **Systemic risk modeling**: Test cascading failures from limit breaches
-- **T2 simulation**: Bilateral sender limits are a T2 feature
+**Use Cases:**
+- Risk management: Limit exposure to individual counterparties
+- Systemic risk modeling: Test cascading failures from limit breaches
+- TARGET2 simulation: Bilateral sender limits are a T2 feature
 
 ---
 
 ### `liquidity_pool`
 
-**Type**: `int` (cents)
-**Required**: No
-**Constraint**: `>= 0`
-**Default**: `None`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `int` (cents) |
+| **Required** | No |
+| **Constraint** | `>= 0` |
 
-**Enhancement 11.2**: External liquidity pool available for allocation.
+External liquidity pool available for allocation.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:463-464`):
-```python
-liquidity_pool: Optional[int] = Field(None, ge=0)
-```
-
-**Rust** (`engine.rs:266-267`):
-```rust
-pub liquidity_pool: Option<i64>,
-```
-
-#### Behavior
-
+**Behavior:**
 - Represents external funding source (central bank facility, etc.)
 - Agent allocates fraction of pool at day start via `liquidity_allocation_fraction`
 - Allocated liquidity subject to `liquidity_cost_per_tick_bps` opportunity cost
 - Used in BIS Box 3 liquidity-delay trade-off modeling
-
-#### Example
 
 ```yaml
 agents:
@@ -444,33 +340,19 @@ agents:
 
 ### `liquidity_allocation_fraction`
 
-**Type**: `float`
-**Required**: No
-**Constraint**: `0.0 <= value <= 1.0`
-**Default**: `None`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `float` |
+| **Required** | No |
+| **Constraint** | `0.0 <= value <= 1.0` |
 
-**Enhancement 11.2**: Fraction of `liquidity_pool` to allocate.
+Fraction of `liquidity_pool` to allocate.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:465-466`):
-```python
-liquidity_allocation_fraction: Optional[float] = Field(None, ge=0.0, le=1.0)
-```
-
-**Rust** (`engine.rs:268-269`):
-```rust
-pub liquidity_allocation_fraction: Option<f64>,
-```
-
-#### Behavior
-
+**Behavior:**
 - Only meaningful if `liquidity_pool` is set
 - Allocation = `liquidity_pool × liquidity_allocation_fraction`
 - Allocated amount added to available liquidity
 - Subject to opportunity cost
-
-#### Example
 
 ```yaml
 agents:
@@ -536,7 +418,7 @@ agents:
       json_path: "simulator/policies/limit_aware.json"
 ```
 
-### BIS Model Agent (Enhancement 11.2)
+### BIS Model Agent
 
 ```yaml
 agents:
@@ -553,52 +435,21 @@ agents:
 
 ## Validation Rules
 
-### Agent ID Uniqueness
-
-```python
-Error: Agent IDs must be unique
-```
-
-**Fix**: Ensure all `id` values are distinct.
-
-### Counterparty References
-
-```python
-Error: Counterparty 'UNKNOWN_BANK' not found in agents
-```
-
-**Fix**: Only reference agents that exist in the `agents` list.
-
-### Arrival Exclusivity
-
-```python
-Error: Cannot specify both arrival_config and arrival_bands
-```
-
-**Fix**: Use either `arrival_config` OR `arrival_bands`, not both.
-
-### Minimum Agents
-
-```python
-Error: At least one agent required
-```
-
-**Fix**: Define at least one agent in the `agents` list.
+| Error | Fix |
+|-------|-----|
+| Agent IDs must be unique | Ensure all `id` values are distinct |
+| Counterparty not found | Only reference agents that exist in the `agents` list |
+| Cannot specify both arrival_config and arrival_bands | Use either `arrival_config` OR `arrival_bands`, not both |
+| At least one agent required | Define at least one agent in the `agents` list |
 
 ---
 
-## Implementation Location
+## Related Documentation
 
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Python AgentConfig | `api/payment_simulator/config/schemas.py` | 447-494 |
-| Rust AgentConfig | `simulator/src/orchestrator/engine.rs` | 244-321 |
-| FFI Parsing | `simulator/src/ffi/types.rs` | 260-322 |
-| Limits Struct | `simulator/src/orchestrator/engine.rs` | 329-339 |
+- [Policies](policies.md) - Policy configuration options
+- [Arrivals](arrivals.md) - Transaction generation configuration
+- [Cost Rates](cost-rates.md) - Overdraft and delay costs
 
 ---
 
-## Navigation
-
-**Previous**: [Simulation Settings](simulation-settings.md)
-**Next**: [Policies](policies.md)
+*Last updated: 2025-12-12*

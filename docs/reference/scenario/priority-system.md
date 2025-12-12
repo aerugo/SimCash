@@ -72,16 +72,6 @@ Controls how Queue 1 (internal agent queue) is sorted.
 queue1_ordering: <string>    # "Fifo" or "priority_deadline"
 ```
 
-### Implementation
-
-**Rust** (`engine.rs:230-237`):
-```rust
-pub enum Queue1Ordering {
-    Fifo,
-    PriorityDeadline,
-}
-```
-
 ### `Fifo` Mode
 
 Default behavior. Transactions processed in arrival order.
@@ -122,13 +112,6 @@ Enables TARGET2-style priority band processing in Queue 2.
 
 ```yaml
 priority_mode: true
-```
-
-### Implementation
-
-**Rust** (`engine.rs:166`):
-```rust
-pub priority_mode: bool,
 ```
 
 ### Behavior
@@ -204,18 +187,6 @@ Begin escalating when `ticks_to_deadline <= start_escalating_at_ticks`.
 
 Maximum priority boost applied.
 
-### Implementation
-
-**Rust** (`engine.rs:188-214`):
-```rust
-pub struct PriorityEscalationConfig {
-    pub enabled: bool,
-    pub curve: String,
-    pub start_escalating_at_ticks: usize,
-    pub max_boost: u8,
-}
-```
-
 ### Escalation Formula (Linear)
 
 ```
@@ -275,10 +246,6 @@ cost_rates:
     normal_multiplier: <float>   # Default: 1.0
     low_multiplier: <float>      # Default: 1.0
 ```
-
-### Implementation
-
-See [cost-rates.md](cost-rates.md) for details.
 
 ### Behavior
 
@@ -459,18 +426,6 @@ agents:
 | 2 | Low | Discretionary |
 | 1 | Low | Lowest active |
 | 0 | Low | Minimum priority |
-
----
-
-## Implementation Location
-
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Priority Distributions | `api/payment_simulator/config/schemas.py` | 60-111 |
-| Queue1Ordering | `simulator/src/orchestrator/engine.rs` | 230-237 |
-| PriorityEscalationConfig | `simulator/src/orchestrator/engine.rs` | 188-214 |
-| PriorityBand | `simulator/src/orchestrator/engine.rs` | 427-435 |
-| FFI Parsing | `simulator/src/ffi/types.rs` | 637-701 |
 
 ---
 

@@ -8,14 +8,7 @@ The Orchestrator manages time progression, transaction generation, queue managem
 
 ### Configuration
 
-| Document | Description |
-|----------|-------------|
-| [orchestrator-config](01-configuration/orchestrator-config.md) | Main orchestrator settings |
-| [agent-config](01-configuration/agent-config.md) | Per-agent configuration |
-| [cost-rates](01-configuration/cost-rates.md) | Cost calculation parameters |
-| [lsm-config](01-configuration/lsm-config.md) | LSM optimization settings |
-| [arrival-config](01-configuration/arrival-config.md) | Transaction arrival patterns |
-| [scenario-events](01-configuration/scenario-events.md) | Scheduled simulation events |
+For configuration reference, see [Scenario Configuration](../scenario/index.md).
 
 ### Models
 
@@ -90,19 +83,6 @@ let value = rng.range(1, 100);  // Deterministic!
 
 - **Queue 1** (Internal): Each agent's pending outgoing transactions
 - **Queue 2** (RTGS): Central queue for transactions submitted to settlement
-
-## File Locations
-
-| Component | Rust Location | Python Location |
-|-----------|---------------|-----------------|
-| Orchestrator | `simulator/src/orchestrator/engine.rs` | `api/payment_simulator/_core.py` |
-| Transaction | `simulator/src/models/transaction.rs` | - |
-| Agent | `simulator/src/models/agent.rs` | - |
-| State | `simulator/src/models/state.rs` | - |
-| Events | `simulator/src/models/event.rs` | - |
-| Arrivals | `simulator/src/arrivals/mod.rs` | - |
-| Settlement | `simulator/src/settlement/` | - |
-| RNG | `simulator/src/rng/xorshift.rs` | - |
 
 ## Critical Invariants
 

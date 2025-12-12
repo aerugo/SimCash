@@ -38,18 +38,6 @@ arrival_config:
 
 The expected number of transactions generated per tick (Poisson λ parameter).
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:127`):
-```python
-rate_per_tick: float = Field(..., ge=0)
-```
-
-**Rust** (`arrivals/mod.rs:64`):
-```rust
-pub rate_per_tick: f64,
-```
-
 #### Behavior
 
 Actual arrivals per tick are sampled from a Poisson distribution:
@@ -106,18 +94,6 @@ amount_distribution:
 
 Weights for selecting transaction receivers.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:129`):
-```python
-counterparty_weights: Dict[str, float] = {}
-```
-
-**Rust** (`arrivals/mod.rs:66`):
-```rust
-pub counterparty_weights: HashMap<String, f64>,
-```
-
 #### Behavior
 
 - Weights are normalized to sum to 1.0
@@ -150,28 +126,6 @@ counterparty_weights: {}    # Equal probability for all other agents
 **Default**: `[10, 50]` (FFI default, Python requires explicit)
 
 Range of ticks from arrival to deadline.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:130-137`):
-```python
-deadline_range: List[int] = Field(..., min_length=2, max_length=2)
-
-@field_validator('deadline_range')
-def validate_deadline_range(cls, v):
-    if len(v) != 2:
-        raise ValueError("deadline_range must have exactly 2 elements")
-    if v[0] <= 0:
-        raise ValueError("deadline_range min must be > 0")
-    if v[1] < v[0]:
-        raise ValueError("deadline_range max must be >= min")
-    return v
-```
-
-**Rust** (`arrivals/mod.rs:67`):
-```rust
-pub deadline_range: (usize, usize),
-```
 
 #### Behavior
 
@@ -220,13 +174,6 @@ deadline_range: [30, 60]    # 30-60 ticks to complete
 **Default**: `5`
 
 Fixed priority for all generated transactions.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:138-139`):
-```python
-priority: int = Field(default=5, ge=0, le=10)
-```
 
 #### Priority Bands
 
@@ -284,18 +231,6 @@ priority_distribution:
 **Default**: `false`
 
 Whether generated transactions can be split by splitting policies.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:143`):
-```python
-divisible: bool = False
-```
-
-**Rust** (`arrivals/mod.rs:70`):
-```rust
-pub divisible: bool,
-```
 
 #### Behavior
 
@@ -519,20 +454,6 @@ Error: deadline_range max must be >= min
 ```
 
 **Fix**: Provide `[min, max]` where `max >= min`.
-
----
-
-## Implementation Location
-
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Python ArrivalConfig | `api/payment_simulator/config/schemas.py` | 126-199 |
-| Python ArrivalBandConfig | `api/payment_simulator/config/schemas.py` | 205-249 |
-| Python ArrivalBandsConfig | `api/payment_simulator/config/schemas.py` | 251-282 |
-| Rust ArrivalConfig | `simulator/src/arrivals/mod.rs` | 63-82 |
-| Rust ArrivalBandConfig | `simulator/src/arrivals/mod.rs` | 110-130 |
-| Rust ArrivalBandsConfig | `simulator/src/arrivals/mod.rs` | 144-151 |
-| FFI Parsing | `simulator/src/ffi/types.rs` | 464-634 |
 
 ---
 

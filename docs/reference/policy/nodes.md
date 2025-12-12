@@ -123,10 +123,6 @@ Evaluates a boolean expression and branches to either `on_true` or `on_false` ch
 3. If result is `false` (or zero), traverse `on_false`
 4. Recursively continue until an Action node is reached
 
-### Implementation Location
-- Rust enum: `simulator/src/policy/tree/types.rs:71-89`
-- Traversal: `simulator/src/policy/tree/interpreter.rs:518-532`
-
 ---
 
 ## 2. Action Node
@@ -221,10 +217,6 @@ Parameters use `ValueOrCompute` type, which can be:
 | Parameter reference | `{"param": "<param_name>"}` | `{"param": "threshold"}` |
 | Computation | `{"compute": <Computation>}` | `{"compute": {"op": "+", ...}}` |
 
-### Implementation Location
-- Rust enum: `simulator/src/policy/tree/types.rs:91-103`
-- Decision builder: `simulator/src/policy/tree/interpreter.rs:622-933`
-
 ---
 
 ## Node ID Requirements
@@ -312,15 +304,3 @@ N1_CheckUrgent(true) → N2_CheckLiquidity(false) → A3_Hold
 }
 ```
 
----
-
-## Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| TreeNode enum | `simulator/src/policy/tree/types.rs` | 69-103 |
-| node_id() method | `simulator/src/policy/tree/types.rs` | 354-360 |
-| is_condition() method | `simulator/src/policy/tree/types.rs` | 363-365 |
-| is_action() method | `simulator/src/policy/tree/types.rs` | 368-370 |
-| traverse_node() | `simulator/src/policy/tree/interpreter.rs` | 501-532 |
-| Node ID validation | `simulator/src/policy/tree/validation.rs` | 141-186 |

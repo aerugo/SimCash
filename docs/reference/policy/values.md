@@ -66,14 +66,6 @@ Fields starting with `bank_state_` are state registers:
 - `FieldNotFound` error if field doesn't exist
 - Validation catches invalid references at load time
 
-### Implementation
-```rust
-// simulator/src/policy/tree/interpreter.rs:100-103
-Value::Field { field } => context
-    .get_field(field)
-    .map_err(|_| EvalError::FieldNotFound(field.clone()))
-```
-
 ---
 
 ## 2. Parameter Reference
@@ -140,15 +132,6 @@ Parameters are always stored and evaluated as `f64`:
 - `ParameterNotFound` error if parameter not defined
 - Validation catches missing references at load time
 
-### Implementation
-```rust
-// simulator/src/policy/tree/interpreter.rs:105-109
-Value::Param { param } => params
-    .get(param)
-    .copied()
-    .ok_or_else(|| EvalError::ParameterNotFound(param.clone()))
-```
-
 ---
 
 ## 3. Literal Value
@@ -200,22 +183,6 @@ Represents a constant value directly in the expression. Supports numbers, boolea
 **Zero checks**:
 ```json
 {"op": "==", "left": {"field": "balance"}, "right": {"value": 0}}
-```
-
-### Implementation
-```rust
-// simulator/src/policy/tree/interpreter.rs:112-124
-Value::Literal { value: json_value } => {
-    if let Some(num) = json_value.as_f64() {
-        Ok(num)
-    } else if let Some(bool_val) = json_value.as_bool() {
-        Ok(if bool_val { 1.0 } else { 0.0 })
-    } else if let Some(int_val) = json_value.as_i64() {
-        Ok(int_val as f64)
-    } else {
-        Err(EvalError::InvalidLiteralType)
-    }
-}
 ```
 
 ---
@@ -293,12 +260,6 @@ See [computations.md](computations.md) for full details:
 }
 ```
 
-### Implementation
-```rust
-// simulator/src/policy/tree/interpreter.rs:127-128
-Value::Compute { compute } => evaluate_computation(compute, context, params)
-```
-
 ---
 
 ## ValueOrCompute Type
@@ -334,17 +295,6 @@ Action parameters use `ValueOrCompute`, which is similar to `Value` but with sli
 }
 ```
 
-### Implementation
-```rust
-// simulator/src/policy/tree/types.rs:182-196
-pub enum ValueOrCompute {
-    Direct { value: serde_json::Value },
-    Field { field: String },
-    Param { param: String },
-    Compute { compute: Computation },
-}
-```
-
 ---
 
 ## Type System Summary
@@ -370,13 +320,3 @@ All paths return f64 (or error)
 | `InvalidLiteralType` | Non-numeric literal | `{"value": "string"}` |
 | `DivisionByZero` | Division by zero in compute | `{"op": "/", ..., "right": {"value": 0}}` |
 
----
-
-## Source Code Reference
-
-| Component | File | Line |
-|-----------|------|------|
-| Value enum | `simulator/src/policy/tree/types.rs` | 161-177 |
-| ValueOrCompute enum | `simulator/src/policy/tree/types.rs` | 182-196 |
-| evaluate_value() | `simulator/src/policy/tree/interpreter.rs` | 94-129 |
-| evaluate_action_parameter() | `simulator/src/policy/tree/interpreter.rs` | 1316-1358 |

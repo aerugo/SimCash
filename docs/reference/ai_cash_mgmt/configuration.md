@@ -623,18 +623,6 @@ output:
 
 ---
 
-## Implementation Location
-
-| Component | File |
-|-----------|------|
-| GameConfig | `api/payment_simulator/ai_cash_mgmt/config/game_config.py` |
-| LLMConfig | `api/payment_simulator/ai_cash_mgmt/config/llm_config.py` |
-| BootstrapConfig | `api/payment_simulator/ai_cash_mgmt/config/game_config.py` |
-| ConvergenceCriteria | `api/payment_simulator/ai_cash_mgmt/config/game_config.py` |
-| CLI validation | `api/payment_simulator/cli/commands/ai_game.py` |
-
----
-
 ## Navigation
 
 **Previous**: [Index](index.md)

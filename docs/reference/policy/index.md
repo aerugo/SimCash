@@ -42,19 +42,6 @@ Each tree consists of:
   • Computation (arithmetic operations)
 ```
 
-## Source Code Locations
-
-| Component | File |
-|-----------|------|
-| Type definitions | `simulator/src/policy/tree/types.rs` |
-| Evaluation context | `simulator/src/policy/tree/context.rs` |
-| Interpreter | `simulator/src/policy/tree/interpreter.rs` |
-| Validation | `simulator/src/policy/tree/validation.rs` |
-| Executor | `simulator/src/policy/tree/executor.rs` |
-| Factory | `simulator/src/policy/tree/factory.rs` |
-| Policy trait | `simulator/src/policy/mod.rs` |
-| Example policies | `simulator/policies/*.json` |
-
 ## Key Design Principles
 
 ### 1. JSON DSL Safety

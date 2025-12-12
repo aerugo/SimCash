@@ -26,30 +26,6 @@ simulation:
 
 The number of discrete time units (ticks) in a single simulated business day.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:569-571`):
-```python
-class SimulationSettings(BaseModel):
-    ticks_per_day: int = Field(..., gt=0)
-```
-
-**Rust** (`engine.rs:102-105`):
-```rust
-pub struct OrchestratorConfig {
-    pub ticks_per_day: usize,
-    // ...
-}
-```
-
-**FFI Validation** (`types.rs:134-141`):
-```rust
-let ticks_per_day: usize = extract_required(py_simulation, "ticks_per_day")?;
-if ticks_per_day == 0 {
-    return Err(PyValueError::new_err("ticks_per_day must be > 0"));
-}
-```
-
 #### Use Cases
 
 | Value | Scenario | Notes |
@@ -81,18 +57,6 @@ simulation:
 **Default**: None (required)
 
 The total number of business days to simulate.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:572`):
-```python
-num_days: int = Field(..., gt=0)
-```
-
-**Rust** (`engine.rs:106`):
-```rust
-pub num_days: usize,
-```
 
 #### Behavior
 
@@ -129,18 +93,6 @@ simulation:
 
 The seed for the deterministic random number generator. This single value controls **all randomness** in the simulation.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:573`):
-```python
-rng_seed: int
-```
-
-**Rust** (`engine.rs:107`):
-```rust
-pub rng_seed: u64,
-```
-
 **RNG Algorithm**: xorshift64* (deterministic, high-quality PRNG)
 
 #### Determinism Guarantee
@@ -163,16 +115,6 @@ diff run1.txt run2.txt  # No differences
 | Priority sampling | Drawing from priority distributions |
 | Counterparty selection | Weighted random choice of receiver |
 | Deadline assignment | Uniform draw from deadline range |
-
-#### Implementation Pattern
-
-The Rust RNG follows a strict pattern that preserves determinism:
-
-```rust
-// Every RNG call updates the seed
-let (random_value, new_seed) = rng_manager.next_u64(current_seed);
-state.rng_seed = new_seed;  // CRITICAL: Always persist new seed
-```
 
 #### Use Cases
 
@@ -240,16 +182,6 @@ Error: Input should be greater than 0
 ```
 
 **Fix**: Use positive integers for `ticks_per_day` and `num_days`.
-
----
-
-## Implementation Location
-
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Python Schema | `api/payment_simulator/config/schemas.py` | 569-575 |
-| Rust Config | `simulator/src/orchestrator/engine.rs` | 102-114 |
-| FFI Parsing | `simulator/src/ffi/types.rs` | 130-145 |
 
 ---
 
