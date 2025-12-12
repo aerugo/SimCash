@@ -1,13 +1,13 @@
 # Rust Core Engine
 
 **Version**: 1.0
-**Last Updated**: 2025-11-28
+**Last Updated**: 2025-12-12
 
 ---
 
 ## Overview
 
-The Rust core engine is the performance-critical heart of SimCash, implementing the simulation tick loop, settlement algorithms, and policy evaluation. It comprises **19,445 lines of code** across **31 files** organized into **8 core modules**.
+The Rust core engine is the performance-critical heart of SimCash, implementing the simulation tick loop, settlement algorithms, and policy evaluation. It is organized into **8 core modules**.
 
 ---
 
@@ -152,10 +152,10 @@ Time management and initialization utilities.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~20 | Module re-exports |
-| `time.rs` | ~100 | TimeManager struct |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | Module re-exports |
+| `time.rs` | TimeManager struct |
 
 ### TimeManager
 
@@ -204,15 +204,15 @@ Core domain types: Agent, Transaction, SimulationState, Events.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~50 | Module re-exports |
-| `agent.rs` | ~500 | Agent (bank) struct |
-| `transaction.rs` | ~400 | Transaction struct |
-| `state.rs` | ~300 | SimulationState container |
-| `event.rs` | ~800 | Event enum (50+ variants) |
-| `collateral_event.rs` | ~100 | CollateralEvent struct |
-| `queue_index.rs` | ~150 | O(1) queue lookup |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | Module re-exports |
+| `agent.rs` | Agent (bank) struct |
+| `transaction.rs` | Transaction struct |
+| `state.rs` | SimulationState container |
+| `event.rs` | Event enum |
+| `collateral_event.rs` | CollateralEvent struct |
+| `queue_index.rs` | O(1) queue lookup |
 
 ### Class Relationships
 
@@ -312,11 +312,11 @@ Main simulation loop and state coordination.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~50 | Module re-exports |
-| `engine.rs` | ~2000 | Orchestrator struct, tick loop |
-| `checkpoint.rs` | ~200 | State serialization |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | Module re-exports |
+| `engine.rs` | Orchestrator struct, tick loop |
+| `checkpoint.rs` | State serialization |
 
 ### Orchestrator Structure
 
@@ -406,13 +406,13 @@ RTGS settlement and LSM optimization algorithms.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~100 | Module re-exports |
-| `rtgs.rs` | ~400 | RTGS settlement |
-| `lsm.rs` | ~600 | LSM algorithms |
-| `lsm/graph.rs` | ~300 | Cycle detection graph |
-| `lsm/pair_index.rs` | ~200 | Bilateral pair indexing |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | Module re-exports |
+| `rtgs.rs` | RTGS settlement |
+| `lsm.rs` | LSM algorithms |
+| `lsm/graph.rs` | Cycle detection graph |
+| `lsm/pair_index.rs` | Bilateral pair indexing |
 
 ### RTGS Settlement Flow
 
@@ -513,10 +513,10 @@ Deterministic random number generation for reproducible simulations.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~20 | Module re-exports |
-| `xorshift.rs` | ~200 | RngManager implementation |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | Module re-exports |
+| `xorshift.rs` | RngManager implementation |
 
 ### RngManager
 
@@ -566,16 +566,16 @@ Decision tree policies for cash management.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~100 | Trait definition, re-exports |
-| `tree/mod.rs` | ~50 | Tree module entry |
-| `tree/types.rs` | ~400 | DecisionTreeDef, TreeNode |
-| `tree/context.rs` | ~800 | EvalContext (50+ fields) |
-| `tree/interpreter.rs` | ~600 | Expression evaluation |
-| `tree/executor.rs` | ~400 | TreePolicy execution |
-| `tree/factory.rs` | ~200 | Policy creation |
-| `tree/validation.rs` | ~300 | Safety validation |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | Trait definition, re-exports |
+| `tree/mod.rs` | Tree module entry |
+| `tree/types.rs` | DecisionTreeDef, TreeNode |
+| `tree/context.rs` | EvalContext |
+| `tree/interpreter.rs` | Expression evaluation |
+| `tree/executor.rs` | TreePolicy execution |
+| `tree/factory.rs` | Policy creation |
+| `tree/validation.rs` | Safety validation |
 
 ### Policy Trait
 
@@ -691,9 +691,9 @@ Transaction generation with configurable distributions.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~800 | ArrivalGenerator, distributions |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | ArrivalGenerator, distributions |
 
 ### Arrival Configuration
 
@@ -770,11 +770,11 @@ Scenario event handling for external interventions.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~20 | Module re-exports |
-| `types.rs` | ~400 | ScenarioEvent enum |
-| `handler.rs` | ~400 | ScenarioEventHandler |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | Module re-exports |
+| `types.rs` | ScenarioEvent enum |
+| `handler.rs` | ScenarioEventHandler |
 
 ### Scenario Event Types
 
@@ -818,11 +818,11 @@ PyO3 bindings for Python interoperability.
 
 ### Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `mod.rs` | ~50 | Module re-exports |
-| `orchestrator.rs` | ~600 | PyOrchestrator wrapper |
-| `types.rs` | ~500 | Type conversions |
+| File | Purpose |
+|------|---------|
+| `mod.rs` | Module re-exports |
+| `orchestrator.rs` | PyOrchestrator wrapper |
+| `types.rs` | Type conversions |
 
 See [04-ffi-boundary.md](./04-ffi-boundary.md) for detailed FFI patterns.
 

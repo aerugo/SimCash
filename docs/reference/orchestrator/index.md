@@ -8,14 +8,7 @@ The Orchestrator manages time progression, transaction generation, queue managem
 
 ### Configuration
 
-| Document | Description |
-|----------|-------------|
-| [orchestrator-config](01-configuration/orchestrator-config.md) | Main orchestrator settings |
-| [agent-config](01-configuration/agent-config.md) | Per-agent configuration |
-| [cost-rates](01-configuration/cost-rates.md) | Cost calculation parameters |
-| [lsm-config](01-configuration/lsm-config.md) | LSM optimization settings |
-| [arrival-config](01-configuration/arrival-config.md) | Transaction arrival patterns |
-| [scenario-events](01-configuration/scenario-events.md) | Scheduled simulation events |
+For configuration reference, see [Scenario Configuration](../scenario/index.md).
 
 ### Models
 
