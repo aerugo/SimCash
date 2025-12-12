@@ -3,7 +3,8 @@
 // EOD penalties should ONLY apply to transactions that are overdue at end of day,
 // not all unsettled transactions.
 
-use crate::orchestrator::engine::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering};
+use crate::costs::CostRates;
+use crate::orchestrator::engine::{AgentConfig, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering};
 use crate::settlement::lsm::LsmConfig;
 
 #[test]

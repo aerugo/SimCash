@@ -12,11 +12,11 @@ mod tests;
 
 // Re-export main types for convenience
 pub use engine::{
-    AgentConfig, AgentLimitsConfig, CostAccumulator, CostBreakdown, CostRates, DailyMetrics, Orchestrator,
+    AgentConfig, AgentLimitsConfig, CostAccumulator, CostBreakdown, DailyMetrics, Orchestrator,
     OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, SimulationError, TickResult,
-    // BIS model support (Enhancement 11.1)
-    PriorityBand, PriorityDelayMultipliers, get_priority_band,
 };
+// BIS model support - CostRates and priority types are now in costs module
+pub use crate::costs::{get_priority_band, CostRates, PriorityBand, PriorityDelayMultipliers};
 
 // Re-export checkpoint types
 pub use checkpoint::{AgentSnapshot, StateSnapshot, TransactionSnapshot};
