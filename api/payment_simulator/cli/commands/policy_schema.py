@@ -149,7 +149,9 @@ def policy_schema(
         from payment_simulator.config import load_config
 
         try:
-            config = load_config(str(scenario))
+            # Resolve path to handle relative paths correctly
+            scenario_path = scenario.resolve()
+            config = load_config(str(scenario_path))
         except Exception as e:
             typer.echo(f"Error loading scenario: {e}", err=True)
             raise typer.Exit(code=1)
