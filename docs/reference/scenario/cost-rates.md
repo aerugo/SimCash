@@ -40,18 +40,6 @@ cost_rates:
 
 Cost charged per tick for using overdraft (negative balance).
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:521-522`):
-```python
-overdraft_bps_per_tick: float = Field(default=0.001, ge=0)
-```
-
-**Rust** (`engine.rs:524-525`):
-```rust
-pub overdraft_bps_per_tick: f64,
-```
-
 #### Calculation
 
 ```
@@ -84,18 +72,6 @@ cost_rates:
 **Default**: `0.0001`
 
 Cost per tick per cent of unsettled transaction value.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:523-524`):
-```python
-delay_cost_per_tick_per_cent: float = Field(default=0.0001, ge=0)
-```
-
-**Rust** (`engine.rs:528-529`):
-```rust
-pub delay_cost_per_tick_per_cent: f64,
-```
 
 #### Calculation
 
@@ -135,18 +111,6 @@ cost_rates:
 
 Opportunity cost of posted collateral per tick (in basis points).
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:525-526`):
-```python
-collateral_cost_per_tick_bps: float = Field(default=0.0002, ge=0)
-```
-
-**Rust** (`engine.rs:532-533`):
-```rust
-pub collateral_cost_per_tick_bps: f64,
-```
-
 #### Calculation
 
 ```
@@ -176,18 +140,6 @@ cost_rates:
 **Default**: `0.0`
 
 **Enhancement 11.2**: Opportunity cost of allocated liquidity from `liquidity_pool`.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:535-536`):
-```python
-liquidity_cost_per_tick_bps: float = Field(default=0.0, ge=0)
-```
-
-**Rust** (`engine.rs:548-549`):
-```rust
-pub liquidity_cost_per_tick_bps: f64,
-```
 
 #### Calculation
 
@@ -219,18 +171,6 @@ cost_rates:
 **Default**: `10000` ($100.00)
 
 One-time penalty for each transaction unsettled at end of day.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:527-528`):
-```python
-eod_penalty_per_transaction: int = Field(default=10000, ge=0)
-```
-
-**Rust** (`engine.rs:536-537`):
-```rust
-pub eod_penalty_per_transaction: i64,
-```
 
 #### Behavior
 
@@ -264,18 +204,6 @@ cost_rates:
 
 One-time penalty when a transaction becomes overdue (passes its deadline).
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:529-530`):
-```python
-deadline_penalty: int = Field(default=50000, ge=0)
-```
-
-**Rust** (`engine.rs:540-541`):
-```rust
-pub deadline_penalty: i64,
-```
-
 #### Behavior
 
 - Applied once when transaction transitions to overdue
@@ -308,18 +236,6 @@ cost_rates:
 
 Fixed cost per split operation.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:531-532`):
-```python
-split_friction_cost: int = Field(default=1000, ge=0)
-```
-
-**Rust** (`engine.rs:544-545`):
-```rust
-pub split_friction_cost: i64,
-```
-
 #### Behavior
 
 - Applied each time a transaction is split
@@ -343,18 +259,6 @@ cost_rates:
 **Default**: `5.0`
 
 Multiplier applied to delay costs once a transaction becomes overdue.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:533-534`):
-```python
-overdue_delay_multiplier: float = Field(default=5.0, ge=0)
-```
-
-**Rust** (`engine.rs:552-553`):
-```rust
-pub overdue_delay_multiplier: f64,
-```
 
 #### Behavior
 
@@ -398,25 +302,6 @@ priority_delay_multipliers:
   urgent_multiplier: <float>   # Default: 1.0, for priority 8-10
   normal_multiplier: <float>   # Default: 1.0, for priority 4-7
   low_multiplier: <float>      # Default: 1.0, for priority 0-3
-```
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:500-517`):
-```python
-class PriorityDelayMultipliers(BaseModel):
-    urgent_multiplier: float = Field(default=1.0, ge=0)
-    normal_multiplier: float = Field(default=1.0, ge=0)
-    low_multiplier: float = Field(default=1.0, ge=0)
-```
-
-**Rust** (`engine.rs:480-515`):
-```rust
-pub struct PriorityDelayMultipliers {
-    pub urgent_multiplier: f64,
-    pub normal_multiplier: f64,
-    pub low_multiplier: f64,
-}
 ```
 
 #### Behavior
@@ -534,18 +419,6 @@ Cost rates are available in JSON policies as fields:
 Derived fields for current transaction:
 - `cost_delay_this_tx_one_tick`
 - `cost_overdraft_this_amount_one_tick`
-
----
-
-## Implementation Location
-
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Python CostRates | `api/payment_simulator/config/schemas.py` | 520-550 |
-| Python PriorityMultipliers | `api/payment_simulator/config/schemas.py` | 500-517 |
-| Rust CostRates | `simulator/src/orchestrator/engine.rs` | 522-599 |
-| Rust PriorityMultipliers | `simulator/src/orchestrator/engine.rs` | 480-515 |
-| FFI Parsing | `simulator/src/ffi/types.rs` | 782-869 |
 
 ---
 

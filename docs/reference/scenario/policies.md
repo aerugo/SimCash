@@ -43,22 +43,6 @@ policy:
   type: Fifo
 ```
 
-### Implementation Details
-
-**Python Schema** (`schemas.py:395-397`):
-```python
-class FifoPolicy(BaseModel):
-    type: Literal["Fifo"]
-```
-
-**Rust** (`engine.rs:345-350`):
-```rust
-pub enum PolicyConfig {
-    Fifo,
-    // ...
-}
-```
-
 ### Behavior
 
 1. Agent evaluates Queue 1 (internal queue)
@@ -107,20 +91,6 @@ policy:
 **Constraint**: `> 0`
 
 Number of ticks before deadline when transaction becomes "urgent" and is released.
-
-### Implementation Details
-
-**Python Schema** (`schemas.py:400-403`):
-```python
-class DeadlinePolicy(BaseModel):
-    type: Literal["Deadline"]
-    urgency_threshold: int = Field(..., gt=0)
-```
-
-**Rust** (`engine.rs:352-356`):
-```rust
-Deadline { urgency_threshold: usize },
-```
 
 ### Behavior
 
@@ -178,24 +148,6 @@ Minimum balance to maintain after releasing a transaction.
 **Constraint**: `> 0`
 
 Ticks to deadline that overrides buffer requirement.
-
-### Implementation Details
-
-**Python Schema** (`schemas.py:406-410`):
-```python
-class LiquidityAwarePolicy(BaseModel):
-    type: Literal["LiquidityAware"]
-    target_buffer: int = Field(..., ge=0)
-    urgency_threshold: int = Field(..., gt=0)
-```
-
-**Rust** (`engine.rs:358-363`):
-```rust
-LiquidityAware {
-    target_buffer: i64,
-    urgency_threshold: usize,
-},
-```
 
 ### Behavior
 
@@ -256,24 +208,6 @@ Maximum number of parts to split a transaction into.
 
 Minimum size for each split part.
 
-### Implementation Details
-
-**Python Schema** (`schemas.py:413-417`):
-```python
-class LiquiditySplittingPolicy(BaseModel):
-    type: Literal["LiquiditySplitting"]
-    max_splits: int = Field(..., ge=2, le=10)
-    min_split_amount: int = Field(..., gt=0)
-```
-
-**Rust** (`engine.rs:365-370`):
-```rust
-LiquiditySplitting {
-    max_splits: usize,
-    min_split_amount: i64,
-},
-```
-
 ### Behavior
 
 1. Check if transaction is divisible (`divisible: true` in arrival config)
@@ -328,20 +262,6 @@ policy:
 
 Exact number of parts to split into.
 
-### Implementation Details
-
-**Python Schema** (`schemas.py:420-423`):
-```python
-class MockSplittingPolicy(BaseModel):
-    type: Literal["MockSplitting"]
-    num_splits: int = Field(..., ge=2, le=10)
-```
-
-**Rust** (`engine.rs:372-376`):
-```rust
-MockSplitting { num_splits: usize },
-```
-
 ### Behavior
 
 1. All divisible transactions are split into exactly `num_splits` parts
@@ -389,20 +309,6 @@ policy:
 **Constraint**: Valid file path
 
 Path to JSON policy file, relative to `simulator/policies/` or absolute.
-
-### Implementation Details
-
-**Python Schema** (`schemas.py:426-429`):
-```python
-class FromJsonPolicy(BaseModel):
-    type: Literal["FromJson"]
-    json_path: str
-```
-
-**Rust** (`engine.rs:378-382`):
-```rust
-FromJson { json: String },
-```
 
 ### Behavior
 
@@ -520,20 +426,6 @@ policy:
 
 Embedded decision tree DSL structure, same format as `seed_policy.json` files used by `FromJson`.
 
-### Implementation Details
-
-**Python Schema** (`schemas.py:431-446`):
-```python
-class InlinePolicy(BaseModel):
-    type: Literal["Inline"]
-    decision_trees: dict[str, Any] = Field(
-        ...,
-        description="Embedded decision tree DSL structure"
-    )
-```
-
-**Rust**: Serialized to same format as `FromJson` for FFI.
-
 ### Behavior
 
 1. Decision tree is embedded directly in YAML/dict configuration
@@ -612,25 +504,6 @@ agent = AgentConfig(
 
 ---
 
-## Additional Rust-Only Policies
-
-These policies exist in Rust but are not exposed via YAML configuration:
-
-### `MockStaggerSplit`
-
-**For testing only**. Splits transactions with staggered release timing.
-
-```rust
-MockStaggerSplit {
-    num_splits: usize,
-    stagger_first_now: bool,
-    stagger_gap_ticks: usize,
-    priority_boost_children: u8,
-}
-```
-
----
-
 ## Policy Selection Guide
 
 | Scenario | Recommended Policy |
@@ -643,19 +516,6 @@ MockStaggerSplit {
 | Complex strategies (embedded) | `Inline` |
 | LLM/dynamic experiments | `Inline` |
 | Testing | `MockSplitting` |
-
----
-
-## Implementation Location
-
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Python Policies | `api/payment_simulator/config/schemas.py` | 395-460 |
-| InlinePolicy Schema | `api/payment_simulator/config/schemas.py` | 431-446 |
-| Rust PolicyConfig | `simulator/src/orchestrator/engine.rs` | 345-416 |
-| FFI Parsing | `simulator/src/ffi/types.rs` | 350-399 |
-| JSON DSL Types | `simulator/src/policy/tree/types.rs` | - |
-| JSON Executor | `simulator/src/policy/tree/executor.rs` | - |
 
 ---
 

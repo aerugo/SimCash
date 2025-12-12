@@ -33,21 +33,6 @@ amount_distribution:
 | `mean` | `int` | None | Center of distribution (cents) |
 | `std_dev` | `int` | `> 0` | Standard deviation (cents) |
 
-#### Implementation
-
-**Python Schema** (`schemas.py:12-16`):
-```python
-class NormalDistribution(BaseModel):
-    type: Literal["Normal"]
-    mean: int
-    std_dev: int = Field(..., gt=0)
-```
-
-**Rust** (`arrivals/mod.rs:89-92`):
-```rust
-Normal { mean: i64, std_dev: i64 },
-```
-
 #### Behavior
 
 - ~68% of values within 1 std_dev of mean
@@ -89,21 +74,6 @@ amount_distribution:
 |:------|:-----|:-----------|:------------|
 | `mean` | `float` | None | Mean of log(value) |
 | `std_dev` | `float` | `> 0` | Std dev of log(value) |
-
-#### Implementation
-
-**Python Schema** (`schemas.py:19-23`):
-```python
-class LogNormalDistribution(BaseModel):
-    type: Literal["LogNormal"]
-    mean: float
-    std_dev: float = Field(..., gt=0)
-```
-
-**Rust** (`arrivals/mod.rs:93-96`):
-```rust
-LogNormal { mean: f64, std_dev: f64 },
-```
 
 #### Behavior
 
@@ -156,27 +126,6 @@ amount_distribution:
 | `min` | `int` | `>= 0` | Minimum value (cents) |
 | `max` | `int` | `> min` | Maximum value (cents) |
 
-#### Implementation
-
-**Python Schema** (`schemas.py:26-38`):
-```python
-class UniformDistribution(BaseModel):
-    type: Literal["Uniform"]
-    min: int = Field(..., ge=0)
-    max: int
-
-    @field_validator('max')
-    def validate_max(cls, v, values):
-        if 'min' in values.data and v <= values.data['min']:
-            raise ValueError("max must be > min")
-        return v
-```
-
-**Rust** (`arrivals/mod.rs:86-88`):
-```rust
-Uniform { min: i64, max: i64 },
-```
-
 #### Behavior
 
 - Equal probability for any value in [min, max]
@@ -218,20 +167,6 @@ amount_distribution:
 | `lambda` | `float` | `> 0` | Rate parameter (inverse of mean) |
 
 Note: In YAML, use `lambda` (Python alias handles the reserved word).
-
-#### Implementation
-
-**Python Schema** (`schemas.py:41-44`):
-```python
-class ExponentialDistribution(BaseModel):
-    type: Literal["Exponential"]
-    lambda_: float = Field(..., alias="lambda", gt=0)
-```
-
-**Rust** (`arrivals/mod.rs:97-99`):
-```rust
-Exponential { rate: f64 },
-```
 
 #### Behavior
 
@@ -285,20 +220,6 @@ priority_distribution:
 |:------|:-----|:-----------|:------------|
 | `value` | `int` | `0-10` | Fixed priority value |
 
-#### Implementation
-
-**Python Schema** (`schemas.py:60-63`):
-```python
-class FixedPriorityDistribution(BaseModel):
-    type: Literal["Fixed"]
-    value: int = Field(..., ge=0, le=10)
-```
-
-**Rust** (`arrivals/mod.rs:42-44`):
-```rust
-Fixed { value: u8 },
-```
-
 #### Example
 
 ```yaml
@@ -333,30 +254,6 @@ priority_distribution:
 |:------|:-----|:-----------|:------------|
 | `values` | `List[int]` | All 0-10 | Priority values to choose from |
 | `weights` | `List[float]` | Same length, all > 0 | Selection weights |
-
-#### Implementation
-
-**Python Schema** (`schemas.py:66-97`):
-```python
-class CategoricalPriorityDistribution(BaseModel):
-    type: Literal["Categorical"]
-    values: List[int]
-    weights: List[float]
-
-    @model_validator(mode='after')
-    def validate_values_weights(self):
-        if len(self.values) != len(self.weights):
-            raise ValueError("values and weights must have same length")
-        for v in self.values:
-            if not 0 <= v <= 10:
-                raise ValueError(f"Priority value {v} not in range 0-10")
-        return self
-```
-
-**Rust** (`arrivals/mod.rs:45-48`):
-```rust
-Categorical { values: Vec<u8>, weights: Vec<f64> },
-```
 
 #### Behavior
 
@@ -400,27 +297,6 @@ priority_distribution:
 |:------|:-----|:-----------|:------------|
 | `min` | `int` | `0-10` | Minimum priority |
 | `max` | `int` | `0-10, >= min` | Maximum priority |
-
-#### Implementation
-
-**Python Schema** (`schemas.py:100-111`):
-```python
-class UniformPriorityDistribution(BaseModel):
-    type: Literal["Uniform"]
-    min: int = Field(..., ge=0, le=10)
-    max: int = Field(..., ge=0, le=10)
-
-    @model_validator(mode='after')
-    def validate_min_max(self):
-        if self.max < self.min:
-            raise ValueError("max must be >= min")
-        return self
-```
-
-**Rust** (`arrivals/mod.rs:49-51`):
-```rust
-Uniform { min: u8, max: u8 },
-```
 
 #### Example
 
@@ -490,19 +366,6 @@ arrival_config:
 # BIS-style uses scenario_events for deterministic transactions
 # No arrival_config - controlled injections only
 ```
-
----
-
-## Implementation Location
-
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Python Amount Distributions | `api/payment_simulator/config/schemas.py` | 12-44 |
-| Python Priority Distributions | `api/payment_simulator/config/schemas.py` | 60-111 |
-| Rust Amount Distributions | `simulator/src/arrivals/mod.rs` | 86-99 |
-| Rust Priority Distributions | `simulator/src/arrivals/mod.rs` | 41-53 |
-| FFI Amount Parsing | `simulator/src/ffi/types.rs` | 704-779 |
-| FFI Priority Parsing | `simulator/src/ffi/types.rs` | 637-701 |
 
 ---
 

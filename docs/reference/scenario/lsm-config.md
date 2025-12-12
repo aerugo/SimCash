@@ -37,18 +37,6 @@ lsm_config:
 
 Enable bilateral (A↔B) offset detection.
 
-#### Implementation Details
-
-**Python Schema** (`schemas.py:557-558`):
-```python
-enable_bilateral: bool = True
-```
-
-**Rust** (`settlement/lsm.rs:85-86`):
-```rust
-pub enable_bilateral: bool,
-```
-
 #### Behavior
 
 When enabled, LSM scans for pairs of payments:
@@ -72,18 +60,6 @@ lsm_config:
 **Default**: `true`
 
 Enable multilateral cycle detection.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:559-560`):
-```python
-enable_cycles: bool = True
-```
-
-**Rust** (`settlement/lsm.rs:88-89`):
-```rust
-pub enable_cycles: bool,
-```
 
 #### Behavior
 
@@ -111,18 +87,6 @@ lsm_config:
 **Default**: `4`
 
 Maximum number of participants in a settlement cycle.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:561-562`):
-```python
-max_cycle_length: int = Field(default=4, ge=3, le=10)
-```
-
-**Rust** (`settlement/lsm.rs:92-93`):
-```rust
-pub max_cycle_length: usize,
-```
 
 #### Trade-offs
 
@@ -154,18 +118,6 @@ lsm_config:
 **Default**: `10`
 
 Maximum number of cycles to settle per tick.
-
-#### Implementation Details
-
-**Python Schema** (`schemas.py:563`):
-```python
-max_cycles_per_tick: int = Field(default=10, ge=1, le=100)
-```
-
-**Rust** (`settlement/lsm.rs:96-97`):
-```rust
-pub max_cycles_per_tick: usize,
-```
 
 #### Behavior
 
@@ -315,17 +267,6 @@ lsm_config:
   max_cycle_length: 5
   max_cycles_per_tick: 20
 ```
-
----
-
-## Implementation Location
-
-| Component | File | Lines |
-|:----------|:-----|:------|
-| Python LsmConfig | `api/payment_simulator/config/schemas.py` | 556-563 |
-| Rust LsmConfig | `simulator/src/settlement/lsm.rs` | 84-107 |
-| FFI Parsing | `simulator/src/ffi/types.rs` | 872-898 |
-| LSM Engine | `simulator/src/settlement/lsm.rs` | - |
 
 ---
 
