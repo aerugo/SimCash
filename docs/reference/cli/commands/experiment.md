@@ -276,6 +276,9 @@ payment-sim experiment run <config-path> [OPTIONS]
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--seed` | `-s` | Integer | from config | Override master seed |
+| `--model` | `-m` | String | from config | Override LLM model (e.g., "openai:gpt-4o") |
+| `--reasoning-effort` | - | String | from config | OpenAI reasoning effort level (low/medium/high) |
+| `--thinking-budget` | - | Integer | from config | Anthropic extended thinking budget tokens |
 | `--dry-run` | - | Boolean | `false` | Validate config without running |
 | `--verbose` | `-v` | Boolean | `false` | Enable verbose output |
 
@@ -290,6 +293,15 @@ payment-sim experiment run experiments/exp1.yaml --dry-run
 
 # Override seed for reproducibility
 payment-sim experiment run experiments/exp1.yaml --seed 12345
+
+# Override model (use OpenAI instead of Anthropic)
+payment-sim experiment run experiments/exp1.yaml --model openai:gpt-4o
+
+# Use OpenAI reasoning model with high effort
+payment-sim experiment run experiments/exp1.yaml --model openai:o1 --reasoning-effort high
+
+# Use Anthropic with extended thinking
+payment-sim experiment run experiments/exp1.yaml --model anthropic:claude-sonnet-4-5 --thinking-budget 16000
 
 # Verbose output
 payment-sim experiment run experiments/exp1.yaml --verbose
