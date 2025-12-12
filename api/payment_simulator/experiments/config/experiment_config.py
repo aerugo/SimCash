@@ -57,6 +57,62 @@ class OutputConfig:
 
 
 @dataclass(frozen=True)
+class PromptCustomization:
+    """Prompt customization configuration for LLM optimization.
+
+    Allows experiment YAML files to inject custom text into the
+    dynamically built optimization prompt. Supports:
+    - `all`: Customization for all agents
+    - Agent-specific customizations via agent_customizations dict
+
+    The customization text is injected into the system prompt after
+    the expert introduction section.
+
+    Attributes:
+        all: Customization text to apply to all agents.
+        agent_customizations: Dict mapping agent_id to agent-specific text.
+
+    Example YAML:
+        prompt_customization:
+          all: "This is a 2-period deterministic game."
+          BANK_A: "Bank A optimal collateral is 0."
+          BANK_B: "Bank B optimal collateral is 20000."
+    """
+
+    all: str | None = None
+    agent_customizations: dict[str, str] = field(default_factory=dict)
+
+    def get_for_agent(self, agent_id: str) -> str | None:
+        """Get combined customization for a specific agent.
+
+        Returns combined 'all' and agent-specific customization.
+        If both are present, 'all' comes first.
+        Blank strings and whitespace-only strings are ignored.
+
+        Args:
+            agent_id: The agent ID to get customization for.
+
+        Returns:
+            Combined customization string, or None if no customization.
+        """
+        parts: list[str] = []
+
+        # Add 'all' customization if present and non-blank
+        if self.all and self.all.strip():
+            parts.append(self.all.strip())
+
+        # Add agent-specific customization if present and non-blank
+        agent_custom = self.agent_customizations.get(agent_id)
+        if agent_custom and agent_custom.strip():
+            parts.append(agent_custom.strip())
+
+        if not parts:
+            return None
+
+        return "\n\n".join(parts)
+
+
+@dataclass(frozen=True)
 class ConvergenceConfig:
     """Convergence criteria configuration.
 
@@ -93,8 +149,9 @@ class ExperimentConfig:
           max_iterations: 25
         llm:
           model: "anthropic:claude-sonnet-4-5"
-          system_prompt: |
-            You are an expert in payment optimization.
+        prompt_customization:
+          all: "General instructions for all agents."
+          BANK_A: "Bank A specific instructions."
         optimized_agents:
           - BANK_A
         policy_constraints:
@@ -124,6 +181,7 @@ class ExperimentConfig:
         policy_constraints: Inline constraints from YAML (preferred).
         output: Output settings.
         master_seed: Master RNG seed for reproducibility.
+        prompt_customization: Optional prompt customizations for LLM.
     """
 
     name: str
@@ -137,6 +195,7 @@ class ExperimentConfig:
     output: OutputConfig | None
     master_seed: int = 42
     policy_constraints: ScenarioConstraints | None = None
+    prompt_customization: PromptCustomization | None = None
 
     @classmethod
     def from_yaml(cls, path: Path) -> ExperimentConfig:
@@ -242,6 +301,9 @@ class ExperimentConfig:
                 data["policy_constraints"]
             )
 
+        # Parse prompt_customization with backward compatibility
+        prompt_customization = cls._parse_prompt_customization(data, system_prompt)
+
         return cls(
             name=data["name"],
             description=data.get("description", ""),
@@ -254,6 +316,7 @@ class ExperimentConfig:
             output=output,
             master_seed=data.get("master_seed", 42),
             policy_constraints=policy_constraints,
+            prompt_customization=prompt_customization,
         )
 
     @classmethod
@@ -295,6 +358,56 @@ class ExperimentConfig:
                 raise FileNotFoundError(msg)
 
             return prompt_path.read_text()
+
+        return None
+
+    @classmethod
+    def _parse_prompt_customization(
+        cls, data: dict[str, Any], legacy_system_prompt: str | None
+    ) -> PromptCustomization | None:
+        """Parse prompt_customization from YAML data.
+
+        Supports two formats:
+        1. New format: `prompt_customization` block with `all` and agent keys
+        2. Legacy format: `system_prompt` in `llm` section (converted to `all`)
+
+        New format takes precedence if both are present.
+
+        Args:
+            data: Full YAML data dict.
+            legacy_system_prompt: Resolved system_prompt from llm section (legacy).
+
+        Returns:
+            PromptCustomization if configured, None otherwise.
+        """
+        # Check for new format first (takes precedence)
+        if "prompt_customization" in data:
+            pc_data = data["prompt_customization"]
+
+            # Handle empty dict or None
+            if not pc_data:
+                return None
+
+            # Extract 'all' and agent-specific customizations
+            all_customization = pc_data.get("all")
+            agent_customizations: dict[str, str] = {}
+
+            for key, value in pc_data.items():
+                if key != "all" and isinstance(value, str):
+                    agent_customizations[key] = value
+
+            # If everything is empty, return None
+            if not all_customization and not agent_customizations:
+                return None
+
+            return PromptCustomization(
+                all=all_customization,
+                agent_customizations=agent_customizations,
+            )
+
+        # Fall back to legacy system_prompt (convert to 'all')
+        if legacy_system_prompt:
+            return PromptCustomization(all=legacy_system_prompt)
 
         return None
 

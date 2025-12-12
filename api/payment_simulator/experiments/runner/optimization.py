@@ -1013,9 +1013,20 @@ class OptimizationLoop:
                 constraints=self._constraints,
                 max_retries=self._config.llm.max_retries,
             )
-            # Build and inject dynamic system prompt (schema-filtered)
-            dynamic_prompt = self._policy_optimizer.get_system_prompt(self._cost_rates)
-            self._llm_client.set_system_prompt(dynamic_prompt)
+
+        # Get agent-specific customization (if configured)
+        agent_customization: str | None = None
+        if self._config.prompt_customization is not None:
+            agent_customization = self._config.prompt_customization.get_for_agent(
+                agent_id
+            )
+
+        # Build and inject dynamic system prompt with agent-specific customization
+        dynamic_prompt = self._policy_optimizer.get_system_prompt(
+            cost_rates=self._cost_rates,
+            customization=agent_customization,
+        )
+        self._llm_client.set_system_prompt(dynamic_prompt)
 
         # Get current policy
         current_policy = self._policies.get(
