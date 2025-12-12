@@ -486,17 +486,6 @@ else:
 
 ---
 
-## Implementation Location
-
-| Component | File |
-|-----------|------|
-| ScenarioConstraints | `api/payment_simulator/ai_cash_mgmt/constraints/scenario_constraints.py` |
-| ParameterSpec | `api/payment_simulator/ai_cash_mgmt/constraints/parameter_spec.py` |
-| ConstraintValidator | `api/payment_simulator/ai_cash_mgmt/optimization/constraint_validator.py` |
-| Castro Constraints | `experiments/castro/castro/constraints.py` |
-
----
-
 ## Navigation
 
 **Previous**: [Sampling](sampling.md)

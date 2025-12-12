@@ -286,10 +286,15 @@ Also see:
 - Don't explain concepts in detail (point to the docs instead)
 - Don't write code (that's for other agents)
 - Don't guess where things are documented (verify the path exists)
-- Don't provide outdated information (docs were updated 2025-12-11)
+- Don't provide outdated information (docs were overhauled 2025-12-12)
 
 ## Version Info
 
-- **Documentation Version**: 2.0 (YAML-only experiments)
-- **Last Updated**: 2025-12-11
-- **Key Changes**: Castro is now YAML-only, GenericExperimentRunner, inline system_prompt/policy_constraints
+- **Documentation Version**: 2.1 (Reference docs overhauled)
+- **Last Updated**: 2025-12-12
+- **Key Changes**:
+  - Reference docs cleaned: removed line numbers, implementation details, source code location tables
+  - Docs now focus on user-facing content: YAML/JSON examples, field tables, behavioral descriptions
+  - Policy docs preserve JSON DSL examples (user-facing syntax)
+  - API/CLI docs contain user-facing usage patterns
+  - See `docs/plans/refdoc-overhaul/overview.md` for overhaul details

@@ -590,17 +590,6 @@ with DatabaseManager("optimization.db") as manager:
 
 ---
 
-## Implementation Location
-
-| Component | File |
-|-----------|------|
-| GameRepository | `api/payment_simulator/ai_cash_mgmt/persistence/repository.py` |
-| GameSessionRecord | `api/payment_simulator/ai_cash_mgmt/persistence/models.py` |
-| PolicyIterationRecord | `api/payment_simulator/ai_cash_mgmt/persistence/models.py` |
-| GameStatus | `api/payment_simulator/ai_cash_mgmt/persistence/models.py` |
-
----
-
 ## Navigation
 
 **Previous**: [Constraints](constraints.md)
