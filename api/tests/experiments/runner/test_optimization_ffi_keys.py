@@ -227,3 +227,133 @@ class TestCostComponentExtraction:
         assert "settled_count" not in metrics
         assert "total_transactions" not in metrics
         assert "avg_settlement_delay" not in metrics
+
+
+def _make_mock_config() -> "MagicMock":
+    """Create a mock ExperimentConfig with nested attributes."""
+    from pathlib import Path
+    from unittest.mock import MagicMock
+
+    config = MagicMock()
+    config.name = "test_exp"
+    config.master_seed = 42
+    config.optimized_agents = ("BANK_A",)
+
+    # Create nested evaluation mock
+    config.evaluation = MagicMock()
+    config.evaluation.mode = "deterministic"
+    config.evaluation.num_samples = 1
+    config.evaluation.ticks = 2
+
+    # Create nested convergence mock
+    config.convergence = MagicMock()
+    config.convergence.max_iterations = 5
+    config.convergence.stability_threshold = 0.05
+    config.convergence.stability_window = 3
+    config.convergence.improvement_threshold = 0.01
+
+    config.scenario_path = Path("test.yaml")
+    config.get_constraints.return_value = None
+
+    # Create nested llm mock
+    config.llm = MagicMock()
+    config.llm.system_prompt = None
+
+    return config
+
+
+class TestPolicyAcceptance:
+    """Tests for policy acceptance/rejection logic."""
+
+    @pytest.mark.asyncio
+    async def test_should_accept_returns_tuple_with_cost(self) -> None:
+        """Verify _should_accept_policy returns (bool, cost) tuple."""
+        from unittest.mock import MagicMock
+
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        config = _make_mock_config()
+        loop = OptimizationLoop(config)
+
+        # Mock _evaluate_policy_on_samples to return known costs
+        loop._evaluate_policy_on_samples = MagicMock(  # type: ignore[method-assign]
+            side_effect=[
+                [100],  # old policy cost
+                [80],  # new policy cost (better)
+            ]
+        )
+
+        old_policy = {"type": "old"}
+        new_policy = {"type": "new"}
+
+        should_accept, new_cost = await loop._should_accept_policy(
+            agent_id="BANK_A",
+            old_policy=old_policy,
+            new_policy=new_policy,
+        )
+
+        # New policy is cheaper (80 < 100), should accept
+        assert should_accept is True
+        assert new_cost == 80
+
+    @pytest.mark.asyncio
+    async def test_should_reject_policy_with_higher_cost(self) -> None:
+        """Verify policies with higher cost are rejected."""
+        from unittest.mock import MagicMock
+
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        config = _make_mock_config()
+        loop = OptimizationLoop(config)
+
+        # Mock _evaluate_policy_on_samples: new policy is WORSE
+        loop._evaluate_policy_on_samples = MagicMock(  # type: ignore[method-assign]
+            side_effect=[
+                [100],  # old policy cost
+                [500],  # new policy cost (WORSE!)
+            ]
+        )
+
+        old_policy = {"type": "old"}
+        new_policy = {"type": "new"}
+
+        should_accept, new_cost = await loop._should_accept_policy(
+            agent_id="BANK_A",
+            old_policy=old_policy,
+            new_policy=new_policy,
+        )
+
+        # New policy is more expensive (500 > 100), should REJECT
+        assert should_accept is False
+        assert new_cost == 500
+
+    @pytest.mark.asyncio
+    async def test_should_accept_same_cost_policy(self) -> None:
+        """Verify policies with same cost are accepted (no regression)."""
+        from unittest.mock import MagicMock
+
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        config = _make_mock_config()
+        loop = OptimizationLoop(config)
+
+        # Mock _evaluate_policy_on_samples: same cost
+        loop._evaluate_policy_on_samples = MagicMock(  # type: ignore[method-assign]
+            side_effect=[
+                [100],  # old policy cost
+                [100],  # new policy cost (same)
+            ]
+        )
+
+        old_policy = {"type": "old"}
+        new_policy = {"type": "new"}
+
+        should_accept, new_cost = await loop._should_accept_policy(
+            agent_id="BANK_A",
+            old_policy=old_policy,
+            new_policy=new_policy,
+        )
+
+        # Same cost should be accepted (allows exploration)
+        assert should_accept is True
+        assert new_cost == 100
