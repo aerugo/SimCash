@@ -826,8 +826,9 @@ class OptimizationLoop:
 
         if eval_mode == "deterministic" or num_samples <= 1:
             # Single simulation - deterministic mode
-            # Still use enriched results for LLM context
-            seed = self._config.master_seed + self._current_iteration
+            # Use constant seed for reproducibility (same seed each iteration)
+            # This ensures policy changes are the ONLY variable affecting cost
+            seed = self._config.master_seed
             enriched = self._run_simulation_with_events(seed, sample_idx=0)
 
             # Store for LLM context
@@ -956,6 +957,9 @@ class OptimizationLoop:
     ) -> list[int]:
         """Evaluate a policy on multiple samples for paired comparison.
 
+        For deterministic mode (num_samples=1): uses master_seed directly
+        For bootstrap mode (num_samples>1): uses derived seeds for each sample
+
         Args:
             policy: Policy dict to evaluate.
             agent_id: Agent to evaluate for.
@@ -970,8 +974,16 @@ class OptimizationLoop:
         self._policies[agent_id] = policy
 
         costs: list[int] = []
+        eval_mode = self._config.evaluation.mode
+
         for sample_idx in range(num_samples):
-            seed = self._derive_sample_seed(sample_idx)
+            # For deterministic mode, use master_seed directly
+            # This ensures consistency with _evaluate_policies
+            if eval_mode == "deterministic" or num_samples == 1:
+                seed = self._config.master_seed
+            else:
+                seed = self._derive_sample_seed(sample_idx)
+
             _, agent_costs = self._run_single_simulation(seed)
             costs.append(agent_costs.get(agent_id, 0))
 
@@ -1167,11 +1179,13 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             # Save LLM interaction for audit replay (after both paths)
             self._save_llm_interaction_event(agent_id)
 
-            # Accept/reject based on evaluation mode
-            should_accept = await self._should_accept_policy(
+            # Accept/reject based on evaluation of new policy
+            # This evaluates the new policy and returns both decision and new cost
+            should_accept, new_cost = await self._should_accept_policy(
                 agent_id=agent_id,
                 old_policy=current_policy,
                 new_policy=new_policy,
+                current_cost=current_cost,
             )
 
             if should_accept:
@@ -1179,7 +1193,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 self._record_iteration_history(
                     agent_id=agent_id,
                     policy=new_policy,
-                    cost=current_cost,
+                    cost=new_cost,
                     was_accepted=True,
                 )
                 self._policies[agent_id] = new_policy
@@ -1192,7 +1206,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                         old_policy=current_policy,
                         new_policy=new_policy,
                         old_cost=current_cost,
-                        new_cost=current_cost,  # Will be evaluated next iteration
+                        new_cost=new_cost,
                         accepted=True,
                     )
             else:
@@ -1211,7 +1225,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                             proposed_policy=new_policy,
                             rejection_reason="cost_not_improved",
                             old_cost=current_cost,
-                            new_cost=current_cost,
+                            new_cost=new_cost,
                         )
                     )
 
@@ -1363,32 +1377,44 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         agent_id: str,
         old_policy: dict[str, Any],
         new_policy: dict[str, Any],
-    ) -> bool:
+        current_cost: int,
+    ) -> tuple[bool, int]:
         """Determine whether to accept a new policy.
 
-        For deterministic mode: always accept (rely on convergence detection).
-        For bootstrap mode: use paired comparison - accept if mean_delta > 0.
+        Evaluates the new policy and compares costs:
+        - For deterministic mode: single evaluation on master_seed
+        - For bootstrap mode: paired comparison across N samples
 
         Args:
             agent_id: Agent being optimized.
             old_policy: Current policy.
             new_policy: Proposed new policy.
+            current_cost: Current cost for this agent (from initial evaluation).
 
         Returns:
-            True if new policy should be accepted.
+            Tuple of (should_accept, new_cost):
+            - should_accept: True if new policy should be accepted
+            - new_cost: Evaluated cost of the new policy
         """
         eval_mode = self._config.evaluation.mode
         num_samples = self._config.evaluation.num_samples or 1
 
         if eval_mode == "deterministic" or num_samples <= 1:
-            # In deterministic mode, always accept - convergence detection
-            # will handle stability checking
-            return True
+            # Deterministic mode: evaluate new policy on same seed
+            new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, 1)
+            new_cost = new_costs[0]
+
+            # Accept if new policy is cheaper (or equal - allow exploration)
+            should_accept = new_cost <= current_cost
+            return (should_accept, new_cost)
 
         # Bootstrap mode: paired comparison
         # Evaluate both policies on the SAME samples
         old_costs = self._evaluate_policy_on_samples(old_policy, agent_id, num_samples)
         new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, num_samples)
+
+        # Compute mean costs for logging
+        mean_new_cost = sum(new_costs) // len(new_costs)
 
         # Compute paired deltas: delta = old - new
         # Positive delta means new policy is cheaper (better)
@@ -1396,7 +1422,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         mean_delta = sum(deltas) / len(deltas)
 
         # Accept if mean_delta > 0 (new policy is cheaper on average)
-        return mean_delta > 0
+        return (mean_delta > 0, mean_new_cost)
 
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
