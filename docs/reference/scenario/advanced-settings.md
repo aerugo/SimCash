@@ -7,7 +7,7 @@ Advanced settings control **TARGET2 alignment features** and simulation internal
 ## Overview
 
 | Setting | Purpose | Default |
-|:--------|:--------|:--------|
+|---------|---------|---------|
 | `algorithm_sequencing` | Sequenced FIFO→Bilateral→Multilateral LSM | `false` |
 | `entry_disposition_offsetting` | Check offsets at payment entry | `false` |
 | `deferred_crediting` | Batch credits at end of tick | `false` |
@@ -18,23 +18,16 @@ Advanced settings control **TARGET2 alignment features** and simulation internal
 
 ## `algorithm_sequencing`
 
-**Type**: `bool`
-**Location**: Top-level config
-**Default**: `false`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `bool` |
+| **Location** | Top-level config |
+| **Default** | `false` |
 
 Enables TARGET2-style algorithm sequencing where LSM algorithms run in a defined order.
 
-### Schema
-
 ```yaml
 algorithm_sequencing: true
-```
-
-### Implementation
-
-**Rust** (`engine.rs:176-177`):
-```rust
-pub algorithm_sequencing: bool,
 ```
 
 ### Behavior
@@ -59,8 +52,6 @@ When disabled:
 - Testing algorithm interaction
 - Research on settlement sequencing
 
-### Example
-
 ```yaml
 algorithm_sequencing: true
 
@@ -73,23 +64,16 @@ lsm_config:
 
 ## `entry_disposition_offsetting`
 
-**Type**: `bool`
-**Location**: Top-level config
-**Default**: `false`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `bool` |
+| **Location** | Top-level config |
+| **Default** | `false` |
 
 Enables bilateral offset checking when payments **enter** Queue 2.
 
-### Schema
-
 ```yaml
 entry_disposition_offsetting: true
-```
-
-### Implementation
-
-**Rust** (`engine.rs:178-179`):
-```rust
-pub entry_disposition_offsetting: bool,
 ```
 
 ### Behavior
@@ -109,8 +93,6 @@ When disabled:
 - Real-time bilateral netting
 - Reducing queue depth
 
-### Example
-
 ```yaml
 entry_disposition_offsetting: true
 algorithm_sequencing: true    # Often used together
@@ -120,30 +102,23 @@ algorithm_sequencing: true    # Often used together
 
 ## `deferred_crediting`
 
-**Type**: `bool`
-**Location**: Top-level config
-**Default**: `false`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `bool` |
+| **Location** | Top-level config |
+| **Default** | `false` |
 
 Enables deferred crediting mode where credits from settlements are accumulated during a tick and applied at the end.
 
-### Schema
-
 ```yaml
 deferred_crediting: true
-```
-
-### Implementation
-
-**Rust** (`engine.rs`):
-```rust
-pub deferred_crediting: bool,
 ```
 
 ### Behavior
 
 When enabled:
 - Credits from RTGS and LSM settlements are accumulated during the tick
-- Credits are applied at end of tick (step 5.7), before cost accrual
+- Credits are applied at end of tick, before cost accrual
 - Prevents "within-tick recycling" of liquidity
 - Emits `DeferredCreditApplied` event per receiving agent
 
@@ -158,7 +133,13 @@ When disabled (default):
 - **Academic validation**: Compare with theoretical models
 - **Strict liquidity constraints**: Matches ℓ_t = ℓ_{t-1} - P_t x_t + R_t
 
-### Example
+### Behavioral Impact
+
+| Scenario | Immediate (default) | Deferred |
+|----------|---------------------|----------|
+| Mutual A→B, B→A (zero balance) | May settle if B→A first | Gridlock |
+| Chain A→B→C | C has funds same tick | C has funds next tick |
+| LSM bilateral net receiver | Funds available same tick | Funds available end of tick |
 
 ```yaml
 deferred_crediting: true
@@ -167,39 +148,21 @@ lsm_config:
   enable_cycles: false
 ```
 
-### Behavioral Impact
-
-| Scenario | Immediate (default) | Deferred |
-|:---------|:--------------------|:---------|
-| Mutual A→B, B→A (zero balance) | May settle if B→A first | Gridlock |
-| Chain A→B→C | C has funds same tick | C has funds next tick |
-| LSM bilateral net receiver | Funds available same tick | Funds available end of tick |
-
 ---
 
 ## `eod_rush_threshold`
 
-**Type**: `float`
-**Location**: Top-level config (Rust-only)
-**Constraint**: `0.0 <= value <= 1.0`
-**Default**: `0.8`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `float` |
+| **Location** | Top-level config |
+| **Constraint** | `0.0 <= value <= 1.0` |
+| **Default** | `0.8` |
 
 Fraction of day when EOD rush behavior activates.
 
-### Schema
-
 ```yaml
 eod_rush_threshold: 0.8
-```
-
-### Implementation
-
-**Rust** (`engine.rs:116-118`):
-```rust
-#[pyo3(default = "default_eod_rush")]
-pub eod_rush_threshold: f64,
-
-fn default_eod_rush() -> f64 { 0.8 }
 ```
 
 ### Behavior
@@ -219,16 +182,14 @@ Available in JSON policies as field `is_eod_rush`:
 - `1.0` if in EOD rush period
 - `0.0` otherwise
 
-### Example Values
+### Threshold Values
 
 | Threshold | Rush Starts At | Description |
-|:----------|:---------------|:------------|
+|-----------|----------------|-------------|
 | `0.6` | 60% of day | Early rush |
 | `0.8` | 80% of day | Default |
 | `0.9` | 90% of day | Late rush |
 | `1.0` | Never | No rush |
-
-### Example
 
 ```yaml
 eod_rush_threshold: 0.75    # Rush at 75% of day
@@ -238,58 +199,32 @@ eod_rush_threshold: 0.75    # Rush at 75% of day
 
 ## `deadline_cap_at_eod`
 
-**Type**: `bool`
-**Location**: Top-level config
-**Default**: `false`
+| Attribute | Value |
+|-----------|-------|
+| **Type** | `bool` |
+| **Location** | Top-level config |
+| **Default** | `false` |
 
 Enables deadline generation mode where all deadlines are capped at end of current day.
 
-### Schema
-
 ```yaml
 deadline_cap_at_eod: true
-```
-
-### Implementation
-
-**Rust** (`engine.rs:183-184`):
-```rust
-#[serde(default)]
-pub deadline_cap_at_eod: bool,
-```
-
-**Centralized Deadline Capping** (`engine.rs`):
-```rust
-// cap_deadline() helper applies consistent capping to ALL transaction sources
-fn cap_deadline(&self, arrival_tick: usize, raw_deadline: usize) -> usize {
-    // 1. Cap at episode end (prevent impossible deadlines)
-    let episode_capped = raw_deadline.min(episode_end_tick);
-
-    // 2. If deadline_cap_at_eod enabled, also cap at current day's end
-    if self.config.deadline_cap_at_eod {
-        let day_end_tick = (current_day + 1) * self.ticks_per_day - 1;
-        episode_capped.min(day_end_tick)
-    }
-
-    // 3. Ensure deadline > arrival_tick (Transaction invariant)
-    capped.max(arrival_tick + 1)
-}
 ```
 
 ### Behavior
 
 When enabled:
 - **All transaction deadlines** are capped at **end of current day**
-- Applies uniformly to all three transaction sources:
-  1. **Automatic arrivals** from `ArrivalGenerator`
-  2. **`submit_transaction()`** API calls
-  3. **`CustomTransactionArrival`** scenario events
+- Applies uniformly to all transaction sources:
+  1. Automatic arrivals from arrival generator
+  2. API `submit_transaction()` calls
+  3. `CustomTransactionArrival` scenario events
 - Transaction arriving at tick 50 with deadline offset 80 → deadline = tick 99 (last tick of day)
 - Creates realistic intraday settlement pressure
 - All payments must settle by end-of-day or incur penalties
 
 When disabled (default):
-- Deadlines only capped at **episode end** (`num_days × ticks_per_day`)
+- Deadlines only capped at episode end (`num_days × ticks_per_day`)
 - Transactions can span multiple days
 - Day 1 transaction can have deadline in Day 3
 
@@ -314,12 +249,6 @@ arrival_config:
 # - Capped to day end: min(130, 99) = 99
 # - Arrival at tick 90, sampled offset 30 → raw deadline 120
 # - Capped to day end: min(120, 99) = 99
-```
-
-### Example
-
-```yaml
-deadline_cap_at_eod: true    # Enable same-day settlement requirement
 ```
 
 ### Multi-Day Behavior
@@ -392,7 +321,6 @@ agents:
     arrival_config:
       rate_per_tick: 0.5
       deadline_range: [30, 100]  # Will be capped to day end
-      # ...
 ```
 
 ### BIS-Minimal Configuration
@@ -442,7 +370,7 @@ lsm_config:
 How advanced settings interact with other configurations:
 
 | Setting | Interacts With | Effect |
-|:--------|:---------------|:-------|
+|---------|----------------|--------|
 | `algorithm_sequencing` | `lsm_config` | Defines when LSM runs |
 | `algorithm_sequencing` | `priority_mode` | Priority respected in sequence |
 | `entry_disposition_offsetting` | `lsm_config.enable_bilateral` | Entry-time bilateral check |
@@ -450,10 +378,8 @@ How advanced settings interact with other configurations:
 | `deferred_crediting` | Agent balances | Credits applied end of tick |
 | `eod_rush_threshold` | `ticks_per_day` | Determines rush start tick |
 | `eod_rush_threshold` | Policy `is_eod_rush` | Enables time-based policy |
-| `deferred_crediting` | Settlement engine | Controls when credits are applied |
 | `deadline_cap_at_eod` | `ticks_per_day` | Day boundary for deadline cap |
 | `deadline_cap_at_eod` | `arrival_config.deadline_range` | Raw deadline capped to day end |
-| `deadline_cap_at_eod` | `arrival_bands.*.deadline_offset_*` | Band deadlines also capped |
 
 ---
 
@@ -477,7 +403,7 @@ When `entry_disposition_offsetting: true`:
 
 When `deferred_crediting: true`:
 - `DeferredCreditApplied` for each agent receiving credits
-- Emitted at end of tick (step 5.7)
+- Emitted at end of tick
 - Includes agent_id, amount, and source_transactions
 
 ---
@@ -485,7 +411,7 @@ When `deferred_crediting: true`:
 ## Performance Considerations
 
 | Setting | Performance Impact |
-|:--------|:-------------------|
+|---------|-------------------|
 | `algorithm_sequencing` | Slight overhead from phase separation |
 | `entry_disposition_offsetting` | Extra check per Queue 2 entry |
 | `deferred_crediting` | Minimal - BTreeMap operations |
@@ -493,38 +419,22 @@ When `deferred_crediting: true`:
 
 ---
 
-## Rust-Only Settings
+## Related Settings
 
-Some settings exist only in Rust configuration:
-
-### `queue1_ordering`
-
-Already covered in [priority-system.md](priority-system.md).
-
-### `priority_mode`
-
-Already covered in [priority-system.md](priority-system.md).
-
-### `priority_escalation`
-
-Already covered in [priority-system.md](priority-system.md).
+| Setting | Documentation |
+|---------|---------------|
+| `queue1_ordering` | [Priority System](priority-system.md) |
+| `priority_mode` | [Priority System](priority-system.md) |
+| `priority_escalation` | [Priority System](priority-system.md) |
 
 ---
 
-## Implementation Location
+## Related Documentation
 
-| Component | File | Lines |
-|:----------|:-----|:------|
-| OrchestratorConfig | `simulator/src/orchestrator/engine.rs` | 102-168 |
-| FFI Config Parsing | `simulator/src/ffi/types.rs` | 112-257 |
-
----
-
-## Navigation
-
-**Previous**: [Priority System](priority-system.md)
-**Next**: [Examples](examples.md)
+- [Priority System](priority-system.md) - Queue ordering and priority settings
+- [LSM Config](lsm-config.md) - Liquidity saving mechanism settings
+- [Examples](examples.md) - Full configuration examples
 
 ---
 
-*Last updated: 2025-12-03*
+*Last updated: 2025-12-12*
