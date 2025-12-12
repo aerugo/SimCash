@@ -4,7 +4,6 @@
 # Setup:
 # - 2 ticks per day, 1 day
 # - Deterministic payment arrivals
-# - Expected: Bank A posts 0, Bank B posts 20000
 #
 # Uses deterministic mode (single evaluation) since the scenario has
 # no stochastic elements - all transactions are fixed at specific ticks.
@@ -29,9 +28,9 @@ convergence:
 # LLM configuration
 llm:
   model: "openai:gpt-5.2"
-  temperature: 0.0
+  temperature: 0.5
   max_retries: 3
-  timeout_seconds: 300
+  timeout_seconds: 900
   reasoning_effort: "high"
 
 # Prompt customization - replaces system_prompt with structured per-agent support
@@ -129,12 +128,11 @@ prompt_customization:
 # The Initial Liquidity Game has ONE decision: what fraction to post at t=0
 policy_constraints:
   allowed_parameters:
-    # THE ONLY DECISION VARIABLE - fraction of collateral to post at t=0
     - name: initial_liquidity_fraction
       param_type: float
       min_value: 0.0
       max_value: 1.0
-      description: "Fraction of max_collateral_capacity to post at t=0. Expected optimal: Bank A = 0.0, Bank B = 0.20 (20000/100000)"
+      description: "Fraction of max_collateral_capacity to post at t=0. Value between 0.0 and 1.0."
 
   allowed_fields:
     # MINIMAL SET - only what's needed for Castro Initial Liquidity Game
