@@ -32,6 +32,7 @@ def build_system_prompt(
     cost_rates: dict[str, Any] | None = None,
     castro_mode: bool = False,
     include_examples: bool = True,
+    customization: str | None = None,
 ) -> str:
     """Build the complete system prompt for policy optimization.
 
@@ -40,6 +41,7 @@ def build_system_prompt(
         cost_rates: Current cost rate values (optional).
         castro_mode: Whether to include Castro paper alignment.
         include_examples: Whether to include JSON examples.
+        customization: Optional experiment-specific customization text.
 
     Returns:
         Complete system prompt string.
@@ -50,6 +52,8 @@ def build_system_prompt(
     if castro_mode:
         builder.with_castro_mode(True)
     builder.with_examples(include_examples)
+    if customization:
+        builder.with_customization(customization)
     return builder.build()
 
 
@@ -77,6 +81,7 @@ class SystemPromptBuilder:
         self._cost_rates: dict[str, Any] | None = None
         self._castro_mode = False
         self._include_examples = True
+        self._customization: str | None = None
 
     def with_cost_rates(self, rates: dict[str, Any]) -> SystemPromptBuilder:
         """Set cost rates to include in the prompt.
@@ -114,6 +119,23 @@ class SystemPromptBuilder:
         self._include_examples = enabled
         return self
 
+    def with_customization(self, customization: str | None) -> SystemPromptBuilder:
+        """Set experiment-specific customization text.
+
+        The customization text is injected after the expert introduction
+        and before the detailed domain explanation. This allows experiments
+        to provide context-specific instructions to the LLM.
+
+        Args:
+            customization: Customization text to inject. None or blank
+                          strings will not add any customization section.
+
+        Returns:
+            Self for method chaining.
+        """
+        self._customization = customization
+        return self
+
     def build(self) -> str:
         """Build the complete system prompt.
 
@@ -125,26 +147,30 @@ class SystemPromptBuilder:
         # Section 1: Expert role introduction
         sections.append(_build_expert_introduction())
 
-        # Section 2: Castro mode content (if enabled)
+        # Section 2: Experiment customization (if provided)
+        if self._customization and self._customization.strip():
+            sections.append(_build_customization_section(self._customization))
+
+        # Section 3: Castro mode content (if enabled)
         if self._castro_mode:
             sections.append(_build_castro_section())
 
-        # Section 3: Domain explanation
+        # Section 4: Domain explanation
         sections.append(_build_domain_explanation())
 
-        # Section 4: Cost structure and objectives
+        # Section 5: Cost structure and objectives
         sections.append(_build_cost_objectives())
 
-        # Section 5: Policy tree architecture
+        # Section 6: Policy tree architecture
         sections.append(_build_policy_architecture())
 
-        # Section 6: Optimization process explanation
+        # Section 7: Optimization process explanation
         sections.append(_build_optimization_process())
 
-        # Section 7: Pre-generation checklist
+        # Section 8: Pre-generation checklist
         sections.append(_build_checklist())
 
-        # Section 8: Injected policy schema (filtered)
+        # Section 9: Injected policy schema (filtered)
         sections.append(
             get_filtered_policy_schema(
                 self._constraints,
@@ -152,15 +178,15 @@ class SystemPromptBuilder:
             )
         )
 
-        # Section 9: Injected cost schema
+        # Section 10: Injected cost schema
         sections.append(
             get_filtered_cost_schema(cost_rates=self._cost_rates)
         )
 
-        # Section 10: Common errors to avoid
+        # Section 11: Common errors to avoid
         sections.append(_build_common_errors())
 
-        # Section 11: Final instructions
+        # Section 12: Final instructions
         sections.append(_build_final_instructions())
 
         return "\n".join(sections)
@@ -179,6 +205,26 @@ Your job is to generate valid JSON policies for the SimCash payment simulator.
 You are an optimization agent in a simulation of an interbank payment settlement
 in a real-time gross settlement (RTGS) environment. Each agent represents a bank
 with a settlement account at the central bank.
+"""
+
+
+def _build_customization_section(customization: str) -> str:
+    """Build the experiment customization section.
+
+    Args:
+        customization: The customization text from experiment config.
+
+    Returns:
+        Formatted customization section.
+    """
+    return f"""
+################################################################################
+#                       EXPERIMENT CUSTOMIZATION                               #
+################################################################################
+
+{customization.strip()}
+
+################################################################################
 """
 
 
