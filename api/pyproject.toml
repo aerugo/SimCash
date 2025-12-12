@@ -8,6 +8,7 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0.0",
+    "pydantic-ai>=0.2.0",  # Unified LLM agent interface for experiments
     "pyyaml>=6.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
