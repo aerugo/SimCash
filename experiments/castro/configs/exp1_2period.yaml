@@ -41,13 +41,17 @@ agents:
   - id: BANK_A
     opening_balance: 0
     unsecured_cap: 50000
-    max_collateral_capacity: 10000000
+    # B = 100,000 so payments match paper fractions (P^A = [0, 0.15])
+    # Bank A sends 15000 = 0.15 * B at t=1
+    max_collateral_capacity: 100000
     # Seed policy will be injected by runner
 
   - id: BANK_B
     opening_balance: 0
     unsecured_cap: 50000
-    max_collateral_capacity: 10000000
+    # B = 100,000 so payments match paper fractions (P^B = [0.15, 0.05])
+    # Bank B sends 15000 + 5000 = 20000 = 0.20 * B total
+    max_collateral_capacity: 100000
 
 # Deterministic transaction schedule
 scenario_events:
