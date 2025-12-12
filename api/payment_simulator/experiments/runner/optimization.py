@@ -752,9 +752,46 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                     )
                 )
 
-        except Exception:
+        except Exception as e:
+            # Log error - don't silently swallow LLM failures
+            error_msg = str(e)
+
+            # Record error event (state provider)
+            self._state_provider.record_event(
+                iteration=self._current_iteration - 1,
+                event_type="llm_error",
+                event_data={
+                    "agent_id": agent_id,
+                    "error": error_msg,
+                    "error_type": type(e).__name__,
+                },
+            )
+
+            # Log error for visibility (verbose or first occurrence)
+            if self._verbose_logger and self._verbose_config.llm:
+                from rich.console import Console as RichConsole
+                console = RichConsole()
+                console.print(f"[red]LLM error for {agent_id}: {error_msg}[/red]")
+
+            # Track if this is a critical error (e.g., missing pydantic_ai)
+            if "pydantic_ai" in error_msg.lower():
+                # Surface this critical error to the user
+                import warnings
+                warnings.warn(
+                    f"LLM optimization requires pydantic_ai: {error_msg}. "
+                    "Install with: pip install pydantic-ai",
+                    stacklevel=2,
+                )
+            elif "api" in error_msg.lower() or "key" in error_msg.lower():
+                # API key or authentication error
+                import warnings
+                warnings.warn(
+                    f"LLM API error for {agent_id}: {error_msg}. "
+                    "Check your API key configuration.",
+                    stacklevel=2,
+                )
+
             # Keep current policy on error
-            pass
 
     async def _should_accept_policy(
         self,

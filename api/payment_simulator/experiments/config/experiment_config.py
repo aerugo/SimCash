@@ -369,3 +369,46 @@ class ExperimentConfig:
             42
         """
         return replace(self, master_seed=seed)
+
+    def with_llm_overrides(
+        self,
+        model: str | None = None,
+        reasoning_effort: str | None = None,
+        thinking_budget: int | None = None,
+    ) -> ExperimentConfig:
+        """Return a new config with LLM settings overridden.
+
+        Since ExperimentConfig is frozen (immutable), this method creates
+        a new instance with updated LLM settings while preserving all other fields.
+
+        Args:
+            model: Model specification in provider:model format (e.g., "openai:gpt-4o").
+            reasoning_effort: OpenAI reasoning effort level (low/medium/high).
+            thinking_budget: Anthropic extended thinking budget tokens.
+
+        Returns:
+            A new ExperimentConfig with the updated LLM settings.
+
+        Example:
+            >>> config = ExperimentConfig.from_yaml(path)
+            >>> config.llm.model
+            'anthropic:claude-sonnet-4-5'
+            >>> new_config = config.with_llm_overrides(model="openai:gpt-4o")
+            >>> new_config.llm.model
+            'openai:gpt-4o'
+            >>> config.llm.model  # Original unchanged
+            'anthropic:claude-sonnet-4-5'
+        """
+        # Build new LLMConfig with overrides
+        new_llm = LLMConfig(
+            model=model if model is not None else self.llm.model,
+            temperature=self.llm.temperature,
+            max_retries=self.llm.max_retries,
+            timeout_seconds=self.llm.timeout_seconds,
+            max_tokens=self.llm.max_tokens,
+            thinking_budget=thinking_budget if thinking_budget is not None else self.llm.thinking_budget,
+            reasoning_effort=reasoning_effort if reasoning_effort is not None else self.llm.reasoning_effort,
+            thinking_config=self.llm.thinking_config,
+            system_prompt=self.llm.system_prompt,
+        )
+        return replace(self, llm=new_llm)
