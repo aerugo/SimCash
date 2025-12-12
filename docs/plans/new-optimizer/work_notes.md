@@ -19,8 +19,19 @@
   - Created `api/tests/ai_cash_mgmt/unit/test_user_prompt_builder.py` (34 tests)
   - Created `api/payment_simulator/ai_cash_mgmt/prompts/user_prompt_builder.py`
   - All tests pass (73 total), mypy passes
-- [ ] Phase 4 pending - Integration with optimization loop
-- [ ] Phase 5 pending - Testing and validation
+- [x] Phase 4 COMPLETE
+  - Created `docs/plans/new-optimizer/phases/phase_4.md` (detailed plan)
+  - Created `api/tests/ai_cash_mgmt/integration/test_optimizer_prompt_integration.py` (14 tests)
+  - Updated `api/payment_simulator/ai_cash_mgmt/optimization/policy_optimizer.py`
+  - Added `get_system_prompt()` method with caching
+  - Added `set_cost_rates()` method
+  - Added `events` parameter to `optimize()` for filtered event injection
+  - Integrated `UserPromptBuilder` for full policy visibility and event filtering
+  - All 14 integration tests pass, all 578 ai_cash_mgmt tests pass, mypy passes
+- [x] Phase 5 COMPLETE (validation)
+  - Verified all tests pass
+  - Verified mypy type checking passes
+  - Integration verified end-to-end
 
 ### Phase 1 Summary
 Implemented schema injection helpers:
@@ -57,9 +68,34 @@ Implemented event filtering and user prompt builder:
 - Integrates with event filter for strict agent isolation
 - Dollar formatting for all cost values
 
-### Next Steps
-1. Phase 4: Integration with optimization loop
-2. Phase 5: Testing and validation
+### Phase 4 Summary
+Integrated new prompt builders with PolicyOptimizer:
+
+**Changes to `policy_optimizer.py`**:
+- Added imports for `build_system_prompt`, `UserPromptBuilder`
+- Added `_system_prompt` and `_cost_rates` caching fields
+- Added `get_system_prompt(cost_rates)` - Cached system prompt generation
+- Added `set_cost_rates(rates)` - Update cost rates (invalidates cache)
+- Added `events` parameter to `optimize()` - Raw events for filtering
+- Integration flow:
+  1. Build main context with `build_single_agent_context()` (iteration history, metrics)
+  2. Add full policy section via `UserPromptBuilder._build_policy_section()`
+  3. If events provided, add filtered events via `UserPromptBuilder._build_simulation_section()`
+  4. Append validation errors on retry
+
+**Key Design Decisions**:
+- Maintain backward compatibility - events parameter is optional
+- Full policy always visible (not just parameters)
+- Events filtered using strict agent isolation invariant
+- System prompt cached per optimizer instance
+
+### Next Steps (Complete)
+All phases of the new optimizer prompt system are complete:
+1. [x] Phase 1: Schema injection helpers
+2. [x] Phase 2: System prompt builder
+3. [x] Phase 3: User prompt builder with filtered output
+4. [x] Phase 4: Integration with optimization loop
+5. [x] Phase 5: Testing and validation
 
 ### Notes
 - The Rust side already has comprehensive schema documentation:
