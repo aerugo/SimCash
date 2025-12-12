@@ -1376,7 +1376,11 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
 
-        Creates a simple Release-always policy as a starting point.
+        Creates a policy that uses the parameters for decision-making:
+        - payment_tree: Release if ticks_to_deadline <= urgency_threshold, else Hold
+        - strategic_collateral_tree: Post collateral based on initial_liquidity_fraction
+
+        This ensures parameter changes actually affect simulation behavior.
 
         Args:
             agent_id: Agent ID.
@@ -1393,17 +1397,57 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 "liquidity_buffer_factor": 1.0,
             },
             "payment_tree": {
-                "type": "action",
-                "node_id": "default_release",
-                "action": "Release",
+                # Release if urgent (close to deadline), else hold
+                "type": "condition",
+                "node_id": "check_urgency",
+                "condition": {
+                    "op": "<=",
+                    "left": {"field": "ticks_to_deadline"},
+                    "right": {"param": "urgency_threshold"},
+                },
+                "on_true": {
+                    "type": "action",
+                    "node_id": "urgent_release",
+                    "action": "Release",
+                },
+                "on_false": {
+                    "type": "action",
+                    "node_id": "hold_not_urgent",
+                    "action": "Hold",
+                },
             },
             "strategic_collateral_tree": {
-                "type": "action",
-                "node_id": "default_collateral",
-                "action": "HoldCollateral",
-                "parameters": {
-                    "amount": {"value": 0},
-                    "reason": {"value": "InitialAllocation"},
+                # Post collateral at tick 0 based on initial_liquidity_fraction
+                "type": "condition",
+                "node_id": "check_tick_zero",
+                "condition": {
+                    "op": "==",
+                    "left": {"field": "system_tick_in_day"},
+                    "right": {"value": 0},
+                },
+                "on_true": {
+                    "type": "action",
+                    "node_id": "post_initial_collateral",
+                    "action": "PostCollateral",
+                    "parameters": {
+                        "amount": {
+                            "compute": {
+                                "op": "*",
+                                "left": {"field": "remaining_collateral_capacity"},
+                                "right": {"param": "initial_liquidity_fraction"},
+                            }
+                        },
+                        "reason": {"value": "InitialAllocation"},
+                    },
+                },
+                "on_false": {
+                    "type": "action",
+                    "node_id": "hold_collateral",
+                    "action": "HoldCollateral",
+                    "parameters": {
+                        "amount": {"value": 0},
+                        "reason": {"value": "InitialAllocation"},
+                    },
                 },
             },
         }
