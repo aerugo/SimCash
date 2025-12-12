@@ -1119,12 +1119,22 @@ class OptimizationLoop:
 
                 # Log LLM call metadata (verbose logging)
                 if self._verbose_logger and self._verbose_config.llm:
+                    # Get actual token counts from LLM client's last interaction
+                    interaction = self._llm_client.get_last_interaction()
+                    if interaction:
+                        prompt_tokens = interaction.prompt_tokens
+                        completion_tokens = interaction.completion_tokens
+                    else:
+                        # Fallback if no interaction recorded
+                        prompt_tokens = opt_result.tokens_used
+                        completion_tokens = 0
+
                     self._verbose_logger.log_llm_call(
                         LLMCallMetadata(
                             agent_id=agent_id,
                             model=self._config.llm.model,
-                            prompt_tokens=opt_result.tokens_used,
-                            completion_tokens=0,
+                            prompt_tokens=prompt_tokens,
+                            completion_tokens=completion_tokens,
                             latency_seconds=opt_result.llm_latency_seconds,
                             context_summary={
                                 "current_cost": current_cost,
@@ -1193,7 +1203,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 self._record_iteration_history(
                     agent_id=agent_id,
                     policy=new_policy,
-                    cost=new_cost,
+                    cost=eval_new_cost,
                     was_accepted=True,
                 )
                 self._policies[agent_id] = new_policy
