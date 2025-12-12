@@ -78,6 +78,57 @@ async def _should_accept_policy(...):
 
 ## Current Status
 
+**Phase**: Phase 3 COMPLETE, verbose output updated
+
+### Phase 3 Completion Summary (2025-12-12)
+
+**Files Modified:**
+- `api/payment_simulator/experiments/runner/verbose.py`:
+  - Added `BootstrapDeltaResult` dataclass for delta display
+  - Added `log_bootstrap_deltas()` method to `VerboseLogger`
+  - Shows per-sample deltas with improvement/regression labels
+  - Shows delta_sum and decision (ACCEPTED/REJECTED)
+
+- `api/payment_simulator/experiments/runner/optimization.py`:
+  - Added `BootstrapDeltaResult` import
+  - Added call to `log_bootstrap_deltas()` in `_optimize_agent()`
+
+- `api/payment_simulator/experiments/runner/__init__.py`:
+  - Exported `BootstrapDeltaResult`
+
+**Verbose Output Example:**
+```
+Bootstrap Paired Evaluation (10 samples) - BANK_A:
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+│     #1 │     +150  │ improvement │
+│     #2 │      -30  │ regression  │
+│     #3 │     +200  │ improvement │
+...
+  Delta sum: +1,250¢ (+$12.50 total improvement)
+  Mean delta: 125.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+```
+
+---
+
+### Divergence Analysis
+
+**Followed the plan for:**
+1. ✅ Phase 1: SeedMatrix implementation with TDD
+2. ✅ Phase 2: Evaluation flow refactored
+3. ✅ Phase 3: Delta-based acceptance + verbose output
+
+**Intentional divergences:**
+1. **SeedMatrix location**: Plan said `ai_cash_mgmt/bootstrap/sampler.py`, but used `experiments/runner/seed_matrix.py` - **better** since it's experiment-specific.
+
+2. **`_evaluate_policies()` still exists**: The plan said "remove pre-iteration baseline evaluation" but this method is needed for LLM context (best/worst seed). The key fix was that `_should_accept_policy()` now uses SeedMatrix for per-agent seeds.
+
+3. **"Bootstrap Baseline" label remains**: The verbose output from `_evaluate_policies()` still shows this label in iteration 1. Could be renamed but low priority.
+
+---
+
+## Previous Phase
+
 **Phase**: Phase 2 COMPLETE, core implementation done
 
 ### Phase 2 Completion Summary (2025-12-12)

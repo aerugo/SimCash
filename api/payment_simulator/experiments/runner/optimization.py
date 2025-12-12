@@ -51,6 +51,7 @@ from payment_simulator.config import SimulationConfig
 from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
 from payment_simulator.experiments.runner.state_provider import LiveStateProvider
 from payment_simulator.experiments.runner.verbose import (
+    BootstrapDeltaResult,
     BootstrapSampleResult,
     LLMCallMetadata,
     RejectionDetail,
@@ -1285,6 +1286,19 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 "delta_sum": delta_sum,
                 "accepted": should_accept,
             })
+
+            # Log bootstrap delta evaluation (verbose logging)
+            if self._verbose_logger and self._verbose_config.bootstrap:
+                self._verbose_logger.log_bootstrap_deltas(
+                    BootstrapDeltaResult(
+                        agent_id=agent_id,
+                        deltas=deltas,
+                        delta_sum=delta_sum,
+                        accepted=should_accept,
+                        old_policy_mean_cost=eval_old_cost,
+                        new_policy_mean_cost=eval_new_cost,
+                    )
+                )
 
             if should_accept:
                 # Update iteration history BEFORE accepting
