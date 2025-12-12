@@ -580,6 +580,19 @@ class VerboseLogger:
                 else:
                     self._console.print(f"    {key}: {value}")
 
+        # Show tree summaries in debug mode
+        if self._config.debug:
+            payment_tree = rejection.proposed_policy.get("payment_tree", {})
+            collateral_tree = rejection.proposed_policy.get("strategic_collateral_tree", {})
+
+            if payment_tree:
+                self._console.print("\n  [dim]payment_tree:[/dim]")
+                self._console.print(f"    [dim]{self._summarize_tree(payment_tree)}[/dim]")
+
+            if collateral_tree:
+                self._console.print("  [dim]strategic_collateral_tree:[/dim]")
+                self._console.print(f"    [dim]{self._summarize_tree(collateral_tree)}[/dim]")
+
         # Show validation errors
         if rejection.validation_errors:
             self._console.print("\n  Validation errors:")
@@ -709,3 +722,73 @@ class VerboseLogger:
             self._console.print("    Final errors:")
             for error in final_errors[:3]:
                 self._console.print(f"      [dim red]- {error}[/dim red]")
+
+    def _summarize_tree(self, tree: dict[str, Any]) -> str:
+        """Create a human-readable summary of a decision tree.
+
+        Args:
+            tree: Decision tree dict.
+
+        Returns:
+            Summary string showing tree structure.
+        """
+        if not isinstance(tree, dict):
+            return str(tree)
+
+        node_type = tree.get("type", "unknown")
+
+        if node_type == "action":
+            action = tree.get("action", "?")
+            params = tree.get("parameters", {})
+            if params:
+                # Summarize action parameters
+                amount = params.get("amount", {})
+                if isinstance(amount, dict):
+                    if "compute" in amount:
+                        compute = amount["compute"]
+                        left = self._summarize_operand(compute.get("left", {}))
+                        right = self._summarize_operand(compute.get("right", {}))
+                        op = compute.get("op", "?")
+                        return f"{action}(amount={left} {op} {right})"
+                    elif "value" in amount:
+                        return f"{action}(amount={amount['value']})"
+                return f"{action}({params})"
+            return action
+
+        elif node_type == "condition":
+            cond = tree.get("condition", {})
+            left = self._summarize_operand(cond.get("left", {}))
+            right = self._summarize_operand(cond.get("right", {}))
+            op = cond.get("op", "?")
+            on_true = self._summarize_tree(tree.get("on_true", {}))
+            on_false = self._summarize_tree(tree.get("on_false", {}))
+            return f"if ({left} {op} {right}) then {on_true} else {on_false}"
+
+        return f"({node_type}: {tree})"
+
+    def _summarize_operand(self, operand: dict[str, Any]) -> str:
+        """Summarize a condition operand.
+
+        Args:
+            operand: Operand dict (field, param, value, or compute).
+
+        Returns:
+            Human-readable operand summary.
+        """
+        if not isinstance(operand, dict):
+            return str(operand)
+
+        if "field" in operand:
+            return operand["field"]
+        elif "param" in operand:
+            return f"@{operand['param']}"  # @ prefix for params
+        elif "value" in operand:
+            return str(operand["value"])
+        elif "compute" in operand:
+            compute = operand["compute"]
+            left = self._summarize_operand(compute.get("left", {}))
+            right = self._summarize_operand(compute.get("right", {}))
+            op = compute.get("op", "?")
+            return f"({left} {op} {right})"
+
+        return str(operand)
