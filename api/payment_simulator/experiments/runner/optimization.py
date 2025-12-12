@@ -1180,8 +1180,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             self._save_llm_interaction_event(agent_id)
 
             # Accept/reject based on evaluation of new policy
-            # This evaluates the new policy and returns both decision and new cost
-            should_accept, new_cost = await self._should_accept_policy(
+            # Returns (should_accept, old_cost, new_cost) for accurate display
+            should_accept, eval_old_cost, eval_new_cost = await self._should_accept_policy(
                 agent_id=agent_id,
                 old_policy=current_policy,
                 new_policy=new_policy,
@@ -1205,8 +1205,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                         agent_id=agent_id,
                         old_policy=current_policy,
                         new_policy=new_policy,
-                        old_cost=current_cost,
-                        new_cost=new_cost,
+                        old_cost=eval_old_cost,
+                        new_cost=eval_new_cost,
                         accepted=True,
                     )
             else:
@@ -1224,8 +1224,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                             agent_id=agent_id,
                             proposed_policy=new_policy,
                             rejection_reason="cost_not_improved",
-                            old_cost=current_cost,
-                            new_cost=new_cost,
+                            old_cost=eval_old_cost,
+                            new_cost=eval_new_cost,
                         )
                     )
 
@@ -1378,11 +1378,11 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         old_policy: dict[str, Any],
         new_policy: dict[str, Any],
         current_cost: int,
-    ) -> tuple[bool, int]:
+    ) -> tuple[bool, int, int]:
         """Determine whether to accept a new policy.
 
         Evaluates the new policy and compares costs:
-        - For deterministic mode: single evaluation on master_seed
+        - For deterministic mode: single evaluation using iteration seed
         - For bootstrap mode: paired comparison across N samples
 
         Args:
@@ -1392,21 +1392,21 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             current_cost: Current cost for this agent (from initial evaluation).
 
         Returns:
-            Tuple of (should_accept, new_cost):
-            - should_accept: True if new policy should be accepted
-            - new_cost: Evaluated cost of the new policy
+            Tuple of (should_accept, old_cost, new_cost) where costs are in cents.
         """
         eval_mode = self._config.evaluation.mode
         num_samples = self._config.evaluation.num_samples or 1
 
         if eval_mode == "deterministic" or num_samples <= 1:
-            # Deterministic mode: evaluate new policy on same seed
-            new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, 1)
-            new_cost = new_costs[0]
+            # Deterministic mode: evaluate new policy with SAME seed as main iteration
+            # CRITICAL: Use iteration seed, not hash-based seed from _derive_sample_seed
+            seed = self._config.master_seed + self._current_iteration
+            new_cost = self._evaluate_policy_with_seed(new_policy, agent_id, seed)
 
+            # Use current_cost as old_cost (already evaluated with iteration seed)
             # Accept if new policy is cheaper (or equal - allow exploration)
             should_accept = new_cost <= current_cost
-            return (should_accept, new_cost)
+            return (should_accept, current_cost, new_cost)
 
         # Bootstrap mode: paired comparison
         # Evaluate both policies on the SAME samples
@@ -1414,7 +1414,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, num_samples)
 
         # Compute mean costs for logging
-        mean_new_cost = sum(new_costs) // len(new_costs)
+        mean_old = sum(old_costs) // len(old_costs)
+        mean_new = sum(new_costs) // len(new_costs)
 
         # Compute paired deltas: delta = old - new
         # Positive delta means new policy is cheaper (better)
@@ -1422,12 +1423,43 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         mean_delta = sum(deltas) / len(deltas)
 
         # Accept if mean_delta > 0 (new policy is cheaper on average)
-        return (mean_delta > 0, mean_new_cost)
+        return (mean_delta > 0, mean_old, mean_new)
+
+    def _evaluate_policy_with_seed(
+        self, policy: dict[str, Any], agent_id: str, seed: int
+    ) -> int:
+        """Evaluate a policy with a specific seed.
+
+        Args:
+            policy: Policy dict to evaluate.
+            agent_id: Agent to evaluate for.
+            seed: RNG seed to use.
+
+        Returns:
+            Cost for the specified agent in cents.
+        """
+        # Temporarily set the policy for evaluation
+        original_policy = self._policies.get(agent_id)
+        self._policies[agent_id] = policy
+
+        # Run simulation and get agent's cost
+        _, agent_costs = self._run_single_simulation(seed)
+        cost = agent_costs.get(agent_id, 0)
+
+        # Restore original policy
+        if original_policy is not None:
+            self._policies[agent_id] = original_policy
+        elif agent_id in self._policies:
+            del self._policies[agent_id]
+
+        return cost
 
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
 
-        Creates a simple Release-always policy as a starting point.
+        Creates a simple Release-always policy with collateral posting at tick 0.
+        The initial_liquidity_fraction parameter controls how much collateral
+        is posted at the start of day.
 
         Args:
             agent_id: Agent ID.
@@ -1440,8 +1472,6 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             "policy_id": f"{agent_id}_default",
             "parameters": {
                 "initial_liquidity_fraction": 0.5,
-                "urgency_threshold": 5,
-                "liquidity_buffer_factor": 1.0,
             },
             "payment_tree": {
                 "type": "action",
@@ -1449,12 +1479,33 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 "action": "Release",
             },
             "strategic_collateral_tree": {
-                "type": "action",
-                "node_id": "default_collateral",
-                "action": "HoldCollateral",
-                "parameters": {
-                    "amount": {"value": 0},
-                    "reason": {"value": "InitialAllocation"},
+                # Post collateral at tick 0 based on initial_liquidity_fraction
+                "type": "condition",
+                "node_id": "check_tick_0",
+                "condition": {
+                    "op": "==",
+                    "left": {"field": "system_tick_in_day"},
+                    "right": {"value": 0},
+                },
+                "on_true": {
+                    "type": "action",
+                    "node_id": "post_initial_collateral",
+                    "action": "PostCollateral",
+                    "parameters": {
+                        "amount": {
+                            "compute": {
+                                "op": "*",
+                                "left": {"param": "initial_liquidity_fraction"},
+                                "right": {"field": "remaining_collateral_capacity"},
+                            }
+                        },
+                        "reason": {"value": "InitialAllocation"},
+                    },
+                },
+                "on_false": {
+                    "type": "action",
+                    "node_id": "hold_collateral",
+                    "action": "HoldCollateral",
                 },
             },
         }

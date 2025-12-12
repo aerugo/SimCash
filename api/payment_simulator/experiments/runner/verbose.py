@@ -588,8 +588,9 @@ class VerboseLogger:
 
         # Show cost rejection reason
         if rejection.rejection_reason == "cost_not_improved":
-            old_str = f"${rejection.old_cost / 100:,.2f}" if rejection.old_cost else "?"
-            new_str = f"${rejection.new_cost / 100:,.2f}" if rejection.new_cost else "?"
+            # Use `is not None` to handle zero cost (valid value) correctly
+            old_str = f"${rejection.old_cost / 100:,.2f}" if rejection.old_cost is not None else "?"
+            new_str = f"${rejection.new_cost / 100:,.2f}" if rejection.new_cost is not None else "?"
             self._console.print(
                 f"\n  Decision: [red]REJECTED[/red] (cost not improved: {old_str} → {new_str})"
             )
