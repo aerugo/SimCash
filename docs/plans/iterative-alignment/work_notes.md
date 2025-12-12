@@ -226,6 +226,68 @@ Bank B tried to move to 0.2 but was REJECTED because the cost increased to $40.0
 
 ---
 
+## Session: 2025-12-12 (Bug Fixes - Evaluation Loop) [from main]
+
+### Context
+Investigating why experiment output showed:
+1. `Evaluation: $40.00 → $40.00 (+0.0%)` - same cost for old and new
+2. In exp1 (deterministic), cost varied wildly: iter2 $30, iter3 $62.50
+3. Policies always accepted even when they seemed worse
+
+### Root Cause Analysis
+
+**Bug 1: Seed changes per iteration in deterministic mode**
+- Location: `optimization.py:830`
+- Code: `seed = self._config.master_seed + self._current_iteration`
+- Impact: Each iteration used a DIFFERENT seed, making "deterministic" mode non-deterministic
+- The scenario had fixed `scenario_events` but the RNG seed affected other simulation behavior
+
+**Bug 2: New policy never evaluated before acceptance**
+- Location: `optimization.py:1196`
+- Code logged `new_cost=current_cost` because new policy wasn't evaluated
+- Output showed `$40.00 → $40.00` misleadingly
+
+**Bug 3: Deterministic mode always accepts**
+- Location: `optimization.py:1383-1386`
+- Code: `if eval_mode == "deterministic": return True`
+- All policies accepted without comparison, including worse ones
+
+### Fixes Applied
+
+1. **Fixed seed consistency** (`optimization.py:830`):
+   ```python
+   # Before: seed = self._config.master_seed + self._current_iteration
+   # After:
+   seed = self._config.master_seed  # Constant seed for deterministic mode
+   ```
+
+2. **Fixed acceptance to return actual new cost** (`optimization.py:1362-1412`):
+   - Changed `_should_accept_policy()` signature to return `tuple[bool, int]`
+   - Now evaluates new policy and returns both decision AND new cost
+   - Deterministic mode: accept only if `new_cost <= current_cost`
+
+3. **Fixed `_evaluate_policy_on_samples`** (`optimization.py:979-985`):
+   - For deterministic mode, use `master_seed` directly (consistent with `_evaluate_policies`)
+   - For bootstrap mode, continue using derived seeds
+
+### Tests Verified
+- All 17 `test_castro_equilibrium.py` tests pass
+- All 7 `test_bootstrap_paired_comparison.py` tests pass
+- Type check passes (`mypy optimization.py`)
+
+### Expected Behavior Now
+- Deterministic mode uses constant seed → same policy produces same cost
+- Evaluation shows actual before/after costs: `$40.00 → $30.00 (-25%)`
+- Policies only accepted if they improve (or equal) cost
+- Cost should converge towards optimal Nash equilibrium
+
+### Next Steps
+1. Re-run exp1 with fixed code
+2. Verify policy converges to optimal (A=0.0, B=0.2)
+3. Verify eval output shows meaningful cost comparisons
+
+---
+
 ## Session Notes Template
 
 ```

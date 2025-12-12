@@ -826,8 +826,9 @@ class OptimizationLoop:
 
         if eval_mode == "deterministic" or num_samples <= 1:
             # Single simulation - deterministic mode
-            # Still use enriched results for LLM context
-            seed = self._config.master_seed + self._current_iteration
+            # Use constant seed for reproducibility (same seed each iteration)
+            # This ensures policy changes are the ONLY variable affecting cost
+            seed = self._config.master_seed
             enriched = self._run_simulation_with_events(seed, sample_idx=0)
 
             # Store for LLM context
@@ -956,6 +957,9 @@ class OptimizationLoop:
     ) -> list[int]:
         """Evaluate a policy on multiple samples for paired comparison.
 
+        For deterministic mode (num_samples=1): uses master_seed directly
+        For bootstrap mode (num_samples>1): uses derived seeds for each sample
+
         Args:
             policy: Policy dict to evaluate.
             agent_id: Agent to evaluate for.
@@ -970,8 +974,16 @@ class OptimizationLoop:
         self._policies[agent_id] = policy
 
         costs: list[int] = []
+        eval_mode = self._config.evaluation.mode
+
         for sample_idx in range(num_samples):
-            seed = self._derive_sample_seed(sample_idx)
+            # For deterministic mode, use master_seed directly
+            # This ensures consistency with _evaluate_policies
+            if eval_mode == "deterministic" or num_samples == 1:
+                seed = self._config.master_seed
+            else:
+                seed = self._derive_sample_seed(sample_idx)
+
             _, agent_costs = self._run_single_simulation(seed)
             costs.append(agent_costs.get(agent_id, 0))
 
@@ -1167,12 +1179,13 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             # Save LLM interaction for audit replay (after both paths)
             self._save_llm_interaction_event(agent_id)
 
-            # Accept/reject based on evaluation mode
+            # Accept/reject based on evaluation of new policy
             # Returns (should_accept, old_cost, new_cost) for accurate display
             should_accept, eval_old_cost, eval_new_cost = await self._should_accept_policy(
                 agent_id=agent_id,
                 old_policy=current_policy,
                 new_policy=new_policy,
+                current_cost=current_cost,
             )
 
             if should_accept:
@@ -1180,7 +1193,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 self._record_iteration_history(
                     agent_id=agent_id,
                     policy=new_policy,
-                    cost=current_cost,
+                    cost=new_cost,
                     was_accepted=True,
                 )
                 self._policies[agent_id] = new_policy
@@ -1364,17 +1377,19 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         agent_id: str,
         old_policy: dict[str, Any],
         new_policy: dict[str, Any],
+        current_cost: int,
     ) -> tuple[bool, int, int]:
         """Determine whether to accept a new policy.
 
-        Uses cost comparison to accept only policies that reduce cost.
-        For deterministic mode: single sample comparison using iteration seed.
-        For bootstrap mode: paired comparison across multiple samples.
+        Evaluates the new policy and compares costs:
+        - For deterministic mode: single evaluation using iteration seed
+        - For bootstrap mode: paired comparison across N samples
 
         Args:
             agent_id: Agent being optimized.
             old_policy: Current policy.
             new_policy: Proposed new policy.
+            current_cost: Current cost for this agent (from initial evaluation).
 
         Returns:
             Tuple of (should_accept, old_cost, new_cost) where costs are in cents.
@@ -1383,30 +1398,32 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         num_samples = self._config.evaluation.num_samples or 1
 
         if eval_mode == "deterministic" or num_samples <= 1:
-            # Deterministic mode: compare costs with single sample
-            # CRITICAL: Use the SAME seed as the main iteration to match costs
+            # Deterministic mode: evaluate new policy with SAME seed as main iteration
+            # CRITICAL: Use iteration seed, not hash-based seed from _derive_sample_seed
             seed = self._config.master_seed + self._current_iteration
-            old_cost = self._evaluate_policy_with_seed(old_policy, agent_id, seed)
             new_cost = self._evaluate_policy_with_seed(new_policy, agent_id, seed)
-            # Accept if new cost is lower (or equal, to allow exploration)
-            return new_cost <= old_cost, old_cost, new_cost
+
+            # Use current_cost as old_cost (already evaluated with iteration seed)
+            # Accept if new policy is cheaper (or equal - allow exploration)
+            should_accept = new_cost <= current_cost
+            return (should_accept, current_cost, new_cost)
 
         # Bootstrap mode: paired comparison
         # Evaluate both policies on the SAME samples
         old_costs = self._evaluate_policy_on_samples(old_policy, agent_id, num_samples)
         new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, num_samples)
 
+        # Compute mean costs for logging
+        mean_old = sum(old_costs) // len(old_costs)
+        mean_new = sum(new_costs) // len(new_costs)
+
         # Compute paired deltas: delta = old - new
         # Positive delta means new policy is cheaper (better)
         deltas = [old - new for old, new in zip(old_costs, new_costs, strict=True)]
         mean_delta = sum(deltas) / len(deltas)
 
-        # For bootstrap, return mean costs
-        mean_old = sum(old_costs) // len(old_costs)
-        mean_new = sum(new_costs) // len(new_costs)
-
         # Accept if mean_delta > 0 (new policy is cheaper on average)
-        return mean_delta > 0, mean_old, mean_new
+        return (mean_delta > 0, mean_old, mean_new)
 
     def _evaluate_policy_with_seed(
         self, policy: dict[str, Any], agent_id: str, seed: int
