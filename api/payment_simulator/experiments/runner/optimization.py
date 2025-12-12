@@ -1366,8 +1366,9 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
     ) -> bool:
         """Determine whether to accept a new policy.
 
-        For deterministic mode: always accept (rely on convergence detection).
-        For bootstrap mode: use paired comparison - accept if mean_delta > 0.
+        Uses cost comparison to accept only policies that reduce cost.
+        For deterministic mode: single sample comparison.
+        For bootstrap mode: paired comparison across multiple samples.
 
         Args:
             agent_id: Agent being optimized.
@@ -1375,15 +1376,18 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             new_policy: Proposed new policy.
 
         Returns:
-            True if new policy should be accepted.
+            True if new policy should be accepted (reduces cost).
         """
         eval_mode = self._config.evaluation.mode
         num_samples = self._config.evaluation.num_samples or 1
 
         if eval_mode == "deterministic" or num_samples <= 1:
-            # In deterministic mode, always accept - convergence detection
-            # will handle stability checking
-            return True
+            # Deterministic mode: compare costs with single sample
+            # Use same seed for fair comparison
+            old_costs = self._evaluate_policy_on_samples(old_policy, agent_id, 1)
+            new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, 1)
+            # Accept if new cost is lower (or equal, to allow exploration)
+            return new_costs[0] <= old_costs[0]
 
         # Bootstrap mode: paired comparison
         # Evaluate both policies on the SAME samples
@@ -1401,7 +1405,9 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
 
-        Creates a simple Release-always policy as a starting point.
+        Creates a simple Release-always policy with collateral posting at tick 0.
+        The initial_liquidity_fraction parameter controls how much collateral
+        is posted at the start of day.
 
         Args:
             agent_id: Agent ID.
@@ -1414,8 +1420,6 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             "policy_id": f"{agent_id}_default",
             "parameters": {
                 "initial_liquidity_fraction": 0.5,
-                "urgency_threshold": 5,
-                "liquidity_buffer_factor": 1.0,
             },
             "payment_tree": {
                 "type": "action",
@@ -1423,12 +1427,33 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 "action": "Release",
             },
             "strategic_collateral_tree": {
-                "type": "action",
-                "node_id": "default_collateral",
-                "action": "HoldCollateral",
-                "parameters": {
-                    "amount": {"value": 0},
-                    "reason": {"value": "InitialAllocation"},
+                # Post collateral at tick 0 based on initial_liquidity_fraction
+                "type": "condition",
+                "node_id": "check_tick_0",
+                "condition": {
+                    "op": "==",
+                    "left": {"field": "system_tick_in_day"},
+                    "right": {"value": 0},
+                },
+                "on_true": {
+                    "type": "action",
+                    "node_id": "post_initial_collateral",
+                    "action": "PostCollateral",
+                    "parameters": {
+                        "amount": {
+                            "compute": {
+                                "op": "*",
+                                "left": {"param": "initial_liquidity_fraction"},
+                                "right": {"field": "remaining_collateral_capacity"},
+                            }
+                        },
+                        "reason": {"value": "InitialAllocation"},
+                    },
+                },
+                "on_false": {
+                    "type": "action",
+                    "node_id": "hold_collateral",
+                    "action": "HoldCollateral",
                 },
             },
         }
