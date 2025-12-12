@@ -74,6 +74,9 @@ from payment_simulator.experiments.runner.optimization import (
 from payment_simulator.experiments.runner.experiment_runner import (
     GenericExperimentRunner,
 )
+from payment_simulator.experiments.runner.seed_matrix import (
+    SeedMatrix,
+)
 
 __all__ = [
     # Output handling
@@ -106,4 +109,6 @@ __all__ = [
     "OptimizationResult",
     # Generic experiment runner (Phase 16)
     "GenericExperimentRunner",
+    # Seed matrix (Bootstrap overhaul)
+    "SeedMatrix",
 ]

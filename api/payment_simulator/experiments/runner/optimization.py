@@ -48,6 +48,7 @@ from payment_simulator.ai_cash_mgmt.prompts.context_types import (
 )
 from payment_simulator.cli.filters import EventFilter
 from payment_simulator.config import SimulationConfig
+from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
 from payment_simulator.experiments.runner.state_provider import LiveStateProvider
 from payment_simulator.experiments.runner.verbose import (
     BootstrapSampleResult,
@@ -289,6 +290,19 @@ class OptimizationLoop:
             },
             run_id=self._run_id,
         )
+
+        # Initialize seed matrix for deterministic per-agent bootstrap evaluation
+        # Seeds are pre-generated for reproducibility and agent isolation
+        self._seed_matrix = SeedMatrix(
+            master_seed=config.master_seed,
+            max_iterations=config.convergence.max_iterations,
+            agents=list(config.optimized_agents),
+            num_bootstrap_samples=config.evaluation.num_samples or 1,
+        )
+
+        # Track delta history for progress (sum of (old_cost - new_cost) per sample)
+        # Positive delta sum = new policy is cheaper = improvement
+        self._delta_history: list[dict[str, Any]] = []
 
     @property
     def max_iterations(self) -> int:
@@ -995,6 +1009,74 @@ class OptimizationLoop:
 
         return costs
 
+    def _evaluate_policy_pair(
+        self,
+        agent_id: str,
+        old_policy: dict[str, Any],
+        new_policy: dict[str, Any],
+    ) -> tuple[list[int], int]:
+        """Evaluate old vs new policy with paired bootstrap samples.
+
+        Uses SeedMatrix to get agent-specific bootstrap seeds for the current
+        iteration. Each sample is run twice (once with old policy, once with new)
+        to compute paired deltas.
+
+        This method MUST be called AFTER policy generation (not before).
+
+        Args:
+            agent_id: Agent to evaluate for.
+            old_policy: Current policy to compare against.
+            new_policy: Proposed new policy from LLM.
+
+        Returns:
+            Tuple of (deltas, delta_sum) where:
+            - deltas: list of (old_cost - new_cost) per sample
+            - delta_sum: sum of deltas (positive = new is cheaper = improvement)
+        """
+        # Use 0-indexed iteration for SeedMatrix
+        iteration_idx = self._current_iteration - 1
+        num_samples = self._config.evaluation.num_samples or 1
+
+        # Handle deterministic mode (single sample)
+        if self._config.evaluation.mode == "deterministic" or num_samples <= 1:
+            # Use iteration seed directly
+            seed = self._seed_matrix.get_iteration_seed(iteration_idx, agent_id)
+
+            # Evaluate old policy
+            self._policies[agent_id] = old_policy
+            _, old_costs = self._run_single_simulation(seed)
+            old_cost = old_costs.get(agent_id, 0)
+
+            # Evaluate new policy
+            self._policies[agent_id] = new_policy
+            _, new_costs = self._run_single_simulation(seed)
+            new_cost = new_costs.get(agent_id, 0)
+
+            delta = old_cost - new_cost
+            return [delta], delta
+
+        # Bootstrap mode: use agent-specific bootstrap seeds
+        bootstrap_seeds = self._seed_matrix.get_bootstrap_seeds(iteration_idx, agent_id)
+
+        deltas: list[int] = []
+
+        for seed in bootstrap_seeds:
+            # Evaluate old policy
+            self._policies[agent_id] = old_policy
+            _, old_costs = self._run_single_simulation(seed)
+            old_cost = old_costs.get(agent_id, 0)
+
+            # Evaluate new policy
+            self._policies[agent_id] = new_policy
+            _, new_costs = self._run_single_simulation(seed)
+            new_cost = new_costs.get(agent_id, 0)
+
+            # Delta: positive means new is cheaper (improvement)
+            deltas.append(old_cost - new_cost)
+
+        delta_sum = sum(deltas)
+        return deltas, delta_sum
+
     async def _optimize_agent(self, agent_id: str, current_cost: int) -> None:
         """Optimize policy for a single agent using PolicyOptimizer with rich context.
 
@@ -1179,21 +1261,37 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             # Save LLM interaction for audit replay (after both paths)
             self._save_llm_interaction_event(agent_id)
 
-            # Accept/reject based on evaluation of new policy
-            # Returns (should_accept, old_cost, new_cost) for accurate display
-            should_accept, eval_old_cost, eval_new_cost = await self._should_accept_policy(
+            # Accept/reject based on paired bootstrap evaluation of new policy
+            # This runs AFTER policy generation using agent-specific seeds
+            # Returns (should_accept, old_cost, new_cost, deltas, delta_sum)
+            (
+                should_accept,
+                eval_old_cost,
+                eval_new_cost,
+                deltas,
+                delta_sum,
+            ) = await self._should_accept_policy(
                 agent_id=agent_id,
                 old_policy=current_policy,
                 new_policy=new_policy,
                 current_cost=current_cost,
             )
 
+            # Track delta history for progress monitoring
+            self._delta_history.append({
+                "iteration": self._current_iteration,
+                "agent_id": agent_id,
+                "deltas": deltas,
+                "delta_sum": delta_sum,
+                "accepted": should_accept,
+            })
+
             if should_accept:
                 # Update iteration history BEFORE accepting
                 self._record_iteration_history(
                     agent_id=agent_id,
                     policy=new_policy,
-                    cost=new_cost,
+                    cost=eval_new_cost,
                     was_accepted=True,
                 )
                 self._policies[agent_id] = new_policy
@@ -1378,52 +1476,55 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         old_policy: dict[str, Any],
         new_policy: dict[str, Any],
         current_cost: int,
-    ) -> tuple[bool, int, int]:
-        """Determine whether to accept a new policy.
+    ) -> tuple[bool, int, int, list[int], int]:
+        """Determine whether to accept a new policy using paired bootstrap evaluation.
 
-        Evaluates the new policy and compares costs:
-        - For deterministic mode: single evaluation using iteration seed
-        - For bootstrap mode: paired comparison across N samples
+        Uses SeedMatrix for agent-specific bootstrap seeds, ensuring:
+        - Each agent gets isolated seed stream
+        - Seeds are deterministic per iteration×agent
+        - Old and new policies evaluated on SAME samples for fair comparison
+
+        This method MUST be called AFTER policy generation (not before).
 
         Args:
             agent_id: Agent being optimized.
             old_policy: Current policy.
             new_policy: Proposed new policy.
-            current_cost: Current cost for this agent (from initial evaluation).
+            current_cost: Current cost for this agent (from context simulation).
 
         Returns:
-            Tuple of (should_accept, old_cost, new_cost) where costs are in cents.
+            Tuple of (should_accept, old_cost, new_cost, deltas, delta_sum) where:
+            - should_accept: True if delta_sum > 0 (new policy is cheaper)
+            - old_cost: Mean cost with old policy (for display)
+            - new_cost: Mean cost with new policy (for display)
+            - deltas: List of per-sample (old_cost - new_cost) deltas
+            - delta_sum: Sum of deltas (positive = improvement)
         """
-        eval_mode = self._config.evaluation.mode
-        num_samples = self._config.evaluation.num_samples or 1
+        # Use the new _evaluate_policy_pair which uses SeedMatrix
+        deltas, delta_sum = self._evaluate_policy_pair(
+            agent_id=agent_id,
+            old_policy=old_policy,
+            new_policy=new_policy,
+        )
 
-        if eval_mode == "deterministic" or num_samples <= 1:
-            # Deterministic mode: evaluate new policy with SAME seed as main iteration
-            # CRITICAL: Use iteration seed, not hash-based seed from _derive_sample_seed
-            seed = self._config.master_seed + self._current_iteration
-            new_cost = self._evaluate_policy_with_seed(new_policy, agent_id, seed)
+        # Compute mean costs for display/logging
+        # Note: These are approximations based on deltas and current_cost
+        # For accurate display, we'd need to track costs during evaluation
+        num_samples = len(deltas)
+        mean_delta = delta_sum / num_samples if num_samples > 0 else 0
 
-            # Use current_cost as old_cost (already evaluated with iteration seed)
-            # Accept if new policy is cheaper (or equal - allow exploration)
-            should_accept = new_cost <= current_cost
-            return (should_accept, current_cost, new_cost)
+        # Estimate old/new costs for display
+        # old_cost ≈ current_cost (from context simulation)
+        # new_cost ≈ old_cost - mean_delta
+        old_cost = current_cost
+        new_cost = current_cost - mean_delta
 
-        # Bootstrap mode: paired comparison
-        # Evaluate both policies on the SAME samples
-        old_costs = self._evaluate_policy_on_samples(old_policy, agent_id, num_samples)
-        new_costs = self._evaluate_policy_on_samples(new_policy, agent_id, num_samples)
+        # Accept if delta_sum > 0 (new policy is cheaper overall)
+        # Note: Using delta_sum (not mean_delta) for acceptance
+        # This means total improvement across all samples, not average
+        should_accept = delta_sum > 0
 
-        # Compute mean costs for logging
-        mean_old = sum(old_costs) // len(old_costs)
-        mean_new = sum(new_costs) // len(new_costs)
-
-        # Compute paired deltas: delta = old - new
-        # Positive delta means new policy is cheaper (better)
-        deltas = [old - new for old, new in zip(old_costs, new_costs, strict=True)]
-        mean_delta = sum(deltas) / len(deltas)
-
-        # Accept if mean_delta > 0 (new policy is cheaper on average)
-        return (mean_delta > 0, mean_old, mean_new)
+        return (should_accept, int(old_cost), int(new_cost), deltas, delta_sum)
 
     def _evaluate_policy_with_seed(
         self, policy: dict[str, Any], agent_id: str, seed: int

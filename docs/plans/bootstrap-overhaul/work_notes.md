@@ -1,0 +1,215 @@
+# Bootstrap Overhaul - Work Notes
+
+## Session Log
+
+### Session 1: 2025-12-12
+
+**Goal**: Analyze current implementation, create comprehensive plan
+
+**Completed**:
+1. ✅ Analyzed current `OptimizationLoop` implementation in `optimization.py`
+2. ✅ Identified key issues:
+   - Bootstrap baseline runs BEFORE iterations (incorrect)
+   - Seeds derived on-the-fly, not pre-generated
+   - All agents share same sample seeds
+   - Progress tracked by absolute costs, not deltas
+3. ✅ Created overview plan in `overview.md`
+4. ✅ Created this work_notes.md
+
+**Next Steps**:
+1. Create Phase 1 detailed plan (`phases/phase_1.md`)
+2. Implement `SeedMatrix` class with TDD
+3. Unit tests for seed derivation and reproducibility
+
+**Key Files Analyzed**:
+- `api/payment_simulator/experiments/runner/optimization.py` - Main loop (1512 lines)
+- `api/payment_simulator/experiments/config/experiment_config.py` - Config parsing
+- `experiments/castro/experiments/exp2.yaml` - Example experiment config
+
+**Key Findings**:
+
+1. **Current Seed Derivation** (optimization.py:937-953):
+```python
+def _derive_sample_seed(self, sample_idx: int) -> int:
+    key = f"{self._config.master_seed}:sample:{sample_idx}"
+    hash_bytes = hashlib.sha256(key.encode()).digest()
+    return int.from_bytes(hash_bytes[:8], byteorder="big") % (2**31)
+```
+- Uses SHA256 hash of `{master_seed}:sample:{sample_idx}`
+- Same seeds for all agents, all iterations
+- No per-agent or per-iteration isolation
+
+2. **Current Evaluation Flow** (optimization.py:810-935):
+```python
+async def _evaluate_policies(self):
+    # Called at START of each iteration (before optimization)
+    for sample_idx in range(num_samples):
+        seed = self._derive_sample_seed(sample_idx)
+        enriched = self._run_simulation_with_events(seed, sample_idx)
+        # ...
+```
+- Evaluates current policies BEFORE generating new ones
+- Used for LLM context (best/worst seed)
+- Does NOT compare old vs new policies
+
+3. **Current Acceptance Logic** (optimization.py:1375-1426):
+```python
+async def _should_accept_policy(...):
+    # Evaluate both policies on same samples
+    old_costs = self._evaluate_policy_on_samples(old_policy, ...)
+    new_costs = self._evaluate_policy_on_samples(new_policy, ...)
+
+    # Compute deltas
+    deltas = [old - new for old, new in zip(old_costs, new_costs)]
+    mean_delta = sum(deltas) / len(deltas)
+
+    return mean_delta > 0  # Accept if positive
+```
+- Already uses paired comparison! Good.
+- But runs AFTER both initial eval and policy generation
+- Uses same seeds as initial evaluation (no isolation)
+
+**Insight**: The paired comparison logic is actually correct! The issue is:
+1. The "Bootstrap Baseline" before iteration 1 is confusing/unnecessary
+2. Seeds are shared across agents (should be isolated)
+3. Progress tracking uses absolute costs, not delta sums
+
+---
+
+## Current Status
+
+**Phase**: Phase 2 COMPLETE, core implementation done
+
+### Phase 2 Completion Summary (2025-12-12)
+
+**Files Modified:**
+- `api/payment_simulator/experiments/runner/optimization.py`:
+  - Added SeedMatrix import and initialization
+  - Added `_evaluate_policy_pair()` method for paired bootstrap evaluation
+  - Updated `_should_accept_policy()` to use SeedMatrix and return deltas
+  - Updated `_optimize_agent()` to track delta history
+  - Added `_delta_history` tracking for progress monitoring
+
+- `api/tests/integration/test_bootstrap_overhaul.py`:
+  - Created 12 integration tests for bootstrap overhaul
+  - Tests cover: seed isolation, delta acceptance, paired comparison, progress tracking
+
+**Results:**
+- 14 SeedMatrix unit tests pass
+- 12 bootstrap overhaul integration tests pass
+- Import verification successful
+
+**Key Changes:**
+1. **SeedMatrix Integration**: Pre-generates N×A iteration seeds for reproducibility
+2. **Per-Agent Seed Isolation**: Each agent gets unique seed stream per iteration
+3. **Delta-Based Acceptance**: Accept if `sum(old_cost - new_cost) > 0`
+4. **Paired Bootstrap Evaluation**: Old and new policies evaluated with SAME seeds
+5. **Delta History Tracking**: Track improvement deltas for progress monitoring
+
+**Remaining Work:**
+- Verbose output updates (lower priority, existing output still works)
+- End-to-end testing with real experiments
+
+---
+
+## Previous Status
+
+**Phase**: Phase 1 COMPLETE, starting Phase 2
+
+### Phase 1 Completion Summary (2025-12-12)
+
+**Files Created:**
+- `api/payment_simulator/experiments/runner/seed_matrix.py` - SeedMatrix class
+- `api/tests/unit/test_seed_matrix.py` - 14 unit tests
+
+**Results:**
+- All 14 tests pass
+- mypy: no issues
+- ruff: no issues
+
+**Key Features:**
+- Hierarchical seed derivation: master_seed → iteration → agent → bootstrap
+- Pre-computed seeds for fast access
+- Proper isolation between agents and iterations
+- SHA-256 based deterministic derivation
+- i32 range for Rust FFI compatibility
+
+**Blockers**: None
+
+**Questions to Resolve**:
+1. Should iteration seeds be completely independent per agent, or derived from a common iteration seed?
+   - Decision: Per-agent seeds derived from common iteration seed for traceability
+2. Should we remove the "Bootstrap Baseline" display entirely, or repurpose it?
+   - Decision: Remove it - bootstrap happens after policy generation
+
+---
+
+## Architecture Decision Records
+
+### ADR-1: Seed Generation Strategy
+
+**Context**: Need deterministic seeds that are:
+- Reproducible (same master_seed → same seeds)
+- Independent per agent per iteration
+- Traceable (can reconstruct from master_seed)
+
+**Decision**: Use hierarchical derivation:
+```
+master_seed
+  └── iteration_i
+        └── agent_a
+              └── bootstrap_sample_s
+```
+
+**Derivation Formula**:
+```python
+iteration_seed = derive(master_seed, f"iteration:{i}")
+agent_seed = derive(iteration_seed, f"agent:{agent_id}")
+bootstrap_seed = derive(agent_seed, f"sample:{s}")
+```
+
+**Rationale**:
+- SHA256 is collision-resistant
+- Hierarchical structure enables debugging
+- Per-agent isolation prevents cross-contamination
+
+### ADR-2: Bootstrap Timing
+
+**Context**: When should bootstrap evaluation happen?
+
+**Decision**: Bootstrap ONLY happens during policy acceptance check (after LLM generates new policy)
+
+**Rationale**:
+- No need for "baseline" - we compare old vs new directly
+- Reduces computational overhead (no duplicate evaluations)
+- Simpler flow: generate → evaluate pair → accept/reject
+
+### ADR-3: Progress Metric
+
+**Context**: How to track optimization progress?
+
+**Decision**: Track delta sums per iteration:
+```python
+@dataclass
+class IterationProgress:
+    iteration: int
+    agent_deltas: dict[str, int]  # agent_id -> sum of (old_cost - new_cost)
+    accepted: dict[str, bool]     # agent_id -> was policy accepted
+```
+
+**Rationale**:
+- Delta sums directly measure improvement
+- Positive delta = new policy is cheaper
+- Can aggregate across agents for total progress
+
+---
+
+## File Change Tracker
+
+| File | Status | Changes |
+|------|--------|---------|
+| `optimization.py` | Pending | Major refactor of evaluation flow |
+| `seed_matrix.py` | Pending | New file for seed management |
+| `verbose.py` | Pending | Update output format |
+| `test_seed_matrix.py` | Pending | New unit tests |
+| `test_bootstrap_evaluation.py` | Pending | New integration tests |
