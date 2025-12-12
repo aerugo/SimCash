@@ -500,6 +500,64 @@ class OptimizationLoop:
         )
         self._repository.save_event(event)
 
+    def _save_llm_interaction_event(self, agent_id: str) -> None:
+        """Save LLM interaction event for audit replay.
+
+        Extracts the last interaction from the LLM client and persists it
+        to the repository for audit replay purposes.
+
+        Args:
+            agent_id: Agent that was optimized.
+        """
+        if self._repository is None:
+            return
+
+        if self._llm_client is None:
+            return
+
+        # Get the last interaction from the LLM client
+        interaction = self._llm_client.get_last_interaction()
+        if interaction is None:
+            return
+
+        from payment_simulator.ai_cash_mgmt.events import create_llm_interaction_event
+
+        event = create_llm_interaction_event(
+            run_id=self._run_id,
+            iteration=self._current_iteration - 1,  # 0-indexed
+            agent_id=agent_id,
+            system_prompt=interaction.system_prompt,
+            user_prompt=interaction.user_prompt,
+            raw_response=interaction.raw_response,
+            parsed_policy=interaction.parsed_policy,
+            parsing_error=interaction.parsing_error,
+            model=self._config.llm.model,
+            prompt_tokens=interaction.prompt_tokens,
+            completion_tokens=interaction.completion_tokens,
+            latency_seconds=interaction.latency_seconds,
+        )
+
+        # Persist to database
+        self._repository.save_event(event)
+
+        # Also record in state provider for live retrieval
+        self._state_provider.record_event(
+            iteration=self._current_iteration - 1,
+            event_type="llm_interaction",
+            event_data={
+                "agent_id": agent_id,
+                "system_prompt": interaction.system_prompt,
+                "user_prompt": interaction.user_prompt,
+                "raw_response": interaction.raw_response,
+                "parsed_policy": interaction.parsed_policy,
+                "parsing_error": interaction.parsing_error,
+                "model": self._config.llm.model,
+                "prompt_tokens": interaction.prompt_tokens,
+                "completion_tokens": interaction.completion_tokens,
+                "latency_seconds": interaction.latency_seconds,
+            },
+        )
+
     def _load_scenario_config(self) -> dict[str, Any]:
         """Load scenario configuration from YAML file.
 
@@ -1021,6 +1079,9 @@ class OptimizationLoop:
 
                 # Check if we got a valid policy
                 if new_policy is None:
+                    # Save LLM interaction even for failed validation (for audit)
+                    self._save_llm_interaction_event(agent_id)
+
                     # Log rejection (verbose logging)
                     if self._verbose_logger and self._verbose_config.rejections:
                         self._verbose_logger.log_rejection(
@@ -1053,6 +1114,9 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                     current_policy=current_policy,
                     context=context,
                 )
+
+            # Save LLM interaction for audit replay (after both paths)
+            self._save_llm_interaction_event(agent_id)
 
             # Accept/reject based on evaluation mode
             should_accept = await self._should_accept_policy(
@@ -1105,6 +1169,9 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         except Exception as e:
             # Log error - don't silently swallow LLM failures
             error_msg = str(e)
+
+            # Try to save any LLM interaction that occurred before the error
+            self._save_llm_interaction_event(agent_id)
 
             # Record error event (state provider)
             self._state_provider.record_event(
