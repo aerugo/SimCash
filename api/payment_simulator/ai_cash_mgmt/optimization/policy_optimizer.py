@@ -23,6 +23,12 @@ from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import (
 from payment_simulator.ai_cash_mgmt.prompts.single_agent_context import (
     build_single_agent_context,
 )
+from payment_simulator.ai_cash_mgmt.prompts.system_prompt_builder import (
+    build_system_prompt,
+)
+from payment_simulator.ai_cash_mgmt.prompts.user_prompt_builder import (
+    UserPromptBuilder,
+)
 
 if TYPE_CHECKING:
     from payment_simulator.ai_cash_mgmt.prompts.context_types import (
@@ -203,6 +209,38 @@ class PolicyOptimizer:
         self._constraints = constraints
         self._max_retries = max_retries
         self._validator = ConstraintValidator(constraints)
+        # Cache for system prompt (built once per session)
+        self._system_prompt: str | None = None
+        self._cost_rates: dict[str, Any] | None = None
+
+    def get_system_prompt(self, cost_rates: dict[str, Any] | None = None) -> str:
+        """Get or build the cached system prompt.
+
+        The system prompt contains schema-filtered documentation that
+        doesn't change per iteration. It's built once and cached.
+
+        Args:
+            cost_rates: Optional cost rate configuration.
+
+        Returns:
+            Complete system prompt string.
+        """
+        if self._system_prompt is None:
+            self._system_prompt = build_system_prompt(
+                constraints=self._constraints,
+                cost_rates=cost_rates or self._cost_rates,
+            )
+        return self._system_prompt
+
+    def set_cost_rates(self, rates: dict[str, Any]) -> None:
+        """Set cost rates for system prompt generation.
+
+        Args:
+            rates: Cost rate configuration.
+        """
+        self._cost_rates = rates
+        # Invalidate cached system prompt
+        self._system_prompt = None
 
     async def optimize(
         self,
@@ -214,6 +252,7 @@ class PolicyOptimizer:
         llm_model: str,
         current_cost: float = 0.0,
         iteration_history: list[SingleAgentIterationRecord] | None = None,
+        events: list[dict[str, Any]] | None = None,
         best_seed_output: str | None = None,
         worst_seed_output: str | None = None,
         best_seed: int = 0,
@@ -247,6 +286,12 @@ class PolicyOptimizer:
             cost_breakdown: Breakdown of costs by type (delay, collateral, etc).
             cost_rates: Cost rate configuration from simulation.
             debug_callback: Optional callback for debug logging during retries.
+            events: Raw simulation events to be filtered by agent. When provided,
+                events are filtered to only show the target agent's data:
+                - Outgoing transactions FROM the agent
+                - Incoming liquidity events TO the agent
+                - Agent-specific state changes and costs
+                This enforces agent isolation: Agent X never sees Agent Y's data.
 
         Returns:
             OptimizationResult with new policy or None if failed.
@@ -278,6 +323,21 @@ class PolicyOptimizer:
                 cost_rates=cost_rates,
                 agent_id=agent_id,
             )
+
+            # Add full current policy and filtered events using UserPromptBuilder
+            # This ensures the LLM sees the complete policy tree (not just parameters)
+            user_prompt_builder = UserPromptBuilder(agent_id, current_policy)
+            if events is not None:
+                user_prompt_builder.with_events(events)
+
+            # Always include the full policy section
+            policy_section = user_prompt_builder._build_policy_section()
+            prompt += f"\n\n{policy_section}"
+
+            # Add filtered simulation events if provided
+            if events is not None:
+                filtered_section = user_prompt_builder._build_simulation_section()
+                prompt += f"\n\n{filtered_section}"
 
             # Add validation errors for retry
             if attempt > 0 and validation_errors:
