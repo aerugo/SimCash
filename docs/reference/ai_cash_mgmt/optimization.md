@@ -37,6 +37,8 @@ flowchart TB
 
 LLM-based policy generator with retry logic and validation.
 
+> **Rich Context Prompts**: PolicyOptimizer supports sophisticated 50k+ token prompts with best/worst seed analysis, cost breakdowns, iteration history with acceptance status, and parameter trajectories. See **[Optimizer Prompt Architecture](optimizer-prompt.md)** for complete documentation.
+
 ### Synopsis
 
 ```python
@@ -82,24 +84,50 @@ async def optimize(
     self,
     agent_id: str,
     current_policy: dict[str, Any],
-    performance_history: list[dict[str, Any]],
+    current_iteration: int,
+    current_metrics: dict[str, Any],
     llm_client: LLMClientProtocol,
     llm_model: str,
     current_cost: float = 0.0,
+    # Extended context parameters (see optimizer-prompt.md)
+    iteration_history: list[SingleAgentIterationRecord] | None = None,
+    best_seed_output: str | None = None,
+    worst_seed_output: str | None = None,
+    best_seed: int = 0,
+    worst_seed: int = 0,
+    best_seed_cost: int = 0,
+    worst_seed_cost: int = 0,
+    cost_breakdown: dict[str, int] | None = None,
+    cost_rates: dict[str, Any] | None = None,
+    debug_callback: DebugCallback | None = None,
 ) -> OptimizationResult:
-    """Generate an optimized policy.
+    """Generate an optimized policy with rich context.
 
-    Attempts to generate a valid policy, retrying on validation
-    failure up to max_retries times. Each retry includes the
-    validation errors in the prompt.
+    Attempts to generate a valid policy using a 50k+ token prompt
+    containing best/worst seed analysis, cost breakdowns, iteration
+    history with acceptance status, and parameter trajectories.
+
+    Retries on validation failure up to max_retries times. Each retry
+    includes the validation errors in the prompt.
 
     Args:
         agent_id: Agent being optimized.
         current_policy: Current policy configuration.
-        performance_history: History of costs per iteration.
+        current_iteration: Current iteration number.
+        current_metrics: Aggregated metrics from current iteration.
         llm_client: LLM client for policy generation.
         llm_model: Model identifier for tracking.
         current_cost: Current policy's cost.
+        iteration_history: Full iteration records for LLM context.
+        best_seed_output: Verbose output from best performing seed.
+        worst_seed_output: Verbose output from worst performing seed.
+        best_seed: Best performing seed number.
+        worst_seed: Worst performing seed number.
+        best_seed_cost: Cost from best seed.
+        worst_seed_cost: Cost from worst seed.
+        cost_breakdown: Breakdown of costs by type.
+        cost_rates: Cost rate configuration from simulation.
+        debug_callback: Optional callback for debug logging.
 
     Returns:
         OptimizationResult with new policy or None if failed.
