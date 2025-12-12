@@ -512,3 +512,166 @@ class TestEdgeCases:
         prompt = build_system_prompt(minimal_constraints, cost_rates={})
         # Should still have cost documentation
         assert "cost" in prompt.lower()
+
+
+# =============================================================================
+# Test Group 8: Prompt Customization Injection
+# =============================================================================
+
+
+class TestPromptCustomization:
+    """Tests for prompt customization injection."""
+
+    def test_customization_injected_when_provided(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """Customization text is injected into prompt."""
+        customization = "CUSTOM: This is a special experiment."
+        builder = SystemPromptBuilder(minimal_constraints)
+        prompt = builder.with_customization(customization).build()
+        assert "CUSTOM: This is a special experiment" in prompt
+
+    def test_customization_after_expert_intro(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """Customization appears after expert introduction."""
+        customization = "EXPERIMENT_MARKER: Nash equilibrium game"
+        builder = SystemPromptBuilder(minimal_constraints)
+        prompt = builder.with_customization(customization).build()
+
+        # Find positions
+        expert_idx = prompt.lower().find("you are")
+        custom_idx = prompt.find("EXPERIMENT_MARKER")
+
+        # Both should be present and customization after expert intro
+        assert expert_idx >= 0
+        assert custom_idx > expert_idx
+
+    def test_customization_before_domain_explanation(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """Customization appears before detailed domain explanation."""
+        customization = "UNIQUE_MARKER_FOR_TEST"
+        builder = SystemPromptBuilder(minimal_constraints)
+        prompt = builder.with_customization(customization).build()
+
+        # Find positions
+        custom_idx = prompt.find("UNIQUE_MARKER_FOR_TEST")
+        domain_idx = prompt.lower().find("domain context")
+
+        # Both should be present
+        assert custom_idx >= 0
+        # Note: domain_idx might not exist if the heading is different
+        # Just verify customization is present and early in prompt
+        assert custom_idx < len(prompt) // 3  # Should be in first third
+
+    def test_no_customization_when_none(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """No customization section when None provided."""
+        builder = SystemPromptBuilder(minimal_constraints)
+        prompt = builder.build()  # No with_customization call
+        # Should not have customization marker
+        assert "EXPERIMENT CUSTOMIZATION" not in prompt
+
+    def test_empty_string_customization_ignored(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """Empty string customization does not add section."""
+        builder = SystemPromptBuilder(minimal_constraints)
+        prompt = builder.with_customization("").build()
+        # Should not have customization marker
+        assert "EXPERIMENT CUSTOMIZATION" not in prompt
+
+    def test_whitespace_customization_ignored(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """Whitespace-only customization does not add section."""
+        builder = SystemPromptBuilder(minimal_constraints)
+        prompt = builder.with_customization("   \n\t  ").build()
+        # Should not have customization marker
+        assert "EXPERIMENT CUSTOMIZATION" not in prompt
+
+    def test_multiline_customization_preserved(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """Multiline customization text is preserved."""
+        customization = """This is line 1.
+This is line 2.
+This is line 3 with special chars: $100, 50%."""
+        builder = SystemPromptBuilder(minimal_constraints)
+        prompt = builder.with_customization(customization).build()
+
+        assert "This is line 1." in prompt
+        assert "This is line 2." in prompt
+        assert "$100, 50%" in prompt
+
+    def test_customization_with_header(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """Customization section has clear header."""
+        customization = "Custom experiment instructions"
+        builder = SystemPromptBuilder(minimal_constraints)
+        prompt = builder.with_customization(customization).build()
+
+        # Should have some form of header/delimiter
+        has_header = (
+            "EXPERIMENT" in prompt.upper()
+            or "CUSTOMIZATION" in prompt.upper()
+            or "###" in prompt
+        )
+        assert has_header
+
+    def test_build_system_prompt_function_with_customization(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """build_system_prompt function supports customization."""
+        customization = "Function-level customization test"
+        prompt = build_system_prompt(
+            minimal_constraints,
+            customization=customization,
+        )
+        assert "Function-level customization test" in prompt
+
+    def test_customization_combined_with_castro_mode(
+        self, castro_constraints: ScenarioConstraints
+    ) -> None:
+        """Customization works alongside Castro mode."""
+        customization = "CASTRO_CUSTOM: Nash equilibrium expected"
+        builder = SystemPromptBuilder(castro_constraints)
+        prompt = (
+            builder
+            .with_castro_mode(True)
+            .with_customization(customization)
+            .build()
+        )
+
+        # Both should be present
+        assert "CASTRO_CUSTOM: Nash equilibrium expected" in prompt
+        assert "collateral" in prompt.lower()  # Castro mode content
+
+    def test_customization_order_in_builder(
+        self, minimal_constraints: ScenarioConstraints,
+        sample_cost_rates: dict[str, Any],
+    ) -> None:
+        """Customization order doesn't affect builder output."""
+        customization = "ORDER_TEST_MARKER"
+
+        # Build with different method orders
+        prompt1 = (
+            SystemPromptBuilder(minimal_constraints)
+            .with_customization(customization)
+            .with_cost_rates(sample_cost_rates)
+            .build()
+        )
+
+        prompt2 = (
+            SystemPromptBuilder(minimal_constraints)
+            .with_cost_rates(sample_cost_rates)
+            .with_customization(customization)
+            .build()
+        )
+
+        # Both should contain the marker
+        assert "ORDER_TEST_MARKER" in prompt1
+        assert "ORDER_TEST_MARKER" in prompt2

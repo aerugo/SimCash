@@ -212,24 +212,43 @@ class PolicyOptimizer:
         # Cache for system prompt (built once per session)
         self._system_prompt: str | None = None
         self._cost_rates: dict[str, Any] | None = None
+        # Track current customization for cache invalidation
+        self._current_customization: str | None = None
 
-    def get_system_prompt(self, cost_rates: dict[str, Any] | None = None) -> str:
-        """Get or build the cached system prompt.
+    def get_system_prompt(
+        self,
+        cost_rates: dict[str, Any] | None = None,
+        customization: str | None = None,
+    ) -> str:
+        """Get or build the system prompt with optional customization.
 
-        The system prompt contains schema-filtered documentation that
-        doesn't change per iteration. It's built once and cached.
+        The system prompt contains schema-filtered documentation. When
+        customization changes, the prompt is rebuilt.
 
         Args:
             cost_rates: Optional cost rate configuration.
+            customization: Optional experiment-specific customization text.
+                          If different from cached customization, rebuilds prompt.
 
         Returns:
             Complete system prompt string.
         """
-        if self._system_prompt is None:
+        # Check if we need to rebuild (either no cache or customization changed)
+        need_rebuild = (
+            self._system_prompt is None
+            or self._current_customization != customization
+        )
+
+        if need_rebuild:
             self._system_prompt = build_system_prompt(
                 constraints=self._constraints,
                 cost_rates=cost_rates or self._cost_rates,
+                customization=customization,
             )
+            self._current_customization = customization
+
+        # At this point, _system_prompt is guaranteed to be set
+        assert self._system_prompt is not None
         return self._system_prompt
 
     def set_cost_rates(self, rates: dict[str, Any]) -> None:
