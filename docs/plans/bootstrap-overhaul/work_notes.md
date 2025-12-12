@@ -147,9 +147,26 @@ Bootstrap Paired Evaluation (10 samples) - BANK_A:
 **Intentional divergences:**
 1. **SeedMatrix location**: Plan said `ai_cash_mgmt/bootstrap/sampler.py`, but used `experiments/runner/seed_matrix.py` - **better** since it's experiment-specific.
 
-2. **`_evaluate_policies()` still exists**: The plan said "remove pre-iteration baseline evaluation" but this method is needed for LLM context (best/worst seed). The key fix was that `_should_accept_policy()` now uses SeedMatrix for per-agent seeds.
+2. **`_evaluate_policies()` still exists**: The plan said "remove pre-iteration baseline evaluation" but this method is REQUIRED for LLM context.
 
-3. **"Bootstrap Baseline" label remains**: The verbose output from `_evaluate_policies()` still shows this label in iteration 1. Could be renamed but low priority.
+   **Verification (2025-12-12)**: Confirmed in `single_agent_context.py:263-308` that best/worst seed output IS part of Section 4 of the LLM prompt:
+   ```
+   ## 4. SIMULATION OUTPUT (TICK-BY-TICK)
+
+   ### Best Performing Seed (#42, Cost: $1,234)
+   This is the OPTIMAL outcome from the current policy. Analyze what went right.
+   <best_seed_output>...</best_seed_output>
+
+   ### Worst Performing Seed (#99, Cost: $9,876)
+   This is the PROBLEMATIC outcome. Identify failure patterns and edge cases.
+   <worst_seed_output>...</worst_seed_output>
+   ```
+
+   This tick-by-tick output helps the LLM understand WHY certain policies perform well/poorly. Removing this would degrade prompt quality.
+
+   The key fix was that `_should_accept_policy()` now uses SeedMatrix for per-agent seeds (the actual bootstrap comparison).
+
+3. **"Bootstrap Baseline" label remains**: The verbose output from `_evaluate_policies()` still shows this label in iteration 1. Could be renamed to "Context Evaluation" but low priority.
 
 ---
 
@@ -250,16 +267,32 @@ bootstrap_seed = derive(agent_seed, f"sample:{s}")
 - Hierarchical structure enables debugging
 - Per-agent isolation prevents cross-contamination
 
-### ADR-2: Bootstrap Timing
+### ADR-2: Two Purposes of Evaluation (Clarified)
 
-**Context**: When should bootstrap evaluation happen?
+**Context**: The bootstrap overhaul revealed that "evaluation" serves two different purposes:
 
-**Decision**: Bootstrap ONLY happens during policy acceptance check (after LLM generates new policy)
+1. **Context Evaluation** (`_evaluate_policies()`):
+   - Runs BEFORE policy generation
+   - Purpose: Provide tick-by-tick logs to LLM for pattern analysis
+   - Identifies best/worst performing seeds
+   - Included in LLM prompt as Section 4 "SIMULATION OUTPUT"
+   - Uses shared seeds (not per-agent isolated)
+
+2. **Acceptance Evaluation** (`_should_accept_policy()`):
+   - Runs AFTER policy generation
+   - Purpose: Paired comparison of old vs new policy
+   - Uses SeedMatrix for per-agent seed isolation
+   - Accepts if delta_sum > 0 (new policy cheaper overall)
+   - This is the actual "bootstrap" for statistical comparison
+
+**Decision**: Keep both evaluation types, but clarify their purposes:
+- Context evaluation: Unchanged (needed for LLM prompt quality)
+- Acceptance evaluation: Refactored to use SeedMatrix with per-agent seeds
 
 **Rationale**:
-- No need for "baseline" - we compare old vs new directly
-- Reduces computational overhead (no duplicate evaluations)
-- Simpler flow: generate → evaluate pair → accept/reject
+- LLM needs tick-by-tick output to understand policy behavior
+- Acceptance needs paired comparison with isolated seeds
+- These are orthogonal concerns that happen at different times
 
 ### ADR-3: Progress Metric
 
