@@ -180,7 +180,7 @@ class OptimizationLoop:
     5. Repeat until converged or max iterations
 
     All configuration is read from ExperimentConfig:
-    - system_prompt: From config.llm.system_prompt
+    - system_prompt: Dynamically built from constraints (schema-filtered)
     - constraints: From config.get_constraints()
     - convergence: From config.convergence
     - agents: From config.optimized_agents
@@ -996,8 +996,8 @@ class OptimizationLoop:
             agent_id: Agent to optimize.
             current_cost: Current cost for this agent in integer cents.
         """
-        # Skip LLM optimization if no system prompt configured
-        if self._config.llm.system_prompt is None:
+        # Skip LLM optimization if no constraints (required for dynamic prompt)
+        if self._constraints is None:
             return
 
         # Lazy initialize LLM client and PolicyOptimizer
@@ -1008,11 +1008,14 @@ class OptimizationLoop:
 
             self._llm_client = ExperimentLLMClient(self._config.llm)
 
-        if self._policy_optimizer is None and self._constraints is not None:
+        if self._policy_optimizer is None:
             self._policy_optimizer = PolicyOptimizer(
                 constraints=self._constraints,
                 max_retries=self._config.llm.max_retries,
             )
+            # Build and inject dynamic system prompt (schema-filtered)
+            dynamic_prompt = self._policy_optimizer.get_system_prompt(self._cost_rates)
+            self._llm_client.set_system_prompt(dynamic_prompt)
 
         # Get current policy
         current_policy = self._policies.get(

@@ -95,14 +95,28 @@ class ExperimentLLMClient:
         self._config = config
         self._last_interaction: LLMInteraction | None = None
         self._interactions: list[LLMInteraction] = []
+        self._system_prompt_override: str | None = None
+
+    def set_system_prompt(self, prompt: str) -> None:
+        """Set a dynamic system prompt, overriding config.
+
+        This allows the optimizer to inject a schema-filtered prompt
+        built at runtime rather than using a static YAML config prompt.
+
+        Args:
+            prompt: The dynamic system prompt to use.
+        """
+        self._system_prompt_override = prompt
 
     @property
     def system_prompt(self) -> str | None:
-        """Get system prompt from config.
+        """Get system prompt, preferring dynamic override.
 
         Returns:
-            System prompt string or None if not configured.
+            Dynamic system prompt if set, else config system prompt.
         """
+        if self._system_prompt_override is not None:
+            return self._system_prompt_override
         return self._config.system_prompt
 
     @property
