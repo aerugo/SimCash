@@ -176,6 +176,56 @@ When OpenAI API is available:
 
 ---
 
+## Session: 2025-12-12 (Phase 3 - Seed Mismatch & Evaluation Fixes)
+
+### What Was Done
+
+1. **Fixed Critical Seed Mismatch Bug** (`optimization.py`):
+   - Discovered that `_should_accept_policy` used `_derive_sample_seed(0)` which generates a hash-based seed
+   - But main evaluation uses `master_seed + current_iteration` (e.g., 42 + 1 = 43)
+   - This caused evaluation to use different seeds than main iteration → costs didn't match!
+   - Fix: Added `_evaluate_policy_with_seed(policy, agent_id, seed)` method
+   - Now deterministic mode uses the correct iteration seed for both old and new policy evaluation
+
+2. **Fixed `_should_accept_policy` Return Type**:
+   - Changed from returning `bool` to `tuple[bool, int, int]` (should_accept, old_cost, new_cost)
+   - This allows verbose logger to display actual evaluation costs
+   - Updated call site to unpack and use actual costs
+
+3. **Fixed Zero Cost Display Bug** (`verbose.py`):
+   - Rejection display used `if rejection.old_cost` which is False when old_cost = 0
+   - Changed to `if rejection.old_cost is not None` to handle zero cost correctly
+
+### Key Observations
+
+- **Evaluation now shows actual costs**: `$50.00 → $0.00` for Bank A (correct!)
+- **Rejections working**: Bank B rejected moving from 0.25 → 0.2 because `$37.50 → $40.00`
+- **Total cost dropped from $140 to $37.50** in iteration 2
+
+### Current Results
+
+With Bank A at 0.0, Bank B at 0.25:
+- Bank A: $0 cost (no collateral) - CORRECT, matches Nash equilibrium
+- Bank B: $37.50 cost (25000 collateral, 25% of 100000)
+- Expected Bank B: 0.2 (20000 collateral)
+
+Bank B tried to move to 0.2 but was REJECTED because the cost increased to $40.00. This is unexpected behavior that needs investigation.
+
+### Issues Remaining
+
+1. **Bank B's optimal not at 0.2?**: The simulation shows Bank B's cost is HIGHER at 0.2 ($40) vs 0.25 ($37.50). This contradicts the Castro paper which says 0.2 (20000) is optimal.
+
+2. **Policy structure differences**: When the LLM generates a new policy, it might have different tree structure than the stored policy, causing different simulation behavior.
+
+### Next Steps
+
+1. Investigate why Bank B's cost at 0.2 > 0.25
+2. Verify the collateral tree is being used correctly by LLM-generated policies
+3. Consider adding audit logging to compare policy structures
+4. May need to merge LLM parameter changes with stored tree structure
+
+---
+
 ## Session Notes Template
 
 ```
