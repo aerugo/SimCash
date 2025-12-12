@@ -200,6 +200,48 @@ class BootstrapSampleResult:
 
 
 @dataclass
+class BootstrapDeltaResult:
+    """Result from paired bootstrap evaluation comparing old vs new policy.
+
+    Used for displaying delta-based acceptance results.
+
+    Attributes:
+        agent_id: Agent being evaluated.
+        deltas: List of (old_cost - new_cost) per bootstrap sample.
+            Positive = new policy is cheaper.
+        delta_sum: Sum of all deltas.
+        accepted: Whether the new policy was accepted.
+        old_policy_mean_cost: Mean cost with old policy (integer cents).
+        new_policy_mean_cost: Mean cost with new policy (integer cents).
+        num_samples: Number of bootstrap samples.
+    """
+
+    agent_id: str
+    deltas: list[int]
+    delta_sum: int
+    accepted: bool
+    old_policy_mean_cost: int | None = None
+    new_policy_mean_cost: int | None = None
+
+    @property
+    def num_samples(self) -> int:
+        """Number of bootstrap samples."""
+        return len(self.deltas)
+
+    @property
+    def mean_delta(self) -> float:
+        """Mean delta (improvement) per sample."""
+        if not self.deltas:
+            return 0.0
+        return self.delta_sum / len(self.deltas)
+
+    @property
+    def improvement_dollars(self) -> float:
+        """Total improvement in dollars (positive = cheaper)."""
+        return self.delta_sum / 100
+
+
+@dataclass
 class LLMCallMetadata:
     """Metadata from an LLM API call.
 
@@ -523,6 +565,76 @@ class VerboseLogger:
             self._console.print(
                 f"  Worst seed: 0x{worst_result.seed:08x} (for debugging)"
             )
+
+        self._console.print()
+
+    def log_bootstrap_deltas(self, result: BootstrapDeltaResult) -> None:
+        """Log paired bootstrap evaluation results with deltas.
+
+        Shows the delta-based comparison between old and new policies.
+        This is called AFTER policy generation to show acceptance decision.
+
+        Args:
+            result: Bootstrap delta evaluation result.
+        """
+        if not self._config.bootstrap:
+            return
+
+        num_samples = result.num_samples
+        agent_id = result.agent_id
+
+        self._console.print(
+            f"\n[bold]Bootstrap Paired Evaluation ({num_samples} samples) - {agent_id}:[/bold]"
+        )
+
+        # Show per-sample deltas in a compact table
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Sample", style="dim", justify="right")
+        table.add_column("Delta (¢)", justify="right")
+        table.add_column("Note", style="italic")
+
+        for i, delta in enumerate(result.deltas):
+            sample_str = f"#{i + 1}"
+
+            if delta > 0:
+                delta_str = f"[green]+{delta:,}[/green]"
+                note = "improvement"
+            elif delta < 0:
+                delta_str = f"[red]{delta:,}[/red]"
+                note = "regression"
+            else:
+                delta_str = "0"
+                note = "no change"
+
+            table.add_row(sample_str, delta_str, note)
+
+        self._console.print(table)
+
+        # Summary
+        mean_delta_cents = result.mean_delta
+        delta_sum = result.delta_sum
+        improvement_dollars = result.improvement_dollars
+
+        if delta_sum > 0:
+            self._console.print(
+                f"  Delta sum: [green]+{delta_sum:,}¢[/green] "
+                f"(+${improvement_dollars:,.2f} total improvement)"
+            )
+        elif delta_sum < 0:
+            self._console.print(
+                f"  Delta sum: [red]{delta_sum:,}¢[/red] "
+                f"(${improvement_dollars:,.2f} regression)"
+            )
+        else:
+            self._console.print(f"  Delta sum: {delta_sum}¢ (no net change)")
+
+        self._console.print(f"  Mean delta: {mean_delta_cents:,.1f}¢ per sample")
+
+        # Decision
+        if result.accepted:
+            self._console.print("  Decision: [green]ACCEPTED[/green] (delta_sum > 0)")
+        else:
+            self._console.print("  Decision: [red]REJECTED[/red] (delta_sum ≤ 0)")
 
         self._console.print()
 
