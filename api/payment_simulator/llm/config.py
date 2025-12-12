@@ -62,7 +62,7 @@ class LLMConfig:
     temperature: float = 0.0
     max_retries: int = 3
     timeout_seconds: int = 120
-    max_tokens: int = 30000
+    max_tokens: int = 35000  # Max output tokens - set high for large reasoning models
 
     # Provider-specific options (mutually exclusive by convention)
     thinking_budget: int | None = None  # Anthropic extended thinking

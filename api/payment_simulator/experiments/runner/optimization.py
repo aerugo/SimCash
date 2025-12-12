@@ -699,30 +699,36 @@ class OptimizationLoop:
                 pass
 
         # Extract total cost and cost breakdown
+        # NOTE: Field names must match Rust FFI keys:
+        # - liquidity_cost (not overdraft_cost)
+        # - total_settlements (not settled_count)
+        # - total_arrivals (not total_transactions)
+        # - avg_delay_ticks (not avg_settlement_delay)
         total_cost = 0
         delay_cost = 0
-        overdraft_cost = 0
+        liquidity_cost = 0  # FFI key is "liquidity_cost", not "overdraft_cost"
         deadline_penalty = 0
-        eod_penalty = 0
+        collateral_cost = 0  # FFI provides this
 
         for agent_id in self.optimized_agents:
             try:
                 agent_costs = orch.get_agent_accumulated_costs(agent_id)
                 total_cost += int(agent_costs.get("total_cost", 0))
                 delay_cost += int(agent_costs.get("delay_cost", 0))
-                overdraft_cost += int(agent_costs.get("overdraft_cost", 0))
+                liquidity_cost += int(agent_costs.get("liquidity_cost", 0))
                 deadline_penalty += int(agent_costs.get("deadline_penalty", 0))
-                eod_penalty += int(agent_costs.get("eod_penalty", 0))
+                collateral_cost += int(agent_costs.get("collateral_cost", 0))
             except Exception:
                 pass
 
         # Calculate settlement rate
         try:
             metrics = orch.get_system_metrics()
-            settled = metrics.get("settled_count", 0)
-            total = metrics.get("total_transactions", 1)
+            # FFI returns "total_settlements" and "total_arrivals", not legacy keys
+            settled = metrics.get("total_settlements", 0)
+            total = metrics.get("total_arrivals", 1)
             settlement_rate = settled / total if total > 0 else 1.0
-            avg_delay = float(metrics.get("avg_settlement_delay", 0.0))
+            avg_delay = float(metrics.get("avg_delay_ticks", 0.0))
         except Exception:
             settlement_rate = 1.0
             avg_delay = 0.0
@@ -736,9 +742,13 @@ class OptimizationLoop:
             event_trace=tuple(all_events),
             cost_breakdown=CostBreakdown(
                 delay_cost=delay_cost,
-                overdraft_cost=overdraft_cost,
+                # Model uses "overdraft_cost" but FFI returns "liquidity_cost"
+                # These are the same concept (cost of negative balance)
+                overdraft_cost=liquidity_cost,
                 deadline_penalty=deadline_penalty,
-                eod_penalty=eod_penalty,
+                # FFI doesn't separate eod_penalty from deadline_penalty
+                # The Rust cost model combines them into total_penalty_cost
+                eod_penalty=0,
             ),
         )
 
