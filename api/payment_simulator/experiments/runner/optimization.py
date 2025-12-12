@@ -594,6 +594,7 @@ class OptimizationLoop:
             FFI-compatible configuration dictionary.
         """
         import copy
+        import json
 
         # Deep copy to avoid mutating the cached scenario config
         scenario_dict = copy.deepcopy(self._load_scenario_config())
@@ -603,7 +604,16 @@ class OptimizationLoop:
             for agent_config in scenario_dict["agents"]:
                 agent_id = agent_config.get("id")
                 if agent_id in self._policies:
-                    agent_config["policy"] = self._policies[agent_id]
+                    policy = self._policies[agent_id]
+                    # Wrap tree policy in InlineJsonPolicy format for Pydantic
+                    # Tree policies have "payment_tree" field; simple policies have "type"
+                    if isinstance(policy, dict) and "payment_tree" in policy:
+                        agent_config["policy"] = {
+                            "type": "InlineJson",
+                            "json_string": json.dumps(policy),
+                        }
+                    else:
+                        agent_config["policy"] = policy
 
         # Convert to FFI format
         sim_config = SimulationConfig.from_dict(scenario_dict)
