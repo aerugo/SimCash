@@ -180,6 +180,66 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
    - Add initial simulation output to context
    - Ensure 3 streams are available for LLM optimization
 
+### 2025-12-13 - Phase 7b Started (Completing Integration)
+
+**What was done**:
+1. Created `phases/phase_7b.md` - detailed plan for completing integration
+2. Identified remaining tasks:
+   - Add helper methods for agent config extraction
+   - Update `_evaluate_policy_pair()` with bootstrap branch
+   - Wire BootstrapLLMContext
+
+**TDD Approach**:
+- Write failing tests FIRST
+- Implement to pass tests
+- Refactor (type check, lint)
+
+**Current Task**: Writing TDD tests for remaining integration work
+
+### 2025-12-13 - Phase 7b Completed
+
+**What was done**:
+1. **Helper methods added** (`_get_agent_opening_balance()`, `_get_agent_credit_limit()`)
+   - Tests pass: `TestAgentConfigHelpers` (3 tests)
+
+2. **Real bootstrap branch added to `_evaluate_policy_pair()`**:
+   - Uses `BootstrapPolicyEvaluator.compute_paired_deltas()` when samples available
+   - Falls back to Monte Carlo only when no samples (to be removed in Phase 7c)
+   - Tests pass: `TestEvaluatePolicyPairUsesBootstrapSamples` (2 tests)
+
+3. **BootstrapLLMContext wired into LLM context**:
+   - `_build_agent_contexts()` creates `BootstrapLLMContext` with all 3 streams
+   - `_optimize_agent()` combines initial simulation output (Stream 1) with best seed (Stream 2)
+   - LLM now receives: Initial Simulation + Best Bootstrap Sample + Worst Bootstrap Sample
+
+4. **Design decision documented**: No fallback to Monte Carlo (single code path)
+   - Cleanup deferred to Phase 7c after everything verified working
+
+**Test Results**:
+- 18 tests passed
+- 4 tests skipped (require full FFI integration)
+- mypy: Success
+- ruff: Only pre-existing warnings
+
+**Next Steps**:
+- Phase 7c: Remove Monte Carlo fallback (cleanup)
+- Phase 8: E2E Testing with real experiment configs
+
+### 2025-12-13 - Phase 7c Completed
+
+**What was done**:
+1. **Updated test** to expect `RuntimeError` instead of Monte Carlo fallback
+   - `test_evaluate_policy_pair_raises_without_samples()`
+2. **Removed Monte Carlo fallback code** from `_evaluate_policy_pair()`
+   - Now raises `RuntimeError` if no bootstrap samples available
+   - Code simplified from ~40 lines to ~25 lines
+3. **All tests pass**: 18 passed, 4 skipped (FFI integration tests)
+
+**Design simplification achieved**:
+- Single code path for bootstrap evaluation
+- No fallback branches
+- Clear error if samples missing
+
 ---
 
 ## Phase Progress
@@ -191,8 +251,10 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 | 3 | **ALREADY DONE** | - | Pre-existing | `sampler.py` - BootstrapSampler with xorshift64* |
 | 4 | **ALREADY DONE** | - | Pre-existing | `sandbox_config.py` - SandboxConfigBuilder |
 | 5 | **ALREADY DONE** | - | Pre-existing | `evaluator.py` - BootstrapPolicyEvaluator |
-| 6 | **PARTIAL** | - | - | `context_builder.py` exists, needs 3 streams |
-| 7 | **IN PROGRESS** | 2025-12-13 | - | ~50% complete: initial sim done, evaluation wiring remaining |
+| 6 | **COMPLETE** | 2025-12-13 | 2025-12-13 | BootstrapLLMContext wired with 3 streams |
+| 7 | **COMPLETE** | 2025-12-13 | 2025-12-13 | Initial sim + bootstrap samples in OptimizationLoop |
+| 7b | **COMPLETE** | 2025-12-13 | 2025-12-13 | Helper methods + evaluation wiring |
+| 7c | **COMPLETE** | 2025-12-13 | 2025-12-13 | Removed Monte Carlo fallback |
 | 8 | Pending | - | - | E2E Testing |
 
 ---
