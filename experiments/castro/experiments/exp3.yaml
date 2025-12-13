@@ -1,25 +1,22 @@
-# Experiment 3: Joint Liquidity & Timing
-# Optimizes both initial collateral AND payment timing jointly.
+# Experiment 3: Three-Period Dummy Example (Joint Liquidity & Timing)
 #
-# Setup:
-# - 3 ticks per day (evaluated over 10 ticks minimum)
-# - Tests interaction between liquidity and timing decisions
-# - 10 bootstrap samples for evaluation
+# Replicates Castro et al. (2025) Section 7.2:
+# - P^A = P^B = [0.2, 0.2, 0] - symmetric, deterministic payment demands
+# - Joint learning of BOTH initial liquidity AND payment timing
+# - Expected: ~25% initial liquidity, ~10% delay (when r_c < r_d)
 #
-# Note: Uses minimum evaluation_ticks of 10 for BootstrapConfig validation.
-# The scenario runs 3 ticks per day, remaining ticks are idle.
+# This is a DETERMINISTIC scenario with fixed payments.
 
 name: exp3
-description: "Joint Liquidity & Timing Optimization"
+description: "Three-Period Dummy - Joint Liquidity & Timing"
 
 # Scenario configuration (relative to this file's directory)
 scenario: ../configs/exp3_joint.yaml
 
-# Evaluation settings
+# Evaluation settings - deterministic since payments are fixed
 evaluation:
-  mode: bootstrap
-  num_samples: 10  # Bootstrap samples for evaluation
-  ticks: 10  # Minimum for BootstrapConfig (ticks 3-9 are idle)
+  mode: deterministic
+  ticks: 3
 
 # Convergence criteria
 convergence:
@@ -35,44 +32,58 @@ llm:
   timeout_seconds: 900
   reasoning_effort: "high"
 
-# Policy constraints
+# Prompt customization for joint learning
+prompt_customization:
+  all: |
+    ## Experiment Focus: Joint Liquidity & Timing Optimization
+
+    This is the **Three-Period Dummy Example** from Castro et al. (2025):
+    - 3 periods total: t=0, t=1, t=2
+    - Symmetric payments: Each bank owes 20% of collateral at t=0 and t=1
+    - No new payments at t=2
+
+    **You must optimize TWO decisions:**
+
+    1. **Initial Liquidity (t=0):** What fraction of available collateral to post?
+       - Use `initial_liquidity_fraction` parameter (0.0 to 1.0)
+       - Posted collateral provides liquidity to pay obligations
+       - But collateral has opportunity cost (r_c)
+
+    2. **Payment Timing (each tick):** Release or hold queued payments?
+       - Releasing uses liquidity but avoids delay costs (r_d)
+       - Holding preserves liquidity but incurs delay costs
+       - Key rule: r_c < r_d (posting collateral is CHEAPER than delaying)
+
+    **Cost Tradeoff:**
+    - r_c = collateral cost (cheaper)
+    - r_d = delay cost (more expensive)
+    - Since r_c < r_d, it's better to post collateral than delay payments
+
+    **Key Insight:** With symmetric payments, incoming payments from the other bank
+    can fund your outgoing payments. Consider timing strategically.
+
+# Policy constraints - MINIMAL for Castro model
 policy_constraints:
   allowed_parameters:
     - name: initial_liquidity_fraction
       param_type: float
       min_value: 0.0
       max_value: 1.0
-      description: "Fraction of collateral to post at t=0"
-    - name: urgency_threshold
-      param_type: int
-      min_value: 0
-      max_value: 20
-      description: "Ticks before deadline to release payment"
-    - name: liquidity_buffer
-      param_type: float
-      min_value: 0.5
-      max_value: 3.0
-      description: "Multiplier for required liquidity"
+      description: "Fraction of max_collateral_capacity to post at t=0"
 
   allowed_fields:
     # Time context
     - system_tick_in_day
-    - ticks_remaining_in_day
-    - current_tick
     # Agent liquidity state
     - balance
     - effective_liquidity
-    # Transaction context
-    - ticks_to_deadline
-    - remaining_amount
-    - amount
-    - priority
-    # Queue state
+    # Collateral state
+    - remaining_collateral_capacity
+    - posted_collateral
+    - max_collateral_capacity
+    # Queue state (for timing decisions)
     - queue1_total_value
     - outgoing_queue_size
-    # Collateral
-    - max_collateral_capacity
-    - posted_collateral
 
   allowed_actions:
     payment_tree:

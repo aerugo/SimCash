@@ -1053,6 +1053,9 @@ class OptimizationLoop:
             _, new_costs = self._run_single_simulation(seed)
             new_cost = new_costs.get(agent_id, 0)
 
+            # CRITICAL: Restore old policy - caller will set new policy if accepted
+            self._policies[agent_id] = old_policy
+
             delta = old_cost - new_cost
             return [delta], delta
 
@@ -1074,6 +1077,9 @@ class OptimizationLoop:
 
             # Delta: positive means new is cheaper (improvement)
             deltas.append(old_cost - new_cost)
+
+        # CRITICAL: Restore old policy - caller will set new policy if accepted
+        self._policies[agent_id] = old_policy
 
         delta_sum = sum(deltas)
         return deltas, delta_sum
