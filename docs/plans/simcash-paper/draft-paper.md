@@ -485,4 +485,165 @@ convergence:
 
 ---
 
+## Appendix D: Recommended Protocol for Experiment Replication
+
+When replicating these experiments or conducting new policy optimization studies with SimCash, we recommend the following protocol to ensure robust, reproducible results.
+
+### D.1 Bootstrap Evaluation for All Scenarios
+
+**Recommendation**: Use bootstrap evaluation with **50 samples** for all experiments, including those with deterministic payment schedules.
+
+**Rationale**: Even when the underlying scenario has fixed payment schedules (exp1, exp3), bootstrap evaluation provides several benefits:
+
+1. **Robustness testing**: Multiple seeds test whether the policy performs consistently across different random number generator states for any stochastic elements in settlement ordering or tie-breaking.
+
+2. **Confidence intervals**: Bootstrap enables reporting uncertainty bounds on cost estimates, which is essential for distinguishing true improvements from noise.
+
+3. **Consistent methodology**: Using the same evaluation protocol across all experiments simplifies comparison and reduces the risk of methodology-induced artifacts.
+
+4. **Future-proofing**: If scenarios are later modified to include stochastic elements, the evaluation framework is already in place.
+
+**Configuration**:
+```yaml
+evaluation:
+  mode: bootstrap
+  num_samples: 50
+  confidence_level: 0.95
+  statistical_test: paired_t_test
+  significance_threshold: 0.05
+```
+
+### D.2 Complete Protocol Checklist
+
+#### Pre-Experiment Setup
+
+- [ ] **Verify LSM is disabled** for Castro replication experiments:
+  ```yaml
+  lsm_config:
+    enable_bilateral: false
+    enable_cycles: false
+  ```
+
+- [ ] **Set bootstrap samples to 50** for all experiments
+
+- [ ] **Configure cost parameters** to match Castro et al.:
+  - r_c (collateral cost): 0.001 per tick
+  - r_d (delay cost): 0.002 per tick
+  - r_b (EOD borrowing): 0.1 one-time
+
+- [ ] **Set convergence criteria**:
+  ```yaml
+  convergence:
+    max_iterations: 25
+    stability_window: 5
+    stability_threshold: 0.05
+  ```
+
+#### During Experiment
+
+- [ ] **Log all LLM interactions** including prompts, responses, and token counts
+
+- [ ] **Record policy proposals** (both accepted and rejected) with rationales
+
+- [ ] **Save simulation databases** for replay and audit
+
+- [ ] **Monitor for anomalies**:
+  - 100% settlement rate maintained?
+  - Cost monotonically decreasing (on average)?
+  - LLM proposals within valid parameter bounds?
+
+#### Post-Experiment Analysis
+
+- [ ] **Compute confidence intervals** on final policy values:
+  ```
+  Final policy: X ± 1.96 * SE
+  where SE = std(bootstrap_costs) / sqrt(50)
+  ```
+
+- [ ] **Run parameter sweep** to characterize cost landscape:
+  - Evaluate costs at 0%, 5%, 10%, ..., 100% liquidity
+  - Plot cost curves for each agent
+  - Verify LLM-discovered optimum matches curve minimum
+
+- [ ] **Compare to theoretical predictions**:
+  - Report absolute gap (percentage points)
+  - Report relative error (%)
+  - Note any systematic biases
+
+- [ ] **Document discrepancies** with hypotheses for causes
+
+### D.3 Recommended Experiment Configuration Template
+
+```yaml
+# Recommended configuration for Castro replication experiments
+name: exp_name
+description: "Brief description of scenario"
+
+# ALWAYS use bootstrap, even for deterministic scenarios
+evaluation:
+  mode: bootstrap
+  num_samples: 50  # Minimum for reliable inference
+  ticks: <scenario_length>
+
+# Standard convergence settings
+convergence:
+  max_iterations: 25
+  stability_threshold: 0.05
+  stability_window: 5
+
+# LLM configuration
+llm:
+  model: "openai:gpt-5.2"
+  temperature: 0.5
+  reasoning_effort: high
+
+# Policy constraints (no hints about optimal values!)
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      min_value: 0.0
+      max_value: 1.0
+  # Do NOT constrain to ranges that reveal the answer
+
+# Scenario configuration (separate file)
+scenario_config: configs/scenario_name.yaml
+```
+
+### D.4 Statistical Reporting Standards
+
+When reporting results, include:
+
+1. **Point estimate**: Final policy value (e.g., "BANK_A: 21%")
+
+2. **Confidence interval**: 95% CI from bootstrap (e.g., "21% ± 2%")
+
+3. **Cost statistics**:
+   - Mean final cost
+   - Standard deviation across bootstrap samples
+   - Min/max observed costs
+
+4. **Convergence metrics**:
+   - Iterations to convergence
+   - Total LLM calls
+   - Total simulation runs
+
+5. **Comparison to baseline**:
+   - Cost reduction from initial policy (absolute and %)
+   - Statistical significance (p-value from paired test)
+
+### D.5 Sample Size Justification
+
+With 50 bootstrap samples:
+
+| Metric | Value |
+|--------|-------|
+| Standard error reduction | σ/7.07 (vs σ/3.16 for n=10) |
+| 95% CI half-width | ~0.28σ |
+| Power to detect 0.5σ effect | >80% |
+| Simulation time increase | 5x vs n=10 |
+
+This balances statistical rigor against computational cost. For publication-quality results, consider n=100.
+
+---
+
 *End of Draft Paper*
