@@ -37,15 +37,15 @@ The experiment files are:
 
 ### 3. Run All Three Experiments
 
-Run experiments using the CLI:
+Run experiments using the CLI, always with verbose output:
 ```bash
 cd api
-.venv/bin/payment-sim experiment run ../experiments/castro/experiments/exp1.yaml
-.venv/bin/payment-sim experiment run ../experiments/castro/experiments/exp2.yaml
-.venv/bin/payment-sim experiment run ../experiments/castro/experiments/exp3.yaml
+.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp1.yaml
+.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp2.yaml
+.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp3.yaml
 ```
 
-Run the experiments one at a time. Always report back on progress as the simulation is running.
+Run the experiments one at a time. Always report back on progress feom verbose logs as the simulation is running.
 
 **Important**: These will take longer than v1 due to 50 bootstrap samples per evaluation. Monitor progress and capture all terminal output for your lab notes. NEVER change the LLM model! Always use the exact model specified in the experiment config, even if it takes a long time to get responses.
 
@@ -57,6 +57,7 @@ For each experiment, following Appendix D.2's post-experiment checklist:
 - [ ] Run parameter sweep to characterize cost landscape (optional but recommended)
 - [ ] Compare to theoretical predictions (absolute gap in pp, relative error in %)
 - [ ] Document discrepancies with hypotheses
+- [ ] If you need dig into experiment or underlying simulation output you can use the CLI tools "replay" and "experiment replay" respectively. See docs/reference/cli/commands/ for documentation.
 
 ### 5. Write v2 Documentation
 
