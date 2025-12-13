@@ -68,18 +68,12 @@ policy_constraints:
 # Experiment customization - guides LLM without giving away answer
 prompt_customization:
   all: |
-    ## Experiment Focus: Initial Liquidity Allocation
-
     This scenario tests a fundamental tradeoff in payment systems:
     - Posting collateral provides liquidity to settle payments
     - But collateral has an opportunity cost
 
     The KEY DECISION in this scenario is: What fraction of available collateral
     should be posted at the START of the day (tick 0)?
-
-    The payment policy should be kept SIMPLE:
-    - If you have liquidity, release payments
-    - The complexity is in choosing the RIGHT initial liquidity level
 
     IMPORTANT: Focus your optimization on the `initial_liquidity_fraction` parameter.
     The payment_tree should remain a simple Release action - the real optimization
