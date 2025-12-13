@@ -264,6 +264,29 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 - mypy: Success
 - ruff: Only pre-existing warnings
 
+### 2025-12-13 - Phase 8 Started: Investigate Zero Deltas
+
+**Problem observed**:
+When running experiment 2 with gpt-5.2, all bootstrap paired evaluation deltas are zero:
+```
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┃ Sample ┃ Delta (¢) ┃ Note      ┃
+│     #1 │         0 │ no change │
+│     #2 │         0 │ no change │
+...
+  Delta sum: 0¢ (no net change)
+```
+
+The LLM proposes different `initial_liquidity_fraction` values (0.4, 0.45, 0.85), but the evaluator reports no cost difference.
+
+**Hypotheses**:
+1. Policy not being applied in sandbox simulation
+2. Sandbox config doesn't use the policy parameter
+3. Cost calculation ignores the policy effect
+4. Same transactions always settle identically regardless of policy
+
+**Investigation plan**: See `phases/phase_8_investigate_zero_deltas.md`
+
 ---
 
 ## Phase Progress
@@ -280,7 +303,8 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 | 7b | **COMPLETE** | 2025-12-13 | 2025-12-13 | Helper methods + evaluation wiring |
 | 7c | **COMPLETE** | 2025-12-13 | 2025-12-13 | Removed Monte Carlo fallback |
 | 7d | **COMPLETE** | 2025-12-13 | 2025-12-13 | Verbose output wiring for LLM |
-| 8 | Pending | - | - | E2E Testing |
+| 8 | **IN PROGRESS** | 2025-12-13 | - | Investigate zero deltas in paired evaluation |
+| 9 | Pending | - | - | E2E Testing |
 
 ---
 
@@ -387,4 +411,4 @@ When resuming work:
 
 ---
 
-*Last updated: 2025-12-13 (Phase 7d complete - verbose output wiring)*
+*Last updated: 2025-12-13 (Phase 8 started - investigate zero deltas)*
