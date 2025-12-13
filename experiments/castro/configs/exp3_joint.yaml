@@ -44,14 +44,17 @@ lsm_config:
 agents:
   - id: BANK_A
     opening_balance: 0
-    unsecured_cap: 50000
+    # CRITICAL: No unsecured credit - matches paper assumption that
+    # liquidity ONLY comes from posted collateral (incurring r_c cost)
+    unsecured_cap: 0
     # B = 100,000 collateral capacity
     # Payments are 0.2 * B = 20,000 each period
     max_collateral_capacity: 100000
 
   - id: BANK_B
     opening_balance: 0
-    unsecured_cap: 50000
+    # CRITICAL: No unsecured credit
+    unsecured_cap: 0
     max_collateral_capacity: 100000
 
 # Deterministic transaction schedule matching P^A = P^B = [0.2, 0.2, 0]
