@@ -13,9 +13,10 @@ description: "12-Period Stochastic LVTS-Style"
 scenario: ../configs/exp2_12period.yaml
 
 # Evaluation settings
+# v2 Protocol: Use 50 bootstrap samples for reliable inference
 evaluation:
   mode: bootstrap
-  num_samples: 10  # Bootstrap samples for evaluation
+  num_samples: 50  # v2: Increased from 10 for statistical rigor
   ticks: 12
 
 # Convergence criteria
@@ -26,7 +27,7 @@ convergence:
 
 # LLM configuration
 llm:
-  model: "openai:gpt-5.2" # always use new reasoning models like gpt-5 with high reasoning 
+  model: "openai:gpt-5.2"  # always use gpt-5.2 with high reasoning
   temperature: 0.5
   max_retries: 3
   timeout_seconds: 900
