@@ -94,6 +94,7 @@ class BootstrapPolicyEvaluator:
         opening_balance: int,
         credit_limit: int,
         cost_rates: dict[str, float] | None = None,
+        max_collateral_capacity: int | None = None,
     ) -> None:
         """Initialize the evaluator.
 
@@ -101,10 +102,13 @@ class BootstrapPolicyEvaluator:
             opening_balance: Opening balance for target agent (cents).
             credit_limit: Credit limit for target agent (cents).
             cost_rates: Optional cost rates override.
+            max_collateral_capacity: Max collateral capacity for target agent (cents).
+                Required for policies that use initial_liquidity_fraction parameter.
         """
         self._opening_balance = opening_balance
         self._credit_limit = credit_limit
         self._cost_rates = cost_rates
+        self._max_collateral_capacity = max_collateral_capacity
         self._config_builder = SandboxConfigBuilder()
 
     def evaluate_sample(
@@ -128,6 +132,7 @@ class BootstrapPolicyEvaluator:
             opening_balance=self._opening_balance,
             credit_limit=self._credit_limit,
             cost_rates=self._cost_rates,
+            max_collateral_capacity=self._max_collateral_capacity,
         )
 
         # Convert to FFI dict and run simulation

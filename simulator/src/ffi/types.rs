@@ -1413,6 +1413,32 @@ fn parse_scenario_events(py_events: &Bound<'_, PyList>) -> PyResult<Vec<Schedule
                     max_ticks_multiplier,
                 }
             }
+            "ScheduledSettlement" => {
+                let from_agent: String = event_dict
+                    .get_item("from_agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "ScheduledSettlement requires 'from_agent'"
+                    ))?
+                    .extract()?;
+                let to_agent: String = event_dict
+                    .get_item("to_agent")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "ScheduledSettlement requires 'to_agent'"
+                    ))?
+                    .extract()?;
+                let amount: i64 = event_dict
+                    .get_item("amount")?
+                    .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        "ScheduledSettlement requires 'amount'"
+                    ))?
+                    .extract()?;
+
+                ScenarioEvent::ScheduledSettlement {
+                    from_agent,
+                    to_agent,
+                    amount,
+                }
+            }
             _ => {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
                     "Invalid event type: {}",

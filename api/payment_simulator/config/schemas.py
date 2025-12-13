@@ -375,6 +375,29 @@ class DeadlineWindowChangeEvent(BaseModel):
         return self
 
 
+class ScheduledSettlementEvent(BaseModel):
+    """Creates AND immediately settles a transaction via RTGS.
+
+    Unlike DirectTransfer (bypasses RTGS) or CustomTransactionArrival (pending),
+    ScheduledSettlement creates a transaction and immediately settles it through
+    the real RTGS engine at the exact scheduled tick.
+
+    This is critical for bootstrap evaluation where incoming liquidity "beats"
+    must go through real RTGS settlement to emit RtgsImmediateSettlement events.
+
+    Key properties:
+    - Goes through real RTGS engine (emits RtgsImmediateSettlement event)
+    - Respects liquidity constraints (fails if sender lacks funds)
+    - Atomic: creates and settles in same tick
+    - No Arrival event (not a "pending" transaction)
+    """
+    type: Literal["ScheduledSettlement"] = "ScheduledSettlement"
+    from_agent: str = Field(..., description="Source agent ID")
+    to_agent: str = Field(..., description="Destination agent ID")
+    amount: int = Field(..., description="Amount to transfer (cents)", gt=0)
+    schedule: EventSchedule = Field(..., description="When event executes")
+
+
 # Union type for all scenario events
 ScenarioEvent = (
     DirectTransferEvent
@@ -384,6 +407,7 @@ ScenarioEvent = (
     | AgentArrivalRateChangeEvent
     | CounterpartyWeightChangeEvent
     | DeadlineWindowChangeEvent
+    | ScheduledSettlementEvent
 )
 
 
@@ -924,7 +948,10 @@ class SimulationConfig(BaseModel):
         # Validate scenario event references
         if self.scenario_events:
             for i, event in enumerate(self.scenario_events):
-                if isinstance(event, (DirectTransferEvent, CustomTransactionArrivalEvent)):
+                transfer_types = (
+                    DirectTransferEvent, CustomTransactionArrivalEvent, ScheduledSettlementEvent
+                )
+                if isinstance(event, transfer_types):
                     if event.from_agent not in agent_ids:
                         raise ValueError(
                             f"Scenario event {i} references unknown from_agent: {event.from_agent}"
@@ -1229,6 +1256,16 @@ class SimulationConfig(BaseModel):
                 if max_mult is not None:
                     result["max_ticks_multiplier"] = max_mult
                 return result
+            case ScheduledSettlementEvent(
+                from_agent=from_ag, to_agent=to_ag, amount=amt
+            ):
+                return {
+                    "type": "ScheduledSettlement",
+                    "from_agent": from_ag,
+                    "to_agent": to_ag,
+                    "amount": amt,
+                    **schedule_dict,
+                }
             case _:
                 raise ValueError(f"Unknown scenario event type: {type(event)}")
 
