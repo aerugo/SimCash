@@ -215,6 +215,22 @@ convergence:
 - Cost within `stability_threshold` for `stability_window` iterations
 - Improvement below `improvement_threshold`
 
+#### Convergence Behavior by Evaluation Mode
+
+**Important**: The meaning of "cost stability" differs between evaluation modes:
+
+| Mode | Behavior |
+|------|----------|
+| **Deterministic** | Same seed every iteration. Cost changes **only** when policy changes. If policy stays the same, `relative_change = 0` (always "stable"). |
+| **Bootstrap** | Sample seeds are deterministic per `sample_idx`. Same policy → same costs. Behaves identically to deterministic mode. |
+
+**Practical implication**: In both modes, convergence triggers when **policies stop being accepted** for `stability_window` consecutive iterations. This could mean:
+
+1. **Optimization complete**: LLM can't find improvements → rejections → stable costs → converged ✓
+2. **LLM stuck**: LLM generates invalid/worse policies → rejections → stable costs → converged (false positive)
+
+To distinguish these cases, monitor the `accepted_changes` field in iteration records. If all recent iterations show rejections, the convergence may be due to LLM limitations rather than true optimization completion.
+
 ### llm
 
 LLM provider configuration with inline system prompt.

@@ -594,6 +594,23 @@ stable = all(
 )
 ```
 
+### Behavioral Note: Deterministic Evaluation
+
+In both **deterministic** and **bootstrap** evaluation modes, the sample seeds are deterministic. This means:
+
+- **Same policy** → **Same cost** (no variance between iterations)
+- Cost changes **only** when a policy is accepted
+- Rejected policy proposals leave cost unchanged → `relative_change = 0` → always "stable"
+
+**Implication**: Convergence by stability effectively means "no policy changes accepted for `stability_window` iterations." This could indicate:
+
+| Outcome | Meaning |
+|---------|---------|
+| True convergence | LLM cannot find cost-reducing policies |
+| False positive | LLM generates invalid/rejected policies repeatedly |
+
+To distinguish, check `accepted_changes` in iteration records. Consecutive rejections with stable costs may indicate LLM limitations rather than optimal policy.
+
 ### Example
 
 ```python
