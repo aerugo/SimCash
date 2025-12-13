@@ -183,12 +183,110 @@ The LLM found a **better equilibrium** than the paper's analytical result becaus
 
 ---
 
+## Divergence Investigation (2025-12-13)
+
+### Question
+
+Why did the LLM find a zero-cost equilibrium when the paper predicts ~25% initial liquidity with non-zero costs?
+
+### Root Cause Analysis
+
+**IDENTIFIED: The `unsecured_cap: 50000` setting provides FREE credit!**
+
+#### Test 1: With Current Config (unsecured_cap: 50000)
+
+```
+💰 Agent Financial Stats
+BANK_A
+  Balance:            $0.00
+  Credit Limit:       $500.00    ← FREE credit line!
+  Available Liquidity: $500.00   ← Can make $500 in payments without collateral!
+```
+
+With symmetric payments of $200 each (20,000 cents):
+- Agent can use $500 credit to pay $200 → balance goes to -$200
+- Receives $200 from counterparty → balance returns to $0
+- Net cost = $0 (no collateral needed, no delay)
+
+#### Test 2: With unsecured_cap: 0 (Paper-Accurate)
+
+```
+💰 Agent Financial Stats
+BANK_A
+  Balance:            $0.00
+  Credit Limit:       None       ← No free credit
+  Available Liquidity: $0.00     ← Cannot pay without liquidity!
+```
+
+Result:
+- **0% settlement rate** - Complete gridlock!
+- **Total Cost: $400** from delay penalties
+- Payments queued as "Insufficient balance"
+
+### Key Differences from Paper
+
+| Aspect | Paper Assumption | SimCash Config | Impact |
+|--------|------------------|----------------|--------|
+| **Unsecured credit** | None (agents need collateral) | 50,000 cents ($500) | Agents can pay without posting collateral |
+| **Initial liquidity source** | Posted collateral | Free unsecured credit | No collateral cost incurred |
+| **Symmetric payment exploit** | Not exploitable without liquidity | Fully exploitable with credit | Zero-cost equilibrium possible |
+
+### Mechanism Explanation
+
+The paper's model assumes agents MUST post collateral to get liquidity:
+- Posting collateral incurs cost r_c
+- Not posting means delaying, incurring cost r_d
+- Optimal balance: ~25% posted (minimize r_c + r_d)
+
+SimCash with `unsecured_cap: 50000`:
+- Agents have FREE $500 credit line
+- Payments are only $200 → credit is sufficient
+- Symmetric payments cancel: A→B $200, B→A $200 = net zero
+- No collateral needed, no delay → zero cost
+
+### Fix Required
+
+To match paper conditions:
+```yaml
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0      # ← CRITICAL: No free credit!
+    max_collateral_capacity: 100000
+```
+
+---
+
 ## Result Summary
 
 **Experiment 3 (Three-Period Dummy Example):**
-- **Status:** CONVERGED
+- **Status:** CONVERGED (but with incorrect experimental conditions)
 - **Final Total Cost:** $0.00
 - **Final Policies:** BANK_A = 0.0, BANK_B = 0.0 initial_liquidity_fraction
 - **Iterations to Convergence:** 9 (stable from iteration 5)
 - **Comparison to Paper:** LLM found zero-cost equilibrium vs paper's ~25% liquidity prediction
+- **Root Cause:** `unsecured_cap: 50000` provided free credit that bypassed collateral requirement
+
+---
+
+## Fix Applied (2025-12-13)
+
+### Changes Made
+
+1. **exp3_joint.yaml:**
+   - Changed `unsecured_cap: 50000` → `unsecured_cap: 0` for both agents
+   - Added comments explaining the paper requirement
+
+2. **exp3.yaml:**
+   - Updated prompt to clarify NO unsecured credit available
+   - Emphasized that collateral is the ONLY source of liquidity
+   - Added warning about gridlock if no collateral posted
+
+### Expected Behavior After Fix
+
+With `unsecured_cap: 0`:
+- Agents MUST post collateral to have any liquidity
+- The LLM should learn to set `initial_liquidity_fraction` to ~20-25%
+- Zero-cost equilibrium should be impossible (collateral cost is unavoidable)
+- Results should match paper's prediction more closely
 
