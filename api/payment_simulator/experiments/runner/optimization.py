@@ -100,9 +100,7 @@ class _VerboseDebugCallback:
         """
         self._logger = logger
 
-    def on_attempt_start(
-        self, agent_id: str, attempt: int, max_attempts: int
-    ) -> None:
+    def on_attempt_start(self, agent_id: str, attempt: int, max_attempts: int) -> None:
         """Called when starting an LLM request attempt."""
         self._logger.log_debug_llm_request_start(agent_id, attempt)
 
@@ -137,7 +135,9 @@ class _VerboseDebugCallback:
         final_errors: list[str],
     ) -> None:
         """Called when all retry attempts are exhausted."""
-        self._logger.log_debug_all_retries_exhausted(agent_id, max_attempts, final_errors)
+        self._logger.log_debug_all_retries_exhausted(
+            agent_id, max_attempts, final_errors
+        )
 
 
 @dataclass(frozen=True)
@@ -453,9 +453,7 @@ class OptimizationLoop:
             # Track best
             if self._best_cost == 0 or total_cost < self._best_cost:
                 self._best_cost = total_cost
-                self._best_policies = {
-                    k: v.copy() for k, v in self._policies.items()
-                }
+                self._best_policies = {k: v.copy() for k, v in self._policies.items()}
 
             # Save iteration record to repository persistence
             self._save_iteration_record(per_agent_costs)
@@ -729,7 +727,7 @@ class OptimizationLoop:
     def _format_events_for_llm(
         self,
         events: list[dict[str, Any]],
-        max_events: int = 100,
+        max_events: int = 500,
     ) -> str:
         """Format simulation events into human-readable verbose output for LLM.
 
@@ -1215,13 +1213,15 @@ class OptimizationLoop:
             )
 
             # Track seed results for bootstrap event (state provider)
-            seed_results.append({
-                "seed": seed,
-                "cost": cost,
-                "settled": int(enriched.settlement_rate * 100),
-                "total": 100,
-                "settlement_rate": enriched.settlement_rate,
-            })
+            seed_results.append(
+                {
+                    "seed": seed,
+                    "cost": cost,
+                    "settled": int(enriched.settlement_rate * 100),
+                    "total": 100,
+                    "settlement_rate": enriched.settlement_rate,
+                }
+            )
 
         # Store enriched results for LLM context
         self._current_enriched_results = enriched_results
@@ -1230,14 +1230,18 @@ class OptimizationLoop:
         # Compute mean and std costs (as integers)
         mean_total = int(sum(total_costs) / len(total_costs))
         variance = sum((c - mean_total) ** 2 for c in total_costs) / len(total_costs)
-        std_total = int(variance ** 0.5)
+        std_total = int(variance**0.5)
         mean_per_agent = {
             agent_id: int(sum(costs) / len(costs))
             for agent_id, costs in per_agent_totals.items()
         }
 
         # Log bootstrap evaluation summary (verbose logging)
-        if self._verbose_logger and self._verbose_config.bootstrap and bootstrap_results:
+        if (
+            self._verbose_logger
+            and self._verbose_config.bootstrap
+            and bootstrap_results
+        ):
             std_cost = (
                 int(stats_module.stdev(total_costs)) if len(total_costs) > 1 else 0
             )
@@ -1382,7 +1386,9 @@ class OptimizationLoop:
                     opening_balance=self._get_agent_opening_balance(agent_id),
                     credit_limit=self._get_agent_credit_limit(agent_id),
                     cost_rates=self._cost_rates,
-                    max_collateral_capacity=self._get_agent_max_collateral_capacity(agent_id),
+                    max_collateral_capacity=self._get_agent_max_collateral_capacity(
+                        agent_id
+                    ),
                 )
                 paired_deltas = evaluator.compute_paired_deltas(
                     samples=samples,
@@ -1482,10 +1488,19 @@ class OptimizationLoop:
         collected_events: list[dict[str, Any]] | None = None
         if self._current_enriched_results:
             # Aggregate cost breakdown across all samples
-            total_delay = sum(r.cost_breakdown.delay_cost for r in self._current_enriched_results)
-            total_overdraft = sum(r.cost_breakdown.overdraft_cost for r in self._current_enriched_results)
-            total_deadline = sum(r.cost_breakdown.deadline_penalty for r in self._current_enriched_results)
-            total_eod = sum(r.cost_breakdown.eod_penalty for r in self._current_enriched_results)
+            total_delay = sum(
+                r.cost_breakdown.delay_cost for r in self._current_enriched_results
+            )
+            total_overdraft = sum(
+                r.cost_breakdown.overdraft_cost for r in self._current_enriched_results
+            )
+            total_deadline = sum(
+                r.cost_breakdown.deadline_penalty
+                for r in self._current_enriched_results
+            )
+            total_eod = sum(
+                r.cost_breakdown.eod_penalty for r in self._current_enriched_results
+            )
             num_samples = len(self._current_enriched_results)
             cost_breakdown = {
                 "delay_cost": total_delay // num_samples,
@@ -1498,15 +1513,21 @@ class OptimizationLoop:
             # This prevents LLM context from exceeding token limits
             # Events are filtered by agent in the PolicyOptimizer
             collected_events = []
-            best_result = min(self._current_enriched_results, key=lambda r: r.total_cost)
-            worst_result = max(self._current_enriched_results, key=lambda r: r.total_cost)
+            best_result = min(
+                self._current_enriched_results, key=lambda r: r.total_cost
+            )
+            worst_result = max(
+                self._current_enriched_results, key=lambda r: r.total_cost
+            )
             for result in [best_result, worst_result]:
                 for event in result.event_trace:
-                    collected_events.append({
-                        "tick": event.tick,
-                        "event_type": event.event_type,
-                        **event.details,
-                    })
+                    collected_events.append(
+                        {
+                            "tick": event.tick,
+                            "event_type": event.event_type,
+                            **event.details,
+                        }
+                    )
 
         # Build current metrics dict
         current_metrics = {
@@ -1570,7 +1591,8 @@ class OptimizationLoop:
                                 "current_cost": current_cost,
                                 "best_seed_cost": agent_context.best_seed_cost,
                                 "worst_seed_cost": agent_context.worst_seed_cost,
-                                "has_verbose_output": agent_context.best_seed_output is not None,
+                                "has_verbose_output": agent_context.best_seed_output
+                                is not None,
                             },
                         )
                     )
@@ -1636,13 +1658,15 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             )
 
             # Track delta history for progress monitoring
-            self._delta_history.append({
-                "iteration": self._current_iteration,
-                "agent_id": agent_id,
-                "deltas": deltas,
-                "delta_sum": delta_sum,
-                "accepted": should_accept,
-            })
+            self._delta_history.append(
+                {
+                    "iteration": self._current_iteration,
+                    "agent_id": agent_id,
+                    "deltas": deltas,
+                    "delta_sum": delta_sum,
+                    "accepted": should_accept,
+                }
+            )
 
             # Log bootstrap delta evaluation (verbose logging)
             if self._verbose_logger and self._verbose_config.bootstrap:
@@ -1832,10 +1856,14 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                     changes.append(f"Added '{key}': {new_val}")
                 elif new_val is None:
                     changes.append(f"Removed '{key}' (was {old_val})")
-                elif isinstance(old_val, (int, float)) and isinstance(new_val, (int, float)):
+                elif isinstance(old_val, (int, float)) and isinstance(
+                    new_val, (int, float)
+                ):
                     delta = new_val - old_val
                     arrow = "↑" if delta > 0 else "↓"
-                    changes.append(f"Changed '{key}': {old_val} → {new_val} ({arrow}{abs(delta):.2f})")
+                    changes.append(
+                        f"Changed '{key}': {old_val} → {new_val} ({arrow}{abs(delta):.2f})"
+                    )
                 else:
                     changes.append(f"Changed '{key}': {old_val} → {new_val}")
 

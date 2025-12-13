@@ -18,7 +18,7 @@ scenario: ../configs/exp1_2period.yaml
 # v2 Protocol: Use bootstrap with 50 samples even for deterministic scenarios
 # to enable confidence intervals and robustness testing
 evaluation:
-  mode: bootstrap
+  mode: deterministic
   num_samples: 50  # v2: Increased from 1 for statistical rigor
   ticks: 2  # Only 2 ticks in scenario
 

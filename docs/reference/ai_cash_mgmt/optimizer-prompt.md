@@ -133,7 +133,7 @@ class EnrichedBootstrapContextBuilder:
     def format_event_trace_for_llm(
         self,
         result: EnrichedEvaluationResult,
-        max_events: int = 50,
+        max_events: int = 500,
     ) -> str:
         """Format events for LLM consumption."""
 ```
