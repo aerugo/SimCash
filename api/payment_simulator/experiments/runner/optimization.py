@@ -34,22 +34,17 @@ from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
     AgentSimulationContext,
     EnrichedBootstrapContextBuilder,
 )
+from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+    BootstrapEvent,
+    CostBreakdown,
+    EnrichedEvaluationResult,
+)
 from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import BootstrapPolicyEvaluator
 from payment_simulator.ai_cash_mgmt.bootstrap.history_collector import (
     TransactionHistoryCollector,
 )
 from payment_simulator.ai_cash_mgmt.bootstrap.models import BootstrapSample
 from payment_simulator.ai_cash_mgmt.bootstrap.sampler import BootstrapSampler
-from payment_simulator.ai_cash_mgmt.bootstrap.sandbox_config import SandboxConfigBuilder
-from payment_simulator.experiments.runner.bootstrap_support import (
-    BootstrapLLMContext,
-    InitialSimulationResult,
-)
-from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
-    BootstrapEvent,
-    CostBreakdown,
-    EnrichedEvaluationResult,
-)
 from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
     DebugCallback,
     PolicyOptimizer,
@@ -57,8 +52,11 @@ from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
 from payment_simulator.ai_cash_mgmt.prompts.context_types import (
     SingleAgentIterationRecord,
 )
-from payment_simulator.cli.filters import EventFilter
 from payment_simulator.config import SimulationConfig
+from payment_simulator.experiments.runner.bootstrap_support import (
+    BootstrapLLMContext,
+    InitialSimulationResult,
+)
 from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
 from payment_simulator.experiments.runner.state_provider import LiveStateProvider
 from payment_simulator.experiments.runner.verbose import (
@@ -416,7 +414,7 @@ class OptimizationLoop:
             self._current_iteration += 1
 
             # Reset accepted changes for this iteration
-            self._accepted_changes = {agent_id: False for agent_id in self.optimized_agents}
+            self._accepted_changes = dict.fromkeys(self.optimized_agents, False)
 
             # Evaluate current policies
             total_cost, per_agent_costs = await self._evaluate_policies()
@@ -638,6 +636,40 @@ class OptimizationLoop:
             self._scenario_dict = yaml.safe_load(f)
 
         return self._scenario_dict
+
+    def _get_agent_opening_balance(self, agent_id: str) -> int:
+        """Get opening balance for an agent from scenario config.
+
+        Used by BootstrapPolicyEvaluator for policy evaluation.
+
+        Args:
+            agent_id: Agent ID to look up.
+
+        Returns:
+            Opening balance in integer cents (INV-1). Returns 0 if agent not found.
+        """
+        scenario = self._load_scenario_config()
+        for agent in scenario.get("agents", []):
+            if agent.get("id") == agent_id:
+                return int(agent.get("opening_balance", 0))
+        return 0
+
+    def _get_agent_credit_limit(self, agent_id: str) -> int:
+        """Get credit limit (unsecured_cap) for an agent from scenario config.
+
+        Used by BootstrapPolicyEvaluator for policy evaluation.
+
+        Args:
+            agent_id: Agent ID to look up.
+
+        Returns:
+            Credit limit in integer cents (INV-1). Returns 0 if agent not found.
+        """
+        scenario = self._load_scenario_config()
+        for agent in scenario.get("agents", []):
+            if agent.get("id") == agent_id:
+                return int(agent.get("unsecured_cap", 0))
+        return 0
 
     def _build_simulation_config(self) -> dict[str, Any]:
         """Build FFI-compatible simulation config with current policies.
@@ -968,6 +1000,28 @@ class OptimizationLoop:
                     cost_std=0,
                 )
 
+        # Build BootstrapLLMContext combining initial simulation with best/worst
+        # This provides 3 streams for LLM: initial sim (Stream 1), best (Stream 2), worst (Stream 3)
+        if self._initial_sim_result is not None:
+            for agent_id, agent_ctx in agent_contexts.items():
+                # Get initial simulation cost for this agent
+                initial_cost = self._initial_sim_result.per_agent_costs.get(agent_id, 0)
+
+                self._bootstrap_llm_contexts[agent_id] = BootstrapLLMContext(
+                    agent_id=agent_id,
+                    initial_simulation_output=self._initial_sim_result.verbose_output,
+                    initial_simulation_cost=initial_cost,
+                    best_seed=agent_ctx.best_seed,
+                    best_seed_cost=agent_ctx.best_seed_cost,
+                    best_seed_output=agent_ctx.best_seed_output,
+                    worst_seed=agent_ctx.worst_seed,
+                    worst_seed_cost=agent_ctx.worst_seed_cost,
+                    worst_seed_output=agent_ctx.worst_seed_output,
+                    mean_cost=agent_ctx.mean_cost,
+                    cost_std=agent_ctx.cost_std,
+                    num_samples=len(enriched_results),
+                )
+
         return agent_contexts
 
     async def _evaluate_policies(self) -> tuple[int, dict[str, int]]:
@@ -1207,30 +1261,29 @@ class OptimizationLoop:
             delta = old_cost - new_cost
             return [delta], delta
 
-        # Bootstrap mode: use agent-specific bootstrap seeds
-        bootstrap_seeds = self._seed_matrix.get_bootstrap_seeds(iteration_idx, agent_id)
+        # Real bootstrap mode: use pre-computed bootstrap samples
+        # This is the correct bootstrap approach - resampling from historical data
+        # Design decision: NO fallback to Monte Carlo (see phase_7b.md)
+        if self._bootstrap_samples and agent_id in self._bootstrap_samples:
+            samples = self._bootstrap_samples[agent_id]
+            if samples:
+                evaluator = BootstrapPolicyEvaluator(
+                    opening_balance=self._get_agent_opening_balance(agent_id),
+                    credit_limit=self._get_agent_credit_limit(agent_id),
+                    cost_rates=self._cost_rates,
+                )
+                paired_deltas = evaluator.compute_paired_deltas(
+                    samples=samples,
+                    policy_a=old_policy,
+                    policy_b=new_policy,
+                )
+                deltas = [d.delta for d in paired_deltas]
+                return deltas, sum(deltas)
 
-        deltas: list[int] = []
-
-        for seed in bootstrap_seeds:
-            # Evaluate old policy
-            self._policies[agent_id] = old_policy
-            _, old_costs = self._run_single_simulation(seed)
-            old_cost = old_costs.get(agent_id, 0)
-
-            # Evaluate new policy
-            self._policies[agent_id] = new_policy
-            _, new_costs = self._run_single_simulation(seed)
-            new_cost = new_costs.get(agent_id, 0)
-
-            # Delta: positive means new is cheaper (improvement)
-            deltas.append(old_cost - new_cost)
-
-        # CRITICAL: Restore old policy - caller will set new policy if accepted
-        self._policies[agent_id] = old_policy
-
-        delta_sum = sum(deltas)
-        return deltas, delta_sum
+        # No samples available - this is an error in bootstrap mode
+        # Bootstrap samples should be created by _run_initial_simulation() at start
+        msg = f"No bootstrap samples available for agent {agent_id}"
+        raise RuntimeError(msg)
 
     async def _optimize_agent(self, agent_id: str, current_cost: int) -> None:
         """Optimize policy for a single agent using PolicyOptimizer with rich context.
@@ -1284,6 +1337,31 @@ class OptimizationLoop:
 
         # Get agent context from current evaluation (includes best/worst seed)
         agent_context = self._current_agent_contexts.get(agent_id)
+
+        # Get BootstrapLLMContext for initial simulation output (Stream 1)
+        bootstrap_llm_context = self._bootstrap_llm_contexts.get(agent_id)
+
+        # Build combined output with initial simulation (Stream 1) + best seed (Stream 2)
+        # This provides the LLM with the full simulation context for optimization
+        combined_best_output: str | None = None
+        if bootstrap_llm_context and bootstrap_llm_context.initial_simulation_output:
+            initial_header = (
+                "=== INITIAL SIMULATION (Historical Data Source) ===\n"
+                f"Cost: ${bootstrap_llm_context.initial_simulation_cost / 100:.2f}\n\n"
+            )
+            initial_section = (
+                initial_header + bootstrap_llm_context.initial_simulation_output
+            )
+            if agent_context and agent_context.best_seed_output:
+                combined_best_output = (
+                    initial_section
+                    + "\n\n=== BEST BOOTSTRAP SAMPLE ===\n"
+                    + agent_context.best_seed_output
+                )
+            else:
+                combined_best_output = initial_section
+        elif agent_context and agent_context.best_seed_output:
+            combined_best_output = agent_context.best_seed_output
 
         # Build cost breakdown dict for LLM context
         cost_breakdown: dict[str, int] | None = None
@@ -1346,7 +1424,7 @@ class OptimizationLoop:
                     current_cost=float(current_cost),
                     iteration_history=self._agent_iteration_history.get(agent_id),
                     events=collected_events,  # Pass events for agent isolation filtering
-                    best_seed_output=agent_context.best_seed_output,
+                    best_seed_output=combined_best_output,  # Includes initial sim (Stream 1) + best (Stream 2)
                     worst_seed_output=agent_context.worst_seed_output,
                     best_seed=agent_context.best_seed,
                     worst_seed=agent_context.worst_seed,

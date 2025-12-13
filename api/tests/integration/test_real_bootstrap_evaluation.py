@@ -634,3 +634,237 @@ class TestOptimizationLoopBootstrapIntegration:
         """Deterministic mode (num_samples=1) should continue to work as before."""
         # This test ensures backward compatibility
         pass
+
+
+# Phase 7b TDD Tests - Agent Config Helpers and Evaluation Wiring
+class TestAgentConfigHelpers:
+    """Test helper methods for extracting agent config from scenario.
+
+    These tests verify that OptimizationLoop can extract agent configuration
+    values (opening_balance, credit_limit) needed for BootstrapPolicyEvaluator.
+    """
+
+    def test_get_agent_opening_balance_extracts_from_scenario(self) -> None:
+        """_get_agent_opening_balance should extract from scenario config."""
+        from unittest.mock import MagicMock, patch
+
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        # Create minimal mock config
+        mock_config = MagicMock()
+        mock_config.name = "test"
+        mock_config.master_seed = 42
+        mock_config.convergence.max_iterations = 1
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation.mode = "deterministic"
+        mock_config.evaluation.num_samples = 1
+        mock_config.evaluation.ticks = 10
+        mock_config.optimized_agents = ("BANK_A",)
+        mock_config.get_constraints.return_value = None
+        mock_config.llm.model = "test"
+        mock_config.prompt_customization = None
+
+        # Create loop
+        loop = OptimizationLoop(config=mock_config)
+
+        # Mock scenario config
+        scenario = {
+            "agents": [
+                {"id": "BANK_A", "opening_balance": 10000000, "unsecured_cap": 5000000},
+                {"id": "BANK_B", "opening_balance": 8000000, "unsecured_cap": 3000000},
+            ]
+        }
+
+        with patch.object(loop, "_load_scenario_config", return_value=scenario):
+            balance = loop._get_agent_opening_balance("BANK_A")
+            assert balance == 10000000
+            assert isinstance(balance, int)
+
+            balance_b = loop._get_agent_opening_balance("BANK_B")
+            assert balance_b == 8000000
+
+    def test_get_agent_opening_balance_returns_zero_for_unknown_agent(self) -> None:
+        """_get_agent_opening_balance should return 0 for unknown agent."""
+        from unittest.mock import MagicMock, patch
+
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        mock_config = MagicMock()
+        mock_config.name = "test"
+        mock_config.master_seed = 42
+        mock_config.convergence.max_iterations = 1
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation.mode = "deterministic"
+        mock_config.evaluation.num_samples = 1
+        mock_config.evaluation.ticks = 10
+        mock_config.optimized_agents = ("BANK_A",)
+        mock_config.get_constraints.return_value = None
+        mock_config.llm.model = "test"
+        mock_config.prompt_customization = None
+
+        loop = OptimizationLoop(config=mock_config)
+
+        scenario = {"agents": [{"id": "BANK_A", "opening_balance": 10000000}]}
+
+        with patch.object(loop, "_load_scenario_config", return_value=scenario):
+            balance = loop._get_agent_opening_balance("UNKNOWN_AGENT")
+            assert balance == 0
+
+    def test_get_agent_credit_limit_extracts_unsecured_cap(self) -> None:
+        """_get_agent_credit_limit should extract unsecured_cap from scenario."""
+        from unittest.mock import MagicMock, patch
+
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        mock_config = MagicMock()
+        mock_config.name = "test"
+        mock_config.master_seed = 42
+        mock_config.convergence.max_iterations = 1
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation.mode = "deterministic"
+        mock_config.evaluation.num_samples = 1
+        mock_config.evaluation.ticks = 10
+        mock_config.optimized_agents = ("BANK_A",)
+        mock_config.get_constraints.return_value = None
+        mock_config.llm.model = "test"
+        mock_config.prompt_customization = None
+
+        loop = OptimizationLoop(config=mock_config)
+
+        scenario = {
+            "agents": [
+                {"id": "BANK_A", "opening_balance": 10000000, "unsecured_cap": 5000000},
+            ]
+        }
+
+        with patch.object(loop, "_load_scenario_config", return_value=scenario):
+            credit_limit = loop._get_agent_credit_limit("BANK_A")
+            assert credit_limit == 5000000
+            assert isinstance(credit_limit, int)
+
+
+class TestEvaluatePolicyPairUsesBootstrapSamples:
+    """Test that _evaluate_policy_pair uses pre-computed bootstrap samples.
+
+    When bootstrap samples are available, _evaluate_policy_pair should use
+    BootstrapPolicyEvaluator.compute_paired_deltas() instead of running
+    new simulations.
+    """
+
+    def test_evaluate_policy_pair_returns_correct_delta_format(self) -> None:
+        """_evaluate_policy_pair should return (deltas, delta_sum) tuple."""
+        from unittest.mock import MagicMock, patch
+
+        from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import PairedDelta
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        mock_config = MagicMock()
+        mock_config.name = "test"
+        mock_config.master_seed = 42
+        mock_config.convergence.max_iterations = 1
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation.mode = "bootstrap"
+        mock_config.evaluation.num_samples = 3
+        mock_config.evaluation.ticks = 10
+        mock_config.optimized_agents = ("BANK_A",)
+        mock_config.get_constraints.return_value = None
+        mock_config.llm.model = "test"
+        mock_config.prompt_customization = None
+
+        loop = OptimizationLoop(config=mock_config)
+        loop._current_iteration = 1
+
+        # Mock bootstrap samples
+        mock_sample = MagicMock()
+        loop._bootstrap_samples = {"BANK_A": [mock_sample, mock_sample, mock_sample]}
+
+        # Mock helper methods
+        loop._get_agent_opening_balance = MagicMock(return_value=10000000)
+        loop._get_agent_credit_limit = MagicMock(return_value=5000000)
+        loop._cost_rates = {}
+
+        # Mock the evaluator's compute_paired_deltas to return known deltas
+        mock_deltas = [
+            PairedDelta(sample_idx=0, seed=100, cost_a=5000, cost_b=4000, delta=1000),
+            PairedDelta(sample_idx=1, seed=200, cost_a=6000, cost_b=5500, delta=500),
+            PairedDelta(sample_idx=2, seed=300, cost_a=4500, cost_b=5000, delta=-500),
+        ]
+
+        with patch(
+            "payment_simulator.experiments.runner.optimization.BootstrapPolicyEvaluator"
+        ) as MockEvaluator:
+            mock_evaluator_instance = MagicMock()
+            mock_evaluator_instance.compute_paired_deltas.return_value = mock_deltas
+            MockEvaluator.return_value = mock_evaluator_instance
+
+            old_policy = {"type": "Fifo"}
+            new_policy = {"type": "LiquidityAware", "target_buffer": 50000}
+
+            deltas, delta_sum = loop._evaluate_policy_pair(
+                agent_id="BANK_A",
+                old_policy=old_policy,
+                new_policy=new_policy,
+            )
+
+            # Verify format
+            assert isinstance(deltas, list)
+            assert len(deltas) == 3
+            assert delta_sum == 1000  # 1000 + 500 + (-500) = 1000
+
+            # Verify BootstrapPolicyEvaluator was used
+            MockEvaluator.assert_called_once()
+            mock_evaluator_instance.compute_paired_deltas.assert_called_once()
+
+    def test_evaluate_policy_pair_raises_without_samples(self) -> None:
+        """Without bootstrap samples, should raise RuntimeError.
+
+        Design decision: No fallback to Monte Carlo. Real bootstrap only.
+        See: docs/plans/bootstrap/phases/phase_7b.md
+        """
+        from unittest.mock import MagicMock
+
+        import pytest
+
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        mock_config = MagicMock()
+        mock_config.name = "test"
+        mock_config.master_seed = 42
+        mock_config.convergence.max_iterations = 1
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation.mode = "bootstrap"
+        mock_config.evaluation.num_samples = 3
+        mock_config.evaluation.ticks = 10
+        mock_config.optimized_agents = ("BANK_A",)
+        mock_config.get_constraints.return_value = None
+        mock_config.llm.model = "test"
+        mock_config.prompt_customization = None
+
+        loop = OptimizationLoop(config=mock_config)
+        loop._current_iteration = 1
+
+        # NO bootstrap samples - should raise error, not fall back
+        loop._bootstrap_samples = {}
+
+        old_policy = {"type": "Fifo"}
+        new_policy = {"type": "LiquidityAware"}
+
+        with pytest.raises(
+            RuntimeError,
+            match="No bootstrap samples available for agent BANK_A",
+        ):
+            loop._evaluate_policy_pair(
+                agent_id="BANK_A",
+                old_policy=old_policy,
+                new_policy=new_policy,
+            )
