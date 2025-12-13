@@ -45,7 +45,7 @@ cd api
 .venv/bin/payment-sim experiment run ../experiments/castro/experiments/exp3.yaml
 ```
 
-**Important**: These will take longer than v1 due to 50 bootstrap samples per evaluation. Monitor progress and capture all terminal output for your lab notes.
+**Important**: These will take longer than v1 due to 50 bootstrap samples per evaluation. Monitor progress and capture all terminal output for your lab notes. NEVER change the LLM model! Always use the exact model specified in the experiment config, even if it takes a long time to get responses.
 
 ### 4. Analyze Results Following Protocol
 
