@@ -839,8 +839,8 @@ class OptimizationLoop:
         ffi_config["rng_seed"] = self._config.master_seed
 
         # Extract cost rates for LLM context (only once)
-        if not self._cost_rates and "cost_config" in ffi_config:
-            self._cost_rates = ffi_config["cost_config"]
+        if not self._cost_rates and "cost_rates" in ffi_config:
+            self._cost_rates = ffi_config["cost_rates"]
 
         # Create orchestrator
         orch = Orchestrator.new(ffi_config)
@@ -986,8 +986,8 @@ class OptimizationLoop:
         ffi_config["rng_seed"] = seed
 
         # Extract cost rates for LLM context (only once)
-        if not self._cost_rates and "cost_config" in ffi_config:
-            self._cost_rates = ffi_config["cost_config"]
+        if not self._cost_rates and "cost_rates" in ffi_config:
+            self._cost_rates = ffi_config["cost_rates"]
 
         # Create orchestrator
         orch = Orchestrator.new(ffi_config)

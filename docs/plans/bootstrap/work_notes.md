@@ -264,6 +264,51 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 - mypy: Success
 - ruff: Only pre-existing warnings
 
+### 2025-12-13 - Phase 9: CRITICAL ISSUE - Sandbox Evaluation Invalid
+
+**Problem observed** (after Phase 8 fixes):
+After fixing max_collateral_capacity and cost_rates key typo, experiment 2 now shows:
+- **Baseline costs vary**: $5,065 - $5,280 across 50 samples (good - transaction-dependent)
+- **Paired deltas ALL IDENTICAL**: -$1,764 for ALL 50 samples (bad!)
+
+**Root Cause Analysis**:
+
+The deltas are identical because:
+1. Delta = 176,400 cents = exactly the collateral cost difference
+2. Policy change: 0.5 → 0.85 = +0.35 of max_collateral
+3. Collateral difference: 0.35 × 10,000,000 cents = 3,500,000 cents
+4. Cost at 42 bps/tick: 3,500,000 × 42 / 10,000 = 14,700 cents/tick
+5. Over 12 ticks: 14,700 × 12 = **176,400 cents** ✅
+
+**The sandbox removes bilateral constraints!**
+
+Current 3-agent sandbox:
+```
+SOURCE → AGENT → SINK
+```
+- SOURCE has infinite liquidity
+- SINK always accepts (infinite capacity)
+- No bilateral settlement interactions
+
+In main simulation with BANK_A ↔ BANK_B:
+- BANK_A releases payment → settles via RTGS
+- BANK_B receives liquidity from that settlement
+- BANK_B can now settle its queued payments
+- This causal chain affects timing, delays, and costs
+
+**The sandbox evaluation path is NOT equivalent to the main simulation path!**
+
+**New Plan Required**:
+Bootstrap evaluation MUST use the SAME engine as main simulation:
+1. Same orchestrator (Rust FFI)
+2. Same bilateral agent structure
+3. Same settlement mechanics
+4. Same cost calculation
+
+See: `docs/plans/bootstrap/bilateral_evaluation.md` for detailed phased plan.
+
+---
+
 ### 2025-12-13 - Phase 8 Completed: Zero Deltas Fixed
 
 **Problem observed**:
@@ -312,7 +357,9 @@ Debug script showed non-zero deltas:
 | 7c | **COMPLETE** | 2025-12-13 | 2025-12-13 | Removed Monte Carlo fallback |
 | 7d | **COMPLETE** | 2025-12-13 | 2025-12-13 | Verbose output wiring for LLM |
 | 8 | **COMPLETE** | 2025-12-13 | 2025-12-13 | Fixed: max_collateral_capacity passed to sandbox |
-| 9 | Pending | - | - | E2E Testing |
+| 8b | **COMPLETE** | 2025-12-13 | 2025-12-13 | Fixed: cost_rates key typo (cost_config → cost_rates) |
+| 9 | **CRITICAL ISSUE FOUND** | 2025-12-13 | - | Sandbox evaluation invalid - see Phase 9 below |
+| 10+ | Pending | - | - | Bilateral evaluation (new plan required) |
 
 ---
 
