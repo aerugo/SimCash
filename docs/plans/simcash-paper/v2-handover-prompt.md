@@ -51,6 +51,56 @@ See `docs/reference/ai_cash_mgmt/evaluation-methodology.md` for the full statist
 
 ---
 
+## 🟢 FIRST: Create Your Research Plan
+
+**Before running any experiments**, create a research plan document at `docs/plans/simcash-paper/v2/research-plan.md`.
+
+Your research plan should include:
+
+### Phase 1: Setup & Verification
+- [ ] Review v1 results and methodology
+- [ ] Read evaluation methodology documentation
+- [ ] Verify experiment configurations are correct
+- [ ] Run a quick sanity check (e.g., 1 iteration of exp1) to confirm system works
+
+### Phase 2: Experiment Execution
+- [ ] Run exp1 (2-period deterministic) - capture full verbose output
+- [ ] Run exp2 (12-period stochastic) - capture full verbose output
+- [ ] Run exp3 (3-period joint optimization) - capture full verbose output
+- [ ] Document any errors, anomalies, or unexpected behavior in lab notes
+
+### Phase 3: Results Analysis
+- [ ] Extract final policy values for each experiment
+- [ ] Compute confidence intervals from bootstrap samples
+- [ ] Compare to Castro et al. theoretical predictions
+- [ ] Analyze paired delta distributions
+- [ ] Identify any v1 vs v2 differences
+
+### Phase 4: Paper Writing (Section by Section)
+- [ ] **Abstract**: Update with v2 results summary
+- [ ] **Introduction**: Keep from v1, minor updates if needed
+- [ ] **Methodology**: Document real bootstrap vs v1 Monte Carlo
+- [ ] **Results**: New section with v2 findings, tables, and figures
+- [ ] **Discussion**: Interpret differences, explain statistical improvements
+- [ ] **Conclusion**: Update with v2 insights
+
+### Phase 5: Figures & Tables
+- [ ] Table: v1 vs v2 equilibrium comparison
+- [ ] Table: Final policy values with confidence intervals
+- [ ] Figure: Convergence trajectories for each experiment
+- [ ] Figure: Paired delta distributions (histogram or boxplot)
+- [ ] Table: Comparison to Castro et al. theoretical predictions
+
+### Protocol Notes
+
+Document your protocol for:
+1. **How you will run experiments** - command line, capturing output
+2. **How you will record results** - what goes in lab-notes.md vs draft-paper.md
+3. **How you will handle failures** - retry policy, debugging steps
+4. **How you will generate figures** - tools, scripts, or manual
+
+---
+
 ## Your Assignment
 
 ### 1. Review Background Materials
@@ -104,17 +154,24 @@ For each experiment:
 
 Create your work in `docs/plans/simcash-paper/v2/`:
 
-1. **`lab-notes.md`** - Detailed logs including:
+1. **`research-plan.md`** (CREATE FIRST) - Your phased approach including:
+   - Phases with checkboxes (copy from template above)
+   - Protocol decisions
+   - Any deviations from this handover prompt
+
+2. **`lab-notes.md`** - Detailed logs including:
    - Iteration-by-iteration results for each experiment
    - Bootstrap statistics (mean, std, CI) for each evaluation
    - Paired delta statistics (this is new in v2!)
    - Any anomalies observed
+   - Raw verbose output excerpts
 
-2. **`draft-paper.md`** - Updated paper with:
+3. **`draft-paper.md`** - Updated paper with:
    - Results from real bootstrap evaluation
    - Confidence intervals on all reported values
    - Comparison of v1 (Monte Carlo) vs v2 (bootstrap) if results differ
    - Updated discrepancy analysis
+   - Figures and tables (inline or referenced)
 
 ---
 
