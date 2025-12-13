@@ -70,6 +70,7 @@ class SandboxConfigBuilder:
         opening_balance: int,
         credit_limit: int,
         cost_rates: dict[str, float] | None = None,
+        max_collateral_capacity: int | None = None,
     ) -> SimulationConfig:
         """Build sandbox configuration from bootstrap sample.
 
@@ -79,6 +80,8 @@ class SandboxConfigBuilder:
             opening_balance: Opening balance for target agent (cents).
             credit_limit: Credit limit for target agent (cents).
             cost_rates: Optional cost rates override.
+            max_collateral_capacity: Max collateral capacity for target agent (cents).
+                Required for policies that use initial_liquidity_fraction parameter.
 
         Returns:
             SimulationConfig for 3-agent sandbox.
@@ -90,6 +93,7 @@ class SandboxConfigBuilder:
             policy=target_policy,
             opening_balance=opening_balance,
             credit_limit=credit_limit,
+            max_collateral_capacity=max_collateral_capacity,
         )
         sink_agent = self._build_sink_agent()
 
@@ -134,12 +138,23 @@ class SandboxConfigBuilder:
         policy: dict[str, Any],
         opening_balance: int,
         credit_limit: int,
+        max_collateral_capacity: int | None = None,
     ) -> AgentConfig:
-        """Build target agent with test policy."""
+        """Build target agent with test policy.
+
+        Args:
+            agent_id: Agent ID.
+            policy: Policy configuration dict.
+            opening_balance: Opening balance in cents.
+            credit_limit: Credit limit (unsecured_cap) in cents.
+            max_collateral_capacity: Max collateral capacity in cents.
+                Required for collateral-based liquidity policies.
+        """
         return AgentConfig(  # type: ignore[call-arg]
             id=agent_id,
             opening_balance=opening_balance,
             unsecured_cap=credit_limit,
+            max_collateral_capacity=max_collateral_capacity,
             policy=self._parse_policy(policy),
         )
 
