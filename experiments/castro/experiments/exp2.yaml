@@ -26,11 +26,11 @@ convergence:
 
 # LLM configuration
 llm:
-  model: "openai:gpt-5.2"
+  model: "openai:gpt-4o"
   temperature: 0.5
   max_retries: 3
   timeout_seconds: 900
-  reasoning_effort: "high"
+  # Note: reasoning_effort is only supported by o1 models, removed for gpt-4o compatibility
 
 # Policy constraints - simplified for Castro model
 # The Castro model has ONE key decision: initial liquidity allocation

@@ -191,3 +191,131 @@ The exp2 (12-Period Stochastic LVTS) experiment successfully replicates the key 
 
 The simplified configuration with focused prompt_customization proved effective at guiding the LLM toward discovering the optimal policy structure without revealing the answer.
 
+---
+
+## Session: 2025-12-13 (unsecured_cap Alignment Fix)
+
+### Issue Identified
+
+During exp3 investigation (see exp3_work_notes.md on branch `claude/review-project-setup-01CYU6P6xVk9gpgdhpxNongA`), it was discovered that `unsecured_cap` was providing **FREE credit** that bypassed the Castro paper's core mechanism:
+
+**Castro Paper Model:**
+- Agents MUST post collateral to obtain liquidity
+- Collateral has opportunity cost r_c
+- The tradeoff: post collateral (pay r_c) vs delay payments (pay r_d)
+- This drives the optimal initial_liquidity_fraction decision
+
+**Previous SimCash exp2 Config:**
+- `unsecured_cap: 100000` ($1,000 free credit per agent)
+- Agents could make payments WITHOUT posting collateral
+- The core collateral-vs-delay tradeoff was bypassed
+- This likely led to artificially low initial_liquidity_fraction values
+
+### Root Cause Analysis
+
+From exp3_work_notes.md:
+> "The `unsecured_cap: 50000` setting provides FREE credit!"
+> "With symmetric payments, incoming payments from counterparty can fund outgoing payments."
+> "Net cost = $0 (no collateral needed, no delay)"
+
+With `unsecured_cap: 100000` in exp2, agents had access to:
+- $1,000 free credit line per agent
+- Could make payments using credit, not collateral
+- The initial_liquidity_fraction optimization was partly bypassed
+
+### Configuration Fix Applied
+
+Changed exp2_12period.yaml:
+```yaml
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0      # Was: 100000 - NOW FIXED
+    max_collateral_capacity: 10000000
+    ...
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 0      # Was: 100000 - NOW FIXED
+    max_collateral_capacity: 10000000
+    ...
+```
+
+**Expected Impact:**
+- Agents must now POST COLLATERAL to have any liquidity
+- The LLM should learn to set initial_liquidity_fraction > 0 (can't be zero)
+- Results should more closely match Castro paper predictions
+- Cost structure will change: collateral cost becomes unavoidable
+
+### Running Corrected Experiment
+
+**Baseline Results (with unsecured_cap: 0):**
+
+```
+Bootstrap Baseline (10 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃      Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $5,123.23 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $5,150.80 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $5,081.54 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $5,100.70 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $5,109.28 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $5,146.07 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $5,280.65 │ 100/100 │ 100.0% │      │
+│ 0x25d594fa │ $5,073.30 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $5,073.36 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $5,101.81 │ 100/100 │ 100.0% │      │
+└────────────┴───────────┴─────────┴────────┴──────┘
+Mean: $5,124.07 (std: $61.40)
+```
+
+**Key Observations:**
+
+1. **Simulation runs correctly with unsecured_cap: 0**
+   - Default policy (0.5 initial_liquidity_fraction) achieves 100% settlement
+   - Mean cost: $5,124.07 ($51.24 per transaction)
+
+2. **Baseline cost breakdown:**
+   - With 50% collateral posted, agents have sufficient liquidity
+   - Collateral cost dominates (posting more than needed)
+   - This is the starting point for LLM optimization
+
+3. **Compared to previous run (unsecured_cap: 100000):**
+   - Previous baseline also showed ~$5,124 cost
+   - BUT the cost was similar because default policy already posts 50% collateral
+   - The difference emerges during optimization:
+     - With unsecured_cap > 0: LLM could reduce to ~0% initial liquidity
+     - With unsecured_cap = 0: LLM CANNOT reduce below minimum needed for settlement
+
+**LLM API Issues (environment-specific, not config problems):**
+- OpenAI gpt-5.2: TLS certificate errors (503)
+- OpenAI gpt-4o: Doesn't support `reasoning_effort` parameter (fixed), max_tokens too high (35000 > 16384 limit)
+- Anthropic: No API key configured
+
+**Configuration Changes Made:**
+1. ✅ exp2_12period.yaml: `unsecured_cap: 0` for both agents
+2. ✅ exp2.yaml: Changed model to gpt-4o, removed reasoning_effort
+
+**Infrastructure Issues (not addressed - beyond scope):**
+- max_tokens parameter hardcoded in experiment runner (35000) exceeds gpt-4o limit (16384)
+- Would require changes to `payment_simulator/experiments/runner/` code
+
+---
+
+## Summary of unsecured_cap Fix
+
+**Problem:** The previous exp2 configuration had `unsecured_cap: 100000` which provided free credit, allowing agents to bypass the Castro paper's core collateral mechanism.
+
+**Solution:** Changed `unsecured_cap: 0` for both agents.
+
+**Expected Behavior Change:**
+- With free credit (old): LLM could reduce initial_liquidity_fraction to near-zero
+- Without free credit (fixed): LLM must maintain sufficient collateral for settlement
+- This aligns with Castro paper model where collateral is the ONLY source of liquidity
+
+**Validation:**
+- ✅ Baseline simulations run successfully with 100% settlement
+- ✅ Collateral posting now required for any payments
+- ⏳ Full LLM optimization pending (API configuration needed)
+

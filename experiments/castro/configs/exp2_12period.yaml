@@ -40,7 +40,9 @@ lsm_config:
 agents:
   - id: BANK_A
     opening_balance: 0
-    unsecured_cap: 100000
+    # Castro paper: NO unsecured credit - agents MUST post collateral for liquidity
+    # Setting to 0 forces the collateral posting decision to be the primary source of liquidity
+    unsecured_cap: 0
     max_collateral_capacity: 10000000
     # Stochastic arrivals
     arrival_config:
@@ -55,7 +57,8 @@ agents:
 
   - id: BANK_B
     opening_balance: 0
-    unsecured_cap: 100000
+    # Castro paper: NO unsecured credit - agents MUST post collateral for liquidity
+    unsecured_cap: 0
     max_collateral_capacity: 10000000
     arrival_config:
       rate_per_tick: 2.0
