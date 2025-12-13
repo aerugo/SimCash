@@ -167,11 +167,17 @@ evaluation:
 ```
 
 **Process**:
-1. Generate N bootstrap samples from transaction history
-2. Evaluate OLD policy on all N samples
-3. Evaluate NEW policy on SAME N samples
-4. Compute paired delta for each sample
-5. Accept if mean(delta) > 0
+1. **Initial simulation**: Run one simulation to collect transaction history
+2. **Sample generation**: Bootstrap resample N transaction sets from history
+3. **Sandbox evaluation**: Each sample runs on isolated 3-agent sandbox (AGENT, SOURCE, SINK)
+4. **Paired comparison**: Evaluate BOTH old and new policies on SAME N samples
+5. **Decision**: Accept new policy if `mean(cost_old - cost_new) > 0`
+
+**Key Features**:
+- **True bootstrap**: Resamples from observed transactions (not parametric Monte Carlo)
+- **Isolated evaluation**: 3-agent sandbox removes inter-agent confounding
+- **Paired deltas**: Same samples ensure statistical validity
+- **LLM context**: Includes initial simulation output + best/worst sample traces
 
 #### Deterministic Mode
 
@@ -416,4 +422,4 @@ payment-sim experiment validate experiments/exp1.yaml
 
 ---
 
-*Last updated: 2025-12-11*
+*Last updated: 2025-12-13*
