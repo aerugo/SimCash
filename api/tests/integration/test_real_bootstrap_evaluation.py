@@ -748,6 +748,49 @@ class TestAgentConfigHelpers:
             assert credit_limit == 5000000
             assert isinstance(credit_limit, int)
 
+    def test_get_agent_max_collateral_capacity_extracts_from_scenario(self) -> None:
+        """_get_agent_max_collateral_capacity should extract from scenario."""
+        from unittest.mock import MagicMock, patch
+
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        mock_config = MagicMock()
+        mock_config.name = "test"
+        mock_config.master_seed = 42
+        mock_config.convergence.max_iterations = 1
+        mock_config.convergence.stability_threshold = 0.05
+        mock_config.convergence.stability_window = 3
+        mock_config.convergence.improvement_threshold = 0.01
+        mock_config.evaluation.mode = "deterministic"
+        mock_config.evaluation.num_samples = 1
+        mock_config.evaluation.ticks = 10
+        mock_config.optimized_agents = ("BANK_A",)
+        mock_config.get_constraints.return_value = None
+        mock_config.llm.model = "test"
+        mock_config.prompt_customization = None
+
+        loop = OptimizationLoop(config=mock_config)
+
+        scenario = {
+            "agents": [
+                {
+                    "id": "BANK_A",
+                    "opening_balance": 0,
+                    "unsecured_cap": 0,
+                    "max_collateral_capacity": 10000000,
+                },
+            ]
+        }
+
+        with patch.object(loop, "_load_scenario_config", return_value=scenario):
+            capacity = loop._get_agent_max_collateral_capacity("BANK_A")
+            assert capacity == 10000000
+            assert isinstance(capacity, int)
+
+            # Unknown agent should return None
+            capacity_unknown = loop._get_agent_max_collateral_capacity("UNKNOWN")
+            assert capacity_unknown is None
+
 
 class TestEvaluatePolicyPairUsesBootstrapSamples:
     """Test that _evaluate_policy_pair uses pre-computed bootstrap samples.

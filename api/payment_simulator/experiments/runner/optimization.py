@@ -671,6 +671,27 @@ class OptimizationLoop:
                 return int(agent.get("unsecured_cap", 0))
         return 0
 
+    def _get_agent_max_collateral_capacity(self, agent_id: str) -> int | None:
+        """Get max collateral capacity for an agent from scenario config.
+
+        Used by BootstrapPolicyEvaluator for policy evaluation.
+        Required for policies that use initial_liquidity_fraction parameter.
+
+        Args:
+            agent_id: Agent ID to look up.
+
+        Returns:
+            Max collateral capacity in integer cents (INV-1).
+            Returns None if not set in scenario config.
+        """
+        scenario = self._load_scenario_config()
+        for agent in scenario.get("agents", []):
+            if agent.get("id") == agent_id:
+                capacity = agent.get("max_collateral_capacity")
+                if capacity is not None:
+                    return int(capacity)
+        return None
+
     def _build_simulation_config(self) -> dict[str, Any]:
         """Build FFI-compatible simulation config with current policies.
 
@@ -1361,6 +1382,7 @@ class OptimizationLoop:
                     opening_balance=self._get_agent_opening_balance(agent_id),
                     credit_limit=self._get_agent_credit_limit(agent_id),
                     cost_rates=self._cost_rates,
+                    max_collateral_capacity=self._get_agent_max_collateral_capacity(agent_id),
                 )
                 paired_deltas = evaluator.compute_paired_deltas(
                     samples=samples,
