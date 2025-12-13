@@ -218,6 +218,134 @@ This reduces variance from stochastic payment arrivals by comparing policies on 
 3. **Prompt Sensitivity**: Results may vary with prompt engineering
 4. **Local Optima**: Greedy acceptance may miss global optima
 
+### 6.4 Detailed Analysis of Result Discrepancies
+
+While SimCash successfully identifies qualitatively correct equilibria, the quantitative gaps warrant careful analysis. We examine each experiment's discrepancy and propose methodology improvements that preserve the integrity of LLM-based discovery (i.e., without revealing target values).
+
+#### 6.4.1 Experiment 1: BANK_B at 25% vs. Theoretical 20%
+
+**Observed Gap**: 5 percentage points absolute, 25% relative error.
+
+**Potential Causes**:
+
+1. **Premature Convergence**: BANK_B accepted 25% in iteration 1 and never explored lower values. The greedy acceptance criterion locks in "good enough" solutions without verifying they are optimal.
+
+2. **Coarse Exploration**: The LLM proposed a single large jump (50% → 25%) rather than incremental refinement. Without intermediate evaluations, the search cannot distinguish between 25% and nearby values like 20% or 22%.
+
+3. **Cost Function Granularity**: Small differences in liquidity fraction may produce cost differences below the noise floor of evaluation, making the LLM unable to detect improvements.
+
+**Evidence from Logs**: After iteration 1, BANK_B repeatedly proposed ~20-22% but these were rejected because they increased cost relative to 25%. This suggests that either:
+- The cost function in SimCash differs subtly from Castro et al.'s model
+- The evaluation is insufficiently sensitive to detect small improvements
+- 25% is actually a local optimum in SimCash's cost landscape
+
+#### 6.4.2 Experiment 2: Aggressive Low Values (1-4%)
+
+**Observed Gap**: SimCash converged to much lower values than Castro's reported 10-30% bands.
+
+**Potential Causes**:
+
+1. **Different Settlement Mechanisms**: SimCash includes LSM (Liquidity Saving Mechanism) which may allow agents to settle with less upfront liquidity than Castro's pure RTGS model.
+
+2. **Stochastic Scenario Sensitivity**: With only 10 bootstrap samples, variance in cost estimates may cause the optimizer to accept aggressive proposals that happen to perform well on the sampled seeds.
+
+3. **100% Settlement Maintenance**: SimCash maintains 100% settlement even at 1-4% liquidity, suggesting the system dynamics differ from Castro's setup where lower liquidity should cause delays.
+
+**Evidence from Logs**: The bootstrap deltas show consistent improvements across all samples when reducing liquidity, indicating this is not just noise. The system genuinely achieves lower costs at very low liquidity levels.
+
+#### 6.4.3 Experiment 3: Both Agents at ~21% vs. Theoretical ~25%
+
+**Observed Gap**: 4 percentage points absolute, 16% relative error.
+
+**Potential Causes**:
+
+1. **Sequential Agent Updates**: Agents update one at a time, not simultaneously. BANK_B first moved to 25%, then BANK_A found 21% was better *given* B's position, then B refined to 20.5% *given* A's position. This sequential best-response may converge to a different equilibrium than simultaneous updates.
+
+2. **Coordination Dynamics**: In the paper's symmetric scenario, both agents should converge to the same value. SimCash's sequential updates create asymmetry in the convergence path.
+
+3. **Cost Function Differences**: The ~4 percentage point gap is consistent across both agents, suggesting a systematic difference in how SimCash calculates costs versus Castro's model.
+
+#### 6.4.4 Proposed Methodology Improvements
+
+We propose the following enhancements to improve convergence accuracy, none of which require knowledge of optimal values:
+
+**1. Multi-Start Optimization**
+
+Run the optimization from multiple initial conditions (e.g., 10%, 30%, 50%, 70%, 90%) and compare final policies. If different starts converge to different solutions, the search space may have multiple local optima.
+
+```yaml
+optimization:
+  multi_start:
+    enabled: true
+    initial_values: [0.1, 0.3, 0.5, 0.7, 0.9]
+    select_best: true
+```
+
+**2. Adaptive Step Sizes**
+
+Instead of accepting whatever the LLM proposes, constrain step sizes based on convergence phase:
+- **Exploration phase** (iterations 1-5): Allow large jumps (±50% of current value)
+- **Refinement phase** (iterations 6+): Limit to small adjustments (±10% of current value)
+
+This prevents premature lock-in while enabling fine-tuning.
+
+**3. Forced Exploration Around Accepted Values**
+
+After accepting a policy, automatically evaluate nearby alternatives:
+- If accepted value is X, also evaluate X±0.05, X±0.10
+- Only move to X if it outperforms all neighbors
+
+This hillclimbing enhancement catches cases where the LLM's proposal is close but not optimal.
+
+**4. Simultaneous Agent Updates**
+
+Instead of sequential updates (A then B), evaluate all agents' proposals simultaneously:
+- Collect proposals from all agents
+- Evaluate the joint policy change
+- Accept if total system cost improves
+
+This better approximates simultaneous best-response dynamics.
+
+**5. Increased Bootstrap Samples for Stochastic Scenarios**
+
+For Exp2, 10 samples may be insufficient to reliably estimate cost differences. Recommendations:
+- Minimum 30 samples for paired comparison
+- Use statistical significance testing (paired t-test, p < 0.05)
+- Report confidence intervals on final policy values
+
+**6. Cost Function Sensitivity Analysis**
+
+Run parameter sweeps to characterize the cost landscape:
+- For each agent, evaluate costs at liquidity fractions 0%, 5%, 10%, ..., 100%
+- Plot the cost curve without showing it to the LLM
+- Use this to verify the LLM is finding true optima, not artifacts
+
+**7. Temperature Scheduling for LLM Proposals**
+
+Use higher temperature early (more diverse proposals) and lower temperature late (more conservative refinement):
+- Iterations 1-5: temperature = 0.8
+- Iterations 6-10: temperature = 0.5
+- Iterations 11+: temperature = 0.3
+
+**8. Ensemble Proposals**
+
+Request multiple proposals per iteration and evaluate all of them:
+- Ask LLM for 3 different policy suggestions with rationales
+- Evaluate each independently
+- Accept the best-performing proposal
+
+This reduces dependence on any single LLM response.
+
+#### 6.4.5 Summary of Gaps and Recommended Actions
+
+| Experiment | Gap | Primary Cause Hypothesis | Recommended Fix |
+|------------|-----|--------------------------|-----------------|
+| Exp1 | +5pp | Premature convergence | Forced exploration, multi-start |
+| Exp2 | Uncertain | LSM mechanism differences | Verify settlement model alignment |
+| Exp3 | -4pp | Sequential updates | Simultaneous agent updates |
+
+These improvements maintain the core principle of LLM-based discovery—the optimizer receives only cost feedback, never target values—while addressing the systematic gaps observed in our experiments.
+
 ---
 
 ## 7. Conclusion
