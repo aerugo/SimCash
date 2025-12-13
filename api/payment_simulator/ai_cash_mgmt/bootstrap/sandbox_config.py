@@ -27,7 +27,6 @@ from payment_simulator.config.schemas import (
     AgentConfig,
     CostRates,
     CustomTransactionArrivalEvent,
-    DirectTransferEvent,
     FifoPolicy,
     InlineJsonPolicy,
     LiquidityAwarePolicy,
@@ -35,6 +34,7 @@ from payment_simulator.config.schemas import (
     OneTimeSchedule,
     PolicyConfig,
     ScenarioEvent,
+    ScheduledSettlementEvent,
     SimulationConfig,
     SimulationSettings,
 )
@@ -70,6 +70,7 @@ class SandboxConfigBuilder:
         opening_balance: int,
         credit_limit: int,
         cost_rates: dict[str, float] | None = None,
+        max_collateral_capacity: int | None = None,
     ) -> SimulationConfig:
         """Build sandbox configuration from bootstrap sample.
 
@@ -79,6 +80,8 @@ class SandboxConfigBuilder:
             opening_balance: Opening balance for target agent (cents).
             credit_limit: Credit limit for target agent (cents).
             cost_rates: Optional cost rates override.
+            max_collateral_capacity: Max collateral capacity for target agent (cents).
+                Required for policies that use initial_liquidity_fraction parameter.
 
         Returns:
             SimulationConfig for 3-agent sandbox.
@@ -90,6 +93,7 @@ class SandboxConfigBuilder:
             policy=target_policy,
             opening_balance=opening_balance,
             credit_limit=credit_limit,
+            max_collateral_capacity=max_collateral_capacity,
         )
         sink_agent = self._build_sink_agent()
 
@@ -134,12 +138,23 @@ class SandboxConfigBuilder:
         policy: dict[str, Any],
         opening_balance: int,
         credit_limit: int,
+        max_collateral_capacity: int | None = None,
     ) -> AgentConfig:
-        """Build target agent with test policy."""
+        """Build target agent with test policy.
+
+        Args:
+            agent_id: Agent ID.
+            policy: Policy configuration dict.
+            opening_balance: Opening balance in cents.
+            credit_limit: Credit limit (unsecured_cap) in cents.
+            max_collateral_capacity: Max collateral capacity in cents.
+                Required for collateral-based liquidity policies.
+        """
         return AgentConfig(  # type: ignore[call-arg]
             id=agent_id,
             opening_balance=opening_balance,
             unsecured_cap=credit_limit,
+            max_collateral_capacity=max_collateral_capacity,
             policy=self._parse_policy(policy),
         )
 
@@ -198,25 +213,30 @@ class SandboxConfigBuilder:
 
     def _build_scenario_events(
         self, sample: BootstrapSample
-    ) -> list[CustomTransactionArrivalEvent | DirectTransferEvent]:
+    ) -> list[CustomTransactionArrivalEvent | ScheduledSettlementEvent]:
         """Build scenario events from bootstrap sample.
 
         Converts:
         - Outgoing transactions → CustomTransactionArrival (TARGET → SINK)
-        - Incoming settlements → DirectTransfer (SOURCE → TARGET)
+        - Incoming settlements → ScheduledSettlement (SOURCE → TARGET)
+
+        Note: Incoming settlements use ScheduledSettlement (not DirectTransfer)
+        so they go through the real RTGS engine and emit RtgsImmediateSettlement
+        events. This is critical for bootstrap correctness.
         """
-        events: list[CustomTransactionArrivalEvent | DirectTransferEvent] = []
+        events: list[CustomTransactionArrivalEvent | ScheduledSettlementEvent] = []
 
         # Outgoing transactions become CustomTransactionArrival events
         for tx in sample.outgoing_txns:
             outgoing_event = self._outgoing_to_event(tx, sample.agent_id)
             events.append(outgoing_event)
 
-        # Incoming settlements become DirectTransfer events (liquidity beats)
+        # Incoming settlements become ScheduledSettlement events (liquidity beats)
+        # Uses real RTGS engine, not DirectTransfer which bypasses it
         for tx in sample.incoming_settlements:
             if tx.settlement_tick is not None:
-                transfer_event = self._incoming_to_transfer(tx, sample.agent_id)
-                events.append(transfer_event)
+                settlement_event = self._incoming_to_scheduled_settlement(tx, sample.agent_id)
+                events.append(settlement_event)
 
         return events
 
@@ -236,14 +256,19 @@ class SandboxConfigBuilder:
             schedule=OneTimeSchedule(tick=tx.arrival_tick),
         )
 
-    def _incoming_to_transfer(
+    def _incoming_to_scheduled_settlement(
         self, tx: RemappedTransaction, agent_id: str
-    ) -> DirectTransferEvent:
-        """Convert incoming settlement to direct transfer (liquidity beat)."""
+    ) -> ScheduledSettlementEvent:
+        """Convert incoming settlement to ScheduledSettlement (liquidity beat).
+
+        Uses ScheduledSettlement instead of DirectTransfer so the settlement
+        goes through the real RTGS engine and emits RtgsImmediateSettlement
+        event. This is critical for bootstrap evaluation correctness.
+        """
         # Schedule at settlement_tick (when liquidity arrives)
         tick = tx.settlement_tick if tx.settlement_tick is not None else 0
 
-        return DirectTransferEvent(
+        return ScheduledSettlementEvent(
             from_agent="SOURCE",
             to_agent=agent_id,
             amount=tx.amount,

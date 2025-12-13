@@ -106,6 +106,29 @@ pub enum ScenarioEvent {
         min_ticks_multiplier: Option<f64>,
         max_ticks_multiplier: Option<f64>,
     },
+
+    /// Scheduled settlement: creates AND immediately settles a transaction
+    ///
+    /// Unlike DirectTransfer (bypasses RTGS) or CustomTransactionArrival (pending),
+    /// ScheduledSettlement creates a transaction and immediately settles it through
+    /// the real RTGS engine at the exact scheduled tick.
+    ///
+    /// This is critical for bootstrap evaluation where incoming liquidity "beats"
+    /// must go through real RTGS settlement, not bypass it.
+    ///
+    /// # Key Properties
+    /// - Goes through real RTGS engine (emits RtgsImmediateSettlement event)
+    /// - Respects liquidity constraints (fails if sender lacks funds)
+    /// - Atomic: creates and settles in same tick
+    /// - No Arrival event (not a "pending" transaction)
+    ///
+    /// # Example
+    /// Bootstrap sandbox liquidity beat from SOURCE → AGENT at tick 5
+    ScheduledSettlement {
+        from_agent: String,
+        to_agent: String,
+        amount: i64, // Integer cents (INV-1)
+    },
 }
 
 /// When to execute a scenario event

@@ -18,6 +18,7 @@ The AI Cash Management module enables autonomous optimization of bank payment po
 | [optimization](optimization.md) | PolicyOptimizer, PolicyEvaluator, ConstraintValidator, ConvergenceDetector |
 | [**optimizer-prompt**](optimizer-prompt.md) | **Sophisticated LLM prompt architecture (50k+ tokens)** |
 | [sampling](sampling.md) | TransactionSampler, SeedManager, bootstrap sampling methods |
+| [**evaluation-methodology**](evaluation-methodology.md) | **Statistical justification and tradeoffs for policy evaluation** |
 | [constraints](constraints.md) | ScenarioConstraints, ParameterSpec |
 | [persistence](persistence.md) | GameRepository, GameSessionRecord, PolicyIterationRecord |
 
@@ -295,4 +296,4 @@ payment-sim experiment run experiments/exp1.yaml
 
 ---
 
-*Last updated: 2025-12-11*
+*Last updated: 2025-12-13*
