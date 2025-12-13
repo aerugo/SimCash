@@ -474,15 +474,21 @@ class VerboseLogger:
         # Check if we have delta information
         has_deltas = any(r.delta_percent is not None for r in seed_results)
 
-        # Bootstrap mode: full statistics
+        # Header varies by mode: "Bootstrap" only for multi-sample evaluation
         if is_baseline_run:
-            self._console.print(
-                f"\n[bold]Bootstrap Baseline ({num_samples} samples):[/bold]"
-            )
+            if num_samples == 1:
+                self._console.print("\n[bold]Baseline Evaluation:[/bold]")
+            else:
+                self._console.print(
+                    f"\n[bold]Bootstrap Baseline ({num_samples} samples):[/bold]"
+                )
         else:
-            self._console.print(
-                f"\n[bold]Bootstrap Evaluation ({num_samples} samples):[/bold]"
-            )
+            if num_samples == 1:
+                self._console.print("\n[bold]Policy Evaluation:[/bold]")
+            else:
+                self._console.print(
+                    f"\n[bold]Bootstrap Evaluation ({num_samples} samples):[/bold]"
+                )
 
         # Find best and worst samples based on delta (improvement percentage)
         best_result: BootstrapSampleResult | None = None
@@ -583,9 +589,15 @@ class VerboseLogger:
         num_samples = result.num_samples
         agent_id = result.agent_id
 
-        self._console.print(
-            f"\n[bold]Bootstrap Paired Evaluation ({num_samples} samples) - {agent_id}:[/bold]"
-        )
+        # Header varies by mode: "Bootstrap" only for multi-sample evaluation
+        if num_samples == 1:
+            self._console.print(
+                f"\n[bold]Paired Policy Evaluation - {agent_id}:[/bold]"
+            )
+        else:
+            self._console.print(
+                f"\n[bold]Bootstrap Paired Evaluation ({num_samples} samples) - {agent_id}:[/bold]"
+            )
 
         # Show per-sample deltas in a compact table
         table = Table(show_header=True, header_style="bold")
