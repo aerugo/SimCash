@@ -136,10 +136,49 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 - [ ] Update `_should_accept_policy()` for paired comparison
 - [ ] Wire `BootstrapLLMContext` into LLM context building
 
-**Remaining Work**:
-- `_evaluate_policies()` needs to use `BootstrapPolicyEvaluator` for bootstrap mode
-- `_should_accept_policy()` needs to use `compute_paired_deltas()` on same samples
-- LLM context needs to include initial simulation output (Stream 1)
+**Remaining Work** (detailed):
+
+1. **Add helper methods for agent config extraction**:
+   ```python
+   def _get_agent_opening_balance(self, agent_id: str) -> int:
+       """Get opening balance for an agent from scenario config."""
+       scenario = self._load_scenario_config()
+       for agent in scenario.get("agents", []):
+           if agent.get("id") == agent_id:
+               return int(agent.get("opening_balance", 0))
+       return 0
+
+   def _get_agent_credit_limit(self, agent_id: str) -> int:
+       """Get credit limit for an agent from scenario config."""
+       scenario = self._load_scenario_config()
+       for agent in scenario.get("agents", []):
+           if agent.get("id") == agent_id:
+               return int(agent.get("unsecured_cap", 0))
+       return 0
+   ```
+
+2. **Update `_evaluate_policy_pair()` for real bootstrap**:
+   ```python
+   # In bootstrap mode with _bootstrap_samples available:
+   if self._bootstrap_samples and agent_id in self._bootstrap_samples:
+       samples = self._bootstrap_samples[agent_id]
+       evaluator = BootstrapPolicyEvaluator(
+           opening_balance=self._get_agent_opening_balance(agent_id),
+           credit_limit=self._get_agent_credit_limit(agent_id),
+           cost_rates=self._cost_rates,
+       )
+       paired_deltas = evaluator.compute_paired_deltas(samples, old_policy, new_policy)
+       deltas = [d.delta for d in paired_deltas]
+       return deltas, sum(deltas)
+   ```
+
+3. **Update `_evaluate_policies()` for real bootstrap**:
+   - Use `BootstrapPolicyEvaluator.evaluate_samples()` instead of running new simulations
+   - Build `EnrichedEvaluationResult` from evaluation results
+
+4. **Wire `BootstrapLLMContext` into LLM context**:
+   - Add initial simulation output to context
+   - Ensure 3 streams are available for LLM optimization
 
 ---
 
