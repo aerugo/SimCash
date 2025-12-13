@@ -32,44 +32,28 @@ llm:
   timeout_seconds: 900
   reasoning_effort: "high"
 
-# Policy constraints
+# Policy constraints - simplified for Castro model
+# The Castro model has ONE key decision: initial liquidity allocation
 policy_constraints:
   allowed_parameters:
     - name: initial_liquidity_fraction
       param_type: float
       min_value: 0.0
       max_value: 1.0
-      description: "Fraction of collateral to post at t=0"
-    - name: urgency_threshold
-      param_type: int
-      min_value: 0
-      max_value: 20
-      description: "Ticks before deadline to release payment"
-    - name: liquidity_buffer
-      param_type: float
-      min_value: 0.5
-      max_value: 3.0
-      description: "Multiplier for required liquidity"
+      description: "Fraction of available collateral to post at the start of day (t=0)"
 
   allowed_fields:
-    # Time context
+    # Time context - needed for initial collateral decision
     - system_tick_in_day
-    - ticks_remaining_in_day
-    - current_tick
-    # Agent liquidity state
+    # Collateral capacity - needed to compute initial allocation
+    - remaining_collateral_capacity
+    - max_collateral_capacity
+    # Liquidity state - for understanding when payments can settle
     - balance
     - effective_liquidity
-    # Transaction context
-    - ticks_to_deadline
-    - remaining_amount
+    # Transaction context - for payment decisions
     - amount
-    - priority
-    # Queue state
-    - queue1_total_value
-    - outgoing_queue_size
-    # Collateral
-    - max_collateral_capacity
-    - posted_collateral
+    - remaining_amount
 
   allowed_actions:
     payment_tree:
@@ -80,6 +64,26 @@ policy_constraints:
     collateral_tree:
       - PostCollateral
       - HoldCollateral
+
+# Experiment customization - guides LLM without giving away answer
+prompt_customization:
+  all: |
+    ## Experiment Focus: Initial Liquidity Allocation
+
+    This scenario tests a fundamental tradeoff in payment systems:
+    - Posting collateral provides liquidity to settle payments
+    - But collateral has an opportunity cost
+
+    The KEY DECISION in this scenario is: What fraction of available collateral
+    should be posted at the START of the day (tick 0)?
+
+    The payment policy should be kept SIMPLE:
+    - If you have liquidity, release payments
+    - The complexity is in choosing the RIGHT initial liquidity level
+
+    IMPORTANT: Focus your optimization on the `initial_liquidity_fraction` parameter.
+    The payment_tree should remain a simple Release action - the real optimization
+    is in how much collateral to commit upfront.
 
 # Agents to optimize
 optimized_agents:
