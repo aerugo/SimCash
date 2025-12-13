@@ -19,6 +19,16 @@ The experiment runner module provides:
 
 The primary runner for YAML-only experiments. No experiment-specific Python code required.
 
+### Bootstrap Evaluation (Default)
+
+In bootstrap mode, the runner:
+1. **Runs an initial simulation** once to collect transaction history
+2. **Generates bootstrap samples** by resampling from observed transactions
+3. **Evaluates policies** on isolated 3-agent sandboxes (AGENT, SOURCE, SINK)
+4. **Computes paired deltas** by evaluating both old and new policies on the SAME samples
+
+This provides statistically valid policy comparison without confounding from other agents.
+
 ### Import
 
 ```python
@@ -459,4 +469,4 @@ payment-sim experiment run experiments/exp1.yaml --dry-run
 
 ---
 
-*Last updated: 2025-12-11*
+*Last updated: 2025-12-13*
