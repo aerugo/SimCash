@@ -34,6 +34,17 @@ from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
     AgentSimulationContext,
     EnrichedBootstrapContextBuilder,
 )
+from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import BootstrapPolicyEvaluator
+from payment_simulator.ai_cash_mgmt.bootstrap.history_collector import (
+    TransactionHistoryCollector,
+)
+from payment_simulator.ai_cash_mgmt.bootstrap.models import BootstrapSample
+from payment_simulator.ai_cash_mgmt.bootstrap.sampler import BootstrapSampler
+from payment_simulator.ai_cash_mgmt.bootstrap.sandbox_config import SandboxConfigBuilder
+from payment_simulator.experiments.runner.bootstrap_support import (
+    BootstrapLLMContext,
+    InitialSimulationResult,
+)
 from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
     BootstrapEvent,
     CostBreakdown,
@@ -305,6 +316,13 @@ class OptimizationLoop:
         # Positive delta sum = new policy is cheaper = improvement
         self._delta_history: list[dict[str, Any]] = []
 
+        # Bootstrap evaluation state (for real bootstrap mode)
+        # These are initialized once by _run_initial_simulation()
+        self._initial_sim_result: InitialSimulationResult | None = None
+        self._bootstrap_samples: dict[str, list[BootstrapSample]] = {}
+        self._bootstrap_sampler: BootstrapSampler | None = None
+        self._bootstrap_llm_contexts: dict[str, BootstrapLLMContext] = {}
+
     @property
     def max_iterations(self) -> int:
         """Get max iterations from config."""
@@ -368,6 +386,27 @@ class OptimizationLoop:
         for agent_id in self.optimized_agents:
             if agent_id not in self._policies:
                 self._policies[agent_id] = self._create_default_policy(agent_id)
+
+        # For real bootstrap mode: run initial simulation ONCE to collect history
+        # This provides the empirical distribution from which bootstrap samples are drawn
+        if self._config.evaluation.mode == "bootstrap":
+            self._initial_sim_result = self._run_initial_simulation()
+            self._create_bootstrap_samples()
+
+            # Record initial simulation event
+            self._state_provider.record_event(
+                iteration=0,
+                event_type="initial_simulation_complete",
+                event_data={
+                    "total_cost": self._initial_sim_result.total_cost,
+                    "per_agent_costs": self._initial_sim_result.per_agent_costs,
+                    "num_events": len(self._initial_sim_result.events),
+                    "num_samples_per_agent": {
+                        agent_id: len(samples)
+                        for agent_id, samples in self._bootstrap_samples.items()
+                    },
+                },
+            )
 
         # Track per_agent_costs for final result
         per_agent_costs: dict[str, int] = {}
@@ -633,6 +672,115 @@ class OptimizationLoop:
         # Convert to FFI format
         sim_config = SimulationConfig.from_dict(scenario_dict)
         return sim_config.to_ffi_dict()
+
+    def _run_initial_simulation(self) -> InitialSimulationResult:
+        """Run ONE initial simulation to collect historical transactions.
+
+        This method runs ONCE at the start of optimization (not every iteration)
+        for bootstrap mode. It:
+        1. Runs a full simulation with stochastic arrivals
+        2. Collects ALL events that occurred
+        3. Builds transaction history for each agent using TransactionHistoryCollector
+        4. Returns data needed for bootstrap resampling
+
+        Returns:
+            InitialSimulationResult with events, history, and costs.
+
+        Note:
+            This is different from _run_single_simulation() which is used for
+            Monte Carlo sampling. The initial simulation provides the empirical
+            distribution from which bootstrap samples are drawn.
+        """
+        # Build config with initial (default) policies
+        ffi_config = self._build_simulation_config()
+        ffi_config["rng_seed"] = self._config.master_seed
+
+        # Extract cost rates for LLM context (only once)
+        if not self._cost_rates and "cost_config" in ffi_config:
+            self._cost_rates = ffi_config["cost_config"]
+
+        # Create orchestrator
+        orch = Orchestrator.new(ffi_config)
+
+        # Run simulation and collect ALL events
+        total_ticks = self._config.evaluation.ticks
+        all_events: list[dict[str, Any]] = []
+
+        for tick in range(total_ticks):
+            orch.tick()
+            try:
+                tick_events = orch.get_tick_events(tick)
+                all_events.extend(tick_events)
+            except Exception:
+                # If event capture fails, continue without events for this tick
+                pass
+
+        # Collect transaction history using TransactionHistoryCollector
+        collector = TransactionHistoryCollector()
+        collector.process_events(all_events)
+
+        # Get history per agent
+        agent_histories = {
+            agent_id: collector.get_agent_history(agent_id)
+            for agent_id in self.optimized_agents
+        }
+
+        # Extract costs (integer cents - INV-1)
+        total_cost = 0
+        per_agent_costs: dict[str, int] = {}
+        for agent_id in self.optimized_agents:
+            try:
+                agent_costs = orch.get_agent_accumulated_costs(agent_id)
+                cost = int(agent_costs.get("total_cost", 0))
+                per_agent_costs[agent_id] = cost
+                total_cost += cost
+            except Exception:
+                per_agent_costs[agent_id] = 0
+
+        # Build verbose output for LLM context (Stream 1)
+        # TODO: Format events into human-readable verbose output
+        verbose_output = None
+
+        return InitialSimulationResult(
+            events=tuple(all_events),
+            agent_histories=agent_histories,
+            total_cost=total_cost,
+            per_agent_costs=per_agent_costs,
+            verbose_output=verbose_output,
+        )
+
+    def _create_bootstrap_samples(self) -> None:
+        """Create bootstrap samples from initial simulation history.
+
+        This is called once after _run_initial_simulation() completes.
+        It uses the BootstrapSampler to create resampled transaction schedules
+        for each agent.
+        """
+        if self._initial_sim_result is None:
+            msg = "Cannot create bootstrap samples without initial simulation result"
+            raise RuntimeError(msg)
+
+        # Create sampler with deterministic seed
+        self._bootstrap_sampler = BootstrapSampler(seed=self._config.master_seed)
+
+        num_samples = self._config.evaluation.num_samples or 1
+        total_ticks = self._config.evaluation.ticks
+
+        for agent_id in self.optimized_agents:
+            history = self._initial_sim_result.agent_histories.get(agent_id)
+            if history is None:
+                self._bootstrap_samples[agent_id] = []
+                continue
+
+            # Generate bootstrap samples for this agent
+            samples = self._bootstrap_sampler.generate_samples(
+                agent_id=agent_id,
+                n_samples=num_samples,
+                outgoing_records=history.outgoing,
+                incoming_records=history.incoming,
+                total_ticks=total_ticks,
+            )
+            self._bootstrap_samples[agent_id] = list(samples)
 
     def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
         """Run a single simulation with the given seed.

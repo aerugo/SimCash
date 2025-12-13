@@ -109,8 +109,37 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 
 **Next Steps**:
 1. Build Rust FFI module (`uv sync --extra dev` in api/)
-2. Implement Phase 7 changes to OptimizationLoop
+2. ~~Implement Phase 7 changes to OptimizationLoop~~ In Progress
 3. Run tests to verify implementation
+
+### 2025-12-13 - Phase 7 Implementation Started
+
+**What was done**:
+1. Created `experiments/runner/bootstrap_support.py` with:
+   - `InitialSimulationResult` dataclass - captures initial simulation data
+   - `BootstrapLLMContext` dataclass - holds 3 event streams for LLM
+
+2. Updated `experiments/runner/optimization.py`:
+   - Added imports for bootstrap infrastructure
+   - Added bootstrap state variables (`_initial_sim_result`, `_bootstrap_samples`, etc.)
+   - Added `_run_initial_simulation()` method - runs ONCE to collect history
+   - Added `_create_bootstrap_samples()` method - creates samples from history
+   - Updated `run()` to call initial simulation once for bootstrap mode
+
+**Implementation Status**:
+- [x] `InitialSimulationResult` dataclass
+- [x] `BootstrapLLMContext` dataclass
+- [x] `_run_initial_simulation()` method
+- [x] `_create_bootstrap_samples()` method
+- [x] Initial simulation call in `run()` for bootstrap mode
+- [ ] Update `_evaluate_policies()` for bootstrap mode
+- [ ] Update `_should_accept_policy()` for paired comparison
+- [ ] Wire `BootstrapLLMContext` into LLM context building
+
+**Remaining Work**:
+- `_evaluate_policies()` needs to use `BootstrapPolicyEvaluator` for bootstrap mode
+- `_should_accept_policy()` needs to use `compute_paired_deltas()` on same samples
+- LLM context needs to include initial simulation output (Stream 1)
 
 ---
 
@@ -124,7 +153,7 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 | 4 | **ALREADY DONE** | - | Pre-existing | `sandbox_config.py` - SandboxConfigBuilder |
 | 5 | **ALREADY DONE** | - | Pre-existing | `evaluator.py` - BootstrapPolicyEvaluator |
 | 6 | **PARTIAL** | - | - | `context_builder.py` exists, needs 3 streams |
-| 7 | **IN PROGRESS** | 2025-12-13 | - | Plan complete in `phases/phase_7.md`, starting TDD implementation |
+| 7 | **IN PROGRESS** | 2025-12-13 | - | ~50% complete: initial sim done, evaluation wiring remaining |
 | 8 | Pending | - | - | E2E Testing |
 
 ---
