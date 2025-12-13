@@ -8,7 +8,7 @@
 
 ## Abstract
 
-We present SimCash, an open-source payment system simulator that uses Large Language Models (LLMs) to discover optimal liquidity management policies. SimCash combines a high-performance Rust simulation engine with Python orchestration and LLM-driven policy search. We demonstrate SimCash's capabilities by replicating three experiments from Castro et al. (2025) on reinforcement learning for payment system policy estimation. Our results show that LLM-based optimization can successfully discover Nash equilibria in liquidity allocation games, achieving policies within 5% of theoretical predictions while providing interpretable explanations for policy decisions.
+We present SimCash, an open-source payment system simulator that uses Large Language Models (LLMs) to discover optimal liquidity management policies. SimCash combines a high-performance Rust simulation engine with Python orchestration and LLM-driven policy search. We demonstrate SimCash's capabilities by replicating three experiments from Castro et al. (2025) on reinforcement learning for payment system policy estimation. Our results show that LLM-based optimization can successfully discover Nash equilibria in liquidity allocation games, achieving policies within 5 percentage points of theoretical predictions while providing interpretable explanations for policy decisions.
 
 ---
 
@@ -224,7 +224,7 @@ This reduces variance from stochastic payment arrivals by comparing policies on 
 
 SimCash demonstrates that Large Language Models can effectively discover Nash equilibria in payment system liquidity games. Our replication of Castro et al. (2025) shows:
 
-1. **Accuracy**: Final policies within 5% of theoretical predictions
+1. **Accuracy**: Final policies within 5 percentage points of theoretical predictions (e.g., 25% vs 20% for Exp1 BANK_B, 21% vs 25% for Exp3)
 2. **Efficiency**: Convergence in 7-12 iterations vs. thousands of RL episodes
 3. **Interpretability**: Natural language explanations for policy decisions
 
