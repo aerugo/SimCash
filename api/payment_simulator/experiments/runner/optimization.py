@@ -705,6 +705,96 @@ class OptimizationLoop:
         sim_config = SimulationConfig.from_dict(scenario_dict)
         return sim_config.to_ffi_dict()
 
+    def _format_events_for_llm(
+        self,
+        events: list[dict[str, Any]],
+        max_events: int = 100,
+    ) -> str:
+        """Format simulation events into human-readable verbose output for LLM.
+
+        Creates a compact but informative text representation of simulation events
+        suitable for LLM context. Prioritizes informative events (policy decisions,
+        cost accruals, settlements) over routine events.
+
+        Args:
+            events: List of event dicts from simulation.
+            max_events: Maximum events to include (prevents context bloat).
+
+        Returns:
+            Formatted string with one event per line.
+        """
+        if not events:
+            return "(No events captured)"
+
+        # Priority map for event informativeness (higher = more important)
+        priority_map = {
+            "PolicyDecision": 100,
+            "DelayCostAccrual": 80,
+            "OverdraftCostAccrual": 80,
+            "DeadlinePenalty": 90,
+            "EndOfDayPenalty": 90,
+            "RtgsImmediateSettlement": 50,
+            "Queue2LiquidityRelease": 50,
+            "LsmBilateralOffset": 50,
+            "LsmCycleSettlement": 50,
+            "TransactionArrival": 30,
+            "Arrival": 30,
+        }
+
+        def get_priority(event: dict[str, Any]) -> int:
+            return priority_map.get(event.get("event_type", ""), 10)
+
+        # Sort by priority, take top N, then sort chronologically
+        sorted_events = sorted(events, key=get_priority, reverse=True)[:max_events]
+        sorted_events = sorted(sorted_events, key=lambda e: e.get("tick", 0))
+
+        # Format each event
+        lines = []
+        for event in sorted_events:
+            tick = event.get("tick", "?")
+            event_type = event.get("event_type", "Unknown")
+            details = self._format_event_details_for_llm(event)
+            lines.append(f"[tick {tick}] {event_type}: {details}")
+
+        return "\n".join(lines)
+
+    def _format_event_details_for_llm(self, event: dict[str, Any]) -> str:
+        """Format event details into a compact string for LLM.
+
+        Args:
+            event: Event dict to format.
+
+        Returns:
+            Compact string representation of key event details.
+        """
+        # Key fields to show (most informative for LLM)
+        key_fields = [
+            "tx_id",
+            "action",
+            "amount",
+            "cost",
+            "agent_id",
+            "sender_id",
+            "receiver_id",
+        ]
+        parts = []
+
+        for key in key_fields:
+            if key in event:
+                value = event[key]
+                # Format amounts/costs as currency (integer cents -> dollars)
+                if key in ("amount", "cost") and isinstance(value, int):
+                    parts.append(f"{key}=${value / 100:.2f}")
+                else:
+                    parts.append(f"{key}={value}")
+
+        # If no key fields found, show first few available fields
+        if not parts:
+            other_keys = [k for k in event if k not in ("tick", "event_type")][:3]
+            parts = [f"{k}={event[k]}" for k in other_keys]
+
+        return ", ".join(parts) if parts else "(no details)"
+
     def _run_initial_simulation(self) -> InitialSimulationResult:
         """Run ONE initial simulation to collect historical transactions.
 
@@ -770,8 +860,8 @@ class OptimizationLoop:
                 per_agent_costs[agent_id] = 0
 
         # Build verbose output for LLM context (Stream 1)
-        # TODO: Format events into human-readable verbose output
-        verbose_output = None
+        # Format events into human-readable output for LLM consumption
+        verbose_output = self._format_events_for_llm(all_events)
 
         return InitialSimulationResult(
             events=tuple(all_events),

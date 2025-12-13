@@ -240,6 +240,30 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 - No fallback branches
 - Clear error if samples missing
 
+### 2025-12-13 - Verbose Output Wiring Completed
+
+**What was done**:
+1. **Added `_format_events_for_llm()` helper method**:
+   - Formats simulation events into human-readable verbose output for LLM consumption
+   - Priority-based event selection (policy decisions, costs, settlements first)
+   - Limits to 100 most important events to avoid overwhelming context
+   - Chronological ordering within selected events
+
+2. **Added `_format_event_details_for_llm()` helper method**:
+   - Formats individual event details into compact strings
+   - Extracts key fields: tx_id, action, amount, cost, agent_id, sender_id, receiver_id
+   - Formats money as dollars (INV-1: converts integer cents to display)
+
+3. **Updated `_run_initial_simulation()`**:
+   - Now uses `_format_events_for_llm()` to generate verbose output
+   - Verbose output stored in `InitialSimulationResult.verbose_output`
+   - Provides Stream 1 for LLM context (initial simulation trace)
+
+**Test Results**:
+- 18 tests passed, 4 skipped (FFI integration tests)
+- mypy: Success
+- ruff: Only pre-existing warnings
+
 ---
 
 ## Phase Progress
@@ -255,6 +279,7 @@ def _run_single_simulation(self, seed: int) -> tuple[int, dict[str, int]]:
 | 7 | **COMPLETE** | 2025-12-13 | 2025-12-13 | Initial sim + bootstrap samples in OptimizationLoop |
 | 7b | **COMPLETE** | 2025-12-13 | 2025-12-13 | Helper methods + evaluation wiring |
 | 7c | **COMPLETE** | 2025-12-13 | 2025-12-13 | Removed Monte Carlo fallback |
+| 7d | **COMPLETE** | 2025-12-13 | 2025-12-13 | Verbose output wiring for LLM |
 | 8 | Pending | - | - | E2E Testing |
 
 ---
@@ -362,4 +387,4 @@ When resuming work:
 
 ---
 
-*Last updated: 2025-12-13*
+*Last updated: 2025-12-13 (Phase 7d complete - verbose output wiring)*
