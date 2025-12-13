@@ -243,15 +243,21 @@ While SimCash successfully identifies qualitatively correct equilibria, the quan
 
 **Observed Gap**: SimCash converged to much lower values than Castro's reported 10-30% bands.
 
+**Note**: LSM is disabled in all Castro experiment configurations (`enable_bilateral: false`, `enable_cycles: false`), so this is not a settlement mechanism difference.
+
 **Potential Causes**:
 
-1. **Different Settlement Mechanisms**: SimCash includes LSM (Liquidity Saving Mechanism) which may allow agents to settle with less upfront liquidity than Castro's pure RTGS model.
+1. **Cost Function Calibration**: The relative magnitudes of r_c (collateral cost), r_d (delay cost), and r_b (borrowing cost) may differ between SimCash and Castro's model, changing the optimal liquidity-delay tradeoff.
 
-2. **Stochastic Scenario Sensitivity**: With only 10 bootstrap samples, variance in cost estimates may cause the optimizer to accept aggressive proposals that happen to perform well on the sampled seeds.
+2. **Queue Release Dynamics**: SimCash's queue management may release payments more efficiently than Castro's model, allowing settlements with less upfront liquidity.
 
-3. **100% Settlement Maintenance**: SimCash maintains 100% settlement even at 1-4% liquidity, suggesting the system dynamics differ from Castro's setup where lower liquidity should cause delays.
+3. **Stochastic Scenario Sensitivity**: With only 10 bootstrap samples, variance in cost estimates may cause the optimizer to accept aggressive proposals that happen to perform well on the sampled seeds.
+
+4. **100% Settlement Maintenance**: SimCash maintains 100% settlement even at 1-4% liquidity, suggesting the queue/timing dynamics differ from Castro's setup where lower liquidity should cause delays.
 
 **Evidence from Logs**: The bootstrap deltas show consistent improvements across all samples when reducing liquidity, indicating this is not just noise. The system genuinely achieves lower costs at very low liquidity levels.
+
+**Recommended Investigation**: Run a parameter sweep of liquidity fractions (0%, 5%, 10%, ..., 50%) and compare the cost curves between SimCash and Castro's reported results to identify where the models diverge.
 
 #### 6.4.3 Experiment 3: Both Agents at ~21% vs. Theoretical ~25%
 
@@ -341,7 +347,7 @@ This reduces dependence on any single LLM response.
 | Experiment | Gap | Primary Cause Hypothesis | Recommended Fix |
 |------------|-----|--------------------------|-----------------|
 | Exp1 | +5pp | Premature convergence | Forced exploration, multi-start |
-| Exp2 | Uncertain | LSM mechanism differences | Verify settlement model alignment |
+| Exp2 | Uncertain | Cost function or queue dynamics | Parameter sweep comparison |
 | Exp3 | -4pp | Sequential updates | Simultaneous agent updates |
 
 These improvements maintain the core principle of LLM-based discovery—the optimizer receives only cost feedback, never target values—while addressing the systematic gaps observed in our experiments.
