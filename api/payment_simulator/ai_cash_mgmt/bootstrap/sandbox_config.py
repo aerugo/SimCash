@@ -27,7 +27,6 @@ from payment_simulator.config.schemas import (
     AgentConfig,
     CostRates,
     CustomTransactionArrivalEvent,
-    DirectTransferEvent,
     FifoPolicy,
     InlineJsonPolicy,
     LiquidityAwarePolicy,
@@ -35,6 +34,7 @@ from payment_simulator.config.schemas import (
     OneTimeSchedule,
     PolicyConfig,
     ScenarioEvent,
+    ScheduledSettlementEvent,
     SimulationConfig,
     SimulationSettings,
 )
@@ -213,25 +213,30 @@ class SandboxConfigBuilder:
 
     def _build_scenario_events(
         self, sample: BootstrapSample
-    ) -> list[CustomTransactionArrivalEvent | DirectTransferEvent]:
+    ) -> list[CustomTransactionArrivalEvent | ScheduledSettlementEvent]:
         """Build scenario events from bootstrap sample.
 
         Converts:
         - Outgoing transactions → CustomTransactionArrival (TARGET → SINK)
-        - Incoming settlements → DirectTransfer (SOURCE → TARGET)
+        - Incoming settlements → ScheduledSettlement (SOURCE → TARGET)
+
+        Note: Incoming settlements use ScheduledSettlement (not DirectTransfer)
+        so they go through the real RTGS engine and emit RtgsImmediateSettlement
+        events. This is critical for bootstrap correctness.
         """
-        events: list[CustomTransactionArrivalEvent | DirectTransferEvent] = []
+        events: list[CustomTransactionArrivalEvent | ScheduledSettlementEvent] = []
 
         # Outgoing transactions become CustomTransactionArrival events
         for tx in sample.outgoing_txns:
             outgoing_event = self._outgoing_to_event(tx, sample.agent_id)
             events.append(outgoing_event)
 
-        # Incoming settlements become DirectTransfer events (liquidity beats)
+        # Incoming settlements become ScheduledSettlement events (liquidity beats)
+        # Uses real RTGS engine, not DirectTransfer which bypasses it
         for tx in sample.incoming_settlements:
             if tx.settlement_tick is not None:
-                transfer_event = self._incoming_to_transfer(tx, sample.agent_id)
-                events.append(transfer_event)
+                settlement_event = self._incoming_to_scheduled_settlement(tx, sample.agent_id)
+                events.append(settlement_event)
 
         return events
 
@@ -251,14 +256,19 @@ class SandboxConfigBuilder:
             schedule=OneTimeSchedule(tick=tx.arrival_tick),
         )
 
-    def _incoming_to_transfer(
+    def _incoming_to_scheduled_settlement(
         self, tx: RemappedTransaction, agent_id: str
-    ) -> DirectTransferEvent:
-        """Convert incoming settlement to direct transfer (liquidity beat)."""
+    ) -> ScheduledSettlementEvent:
+        """Convert incoming settlement to ScheduledSettlement (liquidity beat).
+
+        Uses ScheduledSettlement instead of DirectTransfer so the settlement
+        goes through the real RTGS engine and emits RtgsImmediateSettlement
+        event. This is critical for bootstrap evaluation correctness.
+        """
         # Schedule at settlement_tick (when liquidity arrives)
         tick = tx.settlement_tick if tx.settlement_tick is not None else 0
 
-        return DirectTransferEvent(
+        return ScheduledSettlementEvent(
             from_agent="SOURCE",
             to_agent=agent_id,
             amount=tx.amount,

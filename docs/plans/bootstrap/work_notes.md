@@ -359,7 +359,8 @@ Debug script showed non-zero deltas:
 | 8 | **COMPLETE** | 2025-12-13 | 2025-12-13 | Fixed: max_collateral_capacity passed to sandbox |
 | 8b | **COMPLETE** | 2025-12-13 | 2025-12-13 | Fixed: cost_rates key typo (cost_config → cost_rates) |
 | 9 | **CRITICAL ISSUE FOUND** | 2025-12-13 | - | Sandbox evaluation invalid - see Phase 9 below |
-| 10+ | Pending | - | - | Bilateral evaluation (new plan required) |
+| 10 | **COMPLETE** | 2025-12-13 | 2025-12-13 | ScheduledSettlementEvent for RTGS correctness |
+| 11+ | Pending | - | - | Bilateral evaluation (if needed) |
 
 ---
 
@@ -466,4 +467,76 @@ When resuming work:
 
 ---
 
-*Last updated: 2025-12-13 (Phase 8 complete - zero deltas fixed)*
+### 2025-12-13 - Phase 10: ScheduledSettlementEvent Implemented
+
+**Goal**: Implement `ScheduledSettlementEvent` for bootstrap correctness per `scheduled_settlement_event.md` plan.
+
+**What was done (TDD approach)**:
+
+1. **RED Phase - TDD Tests Written**:
+   - Created `simulator/tests/test_scheduled_settlement_event.rs` (Rust unit tests)
+   - Created `api/tests/integration/test_scheduled_settlement_event.py` (Python integration tests)
+   - 14 total tests covering:
+     - Parsing/serialization
+     - Settlement at exact tick
+     - RtgsImmediateSettlement event emission (proves RTGS engine used)
+     - No Arrival event (atomic create+settle)
+     - Liquidity constraints (respects balance + credit)
+     - Comparison vs DirectTransfer (events emitted differ)
+     - Repeating schedule support
+     - Determinism (INV-2)
+     - Error handling (invalid agent, missing amount)
+
+2. **GREEN Phase - Implementation**:
+   - **`simulator/src/events/types.rs`**: Added `ScheduledSettlement` variant to `ScenarioEvent` enum
+   - **`simulator/src/events/handler.rs`**: Added stub delegating to orchestrator level
+   - **`simulator/src/ffi/types.rs`**: Added FFI parsing for `"ScheduledSettlement"` event type
+   - **`simulator/src/orchestrator/engine.rs`**: Added execution logic:
+     - Validates agents exist
+     - Checks sender can pay (liquidity)
+     - Debits sender, credits receiver
+     - Emits `RtgsImmediateSettlement` event (proves RTGS engine used)
+     - Emits `ScenarioEventExecuted` for replay identity
+     - Gracefully handles insufficient liquidity (logs, doesn't error)
+
+3. **Python Schema & Sandbox Config Update**:
+   - **`api/payment_simulator/config/schemas.py`**: Added `ScheduledSettlementEvent` Pydantic model
+   - **`api/payment_simulator/ai_cash_mgmt/bootstrap/sandbox_config.py`**:
+     - Changed `_incoming_to_transfer()` → `_incoming_to_scheduled_settlement()`
+     - Now uses `ScheduledSettlementEvent` instead of `DirectTransferEvent` for incoming liquidity beats
+     - This ensures liquidity beats go through real RTGS engine
+
+**Key Difference from DirectTransfer**:
+- `DirectTransfer`: Bypasses RTGS, just adjusts balances, no `RtgsImmediateSettlement` event
+- `ScheduledSettlement`: Goes through RTGS engine, emits `RtgsImmediateSettlement` event
+
+**Test Results**:
+- 11 Python integration tests: ✅ All pass
+- 3 Rust unit tests: ✅ All pass
+- mypy: ✅ No issues
+- ruff: Only pre-existing warnings
+
+**Files Modified**:
+- `simulator/src/events/types.rs` - Added ScheduledSettlement variant
+- `simulator/src/events/handler.rs` - Added stub
+- `simulator/src/ffi/types.rs` - Added FFI parsing
+- `simulator/src/orchestrator/engine.rs` - Added execution logic
+- `api/payment_simulator/config/schemas.py` - Added Pydantic model
+- `api/payment_simulator/ai_cash_mgmt/bootstrap/sandbox_config.py` - Updated for RTGS correctness
+
+**Files Created**:
+- `simulator/tests/test_scheduled_settlement_event.rs` - Rust TDD tests
+- `api/tests/integration/test_scheduled_settlement_event.py` - Python TDD tests
+
+**Impact**:
+Bootstrap sandbox evaluation now uses real RTGS engine for incoming liquidity beats.
+This is a correctness fix - settlements now emit proper events and respect liquidity constraints.
+
+**Next Steps**:
+- Verify experiment 2 still runs with new sandbox config
+- Note: Bilateral feedback issue (Phase 9) remains - deltas may still be uniform
+  due to abundant liquidity in exp2 scenario, but now they're computed correctly
+
+---
+
+*Last updated: 2025-12-13 (Phase 10 complete - ScheduledSettlementEvent implemented)*

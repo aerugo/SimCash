@@ -74,6 +74,11 @@ impl ScenarioEvent {
                 Err("CustomTransactionArrival must be handled at Orchestrator level".to_string())
             }
 
+            // ScheduledSettlement is handled at Orchestrator level (needs RTGS engine)
+            ScenarioEvent::ScheduledSettlement { .. } => {
+                Err("ScheduledSettlement must be handled at Orchestrator level".to_string())
+            }
+
             // TODO: Implement these at Orchestrator level
             ScenarioEvent::GlobalArrivalRateChange { .. } => {
                 Err("GlobalArrivalRateChange not yet implemented".to_string())
