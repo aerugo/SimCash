@@ -40,7 +40,9 @@ lsm_config:
 agents:
   - id: BANK_A
     opening_balance: 0
-    unsecured_cap: 100000
+    # CRITICAL: No unsecured credit - matches paper assumption that
+    # liquidity ONLY comes from posted collateral (incurring r_c cost)
+    unsecured_cap: 0
     max_collateral_capacity: 10000000
     # Stochastic arrivals
     arrival_config:
@@ -55,7 +57,8 @@ agents:
 
   - id: BANK_B
     opening_balance: 0
-    unsecured_cap: 100000
+    # CRITICAL: No unsecured credit
+    unsecured_cap: 0
     max_collateral_capacity: 10000000
     arrival_config:
       rate_per_tick: 2.0
