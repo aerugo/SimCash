@@ -1,9 +1,13 @@
-# Experiment 3: Joint Liquidity & Timing Optimization
+# Experiment 3: Three-Period Dummy Example (Joint Liquidity & Timing)
 #
-# Optimizes both initial collateral decision AND payment timing jointly.
-# Tests interaction between liquidity and timing decisions.
+# Replicates Castro et al. (2025) Section 7.2:
+# - P^A = P^B = [0.2, 0.2, 0] - symmetric payment demands
+# - Joint learning of initial liquidity AND payment timing
+# - Tests interaction between liquidity and timing decisions
 #
-# From Castro et al. (2025) Section 4.3
+# Expected outcome with r_c < r_d:
+# - ~25% initial liquidity
+# - ~10% payment delay (90% paid on time)
 
 simulation:
   ticks_per_day: 3
@@ -16,16 +20,16 @@ deadline_cap_at_eod: true
 
 cost_rates:
   # Castro paper requires: r_c < r_d < r_b
-  # r_c = collateral cost, r_d = delay cost, r_b = EOD borrowing cost
+  # This is "Scenario 1: Liquidity cheaper than delay" (Figure 8)
   #
-  # Collateral cost: ~167 bps per tick (500 bps/day ÷ 3 ticks)
-  # For 15000 cents: 15000 * 0.0167 = 250 cents/tick
-  collateral_cost_per_tick_bps: 167
-  # Delay cost: 0.05 per tick per cent (must exceed collateral cost)
-  # For 15000 cents: 15000 * 0.05 = 750 cents/tick (> 250, satisfies r_d > r_c)
-  delay_cost_per_tick_per_cent: 0.05
-  # Overdraft penalty
-  overdraft_bps_per_tick: 667
+  # Collateral cost: ~3.33% per tick (10% total for 3 ticks)
+  # r_c = 0.1 total over episode
+  collateral_cost_per_tick_bps: 333
+  # Delay cost: 20% per tick per delayed cent (r_d = 0.2)
+  # r_d > r_c, so delaying is more expensive than posting collateral
+  delay_cost_per_tick_per_cent: 0.2
+  # Overdraft penalty: high to discourage negative balances
+  overdraft_bps_per_tick: 2000
   # EOD penalty: must be > delay cost (r_b > r_d)
   eod_penalty_per_transaction: 100000
   # Deadline penalty: penalty when transaction becomes overdue
@@ -40,29 +44,67 @@ lsm_config:
 agents:
   - id: BANK_A
     opening_balance: 0
-    unsecured_cap: 75000
-    max_collateral_capacity: 10000000
-    # Stochastic arrivals
-    arrival_config:
-      rate_per_tick: 1.5
-      amount_distribution:
-        type: LogNormal
-        mean: 15000
-        std_dev: 7500
-      counterparty_weights:
-        BANK_B: 1.0
-      deadline_range: [1, 3]  # [min_ticks, max_ticks]
+    # CRITICAL: No unsecured credit - matches paper assumption that
+    # liquidity ONLY comes from posted collateral (incurring r_c cost)
+    unsecured_cap: 0
+    # B = 100,000 collateral capacity
+    # Payments are 0.2 * B = 20,000 each period
+    max_collateral_capacity: 100000
 
   - id: BANK_B
     opening_balance: 0
-    unsecured_cap: 75000
-    max_collateral_capacity: 10000000
-    arrival_config:
-      rate_per_tick: 1.5
-      amount_distribution:
-        type: LogNormal
-        mean: 15000
-        std_dev: 7500
-      counterparty_weights:
-        BANK_A: 1.0
-      deadline_range: [1, 3]
+    # CRITICAL: No unsecured credit
+    unsecured_cap: 0
+    max_collateral_capacity: 100000
+
+# Deterministic transaction schedule matching P^A = P^B = [0.2, 0.2, 0]
+# Each payment is 0.2 * 100,000 = 20,000 cents
+scenario_events:
+  # Period 1 (tick 0): Symmetric payments of 0.2B each
+  # Bank A -> Bank B: 20000 at tick 0
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 20000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # Bank B -> Bank A: 20000 at tick 0
+  - type: CustomTransactionArrival
+    from_agent: BANK_B
+    to_agent: BANK_A
+    amount: 20000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 0
+
+  # Period 2 (tick 1): Another 0.2B each
+  # Bank A -> Bank B: 20000 at tick 1
+  - type: CustomTransactionArrival
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 20000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 1
+
+  # Bank B -> Bank A: 20000 at tick 1
+  - type: CustomTransactionArrival
+    from_agent: BANK_B
+    to_agent: BANK_A
+    amount: 20000
+    priority: 5
+    deadline: 2
+    schedule:
+      type: OneTime
+      tick: 1
+
+  # Period 3 (tick 2): No new payments (P_3 = 0)
+  # Nothing to add
