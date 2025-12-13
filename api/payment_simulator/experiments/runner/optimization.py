@@ -1156,10 +1156,13 @@ class OptimizationLoop:
                 "eod_penalty": total_eod // num_samples,
             }
 
-            # Extract events from all enriched results
-            # These will be filtered by agent in the PolicyOptimizer
+            # Extract events from ONLY best and worst samples (not all 50)
+            # This prevents LLM context from exceeding token limits
+            # Events are filtered by agent in the PolicyOptimizer
             collected_events = []
-            for result in self._current_enriched_results:
+            best_result = min(self._current_enriched_results, key=lambda r: r.total_cost)
+            worst_result = max(self._current_enriched_results, key=lambda r: r.total_cost)
+            for result in [best_result, worst_result]:
                 for event in result.event_trace:
                     collected_events.append({
                         "tick": event.tick,

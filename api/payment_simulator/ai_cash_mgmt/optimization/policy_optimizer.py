@@ -343,20 +343,17 @@ class PolicyOptimizer:
                 agent_id=agent_id,
             )
 
-            # Add full current policy and filtered events using UserPromptBuilder
+            # Add full current policy using UserPromptBuilder
             # This ensures the LLM sees the complete policy tree (not just parameters)
             user_prompt_builder = UserPromptBuilder(agent_id, current_policy)
-            if events is not None:
-                user_prompt_builder.with_events(events)
 
             # Always include the full policy section
             policy_section = user_prompt_builder._build_policy_section()
             prompt += f"\n\n{policy_section}"
 
-            # Add filtered simulation events if provided
-            if events is not None:
-                filtered_section = user_prompt_builder._build_simulation_section()
-                prompt += f"\n\n{filtered_section}"
+            # NOTE: Simulation events are already included in the single-agent context
+            # via best_seed_output and worst_seed_output (Section 4: SIMULATION OUTPUT).
+            # Adding _build_simulation_section() here would DUPLICATE the events.
 
             # Add validation errors for retry
             if attempt > 0 and validation_errors:

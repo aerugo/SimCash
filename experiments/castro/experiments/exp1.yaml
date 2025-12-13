@@ -15,8 +15,11 @@ description: "2-Period Deterministic Nash Equilibrium"
 scenario: ../configs/exp1_2period.yaml
 
 # Evaluation settings
+# v2 Protocol: Use bootstrap with 50 samples even for deterministic scenarios
+# to enable confidence intervals and robustness testing
 evaluation:
-  mode: deterministic  # No bootstrap sampling - scenario is deterministic
+  mode: bootstrap
+  num_samples: 50  # v2: Increased from 1 for statistical rigor
   ticks: 2  # Only 2 ticks in scenario
 
 # Convergence criteria
@@ -27,8 +30,7 @@ convergence:
 
 # LLM configuration
 llm:
-  model: "openai:gpt-5.2" # always use new reasoning models like gpt-5 with high reasoning 
-, never gpt-4o or o-series
+  model: "openai:gpt-5.2"  # always use gpt-5.2 with high reasoning
   temperature: 0.5
   max_retries: 3
   timeout_seconds: 900
