@@ -88,19 +88,69 @@ SOURCE → AGENT → SINK
 - **AGENT**: Target agent with test policy
 - **SINK**: Infinite capacity, receives AGENT's outgoing transactions
 
-### Justification
+### Justification: The Agent's Information Set
 
-**Why isolate?** In the full simulation, an agent's cost depends on:
-1. Their own policy (what we want to measure)
-2. Other agents' policies (confounding)
-3. LSM cycles with other agents (confounding)
-4. Market-wide liquidity conditions (confounding)
+The sandbox design follows from a fundamental constraint: **agents cannot observe the internal state of other agents**.
 
-The sandbox removes confounders (2-4), giving us a **clean signal** of policy effect.
+#### What an Agent Observes
 
-**Analogy**: A/B testing in web applications. You don't test a new recommendation algorithm by also changing the UI, pricing, and user demographics simultaneously. You isolate the variable you're testing.
+From any single agent's perspective, they can only observe:
+1. **Their own policy** and decision state
+2. **Outgoing transaction outcomes**: When their payments settle (or fail)
+3. **Incoming settlement timing**: When liquidity arrives from counterparties
 
-### Tradeoffs
+They **cannot observe**:
+- Other agents' policies or decision rules
+- Other agents' queue states or liquidity positions
+- LSM cycle formation dynamics
+- Market-wide liquidity conditions
+
+#### Settlement Timing as a Sufficient Statistic
+
+This information asymmetry leads to a key insight: **settlement timing is a sufficient statistic** for the liquidity environment.
+
+When an agent sends a payment to counterparty B:
+- If B has abundant liquidity → payment settles quickly
+- If B is liquidity-constrained → payment queues, settles later (or via LSM)
+- If system-wide gridlock occurs → settlement delays further
+
+The **settlement time encapsulates** all of this complexity. The agent doesn't need to know *why* settlement took 5 ticks — only that it did. From their perspective, "the market" is an abstract entity characterized by settlement timing distributions.
+
+#### Why the Sandbox Is the Correct Abstraction
+
+Given that agents cannot simulate the full system (they lack the information), we abstract:
+- **All counterparties** → SOURCE (incoming liquidity) and SINK (outgoing payments)
+- **Liquidity environment** → Encoded in `settlement_offset` of historical transactions
+
+When we resample from historical data, we preserve `settlement_offset` (the time between transaction arrival and settlement). This means **resampled scenarios present the agent with statistically equivalent liquidity conditions** to what they experienced historically.
+
+```
+Historical: Agent sends tx at tick 5, settles at tick 12 → settlement_offset = 7
+Resampled:  Agent sends tx at tick 2, settles at tick 9 → settlement_offset = 7 (preserved)
+```
+
+The agent faces the same "market response" to their actions, even though the absolute timing differs.
+
+#### Formal Argument
+
+Let:
+- π = agent's policy
+- X = transaction characteristics (amount, priority, deadline)
+- T = settlement timing (the sufficient statistic)
+- C = agent's cost
+
+The agent's optimization problem is:
+```
+minimize E[C | π, X, T]
+```
+
+Note that C depends on T (settlement timing), not on the underlying market state M that produces T. Since T is observable and M is not, T is a **sufficient statistic** for the agent's decision problem.
+
+The sandbox correctly models this: SOURCE provides incoming liquidity at the historically-observed settlement times, preserving the sufficient statistic T.
+
+### Confounding Elimination (Secondary Benefit)
+
+Beyond the information-theoretic justification, the sandbox also eliminates confounders:
 
 | Aspect | Sandbox | Full Simulation |
 |--------|---------|-----------------|
@@ -111,21 +161,55 @@ The sandbox removes confounders (2-4), giving us a **clean signal** of policy ef
 | Ecological validity | Lower | Higher |
 | Computation cost | Low | Higher |
 
-### When Sandbox Is Appropriate
+### When the Sufficient Statistic Assumption Holds
 
-The sandbox approach is valid when:
-- Policy decisions are **local** (about releasing own transactions)
-- Agent doesn't need to coordinate with specific counterparties
-- Main costs are delay, deadline penalties, overdraft
-- LSM multilateral cycles are not the primary cost driver
+The sandbox approach is valid when settlement timing T is **exogenous** to the agent's policy π:
 
-### Known Limitations
+```
+P(T | π) ≈ P(T)  (agent's policy doesn't significantly affect market settlement times)
+```
 
-1. **No counterparty feedback**: In reality, releasing a payment may trigger counterparty to release queued payments back, creating bilateral liquidity circulation. The sandbox doesn't model this.
+This holds when:
+- **Agent is small**: Their transaction volume doesn't materially affect system liquidity
+- **Policy decisions are local**: About releasing own transactions, not coordinating with counterparties
+- **No strategic counterparty response**: Counterparties don't condition their behavior on this agent's actions
+- **Diverse counterparty set**: Liquidity comes from many sources, not a single bilateral relationship
 
-2. **No LSM multilateral cycles**: Sandbox only supports 2-agent bilateral offsets (SOURCE↔AGENT or AGENT↔SINK), not N-agent cycles.
+### When the Assumption Breaks Down
 
-3. **Abundant liquidity assumption**: SOURCE has infinite liquidity, so "incoming settlement timing" doesn't create real liquidity pressure.
+The sufficient statistic assumption **fails** when the agent's policy affects the liquidity environment they face:
+
+1. **Large market share**: If the agent controls significant transaction volume, their release timing affects system-wide liquidity, which affects their own settlement times. The historical T was generated under the *old* policy — a new policy might produce different T.
+
+2. **Bilateral concentration**: If most transactions are with a single counterparty (e.g., correspondent banking), releasing payments affects that counterparty's liquidity, which affects when they send payments back. This creates a **feedback loop** not captured by the sandbox.
+
+3. **Strategic counterparties**: If counterparties explicitly condition on the agent's behavior (game-theoretic setting), the sufficient statistic breaks down entirely.
+
+4. **LSM multilateral cycles**: The agent's release timing affects which N-agent cycles form, which affects settlement for all participants.
+
+### Known Limitations (Implications)
+
+Given the above, the sandbox has these specific limitations:
+
+1. **No bilateral feedback loop**: When agent A releases payment to B, this gives B liquidity to release payments back to A. The sandbox doesn't model this circulation — SOURCE provides liquidity at fixed times regardless of when AGENT sends payments.
+
+2. **Settlement timing is fixed**: The `settlement_offset` from historical data is preserved, but in reality a different policy might produce different settlement times. The sandbox evaluates "how would this policy perform in the *historical* liquidity environment" not "how would this policy perform in the *induced* liquidity environment."
+
+3. **No multilateral LSM**: The sandbox supports bilateral offsets (SOURCE↔AGENT, AGENT↔SINK) but not N-agent cycle formation, which depends on the queue states of all participants.
+
+### Validity for Castro-Style Experiments
+
+For experiments like Castro et al. (2022) with:
+- 2 symmetric agents
+- Moderate transaction volumes
+- Focus on timing optimization (not strategic coordination)
+
+The sandbox is a reasonable approximation because:
+- Each agent is ~50% of the system (not "small" but symmetric)
+- Bilateral feedback exists but is also captured in historical settlement times
+- The optimization goal is to improve timing given the observed liquidity pattern
+
+For larger networks or asymmetric configurations, bilateral evaluation (see below) may be more appropriate.
 
 ---
 
