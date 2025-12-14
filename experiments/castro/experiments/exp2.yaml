@@ -1,22 +1,25 @@
-# Experiment 2: 12-Period Stochastic
+# Experiment 2: 12-Period Stochastic (Castro-Compliant)
 # LVTS-style realistic scenario with stochastic arrivals.
 #
 # Setup:
 # - 12 ticks per day
 # - Poisson arrivals, LogNormal amounts
-# - 10 bootstrap samples for evaluation
+# - Uses liquidity_pool mode (direct balance) for Castro compliance
+#
+# Expected outcome: Both agents in 10-30% range
 
 name: exp2
-description: "12-Period Stochastic LVTS-Style"
+description: "12-Period Stochastic LVTS-Style (Castro-Compliant)"
 
 # Scenario configuration (relative to this file's directory)
 scenario: ../configs/exp2_12period.yaml
 
 # Evaluation settings
-# v2 Protocol: Use 50 bootstrap samples for reliable inference
+# Use bootstrap mode for stochastic scenarios
+# Bootstrap mode runs sandboxed simulations with resampled transaction histories
 evaluation:
   mode: bootstrap
-  num_samples: 50  # v2: Increased from 10 for statistical rigor
+  num_samples: 50  # For statistical rigor
   ticks: 12
 
 # Convergence criteria
@@ -33,7 +36,7 @@ llm:
   timeout_seconds: 900
   reasoning_effort: "high"
 
-# Policy constraints - simplified for Castro model
+# Policy constraints (Castro-specific - MINIMAL SET)
 # The Castro model has ONE key decision: initial liquidity allocation
 policy_constraints:
   allowed_parameters:
@@ -41,20 +44,17 @@ policy_constraints:
       param_type: float
       min_value: 0.0
       max_value: 1.0
-      description: "Fraction of available collateral to post at the start of day (t=0)"
+      description: "Fraction of liquidity_pool to allocate at simulation start. Value between 0.0 and 1.0."
 
   allowed_fields:
-    # Time context - needed for initial collateral decision
+    # Time context
     - system_tick_in_day
-    # Collateral capacity - needed to compute initial allocation
-    - remaining_collateral_capacity
-    - max_collateral_capacity
-    # Liquidity state - for understanding when payments can settle
+    # Agent liquidity state (balance = allocated liquidity from pool)
     - balance
-    - effective_liquidity
-    # Transaction context - for payment decisions
+    # Transaction context (for payment decisions)
     - amount
     - remaining_amount
+    - ticks_to_deadline
 
   allowed_actions:
     payment_tree:
@@ -62,23 +62,26 @@ policy_constraints:
       - Hold
     bank_tree:
       - NoAction
-    collateral_tree:
-      - PostCollateral
-      - HoldCollateral
+    # Note: strategic_collateral_tree not used in liquidity_pool mode
+    # Allocation happens at simulation start via liquidity_allocation_fraction
 
 # Experiment customization - guides LLM without giving away answer
 prompt_customization:
   all: |
     This scenario tests a fundamental tradeoff in payment systems:
-    - Posting collateral provides liquidity to settle payments
-    - But collateral has an opportunity cost
+    - Allocating liquidity from the pool allows you to settle payments
+    - But allocated liquidity has an opportunity cost
 
-    The KEY DECISION in this scenario is: What fraction of available collateral
-    should be posted at the START of the day (tick 0)?
+    The KEY DECISION in this scenario is: What fraction of the liquidity pool
+    should be allocated at the START of the day?
 
     IMPORTANT: Focus your optimization on the `initial_liquidity_fraction` parameter.
     The payment_tree should remain a simple Release action - the real optimization
-    is in how much collateral to commit upfront.
+    is in how much liquidity to commit upfront.
+
+    With a hard liquidity constraint (no overdraft allowed), you must have
+    sufficient balance to settle each payment. Incoming payments from the
+    counterparty provide liquidity that can be recycled for your outgoing payments.
 
 # Agents to optimize
 optimized_agents:

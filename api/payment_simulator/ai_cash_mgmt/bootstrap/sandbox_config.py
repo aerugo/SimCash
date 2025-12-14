@@ -23,6 +23,9 @@ from payment_simulator.ai_cash_mgmt.bootstrap.models import (
     BootstrapSample,
     RemappedTransaction,
 )
+from payment_simulator.config.policy_config_builder import (
+    StandardPolicyConfigBuilder,
+)
 from payment_simulator.config.schemas import (
     AgentConfig,
     CostRates,
@@ -51,6 +54,9 @@ class SandboxConfigBuilder:
     - Target agent with test policy
     - SINK agent with infinite capacity
 
+    Uses StandardPolicyConfigBuilder to ensure identical policy interpretation
+    as the main simulation in optimization.py.
+
     Example:
         ```python
         builder = SandboxConfigBuilder()
@@ -63,6 +69,10 @@ class SandboxConfigBuilder:
         ```
     """
 
+    def __init__(self) -> None:
+        """Initialize the sandbox config builder."""
+        self._policy_config_builder = StandardPolicyConfigBuilder()
+
     def build_config(
         self,
         sample: BootstrapSample,
@@ -71,6 +81,7 @@ class SandboxConfigBuilder:
         credit_limit: int,
         cost_rates: dict[str, float] | None = None,
         max_collateral_capacity: int | None = None,
+        liquidity_pool: int | None = None,
     ) -> SimulationConfig:
         """Build sandbox configuration from bootstrap sample.
 
@@ -82,18 +93,36 @@ class SandboxConfigBuilder:
             cost_rates: Optional cost rates override.
             max_collateral_capacity: Max collateral capacity for target agent (cents).
                 Required for policies that use initial_liquidity_fraction parameter.
+            liquidity_pool: Liquidity pool available for allocation (cents).
+                Required for Castro-compliant liquidity allocation mode.
 
         Returns:
             SimulationConfig for 3-agent sandbox.
         """
+        # Use shared PolicyConfigBuilder to extract liquidity configuration.
+        # This ensures identical policy interpretation as optimization.py.
+        base_agent_config = {
+            "opening_balance": opening_balance,
+            "liquidity_pool": liquidity_pool,
+            "max_collateral_capacity": max_collateral_capacity,
+        }
+        liquidity_config = self._policy_config_builder.extract_liquidity_config(
+            policy=target_policy,
+            agent_config=base_agent_config,
+        )
+
         # Build agents
         source_agent = self._build_source_agent()
         target_agent = self._build_target_agent(
             agent_id=sample.agent_id,
             policy=target_policy,
-            opening_balance=opening_balance,
+            opening_balance=liquidity_config.get("opening_balance", opening_balance),
             credit_limit=credit_limit,
-            max_collateral_capacity=max_collateral_capacity,
+            max_collateral_capacity=liquidity_config.get("max_collateral_capacity"),
+            liquidity_pool=liquidity_config.get("liquidity_pool"),
+            liquidity_allocation_fraction=liquidity_config.get(
+                "liquidity_allocation_fraction"
+            ),
         )
         sink_agent = self._build_sink_agent()
 
@@ -139,6 +168,8 @@ class SandboxConfigBuilder:
         opening_balance: int,
         credit_limit: int,
         max_collateral_capacity: int | None = None,
+        liquidity_pool: int | None = None,
+        liquidity_allocation_fraction: float | None = None,
     ) -> AgentConfig:
         """Build target agent with test policy.
 
@@ -149,12 +180,18 @@ class SandboxConfigBuilder:
             credit_limit: Credit limit (unsecured_cap) in cents.
             max_collateral_capacity: Max collateral capacity in cents.
                 Required for collateral-based liquidity policies.
+            liquidity_pool: Liquidity pool available for allocation (cents).
+                Required for Castro-compliant liquidity allocation mode.
+            liquidity_allocation_fraction: Fraction of pool to allocate (0.0-1.0).
+                Extracted from policy's initial_liquidity_fraction parameter.
         """
         return AgentConfig(  # type: ignore[call-arg]
             id=agent_id,
             opening_balance=opening_balance,
             unsecured_cap=credit_limit,
             max_collateral_capacity=max_collateral_capacity,
+            liquidity_pool=liquidity_pool,
+            liquidity_allocation_fraction=liquidity_allocation_fraction,
             policy=self._parse_policy(policy),
         )
 

@@ -1,24 +1,23 @@
-# Experiment 3: Three-Period Dummy Example (Joint Liquidity & Timing)
+# Experiment 3: Three-Period Dummy Example (Castro-Compliant)
 #
 # Replicates Castro et al. (2025) Section 7.2:
 # - P^A = P^B = [0.2, 0.2, 0] - symmetric, deterministic payment demands
-# - Joint learning of BOTH initial liquidity AND payment timing
-# - Expected: ~25% initial liquidity, ~10% delay (when r_c < r_d)
+# - Joint learning of initial liquidity and payment timing
+# - Uses liquidity_pool mode (direct balance) for Castro compliance
 #
-# This is a DETERMINISTIC scenario with fixed payments.
+# Expected outcome: Both agents ~25% initial liquidity
 
 name: exp3
-description: "Three-Period Dummy - Joint Liquidity & Timing"
+description: "Three-Period Dummy - Joint Liquidity & Timing (Castro-Compliant)"
 
 # Scenario configuration (relative to this file's directory)
 scenario: ../configs/exp3_joint.yaml
 
 # Evaluation settings
-# v2 Protocol: Use bootstrap with 50 samples even for deterministic scenarios
-# to enable confidence intervals and robustness testing
+# Use deterministic mode since the scenario has fixed payments
 evaluation:
   mode: deterministic
-  num_samples: 50  # v2: Increased from 1 for statistical rigor
+  num_samples: 50  # For statistical rigor
   ticks: 3
 
 # Convergence criteria
@@ -42,59 +41,57 @@ prompt_customization:
 
     This is the **Three-Period Dummy Example**:
     - 3 periods total: t=0, t=1, t=2
-    - Symmetric payments: Each bank owes 20% of collateral at t=0 and t=1
+    - Symmetric payments: Each bank owes 20% of liquidity pool at t=0 and t=1
     - No new payments at t=2
-    - Total payment obligation: 40% of collateral capacity (0.2 + 0.2)
+    - Total payment obligation: 40% of liquidity pool (0.2 + 0.2)
 
     **CRITICAL CONSTRAINT:**
     - You have NO unsecured credit line (unsecured_cap = 0)
-    - The ONLY way to get liquidity is by posting collateral
-    - If you don't post collateral, you CANNOT make payments → gridlock!
+    - You have NO overdraft capability (hard liquidity constraint)
+    - The ONLY way to get liquidity is by allocating from your liquidity_pool
+    - If you don't allocate enough, you CANNOT make payments → gridlock!
 
     **You must optimize TWO decisions:**
 
-    1. **Initial Liquidity (t=0):** What fraction of collateral to post?
+    1. **Initial Liquidity (at simulation start):** What fraction of pool to allocate?
        - Use `initial_liquidity_fraction` parameter (0.0 to 1.0)
-       - Posted collateral provides overdraft capacity for payments
-       - But collateral has opportunity cost (r_c per tick)
-       - Consider: Total obligations are 40% of capacity over 2 periods
+       - Allocated liquidity becomes your opening balance
+       - But allocated liquidity has opportunity cost (r_c per tick)
+       - Consider: Total obligations are 40% of pool over 2 periods
 
     2. **Payment Timing (each tick):** Release or hold queued payments?
        - Releasing uses liquidity but avoids delay costs (r_d)
        - Holding preserves liquidity but incurs delay costs
-       - Key rule: r_c < r_d (posting collateral is CHEAPER than delaying)
+       - Key rule: r_c < r_d (allocating liquidity is CHEAPER than delaying)
 
     **Cost Tradeoff:**
-    - r_c = collateral cost (cheaper)
+    - r_c = liquidity cost (cheaper)
     - r_d = delay cost (more expensive)
-    - Since r_c < r_d, it's better to post collateral than delay payments
+    - Since r_c < r_d, it's better to allocate more liquidity than delay payments
 
     **Key Insight:** With symmetric payments, incoming payments from the other bank
     can offset your outgoing payments. But you need SOME initial liquidity to
     break the circular dependency (both banks need payments to make payments).
 
-# Policy constraints - MINIMAL for Castro model
+# Policy constraints (Castro-specific - MINIMAL SET)
 policy_constraints:
   allowed_parameters:
     - name: initial_liquidity_fraction
       param_type: float
       min_value: 0.0
       max_value: 1.0
-      description: "Fraction of max_collateral_capacity to post at t=0"
+      description: "Fraction of liquidity_pool to allocate at simulation start. Value between 0.0 and 1.0."
 
   allowed_fields:
     # Time context
     - system_tick_in_day
-    # Agent liquidity state
+    # Agent liquidity state (balance = allocated liquidity from pool)
     - balance
-    - effective_liquidity
-    # Collateral state
-    - remaining_collateral_capacity
-    - posted_collateral
-    - max_collateral_capacity
     # Queue state (for timing decisions)
     - queue1_total_value
     - outgoing_queue_size
+    # Transaction context
+    - ticks_to_deadline
 
   allowed_actions:
     payment_tree:
@@ -102,9 +99,8 @@ policy_constraints:
       - Hold
     bank_tree:
       - NoAction
-    collateral_tree:
-      - PostCollateral
-      - HoldCollateral
+    # Note: strategic_collateral_tree not used in liquidity_pool mode
+    # Allocation happens at simulation start via liquidity_allocation_fraction
 
 # Agents to optimize
 optimized_agents:

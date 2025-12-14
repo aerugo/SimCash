@@ -1,4 +1,4 @@
-# Experiment 3: Three-Period Dummy Example (Joint Liquidity & Timing)
+# Experiment 3: Three-Period Dummy Example (Joint Liquidity & Timing, Castro-Compliant)
 #
 # Replicates Castro et al. (2025) Section 7.2:
 # - P^A = P^B = [0.2, 0.2, 0] - symmetric payment demands
@@ -8,6 +8,9 @@
 # Expected outcome with r_c < r_d:
 # - ~25% initial liquidity
 # - ~10% payment delay (90% paid on time)
+#
+# CASTRO-COMPLIANT: Uses liquidity_pool mode (direct balance)
+# instead of max_collateral_capacity (credit headroom).
 
 simulation:
   ticks_per_day: 3
@@ -22,18 +25,27 @@ cost_rates:
   # Castro paper requires: r_c < r_d < r_b
   # This is "Scenario 1: Liquidity cheaper than delay" (Figure 8)
   #
-  # Collateral cost: ~3.33% per tick (10% total for 3 ticks)
+  # Liquidity cost: ~3.33% per tick (10% total for 3 ticks)
   # r_c = 0.1 total over episode
-  collateral_cost_per_tick_bps: 333
+  liquidity_cost_per_tick_bps: 333
+
   # Delay cost: 20% per tick per delayed cent (r_d = 0.2)
-  # r_d > r_c, so delaying is more expensive than posting collateral
+  # r_d > r_c, so delaying is more expensive than posting liquidity
   delay_cost_per_tick_per_cent: 0.2
-  # Overdraft penalty: high to discourage negative balances
-  overdraft_bps_per_tick: 2000
+
+  # CRITICAL: Disable overdraft - Castro has hard liquidity constraint
+  # P_t × x_t ≤ ℓ_{t-1}
+  overdraft_bps_per_tick: 0
+
+  # Disable collateral cost (not using collateral mode)
+  collateral_cost_per_tick_bps: 0
+
   # EOD penalty: must be > delay cost (r_b > r_d)
   eod_penalty_per_transaction: 100000
+
   # Deadline penalty: penalty when transaction becomes overdue
   deadline_penalty: 50000
+
   split_friction_cost: 0
 
 # Disable LSM for Castro experiments
@@ -45,17 +57,19 @@ agents:
   - id: BANK_A
     opening_balance: 0
     # CRITICAL: No unsecured credit - matches paper assumption that
-    # liquidity ONLY comes from posted collateral (incurring r_c cost)
+    # liquidity ONLY comes from liquidity_pool allocation (incurring r_c cost)
     unsecured_cap: 0
+    # CASTRO-COMPLIANT: Use liquidity_pool (direct balance) instead of
+    # max_collateral_capacity (credit headroom)
     # B = 100,000 collateral capacity
     # Payments are 0.2 * B = 20,000 each period
-    max_collateral_capacity: 100000
+    liquidity_pool: 100000
 
   - id: BANK_B
     opening_balance: 0
     # CRITICAL: No unsecured credit
     unsecured_cap: 0
-    max_collateral_capacity: 100000
+    liquidity_pool: 100000
 
 # Deterministic transaction schedule matching P^A = P^B = [0.2, 0.2, 0]
 # Each payment is 0.2 * 100,000 = 20,000 cents

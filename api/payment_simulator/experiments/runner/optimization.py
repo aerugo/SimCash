@@ -57,6 +57,7 @@ from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
     format_filtered_output,
 )
 from payment_simulator.config import SimulationConfig
+from payment_simulator.config.policy_config_builder import StandardPolicyConfigBuilder
 from payment_simulator.experiments.runner.bootstrap_support import (
     BootstrapLLMContext,
     InitialSimulationResult,
@@ -304,6 +305,10 @@ class OptimizationLoop:
             },
             run_id=self._run_id,
         )
+
+        # Policy config builder for consistent policy interpretation
+        # Used by both main simulation and bootstrap evaluation
+        self._policy_config_builder = StandardPolicyConfigBuilder()
 
         # Initialize seed matrix for deterministic per-agent bootstrap evaluation
         # Seeds are pre-generated for reproducibility and agent isolation
@@ -694,6 +699,27 @@ class OptimizationLoop:
                     return int(capacity)
         return None
 
+    def _get_agent_liquidity_pool(self, agent_id: str) -> int | None:
+        """Get liquidity pool for an agent from scenario config.
+
+        Used to detect Castro-compliant mode (direct balance allocation)
+        vs collateral mode (credit headroom).
+
+        Args:
+            agent_id: Agent ID to look up.
+
+        Returns:
+            Liquidity pool in integer cents (INV-1).
+            Returns None if not set in scenario config.
+        """
+        scenario = self._load_scenario_config()
+        for agent in scenario.get("agents", []):
+            if agent.get("id") == agent_id:
+                pool = agent.get("liquidity_pool")
+                if pool is not None:
+                    return int(pool)
+        return None
+
     def _build_simulation_config(self) -> dict[str, Any]:
         """Build FFI-compatible simulation config with current policies.
 
@@ -714,6 +740,23 @@ class OptimizationLoop:
                 agent_id = agent_config.get("id")
                 if agent_id in self._policies:
                     policy = self._policies[agent_id]
+
+                    # Use shared PolicyConfigBuilder to extract liquidity config.
+                    # This ensures identical behavior in main simulation and
+                    # bootstrap evaluation (replay identity guarantee).
+                    if isinstance(policy, dict):
+                        liquidity_config = (
+                            self._policy_config_builder.extract_liquidity_config(
+                                policy=policy,
+                                agent_config=agent_config,
+                            )
+                        )
+                        # Update agent config with extracted values
+                        if "liquidity_allocation_fraction" in liquidity_config:
+                            agent_config["liquidity_allocation_fraction"] = (
+                                liquidity_config["liquidity_allocation_fraction"]
+                            )
+
                     # Wrap tree policy in InlineJsonPolicy format for Pydantic
                     # Tree policies have "payment_tree" field; simple policies have "type"
                     if isinstance(policy, dict) and "payment_tree" in policy:
@@ -1401,6 +1444,7 @@ class OptimizationLoop:
                     max_collateral_capacity=self._get_agent_max_collateral_capacity(
                         agent_id
                     ),
+                    liquidity_pool=self._get_agent_liquidity_pool(agent_id),
                 )
                 paired_deltas = evaluator.compute_paired_deltas(
                     samples=samples,
@@ -1969,9 +2013,14 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
 
-        Creates a simple Release-always policy with collateral posting at tick 0.
-        The initial_liquidity_fraction parameter controls how much collateral
-        is posted at the start of day.
+        For collateral mode (max_collateral_capacity): Creates a Release-always
+        policy with collateral posting at tick 0. The initial_liquidity_fraction
+        parameter controls how much collateral is posted.
+
+        For liquidity_pool mode (Castro-compliant): Creates a Release-always
+        policy without collateral actions. The initial_liquidity_fraction
+        parameter controls the liquidity_allocation_fraction injected by
+        _build_simulation_config.
 
         Args:
             agent_id: Agent ID.
@@ -1979,6 +2028,28 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         Returns:
             Default policy dict.
         """
+        # Check if agent uses liquidity_pool mode (Castro-compliant)
+        uses_liquidity_pool = self._get_agent_liquidity_pool(agent_id) is not None
+
+        if uses_liquidity_pool:
+            # Castro-compliant mode: No collateral actions needed.
+            # initial_liquidity_fraction is injected into agent config as
+            # liquidity_allocation_fraction by _build_simulation_config.
+            return {
+                "version": "2.0",
+                "policy_id": f"{agent_id}_default",
+                "parameters": {
+                    "initial_liquidity_fraction": 0.5,
+                },
+                "payment_tree": {
+                    "type": "action",
+                    "node_id": "default_release",
+                    "action": "Release",
+                },
+                # No strategic_collateral_tree - allocation happens at sim start
+            }
+
+        # Collateral mode: Use PostCollateral action
         return {
             "version": "2.0",
             "policy_id": f"{agent_id}_default",
