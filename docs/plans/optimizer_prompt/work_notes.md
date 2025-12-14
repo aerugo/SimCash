@@ -56,6 +56,39 @@ All 25 tests pass:
 
 ---
 
+### Phase 2: Section Hierarchy (TDD) - COMPLETE ✅
+
+#### Step 1: Write Failing Tests
+
+Created `api/tests/ai_cash_mgmt/unit/test_prompt_section_hierarchy.py` with 8 tests:
+- `TestInitialSimulationSection` (3 tests)
+- `TestBootstrapSampleLabeling` (2 tests)
+- `TestContextTypesUpdated` (2 tests)
+- `TestSectionNumbering` (1 test)
+
+All tests initially FAILED as expected.
+
+#### Step 2: Implement Fix
+
+**File: `api/payment_simulator/ai_cash_mgmt/prompts/context_types.py`**
+- Added `initial_simulation_output` field to `SingleAgentContext`
+
+**File: `api/payment_simulator/ai_cash_mgmt/prompts/single_agent_context.py`**
+- Added `initial_simulation_output` parameter to `build_single_agent_context()`
+- Created new `_build_initial_simulation_section()` method for Section 4
+- Renamed `_build_simulation_output_section()` to `_build_bootstrap_samples_section()` (Section 5)
+- Updated section numbering (1-8) in Table of Contents and headers
+- Bootstrap samples now clearly labeled as such
+
+#### Step 3: Verify All Tests Pass
+
+All 33 tests pass:
+- 11 agent isolation tests
+- 8 new section hierarchy tests
+- 14 existing optimizer prompt integration tests
+
+---
+
 ## Progress Log
 
 | Time | Action | Result |
@@ -65,3 +98,6 @@ All 25 tests pass:
 | | Phase 1: Write failing tests | 11 tests written, all fail as expected |
 | | Phase 1: Implement fix | Modified `context_builder.py` and `policy_optimizer.py` |
 | | Phase 1: Verify tests pass | All 25 tests pass ✅ |
+| | Phase 2: Write failing tests | 8 tests written in `test_prompt_section_hierarchy.py` |
+| | Phase 2: Implement fix | Modified `context_types.py` and `single_agent_context.py` |
+| | Phase 2: Verify tests pass | All 33 tests pass ✅ |
