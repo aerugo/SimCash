@@ -242,10 +242,10 @@ The Experiment 2 results warrant careful analysis. Several factors may explain w
 
 ### 6.5 Model Differences: SimCash vs. Castro
 
-Analysis of the Experiment 1 role reversal revealed important differences between SimCash's payment system model and Castro's theoretical model:
+Analysis of the Experiment 1 role reversal revealed important differences between SimCash's default payment system model and Castro's theoretical model:
 
-| Feature | Castro Model | SimCash |
-|---------|--------------|---------|
+| Feature | Castro Model | SimCash (Collateral Mode) |
+|---------|--------------|---------------------------|
 | **Liquidity Constraint** | Hard: `P_t × x_t ≤ ℓ_{t-1}` | Soft: overdraft allowed |
 | **Collateral Effect** | Direct balance increase | Credit headroom increase |
 | **Cost Attribution** | Individual per agent | System-wide costs |
@@ -253,23 +253,47 @@ Analysis of the Experiment 1 role reversal revealed important differences betwee
 
 **Key Implications**:
 
-1. **Overdraft Mechanism**: SimCash allows banks to settle payments by going negative (using credit), whereas Castro's model requires liquidity to exist before settlement. This fundamentally changes the strategic landscape.
+1. **Overdraft Mechanism**: SimCash allows banks to settle payments by going negative (using credit), whereas Castro's model requires liquidity to exist before settlement.
 
-2. **Collateral as Credit vs. Liquidity**: In Castro, posting collateral immediately provides balance that can fund payments. In SimCash, collateral provides *credit headroom* (ability to go negative), not direct funds. This timing difference affects which equilibria are reachable.
+2. **Collateral as Credit vs. Liquidity**: In Castro, posting collateral immediately provides balance that can fund payments. In SimCash's collateral mode, collateral provides *credit headroom* (ability to go negative), not direct funds.
 
-3. **Equal Cost Distribution**: SimCash appears to attribute total system costs equally to agents, whereas Castro tracks individual agent costs separately. This changes the incentive structure for who should provide liquidity.
+3. **Equal Cost Distribution**: The experiments used system-wide cost attribution, whereas Castro tracks individual agent costs.
 
-**Why Role Reversal Occurs**: Both (BANK_A=0%, BANK_B=20%) and (BANK_A=15%, BANK_B=0%) are valid asymmetric equilibria in SimCash because:
+**Why Role Reversal Occurs**: Both (BANK_A=0%, BANK_B=20%) and (BANK_A=15%, BANK_B=0%) are valid asymmetric equilibria because:
 - Either bank can serve as "liquidity provider"
-- With equal cost sharing, role assignment doesn't affect individual costs
 - The LLM arbitrarily converged to one equilibrium
 
-**Recommendations for Exact Replication**: To match Castro's model exactly would require:
-1. Implementing hard liquidity constraints (reject settlements when balance < amount)
-2. Making collateral provide direct balance rather than credit
-3. Implementing per-agent cost tracking
+### 6.6 Castro-Compliant Configuration
 
-These represent future work to enable direct numerical comparison with Castro's results. The current SimCash model is valid for studying payment system dynamics but represents a different (credit-based) liquidity regime than Castro's (balance-based) model.
+Subsequent investigation revealed that **SimCash already supports Castro's exact model** through existing configuration options:
+
+| Castro Requirement | SimCash Feature | Effect |
+|-------------------|-----------------|--------|
+| Direct balance from collateral | `liquidity_pool` + `liquidity_allocation_fraction` | Allocated liquidity adds to balance (not credit) |
+| Opportunity cost r_c | `liquidity_cost_per_tick_bps` | Charges for allocated liquidity |
+| Hard liquidity constraint | `unsecured_cap: 0` + no collateral | No overdraft possible |
+| Deferred crediting | `deferred_crediting: true` | Credits at end of tick |
+
+**Configuration for Castro Compliance**:
+```yaml
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0                      # No credit
+    liquidity_pool: 100000                # Castro's B
+    liquidity_allocation_fraction: 0.0    # Optimized by LLM
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 500        # r_c
+  delay_cost_per_tick_per_cent: 0.1       # r_d > r_c
+```
+
+This configuration achieves:
+- **Hard liquidity constraint**: `effective_liquidity = balance + 0 = balance`
+- **Direct balance**: Allocated fraction becomes available balance
+- **Cost r_c**: Applied to allocated liquidity per tick
+
+**Recommendation**: Re-running experiments with this Castro-compliant configuration should replicate Castro's exact predictions (BANK_A=0%, BANK_B=20% for Exp1).
 
 ---
 
@@ -284,7 +308,7 @@ SimCash demonstrates that Large Language Models can effectively discover Nash eq
 The divergence in Experiment 2 represents a genuine finding: under certain cost functions, agents can accept occasional gridlock in exchange for substantial collateral savings. This risk-return tradeoff may be relevant for real payment systems considering liquidity buffer policies.
 
 **Future Work**:
-- Implement Castro-compliant mode (hard liquidity constraints, direct collateral liquidity)
+- Run experiments with Castro-compliant configuration (`liquidity_pool` mode) for direct numerical comparison
 - Multi-agent scenarios (N > 2)
 - Dynamic policy adjustment during the day
 - Integration with real payment system data

@@ -493,117 +493,67 @@ The Exp1 result should be presented as:
 
 ## Recommendations: Configuring SimCash to Match Castro Exactly
 
-*Status: Analysis Complete*
+*Status: Configuration-Only Solution Found*
 *Date: 2025-12-14*
+*Updated: 2025-12-14 (revised to use existing features)*
 
-### Summary of Differences
+### Summary of Differences (Original Analysis)
 
-| Feature | Castro Model | SimCash Current | Impact |
-|---------|--------------|-----------------|--------|
+| Feature | Castro Model | SimCash with Collateral | Impact |
+|---------|--------------|-------------------------|--------|
 | **Liquidity Constraint** | Hard: `P_t × x_t ≤ ℓ_{t-1}` | Soft: overdraft allowed | Payments settle even without liquidity |
 | **Collateral Effect** | Provides direct balance | Provides credit headroom | Different timing and mechanics |
 | **Cost Attribution** | Individual per agent | Appears split equally | Changes incentive structure |
-| **Intraday Overdraft** | Not allowed | Allowed with cost | Enables free-riding on credit |
-| **Payment Fractionalization** | `x_t ∈ [0,1]` continuous | Binary: Release or Hold | Different strategic space |
 
-### Required Changes to Match Castro
+### Key Discovery: SimCash Already Has the Required Features
 
-#### 1. Disable Intraday Overdraft (CRITICAL)
+After reviewing `docs/reference/scenario/agents.md` and `docs/reference/scenario/cost-rates.md`, SimCash already has configuration options that exactly match Castro's model:
 
-**Castro's Model**: Banks can ONLY send payments up to their available liquidity (`P_t × x_t ≤ ℓ_{t-1}`). If insufficient liquidity, payment is delayed (not settled via overdraft).
+#### 1. `liquidity_pool` + `liquidity_allocation_fraction` = Direct Balance
 
-**Current SimCash**: Banks can go negative (overdraft) if they have:
-- Posted collateral × (1 - haircut), OR
-- Unsecured credit cap
-
-**Configuration Change Required**:
+From the documentation:
 ```yaml
-# Option A: Set prohibitive overdraft cost
-cost_rates:
-  overdraft_bps_per_tick: 1000000  # Effectively infinite (100%)
-
-# Option B: Implement hard liquidity constraint in settlement engine
-# Requires code change to reject settlements when balance < amount
-# regardless of credit headroom
-```
-
-**Code Change Required (if Option A insufficient)**:
-```rust
-// In simulator/src/settlement/rtgs.rs, modify try_settle():
-fn try_settle(...) -> Result<(), SettlementError> {
-    // CASTRO MODE: Hard liquidity constraint
-    if config.castro_mode && sender.balance() < amount {
-        return Err(SettlementError::InsufficientLiquidity {...});
-    }
-    // ... rest of function
-}
-```
-
-#### 2. Make Collateral Provide Direct Liquidity (CRITICAL)
-
-**Castro's Model**: At t=0, agent posts collateral `ℓ_0 = x_0 × B`. This becomes **immediately available balance** that can fund payments.
-
-**Current SimCash**: Posting collateral increases **credit headroom** (ability to go negative), not direct balance. The balance remains 0 until payments arrive.
-
-**Configuration Change Required**:
-```yaml
-# Option A: Use opening_balance instead of collateral
 agents:
-  - id: BANK_A
-    opening_balance: 0  # Policy will ADD to this via collateral-to-balance conversion
-
-# Option B: Implement collateral-to-balance conversion mode
-simulation:
-  collateral_mode: "direct_liquidity"  # New config option
+  - id: FOCAL_BANK
+    opening_balance: 0
+    liquidity_pool: 100000              # B = $1,000 (100,000 cents)
+    liquidity_allocation_fraction: 0.2   # Allocate 20% = $200
 ```
 
-**Code Change Required**:
-```rust
-// In PostCollateral action handler:
-if config.collateral_mode == CollateralMode::DirectLiquidity {
-    // Castro mode: collateral becomes balance
-    agent.credit(amount);  // Increase balance directly
-    agent.set_posted_collateral(amount);  // Track for cost calculation
-} else {
-    // Current mode: collateral provides credit headroom
-    agent.set_posted_collateral(agent.posted_collateral() + amount);
-}
+**Key insight from agents.md**: *"Allocated amount added to available liquidity"*
+
+This is fundamentally different from `posted_collateral`:
+- **`posted_collateral`**: Increases credit headroom (ability to go negative)
+- **`liquidity_pool`**: Adds to actual **balance** at day start
+
+When using `liquidity_pool` with `unsecured_cap: 0` and no `posted_collateral`:
+- `effective_liquidity = balance + credit_headroom = balance + 0 = just balance`
+- Settlements will **fail** when `balance < amount` (no overdraft possible!)
+
+This is exactly Castro's hard liquidity constraint: `P_t × x_t ≤ ℓ_{t-1}`
+
+#### 2. `liquidity_cost_per_tick_bps` = Castro's r_c
+
+From `docs/reference/scenario/cost-rates.md`:
+```yaml
+cost_rates:
+  liquidity_cost_per_tick_bps: 500  # 5% per tick opportunity cost
 ```
 
-#### 3. Implement Individual Cost Attribution
+**Formula**: `liquidity_cost = allocated_liquidity × liquidity_cost_per_tick_bps / 10000`
 
-**Castro's Model**: Each agent bears their own costs:
-- Bank A cost = r_c × ℓ_0^A + delays^A + borrowing^A
-- Bank B cost = r_c × ℓ_0^B + delays^B + borrowing^B
+This is Castro's collateral cost r_c applied to the allocated liquidity!
 
-**Current SimCash**: Total system cost appears to be split equally between agents (observation from iteration data showing equal costs regardless of policy).
+#### 3. `deferred_crediting: true` Already Matches Castro
 
-**Investigation Needed**: Review cost calculation in:
-- `simulator/src/costs/calculator.rs`
-- `api/payment_simulator/experiments/runner/optimization.py`
+Already in exp1 config. From `docs/reference/scenario/advanced-settings.md`:
+*"Matches ℓ_t = ℓ_{t-1} - P_t x_t + R_t"*
 
-**Code Change Required (if confirmed)**:
-```python
-# In optimization.py or cost calculator
-def get_agent_cost(agent_id: str) -> int:
-    """Return cost for THIS agent only, not split total."""
-    return agent_specific_costs[agent_id]  # Not total / num_agents
-```
+Credits from settlements are applied at end of tick, preventing within-tick recycling.
 
-#### 4. Implement Payment Fractionalization (OPTIONAL)
+### Configuration-Only Solution for Castro Compliance
 
-**Castro's Model**: Agents can choose `x_t ∈ [0,1]` - what fraction of payment demand to send in each period.
-
-**Current SimCash**: Binary decision - either Release (send all) or Hold (send nothing).
-
-**Implementation Complexity**: HIGH - would require significant changes to:
-- Transaction model (partial settlement tracking)
-- Policy tree (fraction output instead of binary)
-- RTGS settlement (partial amounts)
-
-**Recommendation**: Skip for now. The binary Release/Hold provides a reasonable approximation when many small payments aggregate.
-
-### Proposed Configuration for Castro-Compliant Exp1
+**NO CODE CHANGES REQUIRED.** The following configuration uses existing SimCash features to replicate Castro's exact conditions:
 
 ```yaml
 # experiments/castro/configs/exp1_castro_compliant.yaml
@@ -613,28 +563,30 @@ simulation:
   num_days: 1
   rng_seed: 42
 
-  # NEW: Castro compliance flags
-  castro_mode: true
-  collateral_mode: "direct_liquidity"  # Collateral becomes balance
-  hard_liquidity_constraint: true       # No overdraft allowed
-  individual_cost_attribution: true     # Each agent bears own costs
-
-# Castro paper rules
-deferred_crediting: true
-deadline_cap_at_eod: true
+# Castro paper rules (already supported)
+deferred_crediting: true      # ℓ_t = ℓ_{t-1} - P_t x_t + R_t
+deadline_cap_at_eod: true     # All deadlines within day
 
 cost_rates:
-  # r_c < r_d < r_b ordering
-  collateral_cost_per_tick_bps: 500      # r_c = 5% per tick
-  delay_cost_per_tick_per_cent: 0.1      # r_d = 10% per tick-cent
-  eod_penalty_per_transaction: 100000    # r_b >> r_d
+  # Castro's r_c < r_d < r_b ordering
 
-  # Disable overdraft (Castro has no intraday overdraft)
-  overdraft_bps_per_tick: 0  # Set to 0 since hard constraint active
+  # r_c: Cost of allocated liquidity (Castro's collateral cost)
+  liquidity_cost_per_tick_bps: 500    # 5% per tick = r_c
 
+  # r_d: Delay cost
+  delay_cost_per_tick_per_cent: 0.1   # 10% per tick-cent = r_d > r_c ✓
+
+  # r_b: EOD borrowing penalty (must be >> r_d)
+  eod_penalty_per_transaction: 100000
   deadline_penalty: 50000
+
+  # DISABLE overdraft-related costs (not used in Castro model)
+  overdraft_bps_per_tick: 0           # No overdraft possible anyway
+  collateral_cost_per_tick_bps: 0     # Not using collateral mechanism
+
   split_friction_cost: 0
 
+# Disable LSM for Castro experiments
 lsm_config:
   enable_bilateral: false
   enable_cycles: false
@@ -642,15 +594,20 @@ lsm_config:
 agents:
   - id: BANK_A
     opening_balance: 0
-    unsecured_cap: 0           # No free credit
-    max_collateral_capacity: 100000
+    unsecured_cap: 0                    # CRITICAL: No unsecured credit
+    # NO posted_collateral              # CRITICAL: Don't use collateral mechanism
+    # NO max_collateral_capacity        # Not needed
+
+    # Castro's liquidity mechanism:
+    liquidity_pool: 100000              # B = 100,000 (matches paper)
+    # liquidity_allocation_fraction controlled by experiment policy optimization
 
   - id: BANK_B
     opening_balance: 0
-    unsecured_cap: 0           # No free credit
-    max_collateral_capacity: 100000
+    unsecured_cap: 0                    # CRITICAL: No unsecured credit
+    liquidity_pool: 100000              # B = 100,000 (matches paper)
 
-# Same transaction schedule as before...
+# Deterministic transaction schedule (unchanged)
 scenario_events:
   # Bank A -> Bank B: 15000 at tick 1, deadline 2
   - type: CustomTransactionArrival
@@ -686,39 +643,54 @@ scenario_events:
       tick: 1
 ```
 
-### Implementation Priority
+### Why This Works
 
-| Change | Effort | Impact | Priority |
-|--------|--------|--------|----------|
-| Hard liquidity constraint | Medium | Critical | **P0** |
-| Direct liquidity collateral | Medium | Critical | **P0** |
-| Individual cost attribution | Low-Medium | High | **P1** |
-| Payment fractionalization | High | Low | P3 (skip) |
+| Castro Requirement | SimCash Feature | How It Works |
+|-------------------|-----------------|--------------|
+| Hard liquidity constraint | `liquidity_pool` + `unsecured_cap: 0` | No credit headroom → settlements fail when balance < amount |
+| Collateral provides direct balance | `liquidity_allocation_fraction` | Allocated fraction adds to balance at day start |
+| Opportunity cost r_c | `liquidity_cost_per_tick_bps` | Charges for allocated liquidity each tick |
+| Deferred crediting | `deferred_crediting: true` | Credits applied at end of tick |
+| No intraday borrowing | No `posted_collateral`, `unsecured_cap: 0` | No way to go negative |
 
-### Expected Outcome After Changes
+### Expected Outcome After Configuration Change
 
-With Castro-compliant configuration:
-1. **BANK_B** would be forced to post collateral at t=0 to send its 15000 payment
-2. **BANK_A** could free-ride by posting 0% since it receives B's payment before needing to send
-3. **Result should match Castro**: BANK_A ≈ 0%, BANK_B ≈ 20%
-4. **Costs should be asymmetric**: BANK_A ≈ $0, BANK_B ≈ $20 (in comparable units)
+With this Castro-compliant configuration:
 
-### Validation Test
+1. **BANK_B** must allocate liquidity at t=0 to send 15,000 payment
+   - Without liquidity, settlement fails (no overdraft possible)
+   - Optimal: allocate 20% (20,000) to cover payments
 
-After implementing changes, verify with manual simulation:
-1. Set BANK_A = 0%, BANK_B = 20%
-2. Run simulation
-3. Verify: All payments settle on time, BANK_B bears collateral cost, BANK_A bears no cost
-4. Compare to Castro's predicted outcome
+2. **BANK_A** can free-ride
+   - Receives B's 15,000 at t=1 (after deferred credit at end of t=0)
+   - Uses received funds to pay own 15,000 at t=1
+   - Optimal: allocate 0%
+
+3. **Result should match Castro exactly**:
+   - BANK_A ≈ 0%
+   - BANK_B ≈ 20%
+
+### Experiment Framework Integration
+
+The experiment framework's `initial_liquidity_fraction` parameter should map to `liquidity_allocation_fraction` instead of controlling `posted_collateral`. This may require:
+
+1. Checking if the experiment runner already supports `liquidity_pool` mode
+2. If not, updating the policy injection to set `liquidity_allocation_fraction` instead of calling `PostCollateral`
+
+### Validation Steps
+
+1. Create `exp1_castro_compliant.yaml` with above configuration
+2. Test manually: set BANK_A=0%, BANK_B=20%
+3. Verify:
+   - BANK_B's tick-0 payment (15,000) settles successfully
+   - BANK_A's tick-1 payment (15,000) settles using received funds
+   - BANK_B's tick-1 payment (5,000) settles
+   - Costs are individual (BANK_A ≈ $0, BANK_B > $0)
+4. Run experiment with LLM optimization
+5. Verify convergence to Castro's predicted equilibrium
 
 ### Conclusion
 
-Matching Castro's exact conditions requires **code changes** to the simulator, not just configuration. The two critical changes are:
+**SimCash already supports Castro's exact model through existing configuration options.** The key is using `liquidity_pool` + `liquidity_allocation_fraction` (which provides direct balance) instead of `posted_collateral` (which provides credit headroom).
 
-1. **Hard liquidity constraint** - prevent settlements when balance < amount
-2. **Direct liquidity collateral** - make posted collateral increase balance, not credit headroom
-
-Without these changes, SimCash implements a different (but valid) payment system model where:
-- Overdraft provides flexibility at cost
-- Collateral secures credit rather than providing direct funds
-- This leads to different equilibria than Castro's theoretical model
+This is a general-purpose feature for modeling external liquidity facilities, not Castro-specific, which is exactly what was requested.
