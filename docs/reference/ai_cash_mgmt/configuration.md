@@ -192,7 +192,7 @@ Persistence and output settings.
 
 ```yaml
 output:
-  database_path: "results/game.db"
+  database_path: "results/simulation_data.db"
   verbose: true
 ```
 
@@ -570,7 +570,7 @@ verbose: <bool>                      # Default: false
 Path to DuckDB database for persistence.
 
 ```yaml
-database_path: "results/game.db"
+database_path: "results/simulation_data.db"
 ```
 
 ---
@@ -617,7 +617,7 @@ convergence:
   improvement_threshold: 0.01
 
 output:
-  database_path: "results/exp2.db"
+  database_path: "results/simulation_data.db"
   verbose: true
 ```
 

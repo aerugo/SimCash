@@ -299,8 +299,8 @@ When adding a new event type that should appear in verbose output:
 
 7. **Test replay identity**
    ```bash
-   payment-sim run --config test.yaml --persist output.db --verbose > run.txt
-   payment-sim replay output.db --verbose > replay.txt
+   payment-sim run --config test.yaml --persist --simulation-id my-test --verbose > run.txt
+   payment-sim replay --simulation-id my-test --verbose > replay.txt
    diff <(grep -v "Duration:" run.txt) <(grep -v "Duration:" replay.txt)
    ```
 
@@ -511,10 +511,10 @@ diff run_1.txt run_2.txt  # Should be empty
 
 ```bash
 # Run and persist
-payment-sim run --config test.yaml --persist output.db --verbose > run.txt
+payment-sim run --config test.yaml --persist --simulation-id my-test --verbose > run.txt
 
 # Replay from database
-payment-sim replay output.db --verbose > replay.txt
+payment-sim replay --simulation-id my-test --verbose > replay.txt
 
 # Compare (excluding timing)
 diff <(grep -v "Duration:" run.txt) <(grep -v "Duration:" replay.txt)
