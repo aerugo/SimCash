@@ -42,7 +42,7 @@ Repository for AI Cash Management database operations.
 from payment_simulator.persistence.connection import DatabaseManager
 from payment_simulator.ai_cash_mgmt import GameRepository
 
-with DatabaseManager("simulation.db") as manager:
+with DatabaseManager("simulation_data.db") as manager:
     repo = GameRepository(manager.conn)
     repo.initialize_schema()
 
@@ -529,8 +529,8 @@ from payment_simulator.ai_cash_mgmt import (
     PolicyIterationRecord,
 )
 
-# Initialize database
-with DatabaseManager("optimization.db") as manager:
+# Initialize database (uses unified simulation_data.db)
+with DatabaseManager("simulation_data.db") as manager:
     repo = GameRepository(manager.conn)
     repo.initialize_schema()
 
