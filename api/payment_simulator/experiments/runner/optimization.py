@@ -222,6 +222,7 @@ class OptimizationLoop:
         console: Console | None = None,
         run_id: str | None = None,
         repository: ExperimentRepository | None = None,
+        persist_bootstrap: bool = False,
     ) -> None:
         """Initialize the optimization loop.
 
@@ -233,11 +234,13 @@ class OptimizationLoop:
             console: Optional Rich console for verbose output.
             run_id: Optional run ID. If not provided, one is generated.
             repository: Optional ExperimentRepository for persistence.
+            persist_bootstrap: If True, persist bootstrap sample simulations to database.
         """
         self._config = config
         self._config_dir = config_dir or Path.cwd()
         self._run_id = run_id or _generate_run_id(config.name)
         self._repository: ExperimentRepository | None = repository
+        self._persist_bootstrap = persist_bootstrap
 
         # Get convergence settings
         conv = config.convergence
@@ -949,10 +952,9 @@ class OptimizationLoop:
         # Format events into human-readable output for LLM consumption
         verbose_output = self._format_events_for_llm(all_events)
 
-        # Persist simulation to experiment database if repository is available
-        if self._repository:
+        # Persist simulation to experiment database if --persist-bootstrap flag is set
+        if self._repository and self._persist_bootstrap:
             from payment_simulator.experiments.persistence import EventRecord
-            from datetime import datetime
 
             # Store simulation start event with key metadata
             event = EventRecord(
