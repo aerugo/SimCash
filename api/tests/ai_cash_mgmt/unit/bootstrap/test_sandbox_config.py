@@ -319,10 +319,10 @@ class TestIncomingLiquidityEvents:
         )
 
         assert config.scenario_events is not None
-        # Find direct transfer events
+        # Find scheduled settlement events (changed from DirectTransfer to go through RTGS)
         transfer_events = [
             e for e in config.scenario_events
-            if e.type == "DirectTransfer"
+            if e.type == "ScheduledSettlement"
         ]
         assert len(transfer_events) == 1
 
@@ -377,9 +377,10 @@ class TestIncomingLiquidityEvents:
 
         assert config.scenario_events is not None
         # Should have events for both incoming transactions
+        # (Using ScheduledSettlement to go through RTGS engine)
         transfer_events = [
             e for e in config.scenario_events
-            if e.type == "DirectTransfer"
+            if e.type == "ScheduledSettlement"
         ]
         assert len(transfer_events) == 2
 
