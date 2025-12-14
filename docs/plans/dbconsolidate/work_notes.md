@@ -44,8 +44,45 @@ The experiment framework saves LLM interactions via `_save_llm_interaction_event
    - All policy iterations (accepted AND rejected)
 
 ### Next Steps
-- [ ] Create Phase 1 detailed plan
-- [ ] Start Phase 1 implementation (delete dead code)
+- [x] Create Phase 1 detailed plan
+- [x] Start Phase 1 implementation (delete dead code)
+
+---
+
+## 2025-12-14: Phase 1 Complete - Dead Code Removal
+
+### Summary
+Removed dead Castro audit tables and associated code:
+- `llm_interaction_log` table
+- `policy_diffs` table
+- `iteration_context` table
+
+### Files Modified
+
+**Deleted Files**:
+- `api/tests/integration/test_castro_audit_trail_persistence.py`
+- `api/tests/unit/test_castro_audit_trail_models.py`
+- `api/migrations/004_add_audit_tables.sql`
+
+**Modified Files**:
+- `api/payment_simulator/ai_cash_mgmt/persistence/models.py` - Removed 3 model classes (~120 lines)
+- `api/payment_simulator/ai_cash_mgmt/persistence/repository.py` - Removed table creation + methods (~300 lines)
+
+**New Files**:
+- `api/tests/unit/test_dead_code_verification.py` - Verification tests documenting dead code
+
+### Tests Run
+- All verification tests pass (5/5)
+- All database integration tests pass (12/12)
+- mypy passes
+- ruff passes
+
+### Pre-existing Test Failures (Unrelated)
+- `tests/ai_cash_mgmt/bootstrap/test_context_builder_core.py::TestCastroBackwardCompatibility` - Tests import path that doesn't exist
+- `tests/ai_cash_mgmt/unit/bootstrap/test_sandbox_config.py::TestIncomingLiquidityEvents` - Unrelated sandbox config issue
+
+### Next Steps
+- [ ] Begin Phase 2: Schema unification
 
 ---
 

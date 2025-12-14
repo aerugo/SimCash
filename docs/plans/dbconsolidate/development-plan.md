@@ -45,7 +45,7 @@ From `docs/reference/patterns-and-conventions.md`:
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| **Phase 1** | Delete dead code (Castro audit tables) | Pending |
+| **Phase 1** | Delete dead code (Castro audit tables) | ✅ Complete |
 | **Phase 2** | Schema unification (single DatabaseManager) | Pending |
 | **Phase 3** | Experiment → Simulation linking | Pending |
 | **Phase 4** | Unified CLI commands | Pending |

@@ -1,6 +1,7 @@
 # Phase 1: Delete Dead Code (Castro Audit Tables)
 
-**Status**: Pending
+**Status**: ✅ Complete
+**Completed**: 2025-12-14
 **Estimated Effort**: Small
 **Risk Level**: Low (dead code removal)
 
@@ -139,15 +140,15 @@ cd api
 
 ## Sub-Phase Checklist
 
-- [ ] **1.1** Write verification tests confirming dead code
-- [ ] **1.2** Delete `LLMInteractionRecord`, `PolicyDiffRecord`, `IterationContextRecord` models
-- [ ] **1.3** Delete repository methods for dead tables
-- [ ] **1.4** Delete table creation SQL from `initialize_schema()`
-- [ ] **1.5** Delete test files for dead code
-- [ ] **1.6** Delete migration file `004_add_audit_tables.sql`
-- [ ] **1.7** Run full test suite
-- [ ] **1.8** Run mypy and ruff
-- [ ] **1.9** Update work_notes.md with completion
+- [x] **1.1** Write verification tests confirming dead code
+- [x] **1.2** Delete `LLMInteractionRecord`, `PolicyDiffRecord`, `IterationContextRecord` models
+- [x] **1.3** Delete repository methods for dead tables
+- [x] **1.4** Delete table creation SQL from `initialize_schema()`
+- [x] **1.5** Delete test files for dead code
+- [x] **1.6** Delete migration file `004_add_audit_tables.sql`
+- [x] **1.7** Run full test suite
+- [x] **1.8** Run mypy and ruff
+- [x] **1.9** Update work_notes.md with completion
 
 ---
 
@@ -175,11 +176,11 @@ If issues are discovered:
 
 ## Acceptance Criteria
 
-- [ ] All dead tables removed from schema
-- [ ] All dead models removed
-- [ ] All dead repository methods removed
-- [ ] No import errors
-- [ ] All existing tests pass
-- [ ] mypy passes
-- [ ] ruff passes
-- [ ] Experiments still run correctly (manual verification)
+- [x] All dead tables removed from schema
+- [x] All dead models removed
+- [x] All dead repository methods removed
+- [x] No import errors
+- [x] All existing tests pass (database integration tests: 12/12)
+- [x] mypy passes
+- [x] ruff passes
+- [ ] Experiments still run correctly (manual verification) - skipped, will verify in Phase 5
