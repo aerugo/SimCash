@@ -50,6 +50,20 @@ class PolicyCreatedBy(str, Enum):
     LLM = "llm"  # LLM-managed policy change
 
 
+class SimulationRunPurpose(str, Enum):
+    """Purpose of a simulation run within an experiment.
+
+    Added in Phase 2 Database Consolidation for experiment → simulation linking.
+    """
+
+    STANDALONE = "standalone"  # Not part of an experiment
+    INITIAL = "initial"  # Initial evaluation before optimization
+    BOOTSTRAP = "bootstrap"  # Bootstrap sample for confidence interval
+    EVALUATION = "evaluation"  # Policy evaluation during optimization
+    BEST = "best"  # Best policy found so far
+    FINAL = "final"  # Final evaluation after optimization
+
+
 class CheckpointType(str, Enum):
     """Checkpoint creation type."""
 
@@ -197,6 +211,7 @@ class SimulationRunRecord(BaseModel):
         indexes=[
             ("idx_sim_config_seed", ["config_hash", "rng_seed"]),
             ("idx_sim_started", ["start_time"]),
+            ("idx_sim_experiment", ["experiment_id"]),
         ],
     )
 
@@ -218,6 +233,157 @@ class SimulationRunRecord(BaseModel):
     # Results
     status: SimulationStatus = Field(..., description="Simulation status")
     total_transactions: int = Field(0, description="Total transactions processed")
+
+    # Experiment linkage (Phase 2 Database Consolidation)
+    experiment_id: str | None = Field(
+        None, description="Link to experiments table (if part of experiment)"
+    )
+    iteration: int | None = Field(
+        None, description="Iteration number within experiment"
+    )
+    sample_index: int | None = Field(
+        None, description="Bootstrap sample index (for evaluation sims)"
+    )
+    run_purpose: str | None = Field(
+        None,
+        description="Purpose: 'standalone', 'initial', 'bootstrap', 'evaluation', 'best', 'final'",
+    )
+
+
+# ============================================================================
+# Experiment Tables (Phase 2 Database Consolidation)
+# ============================================================================
+
+
+class ExperimentRecord(BaseModel):
+    """Experiment metadata for persistence.
+
+    Stores high-level information about optimization experiments.
+    Added in Phase 2 Database Consolidation.
+
+    Critical invariants:
+    - INV-1: Costs use BIGINT (integer cents), not floats
+    - INV-2: master_seed stored for deterministic replay
+    """
+
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
+        table_name="experiments",
+        primary_key=["experiment_id"],
+        indexes=[
+            ("idx_exp_created", ["created_at"]),
+            ("idx_exp_type", ["experiment_type"]),
+            ("idx_exp_converged", ["converged"]),
+        ],
+    )
+
+    # Identity
+    experiment_id: str = Field(..., description="Unique experiment identifier")
+    experiment_name: str = Field(..., description="Human-readable experiment name")
+    experiment_type: str = Field(
+        ..., description="Experiment type (e.g., 'castro', 'grid_search')"
+    )
+
+    # Configuration
+    config: str = Field(..., description="JSON-encoded experiment configuration")
+    scenario_path: str | None = Field(
+        None, description="Path to scenario configuration file"
+    )
+    master_seed: int = Field(..., description="Master RNG seed for determinism (INV-2)")
+
+    # Timing
+    created_at: datetime = Field(..., description="When experiment was created")
+    completed_at: datetime | None = Field(
+        None, description="When experiment completed"
+    )
+
+    # Progress
+    num_iterations: int = Field(0, description="Number of completed iterations")
+    converged: bool = Field(False, description="Whether optimization converged")
+    convergence_reason: str | None = Field(
+        None, description="Reason for convergence (if converged)"
+    )
+
+    # Results (INV-1: Integer cents)
+    final_cost: int | None = Field(
+        None, description="Final total cost in cents (INV-1)"
+    )
+    best_cost: int | None = Field(
+        None, description="Best cost found during optimization in cents (INV-1)"
+    )
+
+
+class ExperimentIterationRecord(BaseModel):
+    """Experiment iteration record for persistence.
+
+    Stores per-iteration data including policies and costs.
+    Added in Phase 2 Database Consolidation.
+
+    Critical invariants:
+    - INV-1: costs_per_agent values are integer cents
+    """
+
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
+        table_name="experiment_iterations",
+        primary_key=["experiment_id", "iteration"],
+        indexes=[
+            ("idx_iter_exp", ["experiment_id"]),
+            ("idx_iter_eval_sim", ["evaluation_simulation_id"]),
+        ],
+    )
+
+    # Identity (composite primary key)
+    experiment_id: str = Field(..., description="Foreign key to experiments table")
+    iteration: int = Field(..., description="Iteration number (0-indexed)")
+
+    # Iteration data (all JSON strings)
+    costs_per_agent: str = Field(
+        ..., description="JSON object mapping agent_id to cost in cents (INV-1)"
+    )
+    accepted_changes: str = Field(
+        ..., description="JSON object describing policy changes accepted this iteration"
+    )
+    policies: str = Field(
+        ..., description="JSON object containing full policy state for all agents"
+    )
+
+    # Timing
+    timestamp: str = Field(..., description="ISO timestamp when iteration completed")
+
+    # Simulation linkage
+    evaluation_simulation_id: str | None = Field(
+        None, description="Foreign key to simulation_runs for evaluation simulation"
+    )
+
+
+class ExperimentEventRecord(BaseModel):
+    """Experiment event record for persistence.
+
+    Stores experiment-level events (LLM interactions, convergence checks, etc.)
+    Added in Phase 2 Database Consolidation.
+    """
+
+    model_config = ConfigDict(  # type: ignore[typeddict-unknown-key]
+        table_name="experiment_events",
+        primary_key=["id"],
+        indexes=[
+            ("idx_exp_event_exp", ["experiment_id"]),
+            ("idx_exp_event_iter", ["experiment_id", "iteration"]),
+            ("idx_exp_event_type", ["event_type"]),
+        ],
+    )
+
+    # Identity
+    id: int | None = Field(None, description="Auto-increment primary key")
+    experiment_id: str = Field(..., description="Foreign key to experiments table")
+    iteration: int = Field(..., description="Iteration number when event occurred")
+
+    # Event data
+    event_type: str = Field(
+        ...,
+        description="Event type (e.g., 'llm_interaction', 'convergence_check', 'policy_change')",
+    )
+    event_data: str = Field(..., description="JSON-encoded event details")
+    timestamp: str = Field(..., description="ISO timestamp when event occurred")
 
 
 # ============================================================================

@@ -187,6 +187,9 @@ def generate_full_schema_ddl() -> str:
         AgentStateRegisterRecord,
         CollateralEventRecord,
         DailyAgentMetricsRecord,
+        ExperimentEventRecord,
+        ExperimentIterationRecord,
+        ExperimentRecord,
         LsmCycleRecord,
         PolicyDecisionRecord,
         PolicySnapshotRecord,
@@ -199,9 +202,16 @@ def generate_full_schema_ddl() -> str:
         TransactionRecord,
     )
 
+    # Order matters: experiments must be created before simulation_runs (FK reference)
+    # and experiment_iterations/events (FK reference)
     models = [
         SimulationRecord,
-        SimulationRunRecord,
+        # Experiment tables (Phase 2 Database Consolidation)
+        ExperimentRecord,  # Must be before simulation_runs (FK)
+        SimulationRunRecord,  # References experiments
+        ExperimentIterationRecord,  # References experiments + simulation_runs
+        ExperimentEventRecord,  # References experiments
+        # Core simulation tables
         TransactionRecord,
         DailyAgentMetricsRecord,
         CollateralEventRecord,

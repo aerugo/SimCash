@@ -15,6 +15,9 @@ from .models import (
     AgentStateRegisterRecord,
     CollateralEventRecord,
     DailyAgentMetricsRecord,
+    ExperimentEventRecord,
+    ExperimentIterationRecord,
+    ExperimentRecord,
     PolicySnapshotRecord,
     SimulationCheckpointRecord,
     SimulationEventRecord,
@@ -200,6 +203,10 @@ class DatabaseManager:
             PolicySnapshotRecord,
             SimulationCheckpointRecord,
             SimulationEventRecord,
+            # Experiment tables (Phase 2 Database Consolidation)
+            ExperimentRecord,
+            ExperimentIterationRecord,
+            ExperimentEventRecord,
         ]
 
         all_valid = True
@@ -337,7 +344,12 @@ class DatabaseManager:
             "collateral_events",
             "daily_agent_metrics",
             "transactions",
-            "simulation_runs",
+            # Experiment tables (Phase 2 Database Consolidation)
+            # Drop in reverse FK order: events/iterations before experiments
+            "experiment_events",
+            "experiment_iterations",
+            "simulation_runs",  # Must be after experiment_iterations (FK)
+            "experiments",  # Must be last of experiment tables
             "simulations",
             "schema_migrations",
         ]
@@ -347,6 +359,7 @@ class DatabaseManager:
             "collateral_events_id_seq",
             "lsm_cycles_id_seq",
             "policy_decisions_id_seq",
+            "experiment_events_id_seq",  # Phase 2 Database Consolidation
         ]
 
         for table_name in tables_to_drop:
