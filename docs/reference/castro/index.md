@@ -157,7 +157,7 @@ optimized_agents:
 
 output:
   directory: results
-  database: exp1.db
+  database: simulation_data.db
   verbose: true
 
 master_seed: 42
