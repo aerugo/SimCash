@@ -23,6 +23,13 @@ Create a **single unified database schema** where:
 - Users can replay any simulation with full event detail
 - Storage remains efficient (selective persistence)
 
+## Design Decisions (Confirmed)
+
+1. **No backwards compatibility** - Clean slate, no migration of old databases
+2. **Structured simulation IDs** - Format: `{experiment_id}-iter{N}-{purpose}` for traceability
+3. **Castro audit tables are dead code** - See analysis below
+4. **Default persistence policy** - Full tick-level snapshots, no bootstrap sample transactions
+
 ---
 
 ## Current Architecture
@@ -65,6 +72,25 @@ experiments (PK: run_id)
 | Simulation events | Full detail | **Not stored** |
 | Replay support | Complete | Iteration-level only |
 | Typical size | 10-100 MB per run | <1 MB per experiment |
+
+### Castro Audit Tables Analysis
+
+The `ai_cash_mgmt` module defines 5 tables, but **3 are effectively dead code**:
+
+| Table | Defined In | Written To? | Status |
+|-------|-----------|-------------|--------|
+| `game_sessions` | `ai_cash_mgmt/persistence/` | Unknown | Legacy |
+| `policy_iterations` | `ai_cash_mgmt/persistence/` | Unknown | Legacy |
+| `llm_interaction_log` | `ai_cash_mgmt/persistence/` | **NO** | Dead code |
+| `policy_diffs` | `ai_cash_mgmt/persistence/` | **NO** | Dead code |
+| `iteration_context` | `ai_cash_mgmt/persistence/` | **NO** | Dead code |
+
+**Why dead code?** The experiment framework (`experiments/runner/optimization.py`) saves LLM interactions as events in the `experiment_events` table via `_save_llm_interaction_event()`, which calls `self._repository.save_event(event)`. It does NOT use `GameRepository.save_llm_interaction()`.
+
+**Recommendation**: Do not migrate these tables. Instead:
+- Consolidate LLM audit data into `experiment_events` (current approach works)
+- OR create a unified `llm_interactions` table that both systems use
+- Delete the unused `GameRepository` methods and models
 
 ---
 
@@ -157,17 +183,40 @@ CREATE TABLE IF NOT EXISTS experiment_iterations (
 );
 ```
 
-#### 4. Selective simulation persistence
+#### 4. Default Experiment Persistence Policy
 
-Add a `persistence_level` to control what gets stored:
+The default persistence policy for experiments:
 
 ```python
+@dataclass
+class ExperimentPersistencePolicy:
+    """Default persistence policy for experiments."""
+
+    # Full tick-level state snapshots for ALL evaluation simulations
+    simulation_persistence: SimulationPersistenceLevel = SimulationPersistenceLevel.FULL
+
+    # Do NOT persist bootstrap sample transactions (they're resampled, not real)
+    persist_bootstrap_transactions: bool = False
+
+    # Always persist final evaluation simulation
+    persist_final_evaluation: bool = True
+
+    # Always persist every policy iteration for every agent (accepted AND rejected)
+    persist_all_policy_iterations: bool = True
+
+
 class SimulationPersistenceLevel(Enum):
     NONE = "none"           # No persistence (fast evaluation)
     SUMMARY = "summary"     # Just simulation_runs + daily_agent_metrics
     EVENTS = "events"       # + simulation_events (for replay)
     FULL = "full"           # + tick_agent_states, tick_queue_snapshots (full replay)
 ```
+
+**Key points**:
+- Every evaluation simulation gets FULL persistence (tick-level snapshots)
+- Bootstrap sample transactions are NOT stored (they're synthetic resamples)
+- All policy iterations persisted regardless of acceptance (for audit trail)
+- Final evaluation always persisted
 
 ---
 
@@ -375,48 +424,55 @@ $ payment-sim experiment replay exp2-20251214-011720-cd2e23 --db results/exp2.db
 
 ## Storage Estimates
 
-| Persistence Level | Per Simulation | 500 Simulations |
-|-------------------|----------------|-----------------|
-| NONE              | 0 KB           | 0 KB            |
-| SUMMARY           | 5 KB           | 2.5 MB          |
-| EVENTS            | 500 KB         | 250 MB          |
-| FULL              | 2 MB           | 1 GB            |
+| Persistence Level | Per Simulation | 50 Iterations (1 eval each) |
+|-------------------|----------------|----------------------------|
+| NONE              | 0 KB           | 0 KB                       |
+| SUMMARY           | 5 KB           | 250 KB                     |
+| EVENTS            | 500 KB         | 25 MB                      |
+| FULL              | 2 MB           | **100 MB**                 |
 
-With SMART policy (initial + best + final only):
-- ~10 simulations with EVENTS = 5 MB
-- ~490 simulations with SUMMARY = 2.5 MB
-- **Total: ~8 MB per experiment** (vs 250 MB for all)
+With new default policy (FULL for all evaluations):
+- 50 iterations × 1 evaluation simulation = 50 simulations
+- 50 × 2 MB = **100 MB per experiment**
+- Plus policy iterations: ~50 × 50 KB = 2.5 MB
+- **Total: ~103 MB per experiment**
+
+This is acceptable for research/audit purposes. The key savings come from NOT storing:
+- Bootstrap sample transactions (would add ~5 MB × N samples per iteration)
+- Intermediate bootstrap evaluation states
 
 ---
 
-## Open Questions
+## Open Questions (Remaining)
 
-1. **Backwards compatibility**: How to handle old experiment databases?
-   - Option A: Read-only support, no migration
-   - Option B: One-time migration script
+1. ~~**Backwards compatibility**~~ → **DECIDED**: Clean slate, no migration
 
-2. **Simulation ID format**: Should experiment simulations have structured IDs?
-   - Current: `sim-20251214-120000-xyz` (random)
-   - Proposed: `exp2-iter5-sample0-eval` (structured)
+2. ~~**Simulation ID format**~~ → **DECIDED**: Structured format `{experiment_id}-iter{N}-{purpose}`
 
-3. **Castro integration**: Merge Castro tables into unified schema?
-   - `llm_interaction_log`, `policy_diffs`, `iteration_context`
-   - These are LLM-specific, maybe keep separate?
+3. ~~**Castro integration**~~ → **DECIDED**: Castro audit tables are dead code, don't migrate
 
-4. **Deterministic re-run**: If events aren't persisted, can we re-run exactly?
+4. **Deterministic re-run**: Can we re-run any simulation exactly?
    - Need: scenario config + policies + seed
-   - Store in `experiment_iterations.policies` (already done)
+   - With FULL persistence, we have everything needed
+   - Policies stored in `experiment_iterations.policies`
+   - Seeds stored in `simulation_runs.rng_seed`
+
+5. **Policy iteration storage location**: Where to store accepted/rejected policies?
+   - Option A: `experiment_iterations` table (current)
+   - Option B: New `policy_proposals` table with richer schema
+   - Needs: old_policy, new_policy, accepted, rejection_reason, LLM metadata
 
 ---
 
 ## Next Steps
 
-1. [ ] Review this proposal with stakeholders
-2. [ ] Decide on persistence policy defaults
-3. [ ] Implement Phase 1: Schema unification
-4. [ ] Implement Phase 2: Experiment → Simulation linking
-5. [ ] Implement Phase 3: Unified CLI commands
-6. [ ] Write migration for existing databases
+1. [x] Review this proposal with stakeholders
+2. [x] Decide on persistence policy defaults → FULL for all evaluations
+3. [ ] Delete dead code: Castro audit tables (`llm_interaction_log`, `policy_diffs`, `iteration_context`)
+4. [ ] Implement Phase 1: Schema unification (single DatabaseManager)
+5. [ ] Implement Phase 2: Experiment → Simulation linking with structured IDs
+6. [ ] Implement Phase 3: Unified CLI commands
+7. [ ] Add `policy_proposals` table for rich policy audit trail
 
 ---
 
