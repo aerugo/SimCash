@@ -1,14 +1,12 @@
-# Experiment 3: Three-Period Dummy Example (Castro-Compliant)
+# Experiment 3: Three-Period Dummy Example
 #
-# Replicates Castro et al. (2025) Section 7.2:
 # - P^A = P^B = [0.2, 0.2, 0] - symmetric, deterministic payment demands
 # - Joint learning of initial liquidity and payment timing
-# - Uses liquidity_pool mode (direct balance) for Castro compliance
+# - Uses liquidity_pool mode (direct balance)
 #
-# Expected outcome: Both agents ~25% initial liquidity
 
 name: exp3
-description: "Three-Period Dummy - Joint Liquidity & Timing (Castro-Compliant)"
+description: "Three-Period Dummy - Joint Liquidity & Timing"
 
 # Scenario configuration (relative to this file's directory)
 scenario: ../configs/exp3_joint.yaml
@@ -34,46 +32,25 @@ llm:
   timeout_seconds: 900
   reasoning_effort: "high"
 
-# Prompt customization for joint learning
+# Experiment customization - guides LLM without giving away answer
 prompt_customization:
   all: |
-    ## Experiment Focus: Joint Liquidity & Timing Optimization
+    This scenario tests a fundamental tradeoff in payment systems:
+    - Allocating liquidity from the pool allows you to settle payments
+    - But allocated liquidity has an opportunity cost
 
-    This is the **Three-Period Dummy Example**:
-    - 3 periods total: t=0, t=1, t=2
-    - Symmetric payments: Each bank owes 20% of liquidity pool at t=0 and t=1
-    - No new payments at t=2
-    - Total payment obligation: 40% of liquidity pool (0.2 + 0.2)
+    The KEY DECISION in this scenario is: What fraction of the liquidity pool
+    should be allocated at the START of the day?
 
-    **CRITICAL CONSTRAINT:**
-    - You have NO unsecured credit line (unsecured_cap = 0)
-    - You have NO overdraft capability (hard liquidity constraint)
-    - The ONLY way to get liquidity is by allocating from your liquidity_pool
-    - If you don't allocate enough, you CANNOT make payments → gridlock!
+    IMPORTANT: Focus your optimization on the `initial_liquidity_fraction` parameter.
+    The payment_tree should remain a simple Release action - the real optimization
+    is in how much liquidity to commit upfront.
 
-    **You must optimize TWO decisions:**
+    With a hard liquidity constraint (no overdraft allowed), you must have
+    sufficient balance to settle each payment. Incoming payments from the
+    counterparty provide liquidity that can be recycled for your outgoing payments.
 
-    1. **Initial Liquidity (at simulation start):** What fraction of pool to allocate?
-       - Use `initial_liquidity_fraction` parameter (0.0 to 1.0)
-       - Allocated liquidity becomes your opening balance
-       - But allocated liquidity has opportunity cost (r_c per tick)
-       - Consider: Total obligations are 40% of pool over 2 periods
-
-    2. **Payment Timing (each tick):** Release or hold queued payments?
-       - Releasing uses liquidity but avoids delay costs (r_d)
-       - Holding preserves liquidity but incurs delay costs
-       - Key rule: r_c < r_d (allocating liquidity is CHEAPER than delaying)
-
-    **Cost Tradeoff:**
-    - r_c = liquidity cost (cheaper)
-    - r_d = delay cost (more expensive)
-    - Since r_c < r_d, it's better to allocate more liquidity than delay payments
-
-    **Key Insight:** With symmetric payments, incoming payments from the other bank
-    can offset your outgoing payments. But you need SOME initial liquidity to
-    break the circular dependency (both banks need payments to make payments).
-
-# Policy constraints (Castro-specific - MINIMAL SET)
+# Policy constraints
 policy_constraints:
   allowed_parameters:
     - name: initial_liquidity_fraction
