@@ -722,3 +722,129 @@ def run(
     except Exception as e:
         console.print(f"[red]Error running experiment: {e}[/red]")
         raise typer.Exit(1) from e
+
+
+@experiment_app.command("policy-evolution")
+def policy_evolution(
+    run_id: Annotated[
+        str,
+        typer.Argument(help="Experiment run ID (e.g., exp1-20251209-143022-a1b2c3)"),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", "-d", help="Path to database file"),
+    ] = DEFAULT_DB_PATH,
+    llm: Annotated[
+        bool,
+        typer.Option("--llm", help="Include LLM prompts and responses"),
+    ] = False,
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Filter by agent ID (e.g., BANK_A)"),
+    ] = None,
+    start: Annotated[
+        int | None,
+        typer.Option("--start", help="Start iteration (1-indexed, inclusive)"),
+    ] = None,
+    end: Annotated[
+        int | None,
+        typer.Option("--end", help="End iteration (1-indexed, inclusive)"),
+    ] = None,
+    pretty: Annotated[
+        bool,
+        typer.Option("--pretty", "-p", help="Pretty-print JSON output"),
+    ] = False,
+) -> None:
+    """Extract policy evolution across experiment iterations.
+
+    Returns JSON showing how policies evolved for each agent across iterations.
+    Useful for analyzing optimization trajectories and understanding what the LLM
+    changed at each step.
+
+    Output structure:
+        {
+          "BANK_A": {
+            "iteration_1": {
+              "policy": {...},
+              "diff": "~ threshold: 100 -> 200",
+              "cost": 15000,
+              "accepted": true,
+              "llm": {...}  // only with --llm flag
+            },
+            ...
+          }
+        }
+
+    Examples:
+        # All agents, all iterations
+        experiment policy-evolution exp1-20251209-143022-a1b2c3
+
+        # Filter by agent
+        experiment policy-evolution exp1-20251209-143022-a1b2c3 --agent BANK_A
+
+        # Include LLM prompts/responses
+        experiment policy-evolution exp1-20251209-143022-a1b2c3 --llm
+
+        # Specific iteration range
+        experiment policy-evolution exp1-20251209-143022-a1b2c3 --start 2 --end 5
+
+        # Pretty-print output
+        experiment policy-evolution exp1-20251209-143022-a1b2c3 --pretty
+    """
+    import json
+
+    from payment_simulator.experiments.analysis import (
+        PolicyEvolutionService,
+        build_evolution_output,
+    )
+
+    # Validate iteration range
+    if start is not None and start < 1:
+        console.print("[red]Error: --start must be >= 1[/red]")
+        raise typer.Exit(1)
+
+    if end is not None and end < 1:
+        console.print("[red]Error: --end must be >= 1[/red]")
+        raise typer.Exit(1)
+
+    if start is not None and end is not None and start > end:
+        console.print(
+            f"[red]Error: --start ({start}) cannot be greater than --end ({end})[/red]"
+        )
+        raise typer.Exit(1)
+
+    # Check database exists
+    if not db.exists():
+        console.print(f"[red]Database not found: {db}[/red]")
+        raise typer.Exit(1)
+
+    # Open repository
+    try:
+        repo = ExperimentRepository(db)
+    except Exception as e:
+        console.print(f"[red]Failed to open database: {e}[/red]")
+        raise typer.Exit(1) from e
+
+    try:
+        # Create service and get evolution
+        service = PolicyEvolutionService(repo)
+        evolutions = service.get_evolution(
+            run_id=run_id,
+            include_llm=llm,
+            agent_filter=agent,
+            start_iteration=start,
+            end_iteration=end,
+        )
+
+        # Build output structure
+        output = build_evolution_output(evolutions, include_llm=llm)
+
+        # Output as JSON
+        indent = 2 if pretty else None
+        print(json.dumps(output, indent=indent))
+
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+    finally:
+        repo.close()
