@@ -16,7 +16,11 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
+    filter_events_for_agent,
+)
 
 if TYPE_CHECKING:
     from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
@@ -123,7 +127,12 @@ class EnrichedBootstrapContextBuilder:
     ) -> str:
         """Format event trace for LLM prompt.
 
-        Filters and formats events to be informative for the LLM:
+        CRITICAL: Filters events to only show those relevant to the target agent.
+        This enforces agent isolation - an LLM optimizing Agent X must NEVER see
+        Agent Y's outgoing transactions or internal state.
+
+        Also filters and formats events to be informative for the LLM:
+        - Enforces agent isolation via filter_events_for_agent
         - Prioritizes policy decisions and cost events
         - Limits total events to prevent prompt bloat
         - Sorts chronologically for readability
@@ -138,9 +147,34 @@ class EnrichedBootstrapContextBuilder:
         if not result.event_trace:
             return "(No events captured)"
 
+        # CRITICAL: Convert events to dicts and filter by agent
+        # This enforces agent isolation - only show events relevant to target agent
+        #
+        # We pair each event with its index, filter, then retrieve by index
+        indexed_events = list(enumerate(result.event_trace))
+        indexed_dicts = [
+            (i, self._bootstrap_event_to_dict(e))
+            for i, e in indexed_events
+        ]
+
+        # Filter the dicts
+        filtered_indices = {
+            i for i, d in indexed_dicts
+            if d in filter_events_for_agent(self._agent_id, [d])
+        }
+
+        # Retrieve the original events by their indices
+        filtered_events = [
+            e for i, e in indexed_events
+            if i in filtered_indices
+        ]
+
+        if not filtered_events:
+            return f"(No events for {self._agent_id})"
+
         # Prioritize events by informativeness
         events = sorted(
-            result.event_trace,
+            filtered_events,
             key=lambda e: self._event_priority(e),
             reverse=True,
         )[:max_events]
@@ -149,6 +183,21 @@ class EnrichedBootstrapContextBuilder:
         events = sorted(events, key=lambda e: e.tick)
 
         return self._format_events(events)
+
+    def _bootstrap_event_to_dict(self, event: BootstrapEvent) -> dict[str, Any]:
+        """Convert a BootstrapEvent to a dict for filtering.
+
+        Args:
+            event: BootstrapEvent to convert.
+
+        Returns:
+            Dict representation compatible with filter_events_for_agent.
+        """
+        return {
+            "tick": event.tick,
+            "event_type": event.event_type,
+            **event.details,
+        }
 
     def build_agent_context(self) -> AgentSimulationContext:
         """Build context compatible with prompt system.
@@ -226,6 +275,10 @@ class EnrichedBootstrapContextBuilder:
         Returns:
             Compact string representation of event details.
         """
+        # Handle settlement events specially to show balance changes
+        if event.event_type == "RtgsImmediateSettlement":
+            return self._format_settlement_event(event)
+
         # Format key fields that are most informative
         key_fields = ["tx_id", "action", "amount", "cost", "agent_id", "sender_id"]
         parts = []
@@ -244,3 +297,35 @@ class EnrichedBootstrapContextBuilder:
             parts = [f"{k}={event.details[k]}" for k in other_keys]
 
         return ", ".join(parts) if parts else "(no details)"
+
+    def _format_settlement_event(self, event: BootstrapEvent) -> str:
+        """Format settlement event with balance changes.
+
+        Args:
+            event: Settlement event to format.
+
+        Returns:
+            Formatted string with balance change information.
+        """
+        d = event.details
+        parts = []
+
+        # Transaction ID
+        if "tx_id" in d:
+            parts.append(f"tx_id={d['tx_id']}")
+
+        # Amount
+        if "amount" in d and isinstance(d["amount"], int):
+            parts.append(f"amount=${d['amount'] / 100:.2f}")
+
+        result = ", ".join(parts)
+
+        # Add balance change if available
+        balance_before = d.get("sender_balance_before")
+        balance_after = d.get("sender_balance_after")
+        if balance_before is not None and balance_after is not None:
+            before_fmt = f"${balance_before / 100:,.2f}"
+            after_fmt = f"${balance_after / 100:,.2f}"
+            result += f"\n  Balance: {before_fmt} → {after_fmt}"
+
+        return result

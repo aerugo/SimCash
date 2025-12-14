@@ -62,8 +62,9 @@ class SingleAgentContext:
         current_policy: Current policy for THIS agent only.
         current_metrics: Aggregated metrics from current iteration.
         iteration_history: List of previous iteration records for THIS agent only.
-        best_seed_output: Verbose tick-by-tick output from best seed.
-        worst_seed_output: Verbose tick-by-tick output from worst seed.
+        initial_simulation_output: Verbose output from initial simulation (baseline).
+        best_seed_output: Verbose tick-by-tick output from best bootstrap sample.
+        worst_seed_output: Verbose tick-by-tick output from worst bootstrap sample.
         best_seed: Best performing seed number.
         worst_seed: Worst performing seed number.
         best_seed_cost: Total cost from best seed.
@@ -87,6 +88,7 @@ class SingleAgentContext:
     current_policy: dict[str, Any] = field(default_factory=dict)
     current_metrics: dict[str, Any] = field(default_factory=dict)
     iteration_history: list[SingleAgentIterationRecord] = field(default_factory=list)
+    initial_simulation_output: str | None = None
     best_seed_output: str | None = None
     worst_seed_output: str | None = None
     best_seed: int = 0

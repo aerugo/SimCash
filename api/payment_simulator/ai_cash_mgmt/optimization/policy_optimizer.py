@@ -20,6 +20,10 @@ from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import (
 from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import (
     ConstraintValidator,
 )
+from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
+    filter_events_for_agent,
+    format_filtered_output,
+)
 from payment_simulator.ai_cash_mgmt.prompts.single_agent_context import (
     build_single_agent_context,
 )
@@ -319,6 +323,17 @@ class PolicyOptimizer:
         total_tokens = 0
         start_time = time.monotonic()
 
+        # CRITICAL: If raw events are provided, filter them by agent
+        # This enforces agent isolation: Agent X never sees Agent Y's data
+        effective_best_seed_output = best_seed_output
+        if events is not None and best_seed_output is None:
+            # Filter events to only show target agent's data
+            filtered_events = filter_events_for_agent(agent_id, events)
+            if filtered_events:
+                effective_best_seed_output = format_filtered_output(
+                    agent_id, filtered_events, include_tick_headers=True
+                )
+
         for attempt in range(self._max_retries):
             # Debug: Log attempt start
             if debug_callback is not None:
@@ -332,7 +347,7 @@ class PolicyOptimizer:
                 current_policy=current_policy,
                 current_metrics=current_metrics,
                 iteration_history=iteration_history,
-                best_seed_output=best_seed_output,
+                best_seed_output=effective_best_seed_output,
                 worst_seed_output=worst_seed_output,
                 best_seed=best_seed,
                 worst_seed=worst_seed,
