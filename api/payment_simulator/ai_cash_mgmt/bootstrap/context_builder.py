@@ -16,7 +16,11 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
+    filter_events_for_agent,
+)
 
 if TYPE_CHECKING:
     from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
@@ -123,7 +127,12 @@ class EnrichedBootstrapContextBuilder:
     ) -> str:
         """Format event trace for LLM prompt.
 
-        Filters and formats events to be informative for the LLM:
+        CRITICAL: Filters events to only show those relevant to the target agent.
+        This enforces agent isolation - an LLM optimizing Agent X must NEVER see
+        Agent Y's outgoing transactions or internal state.
+
+        Also filters and formats events to be informative for the LLM:
+        - Enforces agent isolation via filter_events_for_agent
         - Prioritizes policy decisions and cost events
         - Limits total events to prevent prompt bloat
         - Sorts chronologically for readability
@@ -138,9 +147,34 @@ class EnrichedBootstrapContextBuilder:
         if not result.event_trace:
             return "(No events captured)"
 
+        # CRITICAL: Convert events to dicts and filter by agent
+        # This enforces agent isolation - only show events relevant to target agent
+        #
+        # We pair each event with its index, filter, then retrieve by index
+        indexed_events = list(enumerate(result.event_trace))
+        indexed_dicts = [
+            (i, self._bootstrap_event_to_dict(e))
+            for i, e in indexed_events
+        ]
+
+        # Filter the dicts
+        filtered_indices = {
+            i for i, d in indexed_dicts
+            if d in filter_events_for_agent(self._agent_id, [d])
+        }
+
+        # Retrieve the original events by their indices
+        filtered_events = [
+            e for i, e in indexed_events
+            if i in filtered_indices
+        ]
+
+        if not filtered_events:
+            return f"(No events for {self._agent_id})"
+
         # Prioritize events by informativeness
         events = sorted(
-            result.event_trace,
+            filtered_events,
             key=lambda e: self._event_priority(e),
             reverse=True,
         )[:max_events]
@@ -149,6 +183,21 @@ class EnrichedBootstrapContextBuilder:
         events = sorted(events, key=lambda e: e.tick)
 
         return self._format_events(events)
+
+    def _bootstrap_event_to_dict(self, event: BootstrapEvent) -> dict[str, Any]:
+        """Convert a BootstrapEvent to a dict for filtering.
+
+        Args:
+            event: BootstrapEvent to convert.
+
+        Returns:
+            Dict representation compatible with filter_events_for_agent.
+        """
+        return {
+            "tick": event.tick,
+            "event_type": event.event_type,
+            **event.details,
+        }
 
     def build_agent_context(self) -> AgentSimulationContext:
         """Build context compatible with prompt system.
