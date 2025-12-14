@@ -367,7 +367,6 @@ class TestExperimentRepositoryWithDatabaseManager:
         manager.close()
         db_path.unlink(missing_ok=True)
 
-    @pytest.mark.skip(reason="Phase 2.6: ExperimentRepository.from_database_manager not yet implemented")
     def test_experiment_repository_uses_database_manager(self, db_manager: "DatabaseManager") -> None:  # type: ignore[name-defined]
         """Verify ExperimentRepository can use DatabaseManager connection."""
         from payment_simulator.experiments.persistence.repository import (
@@ -378,9 +377,9 @@ class TestExperimentRepositoryWithDatabaseManager:
         # Create repository with DatabaseManager
         repo = ExperimentRepository.from_database_manager(db_manager)
 
-        # Save an experiment
+        # Save an experiment (using unified schema field names)
         record = ExperimentRecord(
-            run_id="test-run-123",
+            experiment_id="test-exp-123",
             experiment_name="test_experiment",
             experiment_type="castro",
             config={"test": "config"},
@@ -389,11 +388,16 @@ class TestExperimentRepositoryWithDatabaseManager:
             num_iterations=0,
             converged=False,
             convergence_reason=None,
+            master_seed=12345,  # Required by unified schema
         )
         repo.save_experiment(record)
 
         # Load and verify
-        loaded = repo.load_experiment("test-run-123")
+        loaded = repo.load_experiment("test-exp-123")
         assert loaded is not None
         assert loaded.experiment_name == "test_experiment"
         assert loaded.experiment_type == "castro"
+        assert loaded.experiment_id == "test-exp-123"
+        assert loaded.master_seed == 12345
+        # Test backwards compatibility alias
+        assert loaded.run_id == "test-exp-123"
