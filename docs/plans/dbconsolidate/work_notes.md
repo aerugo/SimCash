@@ -225,6 +225,45 @@ Building the infrastructure to persist simulation runs during experiments with p
 
 ---
 
+## 2025-12-14: Phase 4 In Progress - Unified CLI Commands
+
+### Summary
+Adding unified CLI commands for querying experiments and simulations.
+
+### Completed (Sub-Phases 4.1-4.3)
+
+**Sub-Phase 4.1: db simulations with experiment context**
+- Existing command already shows experiment-linked simulations
+- 3 tests pass verifying experiment_id, standalone, and purpose columns
+
+**Sub-Phase 4.2: db experiments command**
+- New command: `payment-sim db experiments --db-path <path>`
+- Lists all experiments with name, iterations, converged status, final cost
+- Shows helpful message when no experiments exist
+- 5 tests pass
+
+**Sub-Phase 4.3: db experiment-details command**
+- New command: `payment-sim db experiment-details <exp-id> --db-path <path>`
+- Shows experiment metadata (name, type, seed, costs, dates)
+- Lists all linked simulations with iteration, purpose, cost
+- 3 tests pass
+
+**Sub-Phase 4.4: Replay with experiments (Skipped)**
+- Existing replay command works with experiment simulation IDs
+- Full testing deferred to Phase 5 integration tests
+
+### Tests
+- 11 tests pass in test_db_commands_unified.py
+- 2 skipped (replay tests for Phase 5)
+- mypy passes
+- ruff passes
+
+### Remaining Work
+- [ ] Phase 5: Integration testing & cleanup
+- [ ] Update docs/reference/ with new CLI commands
+
+---
+
 ## Work Log Format
 
 Each session should include:

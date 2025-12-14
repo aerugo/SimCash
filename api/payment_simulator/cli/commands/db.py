@@ -1063,3 +1063,251 @@ def db_costs(
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
         raise typer.Exit(code=1)
 
+
+@db_app.command("experiments")
+def db_experiments(
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+    limit: Annotated[
+        int,
+        typer.Option("--limit", "-n", help="Maximum number of experiments to show"),
+    ] = 20,
+) -> None:
+    """List experiments in the database.
+
+    Shows all experiments with their iteration counts, convergence status,
+    and final costs. Use --limit to control the number of results.
+
+    Phase 4 Database Consolidation: Unified CLI commands.
+    """
+    try:
+        manager = DatabaseManager(db_path)
+
+        # Query experiments table
+        query = """
+            SELECT
+                experiment_id,
+                experiment_name,
+                experiment_type,
+                num_iterations,
+                converged,
+                convergence_reason,
+                master_seed,
+                final_cost,
+                created_at,
+                completed_at
+            FROM experiments
+            ORDER BY created_at DESC
+            LIMIT ?
+        """
+
+        results = manager.conn.execute(query, [limit]).fetchall()
+
+        if not results:
+            console.print("[yellow]No experiments found in database[/yellow]")
+            return
+
+        # Display as table
+        table = Table(title=f"Experiments in Database ({len(results)} shown)")
+
+        table.add_column("Experiment ID", style="cyan", no_wrap=True)
+        table.add_column("Name", style="blue")
+        table.add_column("Iterations", justify="right", style="magenta")
+        table.add_column("Converged", justify="center", style="green")
+        table.add_column("Final Cost", justify="right", style="yellow")
+        table.add_column("Created", style="white")
+
+        for row in results:
+            (
+                exp_id,
+                name,
+                _exp_type,
+                num_iterations,
+                converged,
+                _reason,
+                _seed,
+                final_cost,
+                created_at,
+                _completed_at,
+            ) = row
+
+            # Format converged status
+            converged_str = "✓ Yes" if converged else "✗ No"
+
+            # Format final cost as dollars (INV-1: stored as integer cents)
+            if final_cost is not None:
+                cost_str = f"${final_cost / 100:,.2f}"
+            else:
+                cost_str = "N/A"
+
+            # Format created time
+            if created_at:
+                from datetime import datetime
+
+                dt = (
+                    datetime.fromisoformat(created_at)
+                    if isinstance(created_at, str)
+                    else created_at
+                )
+                time_str = dt.strftime("%Y-%m-%d %H:%M")
+            else:
+                time_str = "N/A"
+
+            table.add_row(
+                exp_id,
+                name or "N/A",
+                str(num_iterations),
+                converged_str,
+                cost_str,
+                time_str,
+            )
+
+        console.print(table)
+        console.print(
+            "\n[dim]Use 'payment-sim db experiment-details <ID>' to see experiment details[/dim]"
+        )
+
+    except Exception as e:
+        console.print(f"[red]✗ Error listing experiments: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@db_app.command("experiment-details")
+def db_experiment_details(
+    experiment_id: Annotated[
+        str,
+        typer.Argument(help="Experiment ID to get details for"),
+    ],
+    db_path: Annotated[
+        str,
+        typer.Option("--db-path", "-d", help="Path to database file"),
+    ] = "simulation_data.db",
+) -> None:
+    """Show details for a specific experiment.
+
+    Displays experiment metadata and lists all simulations linked
+    to the experiment with their purposes and costs.
+
+    Phase 4 Database Consolidation: Unified CLI commands.
+    """
+    try:
+        manager = DatabaseManager(db_path)
+
+        # Get experiment details
+        exp_query = """
+            SELECT
+                experiment_id,
+                experiment_name,
+                experiment_type,
+                num_iterations,
+                converged,
+                convergence_reason,
+                master_seed,
+                final_cost,
+                best_cost,
+                created_at,
+                completed_at
+            FROM experiments
+            WHERE experiment_id = ?
+        """
+
+        exp_result = manager.conn.execute(exp_query, [experiment_id]).fetchone()
+
+        if not exp_result:
+            console.print(f"[red]✗ Experiment not found: {experiment_id}[/red]")
+            raise typer.Exit(code=1)
+
+        (
+            exp_id,
+            name,
+            exp_type,
+            num_iterations,
+            converged,
+            reason,
+            seed,
+            final_cost,
+            best_cost,
+            created_at,
+            completed_at,
+        ) = exp_result
+
+        # Display experiment metadata
+        console.print(f"\n[bold cyan]Experiment: {exp_id}[/bold cyan]")
+        console.print(f"  Name: {name or 'N/A'}")
+        console.print(f"  Type: {exp_type}")
+        console.print(f"  Master Seed: {seed}")
+        console.print(f"  Iterations: {num_iterations}")
+        console.print(f"  Converged: {'✓ Yes' if converged else '✗ No'}")
+        if reason:
+            console.print(f"  Convergence Reason: {reason}")
+        if final_cost is not None:
+            console.print(f"  Final Cost: ${final_cost / 100:,.2f}")
+        if best_cost is not None:
+            console.print(f"  Best Cost: ${best_cost / 100:,.2f}")
+        if created_at:
+            console.print(f"  Created: {created_at}")
+        if completed_at:
+            console.print(f"  Completed: {completed_at}")
+
+        # Get linked simulations
+        sims_query = """
+            SELECT
+                simulation_id,
+                iteration,
+                run_purpose,
+                rng_seed,
+                total_transactions,
+                total_cost,
+                start_time
+            FROM simulation_runs
+            WHERE experiment_id = ?
+            ORDER BY iteration, run_purpose
+        """
+
+        sims = manager.conn.execute(sims_query, [experiment_id]).fetchall()
+
+        if sims:
+            console.print(f"\n[bold]Linked Simulations ({len(sims)}):[/bold]")
+
+            sim_table = Table()
+            sim_table.add_column("Iteration", justify="right", style="magenta")
+            sim_table.add_column("Purpose", style="blue")
+            sim_table.add_column("Simulation ID", style="cyan", no_wrap=True)
+            sim_table.add_column("Cost", justify="right", style="yellow")
+
+            for sim in sims:
+                (
+                    sim_id,
+                    iteration,
+                    purpose,
+                    _seed,
+                    _txns,
+                    total_cost,
+                    _start,
+                ) = sim
+
+                cost_str = (
+                    f"${total_cost / 100:,.2f}" if total_cost is not None else "N/A"
+                )
+
+                sim_table.add_row(
+                    str(iteration) if iteration is not None else "N/A",
+                    purpose or "N/A",
+                    sim_id,
+                    cost_str,
+                )
+
+            console.print(sim_table)
+        else:
+            console.print("\n[yellow]No linked simulations found[/yellow]")
+
+        console.print(
+            "\n[dim]Use 'payment-sim replay <simulation-id>' to replay a simulation[/dim]"
+        )
+
+    except Exception as e:
+        if "not found" not in str(e).lower():
+            console.print(f"[red]✗ Error getting experiment details: {e}[/red]")
+        raise typer.Exit(code=1)
