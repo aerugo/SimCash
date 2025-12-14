@@ -124,10 +124,44 @@ Added unified schema support for experiments → simulation linking.
   - INV-2: master_seed stored for determinism
 
 ### Remaining Work (Phase 2.6-2.10)
-- [ ] Refactor ExperimentRepository to use DatabaseManager
-- [ ] Update GameRepository to use DatabaseManager (if still needed)
-- [ ] Run full test suite
-- [ ] Update phase_2.md checklist
+- [x] Refactor ExperimentRepository to use DatabaseManager
+- [x] Update tests for experiment_id migration
+- [x] Run test suite (53 tests pass)
+- [x] Update phase_2.md checklist
+
+---
+
+## 2025-12-14: Phase 2 Complete - Schema Unification
+
+### Summary
+Completed the unified schema implementation. All experiment tables now created
+by DatabaseManager, and ExperimentRepository can use DatabaseManager's connection.
+
+### Key Changes
+
+**ExperimentRepository Refactoring**:
+- Added `from_database_manager()` class method
+- Renamed `run_id` to `experiment_id` throughout
+- Added backwards compatibility via `run_id` property alias
+- Updated schema to match unified schema (master_seed, final_cost, best_cost)
+- Connection ownership handling (don't close if not owned)
+
+**Record Class Updates**:
+- ExperimentRecord: Added experiment_id, master_seed, final_cost, best_cost
+- IterationRecord: Added experiment_id, evaluation_simulation_id
+- EventRecord: Added experiment_id
+- All record classes have `run_id` property for backwards compatibility
+
+### Tests
+- 10 unified schema tests pass
+- 43 experiment repository tests pass (1 skipped - pre-existing castro.persistence issue)
+- mypy passes
+- ruff passes (pre-existing line length issues)
+
+### Next Steps
+- [ ] Phase 3: Experiment → Simulation linking (actually persist simulations from experiments)
+- [ ] Phase 4: Unified CLI commands
+- [ ] Phase 5: Integration testing & cleanup
 
 ---
 

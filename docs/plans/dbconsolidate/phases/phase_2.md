@@ -239,10 +239,10 @@ Verify all tests pass with the new unified schema.
 - [x] **2.3** Add experiment linkage columns to SimulationRunRecord
 - [x] **2.4** Update schema_generator.py to include new models
 - [x] **2.5** Update DatabaseManager to validate new tables
-- [ ] **2.6** Refactor ExperimentRepository to use DatabaseManager
-- [ ] **2.7** Update GameRepository to use DatabaseManager (if still needed)
-- [ ] **2.8** Run full test suite
-- [ ] **2.9** Run mypy and ruff
+- [x] **2.6** Refactor ExperimentRepository to use DatabaseManager
+- [x] **2.7** Update tests for experiment_id (run_id → experiment_id migration)
+- [x] **2.8** Run test suite - 53 tests pass (43 repository + 10 unified schema)
+- [x] **2.9** Run mypy and ruff - passes
 - [x] **2.10** Update work_notes.md
 
 ---
