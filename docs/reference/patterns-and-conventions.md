@@ -230,6 +230,61 @@ Replay Mode:  simulation_events table → Python → Display
 - ❌ Manual reconstruction from multiple tables
 - ❌ Storing partial event data
 
+### Pattern 4b: Experiment → Simulation Linking
+
+**Purpose**: Experiments track their constituent simulation runs with proper linkage.
+
+**Schema (simulation_runs table)**:
+```sql
+-- Experiment linkage columns
+experiment_id TEXT,      -- FK to experiments table (NULL for standalone)
+iteration INTEGER,       -- Iteration number within experiment
+sample_index INTEGER,    -- Bootstrap sample index (for bootstrap sims)
+run_purpose TEXT,        -- 'standalone', 'initial', 'bootstrap', 'evaluation', 'best', 'final'
+```
+
+**Structured Simulation IDs**:
+```
+Format: {experiment_id}-iter{N}-{purpose}[-sample{M}]
+
+Examples:
+  exp-20251214-abc123-iter0-initial
+  exp-20251214-abc123-iter5-evaluation
+  exp-20251214-abc123-iter5-bootstrap-sample3
+  exp-20251214-abc123-iter49-final
+```
+
+**Key Classes**:
+- `ExperimentSimulationPersister`: Persists simulation runs with experiment linkage
+- `ExperimentPersistencePolicy`: Controls what gets persisted (default: FULL for evaluations)
+- `generate_experiment_simulation_id()`: Creates structured IDs
+- `parse_experiment_simulation_id()`: Parses IDs back to components
+
+**Usage**:
+```python
+from payment_simulator.experiments.simulation_id import (
+    generate_experiment_simulation_id,
+)
+from payment_simulator.persistence.models import SimulationRunPurpose
+
+# Generate structured ID
+sim_id = generate_experiment_simulation_id(
+    experiment_id="exp-20251214-abc123",
+    iteration=5,
+    purpose=SimulationRunPurpose.EVALUATION,
+)
+# Returns: "exp-20251214-abc123-iter5-evaluation"
+```
+
+**Querying Linked Simulations**:
+```sql
+-- Get all simulations for an experiment
+SELECT simulation_id, iteration, run_purpose, total_cost
+FROM simulation_runs
+WHERE experiment_id = 'exp-20251214-abc123'
+ORDER BY iteration, run_purpose;
+```
+
 ### Pattern 5: YAML-Only Experiments
 
 **Purpose**: Experiments are defined entirely in YAML—no Python code required.
@@ -490,6 +545,54 @@ pub agents: BTreeMap<String, Agent>
 | Quiet | (default) | Minimal output |
 | Verbose | `-v, --verbose` | Rich progress + events |
 | Stream | `--stream` | JSONL to stdout |
+
+### Database CLI Commands
+
+The `payment-sim db` subcommands provide unified access to simulations and experiments.
+
+#### List Simulations (with Experiment Context)
+
+```bash
+# Show all simulations including those linked to experiments
+payment-sim db simulations --db-path results.db
+```
+
+Output shows experiment linkage columns:
+- **experiment_id**: Parent experiment (if linked)
+- **iteration**: Iteration number within experiment
+- **run_purpose**: Purpose (evaluation, bootstrap, initial, final)
+
+#### List Experiments
+
+```bash
+# List all experiments in the database
+payment-sim db experiments --db-path results.db --limit 20
+```
+
+Output columns:
+- Experiment ID
+- Name
+- Number of iterations
+- Converged status (✓ Yes / ✗ No)
+- Final cost (displayed in dollars, stored as integer cents)
+- Created timestamp
+
+#### Experiment Details
+
+```bash
+# Show detailed experiment metadata and linked simulations
+payment-sim db experiment-details exp-20251214-abc123 --db-path results.db
+```
+
+Shows:
+- Experiment metadata (name, type, seed, dates)
+- Convergence status and reason
+- Final cost and best cost (in dollars)
+- List of all linked simulations with:
+  - Iteration number
+  - Purpose (evaluation, bootstrap, etc.)
+  - Simulation ID
+  - Total cost
 
 ---
 

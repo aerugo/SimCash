@@ -684,9 +684,9 @@ class TestStateProviderIntegration:
 
 
 def _castro_available() -> bool:
-    """Check if castro module is available."""
+    """Check if castro.persistence module is available."""
     try:
-        import castro  # noqa: F401
+        from castro.persistence import ExperimentEventRepository  # noqa: F401
 
         return True
     except ImportError:

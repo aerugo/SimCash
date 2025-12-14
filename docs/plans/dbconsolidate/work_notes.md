@@ -259,8 +259,64 @@ Adding unified CLI commands for querying experiments and simulations.
 - ruff passes
 
 ### Remaining Work
-- [ ] Phase 5: Integration testing & cleanup
-- [ ] Update docs/reference/ with new CLI commands
+- [x] Phase 5: Integration testing & cleanup
+- [x] Update docs/reference/ with new CLI commands
+
+---
+
+## 2025-12-14: Phase 5 Complete - Integration Testing & Cleanup
+
+### Summary
+Completed the database consolidation project. All 5 phases are now complete.
+
+### Completed (Sub-Phases 5.1-5.5)
+
+**Sub-Phase 5.1: Run Full Test Suite**
+- 83 tests pass across all test files
+- 6 tests skipped (2 end-to-end tests, 4 castro.persistence tests)
+- mypy passes, ruff passes
+
+**Sub-Phase 5.2: Update docs/reference/**
+- Added Pattern 4b: Experiment → Simulation Linking to patterns-and-conventions.md
+- Added Database CLI Commands section with `db experiments` and `db experiment-details`
+
+**Sub-Phase 5.3: Verify Invariants**
+- INV-1: All costs stored as integer cents (verified in tests)
+- INV-2: Seeds stored for determinism (verified in tests)
+- All invariant-related tests pass
+
+**Sub-Phase 5.4: Final Cleanup**
+- Updated phase_5.md checklist
+- Updated development-plan.md status to Complete
+- Updated work_notes.md with completion notes
+
+### Test Summary
+
+| Test File | Passed | Skipped |
+|-----------|--------|---------|
+| test_simulation_linking.py | 30 | 2 |
+| test_db_commands_unified.py | 11 | 2 |
+| test_unified_schema.py | 10 | 0 |
+| test_experiment_repository.py | 32 | 2 |
+| **Total** | **83** | **6** |
+
+### Files Modified in Phase 5
+
+| File | Changes |
+|------|---------|
+| `docs/reference/patterns-and-conventions.md` | Added Pattern 4b, CLI commands |
+| `docs/plans/dbconsolidate/phases/phase_5.md` | Marked complete |
+| `docs/plans/dbconsolidate/development-plan.md` | Marked complete |
+| `docs/plans/dbconsolidate/work_notes.md` | Added completion notes |
+
+### Project Complete 🎉
+
+The database consolidation project is now complete:
+- **Phase 1**: Removed dead Castro audit tables
+- **Phase 2**: Unified schema with experiment linkage columns
+- **Phase 3**: Simulation ID generation and persistence infrastructure
+- **Phase 4**: New CLI commands (`db experiments`, `db experiment-details`)
+- **Phase 5**: Documentation and cleanup
 
 ---
 
