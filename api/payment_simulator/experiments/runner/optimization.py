@@ -949,6 +949,30 @@ class OptimizationLoop:
         # Format events into human-readable output for LLM consumption
         verbose_output = self._format_events_for_llm(all_events)
 
+        # Persist simulation to experiment database if repository is available
+        if self._repository:
+            from payment_simulator.experiments.persistence import EventRecord
+            from datetime import datetime
+
+            # Store simulation start event with key metadata
+            event = EventRecord(
+                run_id=self._run_id,
+                iteration=0,  # Initial simulation is iteration 0
+                event_type="simulation_run",
+                event_data={
+                    "simulation_id": sim_id,
+                    "purpose": "initial_bootstrap",
+                    "seed": self._config.master_seed,
+                    "ticks": total_ticks,
+                    "total_cost": total_cost,
+                    "per_agent_costs": per_agent_costs,
+                    "num_events": len(all_events),
+                    "events": all_events,  # Store full events for replay
+                },
+                timestamp=datetime.now().isoformat(),
+            )
+            self._repository.save_event(event)
+
         return InitialSimulationResult(
             events=tuple(all_events),
             agent_histories=agent_histories,
