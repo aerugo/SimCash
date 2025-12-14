@@ -234,16 +234,16 @@ Verify all tests pass with the new unified schema.
 
 ## Sub-Phase Checklist
 
-- [ ] **2.1** Write tests for unified schema (RED)
-- [ ] **2.2** Create Pydantic models for experiments, iterations, events
-- [ ] **2.3** Add experiment linkage columns to SimulationRunRecord
-- [ ] **2.4** Update schema_generator.py to include new models
-- [ ] **2.5** Update DatabaseManager to validate new tables
+- [x] **2.1** Write tests for unified schema (RED) - 10 tests written
+- [x] **2.2** Create Pydantic models for experiments, iterations, events
+- [x] **2.3** Add experiment linkage columns to SimulationRunRecord
+- [x] **2.4** Update schema_generator.py to include new models
+- [x] **2.5** Update DatabaseManager to validate new tables
 - [ ] **2.6** Refactor ExperimentRepository to use DatabaseManager
 - [ ] **2.7** Update GameRepository to use DatabaseManager (if still needed)
 - [ ] **2.8** Run full test suite
 - [ ] **2.9** Run mypy and ruff
-- [ ] **2.10** Update work_notes.md
+- [x] **2.10** Update work_notes.md
 
 ---
 

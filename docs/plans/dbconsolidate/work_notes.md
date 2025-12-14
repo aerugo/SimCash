@@ -82,7 +82,52 @@ Removed dead Castro audit tables and associated code:
 - `tests/ai_cash_mgmt/unit/bootstrap/test_sandbox_config.py::TestIncomingLiquidityEvents` - Unrelated sandbox config issue
 
 ### Next Steps
-- [ ] Begin Phase 2: Schema unification
+- [x] Begin Phase 2: Schema unification
+
+---
+
+## 2025-12-14: Phase 2 In Progress - Schema Unification
+
+### Summary
+Added unified schema support for experiments → simulation linking.
+
+### Completed (Phase 2.1-2.5)
+
+**New Pydantic Models** (`persistence/models.py`):
+- `SimulationRunPurpose` enum - structured run purposes (standalone, initial, bootstrap, evaluation, best, final)
+- `ExperimentRecord` - experiment metadata with INV-1 compliant costs (integer cents)
+- `ExperimentIterationRecord` - per-iteration data with simulation linkage
+- `ExperimentEventRecord` - experiment-level events
+
+**Extended SimulationRunRecord**:
+- `experiment_id` - link to experiments table
+- `iteration` - iteration number within experiment
+- `sample_index` - bootstrap sample index
+- `run_purpose` - purpose of simulation run
+
+**Schema Generator Updates** (`persistence/schema_generator.py`):
+- Added new models to DDL generation
+- Correct table ordering for FK dependencies (experiments before simulation_runs)
+
+**DatabaseManager Updates** (`persistence/connection.py`):
+- Added new models to validation list
+- Updated _drop_all_tables() with experiment tables in reverse FK order
+
+### Tests
+- 9 tests pass, 1 skipped (Phase 2.6)
+- Tests verify:
+  - All 3 experiment tables created by DatabaseManager
+  - simulation_runs has experiment linkage columns
+  - Simulation can reference experiment (FK works)
+  - Iteration can reference simulation (FK works)
+  - INV-1: Costs stored as integer cents
+  - INV-2: master_seed stored for determinism
+
+### Remaining Work (Phase 2.6-2.10)
+- [ ] Refactor ExperimentRepository to use DatabaseManager
+- [ ] Update GameRepository to use DatabaseManager (if still needed)
+- [ ] Run full test suite
+- [ ] Update phase_2.md checklist
 
 ---
 
