@@ -5,6 +5,7 @@ Tests for the core experiment persistence layer.
 Write these tests FIRST, then implement.
 
 Phase 11, Task 11.2: Unified Persistence
+Phase 2 Database Consolidation: Updated to use experiment_id instead of run_id
 
 All costs are integer cents (INV-1 compliance).
 """
@@ -68,7 +69,7 @@ class TestExperimentRecord:
         from payment_simulator.experiments.persistence import ExperimentRecord
 
         record = ExperimentRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             experiment_name="test",
             experiment_type="castro",
             config={},
@@ -77,36 +78,40 @@ class TestExperimentRecord:
             num_iterations=0,
             converged=False,
             convergence_reason=None,
+            master_seed=12345,
         )
 
         with pytest.raises(AttributeError):
-            record.run_id = "new-id"  # type: ignore
+            record.experiment_id = "new-id"  # type: ignore
 
     def test_has_required_fields(self) -> None:
         """ExperimentRecord should have all required fields."""
         from payment_simulator.experiments.persistence import ExperimentRecord
 
         record = ExperimentRecord(
-            run_id="test-run-001",
+            experiment_id="test-exp-001",
             experiment_name="test_exp",
             experiment_type="castro",
-            config={"master_seed": 42, "num_samples": 10},
+            config={"num_samples": 10},
             created_at="2025-12-11T10:00:00",
             completed_at="2025-12-11T10:30:00",
             num_iterations=5,
             converged=True,
             convergence_reason="stability",
+            master_seed=42,
         )
 
-        assert record.run_id == "test-run-001"
+        assert record.experiment_id == "test-exp-001"
+        assert record.run_id == "test-exp-001"  # Backwards compatibility alias
         assert record.experiment_name == "test_exp"
         assert record.experiment_type == "castro"
-        assert record.config == {"master_seed": 42, "num_samples": 10}
+        assert record.config == {"num_samples": 10}
         assert record.created_at == "2025-12-11T10:00:00"
         assert record.completed_at == "2025-12-11T10:30:00"
         assert record.num_iterations == 5
         assert record.converged is True
         assert record.convergence_reason == "stability"
+        assert record.master_seed == 42
 
 
 class TestIterationRecord:
@@ -117,7 +122,7 @@ class TestIterationRecord:
         from payment_simulator.experiments.persistence import IterationRecord
 
         record = IterationRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             iteration=0,
             costs_per_agent={},
             accepted_changes={},
@@ -133,7 +138,7 @@ class TestIterationRecord:
         from payment_simulator.experiments.persistence import IterationRecord
 
         record = IterationRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             iteration=0,
             costs_per_agent={"BANK_A": 100050, "BANK_B": 200075},
             accepted_changes={"BANK_A": True, "BANK_B": False},
@@ -154,7 +159,7 @@ class TestEventRecord:
         from payment_simulator.experiments.persistence import EventRecord
 
         record = EventRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             iteration=0,
             event_type="bootstrap_evaluation",
             event_data={"mean_cost": 1000},
@@ -251,7 +256,7 @@ class TestExperimentRecordOperations:
         from payment_simulator.experiments.persistence import ExperimentRecord
 
         record = ExperimentRecord(
-            run_id="test-run-001",
+            experiment_id="test-exp-001",
             experiment_name="test_experiment",
             experiment_type="castro",
             config={"num_samples": 10, "ticks": 12},
@@ -260,20 +265,23 @@ class TestExperimentRecordOperations:
             num_iterations=0,
             converged=False,
             convergence_reason=None,
+            master_seed=12345,
         )
 
         repo.save_experiment(record)
-        loaded = repo.load_experiment("test-run-001")
+        loaded = repo.load_experiment("test-exp-001")
 
         assert loaded is not None
-        assert loaded.run_id == "test-run-001"
+        assert loaded.experiment_id == "test-exp-001"
+        assert loaded.run_id == "test-exp-001"  # Backwards compatibility
         assert loaded.experiment_name == "test_experiment"
         assert loaded.experiment_type == "castro"
         assert loaded.config == {"num_samples": 10, "ticks": 12}
+        assert loaded.master_seed == 12345
 
     def test_load_nonexistent_experiment_returns_none(self, repo: Any) -> None:
         """Loading non-existent experiment should return None."""
-        loaded = repo.load_experiment("nonexistent-run")
+        loaded = repo.load_experiment("nonexistent-exp")
         assert loaded is None
 
     def test_update_experiment(self, repo: Any) -> None:
@@ -282,7 +290,7 @@ class TestExperimentRecordOperations:
 
         # Save initial record
         record = ExperimentRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             experiment_name="test",
             experiment_type="castro",
             config={},
@@ -291,12 +299,13 @@ class TestExperimentRecordOperations:
             num_iterations=0,
             converged=False,
             convergence_reason=None,
+            master_seed=12345,
         )
         repo.save_experiment(record)
 
         # Update with new data
         updated = ExperimentRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             experiment_name="test",
             experiment_type="castro",
             config={},
@@ -305,11 +314,12 @@ class TestExperimentRecordOperations:
             num_iterations=5,
             converged=True,
             convergence_reason="stability",
+            master_seed=12345,
         )
         repo.save_experiment(updated)
 
         # Load and verify update
-        loaded = repo.load_experiment("test-run")
+        loaded = repo.load_experiment("test-exp")
         assert loaded is not None
         assert loaded.completed_at == "2025-12-11T10:30:00"
         assert loaded.num_iterations == 5
@@ -323,7 +333,7 @@ class TestExperimentRecordOperations:
         # Save experiments of different types
         for i, exp_type in enumerate(["castro", "castro", "custom"]):
             record = ExperimentRecord(
-                run_id=f"run-{i}",
+                experiment_id=f"exp-{i}",
                 experiment_name=f"exp-{i}",
                 experiment_type=exp_type,
                 config={},
@@ -332,6 +342,7 @@ class TestExperimentRecordOperations:
                 num_iterations=0,
                 converged=False,
                 convergence_reason=None,
+                master_seed=12345,
             )
             repo.save_experiment(record)
 
@@ -367,7 +378,7 @@ class TestIterationRecordOperations:
         repository = ExperimentRepository(db_path)
 
         record = ExperimentRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             experiment_name="test",
             experiment_type="castro",
             config={},
@@ -376,6 +387,7 @@ class TestIterationRecordOperations:
             num_iterations=0,
             converged=False,
             convergence_reason=None,
+            master_seed=12345,
         )
         repository.save_experiment(record)
 
@@ -387,7 +399,7 @@ class TestIterationRecordOperations:
         from payment_simulator.experiments.persistence import IterationRecord
 
         record = IterationRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             iteration=0,
             costs_per_agent={"BANK_A": 1000, "BANK_B": 1500},
             accepted_changes={"BANK_A": True, "BANK_B": False},
@@ -396,7 +408,7 @@ class TestIterationRecordOperations:
         )
 
         repo_with_experiment.save_iteration(record)
-        iterations = repo_with_experiment.get_iterations("test-run")
+        iterations = repo_with_experiment.get_iterations("test-exp")
 
         assert len(iterations) == 1
         assert iterations[0].iteration == 0
@@ -411,7 +423,7 @@ class TestIterationRecordOperations:
         # Save iterations out of order
         for i in [2, 0, 1]:
             record = IterationRecord(
-                run_id="test-run",
+                experiment_id="test-exp",
                 iteration=i,
                 costs_per_agent={"BANK_A": 1000 - i * 100},
                 accepted_changes={},
@@ -420,7 +432,7 @@ class TestIterationRecordOperations:
             )
             repo_with_experiment.save_iteration(record)
 
-        iterations = repo_with_experiment.get_iterations("test-run")
+        iterations = repo_with_experiment.get_iterations("test-exp")
 
         assert len(iterations) == 3
         assert iterations[0].iteration == 0
@@ -432,7 +444,7 @@ class TestIterationRecordOperations:
         from payment_simulator.experiments.persistence import IterationRecord
 
         record = IterationRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             iteration=0,
             costs_per_agent={"BANK_A": 100050, "BANK_B": 200075},  # Integer cents
             accepted_changes={},
@@ -441,7 +453,7 @@ class TestIterationRecordOperations:
         )
 
         repo_with_experiment.save_iteration(record)
-        iterations = repo_with_experiment.get_iterations("test-run")
+        iterations = repo_with_experiment.get_iterations("test-exp")
 
         for agent_id, cost in iterations[0].costs_per_agent.items():
             assert isinstance(cost, int), f"Cost for {agent_id} must be integer cents"
@@ -449,8 +461,8 @@ class TestIterationRecordOperations:
     def test_get_iterations_nonexistent_run_returns_empty(
         self, repo_with_experiment: Any
     ) -> None:
-        """Getting iterations for non-existent run returns empty list."""
-        iterations = repo_with_experiment.get_iterations("nonexistent-run")
+        """Getting iterations for non-existent experiment returns empty list."""
+        iterations = repo_with_experiment.get_iterations("nonexistent-exp")
         assert iterations == []
 
 
@@ -474,7 +486,7 @@ class TestEventOperations:
         repository = ExperimentRepository(db_path)
 
         record = ExperimentRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             experiment_name="test",
             experiment_type="castro",
             config={},
@@ -483,6 +495,7 @@ class TestEventOperations:
             num_iterations=0,
             converged=False,
             convergence_reason=None,
+            master_seed=12345,
         )
         repository.save_experiment(record)
 
@@ -494,7 +507,7 @@ class TestEventOperations:
         from payment_simulator.experiments.persistence import EventRecord
 
         event = EventRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             iteration=0,
             event_type="bootstrap_evaluation",
             event_data={"mean_cost": 1000, "std_cost": 100},
@@ -502,7 +515,7 @@ class TestEventOperations:
         )
 
         repo_with_experiment.save_event(event)
-        events = repo_with_experiment.get_events("test-run", 0)
+        events = repo_with_experiment.get_events("test-exp", 0)
 
         assert len(events) == 1
         assert events[0].event_type == "bootstrap_evaluation"
@@ -515,7 +528,7 @@ class TestEventOperations:
         # Save events for different iterations
         for i in range(3):
             event = EventRecord(
-                run_id="test-run",
+                experiment_id="test-exp",
                 iteration=i,
                 event_type=f"event_{i}",
                 event_data={"iteration": i},
@@ -523,18 +536,18 @@ class TestEventOperations:
             )
             repo_with_experiment.save_event(event)
 
-        events_iter_1 = repo_with_experiment.get_events("test-run", 1)
+        events_iter_1 = repo_with_experiment.get_events("test-exp", 1)
         assert len(events_iter_1) == 1
         assert events_iter_1[0].event_data["iteration"] == 1
 
     def test_get_all_events_for_run(self, repo_with_experiment: Any) -> None:
-        """Should get all events for a run."""
+        """Should get all events for an experiment."""
         from payment_simulator.experiments.persistence import EventRecord
 
         # Save events for different iterations
         for i in range(3):
             event = EventRecord(
-                run_id="test-run",
+                experiment_id="test-exp",
                 iteration=i,
                 event_type=f"event_{i}",
                 event_data={},
@@ -542,7 +555,7 @@ class TestEventOperations:
             )
             repo_with_experiment.save_event(event)
 
-        all_events = repo_with_experiment.get_all_events("test-run")
+        all_events = repo_with_experiment.get_all_events("test-exp")
         assert len(all_events) == 3
 
 
@@ -569,22 +582,23 @@ class TestStateProviderIntegration:
 
         # Add experiment
         exp_record = ExperimentRecord(
-            run_id="test-run",
+            experiment_id="test-exp",
             experiment_name="test_experiment",
             experiment_type="castro",
-            config={"master_seed": 42},
+            config={"num_samples": 10},
             created_at="2025-12-11T10:00:00",
             completed_at="2025-12-11T10:30:00",
             num_iterations=3,
             converged=True,
             convergence_reason="stability",
+            master_seed=42,
         )
         repository.save_experiment(exp_record)
 
         # Add iterations
         for i in range(3):
             iter_record = IterationRecord(
-                run_id="test-run",
+                experiment_id="test-exp",
                 iteration=i,
                 costs_per_agent={"BANK_A": 1000 - i * 100, "BANK_B": 1500 - i * 50},
                 accepted_changes={"BANK_A": i > 0, "BANK_B": False},
@@ -595,7 +609,7 @@ class TestStateProviderIntegration:
 
             # Add event for each iteration
             event = EventRecord(
-                run_id="test-run",
+                experiment_id="test-exp",
                 iteration=i,
                 event_type="bootstrap_evaluation",
                 event_data={"mean_cost": 1000 - i * 100},
@@ -612,17 +626,17 @@ class TestStateProviderIntegration:
             ExperimentStateProviderProtocol,
         )
 
-        provider = repo_with_data.as_state_provider("test-run")
+        provider = repo_with_data.as_state_provider("test-exp")
         assert isinstance(provider, ExperimentStateProviderProtocol)
 
     def test_state_provider_get_total_iterations(self, repo_with_data: Any) -> None:
         """StateProvider should return correct iteration count."""
-        provider = repo_with_data.as_state_provider("test-run")
+        provider = repo_with_data.as_state_provider("test-exp")
         assert provider.get_total_iterations() == 3
 
     def test_state_provider_get_experiment_info(self, repo_with_data: Any) -> None:
         """StateProvider should return experiment info."""
-        provider = repo_with_data.as_state_provider("test-run")
+        provider = repo_with_data.as_state_provider("test-exp")
         info = provider.get_experiment_info()
 
         assert info["experiment_name"] == "test_experiment"
@@ -631,7 +645,7 @@ class TestStateProviderIntegration:
 
     def test_state_provider_get_iteration_costs(self, repo_with_data: Any) -> None:
         """StateProvider should return iteration costs."""
-        provider = repo_with_data.as_state_provider("test-run")
+        provider = repo_with_data.as_state_provider("test-exp")
         costs = provider.get_iteration_costs(0)
 
         assert costs["BANK_A"] == 1000
@@ -640,7 +654,7 @@ class TestStateProviderIntegration:
 
     def test_state_provider_get_iteration_events(self, repo_with_data: Any) -> None:
         """StateProvider should return iteration events."""
-        provider = repo_with_data.as_state_provider("test-run")
+        provider = repo_with_data.as_state_provider("test-exp")
         events = provider.get_iteration_events(0)
 
         assert len(events) == 1
@@ -648,7 +662,7 @@ class TestStateProviderIntegration:
 
     def test_state_provider_get_iteration_policies(self, repo_with_data: Any) -> None:
         """StateProvider should return iteration policies."""
-        provider = repo_with_data.as_state_provider("test-run")
+        provider = repo_with_data.as_state_provider("test-exp")
         policies = provider.get_iteration_policies(1)
 
         assert policies["BANK_A"]["iter"] == 1
@@ -657,7 +671,7 @@ class TestStateProviderIntegration:
         self, repo_with_data: Any
     ) -> None:
         """StateProvider should return accepted changes."""
-        provider = repo_with_data.as_state_provider("test-run")
+        provider = repo_with_data.as_state_provider("test-exp")
         changes = provider.get_iteration_accepted_changes(1)
 
         assert changes["BANK_A"] is True
