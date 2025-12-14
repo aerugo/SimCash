@@ -75,7 +75,8 @@ class SingleAgentContextBuilder:
             self._build_current_state_summary(),
             self._build_cost_analysis(),
             self._build_optimization_guidance(),
-            self._build_simulation_output_section(),
+            self._build_initial_simulation_section(),
+            self._build_bootstrap_samples_section(),
             self._build_iteration_history_section(),
             self._build_parameter_trajectory_section(),
             self._build_final_instructions(),
@@ -100,10 +101,11 @@ TABLE OF CONTENTS:
 1. Current State Summary
 2. Cost Analysis
 3. Optimization Guidance
-4. Simulation Output (Best/Worst Seeds)
-5. Full Iteration History
-6. Parameter Trajectories
-7. Final Instructions
+4. Initial Simulation (Baseline)
+5. Bootstrap Samples (Best/Worst Seeds)
+6. Full Iteration History
+7. Parameter Trajectories
+8. Final Instructions
 """.strip()
 
     def _build_current_state_summary(self) -> str:
@@ -260,19 +262,44 @@ TABLE OF CONTENTS:
 
         return "\n\n".join(guidance)
 
-    def _build_simulation_output_section(self) -> str:
-        """Build the simulation output section with tick-by-tick logs."""
-        sections = ["## 4. SIMULATION OUTPUT (TICK-BY-TICK)", ""]
+    def _build_initial_simulation_section(self) -> str:
+        """Build the initial simulation section (baseline before optimization)."""
+        if not self.context.initial_simulation_output:
+            return ""
 
-        # Best seed output
+        sections = [
+            "## 4. INITIAL SIMULATION (BASELINE)",
+            "",
+            "This shows what happened in the initial simulation before any "
+            "optimization was applied. Use this as a baseline reference.",
+            "",
+            "<initial_simulation>",
+            "```",
+            self.context.initial_simulation_output,
+            "```",
+            "</initial_simulation>",
+        ]
+
+        return "\n".join(sections)
+
+    def _build_bootstrap_samples_section(self) -> str:
+        """Build the bootstrap samples section with best/worst seed logs."""
+        sections = ["## 5. BOOTSTRAP SAMPLES (BEST/WORST SEEDS)", ""]
+        sections.append(
+            "These are bootstrap samples from the current policy evaluation. "
+            "They show the range of outcomes under different random seeds."
+        )
+        sections.append("")
+
+        # Best seed output (bootstrap sample)
         if self.context.best_seed_output:
             sections.extend(
                 [
-                    f"### Best Performing Seed (#{self.context.best_seed}, "
+                    f"### Best Performing Bootstrap Sample (Seed #{self.context.best_seed}, "
                     f"Cost: ${self.context.best_seed_cost:,})",
                     "",
-                    "This is the OPTIMAL outcome from the current policy. "
-                    "Analyze what went right.",
+                    "This bootstrap sample shows the OPTIMAL outcome. "
+                    "Analyze what conditions led to low cost.",
                     "",
                     "<best_seed_output>",
                     "```",
@@ -283,15 +310,15 @@ TABLE OF CONTENTS:
                 ]
             )
 
-        # Worst seed output
+        # Worst seed output (bootstrap sample)
         if self.context.worst_seed_output:
             sections.extend(
                 [
-                    f"### Worst Performing Seed (#{self.context.worst_seed}, "
+                    f"### Worst Performing Bootstrap Sample (Seed #{self.context.worst_seed}, "
                     f"Cost: ${self.context.worst_seed_cost:,})",
                     "",
-                    "This is the PROBLEMATIC outcome. Identify failure patterns "
-                    "and edge cases.",
+                    "This bootstrap sample shows a PROBLEMATIC outcome. "
+                    "Identify failure patterns and edge cases.",
                     "",
                     "<worst_seed_output>",
                     "```",
@@ -303,7 +330,7 @@ TABLE OF CONTENTS:
             )
 
         if not self.context.best_seed_output and not self.context.worst_seed_output:
-            sections.append("*No verbose output available for this iteration.*")
+            sections.append("*No bootstrap sample output available for this iteration.*")
 
         return "\n".join(sections)
 
@@ -313,7 +340,7 @@ TABLE OF CONTENTS:
         CRITICAL: Only shows THIS agent's policy history and changes.
         """
         agent_label = self.context.agent_id or "Agent"
-        sections = ["## 5. FULL ITERATION HISTORY", ""]
+        sections = ["## 6. FULL ITERATION HISTORY", ""]
 
         if not self.context.iteration_history:
             sections.append("*No previous iterations.*")
@@ -415,7 +442,7 @@ TABLE OF CONTENTS:
             return ""
 
         agent_label = self.context.agent_id or "Agent"
-        sections = ["## 6. PARAMETER TRAJECTORIES", ""]
+        sections = ["## 7. PARAMETER TRAJECTORIES", ""]
 
         # Get all parameter names from this agent's history
         all_params: set[str] = set()
@@ -488,7 +515,7 @@ continue optimizing from the current best policy.
 """
 
         return f"""
-## 7. FINAL INSTRUCTIONS
+## 8. FINAL INSTRUCTIONS
 
 Based on the above analysis, generate an improved policy for **{agent_label}** that:
 
@@ -524,6 +551,7 @@ def build_single_agent_context(
     current_policy: dict[str, Any],
     current_metrics: dict[str, Any],
     iteration_history: list[SingleAgentIterationRecord] | None = None,
+    initial_simulation_output: str | None = None,
     best_seed_output: str | None = None,
     worst_seed_output: str | None = None,
     best_seed: int = 0,
@@ -546,8 +574,9 @@ def build_single_agent_context(
         current_policy: Current policy for THIS agent only.
         current_metrics: Aggregated metrics from current iteration.
         iteration_history: List of previous iteration records for THIS agent only.
-        best_seed_output: Verbose tick-by-tick output from best seed.
-        worst_seed_output: Verbose tick-by-tick output from worst seed.
+        initial_simulation_output: Verbose output from initial baseline simulation.
+        best_seed_output: Verbose tick-by-tick output from best bootstrap sample.
+        worst_seed_output: Verbose tick-by-tick output from worst bootstrap sample.
         best_seed: Best performing seed number.
         worst_seed: Worst performing seed number.
         best_seed_cost: Cost from best seed.
@@ -573,6 +602,7 @@ def build_single_agent_context(
         current_policy=current_policy,
         current_metrics=current_metrics,
         iteration_history=iteration_history or [],
+        initial_simulation_output=initial_simulation_output,
         best_seed_output=best_seed_output,
         worst_seed_output=worst_seed_output,
         best_seed=best_seed,
