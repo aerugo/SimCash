@@ -1,4 +1,4 @@
-# SimCash Paper v2 - Handover Prompt
+# SimCash Paper - Handover Prompt
 
 ## Context
 
@@ -71,25 +71,27 @@ Your research plan should include:
 
 ### Phase 3: Results Analysis
 - [ ] Extract final policy values for each experiment
+- [ ] Explore replay outputs of some chosen iterations to understand LLM decision-making
+- [ ] For each experiment and each agent, compile a complete history of changes to policy trees and parameters
 - [ ] Compute confidence intervals from bootstrap samples
 - [ ] Compare to Castro et al. theoretical predictions
 - [ ] Analyze paired delta distributions
-- [ ] Identify any v1 vs v2 differences
 
-### Phase 4: Paper Writing (Section by Section)
-- [ ] **Abstract**: Update with v2 results summary
+### Phase 4: Paper Writing (Section by Section) - Complete Rewrite
+- [ ] **Abstract**: Rewrite, keeping some elements from v1
 - [ ] **Introduction**: Keep from v1, minor updates if needed
-- [ ] **Methodology**: Document real bootstrap vs v1 Monte Carlo
-- [ ] **Results**: New section with v2 findings, tables, and figures
-- [ ] **Discussion**: Interpret differences, explain statistical improvements
-- [ ] **Conclusion**: Update with v2 insights
+- [ ] **Methodology**: Document  bootstrap methodology (exp2) and deterministic policy evaluation (exp1 & exp3), scratch all references to Monte Carlo methods
+- [ ] **Results**: Rewrite completely with v2 results, confidence intervals, paired delta analysis - no references to v1 results
+- [ ] **Discussion**: Interpret differences to Castro et al.
+- [ ] **Conclusion**: Complete rewrite
 
 ### Phase 5: Figures & Tables
-- [ ] Table: v1 vs v2 equilibrium comparison
-- [ ] Table: Final policy values with confidence intervals
-- [ ] Figure: Convergence trajectories for each experiment
-- [ ] Figure: Paired delta distributions (histogram or boxplot)
-- [ ] Table: Comparison to Castro et al. theoretical predictions
+- [ ] Scratch all old figures from v1
+- [ ] Create new figures showing:
+- [ ] Final policy trees for each experiment
+- [ ] Mermaid diagrams of policy evolution
+- [ ] Plots of cost (exp1 and exp3) and median bootstrap cost (exp2) over iterations with confidence intervals
+- [ ] Suggest more figures if needed, draw on Castro et al. for inspiration
 
 ### Protocol Notes
 
@@ -117,13 +119,6 @@ The experiment configurations have already been updated for v2:
 - `experiments/castro/experiments/exp2.yaml` - 50 samples, bootstrap mode
 - `experiments/castro/experiments/exp3.yaml` - 50 samples, bootstrap mode
 
-**Verify these settings before running:**
-```yaml
-evaluation:
-  mode: bootstrap
-  num_samples: 50
-```
-
 ### 3. Run All Three Experiments
 
 Run experiments using the CLI, always with verbose output:
@@ -142,15 +137,12 @@ Run the experiments one at a time. Always report back on progress from verbose l
 
 For each experiment:
 
-- [ ] Record final policy values with confidence intervals
+- [ ] Record final policy trees and values
 - [ ] Compare to theoretical predictions from Castro et al.
 - [ ] Document whether paired comparison shows statistically significant improvements
-- [ ] Note any behavioral differences from v1 (new evaluation may produce different equilibria!)
 - [ ] Use `experiment replay` and `replay` CLI tools for debugging if needed
 
-**Key question**: With real bootstrap (paired comparison), do the LLM-discovered policies converge to the theoretical Nash equilibria?
-
-### 5. Write v2 Documentation
+### 5. Write Documentation
 
 Create your work in `docs/plans/simcash-paper/v2/`:
 
@@ -235,13 +227,11 @@ With real bootstrap evaluation, you should observe:
 
 ## Questions to Answer in v2
 
-1. **Do results change with real bootstrap?** The v1 equilibria (exp1: 0%/25%, exp2: 4%/1.35%, exp3: 21%/20.5%) may be different now that we're using proper paired comparison.
-
 2. **Are paired deltas meaningful?** With sandbox evaluation, do the deltas correctly capture policy quality differences?
 
 3. **How tight are confidence intervals?** Can we distinguish optimal from near-optimal policies?
 
-4. **Do v2 results match Castro et al. theoretical predictions better than v1?**
+4. **Do results match Castro et al. theoretical predictions?** 
 
 ---
 
