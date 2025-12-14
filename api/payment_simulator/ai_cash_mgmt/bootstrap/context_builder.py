@@ -275,6 +275,10 @@ class EnrichedBootstrapContextBuilder:
         Returns:
             Compact string representation of event details.
         """
+        # Handle settlement events specially to show balance changes
+        if event.event_type == "RtgsImmediateSettlement":
+            return self._format_settlement_event(event)
+
         # Format key fields that are most informative
         key_fields = ["tx_id", "action", "amount", "cost", "agent_id", "sender_id"]
         parts = []
@@ -293,3 +297,35 @@ class EnrichedBootstrapContextBuilder:
             parts = [f"{k}={event.details[k]}" for k in other_keys]
 
         return ", ".join(parts) if parts else "(no details)"
+
+    def _format_settlement_event(self, event: BootstrapEvent) -> str:
+        """Format settlement event with balance changes.
+
+        Args:
+            event: Settlement event to format.
+
+        Returns:
+            Formatted string with balance change information.
+        """
+        d = event.details
+        parts = []
+
+        # Transaction ID
+        if "tx_id" in d:
+            parts.append(f"tx_id={d['tx_id']}")
+
+        # Amount
+        if "amount" in d and isinstance(d["amount"], int):
+            parts.append(f"amount=${d['amount'] / 100:.2f}")
+
+        result = ", ".join(parts)
+
+        # Add balance change if available
+        balance_before = d.get("sender_balance_before")
+        balance_after = d.get("sender_balance_after")
+        if balance_before is not None and balance_after is not None:
+            before_fmt = f"${balance_before / 100:,.2f}"
+            after_fmt = f"${balance_after / 100:,.2f}"
+            result += f"\n  Balance: {before_fmt} → {after_fmt}"
+
+        return result
