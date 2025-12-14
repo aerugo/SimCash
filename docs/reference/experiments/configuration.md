@@ -108,7 +108,7 @@ optimized_agents:
 # Output settings
 output:
   directory: results              # Output directory
-  database: simulation_data.db    # Database filename (shared with simulations)
+  database: simulation_data.db    # Database filename
   verbose: true                   # Verbose logging
 
 # Master seed for reproducibility
@@ -335,7 +335,7 @@ output:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `directory` | path | `"results"` | Output directory |
-| `database` | string | `"simulation_data.db"` | Database filename (shared with simulations) |
+| `database` | string | `"simulation_data.db"` | Database filename |
 | `verbose` | boolean | `true` | Enable verbose logging |
 
 ## Dataclass Reference
@@ -385,7 +385,7 @@ class EvaluationConfig:
 @dataclass
 class OutputConfig:
     directory: Path = Path("results")
-    database: str = "simulation_data.db"  # Shared with simulations
+    database: str = "simulation_data.db"
     verbose: bool = True
 ```
 
