@@ -33,6 +33,7 @@ class VerboseConfig:
     - llm: Show LLM call metadata (model, tokens, latency)
     - rejections: Show why policies are rejected
     - debug: Show detailed debug info (validation errors, retries, LLM progress)
+    - simulations: Show simulation IDs when simulations start (default True)
 
     Example:
         >>> config = VerboseConfig(policy=True, bootstrap=True)
@@ -46,6 +47,7 @@ class VerboseConfig:
     llm: bool = False
     rejections: bool = False
     debug: bool = False
+    simulations: bool = True  # Show simulation IDs by default for transparency
 
     @property
     def any(self) -> bool:
@@ -61,6 +63,7 @@ class VerboseConfig:
             or self.llm
             or self.rejections
             or self.debug
+            or self.simulations
         )
 
     @classmethod
@@ -77,6 +80,7 @@ class VerboseConfig:
             llm=True,
             rejections=True,
             debug=False,
+            simulations=True,
         )
 
     @classmethod
@@ -834,3 +838,42 @@ class VerboseLogger:
             self._console.print("    Final errors:")
             for error in final_errors[:3]:
                 self._console.print(f"      [dim red]- {error}[/dim red]")
+
+    def log_simulation_start(
+        self,
+        simulation_id: str,
+        purpose: str,
+        iteration: int | None = None,
+        seed: int | None = None,
+    ) -> None:
+        """Log the start of a simulation with its ID.
+
+        This method logs simulation IDs to the terminal for user visibility,
+        enabling users to replay specific simulations later.
+
+        Args:
+            simulation_id: Unique simulation ID.
+            purpose: Purpose of the simulation (e.g., "initial_bootstrap",
+                    "policy_evaluation", "paired_comparison").
+            iteration: Current iteration number (if applicable).
+            seed: RNG seed used for this simulation (if applicable).
+        """
+        if not self._config.simulations:
+            return
+
+        # Format the purpose for display
+        purpose_display = purpose.replace("_", " ").title()
+
+        if iteration is not None:
+            self._console.print(
+                f"  [dim]Simulation:[/dim] {simulation_id} "
+                f"[dim]({purpose_display}, iter {iteration})[/dim]"
+            )
+        else:
+            self._console.print(
+                f"  [dim]Simulation:[/dim] {simulation_id} "
+                f"[dim]({purpose_display})[/dim]"
+            )
+
+        if seed is not None and self._config.debug:
+            self._console.print(f"    [dim]Seed: 0x{seed:08x}[/dim]")
