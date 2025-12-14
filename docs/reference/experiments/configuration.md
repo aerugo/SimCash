@@ -107,9 +107,9 @@ optimized_agents:
 
 # Output settings
 output:
-  directory: results       # Output directory
-  database: exp2.db        # Database filename
-  verbose: true            # Verbose logging
+  directory: results              # Output directory
+  database: simulation_data.db    # Database filename
+  verbose: true                   # Verbose logging
 
 # Master seed for reproducibility
 master_seed: 42
@@ -328,14 +328,14 @@ Output settings.
 ```yaml
 output:
   directory: results
-  database: experiments.db
+  database: simulation_data.db
   verbose: true
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `directory` | path | `"results"` | Output directory |
-| `database` | string | `"experiments.db"` | Database filename |
+| `database` | string | `"simulation_data.db"` | Database filename |
 | `verbose` | boolean | `true` | Enable verbose logging |
 
 ## Dataclass Reference
@@ -385,7 +385,7 @@ class EvaluationConfig:
 @dataclass
 class OutputConfig:
     directory: Path = Path("results")
-    database: str = "experiments.db"
+    database: str = "simulation_data.db"
     verbose: bool = True
 ```
 

@@ -66,7 +66,7 @@ payment-sim run config.yaml [OPTIONS]
 payment-sim run config.yaml
 
 # Verbose with persistence
-payment-sim run config.yaml --verbose --persist output.db
+payment-sim run config.yaml --verbose --persist
 
 # Filtered event stream
 payment-sim run config.yaml --mode event_stream --filter-event-type Settlement
@@ -77,13 +77,14 @@ payment-sim run config.yaml --mode event_stream --filter-event-type Settlement
 Replay simulation from database.
 
 ```bash
-payment-sim replay db.db [OPTIONS]
+payment-sim replay --simulation-id <sim-id> [OPTIONS]
 ```
 
 **Options**:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `--simulation-id` | str | required | Simulation ID to replay |
 | `--tick-start` | int | 0 | Start tick |
 | `--tick-end` | int | None | End tick (inclusive) |
 | `--verbose` | bool | true | Verbose output |
@@ -92,17 +93,17 @@ payment-sim replay db.db [OPTIONS]
 **Example**:
 ```bash
 # Full replay
-payment-sim replay simulation.db --verbose
+payment-sim replay --simulation-id sim-abc123 --verbose
 
 # Specific tick range
-payment-sim replay simulation.db --tick-start 50 --tick-end 100
+payment-sim replay --simulation-id sim-abc123 --tick-start 50 --tick-end 100
 ```
 
 ### `checkpoint` Commands
 
 ```bash
 # Save checkpoint
-payment-sim checkpoint save db.db sim-123 50 --description "Before EOD"
+payment-sim checkpoint save sim-123 50 --description "Before EOD"
 
 # Load checkpoint
 payment-sim checkpoint load checkpoint-abc-123
@@ -118,13 +119,13 @@ payment-sim checkpoint delete checkpoint-abc-123
 
 ```bash
 # Initialize schema
-payment-sim db init simulation.db
+payment-sim db init
 
 # Validate schema
-payment-sim db validate simulation.db
+payment-sim db validate
 
 # Apply migrations
-payment-sim db migrate simulation.db
+payment-sim db migrate
 
 # Print DDL
 payment-sim db schema
@@ -329,7 +330,7 @@ payment-sim run config.yaml --mode event_stream \
 payment-sim run config.yaml --verbose --filter-agent BANK_A
 
 # Filter by transaction
-payment-sim replay db.db --filter-tx tx-abc-123
+payment-sim replay --simulation-id sim-abc123 --filter-tx tx-abc-123
 
 # Combined filters (AND logic)
 payment-sim run config.yaml --mode event_stream \
@@ -373,7 +374,7 @@ flowchart TB
 
 | Option | Effect |
 |--------|--------|
-| `--persist db.db` | Store events, metrics, transactions |
+| `--persist` | Store events, metrics, transactions |
 | `--full-replay` | Additionally store full tick state |
 
 ---

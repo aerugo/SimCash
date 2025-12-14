@@ -158,8 +158,8 @@ payment-sim replay --simulation-id sim-abc123 --event-stream > events.jsonl
 ### Custom Database Path
 
 ```bash
-# Use different database
-payment-sim replay --simulation-id sim-abc123 --db-path my_simulations.db --verbose
+# Specify different database location
+payment-sim replay --simulation-id sim-abc123 --db-path /path/to/simulation_data.db --verbose
 ```
 
 ### Filtered Replay
