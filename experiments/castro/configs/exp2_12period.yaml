@@ -1,9 +1,12 @@
-# Experiment 2: 12-Period Stochastic (LVTS-Style)
+# Experiment 2: 12-Period Stochastic (LVTS-Style, Castro-Compliant)
 #
 # Realistic scenario with stochastic payment arrivals.
 # Uses Poisson arrivals with LogNormal amounts.
 #
 # From Castro et al. (2025) Section 4.2
+#
+# CASTRO-COMPLIANT: Uses liquidity_pool mode (direct balance)
+# instead of max_collateral_capacity (credit headroom).
 
 simulation:
   ticks_per_day: 12
@@ -16,20 +19,29 @@ deadline_cap_at_eod: true
 
 cost_rates:
   # Castro paper requires: r_c < r_d < r_b
-  # r_c = collateral cost, r_d = delay cost, r_b = EOD borrowing cost
+  # r_c = liquidity cost, r_d = delay cost, r_b = EOD borrowing cost
   #
-  # Collateral cost: ~42 bps per tick (500 bps/day ÷ 12 ticks)
+  # Liquidity cost: ~42 bps per tick (500 bps/day ÷ 12 ticks)
   # For 10000 cents: 10000 * 0.0042 = 42 cents/tick
-  collateral_cost_per_tick_bps: 42
-  # Delay cost: 0.01 per tick per cent (must exceed collateral cost)
+  liquidity_cost_per_tick_bps: 42
+
+  # Delay cost: 0.01 per tick per cent (must exceed liquidity cost)
   # For 10000 cents: 10000 * 0.01 = 100 cents/tick (> 42, satisfies r_d > r_c)
   delay_cost_per_tick_per_cent: 0.01
-  # Overdraft penalty
-  overdraft_bps_per_tick: 167
+
+  # CRITICAL: Disable overdraft - Castro has hard liquidity constraint
+  # P_t × x_t ≤ ℓ_{t-1}
+  overdraft_bps_per_tick: 0
+
+  # Disable collateral cost (not using collateral mode)
+  collateral_cost_per_tick_bps: 0
+
   # EOD penalty: must be > delay cost (r_b > r_d)
   eod_penalty_per_transaction: 100000
+
   # Deadline penalty: penalty when transaction becomes overdue
   deadline_penalty: 50000
+
   split_friction_cost: 0
 
 # Disable LSM for Castro experiments
@@ -41,9 +53,11 @@ agents:
   - id: BANK_A
     opening_balance: 0
     # CRITICAL: No unsecured credit - matches paper assumption that
-    # liquidity ONLY comes from posted collateral (incurring r_c cost)
+    # liquidity ONLY comes from liquidity_pool allocation (incurring r_c cost)
     unsecured_cap: 0
-    max_collateral_capacity: 10000000
+    # CASTRO-COMPLIANT: Use liquidity_pool (direct balance) instead of
+    # max_collateral_capacity (credit headroom)
+    liquidity_pool: 10000000
     # Stochastic arrivals
     arrival_config:
       rate_per_tick: 2.0  # Poisson lambda
@@ -59,7 +73,7 @@ agents:
     opening_balance: 0
     # CRITICAL: No unsecured credit
     unsecured_cap: 0
-    max_collateral_capacity: 10000000
+    liquidity_pool: 10000000
     arrival_config:
       rate_per_tick: 2.0
       amount_distribution:
