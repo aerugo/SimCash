@@ -222,6 +222,7 @@ class OptimizationLoop:
         console: Console | None = None,
         run_id: str | None = None,
         repository: ExperimentRepository | None = None,
+        persist_bootstrap: bool = False,
     ) -> None:
         """Initialize the optimization loop.
 
@@ -233,11 +234,13 @@ class OptimizationLoop:
             console: Optional Rich console for verbose output.
             run_id: Optional run ID. If not provided, one is generated.
             repository: Optional ExperimentRepository for persistence.
+            persist_bootstrap: If True, persist bootstrap sample simulations to database.
         """
         self._config = config
         self._config_dir = config_dir or Path.cwd()
         self._run_id = run_id or _generate_run_id(config.name)
         self._repository: ExperimentRepository | None = repository
+        self._persist_bootstrap = persist_bootstrap
 
         # Get convergence settings
         conv = config.convergence
@@ -948,6 +951,29 @@ class OptimizationLoop:
         # Build verbose output for LLM context (Stream 1)
         # Format events into human-readable output for LLM consumption
         verbose_output = self._format_events_for_llm(all_events)
+
+        # Persist simulation to experiment database if --persist-bootstrap flag is set
+        if self._repository and self._persist_bootstrap:
+            from payment_simulator.experiments.persistence import EventRecord
+
+            # Store simulation start event with key metadata
+            event = EventRecord(
+                run_id=self._run_id,
+                iteration=0,  # Initial simulation is iteration 0
+                event_type="simulation_run",
+                event_data={
+                    "simulation_id": sim_id,
+                    "purpose": "initial_bootstrap",
+                    "seed": self._config.master_seed,
+                    "ticks": total_ticks,
+                    "total_cost": total_cost,
+                    "per_agent_costs": per_agent_costs,
+                    "num_events": len(all_events),
+                    "events": all_events,  # Store full events for replay
+                },
+                timestamp=datetime.now().isoformat(),
+            )
+            self._repository.save_event(event)
 
         return InitialSimulationResult(
             events=tuple(all_events),

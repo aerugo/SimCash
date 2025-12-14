@@ -85,6 +85,7 @@ class GenericExperimentRunner:
         verbose_config: VerboseConfig | None = None,
         run_id: str | None = None,
         config_dir: Path | None = None,
+        persist_bootstrap: bool = False,
     ) -> None:
         """Initialize the experiment runner.
 
@@ -94,11 +95,13 @@ class GenericExperimentRunner:
             run_id: Optional run ID. If not provided, one is generated.
             config_dir: Directory containing the experiment config (for resolving
                         relative scenario paths). If None, uses current directory.
+            persist_bootstrap: If True, persist bootstrap sample simulations to database.
         """
         self._config = config
         self._verbose_config = verbose_config or VerboseConfig()
         self._run_id = run_id or _generate_run_id(config.name)
         self._config_dir = config_dir or Path.cwd()
+        self._persist_bootstrap = persist_bootstrap
 
         # Get constraints from config (inline or module)
         self._constraints: ScenarioConstraints | None = config.get_constraints()
@@ -278,6 +281,7 @@ class GenericExperimentRunner:
             verbose_config=self._verbose_config,
             run_id=self._run_id,
             repository=self._repository,
+            persist_bootstrap=self._persist_bootstrap,
         )
 
         # Run optimization
