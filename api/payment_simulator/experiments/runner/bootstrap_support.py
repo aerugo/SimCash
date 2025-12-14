@@ -4,6 +4,8 @@ This module provides data structures for integrating the bootstrap evaluation
 infrastructure (from ai_cash_mgmt.bootstrap) into the experiment runner.
 
 Key structures:
+- SimulationResult: Complete simulation output from _run_simulation() method.
+  This is the unified result type for all simulation execution.
 - InitialSimulationResult: Captures results from the initial simulation
   used to collect historical data for bootstrap resampling.
 - BootstrapLLMContext: LLM context with 3 event streams (initial sim,
@@ -17,10 +19,73 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import CostBreakdown
+
 if TYPE_CHECKING:
     from payment_simulator.ai_cash_mgmt.bootstrap.history_collector import (
         AgentTransactionHistory,
     )
+
+
+@dataclass(frozen=True)
+class SimulationResult:
+    """Complete simulation output from _run_simulation().
+
+    This is the unified result type for all simulation execution. It captures
+    all data that any caller might need, allowing callers to transform or
+    filter as required.
+
+    ONE method runs simulations → ONE result type → callers transform as needed.
+
+    All costs are integer cents (INV-1: Money is ALWAYS i64).
+
+    Attributes:
+        seed: RNG seed used for this simulation (for reproducibility).
+        simulation_id: Unique identifier for replay and debugging.
+            Format: {run_id}-sim-{counter:03d}-{purpose}
+        total_cost: Sum of all agent costs in integer cents.
+        per_agent_costs: Cost per agent in integer cents.
+        events: All events from the simulation (immutable tuple).
+        cost_breakdown: Breakdown of costs by type (delay, overdraft, etc.).
+        settlement_rate: Fraction of transactions settled (0.0 to 1.0).
+        avg_delay: Average settlement delay in ticks.
+
+    Example:
+        >>> from payment_simulator.experiments.runner.bootstrap_support import (
+        ...     SimulationResult,
+        ... )
+        >>> from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+        ...     CostBreakdown,
+        ... )
+        >>> result = SimulationResult(
+        ...     seed=12345,
+        ...     simulation_id="exp1-sim-001-init",
+        ...     total_cost=15000,  # $150.00 in cents
+        ...     per_agent_costs={"BANK_A": 7500, "BANK_B": 7500},
+        ...     events=({"event_type": "Arrival", "tick": 0},),
+        ...     cost_breakdown=CostBreakdown(
+        ...         delay_cost=5000,
+        ...         overdraft_cost=8000,
+        ...         deadline_penalty=2000,
+        ...         eod_penalty=0,
+        ...     ),
+        ...     settlement_rate=0.95,
+        ...     avg_delay=5.2,
+        ... )
+
+    Note:
+        This dataclass is frozen (immutable) per project convention.
+        Events are stored as a tuple to ensure immutability.
+    """
+
+    seed: int
+    simulation_id: str
+    total_cost: int  # INV-1: Integer cents
+    per_agent_costs: dict[str, int]  # INV-1: Integer cents
+    events: tuple[dict[str, Any], ...]
+    cost_breakdown: CostBreakdown
+    settlement_rate: float
+    avg_delay: float
 
 
 @dataclass(frozen=True)
