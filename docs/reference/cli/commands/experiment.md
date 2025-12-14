@@ -25,6 +25,7 @@ The `experiment` command group provides tools for running, validating, and manag
 | `run` | Run an experiment from configuration |
 | `replay` | Replay experiment output from database |
 | `results` | List experiment runs from database |
+| `policy-evolution` | Extract policy evolution data as JSON |
 
 ## validate
 
@@ -550,6 +551,148 @@ Showing 3 run(s)
 
 ---
 
+## policy-evolution
+
+Extract policy evolution data from an experiment as JSON.
+
+### Synopsis
+
+```bash
+payment-sim experiment policy-evolution <run-id> [OPTIONS]
+```
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `run-id` | String | Run ID to analyze (e.g., `exp1-20251209-143022-a1b2c3`) |
+
+### Options
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--db` | `-d` | Path | `results/experiments.db` | Path to database file |
+| `--agent` | `-a` | String | `null` | Filter by agent ID |
+| `--start` | - | Integer | `null` | Start iteration (1-indexed, inclusive) |
+| `--end` | - | Integer | `null` | End iteration (1-indexed, inclusive) |
+| `--llm` | - | Boolean | `false` | Include LLM prompts and responses |
+| `--compact` | - | Boolean | `false` | Output compact JSON (no indentation) |
+
+### Description
+
+The `policy-evolution` command extracts and displays how policies evolved across experiment iterations for all agents. The output is JSON, making it suitable for piping to tools like `jq` for further analysis.
+
+For each iteration, the output includes:
+- **policy**: The complete policy at that iteration
+- **diff**: Human-readable diff from the previous iteration
+- **cost**: The cost achieved with this policy (in cents, INV-1 compliant)
+- **accepted**: Whether the policy change was accepted
+- **llm** (optional): LLM prompts and response when `--llm` flag is used
+
+**Note**: Iteration numbers in the output are 1-indexed (user-facing), while internally they are stored as 0-indexed in the database.
+
+### Examples
+
+```bash
+# Get full policy evolution for all agents
+payment-sim experiment policy-evolution exp1-20251209-143022-a1b2c3
+
+# Filter by agent
+payment-sim experiment policy-evolution exp1-20251209-143022-a1b2c3 --agent BANK_A
+
+# Filter by iteration range (1-indexed)
+payment-sim experiment policy-evolution exp1-20251209-143022-a1b2c3 --start 2 --end 5
+
+# Include LLM prompts and responses
+payment-sim experiment policy-evolution exp1-20251209-143022-a1b2c3 --llm
+
+# Compact output for piping to jq
+payment-sim experiment policy-evolution exp1-20251209-143022-a1b2c3 --compact | jq '.BANK_A'
+
+# Combine filters
+payment-sim experiment policy-evolution exp1-20251209-143022-a1b2c3 \
+  --agent BANK_A --start 1 --end 10 --llm
+```
+
+### Output Format
+
+```json
+{
+  "BANK_A": {
+    "iteration_1": {
+      "policy": {
+        "version": "2.0",
+        "parameters": {
+          "urgency_threshold": 5
+        },
+        "payment_tree": {
+          "condition": {"field": "balance", "op": ">", "threshold": 0},
+          "on_true": {"action": "Release"},
+          "on_false": {"action": "Hold"}
+        }
+      },
+      "diff": "",
+      "cost": 10000,
+      "accepted": true
+    },
+    "iteration_2": {
+      "policy": {
+        "version": "2.0",
+        "parameters": {
+          "urgency_threshold": 7
+        },
+        "payment_tree": {...}
+      },
+      "diff": "Changed: parameters.urgency_threshold (5 -> 7)",
+      "cost": 9000,
+      "accepted": true
+    }
+  },
+  "BANK_B": {
+    ...
+  }
+}
+```
+
+### Output with --llm Flag
+
+When using `--llm`, each iteration includes the LLM interaction data:
+
+```json
+{
+  "BANK_A": {
+    "iteration_1": {
+      "policy": {...},
+      "diff": "",
+      "cost": 10000,
+      "accepted": true,
+      "llm": {
+        "system_prompt": "You are an expert in payment system optimization...",
+        "user_prompt": "Current policy: {...}\nGenerate an improved policy...",
+        "raw_response": "{\"policy\": {...}}"
+      }
+    }
+  }
+}
+```
+
+### Use Cases
+
+1. **Analyze optimization trajectory**: See how policies improved over iterations
+2. **Debug convergence issues**: Identify why optimization may have stalled
+3. **Compare agent strategies**: See how different agents' policies evolved differently
+4. **Extract LLM interactions**: Review what prompts produced which policies
+5. **Pipe to analysis tools**: Use `jq` or Python to further process the data
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Database not found, run not found, or invalid iteration range |
+
+---
+
 ## Configuration File Format
 
 Experiments are configured via YAML files. See the full schema below.
@@ -747,4 +890,4 @@ The experiment command uses the experiment framework from `payment_simulator.exp
 
 ---
 
-*Last updated: 2025-12-12*
+*Last updated: 2025-12-14*

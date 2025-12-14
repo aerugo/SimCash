@@ -722,3 +722,109 @@ def run(
     except Exception as e:
         console.print(f"[red]Error running experiment: {e}[/red]")
         raise typer.Exit(1) from e
+
+
+@experiment_app.command("policy-evolution")
+def policy_evolution(
+    run_id: Annotated[
+        str,
+        typer.Argument(help="Run ID to analyze (e.g., exp1-20251209-143022-a1b2c3)"),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", "-d", help="Path to database file"),
+    ] = DEFAULT_DB_PATH,
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Filter by agent ID"),
+    ] = None,
+    start: Annotated[
+        int | None,
+        typer.Option("--start", help="Start iteration (1-indexed, inclusive)"),
+    ] = None,
+    end: Annotated[
+        int | None,
+        typer.Option("--end", help="End iteration (1-indexed, inclusive)"),
+    ] = None,
+    llm: Annotated[
+        bool,
+        typer.Option("--llm", help="Include LLM prompts and responses"),
+    ] = False,
+    compact: Annotated[
+        bool,
+        typer.Option("--compact", help="Output compact JSON (no indentation)"),
+    ] = False,
+) -> None:
+    """Extract policy evolution data from an experiment.
+
+    Outputs JSON showing how policies changed across iterations for each agent.
+    The output includes the policy at each iteration, the diff from the previous
+    iteration, cost, and whether the change was accepted.
+
+    Examples:
+        # Get full policy evolution
+        experiments policy-evolution exp1-20251209-143022-a1b2c3
+
+        # Filter by agent
+        experiments policy-evolution exp1-20251209-143022-a1b2c3 --agent BANK_A
+
+        # Filter by iteration range (1-indexed)
+        experiments policy-evolution exp1-20251209-143022-a1b2c3 --start 2 --end 5
+
+        # Include LLM prompts and responses
+        experiments policy-evolution exp1-20251209-143022-a1b2c3 --llm
+
+        # Compact output for piping to jq
+        experiments policy-evolution exp1-20251209-143022-a1b2c3 --compact | jq .
+    """
+    import json
+
+    from payment_simulator.experiments.analysis import (
+        PolicyEvolutionService,
+        build_evolution_output,
+    )
+
+    # Validate iteration range
+    if start is not None and end is not None and start > end:
+        console.print(
+            f"[red]Error: --start ({start}) cannot be greater than --end ({end})[/red]"
+        )
+        raise typer.Exit(1)
+
+    # Check database exists
+    if not db.exists():
+        console.print(f"[red]Database not found: {db}[/red]")
+        raise typer.Exit(1)
+
+    # Open repository
+    try:
+        repo = ExperimentRepository(db)
+    except Exception as e:
+        console.print(f"[red]Failed to open database: {e}[/red]")
+        raise typer.Exit(1) from e
+
+    # Create service and extract evolution
+    try:
+        service = PolicyEvolutionService(repo)
+        evolutions = service.get_evolution(
+            run_id=run_id,
+            include_llm=llm,
+            agent_filter=agent,
+            start_iteration=start,
+            end_iteration=end,
+        )
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        repo.close()
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Failed to extract evolution: {e}[/red]")
+        repo.close()
+        raise typer.Exit(1) from e
+
+    repo.close()
+
+    # Build output and print JSON
+    output = build_evolution_output(evolutions)
+    indent = None if compact else 2
+    print(json.dumps(output, indent=indent))
