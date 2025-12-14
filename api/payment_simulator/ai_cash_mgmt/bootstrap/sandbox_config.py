@@ -23,6 +23,7 @@ from payment_simulator.ai_cash_mgmt.bootstrap.models import (
     BootstrapSample,
     RemappedTransaction,
 )
+from payment_simulator.config.policy_config_builder import StandardPolicyConfigBuilder
 from payment_simulator.config.schemas import (
     AgentConfig,
     CostRates,
@@ -51,6 +52,9 @@ class SandboxConfigBuilder:
     - Target agent with test policy
     - SINK agent with infinite capacity
 
+    Uses StandardPolicyConfigBuilder for canonical policy parameter extraction,
+    ensuring identical behavior with optimization.py (Policy Evaluation Identity).
+
     Example:
         ```python
         builder = SandboxConfigBuilder()
@@ -63,6 +67,10 @@ class SandboxConfigBuilder:
         ```
     """
 
+    def __init__(self) -> None:
+        """Initialize with StandardPolicyConfigBuilder for canonical extraction."""
+        self._policy_builder = StandardPolicyConfigBuilder()
+
     def build_config(
         self,
         sample: BootstrapSample,
@@ -71,6 +79,7 @@ class SandboxConfigBuilder:
         credit_limit: int,
         cost_rates: dict[str, float] | None = None,
         max_collateral_capacity: int | None = None,
+        liquidity_pool: int | None = None,
     ) -> SimulationConfig:
         """Build sandbox configuration from bootstrap sample.
 
@@ -81,6 +90,8 @@ class SandboxConfigBuilder:
             credit_limit: Credit limit for target agent (cents).
             cost_rates: Optional cost rates override.
             max_collateral_capacity: Max collateral capacity for target agent (cents).
+                Required for policies that use initial_collateral_fraction parameter.
+            liquidity_pool: External liquidity pool for target agent (cents).
                 Required for policies that use initial_liquidity_fraction parameter.
 
         Returns:
@@ -94,6 +105,7 @@ class SandboxConfigBuilder:
             opening_balance=opening_balance,
             credit_limit=credit_limit,
             max_collateral_capacity=max_collateral_capacity,
+            liquidity_pool=liquidity_pool,
         )
         sink_agent = self._build_sink_agent()
 
@@ -139,8 +151,12 @@ class SandboxConfigBuilder:
         opening_balance: int,
         credit_limit: int,
         max_collateral_capacity: int | None = None,
+        liquidity_pool: int | None = None,
     ) -> AgentConfig:
         """Build target agent with test policy.
+
+        Uses StandardPolicyConfigBuilder for canonical parameter extraction,
+        ensuring identical behavior with optimization.py (Policy Evaluation Identity).
 
         Args:
             agent_id: Agent ID.
@@ -149,12 +165,34 @@ class SandboxConfigBuilder:
             credit_limit: Credit limit (unsecured_cap) in cents.
             max_collateral_capacity: Max collateral capacity in cents.
                 Required for collateral-based liquidity policies.
+            liquidity_pool: External liquidity pool in cents.
+                Required for policies using initial_liquidity_fraction.
         """
+        # Build base config for canonical extraction
+        base_config: dict[str, Any] = {
+            "opening_balance": opening_balance,
+            "liquidity_pool": liquidity_pool,
+            "max_collateral_capacity": max_collateral_capacity,
+        }
+
+        # Use canonical extraction via PolicyConfigBuilder
+        liquidity_config = self._policy_builder.extract_liquidity_config(
+            policy=policy,
+            agent_config=base_config,
+        )
+
+        collateral_config = self._policy_builder.extract_collateral_config(
+            policy=policy,
+            agent_config=base_config,
+        )
+
         return AgentConfig(  # type: ignore[call-arg]
             id=agent_id,
-            opening_balance=opening_balance,
+            opening_balance=liquidity_config.get("opening_balance", opening_balance),
             unsecured_cap=credit_limit,
-            max_collateral_capacity=max_collateral_capacity,
+            max_collateral_capacity=collateral_config.get("max_collateral_capacity"),
+            liquidity_pool=liquidity_config.get("liquidity_pool"),
+            liquidity_allocation_fraction=liquidity_config.get("liquidity_allocation_fraction"),
             policy=self._parse_policy(policy),
         )
 
@@ -208,7 +246,12 @@ class SandboxConfigBuilder:
         Returns:
             True if this is a tree policy format.
         """
-        tree_keys = ("payment_tree", "bank_tree", "strategic_collateral_tree", "end_of_tick_collateral_tree")
+        tree_keys = (
+            "payment_tree",
+            "bank_tree",
+            "strategic_collateral_tree",
+            "end_of_tick_collateral_tree",
+        )
         return any(key in policy_dict for key in tree_keys)
 
     def _build_scenario_events(

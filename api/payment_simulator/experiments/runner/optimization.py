@@ -57,6 +57,7 @@ from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
     format_filtered_output,
 )
 from payment_simulator.config import SimulationConfig
+from payment_simulator.config.policy_config_builder import StandardPolicyConfigBuilder
 from payment_simulator.experiments.runner.bootstrap_support import (
     BootstrapLLMContext,
     InitialSimulationResult,
@@ -285,6 +286,11 @@ class OptimizationLoop:
 
         # Cost rates from scenario (for LLM context)
         self._cost_rates: dict[str, Any] = {}
+
+        # Policy config builder for canonical parameter extraction
+        # Ensures identical policy interpretation across all evaluation paths
+        # (Policy Evaluation Identity invariant)
+        self._policy_builder = StandardPolicyConfigBuilder()
 
         # Verbose logging
         self._verbose_config = verbose_config or VerboseConfig()
@@ -714,6 +720,19 @@ class OptimizationLoop:
                 agent_id = agent_config.get("id")
                 if agent_id in self._policies:
                     policy = self._policies[agent_id]
+
+                    # Extract policy parameters using canonical builder
+                    # (Policy Evaluation Identity invariant)
+                    if isinstance(policy, dict):
+                        liquidity_config = self._policy_builder.extract_liquidity_config(
+                            policy=policy,
+                            agent_config=agent_config,
+                        )
+                        # Apply extracted fraction if present
+                        fraction = liquidity_config.get("liquidity_allocation_fraction")
+                        if fraction is not None:
+                            agent_config["liquidity_allocation_fraction"] = fraction
+
                     # Wrap tree policy in InlineJsonPolicy format for Pydantic
                     # Tree policies have "payment_tree" field; simple policies have "type"
                     if isinstance(policy, dict) and "payment_tree" in policy:

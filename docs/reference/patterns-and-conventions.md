@@ -1,7 +1,7 @@
 # Patterns, Invariants, and Conventions
 
-**Version**: 2.0
-**Last Updated**: 2025-12-11
+**Version**: 2.1
+**Last Updated**: 2025-12-14
 
 This document consolidates all architectural patterns, critical invariants, coding conventions, and styleguides for SimCash. This serves as the authoritative reference for Claude Code agents and contributors.
 
@@ -141,6 +141,27 @@ Event::LsmBilateralOffset {
 ### INV-8: Atomicity
 
 **Rule**: Settlement is all-or-nothing. Either complete success with all state updates, or complete failure with no state changes.
+
+### INV-9: Policy Evaluation Identity
+
+**Rule**: For any policy P and scenario S, policy parameter extraction MUST produce identical results regardless of which code path processes them.
+
+```python
+# Both paths MUST use StandardPolicyConfigBuilder
+extraction(optimization_path, P, S) == extraction(bootstrap_path, P, S)
+```
+
+**Requirements**:
+- ALL code paths that apply policies to agents MUST use `StandardPolicyConfigBuilder`
+- Parameter extraction logic (e.g., `initial_liquidity_fraction`) MUST be in one place
+- Default values MUST be consistent across all paths
+- Type coercion MUST be consistent across all paths
+
+**Where it applies**:
+- `optimization.py._build_simulation_config()` - deterministic policy evaluation
+- `sandbox_config.py._build_target_agent()` - bootstrap policy evaluation
+
+**Rationale**: Without this invariant, the same policy could produce different behavior in the main simulation vs bootstrap evaluation, leading to incorrect policy comparisons.
 
 ---
 
@@ -303,6 +324,60 @@ When adding a new event type that should appear in verbose output:
    payment-sim replay --simulation-id my-test --verbose > replay.txt
    diff <(grep -v "Duration:" run.txt) <(grep -v "Duration:" replay.txt)
    ```
+
+### Pattern 7: PolicyConfigBuilder
+
+**Purpose**: Ensure identical policy parameter extraction across all code paths (INV-9: Policy Evaluation Identity).
+
+```python
+@runtime_checkable
+class PolicyConfigBuilder(Protocol):
+    """Protocol for building agent config from policy."""
+
+    def extract_liquidity_config(
+        self,
+        policy: dict[str, Any],
+        agent_config: dict[str, Any],
+    ) -> LiquidityConfig:
+        """Extract liquidity configuration from policy."""
+        ...
+
+    def extract_collateral_config(
+        self,
+        policy: dict[str, Any],
+        agent_config: dict[str, Any],
+    ) -> CollateralConfig:
+        """Extract collateral configuration from policy."""
+        ...
+```
+
+**Implementations**:
+- `StandardPolicyConfigBuilder`: The single source of truth for extraction
+
+**Usage**:
+```python
+# In optimization.py
+builder = StandardPolicyConfigBuilder()
+liquidity_config = builder.extract_liquidity_config(policy, agent_config)
+agent_config["liquidity_allocation_fraction"] = liquidity_config.get(
+    "liquidity_allocation_fraction"
+)
+
+# In sandbox_config.py
+builder = StandardPolicyConfigBuilder()
+liquidity_config = builder.extract_liquidity_config(policy, agent_config)
+# Use extracted values for AgentConfig
+```
+
+**Key Features**:
+- Nested takes precedence: `policy.parameters.x` wins over `policy.x`
+- Default fraction: 0.5 when `liquidity_pool` exists but fraction not specified
+- Type coercion: String/int values coerced to appropriate types
+
+**Anti-patterns**:
+- ❌ Duplicating extraction logic in multiple files
+- ❌ Different default values in different code paths
+- ❌ Direct policy parameter access without using builder
 
 ---
 
@@ -625,6 +700,7 @@ git commit -m "feat: Add --foo option to run command"
 | StateProvider | N/A | `cli/execution/state_provider.py` |
 | OutputStrategy | N/A | `cli/execution/strategies.py` |
 | Display | N/A | `cli/display/verbose_output.py` |
+| PolicyConfigBuilder | N/A | `config/policy_config_builder.py` |
 
 ### Key Documentation
 
