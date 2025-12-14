@@ -693,6 +693,11 @@ def run(
             verbose_config=verbose_config,
             config_dir=config_path.parent,  # Pass config directory for relative path resolution
         )
+
+        # Print the experiment run ID for user reference (enables replay later)
+        console.print(f"[cyan]Experiment run ID:[/cyan] {runner.run_id}")
+        console.print()
+
         result = asyncio.run(runner.run())
 
         # Display results

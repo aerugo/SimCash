@@ -331,6 +331,11 @@ class OptimizationLoop:
         self._bootstrap_sampler: BootstrapSampler | None = None
         self._bootstrap_llm_contexts: dict[str, BootstrapLLMContext] = {}
 
+        # Track simulation IDs for all simulations run during this experiment
+        # This enables replay of individual simulations
+        self._simulation_ids: list[str] = []
+        self._simulation_counter: int = 0
+
     @property
     def max_iterations(self) -> int:
         """Get max iterations from config."""
@@ -365,6 +370,34 @@ class OptimizationLoop:
     def current_iteration(self) -> int:
         """Get current iteration count."""
         return self._current_iteration
+
+    @property
+    def simulation_ids(self) -> list[str]:
+        """Get list of all simulation IDs run during this experiment.
+
+        These IDs can be used to replay individual simulations.
+
+        Returns:
+            List of simulation ID strings.
+        """
+        return self._simulation_ids.copy()
+
+    def _generate_simulation_id(self, purpose: str) -> str:
+        """Generate a unique simulation ID.
+
+        Format: {run_id}-sim-{counter:03d}-{purpose}
+
+        Args:
+            purpose: Short description of simulation purpose
+                    (e.g., "init", "eval", "pair").
+
+        Returns:
+            Unique simulation ID string.
+        """
+        self._simulation_counter += 1
+        sim_id = f"{self._run_id}-sim-{self._simulation_counter:03d}-{purpose}"
+        self._simulation_ids.append(sim_id)
+        return sim_id
 
     async def run(self) -> OptimizationResult:
         """Run the optimization loop to convergence.
@@ -855,6 +888,17 @@ class OptimizationLoop:
             Monte Carlo sampling. The initial simulation provides the empirical
             distribution from which bootstrap samples are drawn.
         """
+        # Generate simulation ID for tracking
+        sim_id = self._generate_simulation_id("init")
+
+        # Log simulation start if verbose logging is enabled
+        if self._verbose_logger:
+            self._verbose_logger.log_simulation_start(
+                simulation_id=sim_id,
+                purpose="initial_bootstrap",
+                seed=self._config.master_seed,
+            )
+
         # Build config with initial (default) policies
         ffi_config = self._build_simulation_config()
         ffi_config["rng_seed"] = self._config.master_seed
