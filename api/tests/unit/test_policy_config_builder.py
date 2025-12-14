@@ -180,6 +180,71 @@ class TestStandardPolicyConfigBuilder:
         assert result["liquidity_allocation_fraction"] == 0.9
 
 
+class TestTreePolicyDetection:
+    """Tests for is_tree_policy method - critical for replay identity."""
+
+    @pytest.fixture
+    def builder(self) -> StandardPolicyConfigBuilder:
+        """Fixture for StandardPolicyConfigBuilder."""
+        return StandardPolicyConfigBuilder()
+
+    def test_payment_tree_detected(self, builder: StandardPolicyConfigBuilder) -> None:
+        """Policy with payment_tree is detected as tree policy."""
+        policy = {"payment_tree": {"action": "Release"}}
+        assert builder.is_tree_policy(policy) is True
+
+    def test_bank_tree_detected(self, builder: StandardPolicyConfigBuilder) -> None:
+        """Policy with bank_tree is detected as tree policy."""
+        policy = {"bank_tree": {"action": "NoAction"}}
+        assert builder.is_tree_policy(policy) is True
+
+    def test_strategic_collateral_tree_detected(
+        self, builder: StandardPolicyConfigBuilder
+    ) -> None:
+        """Policy with strategic_collateral_tree is detected as tree policy."""
+        policy = {"strategic_collateral_tree": {"action": "NoAction"}}
+        assert builder.is_tree_policy(policy) is True
+
+    def test_end_of_tick_collateral_tree_detected(
+        self, builder: StandardPolicyConfigBuilder
+    ) -> None:
+        """Policy with end_of_tick_collateral_tree is detected as tree policy."""
+        policy = {"end_of_tick_collateral_tree": {"action": "NoAction"}}
+        assert builder.is_tree_policy(policy) is True
+
+    def test_multiple_trees_detected(
+        self, builder: StandardPolicyConfigBuilder
+    ) -> None:
+        """Policy with multiple tree types is detected as tree policy."""
+        policy = {
+            "payment_tree": {"action": "Release"},
+            "bank_tree": {"action": "NoAction"},
+            "parameters": {"initial_liquidity_fraction": 0.25},
+        }
+        assert builder.is_tree_policy(policy) is True
+
+    def test_type_only_not_detected(
+        self, builder: StandardPolicyConfigBuilder
+    ) -> None:
+        """Policy with only type field is NOT detected as tree policy."""
+        policy = {"type": "Fifo"}
+        assert builder.is_tree_policy(policy) is False
+
+    def test_parameters_only_not_detected(
+        self, builder: StandardPolicyConfigBuilder
+    ) -> None:
+        """Policy with only parameters is NOT detected as tree policy."""
+        policy = {"parameters": {"initial_liquidity_fraction": 0.25}}
+        assert builder.is_tree_policy(policy) is False
+
+    def test_empty_policy_not_detected(
+        self, builder: StandardPolicyConfigBuilder
+    ) -> None:
+        """Empty policy is NOT detected as tree policy."""
+        policy: dict[str, object] = {}
+        assert builder.is_tree_policy(policy) is False
+
+
 class TestAgentLiquidityConfigTypedDict:
     """Tests for AgentLiquidityConfig TypedDict structure."""
 

@@ -226,27 +226,13 @@ class SandboxConfigBuilder:
                 target_buffer=policy_dict["target_buffer"],
                 urgency_threshold=policy_dict["urgency_threshold"],
             )
-        elif self._is_tree_policy(policy_dict):
+        elif self._policy_config_builder.is_tree_policy(policy_dict):
             # Tree policy format - use InlineJsonPolicy
+            # Uses shared is_tree_policy() for consistent detection (replay identity)
             return InlineJsonPolicy(json_string=json.dumps(policy_dict))
         else:
             # Fallback for unknown policies
             return FifoPolicy()
-
-    def _is_tree_policy(self, policy_dict: dict[str, Any]) -> bool:
-        """Check if policy dict is a tree policy format.
-
-        Tree policies are detected by the presence of decision tree keys.
-        See docs/reference/policy/configuration.md for the schema.
-
-        Args:
-            policy_dict: Policy configuration dictionary.
-
-        Returns:
-            True if this is a tree policy format.
-        """
-        tree_keys = ("payment_tree", "bank_tree", "strategic_collateral_tree", "end_of_tick_collateral_tree")
-        return any(key in policy_dict for key in tree_keys)
 
     def _build_scenario_events(
         self, sample: BootstrapSample

@@ -45,6 +45,11 @@ class PolicyConfigBuilder(Protocol):
     - Both nested (parameters.X) and flat (X) policy structures
     - Default values for missing parameters
     - Type conversion (str -> float, etc.)
+    - Tree policy detection (payment_tree, bank_tree, etc.)
+
+    CRITICAL: Both optimization.py and sandbox_config.py MUST use
+    this protocol to ensure replay identity between simulation and
+    bootstrap evaluation.
 
     Example:
         ```python
@@ -54,6 +59,10 @@ class PolicyConfigBuilder(Protocol):
 
         result = builder.extract_liquidity_config(policy, agent_config)
         # result["liquidity_allocation_fraction"] == 0.25
+
+        # Tree policy detection
+        tree_policy = {"payment_tree": {"action": "Release"}}
+        assert builder.is_tree_policy(tree_policy)  # True
         ```
     """
 
@@ -73,6 +82,24 @@ class PolicyConfigBuilder(Protocol):
 
         Returns:
             AgentLiquidityConfig with computed values ready for AgentConfig.
+        """
+        ...
+
+    def is_tree_policy(self, policy: dict[str, Any]) -> bool:
+        """Check if policy dict is a tree policy format.
+
+        Tree policies contain decision tree structures for runtime evaluation.
+        Detected by presence of tree keys: payment_tree, bank_tree,
+        strategic_collateral_tree, end_of_tick_collateral_tree.
+
+        CRITICAL: Both simulation and bootstrap evaluation MUST use this
+        method to detect tree policies. Do NOT implement separate detection.
+
+        Args:
+            policy: Policy configuration dictionary.
+
+        Returns:
+            True if this is a tree policy format.
         """
         ...
 
@@ -164,6 +191,32 @@ class StandardPolicyConfigBuilder:
             return 0.5
 
         return float(fraction)
+
+    def is_tree_policy(self, policy: dict[str, Any]) -> bool:
+        """Check if policy dict is a tree policy format.
+
+        Tree policies are detected by the presence of decision tree keys.
+        This method is used by both optimization.py and sandbox_config.py
+        to ensure identical detection logic (replay identity).
+
+        CRITICAL: Both simulation and bootstrap evaluation MUST use this
+        method to detect tree policies. Do NOT implement separate detection.
+
+        See docs/reference/policy/configuration.md for the tree policy schema.
+
+        Args:
+            policy: Policy configuration dictionary.
+
+        Returns:
+            True if this is a tree policy format.
+        """
+        tree_keys = (
+            "payment_tree",
+            "bank_tree",
+            "strategic_collateral_tree",
+            "end_of_tick_collateral_tree",
+        )
+        return any(key in policy for key in tree_keys)
 
 
 # Module-level singleton for convenience

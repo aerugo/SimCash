@@ -758,8 +758,9 @@ class OptimizationLoop:
                             )
 
                     # Wrap tree policy in InlineJsonPolicy format for Pydantic
-                    # Tree policies have "payment_tree" field; simple policies have "type"
-                    if isinstance(policy, dict) and "payment_tree" in policy:
+                    # Use shared is_tree_policy() for consistent detection with bootstrap
+                    # (replay identity guarantee)
+                    if isinstance(policy, dict) and self._policy_config_builder.is_tree_policy(policy):
                         agent_config["policy"] = {
                             "type": "InlineJson",
                             "json_string": json.dumps(policy),
