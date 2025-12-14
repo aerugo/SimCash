@@ -592,6 +592,10 @@ def run(
         bool,
         typer.Option("--verbose-policy", help="Show policy changes"),
     ] = False,
+    persist_bootstrap: Annotated[
+        bool,
+        typer.Option("--persist-bootstrap", help="Persist bootstrap sample simulations to database for replay"),
+    ] = False,
 ) -> None:
     """Run experiment from YAML configuration.
 
@@ -692,6 +696,7 @@ def run(
             config=config,
             verbose_config=verbose_config,
             config_dir=config_path.parent,  # Pass config directory for relative path resolution
+            persist_bootstrap=persist_bootstrap,
         )
 
         # Print the experiment run ID for user reference (enables replay later)
