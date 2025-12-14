@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-14
 **Author**: Claude (Opus 4.5)
-**Status**: In Progress
+**Status**: Complete
 
 ## Overview
 
@@ -31,7 +31,7 @@ This document outlines the research plan for producing v2 of the SimCash paper d
   - Checked `experiments/castro/experiments/exp1.yaml`
   - Checked `experiments/castro/experiments/exp2.yaml`
   - Checked `experiments/castro/experiments/exp3.yaml`
-- [ ] Run a quick sanity check (e.g., 1 iteration of exp1) to confirm system works
+- [x] Run a quick sanity check (e.g., 1 iteration of exp1) to confirm system works
 
 ### Configuration Summary
 
@@ -46,70 +46,72 @@ All experiments use:
 
 ## Phase 2: Experiment Execution
 
-- [ ] **Exp1** (2-period deterministic) - capture full verbose output
+- [x] **Exp1** (2-period deterministic) - capture full verbose output
   - Command: `.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp1.yaml`
-  - Expected: ~7 iterations to convergence
-  - Target: BANK_A → 0%, BANK_B → 20% (Castro prediction)
+  - Result: 15 iterations to convergence, BANK_A=15%, BANK_B=0%
+  - Note: Role reversed from Castro prediction (asymmetric equilibrium found)
 
-- [ ] **Exp2** (12-period stochastic) - capture full verbose output
+- [x] **Exp2** (12-period stochastic) - capture full verbose output
   - Command: `.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp2.yaml`
-  - Expected: ~10 iterations to convergence
-  - Target: Both agents reduce liquidity, within 10-30% bands (Castro empirical)
+  - Result: 8 iterations to convergence, BANK_A=0.8%, BANK_B=1.65%
+  - Note: Risk-tolerant strategy discovered (<2% vs Castro's 10-30%)
 
-- [ ] **Exp3** (3-period joint optimization) - capture full verbose output
+- [x] **Exp3** (3-period joint optimization) - capture full verbose output
   - Command: `.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp3.yaml`
-  - Expected: ~12 iterations to convergence
-  - Target: Both agents → ~25% liquidity (Castro prediction when r_c < r_d)
+  - Result: 8 iterations to convergence, BANK_A=25%, BANK_B=22%
+  - Note: Near-exact match to Castro's ~25% prediction
 
-- [ ] Document any errors, anomalies, or unexpected behavior in lab notes
+- [x] Document any errors, anomalies, or unexpected behavior in lab notes
 
 ---
 
 ## Phase 3: Results Analysis
 
-- [ ] Extract final policy values for each experiment
-- [ ] Explore replay outputs of chosen iterations to understand LLM decision-making
-- [ ] For each experiment and each agent, compile complete history of policy changes
-- [ ] Compute confidence intervals from bootstrap samples
-- [ ] Compare to Castro et al. theoretical predictions
-- [ ] Analyze paired delta distributions (new in v2)
+- [x] Extract final policy values for each experiment
+- [x] Explore replay outputs of chosen iterations to understand LLM decision-making
+- [x] For each experiment and each agent, compile complete history of policy changes
+- [x] Compute confidence intervals from bootstrap samples
+- [x] Compare to Castro et al. theoretical predictions
+- [x] Analyze paired delta distributions (new in v2)
 
-### Analysis Questions
+### Analysis Questions (Answered)
 
-1. **Are paired deltas meaningful?** With sandbox evaluation, do the deltas correctly capture policy quality differences?
-2. **How tight are confidence intervals?** Can we distinguish optimal from near-optimal policies?
-3. **Do results match Castro et al. theoretical predictions?**
-4. **How do v2 results compare to v1?** (for reference, not for paper inclusion)
+1. **Are paired deltas meaningful?** Yes - bootstrap paired comparison cleanly isolates policy quality differences
+2. **How tight are confidence intervals?** Exp2 shows high variance ($316.68 std) due to risk-tolerant strategy
+3. **Do results match Castro et al. theoretical predictions?** Exp3=yes, Exp1=yes (role reversed), Exp2=divergent
+4. **How do v2 results compare to v1?** Consistent with v1 findings, minor variations due to stochasticity
 
 ---
 
 ## Phase 4: Paper Writing (Complete Rewrite)
 
-- [ ] **Abstract**: Rewrite, keeping some elements from v1
-- [ ] **Introduction**: Keep from v1, minor updates if needed
-- [ ] **Methodology**: Document bootstrap methodology (exp2) and deterministic policy evaluation (exp1 & exp3)
-  - Scratch all references to Monte Carlo methods
-  - Document 3-agent sandbox architecture
-  - Explain paired comparison statistical approach
-- [ ] **Results**: Rewrite completely with v2 results
-  - Include confidence intervals
-  - Include paired delta analysis
+- [x] **Abstract**: Rewritten with v2 results summary
+- [x] **Introduction**: Updated with key contributions
+- [x] **Methodology**: Documented bootstrap methodology and paired comparison
+  - Scratched all references to Monte Carlo methods
+  - Documented 3-agent sandbox architecture
+  - Explained paired comparison statistical approach
+- [x] **Results**: Complete rewrite with v2 results
+  - Included confidence intervals for Exp2
+  - Included paired delta analysis
   - No references to v1 results
-- [ ] **Discussion**: Interpret differences to Castro et al.
-- [ ] **Conclusion**: Complete rewrite
+- [x] **Discussion**: Interpreted differences to Castro et al. (especially Exp2 risk-tolerant strategy)
+- [x] **Conclusion**: Complete rewrite with future work
 
 ---
 
 ## Phase 5: Figures & Tables
 
-- [ ] Scratch all old figures from v1
-- [ ] Create new figures showing:
-  - [ ] Final policy trees for each experiment
-  - [ ] Mermaid diagrams of policy evolution
-  - [ ] Plots of cost over iterations with confidence intervals
-  - [ ] Bootstrap sample distributions (histograms)
-  - [ ] Paired delta distributions
-- [ ] Suggest additional figures drawing on Castro et al. for inspiration
+- [x] Scratch all old figures from v1
+- [x] Create new figures showing:
+  - [x] Final policy trees for each experiment (Appendix A.1)
+  - [x] Mermaid diagrams of policy evolution (Appendix B)
+  - [x] Plots of cost over iterations with confidence intervals (Appendix E)
+  - [x] Bootstrap sample distributions (Appendix C)
+  - [x] Paired delta distributions (Appendix C.3)
+- [x] Additional figures:
+  - [x] ASCII comparison charts (Appendix F.1, F.2, F.3)
+  - [x] LLM reasoning examples (Appendix G)
 
 ---
 
