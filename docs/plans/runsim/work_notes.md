@@ -99,10 +99,14 @@
 - [x] Run full test suite - 280 passed, 14 failed (all failures pre-existing)
 - [x] mypy passes clean
 - [x] All tests related to this feature pass:
-  - `test_run_simulation.py` - 16 passed
+  - `test_run_simulation.py` - 23 passed (16 original + 7 new)
   - `test_simulation_result.py` - 11 passed
   - Initial simulation tests - 7 passed
   - Bootstrap/enriched tests - 28 passed
+- [x] Updated documentation:
+  - `docs/reference/experiments/runner.md` - Added SimulationResult dataclass, updated VerboseConfig
+- [x] Added replay identity tests (5 tests)
+- [x] Added e2e persist-bootstrap tests (2 tests)
 
 **Pre-existing test failures (not regressions):**
 - 3 castro module failures (missing external `castro.state_provider` module)
