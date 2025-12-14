@@ -274,26 +274,43 @@ Subsequent investigation revealed that **SimCash already supports Castro's exact
 | Hard liquidity constraint | `unsecured_cap: 0` + no collateral | No overdraft possible |
 | Deferred crediting | `deferred_crediting: true` | Credits at end of tick |
 
-**Configuration for Castro Compliance**:
+**Configuration Pattern**:
 ```yaml
 agents:
   - id: BANK_A
     opening_balance: 0
     unsecured_cap: 0                      # No credit
-    liquidity_pool: 100000                # Castro's B
-    liquidity_allocation_fraction: 0.0    # Optimized by LLM
+    liquidity_pool: 100000                # Castro's B (replace max_collateral_capacity)
 
 cost_rates:
-  liquidity_cost_per_tick_bps: 500        # r_c
-  delay_cost_per_tick_per_cent: 0.1       # r_d > r_c
+  liquidity_cost_per_tick_bps: 500        # r_c (replace collateral_cost_per_tick_bps)
+  collateral_cost_per_tick_bps: 0         # Disable collateral mode
 ```
 
-This configuration achieves:
-- **Hard liquidity constraint**: `effective_liquidity = balance + 0 = balance`
-- **Direct balance**: Allocated fraction becomes available balance
-- **Cost r_c**: Applied to allocated liquidity per tick
+### 6.7 Applicability to All Experiments
 
-**Recommendation**: Re-running experiments with this Castro-compliant configuration should replicate Castro's exact predictions (BANK_A=0%, BANK_B=20% for Exp1).
+All three experiments used the same collateral-based configuration pattern. The Castro-compliant configuration applies to each:
+
+| Experiment | Current Issue | Expected Impact of Fix |
+|------------|--------------|------------------------|
+| **Exp1** | Role reversal (A=15%, B=0% vs Castro's A=0%, B=20%) | **High** - Should match Castro exactly |
+| **Exp2** | Aggressive low liquidity (0.8%, 1.65% vs Castro's 10-30%) | **Medium** - May partially explain divergence |
+| **Exp3** | Close match (25%, 22% vs Castro's ~25%) | **Low** - Already near optimal |
+
+**Why Exp3 Already Matches Castro**:
+
+Experiment 3's symmetric payment structure (both agents send 20% at t=0 and t=1) creates a natural offset where incoming and outgoing payments balance. This reduces sensitivity to the liquidity mechanism:
+
+1. At t=0: A sends 20,000 to B; B sends 20,000 to A → net flow = 0
+2. At t=1: Same pattern → net flow = 0
+
+With symmetric flows, the distinction between "credit headroom" and "direct balance" matters less because payments largely cancel out.
+
+In contrast:
+- **Exp1** has asymmetric timing (B must pay first at t=0)
+- **Exp2** has stochastic arrivals creating random asymmetries
+
+**Exp2 Prediction**: Even with Castro-compliant configuration, Exp2's risk-tolerant equilibrium (<2% liquidity) may persist. This would represent a genuine finding about stochastic vs. deterministic game dynamics: when payment outcomes are uncertain, aggressive liquidity-minimizing strategies become viable if expected collateral savings exceed expected gridlock costs.
 
 ---
 
@@ -308,7 +325,10 @@ SimCash demonstrates that Large Language Models can effectively discover Nash eq
 The divergence in Experiment 2 represents a genuine finding: under certain cost functions, agents can accept occasional gridlock in exchange for substantial collateral savings. This risk-return tradeoff may be relevant for real payment systems considering liquidity buffer policies.
 
 **Future Work**:
-- Run experiments with Castro-compliant configuration (`liquidity_pool` mode) for direct numerical comparison
+- Re-run all experiments with Castro-compliant configuration (`liquidity_pool` mode):
+  - Exp1: Validate exact match to Castro's A=0%, B=20% prediction
+  - Exp2: Determine if <2% equilibrium persists (genuine stochastic finding) or changes
+  - Exp3: Confirm minimal impact from configuration change
 - Multi-agent scenarios (N > 2)
 - Dynamic policy adjustment during the day
 - Integration with real payment system data

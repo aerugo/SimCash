@@ -694,3 +694,219 @@ The experiment framework's `initial_liquidity_fraction` parameter should map to 
 **SimCash already supports Castro's exact model through existing configuration options.** The key is using `liquidity_pool` + `liquidity_allocation_fraction` (which provides direct balance) instead of `posted_collateral` (which provides credit headroom).
 
 This is a general-purpose feature for modeling external liquidity facilities, not Castro-specific, which is exactly what was requested.
+
+---
+
+## Castro Compliance Analysis: All Experiments
+
+*Date: 2025-12-14*
+
+### Summary: All Experiments Need the Same Change
+
+Analysis of all three experiment configurations reveals they share the same structural issue:
+
+| Experiment | Current Config | Issue |
+|------------|---------------|-------|
+| **Exp1** | `max_collateral_capacity: 100000`, `collateral_cost_per_tick_bps: 500` | Collateral = credit headroom, not balance |
+| **Exp2** | `max_collateral_capacity: 10000000`, `collateral_cost_per_tick_bps: 42` | Same issue |
+| **Exp3** | `max_collateral_capacity: 100000`, `collateral_cost_per_tick_bps: 333` | Same issue |
+
+All three experiments use `max_collateral_capacity` + `posted_collateral` which provides **credit headroom** (ability to go negative), not **direct balance**. This is fundamentally different from Castro's model.
+
+### Current vs. Castro-Compliant Configuration
+
+**Current Pattern (all experiments):**
+```yaml
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0
+    max_collateral_capacity: 100000  # Policy posts collateral → credit headroom
+
+cost_rates:
+  collateral_cost_per_tick_bps: 500  # Cost on posted collateral
+```
+
+**Castro-Compliant Pattern (same for all experiments):**
+```yaml
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0
+    liquidity_pool: 100000           # Policy allocates fraction → direct balance
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 500   # Cost on allocated liquidity
+  collateral_cost_per_tick_bps: 0    # Not used
+```
+
+### Experiment-Specific Configurations
+
+#### Exp1 (2-Period Deterministic) - Castro-Compliant
+
+```yaml
+simulation:
+  ticks_per_day: 2
+  num_days: 1
+  rng_seed: 42
+
+deferred_crediting: true
+deadline_cap_at_eod: true
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 500     # r_c = 5% per tick
+  delay_cost_per_tick_per_cent: 0.1    # r_d = 10% per tick-cent
+  overdraft_bps_per_tick: 0
+  collateral_cost_per_tick_bps: 0
+  eod_penalty_per_transaction: 100000
+  deadline_penalty: 50000
+  split_friction_cost: 0
+
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0
+    liquidity_pool: 100000              # B = 100,000
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 0
+    liquidity_pool: 100000
+
+# Transaction schedule unchanged...
+```
+
+**Expected Result**: BANK_A ≈ 0%, BANK_B ≈ 20% (Castro's exact prediction)
+
+#### Exp2 (12-Period Stochastic) - Castro-Compliant
+
+```yaml
+simulation:
+  ticks_per_day: 12
+  num_days: 1
+  rng_seed: 42
+
+deferred_crediting: true
+deadline_cap_at_eod: true
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 42      # r_c = ~0.42% per tick
+  delay_cost_per_tick_per_cent: 0.01   # r_d = 1% per tick-cent
+  overdraft_bps_per_tick: 0
+  collateral_cost_per_tick_bps: 0
+  eod_penalty_per_transaction: 100000
+  deadline_penalty: 50000
+  split_friction_cost: 0
+
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0
+    liquidity_pool: 10000000            # B = $100,000 (10M cents)
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_B: 1.0
+      deadline_range: [3, 8]
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 0
+    liquidity_pool: 10000000
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_range: [3, 8]
+```
+
+**Expected Result**: Both agents in 10-30% range (Castro's prediction, vs. our current <2%)
+
+**Note**: The dramatic difference between our current result (<2%) and Castro's prediction (10-30%) may persist even with Castro-compliant configuration if the stochastic dynamics favor risk-tolerant strategies. This would be a genuine finding about the difference between stochastic and deterministic equilibria.
+
+#### Exp3 (3-Period Joint) - Castro-Compliant
+
+```yaml
+simulation:
+  ticks_per_day: 3
+  num_days: 1
+  rng_seed: 42
+
+deferred_crediting: true
+deadline_cap_at_eod: true
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 333     # r_c = ~3.33% per tick
+  delay_cost_per_tick_per_cent: 0.2    # r_d = 20% per tick-cent
+  overdraft_bps_per_tick: 0
+  collateral_cost_per_tick_bps: 0
+  eod_penalty_per_transaction: 100000
+  deadline_penalty: 50000
+  split_friction_cost: 0
+
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0
+    liquidity_pool: 100000              # B = 100,000
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 0
+    liquidity_pool: 100000
+
+# Transaction schedule unchanged...
+```
+
+**Expected Result**: Both agents ≈ 25% (already matched - this experiment may be less affected because symmetric payments allow bilateral netting to compensate for the collateral/liquidity difference)
+
+### Why Exp3 Already Matched Castro
+
+Exp3 showed good agreement with Castro's prediction (~25% for both agents) even with the current configuration. This is likely because:
+
+1. **Symmetric Payment Structure**: Both agents send equal amounts (20,000) at the same times
+2. **Bilateral Netting Effect**: Even with credit headroom, the symmetric flows largely cancel out
+3. **Lower Sensitivity**: The equilibrium is less sensitive to the liquidity mechanism when payments are symmetric
+
+In contrast, Exp1 and Exp2 have:
+- **Exp1**: Asymmetric payment timing (B pays first)
+- **Exp2**: Stochastic arrivals with potential asymmetry
+
+These create situations where the liquidity mechanism matters more.
+
+### Recommendation
+
+**Priority for re-running with Castro-compliant configuration:**
+
+1. **Exp1 (HIGH)**: Role reversal strongly suggests model difference matters
+2. **Exp2 (MEDIUM)**: Large deviation from Castro's prediction may or may not be explained by model difference
+3. **Exp3 (LOW)**: Already close to Castro's prediction; may not change significantly
+
+### Implementation Checklist
+
+- [ ] Update exp1_2period.yaml to use `liquidity_pool` pattern
+- [ ] Update exp2_12period.yaml to use `liquidity_pool` pattern
+- [ ] Update exp3_joint.yaml to use `liquidity_pool` pattern
+- [ ] Verify experiment runner supports `liquidity_allocation_fraction` optimization
+- [ ] Re-run experiments and compare results
+- [ ] Document whether deviations from Castro persist or resolve
