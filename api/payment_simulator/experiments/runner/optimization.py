@@ -61,6 +61,7 @@ from payment_simulator.config.policy_config_builder import StandardPolicyConfigB
 from payment_simulator.experiments.runner.bootstrap_support import (
     BootstrapLLMContext,
     InitialSimulationResult,
+    SimulationResult,
 )
 from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
 from payment_simulator.experiments.runner.state_provider import LiveStateProvider
@@ -401,6 +402,143 @@ class OptimizationLoop:
         sim_id = f"{self._run_id}-sim-{self._simulation_counter:03d}-{purpose}"
         self._simulation_ids.append(sim_id)
         return sim_id
+
+    def _run_simulation(
+        self,
+        seed: int,
+        purpose: str,
+        *,
+        iteration: int | None = None,
+        sample_idx: int | None = None,
+        persist: bool | None = None,
+    ) -> SimulationResult:
+        """Run a single simulation and capture all output.
+
+        This is the ONE method that runs simulations. All callers use this
+        and transform the result as needed.
+
+        ONE method runs simulations → ONE result type → callers transform.
+
+        Args:
+            seed: RNG seed for this simulation.
+            purpose: Purpose tag for simulation ID (e.g., "init", "eval", "bootstrap").
+            iteration: Current iteration number (for logging/persistence).
+            sample_idx: Bootstrap sample index (for logging/persistence).
+            persist: Override persist_bootstrap flag. If None, uses class default.
+
+        Returns:
+            SimulationResult with all simulation output.
+
+        Note:
+            All costs are integer cents (INV-1: Money is ALWAYS i64).
+            Same seed produces identical results (INV-2: Determinism is Sacred).
+        """
+        # 1. Generate simulation ID
+        sim_id = self._generate_simulation_id(purpose)
+
+        # 2. Log to terminal if verbose
+        if self._verbose_logger:
+            self._verbose_logger.log_simulation_start(
+                simulation_id=sim_id,
+                purpose=purpose,
+                iteration=iteration,
+                seed=seed,
+            )
+
+        # 3. Build config and run simulation
+        ffi_config = self._build_simulation_config()
+        ffi_config["rng_seed"] = seed
+
+        # Extract cost rates for LLM context (only once)
+        if not self._cost_rates and "cost_rates" in ffi_config:
+            self._cost_rates = ffi_config["cost_rates"]
+
+        orch = Orchestrator.new(ffi_config)
+        total_ticks = self._config.evaluation.ticks
+        all_events: list[dict[str, Any]] = []
+
+        for tick in range(total_ticks):
+            orch.tick()
+            try:
+                tick_events = orch.get_tick_events(tick)
+                all_events.extend(tick_events)
+            except Exception:
+                # If event capture fails, continue without events for this tick
+                pass
+
+        # 4. Extract costs and metrics
+        total_cost = 0
+        per_agent_costs: dict[str, int] = {}
+        delay_cost = 0
+        liquidity_cost = 0
+        deadline_penalty = 0
+
+        for agent_id in self.optimized_agents:
+            try:
+                agent_costs = orch.get_agent_accumulated_costs(agent_id)
+                cost = int(agent_costs.get("total_cost", 0))
+                per_agent_costs[agent_id] = cost
+                total_cost += cost
+                delay_cost += int(agent_costs.get("delay_cost", 0))
+                liquidity_cost += int(agent_costs.get("liquidity_cost", 0))
+                deadline_penalty += int(agent_costs.get("deadline_penalty", 0))
+            except Exception:
+                per_agent_costs[agent_id] = 0
+
+        # 5. Calculate settlement rate and avg delay
+        try:
+            metrics = orch.get_system_metrics()
+            # FFI returns "total_settlements" and "total_arrivals"
+            settled = metrics.get("total_settlements", 0)
+            total = metrics.get("total_arrivals", 1)
+            settlement_rate = settled / total if total > 0 else 1.0
+            avg_delay = float(metrics.get("avg_delay_ticks", 0.0))
+        except Exception:
+            settlement_rate = 1.0
+            avg_delay = 0.0
+
+        # 6. Persist if flag set
+        should_persist = persist if persist is not None else self._persist_bootstrap
+        if self._repository and should_persist:
+            from payment_simulator.experiments.persistence import EventRecord
+
+            event = EventRecord(
+                run_id=self._run_id,
+                iteration=iteration or 0,
+                event_type="simulation_run",
+                event_data={
+                    "simulation_id": sim_id,
+                    "purpose": purpose,
+                    "seed": seed,
+                    "ticks": total_ticks,
+                    "total_cost": total_cost,
+                    "per_agent_costs": per_agent_costs,
+                    "num_events": len(all_events),
+                    "events": all_events,  # Store full events for replay
+                },
+                timestamp=datetime.now().isoformat(),
+            )
+            self._repository.save_event(event)
+
+        # 7. Return SimulationResult
+        return SimulationResult(
+            seed=seed,
+            simulation_id=sim_id,
+            total_cost=total_cost,
+            per_agent_costs=per_agent_costs,
+            events=tuple(all_events),
+            cost_breakdown=CostBreakdown(
+                delay_cost=delay_cost,
+                # Model uses "overdraft_cost" but FFI returns "liquidity_cost"
+                # These are the same concept (cost of negative balance)
+                overdraft_cost=liquidity_cost,
+                deadline_penalty=deadline_penalty,
+                # FFI doesn't separate eod_penalty from deadline_penalty
+                eod_penalty=0,
+            ),
+            settlement_rate=settlement_rate,
+            avg_delay=avg_delay,
+        )
 
     async def run(self) -> OptimizationResult:
         """Run the optimization loop to convergence.
@@ -878,7 +1016,7 @@ class OptimizationLoop:
 
         This method runs ONCE at the start of optimization (not every iteration)
         for bootstrap mode. It:
-        1. Runs a full simulation with stochastic arrivals
+        1. Runs a full simulation with stochastic arrivals (via _run_simulation)
         2. Collects ALL events that occurred
         3. Builds transaction history for each agent using TransactionHistoryCollector
         4. Returns data needed for bootstrap resampling
@@ -891,44 +1029,19 @@ class OptimizationLoop:
             Monte Carlo sampling. The initial simulation provides the empirical
             distribution from which bootstrap samples are drawn.
         """
-        # Generate simulation ID for tracking
-        sim_id = self._generate_simulation_id("init")
+        # Run simulation using unified method
+        # _run_simulation handles: ID generation, verbose logging, event capture,
+        # cost extraction, and persistence
+        result = self._run_simulation(
+            seed=self._config.master_seed,
+            purpose="init",
+            iteration=0,
+            persist=self._persist_bootstrap,
+        )
 
-        # Log simulation start if verbose logging is enabled
-        if self._verbose_logger:
-            self._verbose_logger.log_simulation_start(
-                simulation_id=sim_id,
-                purpose="initial_bootstrap",
-                seed=self._config.master_seed,
-            )
-
-        # Build config with initial (default) policies
-        ffi_config = self._build_simulation_config()
-        ffi_config["rng_seed"] = self._config.master_seed
-
-        # Extract cost rates for LLM context (only once)
-        if not self._cost_rates and "cost_rates" in ffi_config:
-            self._cost_rates = ffi_config["cost_rates"]
-
-        # Create orchestrator
-        orch = Orchestrator.new(ffi_config)
-
-        # Run simulation and collect ALL events
-        total_ticks = self._config.evaluation.ticks
-        all_events: list[dict[str, Any]] = []
-
-        for tick in range(total_ticks):
-            orch.tick()
-            try:
-                tick_events = orch.get_tick_events(tick)
-                all_events.extend(tick_events)
-            except Exception:
-                # If event capture fails, continue without events for this tick
-                pass
-
-        # Collect transaction history using TransactionHistoryCollector
+        # Build transaction history from events (initial simulation specific)
         collector = TransactionHistoryCollector()
-        collector.process_events(all_events)
+        collector.process_events(list(result.events))
 
         # Get history per agent
         agent_histories = {
@@ -936,50 +1049,15 @@ class OptimizationLoop:
             for agent_id in self.optimized_agents
         }
 
-        # Extract costs (integer cents - INV-1)
-        total_cost = 0
-        per_agent_costs: dict[str, int] = {}
-        for agent_id in self.optimized_agents:
-            try:
-                agent_costs = orch.get_agent_accumulated_costs(agent_id)
-                cost = int(agent_costs.get("total_cost", 0))
-                per_agent_costs[agent_id] = cost
-                total_cost += cost
-            except Exception:
-                per_agent_costs[agent_id] = 0
-
         # Build verbose output for LLM context (Stream 1)
         # Format events into human-readable output for LLM consumption
-        verbose_output = self._format_events_for_llm(all_events)
-
-        # Persist simulation to experiment database if --persist-bootstrap flag is set
-        if self._repository and self._persist_bootstrap:
-            from payment_simulator.experiments.persistence import EventRecord
-
-            # Store simulation start event with key metadata
-            event = EventRecord(
-                run_id=self._run_id,
-                iteration=0,  # Initial simulation is iteration 0
-                event_type="simulation_run",
-                event_data={
-                    "simulation_id": sim_id,
-                    "purpose": "initial_bootstrap",
-                    "seed": self._config.master_seed,
-                    "ticks": total_ticks,
-                    "total_cost": total_cost,
-                    "per_agent_costs": per_agent_costs,
-                    "num_events": len(all_events),
-                    "events": all_events,  # Store full events for replay
-                },
-                timestamp=datetime.now().isoformat(),
-            )
-            self._repository.save_event(event)
+        verbose_output = self._format_events_for_llm(list(result.events))
 
         return InitialSimulationResult(
-            events=tuple(all_events),
+            events=result.events,
             agent_histories=agent_histories,
-            total_cost=total_cost,
-            per_agent_costs=per_agent_costs,
+            total_cost=result.total_cost,
+            per_agent_costs=result.per_agent_costs,
             verbose_output=verbose_output,
         )
 
@@ -1059,8 +1137,8 @@ class OptimizationLoop:
     ) -> EnrichedEvaluationResult:
         """Run a simulation and capture events for LLM context.
 
-        This method captures tick-by-tick events during simulation,
-        extracts cost breakdowns, and returns an EnrichedEvaluationResult
+        This method delegates to _run_simulation() for the core simulation
+        execution, then transforms the result into an EnrichedEvaluationResult
         suitable for use with EnrichedBootstrapContextBuilder.
 
         Args:
@@ -1070,93 +1148,33 @@ class OptimizationLoop:
         Returns:
             EnrichedEvaluationResult with event trace and cost breakdown.
         """
-        # Build config with current policies
-        ffi_config = self._build_simulation_config()
+        # Run simulation using unified method
+        result = self._run_simulation(
+            seed=seed,
+            purpose="bootstrap",
+            sample_idx=sample_idx,
+            persist=False,  # Bootstrap samples don't persist by default
+        )
 
-        # Override seed
-        ffi_config["rng_seed"] = seed
+        # Transform raw events to BootstrapEvent objects
+        bootstrap_events: list[BootstrapEvent] = []
+        for event in result.events:
+            bootstrap_event = BootstrapEvent(
+                tick=event.get("tick", 0),
+                event_type=event.get("event_type", "unknown"),
+                details=event,
+            )
+            bootstrap_events.append(bootstrap_event)
 
-        # Extract cost rates for LLM context (only once)
-        if not self._cost_rates and "cost_rates" in ffi_config:
-            self._cost_rates = ffi_config["cost_rates"]
-
-        # Create orchestrator
-        orch = Orchestrator.new(ffi_config)
-
-        # Run simulation and capture events
-        total_ticks = self._config.evaluation.ticks
-        all_events: list[BootstrapEvent] = []
-
-        for tick in range(total_ticks):
-            orch.tick()
-
-            # Capture events for this tick
-            try:
-                tick_events = orch.get_tick_events(tick)
-                for event in tick_events:
-                    # Convert to BootstrapEvent
-                    bootstrap_event = BootstrapEvent(
-                        tick=tick,
-                        event_type=event.get("event_type", "unknown"),
-                        details=event,
-                    )
-                    all_events.append(bootstrap_event)
-            except Exception:
-                # If event capture fails, continue without events
-                pass
-
-        # Extract total cost and cost breakdown
-        # NOTE: Field names must match Rust FFI keys:
-        # - liquidity_cost (not overdraft_cost)
-        # - total_settlements (not settled_count)
-        # - total_arrivals (not total_transactions)
-        # - avg_delay_ticks (not avg_settlement_delay)
-        total_cost = 0
-        delay_cost = 0
-        liquidity_cost = 0  # FFI key is "liquidity_cost", not "overdraft_cost"
-        deadline_penalty = 0
-        collateral_cost = 0  # FFI provides this
-
-        for agent_id in self.optimized_agents:
-            try:
-                agent_costs = orch.get_agent_accumulated_costs(agent_id)
-                total_cost += int(agent_costs.get("total_cost", 0))
-                delay_cost += int(agent_costs.get("delay_cost", 0))
-                liquidity_cost += int(agent_costs.get("liquidity_cost", 0))
-                deadline_penalty += int(agent_costs.get("deadline_penalty", 0))
-                collateral_cost += int(agent_costs.get("collateral_cost", 0))
-            except Exception:
-                pass
-
-        # Calculate settlement rate
-        try:
-            metrics = orch.get_system_metrics()
-            # FFI returns "total_settlements" and "total_arrivals", not legacy keys
-            settled = metrics.get("total_settlements", 0)
-            total = metrics.get("total_arrivals", 1)
-            settlement_rate = settled / total if total > 0 else 1.0
-            avg_delay = float(metrics.get("avg_delay_ticks", 0.0))
-        except Exception:
-            settlement_rate = 1.0
-            avg_delay = 0.0
-
+        # Return EnrichedEvaluationResult with transformed events
         return EnrichedEvaluationResult(
             sample_idx=sample_idx,
             seed=seed,
-            total_cost=total_cost,
-            settlement_rate=settlement_rate,
-            avg_delay=avg_delay,
-            event_trace=tuple(all_events),
-            cost_breakdown=CostBreakdown(
-                delay_cost=delay_cost,
-                # Model uses "overdraft_cost" but FFI returns "liquidity_cost"
-                # These are the same concept (cost of negative balance)
-                overdraft_cost=liquidity_cost,
-                deadline_penalty=deadline_penalty,
-                # FFI doesn't separate eod_penalty from deadline_penalty
-                # The Rust cost model combines them into total_penalty_cost
-                eod_penalty=0,
-            ),
+            total_cost=result.total_cost,
+            settlement_rate=result.settlement_rate,
+            avg_delay=result.avg_delay,
+            event_trace=tuple(bootstrap_events),
+            cost_breakdown=result.cost_breakdown,
         )
 
     def _build_agent_contexts(
