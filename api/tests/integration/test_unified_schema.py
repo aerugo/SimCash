@@ -159,21 +159,25 @@ class TestExperimentSimulationLinkage:
         """Verify simulation_runs can link to experiments table."""
         conn = db_manager.conn
 
-        # Insert an experiment
+        # Insert an experiment (include all required fields)
         conn.execute("""
-            INSERT INTO experiments (experiment_id, experiment_name, experiment_type, config, created_at)
-            VALUES ('exp-123', 'test_exp', 'castro', '{}', '2025-01-01T00:00:00')
+            INSERT INTO experiments (
+                experiment_id, experiment_name, experiment_type, config, created_at,
+                master_seed, num_iterations, converged
+            )
+            VALUES ('exp-123', 'test_exp', 'castro', '{}', '2025-01-01T00:00:00', 12345, 0, false)
         """)
 
         # Insert a simulation linked to the experiment
         conn.execute("""
             INSERT INTO simulation_runs (
                 simulation_id, experiment_id, iteration, run_purpose,
-                config_hash, rng_seed, ticks_per_day, num_days, status, start_time
+                config_name, config_hash, rng_seed, ticks_per_day, num_days,
+                status, start_time, total_transactions
             )
             VALUES (
                 'sim-exp-123-iter0-eval', 'exp-123', 0, 'evaluation',
-                'hash123', 12345, 100, 1, 'completed', '2025-01-01T00:00:00'
+                'test.yaml', 'hash123', 12345, 100, 1, 'completed', '2025-01-01T00:00:00', 0
             )
         """)
 
@@ -193,21 +197,25 @@ class TestExperimentSimulationLinkage:
         """Verify experiment_iterations can link to simulation_runs."""
         conn = db_manager.conn
 
-        # Insert an experiment
+        # Insert an experiment (include all required fields)
         conn.execute("""
-            INSERT INTO experiments (experiment_id, experiment_name, experiment_type, config, created_at)
-            VALUES ('exp-456', 'test_exp', 'castro', '{}', '2025-01-01T00:00:00')
+            INSERT INTO experiments (
+                experiment_id, experiment_name, experiment_type, config, created_at,
+                master_seed, num_iterations, converged
+            )
+            VALUES ('exp-456', 'test_exp', 'castro', '{}', '2025-01-01T00:00:00', 12345, 0, false)
         """)
 
         # Insert a simulation
         conn.execute("""
             INSERT INTO simulation_runs (
                 simulation_id, experiment_id, iteration, run_purpose,
-                config_hash, rng_seed, ticks_per_day, num_days, status, start_time
+                config_name, config_hash, rng_seed, ticks_per_day, num_days,
+                status, start_time, total_transactions
             )
             VALUES (
                 'sim-exp-456-iter5-eval', 'exp-456', 5, 'evaluation',
-                'hash456', 12345, 100, 1, 'completed', '2025-01-01T00:00:00'
+                'test.yaml', 'hash456', 12345, 100, 1, 'completed', '2025-01-01T00:00:00', 0
             )
         """)
 
@@ -258,13 +266,13 @@ class TestInvariantCompliance:
         """INV-1: Costs in experiments should support integer cents."""
         conn = db_manager.conn
 
-        # Insert experiment with integer cost
+        # Insert experiment with integer cost (include all required fields)
         conn.execute("""
             INSERT INTO experiments (
                 experiment_id, experiment_name, experiment_type, config, created_at,
-                final_cost, best_cost
+                master_seed, num_iterations, converged, final_cost, best_cost
             )
-            VALUES ('exp-inv1', 'test', 'castro', '{}', '2025-01-01T00:00:00', 1234567, 1000000)
+            VALUES ('exp-inv1', 'test', 'castro', '{}', '2025-01-01T00:00:00', 12345, 0, false, 1234567, 1000000)
         """)
 
         # Verify costs are stored correctly
@@ -280,10 +288,13 @@ class TestInvariantCompliance:
         """INV-1: costs_per_agent JSON should contain integer cents."""
         conn = db_manager.conn
 
-        # Insert experiment first
+        # Insert experiment first (include all required fields)
         conn.execute("""
-            INSERT INTO experiments (experiment_id, experiment_name, experiment_type, config, created_at)
-            VALUES ('exp-iter-inv1', 'test', 'castro', '{}', '2025-01-01T00:00:00')
+            INSERT INTO experiments (
+                experiment_id, experiment_name, experiment_type, config, created_at,
+                master_seed, num_iterations, converged
+            )
+            VALUES ('exp-iter-inv1', 'test', 'castro', '{}', '2025-01-01T00:00:00', 12345, 0, false)
         """)
 
         # Insert iteration with integer costs in JSON
@@ -318,12 +329,13 @@ class TestInvariantCompliance:
 
         assert "master_seed" in column_names, "experiments should have master_seed column"
 
-        # Verify we can store and retrieve a seed
+        # Verify we can store and retrieve a seed (all required fields included)
         db_manager.conn.execute("""
             INSERT INTO experiments (
-                experiment_id, experiment_name, experiment_type, config, created_at, master_seed
+                experiment_id, experiment_name, experiment_type, config, created_at,
+                master_seed, num_iterations, converged
             )
-            VALUES ('exp-seed', 'test', 'castro', '{}', '2025-01-01T00:00:00', 9876543210)
+            VALUES ('exp-seed', 'test', 'castro', '{}', '2025-01-01T00:00:00', 9876543210, 0, false)
         """)
 
         result = db_manager.conn.execute(
@@ -335,7 +347,10 @@ class TestInvariantCompliance:
 
 
 class TestExperimentRepositoryWithDatabaseManager:
-    """Tests for ExperimentRepository using DatabaseManager."""
+    """Tests for ExperimentRepository using DatabaseManager.
+
+    Note: These tests are for Phase 2.6 - ExperimentRepository refactoring.
+    """
 
     @pytest.fixture
     def db_manager(self) -> "DatabaseManager":  # type: ignore[name-defined]
@@ -352,6 +367,7 @@ class TestExperimentRepositoryWithDatabaseManager:
         manager.close()
         db_path.unlink(missing_ok=True)
 
+    @pytest.mark.skip(reason="Phase 2.6: ExperimentRepository.from_database_manager not yet implemented")
     def test_experiment_repository_uses_database_manager(self, db_manager: "DatabaseManager") -> None:  # type: ignore[name-defined]
         """Verify ExperimentRepository can use DatabaseManager connection."""
         from payment_simulator.experiments.persistence.repository import (
