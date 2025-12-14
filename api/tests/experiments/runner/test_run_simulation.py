@@ -370,3 +370,136 @@ class TestRunSimulationIterationTracking:
 
         # Should succeed
         assert result is not None
+
+
+class TestRunSimulationReplayIdentity:
+    """Tests for replay identity invariant (INV-3).
+
+    Events captured by _run_simulation() must be complete and self-contained
+    for replay without reconstruction.
+    """
+
+    def test_run_simulation_events_have_tick_field(self) -> None:
+        """All events have a tick field for chronological ordering."""
+        loop = create_loop_with_scenario()
+
+        result = loop._run_simulation(seed=42, purpose="test")
+
+        # All events should have a tick field
+        for event in result.events:
+            assert "tick" in event, f"Event missing tick field: {event.get('event_type')}"
+            assert isinstance(event["tick"], int), "tick must be an integer"
+
+    def test_run_simulation_events_have_event_type(self) -> None:
+        """All events have event_type for dispatch/filtering."""
+        loop = create_loop_with_scenario()
+
+        result = loop._run_simulation(seed=42, purpose="test")
+
+        # All events should have event_type
+        for event in result.events:
+            assert "event_type" in event, f"Event missing event_type: {event}"
+            assert isinstance(event["event_type"], str)
+
+    def test_run_simulation_events_immutable(self) -> None:
+        """Events are returned as immutable tuple for safety."""
+        loop = create_loop_with_scenario()
+
+        result = loop._run_simulation(seed=42, purpose="test")
+
+        # Events should be a tuple (immutable)
+        assert isinstance(result.events, tuple)
+
+    def test_run_simulation_deterministic_events(self) -> None:
+        """Same seed produces identical event sequence (INV-2 + INV-3)."""
+        seed = 54321
+
+        loop1 = create_loop_with_scenario(run_id="test-1")
+        result1 = loop1._run_simulation(seed=seed, purpose="test")
+
+        loop2 = create_loop_with_scenario(run_id="test-2")
+        result2 = loop2._run_simulation(seed=seed, purpose="test")
+
+        # Event count must be identical
+        assert len(result1.events) == len(result2.events)
+
+        # Event types and ticks must be identical
+        for e1, e2 in zip(result1.events, result2.events):
+            assert e1["event_type"] == e2["event_type"]
+            assert e1["tick"] == e2["tick"]
+
+    def test_run_simulation_cost_breakdown_complete(self) -> None:
+        """CostBreakdown contains all cost components for analysis."""
+        loop = create_loop_with_scenario()
+
+        result = loop._run_simulation(seed=42, purpose="test")
+
+        # Cost breakdown should have all components
+        cb = result.cost_breakdown
+        assert hasattr(cb, "delay_cost")
+        assert hasattr(cb, "overdraft_cost")
+        assert hasattr(cb, "deadline_penalty")
+        assert hasattr(cb, "eod_penalty")
+
+        # All should be integers (INV-1)
+        assert isinstance(cb.delay_cost, int)
+        assert isinstance(cb.overdraft_cost, int)
+        assert isinstance(cb.deadline_penalty, int)
+        assert isinstance(cb.eod_penalty, int)
+
+
+class TestRunSimulationPersistBootstrapE2E:
+    """E2E tests for --persist-bootstrap flag with unified _run_simulation()."""
+
+    def test_initial_simulation_persists_with_flag(self, tmp_path: Path) -> None:
+        """Initial simulation events are persisted when --persist-bootstrap is set."""
+        from payment_simulator.experiments.persistence import ExperimentRepository
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        config = create_mock_config()
+        db_path = tmp_path / "persist_test.db"
+
+        with ExperimentRepository(db_path) as repo:
+            loop = OptimizationLoop(
+                config,
+                run_id="persist-e2e-test",
+                repository=repo,
+            )
+            loop._scenario_dict = get_test_scenario_dict()
+            loop._persist_bootstrap = True  # Enable --persist-bootstrap
+
+            # Run initial simulation (uses _run_simulation internally)
+            result = loop._run_initial_simulation()
+
+            # Verify events were persisted
+            events = repo.get_events("persist-e2e-test", iteration=0)
+            assert len(events) > 0, "Events should be persisted with --persist-bootstrap"
+
+            # Verify simulation_run event exists
+            sim_events = [e for e in events if e.event_type == "simulation_run"]
+            assert len(sim_events) == 1, "simulation_run event should be persisted"
+
+    def test_bootstrap_samples_not_persisted_by_default(self, tmp_path: Path) -> None:
+        """Bootstrap sample simulations are NOT persisted by default."""
+        from payment_simulator.experiments.persistence import ExperimentRepository
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        config = create_mock_config()
+        db_path = tmp_path / "no_persist_test.db"
+
+        with ExperimentRepository(db_path) as repo:
+            loop = OptimizationLoop(
+                config,
+                run_id="no-persist-test",
+                repository=repo,
+            )
+            loop._scenario_dict = get_test_scenario_dict()
+            loop._persist_bootstrap = False  # Default: no persistence
+
+            # Run a bootstrap sample (uses _run_simulation with persist=False)
+            result = loop._run_simulation_with_events(seed=42, sample_idx=0)
+
+            # Verify NO events were persisted (bootstrap samples don't persist by default)
+            events = repo.get_events("no-persist-test", iteration=0)
+            sim_events = [e for e in events if e.event_type == "simulation_run"]
+            assert len(sim_events) == 0, "Bootstrap samples should NOT persist by default"

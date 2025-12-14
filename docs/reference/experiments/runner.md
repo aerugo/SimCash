@@ -97,7 +97,10 @@ class VerboseConfig:
     llm: bool = False          # LLM call metadata (model, tokens)
     rejections: bool = False   # Policy rejection reasons
     debug: bool = False        # Debug info (validation errors, retries)
+    simulations: bool = True   # Show simulation IDs when simulations start
 ```
+
+> **Note**: The `simulations` flag defaults to `True` for transparency. When enabled, simulation IDs are logged to the terminal each time a simulation runs.
 
 ### Factory Methods
 
@@ -314,6 +317,67 @@ class IterationRecord:
 | `mean_delta` | `float \| None` | Mean delta if policy evaluated |
 | `agent_updated` | `str \| None` | Agent ID if policy accepted |
 
+## SimulationResult (Internal)
+
+Unified result type for all simulation execution within `OptimizationLoop`. This dataclass consolidates the output from the internal `_run_simulation()` method.
+
+> **Note**: This is an internal dataclass used by `OptimizationLoop`. External callers typically interact with `ExperimentResult` or `EnrichedEvaluationResult` instead.
+
+### Import
+
+```python
+from payment_simulator.experiments.runner.bootstrap_support import SimulationResult
+```
+
+### Definition
+
+```python
+@dataclass(frozen=True)
+class SimulationResult:
+    """Complete simulation output. Callers transform to their specific needs.
+
+    All costs are integer cents (INV-1).
+    """
+    seed: int                           # RNG seed used
+    simulation_id: str                  # Unique identifier (e.g., "init-42-abc123")
+    total_cost: int                     # Sum of all agent costs (integer cents)
+    per_agent_costs: dict[str, int]     # Cost per optimized agent
+    events: tuple[dict[str, Any], ...]  # Immutable event trace
+    cost_breakdown: CostBreakdown       # Itemized costs
+    settlement_rate: float              # Ratio of settled/total transactions
+    avg_delay: float                    # Average settlement delay in ticks
+```
+
+### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `seed` | `int` | RNG seed used for determinism |
+| `simulation_id` | `str` | Unique identifier with purpose prefix |
+| `total_cost` | `int` | Total cost (integer cents) |
+| `per_agent_costs` | `dict[str, int]` | Per-agent costs (integer cents) |
+| `events` | `tuple[dict, ...]` | Immutable event trace for replay |
+| `cost_breakdown` | `CostBreakdown` | Itemized costs (delay, overdraft, etc.) |
+| `settlement_rate` | `float` | Settlement success ratio |
+| `avg_delay` | `float` | Average delay in ticks |
+
+### Usage
+
+The `SimulationResult` is returned by the internal `_run_simulation()` method and transformed by callers:
+
+```python
+# Internal: _run_initial_simulation() transforms to InitialSimulationResult
+result = self._run_simulation(seed=master_seed, purpose="init")
+collector = TransactionHistoryCollector()
+collector.process_events(list(result.events))
+# ... build InitialSimulationResult from result + collector
+
+# Internal: _run_simulation_with_events() transforms to EnrichedEvaluationResult
+result = self._run_simulation(seed=seed, purpose="bootstrap", sample_idx=idx)
+bootstrap_events = [BootstrapEvent(tick=e["tick"], ...) for e in result.events]
+# ... build EnrichedEvaluationResult from result + bootstrap_events
+```
+
 ## OutputHandlerProtocol
 
 Protocol for handling experiment output.
@@ -469,4 +533,4 @@ payment-sim experiment run experiments/exp1.yaml --dry-run
 
 ---
 
-*Last updated: 2025-12-13*
+*Last updated: 2025-12-14*
