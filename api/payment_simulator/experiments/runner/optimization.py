@@ -52,6 +52,10 @@ from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
 from payment_simulator.ai_cash_mgmt.prompts.context_types import (
     SingleAgentIterationRecord,
 )
+from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
+    filter_events_for_agent,
+    format_filtered_output,
+)
 from payment_simulator.config import SimulationConfig
 from payment_simulator.experiments.runner.bootstrap_support import (
     BootstrapLLMContext,
@@ -1116,9 +1120,17 @@ class OptimizationLoop:
                 # Get initial simulation cost for this agent
                 initial_cost = self._initial_sim_result.per_agent_costs.get(agent_id, 0)
 
+                # CRITICAL: Filter initial simulation events for agent isolation
+                # Agent X must ONLY see their own events, not other agents' events
+                initial_events = list(self._initial_sim_result.events)
+                filtered_events = filter_events_for_agent(agent_id, initial_events)
+                filtered_output = format_filtered_output(
+                    agent_id, filtered_events, include_tick_headers=True
+                )
+
                 self._bootstrap_llm_contexts[agent_id] = BootstrapLLMContext(
                     agent_id=agent_id,
-                    initial_simulation_output=self._initial_sim_result.verbose_output,
+                    initial_simulation_output=filtered_output,
                     initial_simulation_cost=initial_cost,
                     best_seed=agent_ctx.best_seed,
                     best_seed_cost=agent_ctx.best_seed_cost,
