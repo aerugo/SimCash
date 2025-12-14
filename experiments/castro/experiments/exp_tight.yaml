@@ -1,0 +1,87 @@
+# Experiment: Tight Liquidity with Bootstrap
+#
+# Tests liquidity allocation in a constrained environment
+# where initial_liquidity_fraction actually affects outcomes.
+#
+# Key difference from exp2: much smaller liquidity pool relative
+# to payment volumes, creating real tension.
+
+name: exp_tight
+description: "Tight Liquidity Bootstrap Experiment"
+
+# Scenario configuration
+scenario: ../configs/exp_tight_liquidity.yaml
+
+# Evaluation settings - bootstrap mode for stochastic
+evaluation:
+  mode: bootstrap
+  num_samples: 30  # Fewer samples for faster iteration
+  ticks: 12
+
+# Convergence criteria
+convergence:
+  max_iterations: 10
+  stability_threshold: 0.05
+  stability_window: 3
+
+# LLM configuration
+llm:
+  model: "openai:gpt-5.2"
+  temperature: 0.5
+  max_retries: 3
+  timeout_seconds: 300
+  reasoning_effort: "high"
+
+# Policy constraints - focus on liquidity fraction
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+      description: "Fraction of liquidity_pool to allocate at simulation start. Value between 0.0 and 1.0."
+
+  allowed_fields:
+    - system_tick_in_day
+    - balance
+    - amount
+    - remaining_amount
+    - ticks_to_deadline
+
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
+    bank_tree:
+      - NoAction
+
+# Guide the LLM
+prompt_customization:
+  all: |
+    This scenario has TIGHT liquidity constraints:
+    - Liquidity pool: $5,000 per bank
+    - Expected outgoing payments: ~$12,000 total
+    - You CANNOT settle all payments without incoming liquidity recycling
+
+    The KEY DECISION: What fraction of the liquidity pool to allocate upfront?
+
+    Trade-offs:
+    - Too little liquidity → delays, deadline penalties, EOD failures
+    - Too much liquidity → high opportunity cost (42 bps/tick)
+
+    Incoming payments provide liquidity that can be recycled.
+    Find the minimum allocation that avoids delays/failures.
+
+# Agents to optimize
+optimized_agents:
+  - BANK_A
+  - BANK_B
+
+# Output settings
+output:
+  directory: results
+  database: exp_tight.db
+  verbose: true
+
+# Master seed
+master_seed: 42

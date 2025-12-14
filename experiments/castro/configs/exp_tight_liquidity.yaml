@@ -1,0 +1,81 @@
+# Tight Liquidity Scenario
+#
+# Designed to create meaningful liquidity tension where
+# initial_liquidity_fraction actually affects outcomes.
+#
+# Key design:
+# - Small liquidity pool relative to payment volumes
+# - Zero opening balance (must use pool)
+# - Higher payment amounts that stress liquidity
+
+simulation:
+  ticks_per_day: 12
+  num_days: 1
+  rng_seed: 42
+
+# Castro paper rules
+deferred_crediting: true
+deadline_cap_at_eod: true
+
+cost_rates:
+  # Liquidity cost: 42 bps per tick
+  # Creates tension: holding liquidity is costly
+  liquidity_cost_per_tick_bps: 42
+
+  # Delay cost: 0.05 per tick per cent
+  # Higher than liquidity cost to incentivize settlement
+  delay_cost_per_tick_per_cent: 0.05
+
+  # No overdraft - hard liquidity constraint
+  overdraft_bps_per_tick: 0
+
+  # Disable collateral cost (not using collateral mode)
+  collateral_cost_per_tick_bps: 0
+
+  # EOD penalty: severe for unsettled transactions
+  eod_penalty_per_transaction: 500000
+
+  # Deadline penalty
+  deadline_penalty: 100000
+
+  # Overdue multiplier - 5x delay cost when past deadline
+  overdue_delay_multiplier: 5.0
+
+  split_friction_cost: 0
+
+# Disable LSM for cleaner dynamics
+lsm_config:
+  enable_bilateral: false
+  enable_cycles: false
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    unsecured_cap: 0
+    # TIGHT liquidity pool - only $5,000
+    # With avg payment of $500 and ~24 payments, total outflow ~$12,000
+    # So fraction matters a lot!
+    liquidity_pool: 500000  # $5,000
+    arrival_config:
+      rate_per_tick: 2.0  # ~24 payments/day
+      amount_distribution:
+        type: LogNormal
+        mean: 50000  # $500 average
+        std_dev: 25000
+      counterparty_weights:
+        BANK_B: 1.0
+      deadline_range: [3, 8]
+
+  - id: BANK_B
+    opening_balance: 0
+    unsecured_cap: 0
+    liquidity_pool: 500000  # $5,000
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 50000  # $500 average
+        std_dev: 25000
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_range: [3, 8]
