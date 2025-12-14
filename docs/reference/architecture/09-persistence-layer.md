@@ -360,7 +360,7 @@ flowchart TB
 ### Usage
 
 ```python
-with DatabaseManager("simulation.db") as db:
+with DatabaseManager("simulation_data.db") as db:
     conn = db.get_connection()
     events = get_simulation_events(conn, sim_id, tick=42)
 ```
@@ -465,8 +465,8 @@ df = pl.read_database(
 ### Guarantee
 
 ```
-run_output = payment-sim run config.yaml --verbose
-replay_output = payment-sim replay db.db --verbose
+run_output = payment-sim run config.yaml --verbose --persist --simulation-id my-sim
+replay_output = payment-sim replay --simulation-id my-sim --verbose
 
 assert run_output == replay_output  # Byte-for-byte
 ```
@@ -482,10 +482,10 @@ assert run_output == replay_output  # Byte-for-byte
 
 ```bash
 # Run with persistence
-payment-sim run config.yaml --persist db.db --verbose > run.txt
+payment-sim run config.yaml --persist --simulation-id my-sim --verbose > run.txt
 
 # Replay
-payment-sim replay db.db --verbose > replay.txt
+payment-sim replay --simulation-id my-sim --verbose > replay.txt
 
 # Compare (should be identical except timing)
 diff <(grep -v "Duration:" run.txt) <(grep -v "Duration:" replay.txt)

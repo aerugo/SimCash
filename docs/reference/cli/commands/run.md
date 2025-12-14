@@ -206,11 +206,15 @@ payment-sim run --config scenario.yaml --event-stream
 # Persist to default database
 payment-sim run --config scenario.yaml --persist
 
-# Custom database and simulation ID
+# Custom simulation ID (same unified database)
 payment-sim run --config scenario.yaml \
   --persist \
-  --db-path my_simulations.db \
   --simulation-id run-2024-01-15
+
+# Specify different database location
+payment-sim run --config scenario.yaml \
+  --persist \
+  --db-path /path/to/simulation_data.db
 
 # Full replay data capture
 payment-sim run --config scenario.yaml --persist --full-replay

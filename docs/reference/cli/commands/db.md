@@ -49,8 +49,8 @@ payment-sim db init [OPTIONS]
 # Initialize default database
 payment-sim db init
 
-# Initialize custom database
-payment-sim db init --db-path my_simulations.db
+# Initialize database at specific path
+payment-sim db init --db-path /path/to/simulation_data.db
 ```
 
 ### Output
@@ -86,7 +86,7 @@ payment-sim db migrate [OPTIONS]
 payment-sim db migrate
 
 # Apply migrations with custom paths
-payment-sim db migrate --db-path sim.db --migrations-dir ./my_migrations
+payment-sim db migrate --db-path /path/to/simulation_data.db --migrations-dir ./my_migrations
 ```
 
 ### Output
@@ -130,8 +130,8 @@ payment-sim db validate [OPTIONS]
 # Validate default database
 payment-sim db validate
 
-# Validate custom database
-payment-sim db validate --db-path my_simulations.db
+# Validate database at specific path
+payment-sim db validate --db-path /path/to/simulation_data.db
 ```
 
 ### Output
@@ -314,8 +314,8 @@ payment-sim db simulations
 # List more simulations
 payment-sim db simulations --limit 50
 
-# List from custom database
-payment-sim db simulations --db-path my_sims.db
+# List from specific database
+payment-sim db simulations --db-path /path/to/simulation_data.db
 ```
 
 ### Output
