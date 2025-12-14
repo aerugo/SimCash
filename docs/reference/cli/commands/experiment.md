@@ -134,7 +134,7 @@ Optimized Agents:
 
 Output:
   Directory: results
-  Database: experiments.db
+  Database: simulation_data.db
   Master seed: 42
 ```
 
@@ -215,7 +215,7 @@ optimized_agents:
   - BANK_A
 output:
   directory: results
-  database: experiments.db
+  database: simulation_data.db
   verbose: true
 master_seed: 42
 ```
@@ -378,7 +378,7 @@ payment-sim experiment replay <run-id> [OPTIONS]
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--db` | `-d` | Path | `results/experiments.db` | Path to database file |
+| `--db` | `-d` | Path | `results/simulation_data.db` | Path to database file |
 | `--verbose` | `-v` | Boolean | `false` | Enable all verbose output |
 | `--verbose-iterations` | - | Boolean | `false` | Show iteration starts |
 | `--verbose-bootstrap` | - | Boolean | `false` | Show bootstrap evaluations |
@@ -416,8 +416,8 @@ payment-sim experiment replay exp1-20251209-143022-a1b2c3 --verbose
 # Replay with specific verbose options
 payment-sim experiment replay exp1-20251209-143022-a1b2c3 --verbose-iterations --verbose-policy
 
-# Replay from a custom database
-payment-sim experiment replay exp1-20251209-143022-a1b2c3 --db results/custom.db
+# Replay from a specific database
+payment-sim experiment replay exp1-20251209-143022-a1b2c3 --db path/to/simulation_data.db
 
 # Show full audit trail for all iterations
 payment-sim experiment replay exp1-20251209-143022-a1b2c3 --audit
@@ -498,7 +498,7 @@ payment-sim experiment results [OPTIONS]
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--db` | `-d` | Path | `results/experiments.db` | Path to database file |
+| `--db` | `-d` | Path | `results/simulation_data.db` | Path to database file |
 | `--experiment` | `-e` | String | `null` | Filter by experiment name |
 | `--type` | `-t` | String | `null` | Filter by experiment type |
 | `--limit` | `-n` | Integer | `20` | Maximum number of results to show |
@@ -519,8 +519,8 @@ payment-sim experiment results --experiment exp1
 # Filter by experiment type
 payment-sim experiment results --type castro
 
-# Use a custom database
-payment-sim experiment results --db results/custom.db
+# Use a specific database
+payment-sim experiment results --db path/to/simulation_data.db
 
 # Limit results
 payment-sim experiment results --limit 10
@@ -655,9 +655,9 @@ Defines what the LLM can generate:
 
 ```yaml
 output:
-  directory: results           # Output directory
-  database: experiments.db     # Database filename
-  verbose: true               # Enable verbose logging
+  directory: results              # Output directory
+  database: simulation_data.db    # Database filename
+  verbose: true                   # Enable verbose logging
 ```
 
 ### Complete Example
@@ -719,7 +719,7 @@ optimized_agents:
 
 output:
   directory: results
-  database: exp2.db
+  database: simulation_data.db
   verbose: true
 
 master_seed: 42
