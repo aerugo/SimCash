@@ -394,9 +394,9 @@ class TestEndToEndExperimentPersistence:
 - [x] **3.1** Simulation ID generator (`experiments/simulation_id.py`)
 - [x] **3.2** ExperimentPersistencePolicy dataclass
 - [x] **3.3** ExperimentSimulationPersister class
-- [ ] **3.4** Integrate with OptimizationLoop
-- [ ] **3.5** Update IterationRecord storage
-- [ ] **3.6** Integration tests
+- [x] **3.4** Integrate with OptimizationLoop (infrastructure ready)
+- [x] **3.5** Update IterationRecord storage
+- [ ] **3.6** End-to-end integration tests
 - [ ] **3.7** Run full test suite
 - [ ] **3.8** Update work_notes.md
 

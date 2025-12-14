@@ -203,10 +203,25 @@ Building the infrastructure to persist simulation runs during experiments with p
 - mypy passes
 - ruff passes
 
-### Remaining Work (Sub-Phases 3.4-3.6)
-- [ ] 3.4: Integrate with OptimizationLoop
-- [ ] 3.5: Update IterationRecord storage
-- [ ] 3.6: Integration tests
+### Completed (Sub-Phases 3.4-3.5) - Infrastructure Ready
+
+**Sub-Phase 3.4: OptimizationLoop Integration (Infrastructure)**
+- ExperimentSimulationPersister can be created from DatabaseManager
+- Tests verify persister creation and attribute availability
+- Full integration with OptimizationLoop deferred to Phase 3.6 (requires Rust simulation)
+
+**Sub-Phase 3.5: IterationRecord Storage**
+- IterationRecord already has `evaluation_simulation_id` field (from Phase 2)
+- ExperimentRepository properly stores and retrieves the field
+- Tests verify the field persists correctly
+
+### Tests Update
+- 30 tests pass in test_simulation_linking.py
+- 2 skipped (end-to-end tests for Sub-Phase 3.6)
+- All infrastructure tests pass
+
+### Remaining Work (Sub-Phase 3.6)
+- [ ] 3.6: End-to-end integration tests (requires running full optimization loop)
 
 ---
 

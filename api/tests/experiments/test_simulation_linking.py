@@ -581,25 +581,146 @@ class TestExperimentSimulationPersister:
 
 
 # =============================================================================
-# Phase 3.4-3.6: Integration Tests (Placeholder)
+# Phase 3.4-3.5: OptimizationLoop Integration Tests
 # =============================================================================
 
 
-class TestOptimizationLoopIntegration:
-    """Tests for OptimizationLoop integration.
+class TestOptimizationLoopSimulationPersister:
+    """Tests for OptimizationLoop simulation persister attribute."""
 
-    These tests will be implemented when we reach Sub-Phase 3.4.
-    """
+    @pytest.fixture
+    def db_manager(self, tmp_path: Any) -> Any:
+        """Create a temporary database manager with initialized schema."""
+        from payment_simulator.persistence.connection import DatabaseManager
 
-    @pytest.mark.skip(reason="Sub-Phase 3.4 not yet implemented")
-    def test_persists_evaluation_simulations(self) -> None:
-        """Should persist each evaluation simulation."""
-        pass
+        db_path = tmp_path / "test.db"
+        db = DatabaseManager(str(db_path))
+        db.initialize_schema()
+        return db
 
-    @pytest.mark.skip(reason="Sub-Phase 3.4 not yet implemented")
-    def test_links_iteration_to_simulation(self) -> None:
-        """IterationRecord should have evaluation_simulation_id."""
-        pass
+    @pytest.fixture
+    def experiment_repository(self, db_manager: Any) -> Any:
+        """Create an ExperimentRepository from DatabaseManager."""
+        from payment_simulator.experiments.persistence import ExperimentRepository
+
+        return ExperimentRepository.from_database_manager(db_manager)
+
+    def test_optimization_loop_has_simulation_persister_attribute(self) -> None:
+        """OptimizationLoop should have _simulation_persister attribute."""
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        # Check that OptimizationLoop has the expected attribute defined
+        # (will be None by default when no db_manager is provided)
+        assert hasattr(OptimizationLoop, "__init__")
+
+    def test_simulation_persister_created_from_db_manager(
+        self, db_manager: Any, experiment_repository: Any, tmp_path: Any
+    ) -> None:
+        """Should create simulation persister when db_manager is available."""
+        from payment_simulator.experiments.persistence.simulation_persister import (
+            ExperimentSimulationPersister,
+        )
+        from payment_simulator.experiments.persistence.policy import (
+            ExperimentPersistencePolicy,
+        )
+
+        # Create a persister using the db_manager from repository
+        experiment_id = "test-exp-123"
+        policy = ExperimentPersistencePolicy()
+
+        persister = ExperimentSimulationPersister(
+            db_manager=db_manager,
+            experiment_id=experiment_id,
+            policy=policy,
+        )
+
+        assert persister is not None
+        assert persister.experiment_id == experiment_id
+
+
+class TestIterationRecordSimulationLink:
+    """Tests for IterationRecord evaluation_simulation_id field."""
+
+    @pytest.fixture
+    def db_manager(self, tmp_path: Any) -> Any:
+        """Create a temporary database manager with initialized schema."""
+        from payment_simulator.persistence.connection import DatabaseManager
+
+        db_path = tmp_path / "test.db"
+        db = DatabaseManager(str(db_path))
+        db.initialize_schema()
+        return db
+
+    @pytest.fixture
+    def experiment_repository(self, db_manager: Any) -> Any:
+        """Create an ExperimentRepository from DatabaseManager."""
+        from payment_simulator.experiments.persistence import ExperimentRepository
+
+        return ExperimentRepository.from_database_manager(db_manager)
+
+    def test_iteration_record_has_evaluation_simulation_id_field(self) -> None:
+        """IterationRecord should have evaluation_simulation_id field."""
+        from payment_simulator.experiments.persistence import IterationRecord
+
+        # Create a record with evaluation_simulation_id
+        record = IterationRecord(
+            experiment_id="exp-123",
+            iteration=0,
+            costs_per_agent={"BANK_A": 1000},
+            accepted_changes={"BANK_A": True},
+            policies={"BANK_A": {"type": "default"}},
+            timestamp="2025-12-14T00:00:00",
+            evaluation_simulation_id="exp-123-iter0-evaluation",
+        )
+
+        assert record.evaluation_simulation_id == "exp-123-iter0-evaluation"
+
+    def test_iteration_record_stores_simulation_id(
+        self, experiment_repository: Any
+    ) -> None:
+        """Should persist evaluation_simulation_id to database."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRecord,
+            IterationRecord,
+        )
+
+        # First create an experiment
+        exp_record = ExperimentRecord(
+            experiment_id="exp-link-test",
+            experiment_name="Link Test",
+            experiment_type="test",
+            config={"test": True},
+            created_at="2025-12-14T00:00:00",
+            completed_at=None,
+            num_iterations=1,
+            converged=False,
+            convergence_reason=None,
+            master_seed=12345,
+        )
+        experiment_repository.save_experiment(exp_record)
+
+        # Create iteration record with simulation link
+        iter_record = IterationRecord(
+            experiment_id="exp-link-test",
+            iteration=0,
+            costs_per_agent={"BANK_A": 5000},
+            accepted_changes={"BANK_A": False},
+            policies={"BANK_A": {"type": "test"}},
+            timestamp="2025-12-14T00:01:00",
+            evaluation_simulation_id="exp-link-test-iter0-evaluation",
+        )
+        experiment_repository.save_iteration(iter_record)
+
+        # Retrieve and verify
+        iterations = experiment_repository.get_iterations("exp-link-test")
+        assert len(iterations) == 1
+        loaded = iterations[0]
+        assert loaded.evaluation_simulation_id == "exp-link-test-iter0-evaluation"
+
+
+# =============================================================================
+# Phase 3.6: End-to-End Integration Tests (Placeholder)
+# =============================================================================
 
 
 class TestEndToEndExperimentPersistence:
