@@ -233,6 +233,10 @@ class SimulationRunRecord(BaseModel):
     # Results
     status: SimulationStatus = Field(..., description="Simulation status")
     total_transactions: int = Field(0, description="Total transactions processed")
+    # Phase 3 additions - nullable for backwards compatibility
+    total_settlements: int | None = Field(None, description="Total settlements completed")
+    total_cost: int | None = Field(None, description="Total cost in integer cents (INV-1)")
+    duration_seconds: float | None = Field(None, description="Simulation duration in seconds")
 
     # Experiment linkage (Phase 2 Database Consolidation)
     experiment_id: str | None = Field(
