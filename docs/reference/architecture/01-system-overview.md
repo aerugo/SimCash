@@ -196,7 +196,7 @@ sequenceDiagram
     participant Display as display_tick_verbose_output
     participant DB as DuckDB
 
-    User->>CLI: payment-sim replay db.db
+    User->>CLI: payment-sim replay --simulation-id sim-abc123
     CLI->>DB: Load simulation config
     DB-->>CLI: SimulationConfig
 

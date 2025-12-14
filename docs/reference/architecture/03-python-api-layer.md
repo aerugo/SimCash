@@ -128,14 +128,14 @@ app.add_typer(db_app, name="db")
 | Command | Arguments | Options | Description |
 |---------|-----------|---------|-------------|
 | `run` | `config.yaml` | `--mode`, `--persist`, `--verbose` | Execute simulation |
-| `replay` | `db.db` | `--tick-start`, `--tick-end`, `--verbose` | Replay from database |
-| `checkpoint save` | `db.db` `sim_id` `tick` | `--description` | Save state snapshot |
+| `replay` | `--simulation-id` | `--tick-start`, `--tick-end`, `--verbose` | Replay from database |
+| `checkpoint save` | `sim_id` `tick` | `--description` | Save state snapshot |
 | `checkpoint load` | `checkpoint_id` | | Restore from checkpoint |
 | `checkpoint list` | `sim_id` | | List checkpoints |
 | `checkpoint delete` | `checkpoint_id` | | Remove checkpoint |
-| `db init` | `db.db` | | Initialize schema |
-| `db validate` | `db.db` | | Validate schema |
-| `db migrate` | `db.db` | | Apply migrations |
+| `db init` | | | Initialize schema |
+| `db validate` | | | Validate schema |
+| `db migrate` | | | Apply migrations |
 | `db schema` | | | Print DDL |
 
 ---
@@ -1011,7 +1011,7 @@ sequenceDiagram
     participant Provider as DatabaseStateProvider
     participant Display as display_tick_verbose_output
 
-    User->>CLI: payment-sim replay db.db
+    User->>CLI: payment-sim replay --simulation-id sim-abc123
 
     CLI->>DB: Load simulation config
     DB-->>CLI: Config JSON

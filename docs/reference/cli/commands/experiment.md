@@ -656,11 +656,9 @@ Defines what the LLM can generate:
 ```yaml
 output:
   directory: results              # Output directory
-  database: simulation_data.db    # Database filename (shared with simulations)
+  database: simulation_data.db    # Database filename
   verbose: true                   # Enable verbose logging
 ```
-
-**Note**: SimCash uses a unified database architecture. Both simulations (`payment-sim run --persist`) and experiments share the same database file. This enables cross-referencing simulation runs with experiment optimization iterations.
 
 ### Complete Example
 
