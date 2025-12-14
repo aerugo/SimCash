@@ -67,3 +67,6 @@ htmlcov/
 node_modules/
 *.bak
 *.csv
+
+# Integration test artifacts
+integration_test_results/
