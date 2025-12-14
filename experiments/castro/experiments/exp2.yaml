@@ -1,15 +1,15 @@
-# Experiment 2: 12-Period Stochastic (Castro-Compliant)
+# Experiment 2: 12-Period Stochastic
 # LVTS-style realistic scenario with stochastic arrivals.
 #
 # Setup:
 # - 12 ticks per day
 # - Poisson arrivals, LogNormal amounts
-# - Uses liquidity_pool mode (direct balance) for Castro compliance
+# - Uses liquidity_pool mode (direct balance)
 #
 # Expected outcome: Both agents in 10-30% range
 
 name: exp2
-description: "12-Period Stochastic LVTS-Style (Castro-Compliant)"
+description: "12-Period Stochastic LVTS-Style"
 
 # Scenario configuration (relative to this file's directory)
 scenario: ../configs/exp2_12period.yaml
@@ -36,8 +36,8 @@ llm:
   timeout_seconds: 900
   reasoning_effort: "high"
 
-# Policy constraints (Castro-specific - MINIMAL SET)
-# The Castro model has ONE key decision: initial liquidity allocation
+# Policy constraints
+# The model has ONE key decision: initial liquidity allocation
 policy_constraints:
   allowed_parameters:
     - name: initial_liquidity_fraction

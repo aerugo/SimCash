@@ -1,15 +1,14 @@
-# Experiment 1: 2-Period Deterministic (Castro-Compliant)
+# Experiment 1: 2-Period Deterministic
 # Validates Nash equilibrium with deferred crediting.
 #
 # Setup:
 # - 2 ticks per day, 1 day
 # - Deterministic payment arrivals
-# - Uses liquidity_pool mode (direct balance) for Castro compliance
+# - Uses liquidity_pool mode (direct balance)
 #
-# Expected outcome: BANK_A = 0%, BANK_B = 20%
 
 name: exp1
-description: "2-Period Deterministic Nash Equilibrium (Castro-Compliant)"
+description: "2-Period Deterministic Nash Equilibrium"
 
 # Scenario configuration (relative to this file's directory)
 scenario: ../configs/exp1_2period.yaml
@@ -35,7 +34,7 @@ llm:
   timeout_seconds: 900
   reasoning_effort: "high"
 
-# Policy constraints (Castro-specific - MINIMAL SET)
+# Policy constraints MINIMAL SET
 # The Initial Liquidity Game has ONE decision: what fraction of liquidity_pool to allocate
 policy_constraints:
   allowed_parameters:
@@ -46,7 +45,7 @@ policy_constraints:
       description: "Fraction of liquidity_pool to allocate at simulation start. Value between 0.0 and 1.0."
 
   allowed_fields:
-    # MINIMAL SET - only what's needed for Castro Initial Liquidity Game
+    # MINIMAL SET - only what's needed for Initial Liquidity Game
     # Time context
     - system_tick_in_day
     # Agent liquidity state (balance = allocated liquidity from pool)
@@ -62,6 +61,24 @@ policy_constraints:
       - NoAction
     # Note: strategic_collateral_tree not used in liquidity_pool mode
     # Allocation happens at simulation start via liquidity_allocation_fraction
+
+# Experiment customization - guides LLM without giving away answer
+prompt_customization:
+  all: |
+    This scenario tests a fundamental tradeoff in payment systems:
+    - Allocating liquidity from the pool allows you to settle payments
+    - But allocated liquidity has an opportunity cost
+
+    The KEY DECISION in this scenario is: What fraction of the liquidity pool
+    should be allocated at the START of the day?
+
+    IMPORTANT: Focus your optimization on the `initial_liquidity_fraction` parameter.
+    The payment_tree should remain a simple Release action - the real optimization
+    is in how much liquidity to commit upfront.
+
+    With a hard liquidity constraint (no overdraft allowed), you must have
+    sufficient balance to settle each payment. Incoming payments from the
+    counterparty provide liquidity that can be recycled for your outgoing payments.
 
 # Agents to optimize
 optimized_agents:
