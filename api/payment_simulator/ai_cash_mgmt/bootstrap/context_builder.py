@@ -104,22 +104,6 @@ class EnrichedBootstrapContextBuilder:
         self._results = results
         self._agent_id = agent_id
 
-    def get_best_result(self) -> EnrichedEvaluationResult:
-        """Get result with lowest cost.
-
-        Returns:
-            EnrichedEvaluationResult with minimum total_cost.
-        """
-        return min(self._results, key=lambda r: r.total_cost)
-
-    def get_worst_result(self) -> EnrichedEvaluationResult:
-        """Get result with highest cost.
-
-        Returns:
-            EnrichedEvaluationResult with maximum total_cost.
-        """
-        return max(self._results, key=lambda r: r.total_cost)
-
     def format_event_trace_for_llm(
         self,
         result: EnrichedEvaluationResult,
@@ -199,16 +183,55 @@ class EnrichedBootstrapContextBuilder:
             **event.details,
         }
 
+    def _get_agent_cost(self, result: EnrichedEvaluationResult) -> int:
+        """Get cost for the target agent from a result.
+
+        Uses per_agent_costs if available, otherwise falls back to total_cost.
+
+        Args:
+            result: Evaluation result to extract cost from.
+
+        Returns:
+            Cost for this agent in integer cents.
+        """
+        if result.per_agent_costs and self._agent_id in result.per_agent_costs:
+            return result.per_agent_costs[self._agent_id]
+        # Backward compatibility: fall back to total_cost
+        return result.total_cost
+
+    def get_best_result(self) -> EnrichedEvaluationResult:
+        """Get result with lowest cost for this agent.
+
+        Uses per-agent cost when available, total_cost otherwise.
+
+        Returns:
+            EnrichedEvaluationResult with minimum cost for this agent.
+        """
+        return min(self._results, key=lambda r: self._get_agent_cost(r))
+
+    def get_worst_result(self) -> EnrichedEvaluationResult:
+        """Get result with highest cost for this agent.
+
+        Uses per-agent cost when available, total_cost otherwise.
+
+        Returns:
+            EnrichedEvaluationResult with maximum cost for this agent.
+        """
+        return max(self._results, key=lambda r: self._get_agent_cost(r))
+
     def build_agent_context(self) -> AgentSimulationContext:
         """Build context compatible with prompt system.
 
         Creates AgentSimulationContext from enriched bootstrap results,
         including formatted event traces for best and worst samples.
 
+        Uses per-agent costs when available for accurate per-agent reporting.
+
         Returns:
             AgentSimulationContext with all fields populated.
         """
-        costs = [r.total_cost for r in self._results]
+        # Use per-agent costs for this specific agent
+        costs = [self._get_agent_cost(r) for r in self._results]
         mean_cost = int(statistics.mean(costs))
         std_cost = int(statistics.stdev(costs)) if len(costs) > 1 else 0
 
@@ -218,10 +241,10 @@ class EnrichedBootstrapContextBuilder:
         return AgentSimulationContext(
             agent_id=self._agent_id,
             best_seed=best.seed,
-            best_seed_cost=best.total_cost,
+            best_seed_cost=self._get_agent_cost(best),
             best_seed_output=self.format_event_trace_for_llm(best),
             worst_seed=worst.seed,
-            worst_seed_cost=worst.total_cost,
+            worst_seed_cost=self._get_agent_cost(worst),
             worst_seed_output=self.format_event_trace_for_llm(worst),
             mean_cost=mean_cost,
             cost_std=std_cost,

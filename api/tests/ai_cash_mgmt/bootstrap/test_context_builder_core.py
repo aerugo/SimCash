@@ -304,3 +304,173 @@ class TestCastroBackwardCompatibility:
         )
 
         assert CastroClass is CoreClass
+
+
+class TestPerAgentCostTracking:
+    """Tests for per-agent cost tracking in context builder.
+
+    REGRESSION: The context builder was using total_cost (sum of all agents)
+    as the per-agent mean_cost, causing all agents to show the same cost
+    in experiment final results.
+
+    The fix requires EnrichedEvaluationResult to track per_agent_costs
+    and the context builder to extract the correct agent's cost.
+    """
+
+    def test_mean_cost_reflects_agent_specific_cost_not_total(self) -> None:
+        """mean_cost should be the specific agent's cost, not total simulation cost.
+
+        REGRESSION TEST: Previously, mean_cost was set to total_cost which
+        is the SUM of all agent costs. This caused all agents to show
+        the same cost value (the total) in experiment final results.
+
+        Example scenario:
+        - BANK_A cost: 0 cents (free rider, no liquidity posted)
+        - BANK_B cost: 2000 cents (20% liquidity opportunity cost)
+        - total_cost: 2000 cents (0 + 2000)
+
+        Bug behavior: Both agents showed mean_cost=2000
+        Correct behavior: BANK_A.mean_cost=0, BANK_B.mean_cost=2000
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        # Simulate Castro Experiment 1 results:
+        # - BANK_A (free rider): 0% liquidity, $0 cost
+        # - BANK_B (first mover): 20% liquidity, $20 cost
+        # - total_cost: $20 (Bank A $0 + Bank B $20)
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=42,
+            total_cost=2000,  # Total: $20.00 (both agents combined)
+            settlement_rate=1.0,
+            avg_delay=0.0,
+            event_trace=(),
+            cost_breakdown=CostBreakdown(
+                delay_cost=0,
+                overdraft_cost=0,
+                deadline_penalty=0,
+                eod_penalty=0,
+            ),
+            # NEW FIELD: Per-agent costs
+            per_agent_costs={"BANK_A": 0, "BANK_B": 2000},
+        )
+
+        # Build context for BANK_A (the free rider with $0 cost)
+        builder_a = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        context_a = builder_a.build_agent_context()
+
+        # Build context for BANK_B (the first mover with $20 cost)
+        builder_b = EnrichedBootstrapContextBuilder([result], "BANK_B")
+        context_b = builder_b.build_agent_context()
+
+        # CRITICAL: mean_cost should be per-agent, NOT total
+        # Bug: Both would show 2000 (total_cost)
+        # Fix: BANK_A=0, BANK_B=2000
+        assert context_a.mean_cost == 0, (
+            f"BANK_A mean_cost should be 0 (agent's cost), "
+            f"got {context_a.mean_cost} (likely using total_cost)"
+        )
+        assert context_b.mean_cost == 2000, (
+            f"BANK_B mean_cost should be 2000 (agent's cost), "
+            f"got {context_b.mean_cost}"
+        )
+
+    def test_best_worst_seed_cost_reflects_agent_specific_cost(self) -> None:
+        """best_seed_cost and worst_seed_cost should be per-agent.
+
+        When identifying best/worst seeds, the costs should be
+        the specific agent's costs, not total simulation costs.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        # Two samples with different cost distributions
+        # Sample 1: BANK_A=100, BANK_B=500, total=600
+        # Sample 2: BANK_A=200, BANK_B=300, total=500
+        sample1 = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=111,
+            total_cost=600,
+            settlement_rate=1.0,
+            avg_delay=0.0,
+            event_trace=(),
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            per_agent_costs={"BANK_A": 100, "BANK_B": 500},
+        )
+        sample2 = EnrichedEvaluationResult(
+            sample_idx=1,
+            seed=222,
+            total_cost=500,
+            settlement_rate=1.0,
+            avg_delay=0.0,
+            event_trace=(),
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            per_agent_costs={"BANK_A": 200, "BANK_B": 300},
+        )
+
+        # For BANK_A: Best=seed 111 (cost 100), Worst=seed 222 (cost 200)
+        builder_a = EnrichedBootstrapContextBuilder([sample1, sample2], "BANK_A")
+        context_a = builder_a.build_agent_context()
+
+        assert context_a.best_seed == 111, "BANK_A best seed should be 111 (cost 100)"
+        assert context_a.best_seed_cost == 100
+        assert context_a.worst_seed == 222, "BANK_A worst seed should be 222 (cost 200)"
+        assert context_a.worst_seed_cost == 200
+
+        # For BANK_B: Best=seed 222 (cost 300), Worst=seed 111 (cost 500)
+        builder_b = EnrichedBootstrapContextBuilder([sample1, sample2], "BANK_B")
+        context_b = builder_b.build_agent_context()
+
+        assert context_b.best_seed == 222, "BANK_B best seed should be 222 (cost 300)"
+        assert context_b.best_seed_cost == 300
+        assert context_b.worst_seed == 111, "BANK_B worst seed should be 111 (cost 500)"
+        assert context_b.worst_seed_cost == 500
+
+    def test_backward_compatibility_without_per_agent_costs(self) -> None:
+        """Results without per_agent_costs should still work (fallback to total).
+
+        For backward compatibility, if per_agent_costs is not provided,
+        the builder should fall back to using total_cost (old behavior).
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        # Old-style result without per_agent_costs
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=42,
+            total_cost=1000,
+            settlement_rate=1.0,
+            avg_delay=0.0,
+            event_trace=(),
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            # No per_agent_costs - should fall back to total_cost
+        )
+
+        builder = EnrichedBootstrapContextBuilder([result], "ANY_AGENT")
+        context = builder.build_agent_context()
+
+        # Should fall back to total_cost when per_agent_costs not available
+        assert context.mean_cost == 1000

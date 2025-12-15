@@ -13,7 +13,7 @@ All dataclasses are frozen (immutable) per project convention.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -79,6 +79,7 @@ class EnrichedEvaluationResult:
     Extends the basic EvaluationResult with:
     - event_trace: Full trace of events for LLM context
     - cost_breakdown: Itemized costs for understanding cost drivers
+    - per_agent_costs: Per-agent cost breakdown for multi-agent scenarios
 
     This allows the LLM to see exactly what happened during evaluation
     and understand which cost types to optimize.
@@ -88,11 +89,13 @@ class EnrichedEvaluationResult:
     Attributes:
         sample_idx: Index of the bootstrap sample (for tracking).
         seed: RNG seed used for this sample (for reproducibility).
-        total_cost: Total cost incurred (integer cents).
+        total_cost: Total cost incurred across all agents (integer cents).
         settlement_rate: Fraction of transactions settled (0.0 to 1.0).
         avg_delay: Average delay in ticks for settled transactions.
         event_trace: Tuple of BootstrapEvent capturing what happened.
         cost_breakdown: Itemized cost breakdown by type.
+        per_agent_costs: Mapping of agent_id to individual cost (integer cents).
+            Empty dict if not provided (backward compatibility - falls back to total_cost).
     """
 
     sample_idx: int
@@ -102,3 +105,4 @@ class EnrichedEvaluationResult:
     avg_delay: float
     event_trace: tuple[BootstrapEvent, ...]  # Tuple for immutability
     cost_breakdown: CostBreakdown
+    per_agent_costs: dict[str, int] = field(default_factory=dict)  # Agent ID -> cost in cents
