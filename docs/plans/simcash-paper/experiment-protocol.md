@@ -207,11 +207,11 @@ Use `--audit` to capture at least one full LLM prompt/response for the paper's m
 
 **Recommended order:**
 
-1. **exp1 first** - Simplest case, fastest to run, validates basic setup
-2. **exp3 second** - Symmetric case, deterministic, validates joint optimization
-3. **exp2 last** - Longest run (bootstrap), most complex
+1. **exp2 first** - Stochastic case with bootstrap, most realistic scenario
+2. **exp1 second** - Deterministic baseline, validates asymmetric equilibrium
+3. **exp3 last** - Joint optimization, validates symmetric equilibrium
 
-**Rationale:** Start simple, build confidence, then tackle the hardest case.
+**Rationale:** Start with the most realistic scenario (stochastic arrivals), then validate edge cases.
 
 ---
 
