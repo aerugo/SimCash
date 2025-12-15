@@ -36,11 +36,24 @@
 - [x] Create development plan
 - [x] Create work notes
 
-**Next Steps**:
-1. Create Phase 1 detailed plan
-2. Implement data extraction service with tests
-3. Implement chart rendering
-4. Wire up CLI command
+---
+
+### 2025-12-15 - Implementation
+
+**Completed**:
+- [x] Created `charting.py` with `ExperimentChartService` and `render_convergence_chart`
+- [x] Created 17 unit tests covering data extraction and rendering
+- [x] Added `chart` command to CLI with all options
+- [x] Updated documentation in `experiment.md`
+- [x] All tests passing (63 analysis tests)
+- [x] Type check and lint pass
+
+**Implementation Notes**:
+- Used `ChartDataPoint` and `ChartData` dataclasses for clean data structures
+- Dual-line visualization: accepted (blue, prominent) vs all (gray, dashed)
+- Parameter annotations show values above accepted data points
+- Costs converted from cents to dollars (INV-1 compliance)
+- Error handling: `--parameter` requires `--agent` flag
 
 ---
 

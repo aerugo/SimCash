@@ -26,6 +26,7 @@ The `experiment` command group provides tools for running, validating, and manag
 | `replay` | Replay experiment output from database |
 | `results` | List experiment runs from database |
 | `policy-evolution` | Extract policy evolution data as JSON |
+| `chart` | Generate convergence charts for experiment runs |
 
 ## validate
 
@@ -693,6 +694,81 @@ When using `--llm`, each iteration includes the LLM interaction data:
 
 ---
 
+## chart
+
+Generate convergence charts for experiment runs.
+
+### Synopsis
+
+```bash
+payment-sim experiment chart <run-id> [OPTIONS]
+```
+
+### Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `run-id` | String | Run ID to visualize (e.g., `exp1-20251209-143022-a1b2c3`) |
+
+### Options
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--db` | `-d` | Path | `results/experiments.db` | Path to database file |
+| `--agent` | `-a` | String | `null` | Filter to specific agent's costs |
+| `--parameter` | `-p` | String | `null` | Show parameter value at each iteration (requires `--agent`) |
+| `--output` | `-o` | Path | `<run-id>.png` | Output file path |
+
+### Description
+
+The `chart` command generates a convergence visualization showing how costs evolved over experiment iterations. The chart displays:
+
+**Primary Line (Accepted Policies)**: A prominent blue line showing the cost trajectory when only accepted policy changes are applied. This shows the optimization convergence path.
+
+**Secondary Line (All Policies)**: A subtle, dashed gray line showing the cost of every tested policy, including rejected ones. This shows the exploration space.
+
+When `--parameter` is specified with `--agent`, the chart annotates each accepted data point with the parameter value at that iteration, useful for understanding how specific parameters (like `initial_liquidity_fraction`) evolved during optimization.
+
+### Examples
+
+```bash
+# Basic chart for all agents (system total cost)
+payment-sim experiment chart exp1-20251215-084901-866d63
+
+# Chart for specific agent
+payment-sim experiment chart exp1-20251215-084901-866d63 --agent BANK_A
+
+# Chart with parameter value annotations
+payment-sim experiment chart exp1-20251215-084901-866d63 \
+    --agent BANK_A --parameter initial_liquidity_fraction
+
+# Custom output path
+payment-sim experiment chart exp1-20251215-084901-866d63 --output results/exp1_chart.png
+
+# From specific database
+payment-sim experiment chart exp1-20251215-084901-866d63 --db results/custom.db
+
+# Generate PDF for publication
+payment-sim experiment chart exp1-20251215-084901-866d63 --output paper/fig1.pdf
+```
+
+### Output
+
+The chart is saved to the specified output path (default: `<run-id>.png`). Supported formats based on file extension:
+
+- `.png` - Raster format, good for web/documentation
+- `.pdf` - Vector format, good for papers/publications
+- `.svg` - Vector format, good for web
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Database not found, run not found, or invalid options |
+
+---
+
 ## Configuration File Format
 
 Experiments are configured via YAML files. See the full schema below.
@@ -884,10 +960,10 @@ master_seed: 42
 
 ## Implementation Details
 
-**File**: `api/payment_simulator/cli/commands/experiment.py`
+**File**: `api/payment_simulator/experiments/cli/commands.py`
 
 The experiment command uses the experiment framework from `payment_simulator.experiments`.
 
 ---
 
-*Last updated: 2025-12-14*
+*Last updated: 2025-12-15*
