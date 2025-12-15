@@ -58,6 +58,7 @@ from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
 )
 from payment_simulator.config import SimulationConfig
 from payment_simulator.config.policy_config_builder import StandardPolicyConfigBuilder
+from payment_simulator.config.scenario_config_builder import StandardScenarioConfigBuilder
 from payment_simulator.experiments.runner.bootstrap_support import (
     BootstrapLLMContext,
     InitialSimulationResult,
@@ -295,6 +296,11 @@ class OptimizationLoop:
         # Ensures identical policy interpretation across all evaluation paths
         # (Policy Evaluation Identity invariant)
         self._policy_builder = StandardPolicyConfigBuilder()
+
+        # Scenario config builder for canonical agent configuration extraction
+        # Ensures identical scenario interpretation across all code paths
+        # (Scenario Config Interpretation Identity invariant - INV-10)
+        self._scenario_builder: StandardScenarioConfigBuilder | None = None
 
         # Verbose logging
         self._verbose_config = verbose_config or VerboseConfig()
@@ -819,81 +825,20 @@ class OptimizationLoop:
 
         return self._scenario_dict
 
-    def _get_agent_opening_balance(self, agent_id: str) -> int:
-        """Get opening balance for an agent from scenario config.
+    def _get_scenario_builder(self) -> StandardScenarioConfigBuilder:
+        """Get the scenario config builder, creating it lazily if needed.
 
-        Used by BootstrapPolicyEvaluator for policy evaluation.
-
-        Args:
-            agent_id: Agent ID to look up.
-
-        Returns:
-            Opening balance in integer cents (INV-1). Returns 0 if agent not found.
-        """
-        scenario = self._load_scenario_config()
-        for agent in scenario.get("agents", []):
-            if agent.get("id") == agent_id:
-                return int(agent.get("opening_balance", 0))
-        return 0
-
-    def _get_agent_credit_limit(self, agent_id: str) -> int:
-        """Get credit limit (unsecured_cap) for an agent from scenario config.
-
-        Used by BootstrapPolicyEvaluator for policy evaluation.
-
-        Args:
-            agent_id: Agent ID to look up.
+        Uses StandardScenarioConfigBuilder for canonical agent configuration extraction.
+        This ensures identical scenario interpretation across all code paths
+        (Scenario Config Interpretation Identity invariant - INV-10).
 
         Returns:
-            Credit limit in integer cents (INV-1). Returns 0 if agent not found.
+            StandardScenarioConfigBuilder instance.
         """
-        scenario = self._load_scenario_config()
-        for agent in scenario.get("agents", []):
-            if agent.get("id") == agent_id:
-                return int(agent.get("unsecured_cap", 0))
-        return 0
-
-    def _get_agent_max_collateral_capacity(self, agent_id: str) -> int | None:
-        """Get max collateral capacity for an agent from scenario config.
-
-        Used by BootstrapPolicyEvaluator for policy evaluation.
-        Required for policies that use initial_collateral_fraction parameter.
-
-        Args:
-            agent_id: Agent ID to look up.
-
-        Returns:
-            Max collateral capacity in integer cents (INV-1).
-            Returns None if not set in scenario config.
-        """
-        scenario = self._load_scenario_config()
-        for agent in scenario.get("agents", []):
-            if agent.get("id") == agent_id:
-                capacity = agent.get("max_collateral_capacity")
-                if capacity is not None:
-                    return int(capacity)
-        return None
-
-    def _get_agent_liquidity_pool(self, agent_id: str) -> int | None:
-        """Get liquidity pool for an agent from scenario config.
-
-        Used by BootstrapPolicyEvaluator for policy evaluation.
-        Required for policies that use initial_liquidity_fraction parameter.
-
-        Args:
-            agent_id: Agent ID to look up.
-
-        Returns:
-            Liquidity pool in integer cents (INV-1).
-            Returns None if not set in scenario config.
-        """
-        scenario = self._load_scenario_config()
-        for agent in scenario.get("agents", []):
-            if agent.get("id") == agent_id:
-                pool = agent.get("liquidity_pool")
-                if pool is not None:
-                    return int(pool)
-        return None
+        if self._scenario_builder is None:
+            scenario = self._load_scenario_config()
+            self._scenario_builder = StandardScenarioConfigBuilder(scenario)
+        return self._scenario_builder
 
     def _build_simulation_config(self) -> dict[str, Any]:
         """Build FFI-compatible simulation config with current policies.
@@ -1531,14 +1476,15 @@ class OptimizationLoop:
         if self._bootstrap_samples and agent_id in self._bootstrap_samples:
             samples = self._bootstrap_samples[agent_id]
             if samples:
+                # Use ScenarioConfigBuilder for canonical agent config extraction
+                # Ensures identical scenario interpretation (INV-10)
+                agent_config = self._get_scenario_builder().extract_agent_config(agent_id)
                 evaluator = BootstrapPolicyEvaluator(
-                    opening_balance=self._get_agent_opening_balance(agent_id),
-                    credit_limit=self._get_agent_credit_limit(agent_id),
+                    opening_balance=agent_config.opening_balance,
+                    credit_limit=agent_config.credit_limit,
                     cost_rates=self._cost_rates,
-                    max_collateral_capacity=self._get_agent_max_collateral_capacity(
-                        agent_id
-                    ),
-                    liquidity_pool=self._get_agent_liquidity_pool(agent_id),
+                    max_collateral_capacity=agent_config.max_collateral_capacity,
+                    liquidity_pool=agent_config.liquidity_pool,
                 )
                 paired_deltas = evaluator.compute_paired_deltas(
                     samples=samples,
