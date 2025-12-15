@@ -57,6 +57,10 @@ The LLM receives a structured prompt containing eight sections designed to provi
 
 ### 2.3 What the LLM Returns
 
+SimCash allows for very complex decision trees, with 100+ parameters, action types and operators. In this paper we use the decision tree mechanism, but the only decision happens at the start of the day with the initial liquidity allocation. We have configured SimCash to only validate decision trees returned by the LLM that are limited to this structure.
+
+Since only one variable is being optimized, the JSON decision tree is not strictly necessary. However, in preparation for future work where we will use the complex policy features of SimCash to optimize payments decision, we introduce SimCash in this paper.
+
 The LLM outputs a complete policy specification in JSON format:
 
 ```json
@@ -88,7 +92,8 @@ All LLM responses are validated against the constraint schema defined in the exp
 
 ### 3.1 The Problem: Evaluating Policies Under Uncertainty
 
-In stochastic environments with random transaction arrivals, policy costs are highly variable. A candidate policy might appear better due to a "lucky" random sample rather than genuine improvement. How do we reliably determine if a new policy is truly better?
+Two out of three scenarios evaluated in this paper are deterministic with fixed transansaction profiles, but Experiment 2 is stochastic.
+In stochastic environments with random transaction arrivals, policy costs are variable. A candidate policy might appear better due to a "lucky" random sample rather than genuine improvement. How do we reliably determine if a new policy is truly better?
 
 ### 3.2 Solution: Paired Comparison Bootstrap
 
