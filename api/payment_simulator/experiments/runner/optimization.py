@@ -1133,7 +1133,7 @@ class OptimizationLoop:
         return total_cost, per_agent_costs
 
     def _run_simulation_with_events(
-        self, seed: int, sample_idx: int
+        self, seed: int, sample_idx: int, *, purpose: str | None = None
     ) -> EnrichedEvaluationResult:
         """Run a simulation and capture events for LLM context.
 
@@ -1144,14 +1144,22 @@ class OptimizationLoop:
         Args:
             seed: RNG seed for this simulation.
             sample_idx: Index of this sample in the bootstrap set.
+            purpose: Purpose tag for simulation ID. If None, derives from
+                evaluation mode ("eval" for deterministic, "bootstrap" for
+                bootstrap mode).
 
         Returns:
             EnrichedEvaluationResult with event trace and cost breakdown.
         """
+        # Derive purpose from evaluation mode if not specified
+        if purpose is None:
+            eval_mode = self._config.evaluation.mode
+            purpose = "eval" if eval_mode == "deterministic" else "bootstrap"
+
         # Run simulation using unified method
         result = self._run_simulation(
             seed=seed,
-            purpose="bootstrap",
+            purpose=purpose,
             sample_idx=sample_idx,
             persist=False,  # Bootstrap samples don't persist by default
         )
