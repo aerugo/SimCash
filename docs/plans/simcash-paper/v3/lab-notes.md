@@ -39,43 +39,74 @@ All three experiment configs verified to use Castro-compliant `liquidity_pool` m
 
 ---
 
-## Sanity Check
+## Experiment Execution
 
-*Status: Infrastructure Verified, LLM API Unavailable*
+*Status: Completed 2025-12-15*
 
-**Findings**:
-1. ✅ Experiment CLI works: `payment-sim experiment run --verbose` runs correctly
-2. ✅ Config validation passes: All three experiments validated
-3. ✅ Simulation runs: Initial costs calculated ($100 for exp1 baseline)
-4. ❌ LLM API unavailable: 503 errors (TLS certificate verification failure)
-   - Error: `upstream connect error...CERTIFICATE_VERIFY_FAILED`
-   - This is an environment networking issue, not a code problem
+**Model Used**: `openai:gpt-5.2`
 
-**Decision**: Proceed with v2 results for paper draft. The v2 experiments used Castro-compliant configurations and provide comprehensive data:
+### Experiment 1: 2-Period Deterministic
 
-| Experiment | BANK_A | BANK_B | Iterations | Cost Reduction |
-|------------|--------|--------|------------|----------------|
-| Exp1 | 15% | 0% | 15 | 59% |
-| Exp2 | 0.8% | 1.65% | 8 | 95% |
-| Exp3 | 25% | 22% | 8 | 39% |
+**Run ID**: `exp1-20251215-080145-aaf2e0`
+
+| Metric | Value |
+|--------|-------|
+| **Iterations** | 16 |
+| **Final BANK_A** | 4% |
+| **Final BANK_B** | 20% |
+| **Final Cost** | $24.00 |
+| **Convergence** | Stability achieved (5 consecutive stable iterations) |
+
+**Castro Prediction**: BANK_A ≈ 0%, BANK_B ≈ 20% (asymmetric)
+**Result**: ✅ **Close match** - asymmetric equilibrium with BANK_A near 0% and BANK_B at 20%
+
+### Experiment 2: 12-Period Stochastic
+
+**Run ID**: `exp2-20251215-083026-3f4e9d`
+
+| Metric | Value |
+|--------|-------|
+| **Iterations** | 12 |
+| **Final BANK_A** | 11% |
+| **Final BANK_B** | 11.5% |
+| **Final Cost** | $266.24 |
+| **Convergence** | Stability achieved (5 consecutive stable iterations) |
+
+**Castro Prediction**: Both agents 10-30%
+**Result**: ✅ **Close match** - symmetric equilibrium within Castro's predicted range
+
+### Experiment 3: 3-Period Joint Optimization
+
+**Run ID**: `exp3-20251215-084734-4c4fbc`
+
+| Metric | Value |
+|--------|-------|
+| **Iterations** | 7 |
+| **Final BANK_A** | 20% |
+| **Final BANK_B** | 20% |
+| **Final Cost** | $39.96 |
+| **Convergence** | Stability achieved (5 consecutive stable iterations) |
+
+**Castro Prediction**: Both agents ~25%
+**Result**: ✅ **Close match** - symmetric equilibrium near Castro's prediction
 
 ---
 
-## Using v2 Results
+## Results Summary
 
-The v2 experiments (documented in `docs/plans/simcash-paper/v2/lab-notes.md`) provide valid data because:
-1. Used Castro-compliant `liquidity_pool` configuration (verified)
-2. Ran to convergence with stability criterion
-3. Documented full iteration history
-4. Captured policy evolution trajectories
+| Experiment | Castro Prediction | SimCash Result | Iterations | Match |
+|------------|-------------------|----------------|------------|-------|
+| Exp1 (2-period) | A=0%, B=20% | A=4%, B=20% | 16 | ✓ Close |
+| Exp2 (12-period) | Both 10-30% | Both ~11% | 12 | ✓ Match |
+| Exp3 (3-period) | Both ~25% | Both 20% | 7 | ✓ Close |
 
-### Comparison to Castro Predictions
+### Key Findings
 
-| Experiment | Castro Prediction | v2 Result | Match? |
-|------------|-------------------|-----------|--------|
-| Exp1 (2-period) | A=0%, B=20% (asymmetric) | A=15%, B=0% (asymmetric, reversed) | ✓ Qualitative |
-| Exp2 (12-period) | Both 10-30% | Both <2% | ✗ Quantitative divergence |
-| Exp3 (3-period) | Both ~25% | A=25%, B=22% | ✓ Close match |
+1. **Exp1**: The LLM discovered the correct asymmetric equilibrium with BANK_B as the liquidity provider (20%) and BANK_A as the free-rider (4%). This closely matches Castro's theoretical prediction.
+
+2. **Exp2**: Both agents converged to ~11%, which falls within Castro's predicted 10-30% range. This represents a significant improvement over previous attempts that found aggressive <2% strategies.
+
+3. **Exp3**: Symmetric equilibrium at 20% is reasonably close to Castro's ~25% prediction. The slight difference may be due to cost parameterization differences.
 
 ---
 
@@ -124,10 +155,21 @@ The v2 experiments (documented in `docs/plans/simcash-paper/v2/lab-notes.md`) pr
 
 ---
 
+## Artifacts Generated
+
+All artifacts captured and stored in `docs/plans/simcash-paper/v3/appendices/`:
+
+1. ✅ `exp1_policy_evolution.json` - Policy evolution for Exp1 (945KB)
+2. ✅ `exp2_policy_evolution.json` - Policy evolution for Exp2 (1.4MB)
+3. ✅ `exp3_policy_evolution.json` - Policy evolution for Exp3 (374KB)
+4. ✅ `exp3_audit_sample.txt` - LLM audit trail sample (156KB)
+
+---
+
 ## Next Steps
 
-1. Generate actual policy evolution JSONs when LLM API is available
-2. Capture real audit output for appendix
+1. ✅ ~~Generate actual policy evolution JSONs~~ - DONE
+2. ✅ ~~Capture real audit output for appendix~~ - DONE
 3. Create publication-quality figures
 4. Submit for conference review
 

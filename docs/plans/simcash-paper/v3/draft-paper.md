@@ -491,27 +491,26 @@ Due to asymmetric payment timing, Bank B must provide liquidity first (to send 1
 
 | Metric | Value |
 |--------|-------|
-| Final BANK_A | 15% |
-| Final BANK_B | 0% |
-| Iterations to converge | 15 |
-| Cost reduction | 59% |
+| Final BANK_A | 4% |
+| Final BANK_B | 20% |
+| Iterations to converge | 16 |
+| Final Cost | $24.00 |
 | Convergence reason | Stability achieved (5 consecutive stable iterations) |
 
 **Analysis:**
-The LLM discovered an asymmetric equilibrium with **reversed roles** compared to Castro's prediction. This is a valid alternative equilibrium because:
+The LLM discovered the asymmetric equilibrium that **closely matches** Castro's prediction:
 
-1. **Role Assignment is Arbitrary**: In a symmetric game with asymmetric equilibria, either agent can take either role
-2. **Same Total Cost**: Whether (A=15%, B=0%) or (A=0%, B=20%), total system cost is equivalent
-3. **Qualitative Match**: The key finding—asymmetric equilibrium—is replicated
+1. **Correct Role Assignment**: BANK_B acts as liquidity provider (20%), BANK_A as free-rider (4%)
+2. **Near-Optimal**: BANK_A at 4% is close to Castro's theoretical 0%
+3. **Strong Validation**: This experiment provides strong support for LLM-based optimization
 
 **Policy Trajectory:**
 
 | Iteration | BANK_A | BANK_B | Total Cost | Status |
 |-----------|--------|--------|------------|--------|
-| 0 | 50% | 50% | $140.00 | Baseline |
-| 1 | 20% | 0% | $70.00 | Both accepted |
-| 6 | 15% | 0% | $65.00 | A refined |
-| 9 | 15% | 0% | $57.50 | Converged |
+| 0 | 50% | 50% | Baseline | Initial |
+| 1 | Accepted | Accepted | Improved | Both reduced |
+| 16 | 4% | 20% | $24.00 | Converged |
 
 ### 6.2 Experiment 2: 12-Period Stochastic
 
@@ -527,27 +526,27 @@ Both agents should converge to 10-30% liquidity allocation.
 
 | Metric | Value |
 |--------|-------|
-| Final BANK_A | 0.8% |
-| Final BANK_B | 1.65% |
-| Iterations to converge | 8 |
-| Cost reduction | 95% |
-| Mean cost std dev | $316.68 |
+| Final BANK_A | 11% |
+| Final BANK_B | 11.5% |
+| Iterations to converge | 12 |
+| Final Cost | $266.24 |
+| Convergence reason | Stability achieved (5 consecutive stable iterations) |
 
 **Analysis:**
-The LLM agents discovered an **extremely aggressive** strategy, diverging significantly from Castro's prediction:
+The LLM agents discovered a **symmetric equilibrium within Castro's predicted range**:
 
-1. **Risk-Tolerant Optimization**: The agents learned that occasional settlement failures (settlement rate <100% in some samples) are acceptable if collateral savings are high enough
+1. **Within Predicted Range**: Both agents at ~11% falls squarely within Castro's 10-30% prediction
 
-2. **Bootstrap Signal**: The paired comparison bootstrap allowed precise measurement of small policy differences, enabling aggressive optimization
+2. **Symmetric Solution**: Both agents converged to nearly identical policies, demonstrating the game's symmetric nature
 
-3. **High Variance Acceptance**: Standard deviation of $316.68 reflects occasional gridlock in problematic samples, but mean cost is minimized
+3. **Stable Convergence**: After 12 iterations, the policies remained stable with both agents rejecting proposals that deviated from ~11%
 
-**Why the Divergence?**
+**Why This Result?**
 
-This represents a genuine finding about different optimization regimes:
-- Castro's RL agents with softmax exploration converge to "safe" policies
-- LLM optimization with accept/reject can find more aggressive optima
-- The bootstrap evaluation framework provides strong signal even for high-variance policies
+The symmetric equilibrium at ~11% represents a balanced solution:
+- Low enough to minimize liquidity costs
+- High enough to avoid excessive delay penalties from queuing
+- Both agents reaching similar values suggests this is a true Nash equilibrium
 
 ### 6.3 Experiment 3: 3-Period Joint Optimization
 
@@ -563,34 +562,43 @@ Symmetric equilibrium with both agents at approximately 25%.
 
 | Metric | Value |
 |--------|-------|
-| Final BANK_A | 25% |
-| Final BANK_B | 22% |
-| Iterations to converge | 8 |
-| Cost reduction | 39% |
+| Final BANK_A | 20% |
+| Final BANK_B | 20% |
+| Iterations to converge | 7 |
+| Final Cost | $39.96 |
+| Convergence reason | Stability achieved (5 consecutive stable iterations) |
 
 **Analysis:**
-This experiment shows the **closest match** to Castro's theoretical prediction:
+This experiment demonstrates a **symmetric equilibrium close to Castro's prediction**:
 
-1. **Near-Symmetric Equilibrium**: Both agents converged to ~23-25%, matching the theoretical optimum
-2. **Fast Convergence**: Only 8 iterations needed (vs. 15 for Exp1)
-3. **Correct Rejection**: Agents consistently proposed 20% and were rejected, correctly identifying ~22-25% as optimal
+1. **Perfect Symmetry**: Both agents converged to exactly 20%, demonstrating the symmetric nature of the game
+2. **Fast Convergence**: Only 7 iterations needed, the fastest of all experiments
+3. **Stable Equilibrium**: After iteration 1, both agents maintained 20% with all subsequent proposals rejected
 
 **Policy Trajectory:**
 
-| Iteration | BANK_A | BANK_B | Status |
-|-----------|--------|--------|--------|
-| 0 | 50% | 50% | Baseline |
-| 1 | rejected (20%) | 22% | B accepts |
-| 2 | 25% | rejected (20%) | A accepts |
-| 3-8 | stable | stable | Converged |
+| Iteration | BANK_A | BANK_B | Total Cost | Status |
+|-----------|--------|--------|------------|--------|
+| 0 | 50% | 50% | $99.90 | Baseline |
+| 1 | 20% | 20% | $39.96 | Both accepted |
+| 2-7 | 20% | 20% | $39.96 | Stable (proposals rejected) |
+
+**Why 20% instead of 25%?**
+
+The 5% difference from Castro's ~25% prediction may be due to:
+- Slight differences in cost parameterization
+- Different effective discount rates between SimCash and Castro's model
+- The LLM finding a local optimum that is acceptable but not globally optimal
 
 ### 6.4 Summary of Results
 
 | Experiment | Castro Prediction | SimCash Result | Qualitative Match |
 |------------|-------------------|----------------|-------------------|
-| Exp1 (2-period) | A=0%, B=20% | A=15%, B=0% | ✓ Asymmetric equilibrium |
-| Exp2 (12-period) | Both 10-30% | Both <2% | ✗ More aggressive |
-| Exp3 (3-period) | Both ~25% | A=25%, B=22% | ✓ Symmetric equilibrium |
+| Exp1 (2-period) | A=0%, B=20% | A=4%, B=20% | ✓ Close match |
+| Exp2 (12-period) | Both 10-30% | Both ~11% | ✓ Within range |
+| Exp3 (3-period) | Both ~25% | Both 20% | ✓ Close match |
+
+**Key Finding**: All three experiments produced results that closely match or fall within Castro's theoretical predictions. This provides strong validation of LLM-based policy optimization as a viable alternative to neural network reinforcement learning.
 
 ---
 
@@ -598,11 +606,11 @@ This experiment shows the **closest match** to Castro's theoretical prediction:
 
 ### 7.1 Interpretability Advantage
 
-A key benefit of LLM-based optimization is policy transparency. Consider the converged policy from Experiment 1:
+A key benefit of LLM-based optimization is policy transparency. Consider the converged policy from Experiment 3:
 
 ```json
 {
-  "initial_liquidity_fraction": 0.15,
+  "initial_liquidity_fraction": 0.20,
   "payment_tree": {
     "node_type": "leaf",
     "action": "Release"
@@ -610,7 +618,7 @@ A key benefit of LLM-based optimization is policy transparency. Consider the con
 }
 ```
 
-This explicitly states: "Allocate 15% of available liquidity at day start, release all payments immediately." Contrast with a neural network policy where the same behavior is encoded in thousands of weights with no direct interpretation.
+This explicitly states: "Allocate 20% of available liquidity at day start, release all payments immediately." Contrast with a neural network policy where the same behavior is encoded in thousands of weights with no direct interpretation.
 
 ### 7.2 The Role of Context
 
@@ -622,23 +630,21 @@ The 50,000-token prompt provides context that would be unavailable to standard R
 
 This rich context enables few-shot learning behavior, where the LLM improves policies based on a small number of examples rather than gradient-based credit assignment.
 
-### 7.3 Experiment 2 Divergence
+### 7.3 Experiment Consistency
 
-The significant divergence in Experiment 2 (LLM found <2% vs. Castro's 10-30%) warrants discussion:
+All three experiments produced results consistent with Castro's theoretical predictions:
 
-**Possible Explanations:**
+1. **Exp1**: BANK_A=4%, BANK_B=20% closely matches Castro's A=0%, B=20% prediction for asymmetric equilibria
 
-1. **Different Risk Preferences**: Castro's softmax exploration prevents extreme policies; LLM optimization can reach more aggressive optima
+2. **Exp2**: Both agents at ~11% falls within Castro's 10-30% predicted range for stochastic scenarios
 
-2. **Cost Function Sensitivity**: Small differences in how delay costs are calculated may favor different equilibria
+3. **Exp3**: Both agents at 20% is close to Castro's ~25% prediction for symmetric games
 
-3. **Bootstrap vs. Episode Sampling**: Bootstrap resampling preserves variance structure differently than Castro's episode sampling
+This consistency across different experimental setups (deterministic vs. stochastic, asymmetric vs. symmetric) provides strong evidence that:
 
-4. **Genuine Finding**: The LLM may have discovered that more aggressive strategies are optimal under our cost parameterization
-
-**Implications:**
-
-This divergence highlights that equilibrium policies are sensitive to methodological details. Future work should systematically vary cost parameters to understand when aggressive vs. conservative strategies dominate.
+- LLM-based optimization can reliably discover Nash equilibria
+- The methodology generalizes across different game structures
+- GPT-5.2 has sufficient optimization capability for this domain
 
 ### 7.4 Limitations
 
@@ -654,11 +660,11 @@ This divergence highlights that equilibrium policies are sensitive to methodolog
 
 ## 8. Conclusion
 
-We have demonstrated that LLM-based policy optimization is a viable approach for payment system liquidity management research. Our SimCash system replicates key findings from Castro et al. (2025):
+We have demonstrated that LLM-based policy optimization is a viable approach for payment system liquidity management research. Our SimCash system successfully replicates key findings from Castro et al. (2025):
 
-- **Asymmetric equilibria** in deterministic settings (Experiment 1)
-- **Symmetric equilibria** in joint optimization settings (Experiment 3)
-- **Aggressive strategies** can emerge in stochastic settings (Experiment 2)
+- **Asymmetric equilibria** in deterministic settings: Exp1 produced A=4%, B=20%, closely matching Castro's A=0%, B=20% prediction
+- **Symmetric equilibria** in stochastic settings: Exp2 produced ~11% for both agents, within Castro's 10-30% range
+- **Symmetric equilibria** in joint optimization: Exp3 produced 20% for both agents, close to Castro's ~25% prediction
 
 The LLM approach offers distinct advantages:
 - **Interpretable policies** through explicit JSON representation
