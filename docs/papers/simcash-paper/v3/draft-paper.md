@@ -28,22 +28,16 @@ Our contributions are:
 
 SimCash employs an iterative optimization process where an LLM generates candidate policies that are evaluated via simulation:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                  OPTIMIZATION LOOP                       │
-│                                                         │
-│  1. LLM generates candidate policy                      │
-│                    ↓                                    │
-│  2. Policy evaluated via simulation                     │
-│                    ↓                                    │
-│  3. Cost computed (liquidity + delay penalties)         │
-│                    ↓                                    │
-│  4. Accept/reject based on cost comparison              │
-│                    ↓                                    │
-│  5. LLM sees results and generates improved policy      │
-│                    ↓                                    │
-│  [Repeat until convergence or max iterations]           │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A[1. LLM generates<br>candidate policy] --> B[2. Policy evaluated<br>via simulation]
+    B --> C[3. Cost computed<br>liquidity + delay penalties]
+    C --> D{4. Accept/reject<br>based on cost<br>comparison}
+    D -->|Accepted| E[5. LLM sees results]
+    D -->|Rejected| E
+    E --> F{Converged or<br>max iterations?}
+    F -->|No| A
+    F -->|Yes| G[Done]
 ```
 
 ### 2.2 The LLM Prompt Structure
@@ -120,17 +114,17 @@ Decision: Accept if mean(δ) > 0
 
 For policy evaluation, SimCash uses a simplified 3-agent sandbox:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│               3-AGENT SANDBOX                           │
-│                                                         │
-│    SOURCE ──────────────→ AGENT ──────────────→ SINK   │
-│  (infinite              (target with           (infinite│
-│   liquidity)             test policy)           capacity)│
-│      │                                              ↑   │
-│      └───────── incoming settlements ───────────────┘   │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph sandbox["3-AGENT SANDBOX"]
+        SOURCE["SOURCE<br>(infinite liquidity)"]
+        AGENT["AGENT<br>(target with test policy)"]
+        SINK["SINK<br>(infinite capacity)"]
+
+        SOURCE -->|"outgoing payments"| AGENT
+        AGENT -->|"outgoing payments"| SINK
+        SINK -.->|"incoming settlements"| SOURCE
+    end
 ```
 
 - **SOURCE**: Sends payments to AGENT at historically-observed times, infinite liquidity
