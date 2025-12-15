@@ -857,7 +857,7 @@ class OptimizationLoop:
         """Get max collateral capacity for an agent from scenario config.
 
         Used by BootstrapPolicyEvaluator for policy evaluation.
-        Required for policies that use initial_liquidity_fraction parameter.
+        Required for policies that use initial_collateral_fraction parameter.
 
         Args:
             agent_id: Agent ID to look up.
@@ -872,6 +872,27 @@ class OptimizationLoop:
                 capacity = agent.get("max_collateral_capacity")
                 if capacity is not None:
                     return int(capacity)
+        return None
+
+    def _get_agent_liquidity_pool(self, agent_id: str) -> int | None:
+        """Get liquidity pool for an agent from scenario config.
+
+        Used by BootstrapPolicyEvaluator for policy evaluation.
+        Required for policies that use initial_liquidity_fraction parameter.
+
+        Args:
+            agent_id: Agent ID to look up.
+
+        Returns:
+            Liquidity pool in integer cents (INV-1).
+            Returns None if not set in scenario config.
+        """
+        scenario = self._load_scenario_config()
+        for agent in scenario.get("agents", []):
+            if agent.get("id") == agent_id:
+                pool = agent.get("liquidity_pool")
+                if pool is not None:
+                    return int(pool)
         return None
 
     def _build_simulation_config(self) -> dict[str, Any]:
@@ -1517,6 +1538,7 @@ class OptimizationLoop:
                     max_collateral_capacity=self._get_agent_max_collateral_capacity(
                         agent_id
                     ),
+                    liquidity_pool=self._get_agent_liquidity_pool(agent_id),
                 )
                 paired_deltas = evaluator.compute_paired_deltas(
                     samples=samples,
