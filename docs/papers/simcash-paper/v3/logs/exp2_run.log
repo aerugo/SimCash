@@ -1,0 +1,2832 @@
+Loaded experiment: exp2
+Starting experiment...
+Experiment run ID: exp2-20251215-083049-8cf596
+
+  Simulation: exp2-20251215-083049-8cf596-sim-001-init (Init, iter 0)
+  Simulation: exp2-20251215-083049-8cf596-sim-002-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-003-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-004-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-005-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-006-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-007-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-008-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-009-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-010-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-011-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-012-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-013-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-014-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-015-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-016-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-017-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-018-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-019-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-020-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-021-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-022-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-023-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-024-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-025-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-026-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-027-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-028-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-029-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-030-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-031-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-032-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-033-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-034-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-035-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-036-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-037-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-038-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-039-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-040-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-041-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-042-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-043-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-044-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-045-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-046-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-047-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-048-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-049-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-050-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-051-bootstrap (Bootstrap)
+
+Bootstrap Baseline (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x25d594fa │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x6e3133b3 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x5230cc03 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x19febc91 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $996.00 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $996.00 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $996.00 (std: $0.00)
+
+
+Iteration 1
+  Total cost: $996.00
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,398
+  Completion tokens: 29
+  Latency: 55.7s
+  Key context provided:
+    - current_cost: $498.00
+    - best_seed_cost: $498.00
+    - worst_seed_cost: $498.00
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +9,960 │ improvement │
+│     #2 │    +9,960 │ improvement │
+│     #3 │    +9,960 │ improvement │
+│     #4 │    +9,960 │ improvement │
+│     #5 │    +9,960 │ improvement │
+│     #6 │    +9,960 │ improvement │
+│     #7 │    +9,960 │ improvement │
+│     #8 │    +9,960 │ improvement │
+│     #9 │    +9,960 │ improvement │
+│    #10 │    +9,960 │ improvement │
+│    #11 │    +9,960 │ improvement │
+│    #12 │    +9,960 │ improvement │
+│    #13 │    +9,960 │ improvement │
+│    #14 │    +9,960 │ improvement │
+│    #15 │    +9,960 │ improvement │
+│    #16 │    +9,960 │ improvement │
+│    #17 │    +9,960 │ improvement │
+│    #18 │    +9,960 │ improvement │
+│    #19 │    +9,960 │ improvement │
+│    #20 │    +9,960 │ improvement │
+│    #21 │    +9,960 │ improvement │
+│    #22 │    +9,960 │ improvement │
+│    #23 │    +9,960 │ improvement │
+│    #24 │    +9,960 │ improvement │
+│    #25 │    +9,960 │ improvement │
+│    #26 │    +9,960 │ improvement │
+│    #27 │    +9,960 │ improvement │
+│    #28 │    +9,960 │ improvement │
+│    #29 │    +9,960 │ improvement │
+│    #30 │    +9,960 │ improvement │
+│    #31 │    +9,960 │ improvement │
+│    #32 │    +9,960 │ improvement │
+│    #33 │    +9,960 │ improvement │
+│    #34 │    +9,960 │ improvement │
+│    #35 │    +9,960 │ improvement │
+│    #36 │    +9,960 │ improvement │
+│    #37 │    +9,960 │ improvement │
+│    #38 │    +9,960 │ improvement │
+│    #39 │    +9,960 │ improvement │
+│    #40 │    +9,960 │ improvement │
+│    #41 │    +9,960 │ improvement │
+│    #42 │    +9,960 │ improvement │
+│    #43 │    +9,960 │ improvement │
+│    #44 │    +9,960 │ improvement │
+│    #45 │    +9,960 │ improvement │
+│    #46 │    +9,960 │ improvement │
+│    #47 │    +9,960 │ improvement │
+│    #48 │    +9,960 │ improvement │
+│    #49 │    +9,960 │ improvement │
+│    #50 │    +9,960 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +498,000¢ (+$4,980.00 total improvement)
+  Mean delta: 9,960.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+              Policy Change: BANK_A               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃ Old ┃ New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.5 │ 0.4 │  -20% │
+└────────────────────────────┴─────┴─────┴───────┘
+  Evaluation: $498.00 → $398.40 (-20.0%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,431
+  Completion tokens: 31
+  Latency: 123.9s
+  Key context provided:
+    - current_cost: $498.00
+    - best_seed_cost: $498.00
+    - worst_seed_cost: $498.00
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │   +34,860 │ improvement │
+│     #2 │   +34,860 │ improvement │
+│     #3 │   +34,860 │ improvement │
+│     #4 │   +34,860 │ improvement │
+│     #5 │   +34,860 │ improvement │
+│     #6 │   +34,860 │ improvement │
+│     #7 │   +34,860 │ improvement │
+│     #8 │   +34,860 │ improvement │
+│     #9 │   +34,860 │ improvement │
+│    #10 │   +34,860 │ improvement │
+│    #11 │   +34,860 │ improvement │
+│    #12 │   +34,860 │ improvement │
+│    #13 │   +34,860 │ improvement │
+│    #14 │   +34,860 │ improvement │
+│    #15 │   +34,860 │ improvement │
+│    #16 │   +34,860 │ improvement │
+│    #17 │   +34,860 │ improvement │
+│    #18 │   +34,860 │ improvement │
+│    #19 │   +34,860 │ improvement │
+│    #20 │   +34,860 │ improvement │
+│    #21 │   +34,860 │ improvement │
+│    #22 │   +34,860 │ improvement │
+│    #23 │   +34,860 │ improvement │
+│    #24 │   +34,860 │ improvement │
+│    #25 │   +34,860 │ improvement │
+│    #26 │   +34,860 │ improvement │
+│    #27 │   +34,860 │ improvement │
+│    #28 │   +34,860 │ improvement │
+│    #29 │   +34,860 │ improvement │
+│    #30 │   +34,860 │ improvement │
+│    #31 │   +34,860 │ improvement │
+│    #32 │   +34,860 │ improvement │
+│    #33 │   +34,860 │ improvement │
+│    #34 │   +34,860 │ improvement │
+│    #35 │   +34,860 │ improvement │
+│    #36 │   +34,860 │ improvement │
+│    #37 │   +34,860 │ improvement │
+│    #38 │   +34,860 │ improvement │
+│    #39 │   +34,860 │ improvement │
+│    #40 │   +34,860 │ improvement │
+│    #41 │   +34,860 │ improvement │
+│    #42 │   +34,860 │ improvement │
+│    #43 │   +34,860 │ improvement │
+│    #44 │   +34,860 │ improvement │
+│    #45 │   +34,860 │ improvement │
+│    #46 │   +34,860 │ improvement │
+│    #47 │   +34,860 │ improvement │
+│    #48 │   +28,047 │ improvement │
+│    #49 │   +34,860 │ improvement │
+│    #50 │   +34,860 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +1,736,187¢ (+$17,361.87 total improvement)
+  Mean delta: 34,723.7¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_B               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃ Old ┃  New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.5 │ 0.15 │  -70% │
+└────────────────────────────┴─────┴──────┴───────┘
+  Evaluation: $498.00 → $150.76 (-69.7%)
+  Decision: ACCEPTED
+
+  Simulation: exp2-20251215-083049-8cf596-sim-052-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-053-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-054-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-055-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-056-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-057-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-058-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-059-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-060-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-061-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-062-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-063-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-064-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-065-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-066-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-067-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-068-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-069-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-070-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-071-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-072-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-073-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-074-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-075-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-076-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-077-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-078-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-079-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-080-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-081-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-082-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-083-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-084-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-085-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-086-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-087-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-088-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-089-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-090-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-091-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-092-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-093-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-094-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-095-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-096-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-097-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-098-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-099-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-100-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-101-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x25d594fa │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $597.76 │  94/100 │  94.9% │      │
+│ 0x6e3133b3 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $609.77 │  95/100 │  95.2% │      │
+│ 0x5230cc03 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $575.08 │ 100/100 │ 100.0% │      │
+│ 0x19febc91 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $547.80 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $547.80 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $550.58 (std: $11.68)
+
+
+Iteration 2
+  Total cost: $550.58
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,429
+  Completion tokens: 31
+  Latency: 50.8s
+  Key context provided:
+    - current_cost: $275.29
+    - best_seed_cost: $398.40
+    - worst_seed_cost: $398.40
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +9,960 │ improvement │
+│     #2 │    +9,960 │ improvement │
+│     #3 │    +9,960 │ improvement │
+│     #4 │    +9,960 │ improvement │
+│     #5 │    +9,960 │ improvement │
+│     #6 │    +9,960 │ improvement │
+│     #7 │    +9,960 │ improvement │
+│     #8 │    +9,960 │ improvement │
+│     #9 │    +9,960 │ improvement │
+│    #10 │    +9,960 │ improvement │
+│    #11 │    +9,960 │ improvement │
+│    #12 │    +9,960 │ improvement │
+│    #13 │    +9,960 │ improvement │
+│    #14 │    +9,960 │ improvement │
+│    #15 │    +9,960 │ improvement │
+│    #16 │    +9,960 │ improvement │
+│    #17 │    +9,960 │ improvement │
+│    #18 │    +9,960 │ improvement │
+│    #19 │    +9,960 │ improvement │
+│    #20 │    +9,960 │ improvement │
+│    #21 │    +9,960 │ improvement │
+│    #22 │    +9,960 │ improvement │
+│    #23 │    +9,960 │ improvement │
+│    #24 │    +9,960 │ improvement │
+│    #25 │    +9,960 │ improvement │
+│    #26 │    +9,960 │ improvement │
+│    #27 │    +9,960 │ improvement │
+│    #28 │    +9,960 │ improvement │
+│    #29 │    +9,960 │ improvement │
+│    #30 │    +9,960 │ improvement │
+│    #31 │    +9,960 │ improvement │
+│    #32 │    +9,960 │ improvement │
+│    #33 │    +9,960 │ improvement │
+│    #34 │    +9,960 │ improvement │
+│    #35 │    +9,960 │ improvement │
+│    #36 │    +9,960 │ improvement │
+│    #37 │    +9,960 │ improvement │
+│    #38 │    +9,960 │ improvement │
+│    #39 │    +9,960 │ improvement │
+│    #40 │    +9,960 │ improvement │
+│    #41 │    +9,960 │ improvement │
+│    #42 │    +9,960 │ improvement │
+│    #43 │    +9,960 │ improvement │
+│    #44 │    +9,960 │ improvement │
+│    #45 │    +9,960 │ improvement │
+│    #46 │    +9,960 │ improvement │
+│    #47 │    +9,960 │ improvement │
+│    #48 │    +9,960 │ improvement │
+│    #49 │    +9,960 │ improvement │
+│    #50 │    +9,960 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +498,000¢ (+$4,980.00 total improvement)
+  Mean delta: 9,960.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+              Policy Change: BANK_A               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃ Old ┃ New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.4 │ 0.3 │  -25% │
+└────────────────────────────┴─────┴─────┴───────┘
+  Evaluation: $275.29 → $175.69 (-36.2%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,432
+  Completion tokens: 31
+  Latency: 34.6s
+  Key context provided:
+    - current_cost: $275.29
+    - best_seed_cost: $149.40
+    - worst_seed_cost: $211.37
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +1,992 │ improvement │
+│     #2 │    +1,992 │ improvement │
+│     #3 │    +1,992 │ improvement │
+│     #4 │    +1,992 │ improvement │
+│     #5 │    +1,992 │ improvement │
+│     #6 │    +1,992 │ improvement │
+│     #7 │    +1,992 │ improvement │
+│     #8 │    +1,992 │ improvement │
+│     #9 │    +1,992 │ improvement │
+│    #10 │    +1,992 │ improvement │
+│    #11 │      +815 │ improvement │
+│    #12 │    +1,992 │ improvement │
+│    #13 │    +1,992 │ improvement │
+│    #14 │    +1,992 │ improvement │
+│    #15 │    +1,992 │ improvement │
+│    #16 │    +1,992 │ improvement │
+│    #17 │    +1,992 │ improvement │
+│    #18 │    +1,992 │ improvement │
+│    #19 │    +1,992 │ improvement │
+│    #20 │    +1,992 │ improvement │
+│    #21 │    +1,992 │ improvement │
+│    #22 │    +1,992 │ improvement │
+│    #23 │    +1,992 │ improvement │
+│    #24 │    +1,992 │ improvement │
+│    #25 │    +1,992 │ improvement │
+│    #26 │    +1,992 │ improvement │
+│    #27 │    +1,992 │ improvement │
+│    #28 │    +1,992 │ improvement │
+│    #29 │    +1,992 │ improvement │
+│    #30 │    +1,992 │ improvement │
+│    #31 │    +1,992 │ improvement │
+│    #32 │    +1,992 │ improvement │
+│    #33 │    +1,992 │ improvement │
+│    #34 │    +1,992 │ improvement │
+│    #35 │    +1,992 │ improvement │
+│    #36 │    +1,992 │ improvement │
+│    #37 │    +1,992 │ improvement │
+│    #38 │    +1,992 │ improvement │
+│    #39 │    +1,992 │ improvement │
+│    #40 │    +1,992 │ improvement │
+│    #41 │    +1,992 │ improvement │
+│    #42 │    +1,992 │ improvement │
+│    #43 │    +1,992 │ improvement │
+│    #44 │    +1,992 │ improvement │
+│    #45 │    +1,992 │ improvement │
+│    #46 │    +1,992 │ improvement │
+│    #47 │    +1,992 │ improvement │
+│    #48 │   -10,105 │ regression  │
+│    #49 │    +1,992 │ improvement │
+│    #50 │    +1,992 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +86,326¢ (+$863.26 total improvement)
+  Mean delta: 1,726.5¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_B                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃  Old ┃  New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.15 │ 0.13 │  -13% │
+└────────────────────────────┴──────┴──────┴───────┘
+  Evaluation: $275.29 → $258.02 (-6.3%)
+  Decision: ACCEPTED
+
+  Simulation: exp2-20251215-083049-8cf596-sim-102-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-103-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-104-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-105-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-106-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-107-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-108-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-109-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-110-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-111-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-112-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-113-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-114-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-115-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-116-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-117-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-118-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-119-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-120-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-121-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-122-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-123-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-124-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-125-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-126-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-127-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-128-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-129-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-130-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-131-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-132-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-133-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-134-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-135-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-136-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-137-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-138-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-139-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-140-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-141-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-142-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-143-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-144-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-145-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-146-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-147-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-148-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-149-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-150-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-151-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $442.48 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x25d594fa │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $592.39 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $557.07 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $435.79 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $572.62 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $428.28 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $428.28 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $437.45 (std: $35.10)
+
+
+Iteration 3
+  Total cost: $437.45
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,495
+  Completion tokens: 31
+  Latency: 34.1s
+  Key context provided:
+    - current_cost: $218.72
+    - best_seed_cost: $298.80
+    - worst_seed_cost: $298.80
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +4,980 │ improvement │
+│     #2 │    +4,980 │ improvement │
+│     #3 │    +4,980 │ improvement │
+│     #4 │    +4,980 │ improvement │
+│     #5 │    +4,980 │ improvement │
+│     #6 │    +4,980 │ improvement │
+│     #7 │    +4,980 │ improvement │
+│     #8 │    +4,980 │ improvement │
+│     #9 │    +4,980 │ improvement │
+│    #10 │    +4,980 │ improvement │
+│    #11 │    +4,980 │ improvement │
+│    #12 │    +4,980 │ improvement │
+│    #13 │    +4,980 │ improvement │
+│    #14 │    +4,980 │ improvement │
+│    #15 │    +4,980 │ improvement │
+│    #16 │    +4,980 │ improvement │
+│    #17 │    +4,980 │ improvement │
+│    #18 │    +4,980 │ improvement │
+│    #19 │    +4,980 │ improvement │
+│    #20 │    +4,980 │ improvement │
+│    #21 │    +4,980 │ improvement │
+│    #22 │    +4,980 │ improvement │
+│    #23 │    +4,980 │ improvement │
+│    #24 │    +4,980 │ improvement │
+│    #25 │    +4,980 │ improvement │
+│    #26 │    +4,980 │ improvement │
+│    #27 │    +4,980 │ improvement │
+│    #28 │    +4,980 │ improvement │
+│    #29 │    +4,980 │ improvement │
+│    #30 │    +4,980 │ improvement │
+│    #31 │    +4,980 │ improvement │
+│    #32 │    +4,980 │ improvement │
+│    #33 │    +4,980 │ improvement │
+│    #34 │    +4,980 │ improvement │
+│    #35 │    +4,980 │ improvement │
+│    #36 │    +4,980 │ improvement │
+│    #37 │    +4,980 │ improvement │
+│    #38 │    +4,980 │ improvement │
+│    #39 │    +4,980 │ improvement │
+│    #40 │    +4,980 │ improvement │
+│    #41 │    +4,980 │ improvement │
+│    #42 │    +4,980 │ improvement │
+│    #43 │    +4,980 │ improvement │
+│    #44 │    +4,980 │ improvement │
+│    #45 │    +4,980 │ improvement │
+│    #46 │    +4,980 │ improvement │
+│    #47 │    +4,980 │ improvement │
+│    #48 │    +4,980 │ improvement │
+│    #49 │    +4,980 │ improvement │
+│    #50 │    +4,980 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +249,000¢ (+$2,490.00 total improvement)
+  Mean delta: 4,980.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_A               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃ Old ┃  New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.3 │ 0.25 │  -17% │
+└────────────────────────────┴─────┴──────┴───────┘
+  Evaluation: $218.72 → $168.92 (-22.8%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,525
+  Completion tokens: 31
+  Latency: 37.2s
+  Key context provided:
+    - current_cost: $218.72
+    - best_seed_cost: $129.48
+    - worst_seed_cost: $293.59
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    -1,788 │ regression  │
+│     #2 │    -1,788 │ regression  │
+│     #3 │    -1,788 │ regression  │
+│     #4 │    -1,788 │ regression  │
+│     #5 │    -1,788 │ regression  │
+│     #6 │    -1,788 │ regression  │
+│     #7 │    -1,788 │ regression  │
+│     #8 │    -1,788 │ regression  │
+│     #9 │    -1,788 │ regression  │
+│    #10 │    -1,788 │ regression  │
+│    #11 │      -611 │ regression  │
+│    #12 │    -1,788 │ regression  │
+│    #13 │    -1,788 │ regression  │
+│    #14 │    -1,788 │ regression  │
+│    #15 │    -1,788 │ regression  │
+│    #16 │    -1,788 │ regression  │
+│    #17 │    -1,788 │ regression  │
+│    #18 │    -1,788 │ regression  │
+│    #19 │    -1,788 │ regression  │
+│    #20 │    -1,788 │ regression  │
+│    #21 │    -1,788 │ regression  │
+│    #22 │    -1,788 │ regression  │
+│    #23 │    -1,788 │ regression  │
+│    #24 │    -1,788 │ regression  │
+│    #25 │    -1,788 │ regression  │
+│    #26 │    -1,788 │ regression  │
+│    #27 │    -1,788 │ regression  │
+│    #28 │    -1,788 │ regression  │
+│    #29 │    -1,788 │ regression  │
+│    #30 │    -1,788 │ regression  │
+│    #31 │    -1,788 │ regression  │
+│    #32 │    -1,788 │ regression  │
+│    #33 │    -1,788 │ regression  │
+│    #34 │    -1,788 │ regression  │
+│    #35 │    -1,788 │ regression  │
+│    #36 │    -1,788 │ regression  │
+│    #37 │    -1,788 │ regression  │
+│    #38 │    -1,788 │ regression  │
+│    #39 │    -1,788 │ regression  │
+│    #40 │    -1,788 │ regression  │
+│    #41 │    -1,788 │ regression  │
+│    #42 │    -1,788 │ regression  │
+│    #43 │    -1,788 │ regression  │
+│    #44 │    -1,788 │ regression  │
+│    #45 │    -1,788 │ regression  │
+│    #46 │    -1,788 │ regression  │
+│    #47 │    -1,788 │ regression  │
+│    #48 │    +6,493 │ improvement │
+│    #49 │    -1,788 │ regression  │
+│    #50 │    -1,788 │ regression  │
+└────────┴───────────┴─────────────┘
+  Delta sum: -79,942¢ ($-799.42 regression)
+  Mean delta: -1,598.8¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.148
+
+  Decision: REJECTED (cost not improved: $218.72 → $234.70)
+
+  Simulation: exp2-20251215-083049-8cf596-sim-152-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-153-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-154-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-155-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-156-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-157-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-158-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-159-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-160-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-161-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-162-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-163-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-164-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-165-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-166-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-167-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-168-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-169-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-170-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-171-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-172-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-173-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-174-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-175-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-176-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-177-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-178-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-179-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-180-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-181-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-182-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-183-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-184-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-185-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-186-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-187-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-188-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-189-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-190-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-191-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-192-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-193-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-194-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-195-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-196-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-197-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-198-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-199-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-200-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-201-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $392.68 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x25d594fa │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $542.59 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $507.27 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $385.99 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $522.82 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $378.48 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $378.48 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $387.65 (std: $35.10)
+
+
+Iteration 4
+  Total cost: $387.65
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,557
+  Completion tokens: 29
+  Latency: 25.1s
+  Key context provided:
+    - current_cost: $193.82
+    - best_seed_cost: $249.00
+    - worst_seed_cost: $249.00
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +2,988 │ improvement │
+│     #2 │    +2,988 │ improvement │
+│     #3 │    +2,988 │ improvement │
+│     #4 │    +2,988 │ improvement │
+│     #5 │    +2,988 │ improvement │
+│     #6 │    +2,988 │ improvement │
+│     #7 │    +2,988 │ improvement │
+│     #8 │    +2,988 │ improvement │
+│     #9 │    +2,988 │ improvement │
+│    #10 │    +2,988 │ improvement │
+│    #11 │    +2,988 │ improvement │
+│    #12 │    +2,988 │ improvement │
+│    #13 │    +2,988 │ improvement │
+│    #14 │    +2,988 │ improvement │
+│    #15 │    +2,988 │ improvement │
+│    #16 │    +2,988 │ improvement │
+│    #17 │    +2,988 │ improvement │
+│    #18 │    +2,988 │ improvement │
+│    #19 │    +2,988 │ improvement │
+│    #20 │    +2,988 │ improvement │
+│    #21 │    +2,988 │ improvement │
+│    #22 │    +2,988 │ improvement │
+│    #23 │    +2,988 │ improvement │
+│    #24 │    +2,988 │ improvement │
+│    #25 │    +2,988 │ improvement │
+│    #26 │    +2,988 │ improvement │
+│    #27 │    +2,988 │ improvement │
+│    #28 │    +2,988 │ improvement │
+│    #29 │    +2,988 │ improvement │
+│    #30 │    +2,988 │ improvement │
+│    #31 │    +2,988 │ improvement │
+│    #32 │    +2,988 │ improvement │
+│    #33 │    +2,988 │ improvement │
+│    #34 │    +2,988 │ improvement │
+│    #35 │    +2,988 │ improvement │
+│    #36 │    +2,988 │ improvement │
+│    #37 │    +2,988 │ improvement │
+│    #38 │    +2,988 │ improvement │
+│    #39 │    +2,988 │ improvement │
+│    #40 │    +2,988 │ improvement │
+│    #41 │    +2,988 │ improvement │
+│    #42 │    +2,988 │ improvement │
+│    #43 │    +2,988 │ improvement │
+│    #44 │    +2,988 │ improvement │
+│    #45 │    +2,988 │ improvement │
+│    #46 │    +2,988 │ improvement │
+│    #47 │    +2,988 │ improvement │
+│    #48 │    +2,988 │ improvement │
+│    #49 │    +2,988 │ improvement │
+│    #50 │    +2,988 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +149,400¢ (+$1,494.00 total improvement)
+  Mean delta: 2,988.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_A                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃  Old ┃  New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.25 │ 0.22 │  -12% │
+└────────────────────────────┴──────┴──────┴───────┘
+  Evaluation: $193.82 → $163.94 (-15.4%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,603
+  Completion tokens: 31
+  Latency: 68.6s
+  Key context provided:
+    - current_cost: $193.82
+    - best_seed_cost: $129.48
+    - worst_seed_cost: $293.59
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    -1,500 │ regression  │
+│     #2 │    -1,500 │ regression  │
+│     #3 │    -1,500 │ regression  │
+│     #4 │    -1,500 │ regression  │
+│     #5 │    -1,500 │ regression  │
+│     #6 │    -1,500 │ regression  │
+│     #7 │    -1,500 │ regression  │
+│     #8 │    -1,500 │ regression  │
+│     #9 │    -1,500 │ regression  │
+│    #10 │    -1,500 │ regression  │
+│    #11 │      -323 │ regression  │
+│    #12 │    -1,500 │ regression  │
+│    #13 │    -1,500 │ regression  │
+│    #14 │    -1,500 │ regression  │
+│    #15 │    -1,500 │ regression  │
+│    #16 │    -1,500 │ regression  │
+│    #17 │    -1,500 │ regression  │
+│    #18 │    -1,500 │ regression  │
+│    #19 │    -1,500 │ regression  │
+│    #20 │    -1,500 │ regression  │
+│    #21 │    -1,500 │ regression  │
+│    #22 │    -1,500 │ regression  │
+│    #23 │    -1,500 │ regression  │
+│    #24 │    -1,500 │ regression  │
+│    #25 │    -1,500 │ regression  │
+│    #26 │    -1,500 │ regression  │
+│    #27 │    -1,500 │ regression  │
+│    #28 │    -1,500 │ regression  │
+│    #29 │    -1,500 │ regression  │
+│    #30 │    -1,500 │ regression  │
+│    #31 │    -1,500 │ regression  │
+│    #32 │    -1,500 │ regression  │
+│    #33 │    -1,500 │ regression  │
+│    #34 │    -1,500 │ regression  │
+│    #35 │    -1,500 │ regression  │
+│    #36 │    -1,500 │ regression  │
+│    #37 │    -1,500 │ regression  │
+│    #38 │    -1,500 │ regression  │
+│    #39 │    -1,500 │ regression  │
+│    #40 │    -1,500 │ regression  │
+│    #41 │    -1,500 │ regression  │
+│    #42 │    -1,500 │ regression  │
+│    #43 │    -1,500 │ regression  │
+│    #44 │    -1,500 │ regression  │
+│    #45 │    -1,500 │ regression  │
+│    #46 │    -1,500 │ regression  │
+│    #47 │    -1,500 │ regression  │
+│    #48 │    +6,040 │ improvement │
+│    #49 │    -1,500 │ regression  │
+│    #50 │    -1,500 │ regression  │
+└────────┴───────────┴─────────────┘
+  Delta sum: -66,283¢ ($-662.83 regression)
+  Mean delta: -1,325.7¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.145
+
+  Decision: REJECTED (cost not improved: $193.82 → $207.07)
+
+  Simulation: exp2-20251215-083049-8cf596-sim-202-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-203-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-204-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-205-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-206-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-207-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-208-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-209-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-210-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-211-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-212-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-213-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-214-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-215-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-216-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-217-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-218-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-219-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-220-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-221-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-222-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-223-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-224-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-225-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-226-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-227-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-228-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-229-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-230-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-231-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-232-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-233-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-234-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-235-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-236-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-237-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-238-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-239-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-240-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-241-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-242-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-243-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-244-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-245-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-246-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-247-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-248-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-249-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-250-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-251-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $362.80 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x25d594fa │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $512.71 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $477.39 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $356.11 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $492.94 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $348.60 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $348.60 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $357.77 (std: $35.10)
+
+
+Iteration 5
+  Total cost: $357.77
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,616
+  Completion tokens: 31
+  Latency: 39.3s
+  Key context provided:
+    - current_cost: $178.88
+    - best_seed_cost: $219.12
+    - worst_seed_cost: $219.12
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +1,992 │ improvement │
+│     #2 │    +1,992 │ improvement │
+│     #3 │    +1,992 │ improvement │
+│     #4 │    +1,992 │ improvement │
+│     #5 │    +1,992 │ improvement │
+│     #6 │    +1,992 │ improvement │
+│     #7 │    +1,992 │ improvement │
+│     #8 │    +1,992 │ improvement │
+│     #9 │    +1,992 │ improvement │
+│    #10 │    +1,992 │ improvement │
+│    #11 │    +1,992 │ improvement │
+│    #12 │    +1,992 │ improvement │
+│    #13 │    +1,992 │ improvement │
+│    #14 │    +1,992 │ improvement │
+│    #15 │    +1,992 │ improvement │
+│    #16 │    +1,992 │ improvement │
+│    #17 │    +1,992 │ improvement │
+│    #18 │    +1,992 │ improvement │
+│    #19 │    +1,992 │ improvement │
+│    #20 │    +1,992 │ improvement │
+│    #21 │    +1,992 │ improvement │
+│    #22 │    +1,992 │ improvement │
+│    #23 │    +1,992 │ improvement │
+│    #24 │    +1,992 │ improvement │
+│    #25 │    +1,992 │ improvement │
+│    #26 │    +1,992 │ improvement │
+│    #27 │    +1,992 │ improvement │
+│    #28 │    +1,992 │ improvement │
+│    #29 │    +1,992 │ improvement │
+│    #30 │    +1,992 │ improvement │
+│    #31 │    +1,992 │ improvement │
+│    #32 │    +1,992 │ improvement │
+│    #33 │    +1,992 │ improvement │
+│    #34 │    +1,992 │ improvement │
+│    #35 │    +1,992 │ improvement │
+│    #36 │    +1,992 │ improvement │
+│    #37 │    +1,992 │ improvement │
+│    #38 │    +1,992 │ improvement │
+│    #39 │    +1,992 │ improvement │
+│    #40 │    +1,992 │ improvement │
+│    #41 │    +1,992 │ improvement │
+│    #42 │    +1,992 │ improvement │
+│    #43 │    +1,992 │ improvement │
+│    #44 │    +1,992 │ improvement │
+│    #45 │    +1,992 │ improvement │
+│    #46 │    +1,992 │ improvement │
+│    #47 │    +1,992 │ improvement │
+│    #48 │    +1,992 │ improvement │
+│    #49 │    +1,992 │ improvement │
+│    #50 │    +1,992 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +99,600¢ (+$996.00 total improvement)
+  Mean delta: 1,992.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_A               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃  Old ┃ New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.22 │ 0.2 │   -9% │
+└────────────────────────────┴──────┴─────┴───────┘
+  Evaluation: $178.88 → $158.96 (-11.1%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,651
+  Completion tokens: 31
+  Latency: 33.7s
+  Key context provided:
+    - current_cost: $178.88
+    - best_seed_cost: $129.48
+    - worst_seed_cost: $293.59
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    -1,500 │ regression  │
+│     #2 │    -1,500 │ regression  │
+│     #3 │    -1,500 │ regression  │
+│     #4 │    -1,500 │ regression  │
+│     #5 │    -1,500 │ regression  │
+│     #6 │    -1,500 │ regression  │
+│     #7 │    -1,500 │ regression  │
+│     #8 │    -1,500 │ regression  │
+│     #9 │    -1,500 │ regression  │
+│    #10 │    -1,500 │ regression  │
+│    #11 │      -323 │ regression  │
+│    #12 │    -1,500 │ regression  │
+│    #13 │    -1,500 │ regression  │
+│    #14 │    -1,500 │ regression  │
+│    #15 │    -1,500 │ regression  │
+│    #16 │    -1,500 │ regression  │
+│    #17 │    -1,500 │ regression  │
+│    #18 │    -1,500 │ regression  │
+│    #19 │    -1,500 │ regression  │
+│    #20 │    -1,500 │ regression  │
+│    #21 │    -1,500 │ regression  │
+│    #22 │    -1,500 │ regression  │
+│    #23 │    -1,500 │ regression  │
+│    #24 │    -1,500 │ regression  │
+│    #25 │    -1,500 │ regression  │
+│    #26 │    -1,500 │ regression  │
+│    #27 │    -1,500 │ regression  │
+│    #28 │    -1,500 │ regression  │
+│    #29 │    -1,500 │ regression  │
+│    #30 │    -1,500 │ regression  │
+│    #31 │    -1,500 │ regression  │
+│    #32 │    -1,500 │ regression  │
+│    #33 │    -1,500 │ regression  │
+│    #34 │    -1,500 │ regression  │
+│    #35 │    -1,500 │ regression  │
+│    #36 │    -1,500 │ regression  │
+│    #37 │    -1,500 │ regression  │
+│    #38 │    -1,500 │ regression  │
+│    #39 │    -1,500 │ regression  │
+│    #40 │    -1,500 │ regression  │
+│    #41 │    -1,500 │ regression  │
+│    #42 │    -1,500 │ regression  │
+│    #43 │    -1,500 │ regression  │
+│    #44 │    -1,500 │ regression  │
+│    #45 │    -1,500 │ regression  │
+│    #46 │    -1,500 │ regression  │
+│    #47 │    -1,500 │ regression  │
+│    #48 │    +6,040 │ improvement │
+│    #49 │    -1,500 │ regression  │
+│    #50 │    -1,500 │ regression  │
+└────────┴───────────┴─────────────┘
+  Delta sum: -66,283¢ ($-662.83 regression)
+  Mean delta: -1,325.7¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.145
+
+  Decision: REJECTED (cost not improved: $178.88 → $192.13)
+
+  Simulation: exp2-20251215-083049-8cf596-sim-252-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-253-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-254-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-255-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-256-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-257-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-258-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-259-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-260-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-261-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-262-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-263-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-264-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-265-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-266-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-267-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-268-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-269-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-270-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-271-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-272-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-273-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-274-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-275-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-276-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-277-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-278-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-279-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-280-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-281-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-282-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-283-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-284-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-285-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-286-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-287-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-288-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-289-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-290-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-291-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-292-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-293-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-294-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-295-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-296-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-297-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-298-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-299-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-300-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-301-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $342.88 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x25d594fa │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $492.79 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $457.47 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $336.19 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $473.02 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $328.68 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $328.68 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $337.85 (std: $35.10)
+
+
+Iteration 6
+  Total cost: $337.85
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,675
+  Completion tokens: 31
+  Latency: 76.5s
+  Key context provided:
+    - current_cost: $168.92
+    - best_seed_cost: $199.20
+    - worst_seed_cost: $199.20
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +1,992 │ improvement │
+│     #2 │    +1,992 │ improvement │
+│     #3 │    +1,992 │ improvement │
+│     #4 │    +1,992 │ improvement │
+│     #5 │    +1,992 │ improvement │
+│     #6 │    +1,992 │ improvement │
+│     #7 │    +1,992 │ improvement │
+│     #8 │    +1,992 │ improvement │
+│     #9 │    +1,992 │ improvement │
+│    #10 │    +1,992 │ improvement │
+│    #11 │    +1,992 │ improvement │
+│    #12 │    +1,992 │ improvement │
+│    #13 │    +1,992 │ improvement │
+│    #14 │    +1,992 │ improvement │
+│    #15 │    +1,992 │ improvement │
+│    #16 │    +1,992 │ improvement │
+│    #17 │    +1,992 │ improvement │
+│    #18 │    +1,992 │ improvement │
+│    #19 │    +1,992 │ improvement │
+│    #20 │    +1,992 │ improvement │
+│    #21 │    +1,992 │ improvement │
+│    #22 │    +1,992 │ improvement │
+│    #23 │    +1,992 │ improvement │
+│    #24 │    +1,992 │ improvement │
+│    #25 │    +1,992 │ improvement │
+│    #26 │    +1,992 │ improvement │
+│    #27 │    +1,992 │ improvement │
+│    #28 │    +1,992 │ improvement │
+│    #29 │    +1,992 │ improvement │
+│    #30 │    +1,992 │ improvement │
+│    #31 │    +1,992 │ improvement │
+│    #32 │    +1,992 │ improvement │
+│    #33 │    +1,992 │ improvement │
+│    #34 │    +1,992 │ improvement │
+│    #35 │    +1,992 │ improvement │
+│    #36 │    +1,992 │ improvement │
+│    #37 │    +1,992 │ improvement │
+│    #38 │    +1,992 │ improvement │
+│    #39 │    +1,992 │ improvement │
+│    #40 │    +1,992 │ improvement │
+│    #41 │    +1,992 │ improvement │
+│    #42 │    +1,992 │ improvement │
+│    #43 │    +1,992 │ improvement │
+│    #44 │    +1,992 │ improvement │
+│    #45 │    +1,992 │ improvement │
+│    #46 │    +1,992 │ improvement │
+│    #47 │    +1,992 │ improvement │
+│    #48 │    +1,992 │ improvement │
+│    #49 │    +1,992 │ improvement │
+│    #50 │    +1,992 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +99,600¢ (+$996.00 total improvement)
+  Mean delta: 1,992.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_A               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃ Old ┃  New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.2 │ 0.18 │  -10% │
+└────────────────────────────┴─────┴──────┴───────┘
+  Evaluation: $168.92 → $149.00 (-11.8%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,698
+  Completion tokens: 31
+  Latency: 32.3s
+  Key context provided:
+    - current_cost: $168.92
+    - best_seed_cost: $129.48
+    - worst_seed_cost: $293.59
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    -1,500 │ regression  │
+│     #2 │    -1,500 │ regression  │
+│     #3 │    -1,500 │ regression  │
+│     #4 │    -1,500 │ regression  │
+│     #5 │    -1,500 │ regression  │
+│     #6 │    -1,500 │ regression  │
+│     #7 │    -1,500 │ regression  │
+│     #8 │    -1,500 │ regression  │
+│     #9 │    -1,500 │ regression  │
+│    #10 │    -1,500 │ regression  │
+│    #11 │      -323 │ regression  │
+│    #12 │    -1,500 │ regression  │
+│    #13 │    -1,500 │ regression  │
+│    #14 │    -1,500 │ regression  │
+│    #15 │    -1,500 │ regression  │
+│    #16 │    -1,500 │ regression  │
+│    #17 │    -1,500 │ regression  │
+│    #18 │    -1,500 │ regression  │
+│    #19 │    -1,500 │ regression  │
+│    #20 │    -1,500 │ regression  │
+│    #21 │    -1,500 │ regression  │
+│    #22 │    -1,500 │ regression  │
+│    #23 │    -1,500 │ regression  │
+│    #24 │    -1,500 │ regression  │
+│    #25 │    -1,500 │ regression  │
+│    #26 │    -1,500 │ regression  │
+│    #27 │    -1,500 │ regression  │
+│    #28 │    -1,500 │ regression  │
+│    #29 │    -1,500 │ regression  │
+│    #30 │    -1,500 │ regression  │
+│    #31 │    -1,500 │ regression  │
+│    #32 │    -1,500 │ regression  │
+│    #33 │    -1,500 │ regression  │
+│    #34 │    -1,500 │ regression  │
+│    #35 │    -1,500 │ regression  │
+│    #36 │    -1,500 │ regression  │
+│    #37 │    -1,500 │ regression  │
+│    #38 │    -1,500 │ regression  │
+│    #39 │    -1,500 │ regression  │
+│    #40 │    -1,500 │ regression  │
+│    #41 │    -1,500 │ regression  │
+│    #42 │    -1,500 │ regression  │
+│    #43 │    -1,500 │ regression  │
+│    #44 │    -1,500 │ regression  │
+│    #45 │    -1,500 │ regression  │
+│    #46 │    -1,500 │ regression  │
+│    #47 │    -1,500 │ regression  │
+│    #48 │    +6,040 │ improvement │
+│    #49 │    -1,500 │ regression  │
+│    #50 │    -1,500 │ regression  │
+└────────┴───────────┴─────────────┘
+  Delta sum: -66,283¢ ($-662.83 regression)
+  Mean delta: -1,325.7¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.145
+
+  Decision: REJECTED (cost not improved: $168.92 → $182.17)
+
+  Simulation: exp2-20251215-083049-8cf596-sim-302-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-303-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-304-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-305-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-306-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-307-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-308-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-309-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-310-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-311-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-312-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-313-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-314-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-315-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-316-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-317-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-318-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-319-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-320-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-321-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-322-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-323-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-324-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-325-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-326-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-327-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-328-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-329-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-330-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-331-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-332-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-333-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-334-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-335-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-336-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-337-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-338-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-339-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-340-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-341-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-342-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-343-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-344-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-345-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-346-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-347-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-348-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-349-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-350-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-351-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $322.96 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $535.37 │  97/100 │  97.7% │      │
+│ 0x25d594fa │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $472.87 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $437.55 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $316.27 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $453.10 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $308.76 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $308.76 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $322.47 (std: $46.63)
+
+
+Iteration 7
+  Total cost: $322.47
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,706
+  Completion tokens: 31
+  Latency: 48.8s
+  Key context provided:
+    - current_cost: $161.23
+    - best_seed_cost: $179.28
+    - worst_seed_cost: $405.89
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │      +996 │ improvement │
+│     #2 │      +996 │ improvement │
+│     #3 │      +996 │ improvement │
+│     #4 │      +996 │ improvement │
+│     #5 │      +996 │ improvement │
+│     #6 │      +996 │ improvement │
+│     #7 │      +996 │ improvement │
+│     #8 │      +996 │ improvement │
+│     #9 │      +996 │ improvement │
+│    #10 │      +996 │ improvement │
+│    #11 │      +996 │ improvement │
+│    #12 │      +996 │ improvement │
+│    #13 │      +996 │ improvement │
+│    #14 │      +996 │ improvement │
+│    #15 │      +996 │ improvement │
+│    #16 │      +996 │ improvement │
+│    #17 │      +996 │ improvement │
+│    #18 │      +996 │ improvement │
+│    #19 │      +996 │ improvement │
+│    #20 │      +996 │ improvement │
+│    #21 │      +996 │ improvement │
+│    #22 │      +996 │ improvement │
+│    #23 │      +996 │ improvement │
+│    #24 │      +996 │ improvement │
+│    #25 │      +996 │ improvement │
+│    #26 │      +996 │ improvement │
+│    #27 │      +996 │ improvement │
+│    #28 │      +996 │ improvement │
+│    #29 │      +996 │ improvement │
+│    #30 │      +996 │ improvement │
+│    #31 │      +996 │ improvement │
+│    #32 │      +996 │ improvement │
+│    #33 │      +996 │ improvement │
+│    #34 │      +996 │ improvement │
+│    #35 │      +996 │ improvement │
+│    #36 │      +996 │ improvement │
+│    #37 │      +996 │ improvement │
+│    #38 │      +996 │ improvement │
+│    #39 │      +996 │ improvement │
+│    #40 │      +996 │ improvement │
+│    #41 │      +996 │ improvement │
+│    #42 │      +996 │ improvement │
+│    #43 │      +996 │ improvement │
+│    #44 │      +996 │ improvement │
+│    #45 │      +996 │ improvement │
+│    #46 │      +996 │ improvement │
+│    #47 │      +996 │ improvement │
+│    #48 │      +996 │ improvement │
+│    #49 │      +996 │ improvement │
+│    #50 │      +996 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +49,800¢ (+$498.00 total improvement)
+  Mean delta: 996.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_A                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃  Old ┃  New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.18 │ 0.17 │   -6% │
+└────────────────────────────┴──────┴──────┴───────┘
+  Evaluation: $161.23 → $151.27 (-6.2%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,745
+  Completion tokens: 31
+  Latency: 70.6s
+  Key context provided:
+    - current_cost: $161.23
+    - best_seed_cost: $129.48
+    - worst_seed_cost: $293.59
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    -1,788 │ regression  │
+│     #2 │    -1,788 │ regression  │
+│     #3 │    -1,788 │ regression  │
+│     #4 │    -1,788 │ regression  │
+│     #5 │    -1,788 │ regression  │
+│     #6 │    -1,788 │ regression  │
+│     #7 │    -1,788 │ regression  │
+│     #8 │    -1,788 │ regression  │
+│     #9 │    -1,788 │ regression  │
+│    #10 │    -1,788 │ regression  │
+│    #11 │      -611 │ regression  │
+│    #12 │    -1,788 │ regression  │
+│    #13 │    -1,788 │ regression  │
+│    #14 │    -1,788 │ regression  │
+│    #15 │    -1,788 │ regression  │
+│    #16 │    -1,788 │ regression  │
+│    #17 │    -1,788 │ regression  │
+│    #18 │    -1,788 │ regression  │
+│    #19 │    -1,788 │ regression  │
+│    #20 │    -1,788 │ regression  │
+│    #21 │    -1,788 │ regression  │
+│    #22 │    -1,788 │ regression  │
+│    #23 │    -1,788 │ regression  │
+│    #24 │    -1,788 │ regression  │
+│    #25 │    -1,788 │ regression  │
+│    #26 │    -1,788 │ regression  │
+│    #27 │    -1,788 │ regression  │
+│    #28 │    -1,788 │ regression  │
+│    #29 │    -1,788 │ regression  │
+│    #30 │    -1,788 │ regression  │
+│    #31 │    -1,788 │ regression  │
+│    #32 │    -1,788 │ regression  │
+│    #33 │    -1,788 │ regression  │
+│    #34 │    -1,788 │ regression  │
+│    #35 │    -1,788 │ regression  │
+│    #36 │    -1,788 │ regression  │
+│    #37 │    -1,788 │ regression  │
+│    #38 │    -1,788 │ regression  │
+│    #39 │    -1,788 │ regression  │
+│    #40 │    -1,788 │ regression  │
+│    #41 │    -1,788 │ regression  │
+│    #42 │    -1,788 │ regression  │
+│    #43 │    -1,788 │ regression  │
+│    #44 │    -1,788 │ regression  │
+│    #45 │    -1,788 │ regression  │
+│    #46 │    -1,788 │ regression  │
+│    #47 │    -1,788 │ regression  │
+│    #48 │    +6,493 │ improvement │
+│    #49 │    -1,788 │ regression  │
+│    #50 │    -1,788 │ regression  │
+└────────┴───────────┴─────────────┘
+  Delta sum: -79,942¢ ($-799.42 regression)
+  Mean delta: -1,598.8¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.148
+
+  Decision: REJECTED (cost not improved: $161.23 → $177.21)
+
+  Simulation: exp2-20251215-083049-8cf596-sim-352-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-353-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-354-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-355-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-356-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-357-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-358-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-359-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-360-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-361-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-362-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-363-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-364-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-365-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-366-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-367-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-368-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-369-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-370-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-371-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-372-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-373-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-374-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-375-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-376-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-377-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-378-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-379-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-380-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-381-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-382-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-383-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-384-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-385-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-386-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-387-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-388-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-389-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-390-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-391-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-392-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-393-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-394-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-395-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-396-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-397-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-398-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-399-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-400-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-401-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $313.00 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $543.21 │  97/100 │  97.7% │      │
+│ 0x25d594fa │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $462.91 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $427.59 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $306.31 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $443.14 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $298.80 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $312.86 (std: $48.32)
+
+
+Iteration 8
+  Total cost: $312.86
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,761
+  Completion tokens: 31
+  Latency: 45.1s
+  Key context provided:
+    - current_cost: $156.43
+    - best_seed_cost: $169.32
+    - worst_seed_cost: $413.73
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │      -900 │ regression │
+│     #2 │      -900 │ regression │
+│     #3 │      -900 │ regression │
+│     #4 │      -900 │ regression │
+│     #5 │      -900 │ regression │
+│     #6 │      -900 │ regression │
+│     #7 │      -900 │ regression │
+│     #8 │      -900 │ regression │
+│     #9 │      -900 │ regression │
+│    #10 │      -900 │ regression │
+│    #11 │      -900 │ regression │
+│    #12 │      -900 │ regression │
+│    #13 │      -900 │ regression │
+│    #14 │      -900 │ regression │
+│    #15 │      -900 │ regression │
+│    #16 │      -900 │ regression │
+│    #17 │      -900 │ regression │
+│    #18 │      -900 │ regression │
+│    #19 │      -900 │ regression │
+│    #20 │      -900 │ regression │
+│    #21 │      -900 │ regression │
+│    #22 │      -900 │ regression │
+│    #23 │      -900 │ regression │
+│    #24 │      -900 │ regression │
+│    #25 │      -900 │ regression │
+│    #26 │      -900 │ regression │
+│    #27 │      -900 │ regression │
+│    #28 │      -900 │ regression │
+│    #29 │      -900 │ regression │
+│    #30 │      -900 │ regression │
+│    #31 │      -900 │ regression │
+│    #32 │      -900 │ regression │
+│    #33 │      -900 │ regression │
+│    #34 │      -900 │ regression │
+│    #35 │      -900 │ regression │
+│    #36 │      -900 │ regression │
+│    #37 │      -900 │ regression │
+│    #38 │      -900 │ regression │
+│    #39 │      -900 │ regression │
+│    #40 │      -900 │ regression │
+│    #41 │      -900 │ regression │
+│    #42 │      -900 │ regression │
+│    #43 │      -900 │ regression │
+│    #44 │      -900 │ regression │
+│    #45 │      -900 │ regression │
+│    #46 │      -900 │ regression │
+│    #47 │      -900 │ regression │
+│    #48 │      -900 │ regression │
+│    #49 │      -900 │ regression │
+│    #50 │      -900 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -45,000¢ ($-450.00 regression)
+  Mean delta: -900.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_A
+  Proposed policy:
+    initial_liquidity_fraction: 0.179
+
+  Decision: REJECTED (cost not improved: $156.43 → $165.43)
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,792
+  Completion tokens: 31
+  Latency: 9.8s
+  Key context provided:
+    - current_cost: $156.43
+    - best_seed_cost: $129.48
+    - worst_seed_cost: $293.59
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    -2,988 │ regression  │
+│     #2 │    -2,988 │ regression  │
+│     #3 │    -2,988 │ regression  │
+│     #4 │    -2,988 │ regression  │
+│     #5 │    -2,988 │ regression  │
+│     #6 │    -2,988 │ regression  │
+│     #7 │    -2,988 │ regression  │
+│     #8 │    -2,988 │ regression  │
+│     #9 │    -2,988 │ regression  │
+│    #10 │    -2,988 │ regression  │
+│    #11 │    -1,811 │ regression  │
+│    #12 │    -2,988 │ regression  │
+│    #13 │    -2,988 │ regression  │
+│    #14 │    -2,988 │ regression  │
+│    #15 │    -2,988 │ regression  │
+│    #16 │    -2,988 │ regression  │
+│    #17 │    -2,988 │ regression  │
+│    #18 │    -2,988 │ regression  │
+│    #19 │    -2,988 │ regression  │
+│    #20 │    -2,988 │ regression  │
+│    #21 │    -2,988 │ regression  │
+│    #22 │    -2,988 │ regression  │
+│    #23 │    -2,988 │ regression  │
+│    #24 │    -2,988 │ regression  │
+│    #25 │    -2,988 │ regression  │
+│    #26 │    -2,988 │ regression  │
+│    #27 │    -2,988 │ regression  │
+│    #28 │    -2,988 │ regression  │
+│    #29 │    -2,988 │ regression  │
+│    #30 │    -2,988 │ regression  │
+│    #31 │    -2,988 │ regression  │
+│    #32 │    -2,988 │ regression  │
+│    #33 │    -2,988 │ regression  │
+│    #34 │    -2,988 │ regression  │
+│    #35 │    -2,988 │ regression  │
+│    #36 │    -2,988 │ regression  │
+│    #37 │    -2,988 │ regression  │
+│    #38 │    -2,988 │ regression  │
+│    #39 │    -2,988 │ regression  │
+│    #40 │    -2,988 │ regression  │
+│    #41 │    -2,988 │ regression  │
+│    #42 │    -2,988 │ regression  │
+│    #43 │    -2,988 │ regression  │
+│    #44 │    -2,988 │ regression  │
+│    #45 │    -2,988 │ regression  │
+│    #46 │    -2,988 │ regression  │
+│    #47 │    -2,988 │ regression  │
+│    #48 │   +10,708 │ improvement │
+│    #49 │    -2,988 │ regression  │
+│    #50 │    -2,988 │ regression  │
+└────────┴───────────┴─────────────┘
+  Delta sum: -134,527¢ ($-1,345.27 regression)
+  Mean delta: -2,690.5¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.16
+
+  Decision: REJECTED (cost not improved: $156.43 → $183.33)
+
+  Simulation: exp2-20251215-083049-8cf596-sim-402-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-403-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-404-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-405-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-406-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-407-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-408-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-409-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-410-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-411-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-412-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-413-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-414-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-415-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-416-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-417-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-418-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-419-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-420-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-421-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-422-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-423-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-424-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-425-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-426-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-427-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-428-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-429-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-430-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-431-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-432-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-433-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-434-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-435-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-436-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-437-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-438-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-439-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-440-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-441-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-442-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-443-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-444-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-445-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-446-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-447-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-448-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-449-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-450-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-451-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $313.00 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $543.21 │  97/100 │  97.7% │      │
+│ 0x25d594fa │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $462.91 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $427.59 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $306.31 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $443.14 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $298.80 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $312.86 (std: $48.32)
+
+
+Iteration 9
+  Total cost: $312.86
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,842
+  Completion tokens: 31
+  Latency: 59.4s
+  Key context provided:
+    - current_cost: $156.43
+    - best_seed_cost: $169.32
+    - worst_seed_cost: $413.73
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │      -504 │ regression │
+│     #2 │      -504 │ regression │
+│     #3 │      -504 │ regression │
+│     #4 │      -504 │ regression │
+│     #5 │      -504 │ regression │
+│     #6 │      -504 │ regression │
+│     #7 │      -504 │ regression │
+│     #8 │      -504 │ regression │
+│     #9 │      -504 │ regression │
+│    #10 │      -504 │ regression │
+│    #11 │      -504 │ regression │
+│    #12 │      -504 │ regression │
+│    #13 │      -504 │ regression │
+│    #14 │      -504 │ regression │
+│    #15 │      -504 │ regression │
+│    #16 │      -504 │ regression │
+│    #17 │      -504 │ regression │
+│    #18 │      -504 │ regression │
+│    #19 │      -504 │ regression │
+│    #20 │      -504 │ regression │
+│    #21 │      -504 │ regression │
+│    #22 │      -504 │ regression │
+│    #23 │      -504 │ regression │
+│    #24 │      -504 │ regression │
+│    #25 │      -504 │ regression │
+│    #26 │      -504 │ regression │
+│    #27 │      -504 │ regression │
+│    #28 │      -504 │ regression │
+│    #29 │      -504 │ regression │
+│    #30 │      -504 │ regression │
+│    #31 │      -504 │ regression │
+│    #32 │      -504 │ regression │
+│    #33 │      -504 │ regression │
+│    #34 │      -504 │ regression │
+│    #35 │      -504 │ regression │
+│    #36 │      -504 │ regression │
+│    #37 │      -504 │ regression │
+│    #38 │      -504 │ regression │
+│    #39 │      -504 │ regression │
+│    #40 │      -504 │ regression │
+│    #41 │      -504 │ regression │
+│    #42 │      -504 │ regression │
+│    #43 │      -504 │ regression │
+│    #44 │      -504 │ regression │
+│    #45 │      -504 │ regression │
+│    #46 │      -504 │ regression │
+│    #47 │      -504 │ regression │
+│    #48 │      -504 │ regression │
+│    #49 │      -504 │ regression │
+│    #50 │      -504 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -25,200¢ ($-252.00 regression)
+  Mean delta: -504.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_A
+  Proposed policy:
+    initial_liquidity_fraction: 0.175
+
+  Decision: REJECTED (cost not improved: $156.43 → $161.47)
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,839
+  Completion tokens: 31
+  Latency: 48.7s
+  Key context provided:
+    - current_cost: $156.43
+    - best_seed_cost: $129.48
+    - worst_seed_cost: $293.59
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    -1,788 │ regression  │
+│     #2 │    -1,788 │ regression  │
+│     #3 │    -1,788 │ regression  │
+│     #4 │    -1,788 │ regression  │
+│     #5 │    -1,788 │ regression  │
+│     #6 │    -1,788 │ regression  │
+│     #7 │    -1,788 │ regression  │
+│     #8 │    -1,788 │ regression  │
+│     #9 │    -1,788 │ regression  │
+│    #10 │    -1,788 │ regression  │
+│    #11 │      -611 │ regression  │
+│    #12 │    -1,788 │ regression  │
+│    #13 │    -1,788 │ regression  │
+│    #14 │    -1,788 │ regression  │
+│    #15 │    -1,788 │ regression  │
+│    #16 │    -1,788 │ regression  │
+│    #17 │    -1,788 │ regression  │
+│    #18 │    -1,788 │ regression  │
+│    #19 │    -1,788 │ regression  │
+│    #20 │    -1,788 │ regression  │
+│    #21 │    -1,788 │ regression  │
+│    #22 │    -1,788 │ regression  │
+│    #23 │    -1,788 │ regression  │
+│    #24 │    -1,788 │ regression  │
+│    #25 │    -1,788 │ regression  │
+│    #26 │    -1,788 │ regression  │
+│    #27 │    -1,788 │ regression  │
+│    #28 │    -1,788 │ regression  │
+│    #29 │    -1,788 │ regression  │
+│    #30 │    -1,788 │ regression  │
+│    #31 │    -1,788 │ regression  │
+│    #32 │    -1,788 │ regression  │
+│    #33 │    -1,788 │ regression  │
+│    #34 │    -1,788 │ regression  │
+│    #35 │    -1,788 │ regression  │
+│    #36 │    -1,788 │ regression  │
+│    #37 │    -1,788 │ regression  │
+│    #38 │    -1,788 │ regression  │
+│    #39 │    -1,788 │ regression  │
+│    #40 │    -1,788 │ regression  │
+│    #41 │    -1,788 │ regression  │
+│    #42 │    -1,788 │ regression  │
+│    #43 │    -1,788 │ regression  │
+│    #44 │    -1,788 │ regression  │
+│    #45 │    -1,788 │ regression  │
+│    #46 │    -1,788 │ regression  │
+│    #47 │    -1,788 │ regression  │
+│    #48 │    +6,493 │ improvement │
+│    #49 │    -1,788 │ regression  │
+│    #50 │    -1,788 │ regression  │
+└────────┴───────────┴─────────────┘
+  Delta sum: -79,942¢ ($-799.42 regression)
+  Mean delta: -1,598.8¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.148
+
+  Decision: REJECTED (cost not improved: $156.43 → $172.41)
+
+  Simulation: exp2-20251215-083049-8cf596-sim-452-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-453-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-454-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-455-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-456-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-457-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-458-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-459-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-460-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-461-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-462-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-463-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-464-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-465-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-466-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-467-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-468-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-469-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-470-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-471-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-472-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-473-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-474-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-475-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-476-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-477-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-478-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-479-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-480-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-481-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-482-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-483-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-484-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-485-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-486-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-487-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-488-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-489-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-490-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-491-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-492-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-493-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-494-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-495-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-496-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-497-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-498-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-499-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-500-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-501-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $313.00 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $543.21 │  97/100 │  97.7% │      │
+│ 0x25d594fa │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $462.91 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $427.59 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $306.31 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $443.14 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $298.80 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $312.86 (std: $48.32)
+
+
+Iteration 10
+  Total cost: $312.86
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,889
+  Completion tokens: 31
+  Latency: 34.3s
+  Key context provided:
+    - current_cost: $156.43
+    - best_seed_cost: $169.32
+    - worst_seed_cost: $413.73
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │      -900 │ regression │
+│     #2 │      -900 │ regression │
+│     #3 │      -900 │ regression │
+│     #4 │      -900 │ regression │
+│     #5 │      -900 │ regression │
+│     #6 │      -900 │ regression │
+│     #7 │      -900 │ regression │
+│     #8 │      -900 │ regression │
+│     #9 │      -900 │ regression │
+│    #10 │      -900 │ regression │
+│    #11 │      -900 │ regression │
+│    #12 │      -900 │ regression │
+│    #13 │      -900 │ regression │
+│    #14 │      -900 │ regression │
+│    #15 │      -900 │ regression │
+│    #16 │      -900 │ regression │
+│    #17 │      -900 │ regression │
+│    #18 │      -900 │ regression │
+│    #19 │      -900 │ regression │
+│    #20 │      -900 │ regression │
+│    #21 │      -900 │ regression │
+│    #22 │      -900 │ regression │
+│    #23 │      -900 │ regression │
+│    #24 │      -900 │ regression │
+│    #25 │      -900 │ regression │
+│    #26 │      -900 │ regression │
+│    #27 │      -900 │ regression │
+│    #28 │      -900 │ regression │
+│    #29 │      -900 │ regression │
+│    #30 │      -900 │ regression │
+│    #31 │      -900 │ regression │
+│    #32 │      -900 │ regression │
+│    #33 │      -900 │ regression │
+│    #34 │      -900 │ regression │
+│    #35 │      -900 │ regression │
+│    #36 │      -900 │ regression │
+│    #37 │      -900 │ regression │
+│    #38 │      -900 │ regression │
+│    #39 │      -900 │ regression │
+│    #40 │      -900 │ regression │
+│    #41 │      -900 │ regression │
+│    #42 │      -900 │ regression │
+│    #43 │      -900 │ regression │
+│    #44 │      -900 │ regression │
+│    #45 │      -900 │ regression │
+│    #46 │      -900 │ regression │
+│    #47 │      -900 │ regression │
+│    #48 │      -900 │ regression │
+│    #49 │      -900 │ regression │
+│    #50 │      -900 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -45,000¢ ($-450.00 regression)
+  Mean delta: -900.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_A
+  Proposed policy:
+    initial_liquidity_fraction: 0.179
+
+  Decision: REJECTED (cost not improved: $156.43 → $165.43)
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 6,886
+  Completion tokens: 31
+  Latency: 59.6s
+  Key context provided:
+    - current_cost: $156.43
+    - best_seed_cost: $129.48
+    - worst_seed_cost: $293.59
+    - has_verbose_output: True
+
+
+Bootstrap Paired Evaluation (50 samples) - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    -2,988 │ regression  │
+│     #2 │    -2,988 │ regression  │
+│     #3 │    -2,988 │ regression  │
+│     #4 │    -2,988 │ regression  │
+│     #5 │    -2,988 │ regression  │
+│     #6 │    -2,988 │ regression  │
+│     #7 │    -2,988 │ regression  │
+│     #8 │    -2,988 │ regression  │
+│     #9 │    -2,988 │ regression  │
+│    #10 │    -2,988 │ regression  │
+│    #11 │    -1,811 │ regression  │
+│    #12 │    -2,988 │ regression  │
+│    #13 │    -2,988 │ regression  │
+│    #14 │    -2,988 │ regression  │
+│    #15 │    -2,988 │ regression  │
+│    #16 │    -2,988 │ regression  │
+│    #17 │    -2,988 │ regression  │
+│    #18 │    -2,988 │ regression  │
+│    #19 │    -2,988 │ regression  │
+│    #20 │    -2,988 │ regression  │
+│    #21 │    -2,988 │ regression  │
+│    #22 │    -2,988 │ regression  │
+│    #23 │    -2,988 │ regression  │
+│    #24 │    -2,988 │ regression  │
+│    #25 │    -2,988 │ regression  │
+│    #26 │    -2,988 │ regression  │
+│    #27 │    -2,988 │ regression  │
+│    #28 │    -2,988 │ regression  │
+│    #29 │    -2,988 │ regression  │
+│    #30 │    -2,988 │ regression  │
+│    #31 │    -2,988 │ regression  │
+│    #32 │    -2,988 │ regression  │
+│    #33 │    -2,988 │ regression  │
+│    #34 │    -2,988 │ regression  │
+│    #35 │    -2,988 │ regression  │
+│    #36 │    -2,988 │ regression  │
+│    #37 │    -2,988 │ regression  │
+│    #38 │    -2,988 │ regression  │
+│    #39 │    -2,988 │ regression  │
+│    #40 │    -2,988 │ regression  │
+│    #41 │    -2,988 │ regression  │
+│    #42 │    -2,988 │ regression  │
+│    #43 │    -2,988 │ regression  │
+│    #44 │    -2,988 │ regression  │
+│    #45 │    -2,988 │ regression  │
+│    #46 │    -2,988 │ regression  │
+│    #47 │    -2,988 │ regression  │
+│    #48 │   +10,708 │ improvement │
+│    #49 │    -2,988 │ regression  │
+│    #50 │    -2,988 │ regression  │
+└────────┴───────────┴─────────────┘
+  Delta sum: -134,527¢ ($-1,345.27 regression)
+  Mean delta: -2,690.5¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.16
+
+  Decision: REJECTED (cost not improved: $156.43 → $183.33)
+
+  Simulation: exp2-20251215-083049-8cf596-sim-502-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-503-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-504-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-505-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-506-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-507-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-508-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-509-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-510-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-511-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-512-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-513-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-514-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-515-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-516-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-517-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-518-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-519-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-520-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-521-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-522-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-523-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-524-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-525-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-526-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-527-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-528-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-529-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-530-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-531-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-532-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-533-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-534-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-535-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-536-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-537-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-538-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-539-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-540-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-541-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-542-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-543-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-544-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-545-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-546-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-547-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-548-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-549-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-550-bootstrap (Bootstrap)
+  Simulation: exp2-20251215-083049-8cf596-sim-551-bootstrap (Bootstrap)
+
+Bootstrap Evaluation (50 samples):
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━┓
+┃ Seed       ┃    Cost ┃ Settled ┃   Rate ┃ Note ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━┩
+│ 0x3680089e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x1fe49cce │ $313.00 │ 100/100 │ 100.0% │      │
+│ 0x55fdbfef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x0361a83e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14e3a522 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x192c1d1e │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x79f056fa │ $543.21 │  97/100 │  97.7% │      │
+│ 0x25d594fa │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x1e771d4a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5f98be5a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x005a08d0 │ $462.91 │  89/100 │  89.8% │      │
+│ 0x6e3133b3 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7aac24c5 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x53fae0bf │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x39e8fce3 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14e73750 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6e4430c2 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x2bbf295a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x086ae53f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x05e7ad1c │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x60c685d7 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x726585cd │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7bdb5068 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x11482ddb │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x239b1613 │ $427.59 │  90/100 │  90.5% │      │
+│ 0x5230cc03 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6c0ec0ef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x43a8f79d │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x65abd0bd │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x0256a69d │ $306.31 │ 100/100 │ 100.0% │      │
+│ 0x1b689f13 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x214764cc │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x02fc959a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x06b789f9 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5b086d86 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x4b18e519 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6e455a6b │ $443.14 │  97/100 │  97.8% │      │
+│ 0x19febc91 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x692a8b35 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6d8d2bca │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x6ac0f7fa │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x7e6e1cef │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x43751539 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x14ba71c8 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x3e2c068f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x291ee90f │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x27f2ad4a │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x2b39ceaf │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x5b2e0f96 │ $298.80 │ 100/100 │ 100.0% │      │
+│ 0x3ce210d8 │ $298.80 │ 100/100 │ 100.0% │      │
+└────────────┴─────────┴─────────┴────────┴──────┘
+  Mean: $312.86 (std: $48.32)
+
+
+Iteration 11
+  Total cost: $312.86
+
+Experiment completed!
+  Iterations: 11
+  Converged: True
+  Reason: Stability achieved (5 consecutive stable iterations)
+  Final costs:
+    BANK_A: $156.43
+    BANK_B: $156.43
