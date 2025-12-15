@@ -2053,9 +2053,17 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
     def _create_default_policy(self, agent_id: str) -> dict[str, Any]:
         """Create a default/seed policy for an agent.
 
-        Creates a simple Release-always policy with collateral posting at tick 0.
-        The initial_liquidity_fraction parameter controls how much collateral
-        is posted at the start of day.
+        Creates a simple Release-always policy with 50% initial liquidity allocation.
+
+        The initial_liquidity_fraction parameter controls how much of the
+        liquidity_pool is allocated at simulation start. This is extracted by
+        StandardPolicyConfigBuilder.extract_liquidity_config() and applied at
+        simulation startup - NOT through tree evaluation.
+
+        Note: strategic_collateral_tree is set to HoldCollateral (no-op) because
+        liquidity allocation in liquidity_pool mode happens at simulation start,
+        not through collateral posting. Collateral trees are only relevant when
+        using max_collateral_capacity mode.
 
         Args:
             agent_id: Agent ID.
@@ -2075,33 +2083,11 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 "action": "Release",
             },
             "strategic_collateral_tree": {
-                # Post collateral at tick 0 based on initial_liquidity_fraction
-                "type": "condition",
-                "node_id": "check_tick_0",
-                "condition": {
-                    "op": "==",
-                    "left": {"field": "system_tick_in_day"},
-                    "right": {"value": 0},
-                },
-                "on_true": {
-                    "type": "action",
-                    "node_id": "post_initial_collateral",
-                    "action": "PostCollateral",
-                    "parameters": {
-                        "amount": {
-                            "compute": {
-                                "op": "*",
-                                "left": {"param": "initial_liquidity_fraction"},
-                                "right": {"field": "remaining_collateral_capacity"},
-                            }
-                        },
-                        "reason": {"value": "InitialAllocation"},
-                    },
-                },
-                "on_false": {
-                    "type": "action",
-                    "node_id": "hold_collateral",
-                    "action": "HoldCollateral",
-                },
+                # No-op: liquidity allocation happens at simulation start via
+                # the initial_liquidity_fraction parameter, not through this tree.
+                # This tree is only relevant for collateral mode (max_collateral_capacity).
+                "type": "action",
+                "node_id": "hold_collateral",
+                "action": "HoldCollateral",
             },
         }
