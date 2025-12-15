@@ -144,27 +144,6 @@ The 3-agent sandbox is a valid approximation because:
 2. **Settlement timing is a sufficient statistic** for the liquidity environment from any agent's perspective
 3. **The sandbox preserves this information set** by encoding market conditions in historical settlement offsets
 
-**When the approximation is valid**:
-- Agent is "small" (doesn't materially affect system liquidity)
-- Policy decisions are local (releasing own transactions)
-- No strategic counterparty response assumed
-- Diverse counterparty set
-
-**Known limitations**:
-- No bilateral feedback loops (payment to B doesn't immediately give B liquidity to reciprocate)
-- No multilateral LSM cycles (sandbox only supports bilateral offsets)
-- Settlement timing fixed to historical values
-
-### 3.5 Statistical Recommendations
-
-| Use Case | Sample Size | Notes |
-|----------|-------------|-------|
-| Quick iteration | 10-20 | Development/debugging |
-| Production | 50-100 | Adequate confidence |
-| Research | 200+ | Publication-quality CIs |
-
-Our experiments used 50 bootstrap samples for robust policy comparison.
-
 ---
 
 ## 4. Comparison to Castro et al.
@@ -193,19 +172,15 @@ Our experiments used 50 bootstrap samples for robust policy comparison.
 
 **Multi-Agent Interaction**:
 - Castro: Two agents train simultaneously, creating non-stationary environments
-- SimCash: Agents optimized sequentially within each iteration; policies evaluated against current opponent strategy
+- SimCash: Agents optimized sequentially within each iteration; policies evaluated against opponent strategy pre-optimization this iteration.
 
 **Environment Stationarity**:
 - Castro: Non-stationary due to concurrent learning
 - SimCash: Bootstrap evaluation uses fixed historical samples; opponent policy fixed during evaluation
 
-**Data**:
-- Castro: 380 days of real LVTS data, random sampling per episode
-- SimCash: Configurable arrival patterns, bootstrap resampling
-
 **Cost Parameters**:
 - Castro: r_c=0.1, r_d=0.2, r_b=0.4 (normalized)
-- SimCash: Basis points per tick (500 bps liquidity cost for Castro replication)
+- SimCash: Basis points per tick
 
 ### 4.3 Why Results Should Converge
 
@@ -319,13 +294,13 @@ The paired comparison bootstrap proved essential for stochastic scenarios (exp2)
 
 ### 6.3 LLM Non-Determinism
 
-Running each experiment twice revealed important patterns in LLM optimization behavior:
+Running each experiment three times revealed important patterns in LLM optimization behavior:
 
-**High reproducibility (exp3)**: The symmetric equilibrium case showed zero variance - both agents converged to exactly 20% in both passes. This suggests the LLM reliably finds dominant equilibria when they exist.
+**High reproducibility (exp3)**: The symmetric equilibrium case showed zero variance - both agents converged to exactly 20% in all three passes. This suggests the LLM reliably finds dominant equilibria when they exist.
 
-**Moderate reproducibility (exp2)**: The stochastic case showed low variance (±1.5% for BANK_A, ±0.25% for BANK_B). Bootstrap evaluation provides robust signals that dampen LLM variability.
+**Moderate reproducibility (exp2)**: The stochastic case showed low variance. Bootstrap evaluation provides robust signals that dampen LLM variability.
 
-**Variable paths to optimum (exp1)**: The asymmetric case showed the most interesting behavior - Pass 1 found a local optimum (11%) while Pass 2 found the global optimum (0%) for BANK_A. This demonstrates:
+**Variable paths to optimum (exp1)**: The asymmetric case showed the most interesting behavior - Pass 1 found a local optimum (11%) while Pass 2 and 3 found the global optimum (0%) for BANK_A. This demonstrates:
 - LLMs can find different equilibria depending on optimization trajectory
 - Multiple runs may be needed to identify global optima
 - The accept/reject mechanism prevents regression once an optimum is found
@@ -417,6 +392,12 @@ Complete experiment configurations (used for both passes):
 **Pass 2**: `pass_2/exp1_run.log`, `pass_2/exp2_run.log`, `pass_2/exp3_run.log`
 
 **Pass 3**: `pass_3/exp1_run.log`, `pass_3/exp2_run.log`, `pass_3/exp3_run.log`
+
+---
+
+## Note
+
+Due to a mistake in the experimental setup, the default policy JSON pre optimization included a decision tree for posting strategic collateral. However, since the collateral feature of SimCash was not enabled, this had no effect on the results as the agents had no access to collateral. This anomaly has been fixed and the default policy tree cleaned up for future runs.
 
 ---
 
