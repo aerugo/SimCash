@@ -1,4 +1,4 @@
-# SimCash Paper v3 - Handover Prompt
+# SimCash Paper - Handover Prompt
 
 ## Context
 
@@ -13,7 +13,7 @@ We are writing a paper to demonstrate how SimCash can reproduce the three experi
 
 ## 🔴 CRITICAL: Use Castro-Compliant Configuration
 
-Previous work identified that SimCash has two liquidity mechanisms:
+SimCash has two liquidity mechanisms:
 
 | Mechanism | Effect | Use Case |
 |-----------|--------|----------|
@@ -45,7 +45,7 @@ cost_rates:
   overdraft_bps_per_tick: 0               # No overdraft
 ```
 
-See `docs/plans/simcash-paper/v2/lab-notes.md` section "Castro Compliance Analysis: All Experiments" for complete experiment-specific configurations.
+See the experiment configuration files in `experiments/castro/configs/` for complete experiment-specific configurations.
 
 ---
 
@@ -91,7 +91,7 @@ For each experiment:
 
 **Generate Policy Evolution JSON Appendices** (see [Policy Evolution Export](#policy-evolution-export) below):
 - [ ] Export policy evolution for each experiment as JSON
-- [ ] Save to `docs/plans/simcash-paper/v3/appendices/` for paper attachment
+- [ ] Save to `docs/plans/simcash-paper/appendices/` for paper attachment
 
 **Audit LLM Interactions** (see [Auditing LLM Prompts](#auditing-llm-prompts) below):
 - [ ] Replay at least one iteration with `--audit` to capture full LLM prompt/response
@@ -99,7 +99,7 @@ For each experiment:
 
 ### Phase 4: Paper Writing
 
-Write fresh documentation in `docs/plans/simcash-paper/v3/`:
+Write documentation in `docs/plans/simcash-paper/`:
 
 1. **`research-plan.md`** - Your phased approach
 2. **`lab-notes.md`** - Detailed experiment logs
@@ -134,13 +134,13 @@ After running each experiment, export the policy evolution as JSON for paper app
 cd api
 
 # Export full policy evolution with LLM prompts/responses
-.venv/bin/payment-sim experiment policy-evolution <run-id> --llm > ../docs/plans/simcash-paper/v3/appendices/exp1_policy_evolution.json
+.venv/bin/payment-sim experiment policy-evolution <run-id> --llm > ../docs/plans/simcash-paper/appendices/exp1_policy_evolution.json
 
 # Filter by agent
-.venv/bin/payment-sim experiment policy-evolution <run-id> --agent BANK_A --llm > appendices/exp1_bank_a_evolution.json
+.venv/bin/payment-sim experiment policy-evolution <run-id> --agent BANK_A --llm > ../docs/plans/simcash-paper/appendices/exp1_bank_a_evolution.json
 
 # Filter by iteration range
-.venv/bin/payment-sim experiment policy-evolution <run-id> --start 1 --end 10 --llm > appendices/exp1_iterations_1_10.json
+.venv/bin/payment-sim experiment policy-evolution <run-id> --start 1 --end 10 --llm > ../docs/plans/simcash-paper/appendices/exp1_iterations_1_10.json
 ```
 
 **Output format** (per agent, per iteration):
@@ -343,10 +343,7 @@ With Castro-compliant configuration, results should match Castro's theoretical p
 - `docs/reference/scenario/agents.md` - `liquidity_pool` documentation
 - `docs/reference/scenario/cost-rates.md` - `liquidity_cost_per_tick_bps` documentation
 
-### Reference (Background)
-- `docs/plans/simcash-paper/v2/lab-notes.md` - Contains Castro-compliant configs for all experiments
-
-### Experiment Configs to Update
+### Experiment Configs
 - `experiments/castro/configs/exp1_2period.yaml`
 - `experiments/castro/configs/exp2_12period.yaml`
 - `experiments/castro/configs/exp3_joint.yaml`
@@ -385,9 +382,9 @@ With Castro-compliant configuration, results should match Castro's theoretical p
 
 ## Output Location
 
-All work goes in: `docs/plans/simcash-paper/v3/`
+All work goes in: `docs/plans/simcash-paper/`
 
-Create subdirectory for appendices: `docs/plans/simcash-paper/v3/appendices/`
+Create subdirectory for appendices: `docs/plans/simcash-paper/appendices/`
 
 ---
 
