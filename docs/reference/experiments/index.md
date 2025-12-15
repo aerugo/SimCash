@@ -12,6 +12,7 @@ The `payment_simulator.experiments` module provides a framework for running LLM-
 |----------|-------------|
 | [Configuration](configuration.md) | ExperimentConfig YAML reference |
 | [Runner](runner.md) | GenericExperimentRunner and VerboseConfig |
+| [Analysis](analysis.md) | Charting, policy evolution, and analysis tools |
 
 ## Key Features
 
@@ -203,6 +204,15 @@ payment_simulator/experiments/
 ├── config/
 │   ├── __init__.py
 │   └── experiment_config.py    # ExperimentConfig, EvaluationConfig
+├── analysis/
+│   ├── __init__.py
+│   ├── charting.py             # ExperimentChartService, render_convergence_chart
+│   ├── evolution_model.py      # AgentEvolution, IterationEvolution
+│   ├── evolution_service.py    # PolicyEvolutionService
+│   └── policy_diff.py          # compute_policy_diff
+├── persistence/
+│   ├── __init__.py
+│   └── repository.py           # ExperimentRepository
 └── runner/
     ├── __init__.py
     ├── experiment_runner.py    # GenericExperimentRunner
@@ -219,4 +229,4 @@ payment_simulator/experiments/
 
 ---
 
-*Last updated: 2025-12-11*
+*Last updated: 2025-12-15*
