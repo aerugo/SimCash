@@ -334,9 +334,9 @@ def render_convergence_chart(
         markersize=6,
     )
 
-    # Add parameter annotations if present
+    # Add parameter annotations if present (on all policies line)
     if data.parameter_name:
-        _add_parameter_annotations(ax, data, accepted_costs)
+        _add_parameter_annotations(ax, data, all_costs)
 
     # Styling
     title = f"Cost Convergence - {data.run_id}"
@@ -398,32 +398,35 @@ def _build_accepted_trajectory(data_points: list[ChartDataPoint]) -> list[float]
 def _add_parameter_annotations(
     ax: plt.Axes,
     data: ChartData,
-    accepted_costs: list[float],
+    all_costs: list[float],
 ) -> None:
     """Add parameter value annotations to chart.
 
-    Places text annotations above accepted data points showing
-    the parameter name and value at that iteration.
+    Places text annotations above all policy data points showing
+    the parameter value. The parameter name is shown only on the
+    first annotation for clarity.
 
     Args:
         ax: Matplotlib axes object.
         data: ChartData with parameter values.
-        accepted_costs: Y-coordinates for the accepted line.
+        all_costs: Y-coordinates for the all policies line.
     """
+    first_annotation = True
     for i, point in enumerate(data.data_points):
-        if point.accepted and point.parameter_value is not None:
-            # Include parameter name in annotation for clarity
-            if data.parameter_name:
+        if point.parameter_value is not None:
+            # Show parameter name only on first annotation
+            if first_annotation and data.parameter_name:
                 label = f"{data.parameter_name}: {point.parameter_value:.2f}"
+                first_annotation = False
             else:
                 label = f"{point.parameter_value:.2f}"
             ax.annotate(
                 label,
-                xy=(point.iteration, accepted_costs[i]),
+                xy=(point.iteration, all_costs[i]),
                 xytext=(0, 10),
                 textcoords="offset points",
                 ha="center",
-                fontsize=8,  # Slightly smaller to fit longer text
+                fontsize=8,
                 color=COLORS["text"],
                 alpha=0.8,
             )
