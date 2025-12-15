@@ -60,8 +60,12 @@ payment-sim
 │   ├── run                # Run experiment from YAML
 │   ├── validate           # Validate experiment config
 │   ├── list               # List experiments in directory
-│   ├── info               # Framework information
-│   └── template           # Generate config template
+│   ├── info               # Show experiment details
+│   ├── template           # Generate config template
+│   ├── replay             # Replay experiment output
+│   ├── results            # List experiment runs
+│   ├── policy-evolution   # Extract policy evolution JSON
+│   └── chart              # Generate convergence charts
 ├── ai-game                # AI Cash Management subcommands
 │   ├── validate           # Validate game config
 │   ├── info               # Module information
@@ -106,4 +110,4 @@ payment-sim
 
 ---
 
-*Last updated: 2025-12-11*
+*Last updated: 2025-12-15*
