@@ -1,4 +1,3 @@
-```markdown
 # AI Agent Request Format Guide
 
 This directory is where AI-agents can put requests for features or documentation.
@@ -317,4 +316,3 @@ Fix bootstrap evaluation ignoring `liquidity_pool` parameter (commit `c06a880`).
 - [ ] Related files and documentation are referenced
 - [ ] Invariants from `patterns-and-conventions.md` are noted if applicable
 - [ ] Priority is set appropriately
-```
