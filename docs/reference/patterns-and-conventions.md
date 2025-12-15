@@ -163,6 +163,30 @@ extraction(optimization_path, P, S) == extraction(bootstrap_path, P, S)
 
 **Rationale**: Without this invariant, the same policy could produce different behavior in the main simulation vs bootstrap evaluation, leading to incorrect policy comparisons.
 
+### INV-10: Scenario Config Interpretation Identity
+
+**Rule**: For any scenario S and agent A, scenario configuration extraction MUST produce identical results regardless of which code path processes them.
+
+```python
+# Both paths MUST use StandardScenarioConfigBuilder
+extraction(optimization_path, S, A) == extraction(bootstrap_path, S, A)
+```
+
+**Requirements**:
+- ALL code paths that extract agent configuration from scenario YAML MUST use `StandardScenarioConfigBuilder`
+- Agent configuration extraction logic MUST be in one place (single extraction point)
+- Default values MUST be consistent across all paths
+- Type coercion MUST follow INV-1 (money as integer cents)
+- ALL fields extracted at once (prevents "forgot to pass X" bugs)
+
+**Where it applies**:
+- `optimization.py._get_scenario_builder()` - deterministic and bootstrap evaluation
+- `BootstrapPolicyEvaluator` - receives `AgentScenarioConfig` fields
+
+**Rationale**: Without this invariant, the same scenario could produce different agent configurations in different code paths. The bug that motivated this invariant (commit `c06a880`) occurred when `liquidity_pool` was extracted separately and forgotten in one path.
+
+**Related**: INV-9 (Policy Evaluation Identity) solves the same problem for policy parameters.
+
 ---
 
 ## Architectural Patterns
@@ -378,6 +402,72 @@ liquidity_config = builder.extract_liquidity_config(policy, agent_config)
 - ❌ Duplicating extraction logic in multiple files
 - ❌ Different default values in different code paths
 - ❌ Direct policy parameter access without using builder
+
+### Pattern 8: ScenarioConfigBuilder
+
+**Purpose**: Ensure identical agent configuration extraction from scenario YAML across all code paths (INV-10: Scenario Config Interpretation Identity).
+
+```python
+@dataclass(frozen=True)
+class AgentScenarioConfig:
+    """Canonical agent configuration extracted from scenario YAML.
+
+    All monetary values are in integer cents (INV-1).
+    """
+    agent_id: str
+    opening_balance: int
+    credit_limit: int
+    max_collateral_capacity: int | None
+    liquidity_pool: int | None
+
+
+@runtime_checkable
+class ScenarioConfigBuilder(Protocol):
+    """Protocol for extracting agent configuration from scenario."""
+
+    def extract_agent_config(self, agent_id: str) -> AgentScenarioConfig:
+        """Extract ALL configuration for an agent at once."""
+        ...
+
+    def list_agent_ids(self) -> list[str]:
+        """Return all agent IDs in the scenario."""
+        ...
+```
+
+**Implementations**:
+- `StandardScenarioConfigBuilder`: The single source of truth for scenario → agent config extraction
+
+**Usage**:
+```python
+# In optimization.py
+builder = self._get_scenario_builder()  # Returns StandardScenarioConfigBuilder
+agent_config = builder.extract_agent_config(agent_id)
+
+# Use all fields - can't forget any!
+evaluator = BootstrapPolicyEvaluator(
+    opening_balance=agent_config.opening_balance,
+    credit_limit=agent_config.credit_limit,
+    max_collateral_capacity=agent_config.max_collateral_capacity,
+    liquidity_pool=agent_config.liquidity_pool,  # Now CANNOT be forgotten
+)
+```
+
+**Key Features**:
+- Single extraction point: ALL agent fields extracted at once
+- Immutable: `AgentScenarioConfig` is a frozen dataclass
+- Type coercion: All monetary values coerced to int (INV-1)
+- Default values: `opening_balance=0`, `credit_limit=0`, optionals are `None`
+
+**Anti-patterns**:
+- ❌ Extracting fields one at a time (e.g., `_get_agent_opening_balance()`, `_get_agent_credit_limit()`)
+- ❌ Duplicating extraction logic in multiple files
+- ❌ Different default values in different code paths
+- ❌ Bypassing the builder for direct scenario dict access
+
+**Related Files**:
+- `api/payment_simulator/config/scenario_config_builder.py` - Protocol and implementation
+- `api/tests/unit/test_scenario_config_builder.py` - Unit tests
+- `api/tests/integration/test_scenario_config_identity.py` - Identity tests
 
 ---
 
