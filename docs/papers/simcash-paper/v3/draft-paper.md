@@ -194,7 +194,7 @@ Despite these methodological differences, both approaches converge to similar eq
 
 ## 5. Experimental Results
 
-To assess robustness to LLM non-determinism, we ran each experiment three times with identical configurations. Pass 1 serves as the detailed reference; Passes 2-3 validate reproducibility. This section reports averaged results across all three passes.
+To assess robustness to LLM non-determinism, we ran each experiment three times with identical configurations. Pass 2 serves as the detailed reference, as it found the global optimum for exp1; Passes 1 and 3 validate reproducibility. This section reports averaged results across all three passes and includes convergence charts from Pass 2.
 
 ### 5.1 Experiment 1: 2-Period Deterministic (Asymmetric Equilibrium)
 
@@ -212,7 +212,15 @@ To assess robustness to LLM non-determinism, we ran each experiment three times 
 - BANK_B's 20% is perfectly stable (identical in all three passes)
 - 2/3 passes found the exact global optimum for BANK_A
 
-**Policy Evolution (BANK_B, Pass 1)**:
+**Figure 1: Experiment 1 Convergence (Pass 2)** - System cost and agent-specific policy evolution:
+
+![Exp1 Total Cost](pass_2/appendices/charts/exp1_total_cost.png)
+*Figure 1a: System total cost convergence over 8 iterations*
+
+![Exp1 Bank A Cost](pass_2/appendices/charts/exp1_bank_a_cost.png)
+*Figure 1b: BANK_A cost with initial_liquidity_fraction trajectory (converged to 0%)*
+
+**Policy Evolution (BANK_B, Pass 2)**:
 - Iteration 1: 50% → 20% (accepted)
 - Iterations 2-9: Stable at 20% (all proposals to go lower rejected)
 
@@ -230,6 +238,14 @@ The rejection of lower values for BANK_B demonstrates the equilibrium property: 
 | BANK_B | 13% | 12.5% | 11.5% | 12.3% | 0.8% | 10-30% | ✅ All in range |
 
 **Convergence**: Pass 1: 11 iterations, Pass 2: 8 iterations, Pass 3: 8 iterations
+
+**Figure 2: Experiment 2 Convergence (Pass 2)** - Stochastic optimization with bootstrap evaluation:
+
+![Exp2 Total Cost](pass_2/appendices/charts/exp2_total_cost.png)
+*Figure 2a: System total cost convergence over 8 iterations*
+
+![Exp2 Bank A Cost](pass_2/appendices/charts/exp2_bank_a_cost.png)
+*Figure 2b: BANK_A cost with initial_liquidity_fraction trajectory (converged to 14%)*
 
 **Observations**:
 - All six agent-pass combinations within Castro's predicted range
@@ -249,6 +265,14 @@ The rejection of lower values for BANK_B demonstrates the equilibrium property: 
 | BANK_B | 20% | 20% | 20% | 20% | 0% | ~25% | ✅ Close |
 
 **Convergence**: All passes: 7 iterations
+
+**Figure 3: Experiment 3 Convergence (Pass 2)** - Symmetric equilibrium discovery:
+
+![Exp3 Total Cost](pass_2/appendices/charts/exp3_total_cost.png)
+*Figure 3a: System total cost convergence over 7 iterations*
+
+![Exp3 Bank A Cost](pass_2/appendices/charts/exp3_bank_a_cost.png)
+*Figure 3b: BANK_A cost with initial_liquidity_fraction trajectory (converged to 20%)*
 
 **Observations**:
 - **Zero variance**: All six agent-pass results identical at 20%
@@ -336,33 +360,74 @@ The combination of LLM-based optimization and bootstrap evaluation provides a pr
 
 ## Appendices
 
-### A. Policy Evolution Data
+### A. Additional Convergence Charts (Pass 2)
+
+The following BANK_B convergence charts complement the BANK_A charts shown in the main results:
+
+**Experiment 1 - BANK_B:**
+
+![Exp1 Bank B Cost](pass_2/appendices/charts/exp1_bank_b_cost.png)
+*Figure A1: BANK_B cost with initial_liquidity_fraction trajectory (converged to 20%)*
+
+**Experiment 2 - BANK_B:**
+
+![Exp2 Bank B Cost](pass_2/appendices/charts/exp2_bank_b_cost.png)
+*Figure A2: BANK_B cost with initial_liquidity_fraction trajectory (converged to 12.5%)*
+
+**Experiment 3 - BANK_B:**
+
+![Exp3 Bank B Cost](pass_2/appendices/charts/exp3_bank_b_cost.png)
+*Figure A3: BANK_B cost with initial_liquidity_fraction trajectory (converged to 20%)*
+
+### B. Convergence Charts for All Passes
+
+Complete convergence charts for all three passes are available in:
+
+**Pass 1** (local optimum for exp1):
+- `pass_1/appendices/charts/exp1_total_cost.png`, `exp1_bank_a_cost.png`, `exp1_bank_b_cost.png`
+- `pass_1/appendices/charts/exp2_total_cost.png`, `exp2_bank_a_cost.png`, `exp2_bank_b_cost.png`
+- `pass_1/appendices/charts/exp3_total_cost.png`, `exp3_bank_a_cost.png`, `exp3_bank_b_cost.png`
+
+**Pass 2** (detailed reference - global optimum for exp1):
+- `pass_2/appendices/charts/` - All 9 charts (shown in main text and Appendix A)
+
+**Pass 3** (reproducibility validation):
+- `pass_3/appendices/charts/exp1_total_cost.png`, `exp1_bank_a_cost.png`, `exp1_bank_b_cost.png`
+- `pass_3/appendices/charts/exp2_total_cost.png`, `exp2_bank_a_cost.png`, `exp2_bank_b_cost.png`
+- `pass_3/appendices/charts/exp3_total_cost.png`, `exp3_bank_a_cost.png`, `exp3_bank_b_cost.png`
+
+### C. Policy Evolution Data
 
 Full policy evolution data with LLM prompts and responses available in:
 
-**Pass 1** (detailed reference):
-- `pass_1/appendices/exp1_policy_evolution.json`
-- `pass_1/appendices/exp2_policy_evolution.json`
-- `pass_1/appendices/exp3_policy_evolution.json`
-
-**Pass 2** (reproducibility validation):
+**Pass 2** (detailed reference):
 - `pass_2/appendices/exp1_policy_evolution.json`
 - `pass_2/appendices/exp2_policy_evolution.json`
 - `pass_2/appendices/exp3_policy_evolution.json`
 
-### B. Representative LLM Prompt
+**Pass 1** (comparison):
+- `pass_1/appendices/exp1_policy_evolution.json`
+- `pass_1/appendices/exp2_policy_evolution.json`
+- `pass_1/appendices/exp3_policy_evolution.json`
+
+**Pass 3** (comparison):
+- `pass_3/appendices/exp1_policy_evolution.json`
+- `pass_3/appendices/exp2_policy_evolution.json`
+- `pass_3/appendices/exp3_policy_evolution.json`
+
+### D. Representative LLM Prompt
 
 A representative LLM prompt from exp1 iteration 5 is available in:
 - `pass_1/appendices/exp1_iteration5_audit.txt`
 
-### C. Experiment Configuration
+### E. Experiment Configuration
 
-Complete experiment configurations (used for both passes):
+Complete experiment configurations (used for all passes):
 - `configs/exp1.yaml`
 - `configs/exp2.yaml`
 - `configs/exp3.yaml`
 
-### D. Run Details
+### F. Run Details
 
 **Pass 1**:
 | Experiment | Run ID | Iterations | Converged |
@@ -385,7 +450,7 @@ Complete experiment configurations (used for both passes):
 | exp2 | exp2-20251215-110950-437b39 | 8 | Yes |
 | exp3 | exp3-20251215-115339-8d7e4b | 7 | Yes |
 
-### E. Raw Logs
+### G. Raw Logs
 
 **Pass 1**: `pass_1/exp1_run.log`, `pass_1/exp2_run.log`, `pass_1/exp3_run.log`
 
