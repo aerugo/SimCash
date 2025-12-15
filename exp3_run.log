@@ -1,0 +1,406 @@
+Loaded experiment: exp3
+Starting experiment...
+Experiment run ID: exp3-20251215-090758-257b13
+
+  Simulation: exp3-20251215-090758-257b13-sim-001-eval (Eval)
+
+Iteration 1
+  Total cost: $99.90
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,247
+  Completion tokens: 31
+  Latency: 78.9s
+  Key context provided:
+    - current_cost: $49.95
+    - best_seed_cost: $49.95
+    - worst_seed_cost: $49.95
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +2,898 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +2,898¢ (+$28.98 total improvement)
+  Mean delta: 2,898.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_A               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃ Old ┃  New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.5 │ 0.21 │  -58% │
+└────────────────────────────┴─────┴──────┴───────┘
+  Evaluation: $49.95 → $20.97 (-58.0%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,247
+  Completion tokens: 31
+  Latency: 83.1s
+  Key context provided:
+    - current_cost: $49.95
+    - best_seed_cost: $49.95
+    - worst_seed_cost: $49.95
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │    +2,997 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +2,997¢ (+$29.97 total improvement)
+  Mean delta: 2,997.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+              Policy Change: BANK_B               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃ Old ┃ New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.5 │ 0.2 │  -60% │
+└────────────────────────────┴─────┴─────┴───────┘
+  Evaluation: $49.95 → $19.98 (-60.0%)
+  Decision: ACCEPTED
+
+  Simulation: exp3-20251215-090758-257b13-sim-002-eval (Eval)
+
+Iteration 2
+  Total cost: $40.95
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,278
+  Completion tokens: 29
+  Latency: 25.6s
+  Key context provided:
+    - current_cost: $20.97
+    - best_seed_cost: $20.97
+    - worst_seed_cost: $20.97
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note        ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     #1 │       +99 │ improvement │
+└────────┴───────────┴─────────────┘
+  Delta sum: +99¢ (+$0.99 total improvement)
+  Mean delta: 99.0¢ per sample
+  Decision: ACCEPTED (delta_sum > 0)
+
+               Policy Change: BANK_A               
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━┳━━━━━━━┓
+┃ Parameter                  ┃  Old ┃ New ┃ Delta ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━╇━━━━━━━┩
+│ initial_liquidity_fraction │ 0.21 │ 0.2 │   -5% │
+└────────────────────────────┴──────┴─────┴───────┘
+  Evaluation: $20.97 → $19.98 (-4.7%)
+  Decision: ACCEPTED
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,278
+  Completion tokens: 31
+  Latency: 93.6s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+  Simulation: exp3-20251215-090758-257b13-sim-003-eval (Eval)
+
+Iteration 3
+  Total cost: $39.96
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,344
+  Completion tokens: 31
+  Latency: 258.9s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_A
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,361
+  Completion tokens: 31
+  Latency: 94.1s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+  Simulation: exp3-20251215-090758-257b13-sim-004-eval (Eval)
+
+Iteration 4
+  Total cost: $39.96
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,423
+  Completion tokens: 31
+  Latency: 79.9s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_A
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,411
+  Completion tokens: 31
+  Latency: 85.2s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+  Simulation: exp3-20251215-090758-257b13-sim-005-eval (Eval)
+
+Iteration 5
+  Total cost: $39.96
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,470
+  Completion tokens: 31
+  Latency: 163.3s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_A
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,458
+  Completion tokens: 31
+  Latency: 44.2s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+  Simulation: exp3-20251215-090758-257b13-sim-006-eval (Eval)
+
+Iteration 6
+  Total cost: $39.96
+
+LLM Call for BANK_A:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,517
+  Completion tokens: 31
+  Latency: 110.0s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_A:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_A
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+
+LLM Call for BANK_B:
+  Model: openai:gpt-5.2
+  Prompt tokens: 3,505
+  Completion tokens: 31
+  Latency: 107.1s
+  Key context provided:
+    - current_cost: $19.98
+    - best_seed_cost: $19.98
+    - worst_seed_cost: $19.98
+    - has_verbose_output: True
+
+
+Paired Policy Evaluation - BANK_B:
+┏━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Sample ┃ Delta (¢) ┃ Note       ┃
+┡━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│     #1 │   -10,002 │ regression │
+└────────┴───────────┴────────────┘
+  Delta sum: -10,002¢ ($-100.02 regression)
+  Mean delta: -10,002.0¢ per sample
+  Decision: REJECTED (delta_sum ≤ 0)
+
+
+Policy Rejected: BANK_B
+  Proposed policy:
+    initial_liquidity_fraction: 0.0
+
+  Decision: REJECTED (cost not improved: $19.98 → $120.00)
+
+  Simulation: exp3-20251215-090758-257b13-sim-007-eval (Eval)
+
+Iteration 7
+  Total cost: $39.96
+
+Experiment completed!
+  Iterations: 7
+  Converged: True
+  Reason: Stability achieved (5 consecutive stable iterations)
+  Final costs:
+    BANK_A: $19.98
+    BANK_B: $19.98
