@@ -1,4 +1,3 @@
-```markdown
 # AI Agent Implementation Planning Guide
 
 This directory is where AI-agents can put plans for features or documentation.
@@ -536,4 +535,3 @@ When adding CLI commands:
 - [ ] Other `docs/reference/` documentation updated
 - [ ] Work notes reflect final state
 - [ ] Code follows project conventions
-```
