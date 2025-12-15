@@ -1175,6 +1175,7 @@ class OptimizationLoop:
             avg_delay=result.avg_delay,
             event_trace=tuple(bootstrap_events),
             cost_breakdown=result.cost_breakdown,
+            per_agent_costs=result.per_agent_costs,  # Pass through for accurate per-agent reporting
         )
 
     def _build_agent_contexts(
