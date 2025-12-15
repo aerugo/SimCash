@@ -51,149 +51,68 @@ See the experiment configuration files in `experiments/castro/configs/` for comp
 
 ## Your Assignment
 
-### Phase 1: Setup & Verification
+### Quick Start
 
-- [ ] Review Castro et al. paper: `experiments/castro/papers/castro_et_al.md`
-- [ ] Review evaluation methodology: `docs/reference/ai_cash_mgmt/evaluation-methodology.md`
-- [ ] Review optimizer prompt architecture: `docs/reference/ai_cash_mgmt/optimizer-prompt.md`
-- [ ] Update experiment configs to use `liquidity_pool` pattern:
-  - `experiments/castro/configs/exp1_2period.yaml`
-  - `experiments/castro/configs/exp2_12period.yaml`
-  - `experiments/castro/configs/exp3_joint.yaml`
-- [ ] Verify experiment runner supports `liquidity_allocation_fraction` optimization
-- [ ] Run sanity check (1 iteration of exp1)
+**Follow the experiment protocol**: [`experiment-protocol.md`](experiment-protocol.md)
 
-### Phase 2: Experiment Execution
+The protocol covers:
+- Pre-flight checklist and environment setup
+- Sanity check before full runs
+- Step-by-step execution for all three experiments
+- Results collection and artifact export
+- Troubleshooting guide
 
-Run experiments using the CLI with verbose output:
+### Experiment Execution Order
+
+Run experiments in this order:
+
+1. **exp2 first** - Stochastic case with bootstrap (most realistic scenario)
+2. **exp1 second** - Deterministic baseline (validates asymmetric equilibrium)
+3. **exp3 last** - Joint optimization (validates symmetric equilibrium)
 
 ```bash
 cd api
-.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp1.yaml
-.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp2.yaml
-.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp3.yaml
+.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp2.yaml 2>&1 | tee exp2_run.log
+.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp1.yaml 2>&1 | tee exp1_run.log
+.venv/bin/payment-sim experiment run --verbose ../experiments/castro/experiments/exp3.yaml 2>&1 | tee exp3_run.log
 ```
 
 **NEVER change the LLM model!** Always use `openai:gpt-5.2` as specified.
 
-- [ ] Run exp1 (2-period deterministic)
-- [ ] Run exp2 (12-period stochastic)
-- [ ] Run exp3 (3-period joint optimization)
-- [ ] Document any errors or unexpected behavior
+**Estimated time**: ~2-4 hours total for all experiments.
 
-### Phase 3: Results Analysis & Artifact Generation
+### Pre-Run Reading
 
-For each experiment:
-- [ ] Record final policy values
-- [ ] Compare to Castro et al. theoretical predictions
-- [ ] Document bootstrap statistics (mean, std, CI)
-- [ ] Analyze paired delta distributions
+Before running experiments, review:
+- [ ] Castro et al. paper: `experiments/castro/papers/castro_et_al.md`
+- [ ] Evaluation methodology: `docs/reference/ai_cash_mgmt/evaluation-methodology.md`
+- [ ] Optimizer prompt architecture: `docs/reference/ai_cash_mgmt/optimizer-prompt.md`
 
-**Generate Policy Evolution JSON Appendices** (see [Policy Evolution Export](#policy-evolution-export) below):
-- [ ] Export policy evolution for each experiment as JSON
-- [ ] Save to `docs/plans/simcash-paper/appendices/` for paper attachment
+### Paper Writing
 
-**Audit LLM Interactions** (see [Auditing LLM Prompts](#auditing-llm-prompts) below):
-- [ ] Replay at least one iteration with `--audit` to capture full LLM prompt/response
-- [ ] Include representative examples in the paper's methodology section
+After experiments complete, write documentation in `docs/plans/simcash-paper/`:
 
-### Phase 4: Paper Writing
-
-Write documentation in `docs/plans/simcash-paper/`:
-
-1. **`research-plan.md`** - Your phased approach
-2. **`lab-notes.md`** - Detailed experiment logs
-3. **`draft-paper.md`** - Complete paper including all sections below
+1. **`lab-notes.md`** - Detailed experiment logs
+2. **`draft-paper.md`** - Complete paper with all sections below
 
 **Required Paper Sections** (see [Paper Structure Requirements](#paper-structure-requirements)):
 
 - Abstract
 - Introduction
-- **LLM Policy Optimization Methodology** ⭐ NEW - Detailed explanation
-- **Bootstrap Evaluation & 3-Agent Sandbox** ⭐ NEW - With justification
-- **Comparison to Castro et al.** ⭐ NEW - Differences in approach
+- **LLM Policy Optimization Methodology** - Detailed explanation
+- **Bootstrap Evaluation & 3-Agent Sandbox** - With justification
+- **Comparison to Castro et al.** - Differences in approach
 - Results with confidence intervals
 - Discussion and conclusion
 - **Appendices**: Policy evolution JSON files
 
-### Phase 5: Figures & Tables
+### Figures & Tables
 
 - [ ] Policy evolution diagrams
 - [ ] Cost over iterations with confidence intervals
 - [ ] Final policy comparison table vs Castro predictions
 - [ ] LLM prompt structure diagram (showing the 7 sections)
 - [ ] 3-agent sandbox architecture diagram
-
----
-
-## 🔵 Policy Evolution Export
-
-After running each experiment, export the policy evolution as JSON for paper appendices:
-
-```bash
-cd api
-
-# Export full policy evolution with LLM prompts/responses
-.venv/bin/payment-sim experiment policy-evolution <run-id> --llm > ../docs/plans/simcash-paper/appendices/exp1_policy_evolution.json
-
-# Filter by agent
-.venv/bin/payment-sim experiment policy-evolution <run-id> --agent BANK_A --llm > ../docs/plans/simcash-paper/appendices/exp1_bank_a_evolution.json
-
-# Filter by iteration range
-.venv/bin/payment-sim experiment policy-evolution <run-id> --start 1 --end 10 --llm > ../docs/plans/simcash-paper/appendices/exp1_iterations_1_10.json
-```
-
-**Output format** (per agent, per iteration):
-```json
-{
-  "BANK_A": {
-    "iteration_1": {
-      "policy": { ... },
-      "diff": "",
-      "cost": 10000,
-      "accepted": true,
-      "llm": {
-        "system_prompt": "You are an expert...",
-        "user_prompt": "Current policy: {...}\nGenerate...",
-        "raw_response": "{\"policy\": {...}}"
-      }
-    }
-  }
-}
-```
-
-Use these JSON files as **supplementary material/appendices** for the paper, allowing readers to see the complete optimization trajectory.
-
----
-
-## 🔵 Auditing LLM Prompts
-
-To understand exactly what the LLM sees and returns, use the audit feature:
-
-```bash
-cd api
-
-# Show full audit trail for all iterations
-.venv/bin/payment-sim experiment replay <run-id> --audit
-
-# Focus on a specific iteration (e.g., iteration 3)
-.venv/bin/payment-sim experiment replay <run-id> --audit --start 3 --end 3
-
-# Show audit for iterations 2-5
-.venv/bin/payment-sim experiment replay <run-id> --audit --start 2 --end 5
-```
-
-**Audit output includes** for each agent at each iteration:
-- **Model metadata**: Model name, token counts (prompt/completion), latency
-- **System prompt**: The complete system prompt sent to the LLM
-- **User prompt**: The full context prompt (~50k tokens) with all 7 sections
-- **Raw response**: The complete LLM response before parsing
-- **Validation results**: Whether the policy was successfully parsed
-
-**Use this to**:
-1. Capture a representative LLM prompt for the paper's methodology section
-2. Show what information the LLM receives (cost breakdown, simulation outputs, history)
-3. Demonstrate the structured nature of the optimization process
 
 ---
 
@@ -350,32 +269,22 @@ With Castro-compliant configuration, results should match Castro's theoretical p
 
 ---
 
-## CLI Reference
+## CLI Quick Reference
+
+See [`experiment-protocol.md`](experiment-protocol.md) for detailed commands. Key commands:
 
 ```bash
 # Run experiment
 .venv/bin/payment-sim experiment run --verbose <config.yaml>
 
-# List experiments
-.venv/bin/payment-sim experiment list
-
-# List completed experiment runs (to find run IDs)
+# List completed runs (to find run IDs)
 .venv/bin/payment-sim experiment results
 
-# Replay experiment (standard output)
-.venv/bin/payment-sim experiment replay <run-id>
+# Replay with LLM audit trail
+.venv/bin/payment-sim experiment replay <run-id> --audit
 
-# Replay with audit trail (LLM prompts/responses)
-.venv/bin/payment-sim experiment replay <run-id> --audit --start N --end N
-
-# Export policy evolution as JSON (for paper appendices)
+# Export policy evolution for paper appendices
 .venv/bin/payment-sim experiment policy-evolution <run-id> --llm > policy_evolution.json
-
-# Export specific agent's evolution
-.venv/bin/payment-sim experiment policy-evolution <run-id> --agent BANK_A --llm
-
-# Export specific iteration range
-.venv/bin/payment-sim experiment policy-evolution <run-id> --start 1 --end 10 --llm
 ```
 
 ---
@@ -390,25 +299,15 @@ Create subdirectory for appendices: `docs/plans/simcash-paper/appendices/`
 
 ## Checklist
 
-Before starting:
-- [ ] Configs updated to use `liquidity_pool` pattern
-- [ ] Experiment runner verified to support `liquidity_allocation_fraction`
-- [ ] Sanity check passed
-- [ ] Reviewed optimizer-prompt.md to understand LLM prompt structure
-- [ ] Reviewed evaluation-methodology.md to understand bootstrap/sandbox
+See [`experiment-protocol.md`](experiment-protocol.md) for detailed checklist. Summary:
 
-During experiments:
-- [ ] Capture all verbose output
-- [ ] Document iteration-by-iteration progress in lab notes
+**Before starting:**
+- [ ] Pre-flight checks passed (see protocol)
+- [ ] Reviewed Castro paper and methodology docs
 
-After experiments:
+**After experiments:**
 - [ ] Results compared to Castro predictions
 - [ ] Policy evolution JSON exported for each experiment
-- [ ] At least one iteration audited with `--audit` flag
-- [ ] Representative LLM prompt captured for paper
-- [ ] Draft paper complete with all required sections:
-  - [ ] LLM Policy Optimization Methodology section
-  - [ ] Bootstrap Evaluation & 3-Agent Sandbox section
-  - [ ] Comparison to Castro et al. section
+- [ ] Representative LLM prompt captured via `--audit`
+- [ ] Draft paper complete with all required sections
 - [ ] Figures and tables included
-- [ ] Appendices with policy evolution JSON attached
