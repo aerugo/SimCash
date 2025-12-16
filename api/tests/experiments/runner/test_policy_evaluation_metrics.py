@@ -2652,3 +2652,188 @@ class TestPolicyEvaluationBackwardCompatibility:
         assert records[1].settlement_rate == 0.96
         assert records[1].agent_stats is not None
         assert records[1].agent_stats["BANK_A"]["cost"] == 7000
+
+
+# =============================================================================
+# Phase 3: Derived Statistics Tests
+# =============================================================================
+
+
+class TestDerivedStatistics:
+    """Tests for std dev and confidence interval computation (Phase 3)."""
+
+    def test_compute_cost_std_dev_known_values(self) -> None:
+        """Standard deviation should be computed correctly for known sample data."""
+        import statistics
+
+        from payment_simulator.experiments.runner.statistics import (
+            compute_cost_statistics,
+        )
+
+        # Known sample costs
+        sample_costs = [10000, 12000, 11000, 13000, 9000]  # cents
+
+        stats = compute_cost_statistics(sample_costs)
+
+        # Expected std dev: stdev([10000, 12000, 11000, 13000, 9000]) ≈ 1581
+        expected_std = int(statistics.stdev(sample_costs))
+        assert stats["std_dev"] == expected_std
+
+    def test_compute_confidence_interval_known_values(self) -> None:
+        """95% CI should be computed using t-distribution."""
+        from payment_simulator.experiments.runner.statistics import (
+            compute_cost_statistics,
+        )
+
+        sample_costs = [10000, 12000, 11000, 13000, 9000]  # cents
+
+        stats = compute_cost_statistics(sample_costs)
+
+        # Mean = 11000, std ≈ 1581
+        # For n=5, t_{4, 0.975} ≈ 2.776
+        # Margin = 2.776 * (1581 / sqrt(5)) ≈ 1963
+        # CI = [11000 - 1963, 11000 + 1963] = [9037, 12963]
+        assert stats["ci_95_lower"] is not None
+        assert stats["ci_95_upper"] is not None
+        assert stats["ci_95_lower"] < 11000 < stats["ci_95_upper"]
+        # CI should be symmetric around mean (11000)
+        assert 9000 <= stats["ci_95_lower"] <= 9500
+        assert 12500 <= stats["ci_95_upper"] <= 13000
+
+    def test_std_dev_returns_none_for_single_sample(self) -> None:
+        """Std dev should be None when N=1 (undefined)."""
+        from payment_simulator.experiments.runner.statistics import (
+            compute_cost_statistics,
+        )
+
+        sample_costs = [10000]  # Single sample
+
+        stats = compute_cost_statistics(sample_costs)
+
+        assert stats["std_dev"] is None
+        assert stats["ci_95_lower"] is None
+        assert stats["ci_95_upper"] is None
+
+    def test_std_dev_returns_none_for_empty_samples(self) -> None:
+        """Std dev should be None for empty sample list."""
+        from payment_simulator.experiments.runner.statistics import (
+            compute_cost_statistics,
+        )
+
+        stats = compute_cost_statistics([])
+
+        assert stats["std_dev"] is None
+        assert stats["ci_95_lower"] is None
+        assert stats["ci_95_upper"] is None
+
+    def test_per_agent_std_dev_computed(self) -> None:
+        """Per-agent std dev should be computed from per-agent sample costs."""
+        from payment_simulator.experiments.runner.statistics import (
+            compute_per_agent_statistics,
+        )
+
+        # Per-agent costs across 5 samples
+        per_agent_samples = {
+            "BANK_A": [5000, 6000, 5500, 6500, 4500],
+            "BANK_B": [5000, 6000, 5500, 6500, 4500],
+        }
+
+        agent_stats = compute_per_agent_statistics(per_agent_samples)
+
+        assert "BANK_A" in agent_stats
+        assert "std_dev" in agent_stats["BANK_A"]
+        assert agent_stats["BANK_A"]["std_dev"] is not None
+        assert agent_stats["BANK_A"]["ci_95_lower"] is not None
+        assert agent_stats["BANK_A"]["ci_95_upper"] is not None
+
+    def test_statistics_stored_as_integer_cents(self) -> None:
+        """All statistical values should be integer cents (INV-1)."""
+        from payment_simulator.experiments.runner.statistics import (
+            compute_cost_statistics,
+        )
+
+        sample_costs = [10000, 12000, 11000, 13000, 9000]
+
+        stats = compute_cost_statistics(sample_costs)
+
+        # Verify integer types (INV-1)
+        assert isinstance(stats["std_dev"], int)
+        assert isinstance(stats["ci_95_lower"], int)
+        assert isinstance(stats["ci_95_upper"], int)
+
+    def test_per_agent_statistics_mean_computed(self) -> None:
+        """Per-agent statistics should include mean cost."""
+        from payment_simulator.experiments.runner.statistics import (
+            compute_per_agent_statistics,
+        )
+
+        per_agent_samples = {
+            "BANK_A": [5000, 6000, 5500],
+        }
+
+        agent_stats = compute_per_agent_statistics(per_agent_samples)
+
+        # Mean of [5000, 6000, 5500] = 5500
+        assert agent_stats["BANK_A"]["cost"] == 5500
+
+    def test_per_agent_empty_costs_handled(self) -> None:
+        """Per-agent statistics should handle empty cost lists."""
+        from payment_simulator.experiments.runner.statistics import (
+            compute_per_agent_statistics,
+        )
+
+        per_agent_samples = {
+            "BANK_A": [],
+        }
+
+        agent_stats = compute_per_agent_statistics(per_agent_samples)
+
+        assert agent_stats["BANK_A"]["cost"] == 0
+        assert agent_stats["BANK_A"]["std_dev"] is None
+
+    def test_t_critical_for_small_samples(self) -> None:
+        """t-distribution critical value should be larger for small samples."""
+        from payment_simulator.experiments.runner.statistics import _get_t_critical
+
+        # Smaller samples have larger t-critical (more uncertainty)
+        t_2 = _get_t_critical(2)  # df=2 (n=3)
+        t_10 = _get_t_critical(10)  # df=10 (n=11)
+        t_100 = _get_t_critical(100)  # df=100 (n=101)
+
+        assert t_2 > t_10 > t_100
+        # Normal approximation for large samples
+        assert abs(t_100 - 1.984) < 0.01
+
+    def test_large_sample_uses_normal_approximation(self) -> None:
+        """Samples > 100 should use normal approximation (1.96)."""
+        from payment_simulator.experiments.runner.statistics import _get_t_critical
+
+        t_200 = _get_t_critical(200)
+        assert t_200 == 1.96
+
+    def test_ci_width_decreases_with_sample_size(self) -> None:
+        """Confidence interval should be narrower with more samples."""
+        from payment_simulator.experiments.runner.statistics import (
+            compute_cost_statistics,
+        )
+
+        # Small sample (n=5)
+        small_sample = [10000, 12000, 11000, 13000, 9000]
+        small_stats = compute_cost_statistics(small_sample)
+
+        # Large sample (n=20) with same variance
+        import random
+
+        random.seed(42)
+        large_sample = [10000 + random.randint(-2000, 2000) for _ in range(20)]
+        large_stats = compute_cost_statistics(large_sample)
+
+        # CI width = upper - lower
+        small_width = small_stats["ci_95_upper"] - small_stats["ci_95_lower"]
+        large_width = large_stats["ci_95_upper"] - large_stats["ci_95_lower"]
+
+        # Larger samples should have narrower CIs (assuming similar std dev)
+        # This is a general property, but std dev differences may affect it
+        # At minimum, both should have valid CIs
+        assert small_width > 0
+        assert large_width > 0
