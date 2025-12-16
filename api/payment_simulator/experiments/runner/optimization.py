@@ -66,6 +66,7 @@ from payment_simulator.experiments.runner.bootstrap_support import (
 )
 from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
 from payment_simulator.experiments.runner.state_provider import LiveStateProvider
+from payment_simulator.experiments.runner.statistics import compute_cost_statistics
 from payment_simulator.experiments.runner.verbose import (
     BootstrapDeltaResult,
     BootstrapSampleResult,
@@ -74,7 +75,6 @@ from payment_simulator.experiments.runner.verbose import (
     VerboseConfig,
     VerboseLogger,
 )
-
 
 # =============================================================================
 # Policy Evaluation Dataclasses
@@ -116,6 +116,8 @@ class PolicyPairEvaluation:
         settlement_rate: System-wide settlement rate (0.0 to 1.0).
         avg_delay: System-wide average delay in ticks.
         cost_breakdown: Total cost breakdown by type.
+        cost_std_dev: Standard deviation of costs in cents (bootstrap only).
+        confidence_interval_95: 95% CI bounds [lower, upper] in cents (bootstrap only).
         agent_stats: Per-agent metrics keyed by agent_id.
     """
 
@@ -127,6 +129,9 @@ class PolicyPairEvaluation:
     settlement_rate: float | None = None
     avg_delay: float | None = None
     cost_breakdown: dict[str, int] | None = None
+    # Phase 3: Derived statistics (bootstrap only)
+    cost_std_dev: int | None = None
+    confidence_interval_95: list[int] | None = None
     agent_stats: dict[str, dict[str, Any]] | None = None
 
     @property
@@ -1706,10 +1711,19 @@ class OptimizationLoop:
                     init_result = self._initial_sim_result
                     boot_settlement_rate = getattr(init_result, "settlement_rate", None)
                     boot_avg_delay = getattr(init_result, "avg_delay", None)
-                    # cost_breakdown will be computed from sample costs in Phase 3
 
-                # Build per-agent stats for bootstrap mode
-                # std_dev and CI will be computed in Phase 3
+                # Phase 3: Compute derived statistics from sample costs
+                new_costs = [pd.cost_b for pd in paired_deltas]
+                cost_stats = compute_cost_statistics(new_costs)
+
+                boot_cost_std_dev = cost_stats["std_dev"]
+                boot_confidence_interval_95: list[int] | None = None
+                ci_lower = cost_stats["ci_95_lower"]
+                ci_upper = cost_stats["ci_95_upper"]
+                if ci_lower is not None and ci_upper is not None:
+                    boot_confidence_interval_95 = [ci_lower, ci_upper]
+
+                # Build per-agent stats for bootstrap mode with computed statistics
                 boot_agent_stats: dict[str, dict[str, Any]] = {}
 
                 for aid in self.optimized_agents:
@@ -1719,10 +1733,10 @@ class OptimizationLoop:
                         "cost": agent_mean_cost,
                         "settlement_rate": boot_settlement_rate,
                         "avg_delay": boot_avg_delay,
-                        "cost_breakdown": None,  # To be computed in Phase 3
-                        "std_dev": None,  # To be computed in Phase 3
-                        "ci_95_lower": None,  # To be computed in Phase 3
-                        "ci_95_upper": None,  # To be computed in Phase 3
+                        "cost_breakdown": None,  # Not available per-agent
+                        "std_dev": boot_cost_std_dev,  # Same as total (single agent)
+                        "ci_95_lower": cost_stats["ci_95_lower"],
+                        "ci_95_upper": cost_stats["ci_95_upper"],
                     }
 
                 return PolicyPairEvaluation(
@@ -1733,6 +1747,8 @@ class OptimizationLoop:
                     settlement_rate=boot_settlement_rate,
                     avg_delay=boot_avg_delay,
                     cost_breakdown=boot_cost_breakdown,
+                    cost_std_dev=boot_cost_std_dev,
+                    confidence_interval_95=boot_confidence_interval_95,
                     agent_stats=boot_agent_stats,
                 )
 
@@ -2027,8 +2043,9 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 settlement_rate=evaluation.settlement_rate,
                 avg_delay=evaluation.avg_delay,
                 cost_breakdown=evaluation.cost_breakdown,
-                cost_std_dev=None,  # To be computed in Phase 3
-                confidence_interval_95=None,  # To be computed in Phase 3
+                # Phase 3: Derived statistics (bootstrap only)
+                cost_std_dev=evaluation.cost_std_dev,
+                confidence_interval_95=evaluation.confidence_interval_95,
                 agent_stats=evaluation.agent_stats,
             )
 

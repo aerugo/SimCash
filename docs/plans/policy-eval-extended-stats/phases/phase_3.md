@@ -1,7 +1,8 @@
 # Phase 3: Derived Statistics
 
-**Status**: Pending
-**Started**:
+**Status**: Complete
+**Started**: 2025-12-16
+**Completed**: 2025-12-16
 
 ---
 
@@ -361,13 +362,13 @@ cd /home/user/SimCash/api
 
 ## Completion Criteria
 
-- [ ] `compute_cost_statistics()` function implemented
-- [ ] `compute_per_agent_statistics()` function implemented
-- [ ] Std dev computed correctly for known values
-- [ ] 95% CI computed using t-distribution
-- [ ] Edge cases (N=0, N=1) return None appropriately
-- [ ] All values stored as integer cents (INV-1)
-- [ ] Statistics integrated into `_evaluate_policy_pair()` for bootstrap
-- [ ] All test cases pass
-- [ ] Type check passes
-- [ ] Lint passes
+- [x] `compute_cost_statistics()` function implemented
+- [x] `compute_per_agent_statistics()` function implemented
+- [x] Std dev computed correctly for known values
+- [x] 95% CI computed using t-distribution
+- [x] Edge cases (N=0, N=1) return None appropriately
+- [x] All values stored as integer cents (INV-1)
+- [x] Statistics integrated into `_evaluate_policy_pair()` for bootstrap
+- [x] All test cases pass (11 new tests, 73 total)
+- [x] Type check passes
+- [x] Lint passes
