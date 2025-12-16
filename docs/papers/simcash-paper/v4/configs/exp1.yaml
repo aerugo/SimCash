@@ -16,7 +16,7 @@ scenario: ./exp1_2period.yaml
 # Evaluation settings
 # Use deterministic mode since the scenario has no stochastic elements
 evaluation:
-  mode: bootstrap
+  mode: deterministic-temporal
   num_samples: 50  # For statistical rigor
   ticks: 2  # Only 2 ticks in scenario
 
