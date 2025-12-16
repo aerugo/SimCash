@@ -14,7 +14,7 @@ description: "2-Period Deterministic Nash Equilibrium"
 scenario: ./exp1_2period.yaml
 
 # Evaluation settings
-# Use deterministic mode since the scenario has no stochastic elements
+# Use bootstrap mode for consistency with other experiments
 evaluation:
   mode: bootstrap
   num_samples: 50  # For statistical rigor

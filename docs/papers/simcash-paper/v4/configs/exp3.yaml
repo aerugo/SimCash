@@ -12,7 +12,7 @@ description: "Three-Period Dummy - Joint Liquidity & Timing"
 scenario: ./exp3_joint.yaml
 
 # Evaluation settings
-# Use deterministic mode since the scenario has fixed payments
+# Use bootstrap mode for consistency with other experiments
 evaluation:
   mode: bootstrap
   num_samples: 50  # For statistical rigor
