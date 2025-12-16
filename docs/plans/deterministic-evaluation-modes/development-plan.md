@@ -206,18 +206,19 @@ Iteration N:
 
 ## Documentation Updates
 
-After implementation is complete, update the following:
-
-- [ ] `docs/reference/patterns-and-conventions.md` - No new invariants needed
-- [ ] `docs/reference/experiments/configuration.md` - Document new evaluation modes
+- [x] `docs/reference/patterns-and-conventions.md` - No new invariants needed (existing INV-2 and INV-9 cover this)
+- [x] `docs/reference/experiments/configuration.md` - Documented new evaluation modes
+- [x] `docs/reference/ai_cash_mgmt/evaluation-methodology.md` - Added deterministic modes section
 
 ## Progress Tracking
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 1 | Complete | Fixed seed inconsistency (7 tests) |
-| Phase 2 | Complete | Added mode parsing (18 tests) |
-| Phase 3 | Complete | Implemented temporal (8 tests) |
-| Phase 4 | Complete | Integration tests (9 tests) |
+| Phase 1 | ✅ Complete | Fixed seed inconsistency (7 tests) |
+| Phase 2 | ✅ Complete | Added mode parsing (18 tests) |
+| Phase 3 | ✅ Complete | Implemented temporal logic (8 tests) |
+| Phase 4 | ✅ Complete | Integration tests (9 tests) |
+| Phase 5 | ✅ Complete | Wired temporal into optimization loop (7 tests) |
+| Phase 6 | ✅ Complete | End-to-end proof of correctness (19 tests) |
 
-**Total: 42 new tests, all passing**
+**Total: 68 new tests, all passing**

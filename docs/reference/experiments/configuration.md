@@ -48,7 +48,7 @@ scenario: configs/exp2_12period.yaml
 
 # Evaluation settings
 evaluation:
-  mode: bootstrap          # "bootstrap" or "deterministic"
+  mode: bootstrap          # "bootstrap", "deterministic", "deterministic-pairwise", or "deterministic-temporal"
   num_samples: 10          # Bootstrap samples (bootstrap mode only)
   ticks: 12                # Ticks per evaluation
 
@@ -151,9 +151,15 @@ evaluation:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `mode` | string | `"bootstrap"` | `"bootstrap"` or `"deterministic"` |
+| `mode` | string | `"bootstrap"` | Evaluation mode (see below) |
 | `num_samples` | integer | `10` | Number of bootstrap samples |
 | `ticks` | integer | *required* | Ticks per evaluation |
+
+**Evaluation Modes**:
+- `bootstrap` - Paired comparison with bootstrap resampling (default)
+- `deterministic` - Alias for `deterministic-pairwise` (backward compatible)
+- `deterministic-pairwise` - Compare old vs new policy on same seed within iteration
+- `deterministic-temporal` - Compare cost across iterations (more efficient)
 
 #### Bootstrap Mode
 
@@ -179,17 +185,60 @@ evaluation:
 - **Paired deltas**: Same samples ensure statistical validity
 - **LLM context**: Includes initial simulation output + best/worst sample traces
 
-#### Deterministic Mode
+#### Deterministic Modes
 
-Single evaluation without sampling:
+For scenarios with no random elements, deterministic modes use a single evaluation per iteration with seeded RNG for reproducibility.
+
+##### Deterministic-Pairwise (Default)
+
+Compares old vs new policy on the **same seed within the same iteration**:
 
 ```yaml
 evaluation:
-  mode: deterministic
+  mode: deterministic-pairwise  # or just "deterministic"
   ticks: 2
 ```
 
-Best for scenarios with no random elements.
+**Process**:
+1. Run simulation with **current policy** → `cost_display` (for logs/LLM context)
+2. LLM generates **new policy**
+3. Run **old policy** with iteration seed → `old_cost`
+4. Run **new policy** with same seed → `new_cost`
+5. Accept if `new_cost < old_cost`
+
+**Note**: `mode: deterministic` is an alias for `deterministic-pairwise` for backward compatibility.
+
+##### Deterministic-Temporal
+
+Compares cost **across iterations** (more efficient—runs only 1 simulation per iteration):
+
+```yaml
+evaluation:
+  mode: deterministic-temporal
+  ticks: 2
+```
+
+**Process**:
+1. Run simulation with **current policy** → `cost_N`
+2. Compare `cost_N` vs `cost_{N-1}` from previous iteration
+   - First iteration: Always accept (no baseline)
+   - Accept if `cost_N <= cost_{N-1}`
+   - Reject if `cost_N > cost_{N-1}` → revert to previous policy
+3. If accepted, LLM generates **new policy** for next iteration
+
+**Key Differences**:
+
+| Aspect | Pairwise | Temporal |
+|--------|----------|----------|
+| Comparison | Old vs new policy (same iteration) | Current vs previous iteration |
+| Simulations/iteration | 3 (context + old + new) | 1 (context only) |
+| Policy revert | N/A | Reverts on cost increase |
+| Best for | Precise policy comparison | Faster iteration, game-like learning |
+
+**When to use Temporal Mode**:
+- You want faster experiments (fewer simulations)
+- The scenario models a game where agents learn from historical outcomes
+- You're optimizing scenarios where policies change incrementally
 
 ### convergence
 
@@ -221,10 +270,11 @@ convergence:
 
 | Mode | Behavior |
 |------|----------|
-| **Deterministic** | Same seed every iteration. Cost changes **only** when policy changes. If policy stays the same, `relative_change = 0` (always "stable"). |
-| **Bootstrap** | Sample seeds are deterministic per `sample_idx`. Same policy → same costs. Behaves identically to deterministic mode. |
+| **Deterministic-Pairwise** | Same seed every iteration. Cost changes **only** when policy changes. If policy stays the same, `relative_change = 0` (always "stable"). |
+| **Deterministic-Temporal** | Compares across iterations. Cost changes based on policy effectiveness. Rejects cost increases and reverts policy. |
+| **Bootstrap** | Sample seeds are deterministic per `sample_idx`. Same policy → same costs. Behaves similarly to deterministic-pairwise. |
 
-**Practical implication**: In both modes, convergence triggers when **policies stop being accepted** for `stability_window` consecutive iterations. This could mean:
+**Practical implication**: In all modes, convergence triggers when **policies stop being accepted** for `stability_window` consecutive iterations. This could mean:
 
 1. **Optimization complete**: LLM can't find improvements → rejections → stable costs → converged ✓
 2. **LLM stuck**: LLM generates invalid/worse policies → rejections → stable costs → converged (false positive)
@@ -372,11 +422,21 @@ class ExperimentConfig:
 ### EvaluationConfig
 
 ```python
-@dataclass
+@dataclass(frozen=True)
 class EvaluationConfig:
     ticks: int
-    mode: str = "bootstrap"
+    mode: str = "bootstrap"  # "bootstrap", "deterministic", "deterministic-pairwise", "deterministic-temporal"
     num_samples: int | None = 10
+
+    # Helper properties
+    @property
+    def is_bootstrap(self) -> bool: ...
+    @property
+    def is_deterministic(self) -> bool: ...  # True for any deterministic mode
+    @property
+    def is_deterministic_pairwise(self) -> bool: ...  # True for "deterministic" or "deterministic-pairwise"
+    @property
+    def is_deterministic_temporal(self) -> bool: ...  # True for "deterministic-temporal"
 ```
 
 ### OutputConfig
@@ -409,7 +469,7 @@ except ValueError as e:
 - `name` must be non-empty
 - `scenario` path must be specified
 - `evaluation.ticks` must be positive
-- `evaluation.mode` must be `"bootstrap"` or `"deterministic"`
+- `evaluation.mode` must be one of: `"bootstrap"`, `"deterministic"`, `"deterministic-pairwise"`, `"deterministic-temporal"`
 - `convergence.max_iterations` must be positive
 - `llm.model` must be in `provider:model` format
 - `optimized_agents` must be non-empty list
@@ -438,4 +498,4 @@ payment-sim experiment validate experiments/exp1.yaml
 
 ---
 
-*Last updated: 2025-12-13*
+*Last updated: 2025-12-16*
