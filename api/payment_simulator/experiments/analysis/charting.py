@@ -31,7 +31,10 @@ from typing import Any
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-from payment_simulator.experiments.persistence import ExperimentRepository
+from payment_simulator.experiments.persistence import (
+    ExperimentRepository,
+    PolicyEvaluationRecord,
+)
 
 
 # Color palette for pleasant appearance
@@ -113,9 +116,8 @@ class ExperimentChartService:
     ) -> ChartData:
         """Extract chart data from experiment run.
 
-        Uses the experiment_iterations table (authoritative source for costs).
-        Policy acceptance is inferred from cost improvement since the
-        accepted_changes field has a known bug (always False).
+        Uses policy_evaluations table when available (actual costs),
+        falls back to experiment_iterations with inferred acceptance.
 
         Args:
             run_id: Experiment run ID.
@@ -138,7 +140,17 @@ class ExperimentChartService:
             "mode", "deterministic"
         )
 
-        # Extract data from iterations table (authoritative source)
+        # Try new data source first (policy_evaluations table)
+        if self._repo.has_policy_evaluations(run_id):
+            return self._extract_from_policy_evaluations(
+                run_id=run_id,
+                experiment=experiment,
+                evaluation_mode=evaluation_mode,
+                agent_filter=agent_filter,
+                parameter_name=parameter_name,
+            )
+
+        # Fall back to iterations table with inferred acceptance
         return self._extract_from_iterations_table(
             run_id=run_id,
             experiment=experiment,
@@ -227,6 +239,81 @@ class ExperimentChartService:
                     iteration=iter_num,
                     cost_dollars=cost_dollars,
                     accepted=accepted,
+                    parameter_value=parameter_value,
+                )
+            )
+
+        return ChartData(
+            run_id=run_id,
+            experiment_name=experiment.experiment_name,
+            evaluation_mode=evaluation_mode,
+            agent_id=agent_filter,
+            parameter_name=parameter_name,
+            data_points=data_points,
+        )
+
+    def _extract_from_policy_evaluations(
+        self,
+        run_id: str,
+        experiment: Any,
+        evaluation_mode: str,
+        agent_filter: str | None,
+        parameter_name: str | None,
+    ) -> ChartData:
+        """Extract chart data from policy_evaluations table.
+
+        Uses actual computed costs from policy evaluations (not estimates).
+        This is the preferred data source for new experiments.
+
+        Args:
+            run_id: Experiment run ID.
+            experiment: Experiment record.
+            evaluation_mode: "deterministic" or "bootstrap".
+            agent_filter: Optional agent ID to filter costs.
+            parameter_name: Optional parameter to extract.
+
+        Returns:
+            ChartData with data from policy_evaluations table.
+        """
+        if agent_filter:
+            evaluations = self._repo.get_policy_evaluations(run_id, agent_filter)
+        else:
+            evaluations = self._repo.get_all_policy_evaluations(run_id)
+
+        if not evaluations:
+            return ChartData(
+                run_id=run_id,
+                experiment_name=experiment.experiment_name,
+                evaluation_mode=evaluation_mode,
+                agent_id=agent_filter,
+                parameter_name=parameter_name,
+                data_points=[],
+            )
+
+        data_points: list[ChartDataPoint] = []
+
+        for eval_record in evaluations:
+            iter_num = eval_record.iteration + 1  # 1-indexed for display
+
+            # new_cost is the actual cost from evaluation
+            # - deterministic: cost from THE scenario (direct measurement)
+            # - bootstrap: mean cost across N samples (statistical estimate)
+            cost_cents = eval_record.new_cost
+            cost_dollars = cost_cents / 100.0
+
+            # Extract parameter value if requested
+            parameter_value: float | None = None
+            if parameter_name is not None:
+                parameter_value = self._extract_parameter(
+                    eval_record.proposed_policy,
+                    parameter_name,
+                )
+
+            data_points.append(
+                ChartDataPoint(
+                    iteration=iter_num,
+                    cost_dollars=cost_dollars,
+                    accepted=eval_record.accepted,
                     parameter_value=parameter_value,
                 )
             )

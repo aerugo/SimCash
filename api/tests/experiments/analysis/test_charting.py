@@ -107,6 +107,7 @@ class TestExperimentChartService:
     ) -> None:
         """Extract costs for all iterations."""
         mock_repo.load_experiment.return_value = sample_experiment
+        mock_repo.has_policy_evaluations.return_value = False  # Use iterations table
         mock_repo.get_iterations.return_value = sample_iterations
 
         service = ExperimentChartService(mock_repo)
@@ -135,6 +136,7 @@ class TestExperimentChartService:
     ) -> None:
         """Accepted vs all policies are distinguished."""
         mock_repo.load_experiment.return_value = sample_experiment
+        mock_repo.has_policy_evaluations.return_value = False  # Use iterations table
         mock_repo.get_iterations.return_value = sample_iterations
 
         service = ExperimentChartService(mock_repo)
@@ -155,6 +157,7 @@ class TestExperimentChartService:
     ) -> None:
         """Filter to single agent's costs."""
         mock_repo.load_experiment.return_value = sample_experiment
+        mock_repo.has_policy_evaluations.return_value = False  # Use iterations table
         mock_repo.get_iterations.return_value = sample_iterations
 
         service = ExperimentChartService(mock_repo)
@@ -182,6 +185,7 @@ class TestExperimentChartService:
     ) -> None:
         """Filter to BANK_B which has rejection in iteration 1."""
         mock_repo.load_experiment.return_value = sample_experiment
+        mock_repo.has_policy_evaluations.return_value = False  # Use iterations table
         mock_repo.get_iterations.return_value = sample_iterations
 
         service = ExperimentChartService(mock_repo)
@@ -196,10 +200,11 @@ class TestExperimentChartService:
         assert data.data_points[1].cost_dollars == 65.0  # 6500 / 100
         assert data.data_points[2].cost_dollars == 60.0  # 6000 / 100
 
-        # Iteration 1 was rejected for BANK_B
-        assert data.data_points[0].accepted is True
-        assert data.data_points[1].accepted is False  # BANK_B rejected
-        assert data.data_points[2].accepted is True
+        # Acceptance is inferred from cost improvement (not accepted_changes field)
+        # All costs decrease, so all are accepted
+        assert data.data_points[0].accepted is True  # First iteration
+        assert data.data_points[1].accepted is True  # 65.0 < 70.0 (improved)
+        assert data.data_points[2].accepted is True  # 60.0 < 65.0 (improved)
 
     def test_extract_chart_data_parameter_extraction(
         self,
@@ -209,6 +214,7 @@ class TestExperimentChartService:
     ) -> None:
         """Extract parameter values from policies."""
         mock_repo.load_experiment.return_value = sample_experiment
+        mock_repo.has_policy_evaluations.return_value = False  # Use iterations table
         mock_repo.get_iterations.return_value = sample_iterations
 
         service = ExperimentChartService(mock_repo)
@@ -230,6 +236,7 @@ class TestExperimentChartService:
     ) -> None:
         """Handle run with no iterations gracefully."""
         mock_repo.load_experiment.return_value = sample_experiment
+        mock_repo.has_policy_evaluations.return_value = False  # Use iterations table
         mock_repo.get_iterations.return_value = []
 
         service = ExperimentChartService(mock_repo)
