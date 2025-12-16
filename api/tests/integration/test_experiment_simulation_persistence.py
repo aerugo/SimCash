@@ -515,3 +515,252 @@ class TestPersistenceIdentity:
         # Common fields in dedicated columns
         assert result[6] == "BANK_A"  # agent_id
         assert result[7] == "tx_test"  # tx_id
+
+
+# =============================================================================
+# Config Format Tests - Verify replay-compatible format
+# =============================================================================
+
+
+class TestConfigFormatForReplay:
+    """Tests verifying stored config is in YAML format for replay compatibility.
+
+    Replay expects YAML-format config with 'agents' and 'simulation' keys.
+    NOT FFI-format config with 'agent_configs' and 'ticks_per_day' at root.
+    """
+
+    def test_config_has_agents_key_not_agent_configs(
+        self,
+        experiment_repository: ExperimentRepository,
+    ) -> None:
+        """Config should have 'agents' key (YAML format), not 'agent_configs' (FFI format)."""
+        provider = experiment_repository.get_simulation_persistence_provider(
+            ticks_per_day=100
+        )
+
+        # This is what the experiment runner CURRENTLY stores (FFI format - WRONG)
+        ffi_format_config = {
+            "agent_configs": [
+                {"id": "BANK_A", "opening_balance": 1000000},
+                {"id": "BANK_B", "opening_balance": 1000000},
+            ],
+            "ticks_per_day": 100,
+            "seed": 12345,
+        }
+
+        # This is what replay EXPECTS (YAML format - CORRECT)
+        yaml_format_config = {
+            "agents": [
+                {"id": "BANK_A", "opening_balance": 1000000},
+                {"id": "BANK_B", "opening_balance": 1000000},
+            ],
+            "simulation": {
+                "ticks_per_day": 100,
+                "num_days": 1,
+            },
+            "seed": 12345,
+        }
+
+        # Store the YAML format config (what should happen)
+        sim_id = "config-format-test"
+        provider.persist_simulation_start(
+            sim_id,
+            yaml_format_config,  # YAML format
+            experiment_run_id="exp-config-test",
+            experiment_iteration=0,
+        )
+
+        result = experiment_repository._conn.execute(
+            "SELECT config_json FROM simulations WHERE simulation_id = ?",
+            [sim_id],
+        ).fetchone()
+
+        assert result is not None
+        config = json.loads(result[0])
+
+        # Verify YAML format keys are present
+        assert "agents" in config, "Config should have 'agents' key (YAML format)"
+        assert (
+            "agent_configs" not in config
+        ), "Config should NOT have 'agent_configs' (FFI format)"
+
+    def test_config_has_simulation_key_not_root_ticks(
+        self,
+        experiment_repository: ExperimentRepository,
+    ) -> None:
+        """Config should have 'simulation' key with ticks_per_day, not ticks at root."""
+        provider = experiment_repository.get_simulation_persistence_provider(
+            ticks_per_day=100
+        )
+
+        yaml_format_config = {
+            "agents": [
+                {"id": "BANK_A", "opening_balance": 1000000},
+            ],
+            "simulation": {
+                "ticks_per_day": 100,
+                "num_days": 1,
+            },
+        }
+
+        sim_id = "simulation-key-test"
+        provider.persist_simulation_start(
+            sim_id,
+            yaml_format_config,
+            experiment_run_id="exp-sim-key-test",
+            experiment_iteration=0,
+        )
+
+        result = experiment_repository._conn.execute(
+            "SELECT config_json FROM simulations WHERE simulation_id = ?",
+            [sim_id],
+        ).fetchone()
+
+        assert result is not None
+        config = json.loads(result[0])
+
+        # Verify simulation key is present (YAML format)
+        assert (
+            "simulation" in config
+        ), "Config should have 'simulation' key (YAML format)"
+        assert (
+            config["simulation"]["ticks_per_day"] == 100
+        ), "ticks_per_day should be under 'simulation' key"
+
+
+# =============================================================================
+# End-to-End OptimizationLoop Config Format Test
+# =============================================================================
+
+
+class TestOptimizationLoopConfigFormat:
+    """Tests verifying OptimizationLoop stores scenario config, not FFI config.
+
+    This is the key test for fixing the replay config format issue.
+    The _run_simulation() method should store the original YAML scenario config,
+    NOT the converted FFI config.
+    """
+
+    def test_run_simulation_stores_scenario_config_format(
+        self,
+        experiment_repository: ExperimentRepository,
+        tmp_path: Path,
+    ) -> None:
+        """_run_simulation() should store scenario config (YAML format) not FFI config.
+
+        This test creates a minimal experiment setup and verifies the stored
+        config has the expected YAML format with 'agents' and 'simulation' keys.
+        """
+
+        # Create a minimal scenario config file (YAML format)
+        scenario_content = """
+simulation:
+  ticks_per_day: 2
+  num_days: 1
+  rng_seed: 12345
+  costs:
+    delay_per_tick: 1
+    delay_overdue_multiplier: 5
+    liquidity_per_tick: 1
+    deadline_penalty: 100
+    eod_penalty: 1000
+    split_fee: 10
+
+agents:
+  - id: BANK_A
+    opening_balance: 100000
+    credit_limit: 0
+  - id: BANK_B
+    opening_balance: 100000
+    credit_limit: 0
+
+transactions: []
+"""
+        scenario_path = tmp_path / "test_scenario.yaml"
+        scenario_path.write_text(scenario_content)
+
+        # Create minimal experiment config
+        from payment_simulator.experiments.config import ExperimentConfig
+
+        experiment_config_content = f"""
+name: config-format-test
+description: Test config format persistence
+scenario: {scenario_path}
+
+evaluation:
+  mode: deterministic
+  num_samples: 1
+  ticks: 2
+
+convergence:
+  max_iterations: 1
+  stability_threshold: 0.1
+  stability_window: 1
+
+llm:
+  model: "test:mock"
+  temperature: 0.0
+  max_retries: 1
+  timeout_seconds: 10
+
+optimized_agents:
+  - BANK_A
+
+output:
+  directory: results
+  database: test.db
+  verbose: false
+
+master_seed: 42
+"""
+        exp_config_path = tmp_path / "experiment.yaml"
+        exp_config_path.write_text(experiment_config_content)
+
+        # Load experiment config
+        exp_config = ExperimentConfig.from_yaml(exp_config_path)
+
+        # Create OptimizationLoop with repository
+        from payment_simulator.experiments.runner.optimization import OptimizationLoop
+
+        loop = OptimizationLoop(
+            config=exp_config,
+            config_dir=tmp_path,
+            repository=experiment_repository,
+            run_id="config-format-test-run",
+            persist_bootstrap=True,
+        )
+
+        # Run a single simulation with persist=True
+        result = loop._run_simulation(
+            seed=42,
+            purpose="config_format_test",
+            persist=True,
+            iteration=0,
+        )
+
+        # Query the stored config
+        stored = experiment_repository._conn.execute(
+            """
+            SELECT config_json FROM simulations
+            WHERE simulation_id = ?
+            """,
+            [result.simulation_id],
+        ).fetchone()
+
+        assert stored is not None, "Simulation should be persisted"
+        config = json.loads(stored[0])
+
+        # Verify YAML format (NOT FFI format)
+        assert "agents" in config, (
+            f"Config should have 'agents' key (YAML format), got keys: {list(config.keys())}"
+        )
+        assert "agent_configs" not in config, (
+            "Config should NOT have 'agent_configs' (FFI format)"
+        )
+        assert "simulation" in config, (
+            f"Config should have 'simulation' key (YAML format), got keys: {list(config.keys())}"
+        )
+        # ticks_per_day should be under 'simulation', not at root
+        assert config["simulation"]["ticks_per_day"] == 2, (
+            "ticks_per_day should be in simulation.ticks_per_day"
+        )
