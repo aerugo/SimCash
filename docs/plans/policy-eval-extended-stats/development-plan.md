@@ -87,14 +87,22 @@ PolicyEvaluationRecord (extended)
 
 5. **Compute CI at 95% level using t-distribution**: Standard statistical practice for sample sizes.
 
+## Test Matrix Reference
+
+See **`test-matrix.md`** for the complete 94-test matrix covering all combinations of:
+- Evaluation mode (deterministic vs bootstrap)
+- Metric type (settlement_rate, avg_delay, cost_breakdown, std_dev, CI)
+- Granularity (total vs per-agent)
+- Agent count (single vs multi-agent)
+
 ## Phase Overview
 
-| Phase | Description | TDD Focus | Estimated Tests |
-|-------|-------------|-----------|-----------------|
-| 1 | Extend `PolicyEvaluationRecord` and DB schema | Schema validation, round-trip persistence | 6 tests |
-| 2 | Capture metrics in `_run_single_simulation` and propagate | Metrics captured correctly | 8 tests |
-| 3 | Compute derived statistics (std dev, CI) | Statistical correctness | 5 tests |
-| 4 | Update persistence and queries | Data retrieval | 4 tests |
+| Phase | Description | TDD Focus | Tests (from matrix) |
+|-------|-------------|-----------|---------------------|
+| 1 | Extend `PolicyEvaluationRecord` and DB schema | Schema validation, round-trip persistence | 18 tests (PR-*) |
+| 2 | Capture metrics during evaluation | All mode × metric × granularity combinations | 56 tests (DT-*, DA-*, DM-*, BT-*, BA-*, BM-*) |
+| 3 | Compute derived statistics (std dev, CI) | Statistical correctness, edge cases | 12 tests (EC-*) |
+| 4 | Queries and cross-validation | End-to-end, cross-validation | 8 tests (CV-*) |
 
 ---
 
