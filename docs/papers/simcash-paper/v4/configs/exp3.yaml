@@ -14,7 +14,7 @@ scenario: ./exp3_joint.yaml
 # Evaluation settings
 # Use deterministic mode since the scenario has fixed payments
 evaluation:
-  mode: bootstrap
+  mode: deterministic-temporal
   num_samples: 50  # For statistical rigor
   ticks: 3
 
