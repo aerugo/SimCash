@@ -76,6 +76,61 @@ from payment_simulator.experiments.runner.verbose import (
 )
 
 
+# =============================================================================
+# Policy Evaluation Dataclasses
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class SampleEvaluationResult:
+    """Result of evaluating policy pair on a single sample.
+
+    All costs in integer cents (INV-1).
+
+    Attributes:
+        sample_index: Index of the sample within the evaluation batch.
+        seed: RNG seed used for this sample (for reproducibility).
+        old_cost: Actual cost with old policy.
+        new_cost: Actual cost with new policy.
+        delta: old_cost - new_cost (positive = improvement).
+    """
+
+    sample_index: int
+    seed: int
+    old_cost: int
+    new_cost: int
+    delta: int
+
+
+@dataclass(frozen=True)
+class PolicyPairEvaluation:
+    """Complete results from evaluating old vs new policy.
+
+    All costs in integer cents (INV-1).
+
+    Attributes:
+        sample_results: List of per-sample evaluation results.
+        delta_sum: Sum of deltas across samples.
+        mean_old_cost: Mean of old_cost across samples.
+        mean_new_cost: Mean of new_cost across samples.
+    """
+
+    sample_results: list[SampleEvaluationResult]
+    delta_sum: int
+    mean_old_cost: int
+    mean_new_cost: int
+
+    @property
+    def deltas(self) -> list[int]:
+        """List of deltas for backward compatibility."""
+        return [s.delta for s in self.sample_results]
+
+    @property
+    def num_samples(self) -> int:
+        """Number of samples in evaluation."""
+        return len(self.sample_results)
+
+
 def _generate_run_id(experiment_name: str) -> str:
     """Generate a unique run ID.
 
