@@ -24,7 +24,11 @@ class EvaluationConfig:
 
     Attributes:
         ticks: Number of simulation ticks per evaluation.
-        mode: Evaluation mode ('bootstrap' or 'deterministic').
+        mode: Evaluation mode. Valid values:
+            - 'bootstrap': N samples with different seeds, paired comparison
+            - 'deterministic': Alias for 'deterministic-pairwise' (backward compat)
+            - 'deterministic-pairwise': Same iteration, compare old vs new on same seed
+            - 'deterministic-temporal': Compare cost across iterations
         num_samples: Number of bootstrap samples (for bootstrap mode).
     """
 
@@ -32,11 +36,43 @@ class EvaluationConfig:
     mode: str = "bootstrap"
     num_samples: int | None = 10
 
+    # Valid evaluation modes
+    VALID_MODES: frozenset[str] = frozenset({
+        "bootstrap",
+        "deterministic",
+        "deterministic-pairwise",
+        "deterministic-temporal",
+    })
+
     def __post_init__(self) -> None:
         """Validate configuration."""
-        if self.mode not in ("bootstrap", "deterministic"):
-            msg = f"Invalid evaluation mode: {self.mode}"
+        if self.mode not in self.VALID_MODES:
+            msg = f"Invalid evaluation mode: {self.mode}. Valid modes: {sorted(self.VALID_MODES)}"
             raise ValueError(msg)
+
+    @property
+    def is_bootstrap(self) -> bool:
+        """Check if using bootstrap evaluation mode."""
+        return self.mode == "bootstrap"
+
+    @property
+    def is_deterministic(self) -> bool:
+        """Check if using any deterministic evaluation mode."""
+        return self.mode in ("deterministic", "deterministic-pairwise", "deterministic-temporal")
+
+    @property
+    def is_deterministic_pairwise(self) -> bool:
+        """Check if using deterministic-pairwise mode.
+
+        Note: Plain 'deterministic' is treated as 'deterministic-pairwise'
+        for backward compatibility.
+        """
+        return self.mode in ("deterministic", "deterministic-pairwise")
+
+    @property
+    def is_deterministic_temporal(self) -> bool:
+        """Check if using deterministic-temporal mode."""
+        return self.mode == "deterministic-temporal"
 
 
 @dataclass(frozen=True)

@@ -1,9 +1,9 @@
-# Bootstrap Policy Evaluation Methodology
+# Policy Evaluation Methodology
 
 > Statistical justification and design tradeoffs for the policy evaluation system
 
-**Version**: 1.0.0
-**Last Updated**: 2025-12-13
+**Version**: 1.1.0
+**Last Updated**: 2025-12-16
 
 ---
 
@@ -282,6 +282,61 @@ for sample in range(N):
 
 ---
 
+## Deterministic Evaluation Modes
+
+For scenarios with no random elements (fixed transaction arrivals), deterministic modes provide simpler, faster evaluation.
+
+### Deterministic-Pairwise
+
+The default deterministic mode compares old vs new policy on the **same seed within the same iteration**:
+
+```
+Iteration N:
+  seed = derive_iteration_seed(N, agent_id)
+
+  1. Run current policy with seed → cost_display (for LLM context)
+  2. LLM generates new_policy
+  3. Run old_policy with seed → old_cost
+  4. Run new_policy with same seed → new_cost
+  5. Accept if new_cost < old_cost
+```
+
+**Statistical Basis**: The pairing eliminates variance from seed differences. If `new_cost < old_cost` on the same seed, the new policy is unambiguously better for that scenario.
+
+**Cost**: 3 simulations per iteration (context + old + new evaluation).
+
+### Deterministic-Temporal
+
+Compares cost **across iterations** (also called "greedy hill climbing"):
+
+```
+Iteration N:
+  seed = derive_iteration_seed(N, agent_id)
+
+  1. Run current policy with seed → cost_N
+  2. First iteration: Always accept (no baseline)
+     Subsequent: Compare cost_N vs cost_{N-1}
+     - Accept if cost_N <= cost_{N-1}
+     - Reject if cost_N > cost_{N-1} → revert policy
+  3. If accepted, LLM generates new_policy for N+1
+```
+
+**Statistical Basis**: This mode assumes iteration seeds vary (different scenarios each iteration), so comparing across iterations provides variety. The policy must perform well on **new** scenarios, not just the old one.
+
+**Cost**: 1 simulation per iteration (more efficient).
+
+**Trade-off**: Temporal mode is faster but doesn't control for seed-to-seed variance. A policy might be rejected because iteration N happened to have a harder scenario than N-1, not because the policy is worse. For truly deterministic scenarios (no variance), this trade-off doesn't apply.
+
+### When to Use Each Mode
+
+| Mode | Best For | Simulations/Iteration |
+|------|----------|----------------------|
+| `bootstrap` | Stochastic scenarios, statistical rigor | N samples × 2 |
+| `deterministic-pairwise` | Deterministic scenarios, precise comparison | 3 |
+| `deterministic-temporal` | Deterministic scenarios, fast iteration | 1 |
+
+---
+
 ## Cost Calculation
 
 ### Integer Cents (INV-1)
@@ -389,4 +444,4 @@ ci_upper = sample_deltas[int(0.975 * N)]
 
 ---
 
-*Last updated: 2025-12-13*
+*Last updated: 2025-12-16*
