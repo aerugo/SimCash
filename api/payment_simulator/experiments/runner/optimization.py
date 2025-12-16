@@ -573,11 +573,54 @@ class OptimizationLoop:
             avg_delay = 0.0
 
         # 6. Persist if flag set
+        # INV-11: Use SimulationPersistenceProvider for unified persistence
         should_persist = persist if persist is not None else self._persist_bootstrap
         if self._repository and should_persist:
             from payment_simulator.experiments.persistence import EventRecord
 
-            event = EventRecord(
+            # Get ticks_per_day from FFI config (set by scenario config)
+            ticks_per_day = ffi_config.get("ticks_per_day", 100)
+
+            # Get SimulationPersistenceProvider from repository
+            sim_provider = self._repository.get_simulation_persistence_provider(
+                ticks_per_day=ticks_per_day
+            )
+
+            # 6a. Persist simulation start to simulations table
+            sim_provider.persist_simulation_start(
+                simulation_id=sim_id,
+                config=ffi_config,
+                experiment_run_id=self._run_id,
+                experiment_iteration=iteration,
+            )
+
+            # 6b. Persist all events to simulation_events table
+            # Group events by tick for proper persistence
+            events_by_tick: dict[int, list[dict[str, Any]]] = {}
+            for event in all_events:
+                tick = event.get("tick", 0)
+                if tick not in events_by_tick:
+                    events_by_tick[tick] = []
+                events_by_tick[tick].append(event)
+
+            # Persist events per tick
+            for tick, tick_events in sorted(events_by_tick.items()):
+                sim_provider.persist_tick_events(sim_id, tick, tick_events)
+
+            # 6c. Persist simulation complete with metrics
+            sim_provider.persist_simulation_complete(
+                simulation_id=sim_id,
+                metrics={
+                    "total_arrivals": metrics.get("total_arrivals", 0),
+                    "total_settlements": metrics.get("total_settlements", 0),
+                    "total_cost_cents": total_cost,
+                    "duration_seconds": 0.0,  # Duration not tracked in experiment runner
+                },
+            )
+
+            # 6d. Also save summary to experiment_events (WITHOUT full events array)
+            # This maintains backward compatibility with experiment replay
+            summary_event = EventRecord(
                 run_id=self._run_id,
                 iteration=iteration or 0,
                 event_type="simulation_run",
@@ -589,11 +632,11 @@ class OptimizationLoop:
                     "total_cost": total_cost,
                     "per_agent_costs": per_agent_costs,
                     "num_events": len(all_events),
-                    "events": all_events,  # Store full events for replay
+                    # Events now in simulation_events table, not here (INV-11)
                 },
                 timestamp=datetime.now().isoformat(),
             )
-            self._repository.save_event(event)
+            self._repository.save_event(summary_event)
 
         # 7. Return SimulationResult
         return SimulationResult(
