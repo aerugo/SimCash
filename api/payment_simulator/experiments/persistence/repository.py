@@ -125,6 +125,17 @@ class PolicyEvaluationRecord:
         sample_details: Bootstrap per-sample details (None for deterministic).
         scenario_seed: Seed for deterministic evaluation (None for bootstrap).
         timestamp: ISO timestamp.
+
+    Extended Statistics (all optional for backward compatibility):
+        settlement_rate: System-wide settlement rate (0.0 to 1.0).
+        avg_delay: System-wide average delay in ticks.
+        cost_breakdown: Total cost by type {delay_cost, overdraft_cost,
+            deadline_penalty, eod_penalty} in integer cents.
+        cost_std_dev: Standard deviation of costs in cents (bootstrap only).
+        confidence_interval_95: 95% CI bounds [lower, upper] in cents (bootstrap only).
+        agent_stats: Per-agent metrics keyed by agent_id. Each agent has:
+            cost, settlement_rate, avg_delay, cost_breakdown, and optionally
+            std_dev, ci_95_lower, ci_95_upper (bootstrap only).
     """
 
     run_id: str
@@ -142,6 +153,13 @@ class PolicyEvaluationRecord:
     sample_details: list[dict[str, Any]] | None
     scenario_seed: int | None
     timestamp: str
+    # Extended statistics (Phase 1: Extended Policy Evaluation Stats)
+    settlement_rate: float | None = None
+    avg_delay: float | None = None
+    cost_breakdown: dict[str, int] | None = None
+    cost_std_dev: int | None = None
+    confidence_interval_95: list[int] | None = None
+    agent_stats: dict[str, dict[str, Any]] | None = None
 
 
 # =============================================================================
@@ -245,6 +263,33 @@ class ExperimentRepository:
                 timestamp VARCHAR NOT NULL,
                 PRIMARY KEY (run_id, iteration, agent_id)
             )
+        """)
+
+        # Add extended statistics columns (Phase 1: Extended Policy Evaluation Stats)
+        # Using ALTER TABLE ADD COLUMN IF NOT EXISTS for backward compatibility
+        self._conn.execute("""
+            ALTER TABLE policy_evaluations
+            ADD COLUMN IF NOT EXISTS settlement_rate DOUBLE
+        """)
+        self._conn.execute("""
+            ALTER TABLE policy_evaluations
+            ADD COLUMN IF NOT EXISTS avg_delay DOUBLE
+        """)
+        self._conn.execute("""
+            ALTER TABLE policy_evaluations
+            ADD COLUMN IF NOT EXISTS cost_breakdown JSON
+        """)
+        self._conn.execute("""
+            ALTER TABLE policy_evaluations
+            ADD COLUMN IF NOT EXISTS cost_std_dev INTEGER
+        """)
+        self._conn.execute("""
+            ALTER TABLE policy_evaluations
+            ADD COLUMN IF NOT EXISTS confidence_interval_95 JSON
+        """)
+        self._conn.execute("""
+            ALTER TABLE policy_evaluations
+            ADD COLUMN IF NOT EXISTS agent_stats JSON
         """)
 
         # Create indexes for performance
@@ -569,6 +614,22 @@ class ExperimentRepository:
             if record.sample_details is not None
             else None
         )
+        # Extended stats JSON serialization
+        cost_breakdown_json = (
+            json.dumps(record.cost_breakdown)
+            if record.cost_breakdown is not None
+            else None
+        )
+        confidence_interval_json = (
+            json.dumps(record.confidence_interval_95)
+            if record.confidence_interval_95 is not None
+            else None
+        )
+        agent_stats_json = (
+            json.dumps(record.agent_stats)
+            if record.agent_stats is not None
+            else None
+        )
 
         # DuckDB INSERT with ON CONFLICT DO UPDATE for upsert
         self._conn.execute(
@@ -577,8 +638,10 @@ class ExperimentRepository:
                 run_id, iteration, agent_id, evaluation_mode,
                 proposed_policy, old_cost, new_cost, context_simulation_cost,
                 accepted, acceptance_reason, delta_sum, num_samples,
-                sample_details, scenario_seed, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sample_details, scenario_seed, timestamp,
+                settlement_rate, avg_delay, cost_breakdown,
+                cost_std_dev, confidence_interval_95, agent_stats
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (run_id, iteration, agent_id) DO UPDATE SET
                 evaluation_mode = EXCLUDED.evaluation_mode,
                 proposed_policy = EXCLUDED.proposed_policy,
@@ -591,7 +654,13 @@ class ExperimentRepository:
                 num_samples = EXCLUDED.num_samples,
                 sample_details = EXCLUDED.sample_details,
                 scenario_seed = EXCLUDED.scenario_seed,
-                timestamp = EXCLUDED.timestamp
+                timestamp = EXCLUDED.timestamp,
+                settlement_rate = EXCLUDED.settlement_rate,
+                avg_delay = EXCLUDED.avg_delay,
+                cost_breakdown = EXCLUDED.cost_breakdown,
+                cost_std_dev = EXCLUDED.cost_std_dev,
+                confidence_interval_95 = EXCLUDED.confidence_interval_95,
+                agent_stats = EXCLUDED.agent_stats
             """,
             [
                 record.run_id,
@@ -609,6 +678,12 @@ class ExperimentRepository:
                 sample_details_json,
                 record.scenario_seed,
                 record.timestamp,
+                record.settlement_rate,
+                record.avg_delay,
+                cost_breakdown_json,
+                record.cost_std_dev,
+                confidence_interval_json,
+                agent_stats_json,
             ],
         )
 
@@ -629,7 +704,9 @@ class ExperimentRepository:
             SELECT run_id, iteration, agent_id, evaluation_mode,
                    proposed_policy, old_cost, new_cost, context_simulation_cost,
                    accepted, acceptance_reason, delta_sum, num_samples,
-                   sample_details, scenario_seed, timestamp
+                   sample_details, scenario_seed, timestamp,
+                   settlement_rate, avg_delay, cost_breakdown,
+                   cost_std_dev, confidence_interval_95, agent_stats
             FROM policy_evaluations
             WHERE run_id = ? AND agent_id = ?
             ORDER BY iteration
@@ -655,7 +732,9 @@ class ExperimentRepository:
             SELECT run_id, iteration, agent_id, evaluation_mode,
                    proposed_policy, old_cost, new_cost, context_simulation_cost,
                    accepted, acceptance_reason, delta_sum, num_samples,
-                   sample_details, scenario_seed, timestamp
+                   sample_details, scenario_seed, timestamp,
+                   settlement_rate, avg_delay, cost_breakdown,
+                   cost_std_dev, confidence_interval_95, agent_stats
             FROM policy_evaluations
             WHERE run_id = ?
             ORDER BY iteration, agent_id
@@ -686,7 +765,11 @@ class ExperimentRepository:
     def _row_to_policy_evaluation_record(
         self, row: tuple[Any, ...]
     ) -> PolicyEvaluationRecord:
-        """Convert database row to PolicyEvaluationRecord."""
+        """Convert database row to PolicyEvaluationRecord.
+
+        Handles both old records (15 columns) and new records (21 columns)
+        for backward compatibility.
+        """
         proposed_policy = row[4]
         if isinstance(proposed_policy, str):
             proposed_policy = json.loads(proposed_policy)
@@ -694,6 +777,34 @@ class ExperimentRepository:
         sample_details = row[12]
         if sample_details is not None and isinstance(sample_details, str):
             sample_details = json.loads(sample_details)
+
+        # Extended stats (columns 15-20, may not exist in old records)
+        settlement_rate: float | None = None
+        avg_delay: float | None = None
+        cost_breakdown: dict[str, int] | None = None
+        cost_std_dev: int | None = None
+        confidence_interval_95: list[int] | None = None
+        agent_stats: dict[str, dict[str, Any]] | None = None
+
+        if len(row) > 15:
+            settlement_rate = row[15]
+            avg_delay = row[16]
+
+            cost_breakdown = row[17]
+            if cost_breakdown is not None and isinstance(cost_breakdown, str):
+                cost_breakdown = json.loads(cost_breakdown)
+
+            cost_std_dev = int(row[18]) if row[18] is not None else None
+
+            confidence_interval_95 = row[19]
+            if confidence_interval_95 is not None and isinstance(
+                confidence_interval_95, str
+            ):
+                confidence_interval_95 = json.loads(confidence_interval_95)
+
+            agent_stats = row[20]
+            if agent_stats is not None and isinstance(agent_stats, str):
+                agent_stats = json.loads(agent_stats)
 
         return PolicyEvaluationRecord(
             run_id=row[0],
@@ -711,6 +822,12 @@ class ExperimentRepository:
             sample_details=sample_details,
             scenario_seed=row[13],
             timestamp=row[14],
+            settlement_rate=settlement_rate,
+            avg_delay=avg_delay,
+            cost_breakdown=cost_breakdown,
+            cost_std_dev=cost_std_dev,
+            confidence_interval_95=confidence_interval_95,
+            agent_stats=agent_stats,
         )
 
     # =========================================================================

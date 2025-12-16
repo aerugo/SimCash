@@ -1676,3 +1676,979 @@ class TestPolicyEvaluationEndToEnd:
                 assert len(agent_evals) == 1
                 assert agent_evals[0].agent_id == agent_id
                 assert agent_evals[0].old_cost == 10000 + i * 1000
+
+
+# =============================================================================
+# Phase 1: Extended Policy Evaluation Stats - Schema Tests
+# =============================================================================
+
+
+class TestPolicyEvaluationExtendedStatsSchema:
+    """Tests for extended policy evaluation statistics schema (PR-01 to PR-08)."""
+
+    def test_policy_evaluation_record_has_extended_stats_fields(self) -> None:
+        """PolicyEvaluationRecord should have all 6 extended stats fields."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        # Verify fields exist by creating record with all fields
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="bootstrap",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=50,
+            sample_details=None,
+            scenario_seed=None,
+            timestamp="2025-12-16T10:00:00",
+            # Extended stats - all 6 fields
+            settlement_rate=0.95,
+            avg_delay=5.2,
+            cost_breakdown={
+                "delay_cost": 3000,
+                "overdraft_cost": 5000,
+                "deadline_penalty": 0,
+                "eod_penalty": 0,
+            },
+            cost_std_dev=500,
+            confidence_interval_95=[7800, 8200],
+            agent_stats={
+                "BANK_A": {
+                    "cost": 8000,
+                    "settlement_rate": 0.95,
+                    "avg_delay": 5.2,
+                    "cost_breakdown": {
+                        "delay_cost": 3000,
+                        "overdraft_cost": 5000,
+                        "deadline_penalty": 0,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": 450,
+                    "ci_95_lower": 7100,
+                    "ci_95_upper": 8900,
+                }
+            },
+        )
+
+        # Verify all 6 extended fields exist and have correct values
+        assert record.settlement_rate == 0.95
+        assert record.avg_delay == 5.2
+        assert record.cost_breakdown is not None
+        assert record.cost_std_dev == 500
+        assert record.confidence_interval_95 == [7800, 8200]
+        assert record.agent_stats is not None
+
+    def test_settlement_rate_type_is_float(self) -> None:
+        """settlement_rate should be float type."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            settlement_rate=0.95,
+        )
+
+        assert isinstance(record.settlement_rate, float)
+        assert 0.0 <= record.settlement_rate <= 1.0
+
+    def test_avg_delay_type_is_float(self) -> None:
+        """avg_delay should be float type."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            avg_delay=5.2,
+        )
+
+        assert isinstance(record.avg_delay, float)
+        assert record.avg_delay >= 0.0
+
+    def test_cost_breakdown_type_is_dict(self) -> None:
+        """cost_breakdown should be dict type with int values."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        breakdown = {
+            "delay_cost": 3000,
+            "overdraft_cost": 5000,
+            "deadline_penalty": 0,
+            "eod_penalty": 0,
+        }
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            cost_breakdown=breakdown,
+        )
+
+        assert isinstance(record.cost_breakdown, dict)
+        assert "delay_cost" in record.cost_breakdown
+        assert "overdraft_cost" in record.cost_breakdown
+        assert "deadline_penalty" in record.cost_breakdown
+        assert "eod_penalty" in record.cost_breakdown
+
+    def test_cost_std_dev_type_is_int_or_none(self) -> None:
+        """cost_std_dev should be int (bootstrap) or None (deterministic)."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        # Bootstrap mode - should have std_dev
+        record_bootstrap = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="bootstrap",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=50,
+            sample_details=None,
+            scenario_seed=None,
+            timestamp="2025-12-16T10:00:00",
+            cost_std_dev=500,
+        )
+
+        assert isinstance(record_bootstrap.cost_std_dev, int)
+        assert record_bootstrap.cost_std_dev >= 0
+
+        # Deterministic mode - should be None
+        record_det = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            cost_std_dev=None,
+        )
+
+        assert record_det.cost_std_dev is None
+
+    def test_confidence_interval_type_is_list_or_none(self) -> None:
+        """confidence_interval_95 should be list[int] (bootstrap) or None."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        # Bootstrap mode - should have CI
+        record_bootstrap = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="bootstrap",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=50,
+            sample_details=None,
+            scenario_seed=None,
+            timestamp="2025-12-16T10:00:00",
+            confidence_interval_95=[7800, 8200],
+        )
+
+        assert isinstance(record_bootstrap.confidence_interval_95, list)
+        assert len(record_bootstrap.confidence_interval_95) == 2
+        assert all(isinstance(v, int) for v in record_bootstrap.confidence_interval_95)
+
+        # Deterministic mode - should be None
+        record_det = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            confidence_interval_95=None,
+        )
+
+        assert record_det.confidence_interval_95 is None
+
+    def test_agent_stats_type_is_dict(self) -> None:
+        """agent_stats should be dict of dicts."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        agent_stats = {
+            "BANK_A": {
+                "cost": 8000,
+                "settlement_rate": 0.95,
+                "avg_delay": 5.2,
+                "cost_breakdown": {
+                    "delay_cost": 3000,
+                    "overdraft_cost": 5000,
+                    "deadline_penalty": 0,
+                    "eod_penalty": 0,
+                },
+            }
+        }
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            agent_stats=agent_stats,
+        )
+
+        assert isinstance(record.agent_stats, dict)
+        assert "BANK_A" in record.agent_stats
+        assert isinstance(record.agent_stats["BANK_A"], dict)
+
+
+class TestPolicyEvaluationExtendedStatsRoundTrip:
+    """Round-trip persistence tests for extended stats (PR-01 through PR-08)."""
+
+    @pytest.fixture
+    def repo_with_experiment(self, tmp_path: Path) -> Any:
+        """Create repository with a test experiment."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+        )
+
+        db_path = tmp_path / "test_extended_stats.db"
+        repository = ExperimentRepository(db_path)
+
+        record = ExperimentRecord(
+            run_id="test-run",
+            experiment_name="test",
+            experiment_type="castro",
+            config={"evaluation": {"mode": "deterministic"}},
+            created_at="2025-12-16T10:00:00",
+            completed_at=None,
+            num_iterations=0,
+            converged=False,
+            convergence_reason=None,
+        )
+        repository.save_experiment(record)
+
+        yield repository
+        repository.close()
+
+    def test_roundtrip_deterministic_single_agent(
+        self, repo_with_experiment: Any
+    ) -> None:
+        """PR-01: Deterministic single-agent record survives round-trip."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            # Deterministic mode: std_dev and CI should be None
+            settlement_rate=0.95,
+            avg_delay=5.2,
+            cost_breakdown={
+                "delay_cost": 3000,
+                "overdraft_cost": 4500,
+                "deadline_penalty": 500,
+                "eod_penalty": 0,
+            },
+            cost_std_dev=None,
+            confidence_interval_95=None,
+            agent_stats={
+                "BANK_A": {
+                    "cost": 8000,
+                    "settlement_rate": 0.95,
+                    "avg_delay": 5.2,
+                    "cost_breakdown": {
+                        "delay_cost": 3000,
+                        "overdraft_cost": 4500,
+                        "deadline_penalty": 500,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": None,
+                    "ci_95_lower": None,
+                    "ci_95_upper": None,
+                }
+            },
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # Verify ALL extended stats fields
+        assert loaded.settlement_rate == 0.95
+        assert loaded.avg_delay == 5.2
+        assert loaded.cost_breakdown == {
+            "delay_cost": 3000,
+            "overdraft_cost": 4500,
+            "deadline_penalty": 500,
+            "eod_penalty": 0,
+        }
+        assert loaded.cost_std_dev is None
+        assert loaded.confidence_interval_95 is None
+        assert loaded.agent_stats["BANK_A"]["cost"] == 8000
+        assert loaded.agent_stats["BANK_A"]["settlement_rate"] == 0.95
+        assert loaded.agent_stats["BANK_A"]["std_dev"] is None
+
+    def test_roundtrip_deterministic_multi_agent(
+        self, repo_with_experiment: Any
+    ) -> None:
+        """PR-02: Deterministic multi-agent record survives round-trip."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",  # Primary agent being optimized
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            settlement_rate=0.93,
+            avg_delay=4.8,
+            cost_breakdown={
+                "delay_cost": 5000,
+                "overdraft_cost": 8000,
+                "deadline_penalty": 1000,
+                "eod_penalty": 0,
+            },
+            cost_std_dev=None,
+            confidence_interval_95=None,
+            # Multi-agent: stats for all 3 agents
+            agent_stats={
+                "BANK_A": {
+                    "cost": 8000,
+                    "settlement_rate": 0.95,
+                    "avg_delay": 5.2,
+                    "cost_breakdown": {
+                        "delay_cost": 3000,
+                        "overdraft_cost": 4500,
+                        "deadline_penalty": 500,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": None,
+                    "ci_95_lower": None,
+                    "ci_95_upper": None,
+                },
+                "BANK_B": {
+                    "cost": 7500,
+                    "settlement_rate": 0.92,
+                    "avg_delay": 4.5,
+                    "cost_breakdown": {
+                        "delay_cost": 2000,
+                        "overdraft_cost": 5000,
+                        "deadline_penalty": 500,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": None,
+                    "ci_95_lower": None,
+                    "ci_95_upper": None,
+                },
+                "BANK_C": {
+                    "cost": 6000,
+                    "settlement_rate": 0.91,
+                    "avg_delay": 4.2,
+                    "cost_breakdown": {
+                        "delay_cost": 1500,
+                        "overdraft_cost": 4000,
+                        "deadline_penalty": 500,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": None,
+                    "ci_95_lower": None,
+                    "ci_95_upper": None,
+                },
+            },
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # Verify all 3 agents present
+        assert len(loaded.agent_stats) == 3
+        assert "BANK_A" in loaded.agent_stats
+        assert "BANK_B" in loaded.agent_stats
+        assert "BANK_C" in loaded.agent_stats
+
+        # Verify each agent has all required fields
+        for agent_id in ["BANK_A", "BANK_B", "BANK_C"]:
+            agent = loaded.agent_stats[agent_id]
+            assert "cost" in agent
+            assert "settlement_rate" in agent
+            assert "avg_delay" in agent
+            assert "cost_breakdown" in agent
+            assert isinstance(agent["cost"], int)
+            assert isinstance(agent["settlement_rate"], float)
+
+    def test_roundtrip_bootstrap_single_agent(self, repo_with_experiment: Any) -> None:
+        """PR-03: Bootstrap single-agent record with std_dev and CI survives."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="bootstrap",
+            proposed_policy={"type": "LiquidityAware", "threshold": 50000},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=100000,  # Sum across 50 samples
+            num_samples=50,
+            sample_details=[
+                {
+                    "index": 0,
+                    "seed": 111,
+                    "old_cost": 10000,
+                    "new_cost": 8000,
+                    "delta": 2000,
+                }
+            ],
+            scenario_seed=None,
+            timestamp="2025-12-16T10:00:00",
+            # Bootstrap mode: std_dev and CI present
+            settlement_rate=0.94,
+            avg_delay=5.0,
+            cost_breakdown={
+                "delay_cost": 3500,
+                "overdraft_cost": 4000,
+                "deadline_penalty": 500,
+                "eod_penalty": 0,
+            },
+            cost_std_dev=450,
+            confidence_interval_95=[7100, 8900],
+            agent_stats={
+                "BANK_A": {
+                    "cost": 8000,
+                    "settlement_rate": 0.94,
+                    "avg_delay": 5.0,
+                    "cost_breakdown": {
+                        "delay_cost": 3500,
+                        "overdraft_cost": 4000,
+                        "deadline_penalty": 500,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": 450,
+                    "ci_95_lower": 7100,
+                    "ci_95_upper": 8900,
+                }
+            },
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # Verify bootstrap-specific fields
+        assert loaded.cost_std_dev == 450
+        assert loaded.confidence_interval_95 == [7100, 8900]
+        assert loaded.agent_stats["BANK_A"]["std_dev"] == 450
+        assert loaded.agent_stats["BANK_A"]["ci_95_lower"] == 7100
+        assert loaded.agent_stats["BANK_A"]["ci_95_upper"] == 8900
+
+    def test_roundtrip_bootstrap_multi_agent(self, repo_with_experiment: Any) -> None:
+        """PR-04: Bootstrap multi-agent record with all agents having std_dev/CI."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="bootstrap",
+            proposed_policy={"type": "LiquidityAware", "threshold": 50000},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=100000,
+            num_samples=50,
+            sample_details=None,
+            scenario_seed=None,
+            timestamp="2025-12-16T10:00:00",
+            settlement_rate=0.93,
+            avg_delay=4.8,
+            cost_breakdown={
+                "delay_cost": 5000,
+                "overdraft_cost": 8000,
+                "deadline_penalty": 1000,
+                "eod_penalty": 0,
+            },
+            cost_std_dev=600,
+            confidence_interval_95=[7200, 8800],
+            # Multi-agent bootstrap: all agents have std_dev and CI
+            agent_stats={
+                "BANK_A": {
+                    "cost": 8000,
+                    "settlement_rate": 0.95,
+                    "avg_delay": 5.2,
+                    "cost_breakdown": {
+                        "delay_cost": 3000,
+                        "overdraft_cost": 4500,
+                        "deadline_penalty": 500,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": 450,
+                    "ci_95_lower": 7100,
+                    "ci_95_upper": 8900,
+                },
+                "BANK_B": {
+                    "cost": 7500,
+                    "settlement_rate": 0.92,
+                    "avg_delay": 4.5,
+                    "cost_breakdown": {
+                        "delay_cost": 2000,
+                        "overdraft_cost": 5000,
+                        "deadline_penalty": 500,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": 380,
+                    "ci_95_lower": 6800,
+                    "ci_95_upper": 8200,
+                },
+                "BANK_C": {
+                    "cost": 6000,
+                    "settlement_rate": 0.91,
+                    "avg_delay": 4.2,
+                    "cost_breakdown": {
+                        "delay_cost": 1500,
+                        "overdraft_cost": 4000,
+                        "deadline_penalty": 500,
+                        "eod_penalty": 0,
+                    },
+                    "std_dev": 320,
+                    "ci_95_lower": 5400,
+                    "ci_95_upper": 6600,
+                },
+            },
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # Verify all 3 agents have bootstrap stats
+        assert len(loaded.agent_stats) == 3
+        for agent_id in ["BANK_A", "BANK_B", "BANK_C"]:
+            agent = loaded.agent_stats[agent_id]
+            assert agent["std_dev"] is not None, f"{agent_id} missing std_dev"
+            assert agent["ci_95_lower"] is not None, f"{agent_id} missing ci_95_lower"
+            assert agent["ci_95_upper"] is not None, f"{agent_id} missing ci_95_upper"
+            assert isinstance(agent["std_dev"], int)
+            assert isinstance(agent["ci_95_lower"], int)
+            assert isinstance(agent["ci_95_upper"], int)
+
+    def test_roundtrip_cost_breakdown_all_components(
+        self, repo_with_experiment: Any
+    ) -> None:
+        """PR-05: cost_breakdown with all 4 components preserved exactly."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        expected_breakdown = {
+            "delay_cost": 3000,
+            "overdraft_cost": 5000,
+            "deadline_penalty": 1500,
+            "eod_penalty": 500,
+        }
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=10000,
+            context_simulation_cost=10000,
+            accepted=False,
+            acceptance_reason="cost_not_improved",
+            delta_sum=0,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            settlement_rate=0.90,
+            avg_delay=6.0,
+            cost_breakdown=expected_breakdown,
+            cost_std_dev=None,
+            confidence_interval_95=None,
+            agent_stats={"BANK_A": {"cost": 10000}},
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # Verify all 4 components exactly
+        assert loaded.cost_breakdown["delay_cost"] == 3000
+        assert loaded.cost_breakdown["overdraft_cost"] == 5000
+        assert loaded.cost_breakdown["deadline_penalty"] == 1500
+        assert loaded.cost_breakdown["eod_penalty"] == 500
+        assert sum(loaded.cost_breakdown.values()) == 10000
+
+    def test_roundtrip_agent_stats_nested_cost_breakdown(
+        self, repo_with_experiment: Any
+    ) -> None:
+        """PR-06: Nested cost_breakdown within agent_stats preserved."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        agent_breakdown = {
+            "delay_cost": 1500,
+            "overdraft_cost": 2500,
+            "deadline_penalty": 750,
+            "eod_penalty": 250,
+        }
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=5000,
+            new_cost=5000,
+            context_simulation_cost=5000,
+            accepted=False,
+            acceptance_reason="cost_not_improved",
+            delta_sum=0,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            settlement_rate=0.92,
+            avg_delay=5.5,
+            cost_breakdown=agent_breakdown,
+            cost_std_dev=None,
+            confidence_interval_95=None,
+            agent_stats={
+                "BANK_A": {
+                    "cost": 5000,
+                    "settlement_rate": 0.92,
+                    "avg_delay": 5.5,
+                    "cost_breakdown": agent_breakdown,  # Nested!
+                }
+            },
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # Verify nested cost_breakdown
+        nested = loaded.agent_stats["BANK_A"]["cost_breakdown"]
+        assert nested["delay_cost"] == 1500
+        assert nested["overdraft_cost"] == 2500
+        assert nested["deadline_penalty"] == 750
+        assert nested["eod_penalty"] == 250
+
+    def test_roundtrip_null_values_preserved(self, repo_with_experiment: Any) -> None:
+        """PR-07: None values stored and retrieved as None."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            settlement_rate=0.95,
+            avg_delay=5.2,
+            cost_breakdown={
+                "delay_cost": 8000,
+                "overdraft_cost": 0,
+                "deadline_penalty": 0,
+                "eod_penalty": 0,
+            },
+            cost_std_dev=None,  # Explicitly None
+            confidence_interval_95=None,  # Explicitly None
+            agent_stats={
+                "BANK_A": {
+                    "cost": 8000,
+                    "std_dev": None,  # Explicitly None
+                    "ci_95_lower": None,
+                    "ci_95_upper": None,
+                }
+            },
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # Verify None is preserved (not 0, not empty string)
+        assert loaded.cost_std_dev is None
+        assert loaded.confidence_interval_95 is None
+        assert loaded.agent_stats["BANK_A"]["std_dev"] is None
+        assert loaded.agent_stats["BANK_A"]["ci_95_lower"] is None
+
+    def test_roundtrip_empty_agent_stats(self, repo_with_experiment: Any) -> None:
+        """PR-08: Empty agent_stats dict stored and retrieved correctly."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            settlement_rate=0.95,
+            avg_delay=5.2,
+            cost_breakdown={
+                "delay_cost": 8000,
+                "overdraft_cost": 0,
+                "deadline_penalty": 0,
+                "eod_penalty": 0,
+            },
+            cost_std_dev=None,
+            confidence_interval_95=None,
+            agent_stats={},  # Empty dict
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # Verify empty dict is preserved
+        assert loaded.agent_stats == {}
+
+
+class TestPolicyEvaluationBackwardCompatibility:
+    """Tests for backward compatibility with records without extended stats."""
+
+    @pytest.fixture
+    def repo_with_experiment(self, tmp_path: Path) -> Any:
+        """Create repository with a test experiment."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+        )
+
+        db_path = tmp_path / "test_backward_compat.db"
+        repository = ExperimentRepository(db_path)
+
+        record = ExperimentRecord(
+            run_id="test-run",
+            experiment_name="test",
+            experiment_type="castro",
+            config={"evaluation": {"mode": "deterministic"}},
+            created_at="2025-12-16T10:00:00",
+            completed_at=None,
+            num_iterations=0,
+            converged=False,
+            convergence_reason=None,
+        )
+        repository.save_experiment(record)
+
+        yield repository
+        repository.close()
+
+    def test_load_record_without_extended_stats(
+        self, repo_with_experiment: Any
+    ) -> None:
+        """Old records should load with extended stats as None."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        # Save a record without extended stats (using defaults)
+        record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+            # Extended stats all default to None
+        )
+
+        repo_with_experiment.save_policy_evaluation(record)
+        loaded = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")[0]
+
+        # All extended stats should be None
+        assert loaded.settlement_rate is None
+        assert loaded.avg_delay is None
+        assert loaded.cost_breakdown is None
+        assert loaded.cost_std_dev is None
+        assert loaded.confidence_interval_95 is None
+        assert loaded.agent_stats is None
+
+    def test_mixed_records_old_and_new(self, repo_with_experiment: Any) -> None:
+        """Database can hold both old (no extended stats) and new records."""
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        # Save old record (no extended stats)
+        old_record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=0,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=10000,
+            new_cost=8000,
+            context_simulation_cost=9500,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=2000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12345,
+            timestamp="2025-12-16T10:00:00",
+        )
+        repo_with_experiment.save_policy_evaluation(old_record)
+
+        # Save new record (with extended stats)
+        new_record = PolicyEvaluationRecord(
+            run_id="test-run",
+            iteration=1,
+            agent_id="BANK_A",
+            evaluation_mode="deterministic",
+            proposed_policy={"type": "Fifo"},
+            old_cost=8000,
+            new_cost=7000,
+            context_simulation_cost=8000,
+            accepted=True,
+            acceptance_reason="cost_improved",
+            delta_sum=1000,
+            num_samples=1,
+            sample_details=None,
+            scenario_seed=12346,
+            timestamp="2025-12-16T10:01:00",
+            settlement_rate=0.96,
+            avg_delay=4.5,
+            cost_breakdown={
+                "delay_cost": 2000,
+                "overdraft_cost": 5000,
+                "deadline_penalty": 0,
+                "eod_penalty": 0,
+            },
+            cost_std_dev=None,
+            confidence_interval_95=None,
+            agent_stats={"BANK_A": {"cost": 7000}},
+        )
+        repo_with_experiment.save_policy_evaluation(new_record)
+
+        # Load both records
+        records = repo_with_experiment.get_policy_evaluations("test-run", "BANK_A")
+        assert len(records) == 2
+
+        # Old record (iteration 0) has no extended stats
+        assert records[0].settlement_rate is None
+        assert records[0].agent_stats is None
+
+        # New record (iteration 1) has extended stats
+        assert records[1].settlement_rate == 0.96
+        assert records[1].agent_stats is not None
+        assert records[1].agent_stats["BANK_A"]["cost"] == 7000
