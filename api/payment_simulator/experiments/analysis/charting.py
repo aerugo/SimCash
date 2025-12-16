@@ -172,9 +172,12 @@ class ExperimentChartService:
         Uses the authoritative cost data from the database. Policy acceptance
         is inferred from cost improvement since accepted_changes has a bug.
 
+        Iteration 0 represents the baseline (default policy cost).
+        Subsequent iterations show the cost after each optimization round.
+
         A policy is considered "accepted" if:
         - It's the first iteration (no previous policy to compare)
-        - The cost improved (decreased) or stayed the same compared to previous
+        - The cost improved (decreased) compared to previous
 
         Args:
             run_id: Experiment run ID.
@@ -202,7 +205,8 @@ class ExperimentChartService:
         previous_cost: float | None = None
 
         for iteration in iterations:
-            iter_num = iteration.iteration + 1  # 1-indexed for display
+            # Use iteration number directly (0-indexed) so iteration 0 = baseline
+            iter_num = iteration.iteration
 
             # Calculate cost
             if agent_filter is not None:
@@ -216,7 +220,7 @@ class ExperimentChartService:
             # First iteration is always "accepted" (it's the baseline)
             # Subsequent iterations are accepted only if cost strictly improved
             if previous_cost is None:
-                accepted = True  # First iteration
+                accepted = True  # First iteration (baseline)
             else:
                 # Accepted only if cost improved (decreased)
                 # Same cost = rejected (no improvement)
@@ -265,6 +269,10 @@ class ExperimentChartService:
         Uses actual computed costs from policy evaluations (not estimates).
         This is the preferred data source for new experiments.
 
+        Includes iteration 0 (baseline) showing the default policy cost
+        before any LLM optimization, extracted from old_cost of the first
+        evaluation.
+
         Args:
             run_id: Experiment run ID.
             experiment: Experiment record.
@@ -291,6 +299,21 @@ class ExperimentChartService:
             )
 
         data_points: list[ChartDataPoint] = []
+
+        # Add iteration 0 (baseline) - the default policy cost before any changes
+        # Use old_cost from the first evaluation, which is the baseline cost
+        first_eval = evaluations[0]
+        baseline_cost_dollars = first_eval.old_cost / 100.0
+        # Default parameter value is 0.5 (50% initial_liquidity_fraction)
+        baseline_param = 0.5 if parameter_name else None
+        data_points.append(
+            ChartDataPoint(
+                iteration=0,
+                cost_dollars=baseline_cost_dollars,
+                accepted=True,  # Baseline is always "accepted" as starting point
+                parameter_value=baseline_param,
+            )
+        )
 
         for eval_record in evaluations:
             iter_num = eval_record.iteration + 1  # 1-indexed for display

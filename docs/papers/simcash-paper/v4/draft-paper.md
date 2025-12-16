@@ -437,6 +437,8 @@ Complete experiment configurations (used for all passes):
 
 The following tables show the per-agent cost at each iteration for all experiments across all passes. Costs represent the current policy cost (in USD) at the start of each iteration.
 
+**Note:** Iteration 1 shows the baseline cost with the default policy (50% initial_liquidity_fraction) before any LLM optimization. Subsequent iterations show the cost after each optimization round. This corresponds to "Iteration 0" in the convergence charts, which now include the baseline as the first data point.
+
 #### G.1 Experiment 1: 2-Period Deterministic Nash Equilibrium
 
 **Pass 1** (7 iterations, converged to BANK_A=0%, BANK_B=20%)
