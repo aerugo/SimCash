@@ -118,10 +118,10 @@ class TestExperimentChartService:
         assert data.evaluation_mode == "deterministic"
         assert len(data.data_points) == 3
 
-        # Check iteration numbers are 1-indexed
-        assert data.data_points[0].iteration == 1
-        assert data.data_points[1].iteration == 2
-        assert data.data_points[2].iteration == 3
+        # Check iteration numbers are 0-indexed (iteration 0 = baseline)
+        assert data.data_points[0].iteration == 0
+        assert data.data_points[1].iteration == 1
+        assert data.data_points[2].iteration == 2
 
         # Check costs converted to dollars (system total)
         assert data.data_points[0].cost_dollars == 150.0  # (8000 + 7000) / 100
