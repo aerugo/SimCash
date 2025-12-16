@@ -205,6 +205,30 @@ Write the paper in `docs/papers/simcash-paper/v4/draft-paper.md`.
 7. Discussion and conclusion
 8. Appendices (policy evolution, supplementary charts)
 
+**v4 Enhancements - Recommended Metrics to Add**:
+
+1. **Experiment 2 Results Table Enhancement**:
+   Add 95% confidence intervals column to demonstrate statistical rigor:
+   ```markdown
+   | Agent | Pass 1 | Pass 2 | Pass 3 | Mean | 95% CI | Castro |
+   |-------|--------|--------|--------|------|--------|--------|
+   | BANK_A | 17% | 14% | 9.9% | 13.6% | [X%, Y%] | 10-30% |
+   | BANK_B | 13% | 12.5% | 11.5% | 12.3% | [X%, Y%] | 10-30% |
+   ```
+
+2. **Settlement Rate Summary** (new subsection in Results):
+   A brief paragraph noting that final policies maintain high settlement rates (>95%),
+   demonstrating the optimization finds efficient equilibria rather than degenerating.
+
+3. **Cost Attribution Insight** (optional, in Discussion):
+   Briefly note that BANK_A at 0% accepts delay costs while BANK_B at 20% accepts
+   liquidity costs - this illuminates the equilibrium structure.
+
+**Do NOT add**:
+- Detailed per-sample bootstrap tables
+- Full queue statistics or detailed delays
+- LLM performance metrics (tokens, latency)
+
 **Chart references in paper**:
 
 Use relative paths from the paper location:
@@ -308,6 +332,125 @@ payment-sim experiment replay <run-id> --db <path/to/db> --audit --start 3 --end
 
 ---
 
+### Phase 4.5: Extended Metrics Extraction (New in v4)
+
+Recent infrastructure improvements enable additional metrics that strengthen the paper's statistical rigor. Extract these selectively—don't overload the paper.
+
+#### Recommended Metrics to Include
+
+**1. 95% Confidence Intervals (exp2 only)**
+
+Bootstrap evaluation now persists confidence intervals. Query them for the final iteration:
+
+```bash
+cd api
+# Use Python to extract from database
+.venv/bin/python -c "
+import duckdb
+db = duckdb.connect('../docs/papers/simcash-paper/v4/pass_1/experiments.db')
+result = db.execute('''
+    SELECT agent_id, confidence_interval_95
+    FROM policy_evaluations
+    WHERE run_id = 'EXP2_RUN_ID'
+    ORDER BY iteration DESC
+    LIMIT 2
+''').fetchall()
+print(result)
+"
+```
+
+Add to exp2 results table:
+| Agent | Final Value | 95% CI |
+|-------|-------------|--------|
+| BANK_A | 14% | [12.3%, 15.7%] |
+| BANK_B | 12.5% | [11.8%, 13.2%] |
+
+**2. Settlement Rate at Convergence**
+
+Shows policies maintain system functionality while optimizing costs:
+
+```bash
+# Query from policy_evaluations for final iteration
+.venv/bin/python -c "
+import duckdb
+db = duckdb.connect('../docs/papers/simcash-paper/v4/pass_1/experiments.db')
+result = db.execute('''
+    SELECT run_id, agent_id, settlement_rate
+    FROM policy_evaluations
+    WHERE iteration = (SELECT MAX(iteration) FROM policy_evaluations WHERE run_id = pe.run_id)
+    GROUP BY run_id, agent_id
+''').fetchall()
+for r in result:
+    print(f'{r[0]}: {r[1]} = {r[2]:.1%}')
+"
+```
+
+**3. Cost Breakdown Analysis (Optional)**
+
+For exp1 final policies, show what drives costs:
+
+```bash
+.venv/bin/python -c "
+import duckdb
+import json
+db = duckdb.connect('../docs/papers/simcash-paper/v4/pass_1/experiments.db')
+result = db.execute('''
+    SELECT agent_id, cost_breakdown
+    FROM policy_evaluations
+    WHERE run_id = 'EXP1_RUN_ID'
+    ORDER BY iteration DESC
+    LIMIT 2
+''').fetchall()
+for agent, breakdown in result:
+    data = json.loads(breakdown) if breakdown else {}
+    print(f'{agent}: delay={data.get(\"delay_cost\", 0)/100:.2f}, overdraft={data.get(\"overdraft_cost\", 0)/100:.2f}')
+"
+```
+
+#### Metrics to Skip (Avoid Overload)
+
+- Per-sample bootstrap breakdowns
+- Full queue statistics
+- LLM token usage/latency metrics
+- Detailed delay distributions
+
+The goal is to strengthen the Castro comparison narrative, not provide exhaustive system metrics.
+
+---
+
+### Phase 4.6: Simulation Replay for Experiments (New Capability)
+
+Simulations run within experiments are now persisted by default (INV-11). This enables:
+
+1. **Replaying individual evaluation simulations** for debugging
+2. **Auditing specific bootstrap samples** that drove policy decisions
+3. **Verifying determinism** across runs
+
+To find simulation IDs for an experiment run:
+
+```bash
+.venv/bin/python -c "
+import duckdb
+db = duckdb.connect('../docs/papers/simcash-paper/v4/pass_1/experiments.db')
+result = db.execute('''
+    SELECT simulation_id, iteration, agent_id
+    FROM policy_evaluations
+    WHERE run_id = 'YOUR_RUN_ID'
+    ORDER BY iteration
+    LIMIT 10
+''').fetchall()
+for sim_id, iteration, agent in result:
+    print(f'Iter {iteration} / {agent}: {sim_id}')
+"
+```
+
+To replay a specific simulation:
+```bash
+payment-sim replay <simulation-id> --db <path/to/experiments.db> --verbose
+```
+
+---
+
 ## Expected Outcomes
 
 With Castro-compliant configuration, results should match Castro's theoretical predictions:
@@ -361,12 +504,19 @@ With Castro-compliant configuration, results should match Castro's theoretical p
 - [ ] Pass 2: 3 JSON files exported
 - [ ] Pass 3: 3 JSON files exported
 
+### Extended Metrics Extraction (NEW in v4)
+- [ ] exp2: 95% confidence intervals extracted for all passes
+- [ ] Settlement rates at convergence verified (>95%)
+- [ ] Cost breakdown reviewed for exp1 (optional: include insight in Discussion)
+
 ### Paper Writing
 - [ ] Results match Castro predictions (within tolerance)
 - [ ] All required sections complete
 - [ ] Charts embedded with correct paths
 - [ ] Appendix includes all chart locations
 - [ ] Cross-pass reproducibility documented
+- [ ] **NEW**: exp2 table includes 95% CI column
+- [ ] **NEW**: Settlement rate summary paragraph included
 
 ---
 
@@ -376,4 +526,4 @@ All work goes in: `docs/papers/simcash-paper/v4/`
 
 ---
 
-*Last updated: 2025-12-16*
+*Last updated: 2025-12-16 (v4 metrics enhancements added)*

@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from payment_simulator.experiments.runner.state_provider import (
         ExperimentStateProviderProtocol,
     )
+    from payment_simulator.persistence.simulation_persistence_provider import (
+        StandardSimulationPersistenceProvider,
+    )
 
 
 # =============================================================================
@@ -314,6 +317,78 @@ class ExperimentRepository:
             ON policy_evaluations(run_id, evaluation_mode)
         """)
 
+        # =====================================================================
+        # Simulation Persistence Tables (INV-11: Simulation Persistence Identity)
+        # These tables enable `payment-sim replay` for experiment simulations
+        # =====================================================================
+
+        # Create simulations table (matches CLI schema)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS simulations (
+                simulation_id VARCHAR PRIMARY KEY,
+                config_file VARCHAR,
+                config_name VARCHAR,
+                description VARCHAR,
+                rng_seed BIGINT,
+                ticks_per_day INTEGER,
+                num_days INTEGER,
+                num_agents INTEGER,
+                status VARCHAR DEFAULT 'running',
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ended_at TIMESTAMP,
+                total_arrivals INTEGER,
+                total_settlements INTEGER,
+                total_cost_cents BIGINT,
+                duration_seconds DOUBLE,
+                ticks_per_second DOUBLE,
+                config_json TEXT,
+                experiment_run_id VARCHAR,
+                experiment_iteration INTEGER
+            )
+        """)
+
+        # Create simulation_events table (matches CLI schema)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS simulation_events (
+                event_id VARCHAR PRIMARY KEY,
+                simulation_id VARCHAR,
+                tick INTEGER,
+                day INTEGER,
+                event_timestamp TIMESTAMP,
+                event_type VARCHAR,
+                details TEXT,
+                agent_id VARCHAR,
+                tx_id VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create agent_state_registers table (for StateRegisterSet dual-write)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS agent_state_registers (
+                simulation_id VARCHAR,
+                tick INTEGER,
+                agent_id VARCHAR,
+                register_key VARCHAR,
+                register_value DOUBLE,
+                PRIMARY KEY (simulation_id, tick, agent_id, register_key)
+            )
+        """)
+
+        # Create indexes for simulation tables
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_simulations_experiment
+            ON simulations(experiment_run_id)
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_simulation_events_sim_tick
+            ON simulation_events(simulation_id, tick)
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_simulation_events_type
+            ON simulation_events(simulation_id, event_type)
+        """)
+
     def close(self) -> None:
         """Close the database connection."""
         if self._conn is not None:
@@ -326,6 +401,46 @@ class ExperimentRepository:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
         self.close()
+
+    # =========================================================================
+    # Simulation Persistence Provider (INV-11)
+    # =========================================================================
+
+    def get_simulation_persistence_provider(
+        self,
+        ticks_per_day: int,
+    ) -> StandardSimulationPersistenceProvider:
+        """Get SimulationPersistenceProvider for persisting simulation data.
+
+        Returns a provider that writes to the standard simulation tables
+        (simulations, simulation_events, agent_state_registers), enabling
+        `payment-sim replay` for experiment simulations.
+
+        This ensures INV-11 (Simulation Persistence Identity): simulations
+        persisted through experiments use the same schema as CLI-persisted
+        simulations.
+
+        Args:
+            ticks_per_day: Number of ticks per day (for day calculation)
+
+        Returns:
+            StandardSimulationPersistenceProvider instance
+
+        Example:
+            >>> with ExperimentRepository(db_path) as repo:
+            ...     provider = repo.get_simulation_persistence_provider(100)
+            ...     provider.persist_simulation_start(sim_id, config)
+            ...     provider.persist_tick_events(sim_id, tick, events)
+            ...     provider.persist_simulation_complete(sim_id, metrics)
+        """
+        from payment_simulator.persistence.simulation_persistence_provider import (
+            StandardSimulationPersistenceProvider,
+        )
+
+        return StandardSimulationPersistenceProvider(
+            conn=self._conn,
+            ticks_per_day=ticks_per_day,
+        )
 
     # =========================================================================
     # Experiment Operations
