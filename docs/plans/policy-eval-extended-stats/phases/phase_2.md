@@ -1,7 +1,10 @@
 # Phase 2: Metrics Capture
 
-**Status**: Pending
-**Started**:
+**Status**: Complete (core metrics)
+**Started**: 2025-12-16
+**Completed**: 2025-12-16
+
+**Note**: std_dev and CI computation deferred to Phase 3.
 
 ---
 
