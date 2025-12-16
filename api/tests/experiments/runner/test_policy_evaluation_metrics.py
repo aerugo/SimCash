@@ -1253,3 +1253,408 @@ class TestAcceptedChangesBugFix:
 
         # The iteration record saved should preserve False
         assert accepted_changes["BANK_A"] is False
+
+
+# =============================================================================
+# Integration Tests: End-to-End Policy Evaluation Flow
+# =============================================================================
+
+
+class TestPolicyEvaluationEndToEnd:
+    """End-to-end integration tests for policy evaluation persistence.
+
+    These tests verify the complete flow from optimization through persistence
+    to charting, using actual simulation components where possible.
+    """
+
+    @pytest.fixture
+    def db_path(self, tmp_path: Path) -> Path:
+        """Create a temporary database path."""
+        return tmp_path / "integration_test.db"
+
+    def test_deterministic_evaluation_saves_scenario_seed(
+        self, db_path: Path
+    ) -> None:
+        """Deterministic mode should save scenario_seed, not sample_details."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+            PolicyEvaluationRecord,
+        )
+
+        with ExperimentRepository(db_path) as repo:
+            # Create experiment
+            experiment = ExperimentRecord(
+                run_id="det-test-run",
+                experiment_name="deterministic_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "deterministic"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at=None,
+                num_iterations=1,
+                converged=False,
+                convergence_reason=None,
+            )
+            repo.save_experiment(experiment)
+
+            # Save deterministic evaluation (simulates what _save_policy_evaluation does)
+            record = PolicyEvaluationRecord(
+                run_id="det-test-run",
+                iteration=0,
+                agent_id="BANK_A",
+                evaluation_mode="deterministic",
+                proposed_policy={"type": "release", "parameters": {"threshold": 0.5}},
+                old_cost=10000,  # Actual cost from simulation
+                new_cost=8000,  # Actual cost from simulation
+                context_simulation_cost=9500,  # Context sim cost (different!)
+                accepted=True,
+                acceptance_reason="cost_improved",
+                delta_sum=2000,
+                num_samples=1,
+                sample_details=None,  # NULL for deterministic
+                scenario_seed=12345,  # Set for deterministic
+                timestamp="2025-12-16T10:00:00",
+            )
+            repo.save_policy_evaluation(record)
+
+            # Verify retrieval
+            evaluations = repo.get_policy_evaluations("det-test-run", "BANK_A")
+            assert len(evaluations) == 1
+
+            eval_record = evaluations[0]
+            assert eval_record.evaluation_mode == "deterministic"
+            assert eval_record.scenario_seed == 12345
+            assert eval_record.sample_details is None
+            assert eval_record.num_samples == 1
+
+            # Verify actual costs are stored (not context_simulation_cost)
+            assert eval_record.old_cost == 10000
+            assert eval_record.new_cost == 8000
+            assert eval_record.context_simulation_cost == 9500
+
+    def test_bootstrap_evaluation_saves_sample_details(self, db_path: Path) -> None:
+        """Bootstrap mode should save sample_details, not scenario_seed."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+            PolicyEvaluationRecord,
+        )
+
+        with ExperimentRepository(db_path) as repo:
+            # Create experiment
+            experiment = ExperimentRecord(
+                run_id="boot-test-run",
+                experiment_name="bootstrap_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "bootstrap", "num_samples": 3}},
+                created_at="2025-12-16T10:00:00",
+                completed_at=None,
+                num_iterations=1,
+                converged=False,
+                convergence_reason=None,
+            )
+            repo.save_experiment(experiment)
+
+            # Sample details from bootstrap evaluation
+            sample_details = [
+                {"index": 0, "seed": 11111, "old_cost": 10000, "new_cost": 8000, "delta": 2000},
+                {"index": 1, "seed": 22222, "old_cost": 11000, "new_cost": 9000, "delta": 2000},
+                {"index": 2, "seed": 33333, "old_cost": 9000, "new_cost": 7000, "delta": 2000},
+            ]
+
+            # Save bootstrap evaluation
+            record = PolicyEvaluationRecord(
+                run_id="boot-test-run",
+                iteration=0,
+                agent_id="BANK_A",
+                evaluation_mode="bootstrap",
+                proposed_policy={"type": "release"},
+                old_cost=10000,  # Mean of old costs
+                new_cost=8000,  # Mean of new costs
+                context_simulation_cost=9500,
+                accepted=True,
+                acceptance_reason="cost_improved",
+                delta_sum=6000,  # Sum of deltas
+                num_samples=3,
+                sample_details=sample_details,  # Set for bootstrap
+                scenario_seed=None,  # NULL for bootstrap
+                timestamp="2025-12-16T10:00:00",
+            )
+            repo.save_policy_evaluation(record)
+
+            # Verify retrieval
+            evaluations = repo.get_policy_evaluations("boot-test-run", "BANK_A")
+            assert len(evaluations) == 1
+
+            eval_record = evaluations[0]
+            assert eval_record.evaluation_mode == "bootstrap"
+            assert eval_record.scenario_seed is None
+            assert eval_record.sample_details is not None
+            assert len(eval_record.sample_details) == 3
+            assert eval_record.num_samples == 3
+
+            # Verify sample details preserved
+            assert eval_record.sample_details[0]["seed"] == 11111
+            assert eval_record.sample_details[1]["old_cost"] == 11000
+            assert eval_record.sample_details[2]["delta"] == 2000
+
+    def test_charting_uses_actual_costs_from_policy_evaluations(
+        self, db_path: Path
+    ) -> None:
+        """Charts should display new_cost from policy_evaluations, not estimates."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+            PolicyEvaluationRecord,
+        )
+        from payment_simulator.experiments.analysis.charting import (
+            ExperimentChartService,
+        )
+
+        with ExperimentRepository(db_path) as repo:
+            # Create experiment
+            experiment = ExperimentRecord(
+                run_id="chart-test-run",
+                experiment_name="chart_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "deterministic"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at="2025-12-16T11:00:00",
+                num_iterations=3,
+                converged=True,
+                convergence_reason="stability",
+            )
+            repo.save_experiment(experiment)
+
+            # Save evaluations with known actual costs
+            # These costs are intentionally different from what estimates would give
+            test_cases = [
+                # (iteration, old_cost, new_cost, context_cost, accepted)
+                (0, 10000, 8000, 9500, True),  # Accepted: new < old
+                (1, 8000, 8500, 8200, False),  # Rejected: new > old
+                (2, 8000, 7000, 8100, True),  # Accepted: new < old
+            ]
+
+            for iteration, old_cost, new_cost, context_cost, accepted in test_cases:
+                record = PolicyEvaluationRecord(
+                    run_id="chart-test-run",
+                    iteration=iteration,
+                    agent_id="BANK_A",
+                    evaluation_mode="deterministic",
+                    proposed_policy={"type": "release"},
+                    old_cost=old_cost,
+                    new_cost=new_cost,
+                    context_simulation_cost=context_cost,
+                    accepted=accepted,
+                    acceptance_reason="cost_improved" if accepted else "cost_not_improved",
+                    delta_sum=old_cost - new_cost,
+                    num_samples=1,
+                    sample_details=None,
+                    scenario_seed=12345 + iteration,
+                    timestamp=f"2025-12-16T10:{iteration:02d}:00",
+                )
+                repo.save_policy_evaluation(record)
+
+            # Extract chart data
+            service = ExperimentChartService(repo)
+            data = service.extract_chart_data("chart-test-run", agent_filter="BANK_A")
+
+            # Verify chart uses ACTUAL new_cost values
+            assert len(data.data_points) == 3
+
+            # new_cost values should match what we saved, not context_cost estimates
+            assert data.data_points[0].cost_dollars == 80.0  # 8000 / 100
+            assert data.data_points[1].cost_dollars == 85.0  # 8500 / 100
+            assert data.data_points[2].cost_dollars == 70.0  # 7000 / 100
+
+            # Acceptance should come from stored accepted field
+            assert data.data_points[0].accepted is True
+            assert data.data_points[1].accepted is False
+            assert data.data_points[2].accepted is True
+
+    def test_backward_compatibility_without_policy_evaluations(
+        self, db_path: Path
+    ) -> None:
+        """Old experiments without policy_evaluations should use iterations table."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+            IterationRecord,
+        )
+        from payment_simulator.experiments.analysis.charting import (
+            ExperimentChartService,
+        )
+
+        with ExperimentRepository(db_path) as repo:
+            # Create experiment (old-style, no policy_evaluations)
+            experiment = ExperimentRecord(
+                run_id="old-test-run",
+                experiment_name="old_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "deterministic"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at="2025-12-16T11:00:00",
+                num_iterations=2,
+                converged=True,
+                convergence_reason="stability",
+            )
+            repo.save_experiment(experiment)
+
+            # Save only iterations (no policy_evaluations - simulates old experiment)
+            iterations = [
+                IterationRecord(
+                    run_id="old-test-run",
+                    iteration=0,
+                    costs_per_agent={"BANK_A": 10000},
+                    accepted_changes={"BANK_A": True},  # May be buggy in real data
+                    policies={"BANK_A": {"type": "release"}},
+                    timestamp="2025-12-16T10:00:00",
+                ),
+                IterationRecord(
+                    run_id="old-test-run",
+                    iteration=1,
+                    costs_per_agent={"BANK_A": 8000},
+                    accepted_changes={"BANK_A": True},
+                    policies={"BANK_A": {"type": "hold"}},
+                    timestamp="2025-12-16T10:01:00",
+                ),
+            ]
+            for iteration in iterations:
+                repo.save_iteration(iteration)
+
+            # Verify no policy_evaluations exist
+            assert repo.has_policy_evaluations("old-test-run") is False
+
+            # Extract chart data - should fall back to iterations table
+            service = ExperimentChartService(repo)
+            data = service.extract_chart_data("old-test-run", agent_filter="BANK_A")
+
+            # Should still work using iterations table
+            assert len(data.data_points) == 2
+            assert data.data_points[0].cost_dollars == 100.0  # 10000 / 100
+            assert data.data_points[1].cost_dollars == 80.0  # 8000 / 100
+
+            # Acceptance inferred from cost improvement
+            assert data.data_points[0].accepted is True  # First iteration
+            assert data.data_points[1].accepted is True  # 8000 < 10000
+
+    def test_actual_vs_estimated_costs_differ(self, db_path: Path) -> None:
+        """Verify that actual costs can differ from context_simulation_cost.
+
+        This test documents the key improvement: we now store actual computed
+        costs from evaluation, not estimates based on context_simulation_cost.
+        """
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+            PolicyEvaluationRecord,
+        )
+
+        with ExperimentRepository(db_path) as repo:
+            experiment = ExperimentRecord(
+                run_id="diff-test-run",
+                experiment_name="diff_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "deterministic"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at=None,
+                num_iterations=1,
+                converged=False,
+                convergence_reason=None,
+            )
+            repo.save_experiment(experiment)
+
+            # Scenario: context_simulation_cost = 9500
+            # But actual evaluation gives old_cost = 10000, new_cost = 8000
+            # Old estimate would have been: new_cost = 9500 - 2000 = 7500
+            # We now store actual 8000 instead of estimated 7500
+
+            record = PolicyEvaluationRecord(
+                run_id="diff-test-run",
+                iteration=0,
+                agent_id="BANK_A",
+                evaluation_mode="deterministic",
+                proposed_policy={"type": "release"},
+                old_cost=10000,  # ACTUAL from evaluation
+                new_cost=8000,  # ACTUAL from evaluation
+                context_simulation_cost=9500,  # Context sim (different!)
+                accepted=True,
+                acceptance_reason="cost_improved",
+                delta_sum=2000,
+                num_samples=1,
+                sample_details=None,
+                scenario_seed=12345,
+                timestamp="2025-12-16T10:00:00",
+            )
+            repo.save_policy_evaluation(record)
+
+            # Verify the distinction is preserved
+            evaluations = repo.get_policy_evaluations("diff-test-run", "BANK_A")
+            eval_record = evaluations[0]
+
+            # All three values are different and preserved:
+            assert eval_record.old_cost == 10000  # Actual old
+            assert eval_record.new_cost == 8000  # Actual new
+            assert eval_record.context_simulation_cost == 9500  # Context
+
+            # The old estimate would have been:
+            # estimated_new = context_simulation_cost - delta = 9500 - 2000 = 7500
+            # But we store actual 8000 instead
+            estimated_new_cost = eval_record.context_simulation_cost - eval_record.delta_sum
+            assert estimated_new_cost == 7500  # Old estimate
+            assert eval_record.new_cost == 8000  # Actual (different!)
+
+    def test_multi_agent_evaluations_stored_separately(self, db_path: Path) -> None:
+        """Each agent's evaluation should be stored as a separate record."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRepository,
+            ExperimentRecord,
+            PolicyEvaluationRecord,
+        )
+
+        with ExperimentRepository(db_path) as repo:
+            experiment = ExperimentRecord(
+                run_id="multi-agent-run",
+                experiment_name="multi_agent_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "deterministic"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at=None,
+                num_iterations=1,
+                converged=False,
+                convergence_reason=None,
+            )
+            repo.save_experiment(experiment)
+
+            # Save evaluations for multiple agents in same iteration
+            agents = ["BANK_A", "BANK_B", "BANK_C"]
+            for i, agent_id in enumerate(agents):
+                record = PolicyEvaluationRecord(
+                    run_id="multi-agent-run",
+                    iteration=0,
+                    agent_id=agent_id,
+                    evaluation_mode="deterministic",
+                    proposed_policy={"type": "release"},
+                    old_cost=10000 + i * 1000,
+                    new_cost=8000 + i * 1000,
+                    context_simulation_cost=9500 + i * 1000,
+                    accepted=True,
+                    acceptance_reason="cost_improved",
+                    delta_sum=2000,
+                    num_samples=1,
+                    sample_details=None,
+                    scenario_seed=12345 + i,
+                    timestamp="2025-12-16T10:00:00",
+                )
+                repo.save_policy_evaluation(record)
+
+            # Verify all agents stored
+            all_evals = repo.get_all_policy_evaluations("multi-agent-run")
+            assert len(all_evals) == 3
+
+            # Verify each agent can be retrieved separately
+            for i, agent_id in enumerate(agents):
+                agent_evals = repo.get_policy_evaluations("multi-agent-run", agent_id)
+                assert len(agent_evals) == 1
+                assert agent_evals[0].agent_id == agent_id
+                assert agent_evals[0].old_cost == 10000 + i * 1000
