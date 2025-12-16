@@ -335,6 +335,14 @@ class OptimizationLoop:
         # Track accepted changes per iteration
         self._accepted_changes: dict[str, bool] = {}
 
+        # Temporal mode tracking: previous iteration costs for comparison
+        # Used by deterministic-temporal mode to compare cost across iterations
+        self._previous_iteration_costs: dict[str, int] = {}
+
+        # Previous policies for revert capability in temporal mode
+        # If cost increases, we revert to the previous policy
+        self._previous_policies: dict[str, dict[str, Any]] = {}
+
         # Load scenario config once
         self._scenario_dict: dict[str, Any] | None = None
 
@@ -1393,9 +1401,13 @@ class OptimizationLoop:
 
         if eval_mode == "deterministic" or num_samples <= 1:
             # Single simulation - deterministic mode
-            # Use constant seed for reproducibility (same seed each iteration)
-            # This ensures policy changes are the ONLY variable affecting cost
-            seed = self._config.master_seed
+            # Use iteration seed for consistency with _evaluate_policy_pair
+            # (INV-9: Policy Evaluation Identity - displayed cost must match acceptance cost)
+            iteration_idx = self._current_iteration - 1  # 0-indexed
+            # Use first optimized agent for seed derivation in single-agent case
+            # For multi-agent, this provides consistent baseline across all agents
+            agent_id = self.optimized_agents[0]
+            seed = self._seed_matrix.get_iteration_seed(iteration_idx, agent_id)
             enriched = self._run_simulation_with_events(seed, sample_idx=0)
 
             # Store for LLM context
@@ -2313,6 +2325,47 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             evaluation.delta_sum,
             evaluation,
         )
+
+    def _evaluate_temporal_acceptance(
+        self,
+        agent_id: str,
+        current_cost: int,
+    ) -> bool:
+        """Evaluate policy acceptance using temporal comparison.
+
+        Compares current iteration cost to previous iteration cost.
+        First iteration always accepts (no baseline to compare).
+
+        This is used by deterministic-temporal mode, which compares cost
+        across iterations rather than old vs new policy within the same iteration.
+
+        Args:
+            agent_id: Agent being evaluated.
+            current_cost: Cost from current iteration (integer cents, INV-1).
+
+        Returns:
+            True if policy should be accepted, False to reject/revert.
+
+        Side effects:
+            Updates _previous_iteration_costs if accepted.
+        """
+        previous_cost = self._previous_iteration_costs.get(agent_id)
+
+        # First iteration: always accept (no baseline to compare)
+        if previous_cost is None:
+            self._previous_iteration_costs[agent_id] = current_cost
+            return True
+
+        # Compare: accept if cost decreased or stayed same
+        # Equal cost is accepted to allow exploration without penalty
+        accepted = current_cost <= previous_cost
+
+        # Update stored cost only if accepted
+        # If rejected, keep previous cost as baseline for next iteration
+        if accepted:
+            self._previous_iteration_costs[agent_id] = current_cost
+
+        return accepted
 
     def _evaluate_policy_with_seed(
         self, policy: dict[str, Any], agent_id: str, seed: int
