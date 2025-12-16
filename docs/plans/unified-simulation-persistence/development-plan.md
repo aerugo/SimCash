@@ -277,10 +277,256 @@ After implementation is complete, update the following:
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 1 | Pending | Protocol and implementation |
-| Phase 2 | Pending | Experiment runner integration |
-| Phase 3 | Pending | Replay identity verification |
-| Phase 4 | Pending | Documentation |
+| Phase 1 | ✅ Complete | Protocol and implementation |
+| Phase 2 | ✅ Complete | Experiment runner integration |
+| Phase 3 | ✅ Complete | Replay identity verification |
+| Phase 4 | ✅ Complete | Config format fix (store YAML, not FFI) |
+| Phase 5 | **In Progress** | Primary simulation persistence by default |
+
+---
+
+## Phase 5: Primary Simulation Persistence by Default
+
+**Goal**: Ensure all "primary" simulations in experiments persist by default, while bootstrap sample simulations only persist with `--persist-bootstrap`.
+
+### Problem Statement
+
+Current behavior is incorrect:
+
+```
+Current:
+┌─────────────────────────────────────────────────────────────────────┐
+│ Deterministic Mode                                                  │
+│ - _evaluate_policies() calls _run_simulation_with_events()          │
+│ - persist=False (hardcoded) ❌                                      │
+│ - Primary simulation NOT persisted                                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ Bootstrap Mode                                                      │
+│ - _run_initial_simulation() calls _run_simulation(persist=flag)     │
+│ - Only "init" simulation persists with --persist-bootstrap          │
+│ - Primary iteration simulations NOT persisted ❌                    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Expected behavior per user specification:
+
+```
+Expected:
+┌─────────────────────────────────────────────────────────────────────┐
+│ ALL Modes - Primary Simulations                                     │
+│ - The main scenario simulation each iteration                       │
+│ - Should persist BY DEFAULT (when repository is present)            │
+│ - Enables replay with: payment-sim replay -s <sim-id> --verbose     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ Bootstrap Mode - Bootstrap Sample Simulations                       │
+│ - Resampled transaction simulations for policy comparison           │
+│ - Should ONLY persist with --persist-bootstrap flag                 │
+│ - Potentially hundreds per experiment (expensive to persist)        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Simulation Classification
+
+| Method | Purpose | Type | Should Persist |
+|--------|---------|------|----------------|
+| `_evaluate_policies()` → `_run_simulation_with_events()` | Main iteration simulation | **Primary** | By default ✓ |
+| `_run_initial_simulation()` | Initial simulation for bootstrap | **Primary** | By default ✓ |
+| `_run_single_simulation()` | Bootstrap sample comparison | Bootstrap sample | Only with flag |
+| `_evaluate_single_agent_deterministic()` → `_run_simulation()` | Policy comparison | Bootstrap sample | Only with flag |
+| `_evaluate_policy_on_samples()` → `_run_single_simulation()` | Policy comparison | Bootstrap sample | Only with flag |
+
+### Design
+
+Add a new parameter to distinguish primary vs sample simulations:
+
+```python
+def _run_simulation(
+    self,
+    seed: int,
+    *,
+    purpose: str = "eval",
+    iteration: int | None = None,
+    sample_idx: int | None = None,
+    persist: bool | None = None,  # None = use default based on is_primary
+    is_primary: bool = True,  # NEW: Primary simulations persist by default
+) -> SimulationResult:
+    """Run a simulation.
+
+    Args:
+        ...
+        is_primary: If True, this is a primary simulation (main scenario run)
+                   that should persist by default when repository is present.
+                   If False, this is a bootstrap sample that only persists
+                   when persist=True explicitly (via --persist-bootstrap).
+    """
+    # Determine if we should persist
+    if persist is not None:
+        should_persist = persist
+    elif is_primary:
+        # Primary simulations persist by default when repository exists
+        should_persist = self._repository is not None
+    else:
+        # Bootstrap samples only persist with explicit flag
+        should_persist = self._persist_bootstrap
+```
+
+### Deliverables
+
+1. Modified `api/payment_simulator/experiments/runner/optimization.py`:
+   - Add `is_primary` parameter to `_run_simulation()`
+   - Update all call sites with correct classification
+
+2. `api/tests/integration/test_primary_simulation_persistence.py`:
+   - Tests for deterministic mode primary persistence
+   - Tests for bootstrap mode primary persistence
+   - Tests that bootstrap samples DON'T persist without flag
+
+### TDD Test Plan
+
+#### Test 1: Deterministic Mode Primary Simulation Persists by Default
+
+```python
+def test_deterministic_mode_primary_simulation_persists_by_default():
+    """Primary simulation in deterministic mode should persist without any flag."""
+    # Create experiment with deterministic mode, repository, NO persist flag
+    loop = OptimizationLoop(
+        config=deterministic_config,
+        repository=experiment_repository,
+        persist_bootstrap=False,  # Explicitly False
+    )
+
+    # Run one iteration (which runs _evaluate_policies)
+    await loop._run_iteration()
+
+    # Query database - should find the primary simulation
+    simulations = query_simulations(repository)
+    assert len(simulations) >= 1, "Primary simulation should persist by default"
+
+    # Verify it has correct format for replay
+    config = json.loads(simulations[0].config_json)
+    assert "agents" in config, "Config should be YAML format"
+```
+
+#### Test 2: Bootstrap Mode Primary Simulation Persists by Default
+
+```python
+def test_bootstrap_mode_primary_simulation_persists_by_default():
+    """Primary simulation in bootstrap mode should persist without flag."""
+    loop = OptimizationLoop(
+        config=bootstrap_config,
+        repository=experiment_repository,
+        persist_bootstrap=False,
+    )
+
+    # Run one iteration
+    await loop._run_iteration()
+
+    # Should find primary simulations (init + iteration primary)
+    simulations = query_simulations(repository)
+    assert len(simulations) >= 1, "Primary simulation should persist"
+```
+
+#### Test 3: Bootstrap Samples Don't Persist Without Flag
+
+```python
+def test_bootstrap_samples_dont_persist_without_flag():
+    """Bootstrap sample simulations should NOT persist without --persist-bootstrap."""
+    loop = OptimizationLoop(
+        config=bootstrap_config,
+        repository=experiment_repository,
+        persist_bootstrap=False,
+    )
+
+    # Run iteration with policy evaluation (triggers bootstrap samples)
+    await loop._run_iteration()
+
+    # Count simulations - should only have primary, not N bootstrap samples
+    simulations = query_simulations(repository)
+    # If num_samples=50, we should NOT have 50+ simulations
+    assert len(simulations) < 10, "Bootstrap samples should not persist"
+```
+
+#### Test 4: Bootstrap Samples Persist With Flag
+
+```python
+def test_bootstrap_samples_persist_with_flag():
+    """Bootstrap sample simulations should persist with --persist-bootstrap."""
+    loop = OptimizationLoop(
+        config=bootstrap_config,
+        repository=experiment_repository,
+        persist_bootstrap=True,  # Flag enabled
+    )
+
+    # Run iteration with policy evaluation
+    await loop._run_iteration()
+
+    # Should have primary + bootstrap samples
+    simulations = query_simulations(repository)
+    num_samples = bootstrap_config.evaluation.num_samples
+    assert len(simulations) >= num_samples, "Bootstrap samples should persist with flag"
+```
+
+#### Test 5: Replay Works for Primary Simulation
+
+```python
+def test_replay_works_for_primary_simulation():
+    """Primary simulations should be replayable with verbose output."""
+    loop = OptimizationLoop(
+        config=deterministic_config,
+        repository=experiment_repository,
+    )
+
+    await loop._run_iteration()
+
+    # Get simulation ID
+    simulations = query_simulations(repository)
+    sim_id = simulations[0].simulation_id
+
+    # Replay should work
+    output = run_replay(sim_id, verbose=True)
+    assert "Tick 0" in output, "Replay should produce verbose output"
+```
+
+### Call Site Updates
+
+| Location | Current | Change To |
+|----------|---------|-----------|
+| `_run_simulation_with_events()` line 1324 | `persist=False` | `is_primary=False` (bootstrap samples) |
+| `_evaluate_policies()` | Calls `_run_simulation_with_events()` | Add wrapper call with `is_primary=True` for primary |
+| `_run_initial_simulation()` line 1199 | `persist=self._persist_bootstrap` | `is_primary=True` |
+| `_evaluate_single_agent_deterministic()` line 1661 | `persist=False` | `is_primary=False` |
+
+### Implementation Order (Strict TDD)
+
+1. **RED**: Write failing test `test_deterministic_mode_primary_simulation_persists_by_default`
+2. **GREEN**: Add `is_primary` parameter, update `_evaluate_policies()` to persist primary
+3. **REFACTOR**: Clean up persistence logic
+
+4. **RED**: Write failing test `test_bootstrap_samples_dont_persist_without_flag`
+5. **GREEN**: Ensure `_run_simulation_with_events()` passes `is_primary=False`
+6. **REFACTOR**: Verify no regressions
+
+7. **RED**: Write failing test `test_bootstrap_samples_persist_with_flag`
+8. **GREEN**: Ensure `persist_bootstrap` flag controls sample persistence
+9. **REFACTOR**: Clean up
+
+10. **RED**: Write failing test `test_replay_works_for_primary_simulation`
+11. **GREEN**: Should already work if previous tests pass
+12. **REFACTOR**: Final cleanup
+
+### Success Criteria
+
+- [ ] Deterministic mode: Primary simulation persists by default (no flag needed)
+- [ ] Bootstrap mode: Primary iteration simulation persists by default
+- [ ] Bootstrap samples only persist with `--persist-bootstrap` flag
+- [ ] All persisted simulations can be replayed with `payment-sim replay -s <id> --verbose`
+- [ ] All tests pass
+- [ ] Type checking passes
+- [ ] No regressions in existing experiment functionality
 
 ## Appendix: Existing Patterns to Follow
 
