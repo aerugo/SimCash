@@ -587,9 +587,13 @@ class OptimizationLoop:
             )
 
             # 6a. Persist simulation start to simulations table
+            # IMPORTANT: Store the original scenario config (YAML format), NOT the FFI config.
+            # Replay expects YAML format with 'agents' and 'simulation' keys.
+            # FFI format has 'agent_configs' and 'ticks_per_day' at root - incompatible with replay.
+            scenario_config = self._load_scenario_config()
             sim_provider.persist_simulation_start(
                 simulation_id=sim_id,
-                config=ffi_config,
+                config=scenario_config,
                 experiment_run_id=self._run_id,
                 experiment_iteration=iteration,
             )
