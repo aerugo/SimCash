@@ -66,6 +66,7 @@ from payment_simulator.experiments.runner.bootstrap_support import (
 )
 from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
 from payment_simulator.experiments.runner.state_provider import LiveStateProvider
+from payment_simulator.experiments.runner.statistics import compute_cost_statistics
 from payment_simulator.experiments.runner.verbose import (
     BootstrapDeltaResult,
     BootstrapSampleResult,
@@ -74,7 +75,6 @@ from payment_simulator.experiments.runner.verbose import (
     VerboseConfig,
     VerboseLogger,
 )
-
 
 # =============================================================================
 # Policy Evaluation Dataclasses
@@ -113,12 +113,26 @@ class PolicyPairEvaluation:
         delta_sum: Sum of deltas across samples.
         mean_old_cost: Mean of old_cost across samples.
         mean_new_cost: Mean of new_cost across samples.
+        settlement_rate: System-wide settlement rate (0.0 to 1.0).
+        avg_delay: System-wide average delay in ticks.
+        cost_breakdown: Total cost breakdown by type.
+        cost_std_dev: Standard deviation of costs in cents (bootstrap only).
+        confidence_interval_95: 95% CI bounds [lower, upper] in cents (bootstrap only).
+        agent_stats: Per-agent metrics keyed by agent_id.
     """
 
     sample_results: list[SampleEvaluationResult]
     delta_sum: int
     mean_old_cost: int
     mean_new_cost: int
+    # Extended metrics for Phase 1: Extended Policy Evaluation Stats
+    settlement_rate: float | None = None
+    avg_delay: float | None = None
+    cost_breakdown: dict[str, int] | None = None
+    # Phase 3: Derived statistics (bootstrap only)
+    cost_std_dev: int | None = None
+    confidence_interval_95: list[int] | None = None
+    agent_stats: dict[str, dict[str, Any]] | None = None
 
     @property
     def deltas(self) -> list[int]:
@@ -809,6 +823,13 @@ class OptimizationLoop:
         num_samples: int,
         sample_details: list[dict[str, Any]] | None,
         scenario_seed: int | None,
+        # Extended metrics (Phase 2: Metrics Capture)
+        settlement_rate: float | None = None,
+        avg_delay: float | None = None,
+        cost_breakdown: dict[str, int] | None = None,
+        cost_std_dev: int | None = None,
+        confidence_interval_95: list[int] | None = None,
+        agent_stats: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """Save policy evaluation record to repository.
 
@@ -828,6 +849,12 @@ class OptimizationLoop:
             num_samples: Number of samples in evaluation (1 for deterministic).
             sample_details: Per-sample details for bootstrap mode (None for deterministic).
             scenario_seed: Seed used for deterministic mode (None for bootstrap).
+            settlement_rate: System-wide settlement rate (0.0 to 1.0).
+            avg_delay: System-wide average delay in ticks.
+            cost_breakdown: Total cost breakdown by type.
+            cost_std_dev: Standard deviation of costs (bootstrap only).
+            confidence_interval_95: 95% CI bounds [lower, upper] (bootstrap only).
+            agent_stats: Per-agent metrics keyed by agent_id.
         """
         if self._repository is None:
             return
@@ -850,6 +877,13 @@ class OptimizationLoop:
             sample_details=sample_details,
             scenario_seed=scenario_seed,
             timestamp=datetime.now().isoformat(),
+            # Extended metrics
+            settlement_rate=settlement_rate,
+            avg_delay=avg_delay,
+            cost_breakdown=cost_breakdown,
+            cost_std_dev=cost_std_dev,
+            confidence_interval_95=confidence_interval_95,
+            agent_stats=agent_stats,
         )
         self._repository.save_policy_evaluation(record)
 
@@ -1570,17 +1604,44 @@ class OptimizationLoop:
             _, old_costs = self._run_single_simulation(seed)
             old_cost = old_costs.get(agent_id, 0)
 
-            # Evaluate new policy
+            # Evaluate new policy - use _run_simulation to get extended metrics
             self._policies[agent_id] = new_policy
-            _, new_costs = self._run_single_simulation(seed)
-            new_cost = new_costs.get(agent_id, 0)
+            new_sim_result = self._run_simulation(
+                seed=seed,
+                purpose="eval",
+                iteration=iteration_idx,
+                sample_idx=0,
+                persist=False,  # Don't persist evaluation simulations
+            )
+            new_cost = new_sim_result.per_agent_costs.get(agent_id, 0)
 
             # CRITICAL: Restore old policy - caller will set new policy if accepted
             self._policies[agent_id] = old_policy
 
             delta = old_cost - new_cost
 
-            # Return PolicyPairEvaluation with ACTUAL costs
+            # Extract extended metrics from the new policy simulation result
+            cost_breakdown = {
+                "delay_cost": new_sim_result.cost_breakdown.delay_cost,
+                "overdraft_cost": new_sim_result.cost_breakdown.overdraft_cost,
+                "deadline_penalty": new_sim_result.cost_breakdown.deadline_penalty,
+                "eod_penalty": new_sim_result.cost_breakdown.eod_penalty,
+            }
+
+            # Build per-agent stats (deterministic: no std_dev or CI)
+            agent_stats: dict[str, dict[str, Any]] = {}
+            for aid, cost in new_sim_result.per_agent_costs.items():
+                agent_stats[aid] = {
+                    "cost": cost,
+                    "settlement_rate": new_sim_result.settlement_rate,
+                    "avg_delay": new_sim_result.avg_delay,
+                    "cost_breakdown": cost_breakdown,  # Same as total for single agent
+                    "std_dev": None,  # N=1, no std_dev
+                    "ci_95_lower": None,  # N=1, no CI
+                    "ci_95_upper": None,  # N=1, no CI
+                }
+
+            # Return PolicyPairEvaluation with ACTUAL costs and extended metrics
             return PolicyPairEvaluation(
                 sample_results=[
                     SampleEvaluationResult(
@@ -1594,6 +1655,10 @@ class OptimizationLoop:
                 delta_sum=delta,
                 mean_old_cost=old_cost,
                 mean_new_cost=new_cost,
+                settlement_rate=new_sim_result.settlement_rate,
+                avg_delay=new_sim_result.avg_delay,
+                cost_breakdown=cost_breakdown,
+                agent_stats=agent_stats,
             )
 
         # Real bootstrap mode: use pre-computed bootstrap samples
@@ -1635,11 +1700,56 @@ class OptimizationLoop:
                 mean_old_cost = sum(pd.cost_a for pd in paired_deltas) // n
                 mean_new_cost = sum(pd.cost_b for pd in paired_deltas) // n
 
+                # Extract extended metrics from initial simulation (representative)
+                # Note: Per-sample metrics not captured per user request
+                boot_settlement_rate: float | None = None
+                boot_avg_delay: float | None = None
+                boot_cost_breakdown: dict[str, int] | None = None
+
+                if self._initial_sim_result:
+                    # Use initial simulation as representative for system metrics
+                    init_result = self._initial_sim_result
+                    boot_settlement_rate = getattr(init_result, "settlement_rate", None)
+                    boot_avg_delay = getattr(init_result, "avg_delay", None)
+
+                # Phase 3: Compute derived statistics from sample costs
+                new_costs = [pd.cost_b for pd in paired_deltas]
+                cost_stats = compute_cost_statistics(new_costs)
+
+                boot_cost_std_dev = cost_stats["std_dev"]
+                boot_confidence_interval_95: list[int] | None = None
+                ci_lower = cost_stats["ci_95_lower"]
+                ci_upper = cost_stats["ci_95_upper"]
+                if ci_lower is not None and ci_upper is not None:
+                    boot_confidence_interval_95 = [ci_lower, ci_upper]
+
+                # Build per-agent stats for bootstrap mode with computed statistics
+                boot_agent_stats: dict[str, dict[str, Any]] = {}
+
+                for aid in self.optimized_agents:
+                    # Get per-agent costs from samples if available
+                    agent_mean_cost = mean_new_cost  # Default to total mean
+                    boot_agent_stats[aid] = {
+                        "cost": agent_mean_cost,
+                        "settlement_rate": boot_settlement_rate,
+                        "avg_delay": boot_avg_delay,
+                        "cost_breakdown": None,  # Not available per-agent
+                        "std_dev": boot_cost_std_dev,  # Same as total (single agent)
+                        "ci_95_lower": cost_stats["ci_95_lower"],
+                        "ci_95_upper": cost_stats["ci_95_upper"],
+                    }
+
                 return PolicyPairEvaluation(
                     sample_results=sample_results,
                     delta_sum=delta_sum,
                     mean_old_cost=mean_old_cost,
                     mean_new_cost=mean_new_cost,
+                    settlement_rate=boot_settlement_rate,
+                    avg_delay=boot_avg_delay,
+                    cost_breakdown=boot_cost_breakdown,
+                    cost_std_dev=boot_cost_std_dev,
+                    confidence_interval_95=boot_confidence_interval_95,
+                    agent_stats=boot_agent_stats,
                 )
 
         # No samples available - this is an error in bootstrap mode
@@ -1906,7 +2016,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             is_deterministic = self._config.evaluation.mode == "deterministic"
             evaluation_mode = "deterministic" if is_deterministic else "bootstrap"
 
-            # Persist policy evaluation with ACTUAL costs
+            # Persist policy evaluation with ACTUAL costs and extended metrics
             self._save_policy_evaluation(
                 agent_id=agent_id,
                 evaluation_mode=evaluation_mode,
@@ -1929,6 +2039,14 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                     for s in evaluation.sample_results
                 ] if not is_deterministic else None,
                 scenario_seed=evaluation.sample_results[0].seed if is_deterministic else None,
+                # Extended metrics from evaluation (Phase 2: Metrics Capture)
+                settlement_rate=evaluation.settlement_rate,
+                avg_delay=evaluation.avg_delay,
+                cost_breakdown=evaluation.cost_breakdown,
+                # Phase 3: Derived statistics (bootstrap only)
+                cost_std_dev=evaluation.cost_std_dev,
+                confidence_interval_95=evaluation.confidence_interval_95,
+                agent_stats=evaluation.agent_stats,
             )
 
             # Track delta history for progress monitoring
