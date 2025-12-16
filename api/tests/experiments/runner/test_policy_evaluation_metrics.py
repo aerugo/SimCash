@@ -834,12 +834,20 @@ class TestChartingWithPolicyEvaluations:
         )
         mock_repo.get_policy_evaluations.assert_called_once()
 
-        # Verify data extraction
-        assert len(data.data_points) == 2
-        assert data.data_points[0].cost_dollars == 8.0  # new_cost=800 / 100
+        # Verify data extraction - now includes baseline at iteration 0
+        assert len(data.data_points) == 3
+        # Iteration 0: baseline from old_cost of first evaluation
+        assert data.data_points[0].iteration == 0
+        assert data.data_points[0].cost_dollars == 10.0  # old_cost=1000 / 100
         assert data.data_points[0].accepted is True
-        assert data.data_points[1].cost_dollars == 8.5  # new_cost=850 / 100
-        assert data.data_points[1].accepted is False
+        # Iteration 1: first proposed policy
+        assert data.data_points[1].iteration == 1
+        assert data.data_points[1].cost_dollars == 8.0  # new_cost=800 / 100
+        assert data.data_points[1].accepted is True
+        # Iteration 2: second proposed policy
+        assert data.data_points[2].iteration == 2
+        assert data.data_points[2].cost_dollars == 8.5  # new_cost=850 / 100
+        assert data.data_points[2].accepted is False
 
     def test_extract_chart_data_falls_back_to_iterations(
         self,
@@ -957,16 +965,21 @@ class TestPolicyEvaluationIntegration:
             service = ExperimentChartService(repo)
             data = service.extract_chart_data("test-run", agent_filter="BANK_A")
 
-            # Verify data
-            assert len(data.data_points) == 3
+            # Verify data - now includes baseline at iteration 0
+            assert len(data.data_points) == 4
+            # Iteration 0: baseline from old_cost of first evaluation
+            assert data.data_points[0].iteration == 0
+            assert data.data_points[0].cost_dollars == 10.0  # 1000 / 100
             assert data.data_points[0].accepted is True
-            assert data.data_points[1].accepted is False
-            assert data.data_points[2].accepted is True
+            # Iteration 1-3: proposed policies
+            assert data.data_points[1].accepted is True
+            assert data.data_points[2].accepted is False
+            assert data.data_points[3].accepted is True
 
-            # Costs should be new_cost values
-            assert data.data_points[0].cost_dollars == 8.0  # 800 / 100
-            assert data.data_points[1].cost_dollars == 7.0  # 700 / 100
-            assert data.data_points[2].cost_dollars == 6.0  # 600 / 100
+            # Costs should be new_cost values for iterations 1-3
+            assert data.data_points[1].cost_dollars == 8.0  # 800 / 100
+            assert data.data_points[2].cost_dollars == 7.0  # 700 / 100
+            assert data.data_points[3].cost_dollars == 6.0  # 600 / 100
 
 
 # =============================================================================
@@ -1459,18 +1472,23 @@ class TestPolicyEvaluationEndToEnd:
             service = ExperimentChartService(repo)
             data = service.extract_chart_data("chart-test-run", agent_filter="BANK_A")
 
-            # Verify chart uses ACTUAL new_cost values
-            assert len(data.data_points) == 3
+            # Verify chart uses ACTUAL new_cost values - now includes baseline at iteration 0
+            assert len(data.data_points) == 4
+
+            # Iteration 0: baseline from old_cost of first evaluation
+            assert data.data_points[0].iteration == 0
+            assert data.data_points[0].cost_dollars == 100.0  # old_cost=10000 / 100
+            assert data.data_points[0].accepted is True
 
             # new_cost values should match what we saved, not context_cost estimates
-            assert data.data_points[0].cost_dollars == 80.0  # 8000 / 100
-            assert data.data_points[1].cost_dollars == 85.0  # 8500 / 100
-            assert data.data_points[2].cost_dollars == 70.0  # 7000 / 100
+            assert data.data_points[1].cost_dollars == 80.0  # 8000 / 100
+            assert data.data_points[2].cost_dollars == 85.0  # 8500 / 100
+            assert data.data_points[3].cost_dollars == 70.0  # 7000 / 100
 
             # Acceptance should come from stored accepted field
-            assert data.data_points[0].accepted is True
-            assert data.data_points[1].accepted is False
-            assert data.data_points[2].accepted is True
+            assert data.data_points[1].accepted is True
+            assert data.data_points[2].accepted is False
+            assert data.data_points[3].accepted is True
 
     def test_backward_compatibility_without_policy_evaluations(
         self, db_path: Path
