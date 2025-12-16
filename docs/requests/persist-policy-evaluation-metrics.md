@@ -1,119 +1,389 @@
-# Feature Request: Persist Policy Evaluation Metrics in Database
+# Feature Request: Persist Policy Evaluation Metrics with Actual Costs
 
 **Date**: 2025-12-15
 **Updated**: 2025-12-16
 **Priority**: High
 **Blocking**: Paper charts require re-running experiments after implementation
-**Affects**: `payment_simulator.experiments.runner.optimization`, `payment_simulator.experiments.persistence`, `payment_simulator.experiments.analysis.charting`
+**Affects**: `payment_simulator.experiments.runner.optimization`, `payment_simulator.experiments.persistence`, `payment_simulator.experiments.analysis.charting`, `payment_simulator.ai_cash_mgmt.bootstrap.evaluator`
 
 ## Summary
 
-Store complete policy evaluation metrics (including proposed policy costs and acceptance status) directly in the database during experiment runs, providing accurate data for chart generation and analysis.
+Store complete policy evaluation metrics directly in the database during experiment runs, using **actual computed costs** from simulations (not reconstructed estimates). This enables accurate chart generation showing both proposed and accepted policy costs.
 
 ## Problem Statement
 
-The current implementation has several data integrity issues that require workarounds:
+The current implementation has two categories of issues:
+
+### 1. Data Integrity Issues (Original Problems)
 
 1. **`accepted_changes` is always False**: Bug where the field is never set correctly
 2. **`experiment_iterations` stores only current best**: No record of proposed policies that were rejected
-3. **LLM prompts show different costs than database**: The "Mean Cost" in LLM prompts doesn't match `costs_per_agent` in the database (unclear scaling/calculation)
-4. **No dedicated table for evaluation metrics**: Bootstrap evaluation results (old_cost, new_cost, deltas) are only logged, not persisted
+3. **No dedicated table for evaluation metrics**: Bootstrap evaluation results are only logged, not persisted
+4. **Manual log extraction unworkable**: Attempted 2025-12-16, too error-prone due to multiple LLM calls per iteration
+
+### 2. Cost Accuracy Issue (Discovered During Implementation)
+
+The `_should_accept_policy()` method returns an **estimated** cost, not the actual computed cost:
+
+```python
+# Current code in optimization.py (lines 2071-2081)
+# Note: These are approximations based on deltas and current_cost
+num_samples = len(deltas)
+mean_delta = delta_sum / num_samples if num_samples > 0 else 0
+
+# Estimate old/new costs for display
+# old_cost ≈ current_cost (from context simulation)
+# new_cost ≈ old_cost - mean_delta
+old_cost = current_cost
+new_cost = current_cost - mean_delta  # ← ESTIMATE, NOT ACTUAL
+```
+
+**Why This Matters**:
+- The estimate assumes `current_cost == mean(bootstrap_old_costs)`, which is only approximately true
+- In deterministic mode, we compute real costs but discard them, returning only the delta
+- In bootstrap mode, per-sample costs are never captured at all
+- Charts and analysis would show estimated costs, not actual measurements
 
 ### Current Workaround
 
-The charting code now uses the `experiment_iterations` table directly and **infers acceptance from cost improvement**:
+The charting code infers acceptance from cost improvement:
 
 ```python
-# In charting.py - current workaround infers acceptance
-def _extract_from_iterations_table(self, ...):
-    previous_cost: float | None = None
-
-    for iteration in iterations:
-        cost_dollars = cost_cents / 100.0
-
-        # Infer acceptance from cost improvement
-        if previous_cost is None:
-            accepted = True  # First iteration
-        else:
-            # Accepted only if cost improved (decreased)
-            accepted = cost_dollars < previous_cost
-
-        # Update previous cost only when accepted
-        if accepted:
-            previous_cost = cost_dollars
+# Infer acceptance from cost improvement (loses information)
+if previous_cost is None:
+    accepted = True
+else:
+    accepted = cost_dollars < previous_cost
 ```
 
-This approach:
-- **Works**: Produces reasonable charts showing convergence
-- **Loses information**: Cannot distinguish "rejected with same cost" from "rejected with higher cost"
-- **Assumes monotonic improvement**: All cost reductions are treated as acceptances
-- **No proposed policy data**: Only shows what was eventually accepted, not what was proposed
-
-### Manual Log Extraction Attempted (2025-12-16)
-
-Attempted to manually extract chart data from experiment logs for the paper. This proved unworkable:
-
-1. **Multiple LLM calls per iteration**: Each iteration has 3 LLM calls (bootstrap seeds), making it unclear which proposal to use
-2. **Multiple evaluations per iteration**: 3 evaluation events per iteration with different costs
-3. **Event ordering complexity**: Matching proposals to their evaluation costs requires understanding the exact event sequence
-4. **Data structure mismatch**: `parsed_policy` in `llm_interaction` events contains proposed parameters, but evaluation costs are in separate `evaluation` events with no direct linkage
-
-**Conclusion**: Manual chart generation from existing logs is too error-prone. Proper data persistence (this feature request) is required before generating accurate charts for the paper.
-
-### Why Proper Persistence Is Needed
-
-1. **Audit trail**: No structured record of what policies were proposed and why they were rejected
-2. **Cost discrepancy**: LLM prompts show different costs than database - unclear which is authoritative for analysis
-3. **Bootstrap analysis**: Cannot analyze the distribution of bootstrap deltas or confidence in decisions
-4. **Replay**: Cannot reconstruct the exact decision-making process from the database alone
+This approach works but loses information and cannot show proposed policy costs.
 
 ## Proposed Solution
 
 ### Design Goals
 
-1. Create a dedicated table for policy evaluation metrics
-2. Persist both PROPOSED and ACCEPTED policy costs per iteration
-3. Fix the `accepted_changes` bug in `experiment_iterations`
-4. Update charting to use the new structured data
+1. **Capture actual costs**: Return real computed costs from evaluation, not estimates
+2. **Per-sample granularity**: For bootstrap, store costs for each sample
+3. **Both modes supported**: Handle deterministic and bootstrap modes with appropriate semantics
+4. **Enable charting**: Provide clean data source for chart generation
+5. **Backward compatible**: Old experiments fall back to inferred acceptance
 
-### Proposed Data Model
+### Overview
+
+The implementation requires changes across the evaluation pipeline:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. BootstrapPolicyEvaluator (evaluator.py)                     │
+│     - Extend PairedDelta to include old_cost, new_cost          │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────┐
+│  2. _evaluate_policy_pair (optimization.py)                     │
+│     - Return PolicyPairEvaluation with actual costs             │
+│     - Handle both deterministic and bootstrap paths             │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────┐
+│  3. _should_accept_policy (optimization.py)                     │
+│     - Return actual mean costs, not estimates                   │
+│     - Pass full evaluation for persistence                      │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────┐
+│  4. _save_policy_evaluation (optimization.py)                   │
+│     - Persist PolicyEvaluationRecord to database                │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────┐
+│  5. ExperimentChartService (charting.py)                        │
+│     - Read from policy_evaluations table                        │
+│     - Fall back to experiment_iterations for old data           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Phase 1: Extend Bootstrap Evaluator
+
+**File**: `api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py`
+
+Extend `PairedDelta` to include actual costs:
 
 ```python
-# New dataclass for evaluation metrics
 @dataclass(frozen=True)
-class PolicyEvaluationRecord:
-    """Record of a single policy evaluation.
+class PairedDelta:
+    """Result of evaluating a policy pair on one sample."""
+    sample_index: int
+    delta: int  # old_cost - new_cost (positive = improvement)
+    old_cost: int  # NEW: Actual cost with old policy
+    new_cost: int  # NEW: Actual cost with new policy
+```
 
-    Captures both the proposed policy and its evaluation results,
-    regardless of whether it was accepted.
+Update `compute_paired_deltas()`:
+
+```python
+def compute_paired_deltas(
+    self,
+    samples: list[BootstrapSample],
+    policy_a: dict[str, Any],
+    policy_b: dict[str, Any],
+) -> list[PairedDelta]:
+    """Compute paired deltas between two policies with actual costs."""
+    results = []
+    for i, sample in enumerate(samples):
+        cost_a = self._evaluate_policy_on_sample(policy_a, sample)
+        cost_b = self._evaluate_policy_on_sample(policy_b, sample)
+
+        results.append(PairedDelta(
+            sample_index=i,
+            delta=cost_a - cost_b,
+            old_cost=cost_a,  # Actual computed cost
+            new_cost=cost_b,  # Actual computed cost
+        ))
+
+    return results
+```
+
+---
+
+## Phase 2: New Dataclasses for Evaluation Results
+
+**File**: `api/payment_simulator/experiments/runner/optimization.py`
+
+Add dataclasses to capture complete evaluation results:
+
+```python
+@dataclass(frozen=True)
+class SampleEvaluationResult:
+    """Result of evaluating policy pair on a single sample.
 
     All costs in integer cents (INV-1).
+    """
+    sample_index: int
+    seed: int  # Seed used for this sample (for reproducibility)
+    old_cost: int  # Actual cost with old policy
+    new_cost: int  # Actual cost with new policy
+    delta: int  # old_cost - new_cost (positive = improvement)
+
+
+@dataclass(frozen=True)
+class PolicyPairEvaluation:
+    """Complete results from evaluating old vs new policy.
+
+    All costs in integer cents (INV-1).
+    """
+    sample_results: list[SampleEvaluationResult]
+    delta_sum: int  # Sum of deltas across samples
+    mean_old_cost: int  # Mean of old_cost across samples
+    mean_new_cost: int  # Mean of new_cost across samples
+
+    @property
+    def deltas(self) -> list[int]:
+        """List of deltas for backward compatibility."""
+        return [s.delta for s in self.sample_results]
+
+    @property
+    def num_samples(self) -> int:
+        return len(self.sample_results)
+```
+
+---
+
+## Phase 3: Update `_evaluate_policy_pair`
+
+**File**: `api/payment_simulator/experiments/runner/optimization.py`
+
+Change return type from `tuple[list[int], int]` to `PolicyPairEvaluation`:
+
+### Deterministic Path
+
+```python
+def _evaluate_policy_pair(
+    self,
+    agent_id: str,
+    old_policy: dict[str, Any],
+    new_policy: dict[str, Any],
+) -> PolicyPairEvaluation:
+    """Evaluate old vs new policy with paired samples."""
+
+    iteration_idx = self._current_iteration - 1
+    num_samples = self._config.evaluation.num_samples or 1
+
+    if self._config.evaluation.mode == "deterministic" or num_samples <= 1:
+        seed = self._seed_matrix.get_iteration_seed(iteration_idx, agent_id)
+
+        # Evaluate old policy
+        self._policies[agent_id] = old_policy
+        _, old_costs = self._run_single_simulation(seed)
+        old_cost = old_costs.get(agent_id, 0)
+
+        # Evaluate new policy
+        self._policies[agent_id] = new_policy
+        _, new_costs = self._run_single_simulation(seed)
+        new_cost = new_costs.get(agent_id, 0)
+
+        # Restore old policy
+        self._policies[agent_id] = old_policy
+
+        delta = old_cost - new_cost
+
+        # Return ACTUAL costs
+        return PolicyPairEvaluation(
+            sample_results=[SampleEvaluationResult(
+                sample_index=0,
+                seed=seed,
+                old_cost=old_cost,
+                new_cost=new_cost,
+                delta=delta,
+            )],
+            delta_sum=delta,
+            mean_old_cost=old_cost,
+            mean_new_cost=new_cost,
+        )
+```
+
+### Bootstrap Path
+
+```python
+    # Bootstrap mode
+    if self._bootstrap_samples and agent_id in self._bootstrap_samples:
+        samples = self._bootstrap_samples[agent_id]
+        evaluator = BootstrapPolicyEvaluator(...)
+
+        paired_deltas = evaluator.compute_paired_deltas(
+            samples=samples,
+            policy_a=old_policy,
+            policy_b=new_policy,
+        )
+
+        # Build sample results with ACTUAL costs
+        sample_results = [
+            SampleEvaluationResult(
+                sample_index=pd.sample_index,
+                seed=getattr(samples[pd.sample_index], 'seed', 0),
+                old_cost=pd.old_cost,
+                new_cost=pd.new_cost,
+                delta=pd.delta,
+            )
+            for pd in paired_deltas
+        ]
+
+        n = len(paired_deltas)
+        return PolicyPairEvaluation(
+            sample_results=sample_results,
+            delta_sum=sum(pd.delta for pd in paired_deltas),
+            mean_old_cost=sum(pd.old_cost for pd in paired_deltas) // n,
+            mean_new_cost=sum(pd.new_cost for pd in paired_deltas) // n,
+        )
+
+    raise RuntimeError(f"No bootstrap samples available for agent {agent_id}")
+```
+
+---
+
+## Phase 4: Update `_should_accept_policy`
+
+**File**: `api/payment_simulator/experiments/runner/optimization.py`
+
+Return actual costs and full evaluation:
+
+```python
+async def _should_accept_policy(
+    self,
+    agent_id: str,
+    old_policy: dict[str, Any],
+    new_policy: dict[str, Any],
+    current_cost: int,
+) -> tuple[bool, int, int, list[int], int, PolicyPairEvaluation]:
+    """Determine whether to accept a new policy.
+
+    Returns:
+        Tuple of (should_accept, old_cost, new_cost, deltas, delta_sum, evaluation)
+        where old_cost and new_cost are ACTUAL COMPUTED COSTS.
+    """
+    evaluation = self._evaluate_policy_pair(
+        agent_id=agent_id,
+        old_policy=old_policy,
+        new_policy=new_policy,
+    )
+
+    should_accept = evaluation.delta_sum > 0
+
+    return (
+        should_accept,
+        evaluation.mean_old_cost,  # ACTUAL, not current_cost
+        evaluation.mean_new_cost,  # ACTUAL, not estimate
+        evaluation.deltas,
+        evaluation.delta_sum,
+        evaluation,
+    )
+```
+
+---
+
+## Phase 5: Persistence Schema
+
+### Evaluation Mode Semantics
+
+The schema handles two semantically different evaluation modes:
+
+| Mode | What | Purpose | Data |
+|------|------|---------|------|
+| **Deterministic** | Single paired simulation on configured scenario | "How does this policy perform in THIS specific scenario?" | One old_cost, one new_cost, scenario_seed |
+| **Bootstrap** | Paired simulations across N resampled scenarios | "How does this policy perform across a DISTRIBUTION of scenarios?" | Mean costs + sample_details array |
+
+### Dataclass
+
+**File**: `api/payment_simulator/experiments/persistence/repository.py`
+
+```python
+@dataclass(frozen=True)
+class PolicyEvaluationRecord:
+    """Complete record of a policy evaluation.
+
+    All costs in integer cents (INV-1).
+
+    The interpretation of cost fields depends on evaluation_mode:
+    - "deterministic": old_cost/new_cost are from THE configured scenario
+    - "bootstrap": old_cost/new_cost are means across N resampled scenarios
     """
     run_id: str
     iteration: int  # 0-indexed
     agent_id: str
 
+    # Evaluation mode - determines interpretation of other fields
+    evaluation_mode: str  # "deterministic" | "bootstrap"
+
     # Proposed policy
     proposed_policy: dict[str, Any]
 
-    # Evaluation results
-    proposed_cost: int  # Mean cost of proposed policy (bootstrap) or single cost (deterministic)
-    current_best_cost: int  # Cost of current best policy before this evaluation
+    # Costs from evaluation (interpretation depends on mode)
+    old_cost: int
+    new_cost: int
+
+    # Context simulation cost (from iteration start, for comparison)
+    context_simulation_cost: int
 
     # Acceptance decision
     accepted: bool
     acceptance_reason: str  # "cost_improved", "cost_not_improved", "validation_failed"
 
-    # Bootstrap-specific (optional)
-    bootstrap_deltas: list[int] | None = None  # (old_cost - new_cost) per sample
-    delta_sum: int | None = None
-    num_samples: int | None = None
+    # Aggregate metrics
+    delta_sum: int
+    num_samples: int  # 1 for deterministic, N for bootstrap
 
-    # Metadata
+    # Bootstrap-only: per-sample details for distribution analysis
+    # For bootstrap: list of {"index", "seed", "old_cost", "new_cost", "delta"}
+    sample_details: list[dict[str, Any]] | None = None
+
+    # Deterministic-only: seed used for THE scenario evaluation
+    scenario_seed: int | None = None
+
     timestamp: str
 ```
 
-### Proposed Database Schema
+### Database Schema
 
 ```sql
 CREATE TABLE IF NOT EXISTS policy_evaluations (
@@ -122,21 +392,32 @@ CREATE TABLE IF NOT EXISTS policy_evaluations (
     iteration INTEGER NOT NULL,
     agent_id VARCHAR NOT NULL,
 
+    -- Evaluation mode: "deterministic" or "bootstrap"
+    evaluation_mode VARCHAR NOT NULL,
+
     -- Proposed policy
     proposed_policy JSON NOT NULL,
 
-    -- Evaluation results
-    proposed_cost INTEGER NOT NULL,  -- Cost of proposed policy
-    current_best_cost INTEGER NOT NULL,  -- Cost before this evaluation
+    -- Costs from evaluation (actual, not estimates)
+    old_cost INTEGER NOT NULL,
+    new_cost INTEGER NOT NULL,
 
-    -- Acceptance decision
+    -- Context simulation cost (for comparison/audit)
+    context_simulation_cost INTEGER NOT NULL,
+
+    -- Acceptance
     accepted BOOLEAN NOT NULL,
     acceptance_reason VARCHAR NOT NULL,
 
-    -- Bootstrap-specific (NULL for deterministic)
-    bootstrap_deltas JSON,
-    delta_sum INTEGER,
-    num_samples INTEGER,
+    -- Aggregates
+    delta_sum INTEGER NOT NULL,
+    num_samples INTEGER NOT NULL,
+
+    -- Bootstrap-only: per-sample details (JSON array)
+    sample_details JSON,
+
+    -- Deterministic-only: seed used for THE scenario
+    scenario_seed INTEGER,
 
     timestamp VARCHAR NOT NULL,
 
@@ -145,192 +426,254 @@ CREATE TABLE IF NOT EXISTS policy_evaluations (
 
 CREATE INDEX idx_policy_evals_run_agent
 ON policy_evaluations(run_id, agent_id);
+
+CREATE INDEX idx_policy_evals_mode
+ON policy_evaluations(run_id, evaluation_mode);
 ```
 
-### Proposed Changes to optimization.py
+### Repository Methods
+
+Add to `ExperimentRepository`:
 
 ```python
-# In _should_accept_policy() or after it returns:
-async def _optimize_agent(self, agent_id: str, current_cost: int) -> None:
-    # ... existing code ...
+def save_policy_evaluation(self, record: PolicyEvaluationRecord) -> None:
+    """Save policy evaluation record."""
+    # Use INSERT ... ON CONFLICT DO UPDATE for upsert
 
-    (should_accept, eval_old_cost, eval_new_cost, deltas, delta_sum) = \
-        await self._should_accept_policy(...)
+def get_policy_evaluations(
+    self, run_id: str, agent_id: str
+) -> list[PolicyEvaluationRecord]:
+    """Get policy evaluations for a specific agent."""
 
-    # NEW: Persist evaluation record immediately after evaluation
-    self._save_policy_evaluation(
-        agent_id=agent_id,
-        proposed_policy=new_policy,
-        proposed_cost=eval_new_cost,
-        current_best_cost=eval_old_cost,
-        accepted=should_accept,
-        acceptance_reason="cost_improved" if should_accept else "cost_not_improved",
-        bootstrap_deltas=deltas if deltas else None,
-        delta_sum=delta_sum if deltas else None,
-        num_samples=len(deltas) if deltas else None,
-    )
+def get_all_policy_evaluations(
+    self, run_id: str
+) -> list[PolicyEvaluationRecord]:
+    """Get all policy evaluations for a run."""
 
-    # ... rest of existing code ...
-
-def _save_policy_evaluation(self, ...) -> None:
-    """Save policy evaluation record to repository."""
-    if self._repository is None:
-        return
-
-    record = PolicyEvaluationRecord(
-        run_id=self._run_id,
-        iteration=self._current_iteration - 1,  # 0-indexed
-        agent_id=agent_id,
-        proposed_policy=proposed_policy,
-        proposed_cost=proposed_cost,
-        current_best_cost=current_best_cost,
-        accepted=accepted,
-        acceptance_reason=acceptance_reason,
-        bootstrap_deltas=bootstrap_deltas,
-        delta_sum=delta_sum,
-        num_samples=num_samples,
-        timestamp=datetime.now().isoformat(),
-    )
-    self._repository.save_policy_evaluation(record)
+def has_policy_evaluations(self, run_id: str) -> bool:
+    """Check if run has policy evaluation records."""
 ```
 
-### Proposed Changes to charting.py (After Implementation)
+---
 
-Once the data is properly persisted, the charting code can be simplified:
+## Phase 6: Update Persistence Call
+
+**File**: `api/payment_simulator/experiments/runner/optimization.py`
+
+In `_optimize_agent()`, after `_should_accept_policy()`:
 
 ```python
-# REMOVE: _parse_iteration_history_from_llm_prompt() function
-# REMOVE: _extract_from_llm_events() method
+(
+    should_accept,
+    old_cost,
+    new_cost,
+    deltas,
+    delta_sum,
+    evaluation,
+) = await self._should_accept_policy(
+    agent_id=agent_id,
+    old_policy=current_policy,
+    new_policy=new_policy,
+    current_cost=current_cost,
+)
 
-class ExperimentChartService:
-    def extract_chart_data(
-        self,
-        run_id: str,
-        agent_filter: str | None = None,
-        parameter_name: str | None = None,
-    ) -> ChartData:
-        """Extract chart data from experiment run.
+# Determine mode and mode-specific fields
+is_deterministic = self._config.evaluation.mode == "deterministic"
+evaluation_mode = "deterministic" if is_deterministic else "bootstrap"
 
-        Uses policy_evaluations table for accurate proposed/accepted costs.
-        """
-        experiment = self._repo.load_experiment(run_id)
-        if experiment is None:
-            raise ValueError(f"Experiment run not found: {run_id}")
-
-        evaluation_mode = experiment.config.get("evaluation", {}).get(
-            "mode", "deterministic"
-        )
-
-        # Get evaluation records - this replaces LLM prompt parsing!
-        if agent_filter:
-            evaluations = self._repo.get_policy_evaluations(run_id, agent_filter)
-        else:
-            evaluations = self._repo.get_all_policy_evaluations(run_id)
-
-        data_points: list[ChartDataPoint] = []
-        for eval_record in evaluations:
-            # Cost is the PROPOSED cost (what we want for "All Policies" line)
-            if agent_filter:
-                cost_cents = eval_record.proposed_cost
-            else:
-                # Sum across agents for system total
-                # (would need to aggregate differently)
-                cost_cents = eval_record.proposed_cost
-
-            parameter_value = self._extract_parameter(
-                eval_record.proposed_policy,
-                parameter_name,
-            ) if parameter_name else None
-
-            data_points.append(
-                ChartDataPoint(
-                    iteration=eval_record.iteration + 1,  # 1-indexed display
-                    cost_dollars=cost_cents / 100.0,
-                    accepted=eval_record.accepted,
-                    parameter_value=parameter_value,
-                )
-            )
-
-        return ChartData(
-            run_id=run_id,
-            experiment_name=experiment.experiment_name,
-            evaluation_mode=evaluation_mode,
-            agent_id=agent_filter,
-            parameter_name=parameter_name,
-            data_points=data_points,
-        )
+# Persist with ACTUAL costs
+self._save_policy_evaluation(
+    agent_id=agent_id,
+    evaluation_mode=evaluation_mode,
+    proposed_policy=new_policy,
+    old_cost=old_cost,
+    new_cost=new_cost,
+    context_simulation_cost=current_cost,
+    accepted=should_accept,
+    acceptance_reason="cost_improved" if should_accept else "cost_not_improved",
+    delta_sum=delta_sum,
+    num_samples=evaluation.num_samples,
+    sample_details=[
+        {
+            "index": s.sample_index,
+            "seed": s.seed,
+            "old_cost": s.old_cost,
+            "new_cost": s.new_cost,
+            "delta": s.delta,
+        }
+        for s in evaluation.sample_results
+    ] if not is_deterministic else None,
+    scenario_seed=evaluation.sample_results[0].seed if is_deterministic else None,
+)
 ```
 
-### Usage Example (After Fix)
+---
 
-```bash
-# Chart generation works identically, but uses clean data source
-payment-sim experiment chart exp2-20251215-100212-680ad2 \
-    --db results/exp2.db \
-    --agent BANK_A \
-    --parameter initial_liquidity_fraction \
-    --output chart.png
+## Phase 7: Update Charting
 
-# Data query for analysis (new capability)
-payment-sim experiment evaluations exp2-20251215-100212-680ad2 \
-    --db results/exp2.db \
-    --agent BANK_A \
-    --format json
+**File**: `api/payment_simulator/experiments/analysis/charting.py`
+
+### Primary Data Source
+
+```python
+def extract_chart_data(
+    self,
+    run_id: str,
+    agent_filter: str | None = None,
+    parameter_name: str | None = None,
+) -> ChartData:
+    """Extract chart data from experiment run.
+
+    Uses policy_evaluations table when available (actual costs),
+    falls back to experiment_iterations with inferred acceptance.
+    """
+    experiment = self._repo.load_experiment(run_id)
+    if experiment is None:
+        raise ValueError(f"Experiment run not found: {run_id}")
+
+    # Try new data source first
+    if self._repo.has_policy_evaluations(run_id):
+        return self._extract_from_policy_evaluations(
+            run_id, experiment, agent_filter, parameter_name
+        )
+
+    # Fall back to iterations table with inferred acceptance
+    return self._extract_from_iterations_table(
+        run_id, experiment, agent_filter, parameter_name
+    )
 ```
+
+### New Extraction Method
+
+```python
+def _extract_from_policy_evaluations(
+    self,
+    run_id: str,
+    experiment: ExperimentRecord,
+    agent_filter: str | None,
+    parameter_name: str | None,
+) -> ChartData:
+    """Extract chart data from policy_evaluations table."""
+    if agent_filter:
+        evaluations = self._repo.get_policy_evaluations(run_id, agent_filter)
+    else:
+        evaluations = self._repo.get_all_policy_evaluations(run_id)
+
+    evaluation_mode = experiment.config.get("evaluation", {}).get(
+        "mode", "deterministic"
+    )
+
+    data_points: list[ChartDataPoint] = []
+    for eval_record in evaluations:
+        # new_cost interpretation:
+        # - deterministic: cost from THE scenario (direct measurement)
+        # - bootstrap: mean cost across N samples (statistical estimate)
+        cost_cents = eval_record.new_cost
+
+        parameter_value = self._extract_parameter(
+            eval_record.proposed_policy, parameter_name
+        ) if parameter_name else None
+
+        data_points.append(ChartDataPoint(
+            iteration=eval_record.iteration + 1,  # 1-indexed display
+            cost_dollars=cost_cents / 100.0,
+            accepted=eval_record.accepted,
+            parameter_value=parameter_value,
+        ))
+
+    return ChartData(
+        run_id=run_id,
+        experiment_name=experiment.experiment_name,
+        evaluation_mode=evaluation_mode,
+        agent_id=agent_filter,
+        parameter_name=parameter_name,
+        data_points=data_points,
+    )
+```
+
+---
+
+## Phase 8: Fix `accepted_changes` Bug
+
+**File**: `api/payment_simulator/experiments/runner/optimization.py`
+
+The `_save_iteration_record()` call must happen AFTER the optimization loop, not before:
+
+```python
+# WRONG: Before optimization (accepted_changes always False)
+# self._save_iteration_record(agent_id, iteration, ...)
+# for agent_id in self.optimized_agents:
+#     await self._optimize_agent(...)
+
+# CORRECT: After optimization
+for agent_id in self.optimized_agents:
+    await self._optimize_agent(agent_id, current_cost)
+
+# Now save iteration record with correct accepted_changes
+self._save_iteration_record(agent_id, iteration, accepted_changes=was_accepted)
+```
+
+---
 
 ## Implementation Notes
 
 ### Invariants to Respect
 
 - **INV-1 (Integer Cents)**: All costs stored as integer cents in database
-- **Determinism**: Evaluation records should be timestamped but not affect simulation determinism
+- **INV-2 (Determinism)**: Seeds stored for reproducibility verification
+- **INV-10 (Scenario Config)**: Use `ScenarioConfigBuilder` for agent config extraction
 
-### Related Components
+### Files to Modify
 
-| Component | Impact |
-|-----------|--------|
-| `api/payment_simulator/experiments/persistence/repository.py` | Add `policy_evaluations` table, `save_policy_evaluation()`, `get_policy_evaluations()` |
-| `api/payment_simulator/experiments/persistence/models.py` | Add `PolicyEvaluationRecord` dataclass |
-| `api/payment_simulator/experiments/runner/optimization.py` | Add `_save_policy_evaluation()` call after each evaluation; fix `accepted_changes` bug |
-| `api/payment_simulator/experiments/analysis/charting.py` | Use new data source when available, fall back to inferred acceptance |
-| `api/migrations/` | Database migration for new table |
-
-### Migration Path
-
-1. **Phase 1 (Investigation)**: Investigate cost discrepancy between LLM prompts and database
-2. **Phase 2 (Schema)**: Add `policy_evaluations` table with migration
-3. **Phase 3 (Persistence)**: Update `optimization.py` to persist evaluation records
-4. **Phase 4 (Charting)**: Refactor `charting.py` to use new data source instead of inferred acceptance
-5. **Phase 5 (Bug Fix)**: Fix `accepted_changes` field in `experiment_iterations` table
+| File | Changes |
+|------|---------|
+| `api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py` | Extend `PairedDelta` to include `old_cost` and `new_cost` |
+| `api/payment_simulator/experiments/runner/optimization.py` | Add `SampleEvaluationResult`, `PolicyPairEvaluation`; modify `_evaluate_policy_pair`, `_should_accept_policy`; add `_save_policy_evaluation`; fix `accepted_changes` bug |
+| `api/payment_simulator/experiments/persistence/repository.py` | Add `PolicyEvaluationRecord`; add table schema in `_ensure_schema()`; add CRUD methods |
+| `api/payment_simulator/experiments/persistence/__init__.py` | Export `PolicyEvaluationRecord` |
+| `api/payment_simulator/experiments/analysis/charting.py` | Add `_extract_from_policy_evaluations()`; update `extract_chart_data()` to use new source |
 
 ### Backward Compatibility
 
 - Old experiment databases won't have `policy_evaluations` table
-- Charting should fall back to current `experiment_iterations` table approach
-- Add version check or table existence check
+- `has_policy_evaluations()` check determines which data source to use
+- Old experiments continue to work with inferred acceptance
 
-```python
-def extract_chart_data(self, run_id: str, ...) -> ChartData:
-    # Try new data source first
-    if self._repo.has_policy_evaluations(run_id):
-        return self._extract_from_evaluations(run_id, ...)
-
-    # Fall back to iterations table with inferred acceptance
-    # (current implementation)
-    return self._extract_from_iterations_table(run_id, ...)
-```
+---
 
 ## Acceptance Criteria
 
-- [ ] Cost discrepancy between LLM prompts and database investigated and documented
-- [ ] `policy_evaluations` table created with migration
-- [ ] `PolicyEvaluationRecord` dataclass defined with all fields
-- [ ] `optimization.py` persists evaluation record after each `_should_accept_policy()` call
-- [ ] `charting.py` uses `policy_evaluations` for chart data extraction (when available)
+### Core Evaluation Changes
+- [ ] `PairedDelta` extended to include `old_cost` and `new_cost` fields
+- [ ] `_evaluate_policy_pair` returns `PolicyPairEvaluation` with actual costs
+- [ ] Deterministic mode: returns actual costs from THE scenario simulation
+- [ ] Bootstrap mode: returns actual per-sample costs from each bootstrap simulation
+- [ ] `_should_accept_policy` returns actual mean costs, not estimates
+
+### Schema and Persistence
+- [ ] `policy_evaluations` table created with `evaluation_mode` column
+- [ ] `old_cost` and `new_cost` columns store actual computed costs
+- [ ] `context_simulation_cost` stored separately for audit/comparison
+- [ ] `scenario_seed` populated for deterministic mode (NULL for bootstrap)
+- [ ] `sample_details` populated for bootstrap mode (NULL for deterministic)
+- [ ] `num_samples` = 1 for deterministic, N for bootstrap
+
+### Charting and Analysis
+- [ ] Charting uses `new_cost` from `policy_evaluations` when available
+- [ ] Charting correctly interprets both deterministic and bootstrap modes
+- [ ] Old experiments fall back to inferred acceptance from `experiment_iterations`
+
+### Bug Fixes
 - [ ] `accepted_changes` field bug fixed in `experiment_iterations`
-- [ ] Charts show identical output for new experiments
-- [ ] Old experiments (without `policy_evaluations`) still render correctly using inferred acceptance
-- [ ] Tests verify correct persistence of proposed vs accepted costs
+
+### Testing
+- [ ] All existing tests pass
+- [ ] New tests verify deterministic costs match simulation output
+- [ ] New tests verify bootstrap costs match per-sample evaluations
+- [ ] Tests verify `evaluation_mode` is correctly set
+- [ ] Tests verify backward compatibility with old databases
+
+---
 
 ## Post-Implementation Required
 
@@ -339,72 +682,106 @@ After this feature is implemented:
 - [ ] Generate updated charts using the new `policy_evaluations` data
 - [ ] Verify charts show both "All Policies" and "Accepted Policies" lines correctly
 
+---
+
 ## Testing Requirements
 
-1. **Unit tests**:
-   - `test_policy_evaluation_record_persisted` - Verify record saved with all fields
-   - `test_proposed_cost_different_from_accepted` - Verify rejected policy costs stored
-   - `test_chart_uses_evaluation_records` - Verify charting reads from new table
+### Unit Tests
 
-2. **Integration tests**:
-   - `test_end_to_end_bootstrap_experiment` - Run experiment, verify evaluations persisted
-   - `test_chart_matches_current_output` - Compare new vs old chart data extraction
-   - `test_backward_compatibility` - Old DB without table still works
+1. **PairedDelta includes costs**
+   ```python
+   def test_paired_delta_has_costs():
+       pd = evaluator.compute_paired_deltas(samples, old_policy, new_policy)[0]
+       assert hasattr(pd, 'old_cost')
+       assert hasattr(pd, 'new_cost')
+       assert pd.delta == pd.old_cost - pd.new_cost
+   ```
 
-3. **Migration tests**:
-   - `test_migration_creates_table` - Verify schema migration
-   - `test_old_db_graceful_fallback` - Verify fallback to LLM parsing
+2. **Deterministic evaluation returns actual costs**
+   ```python
+   def test_deterministic_returns_actual_costs():
+       evaluation = optimizer._evaluate_policy_pair(agent_id, old_policy, new_policy)
+
+       # Run same simulation manually to verify
+       optimizer._policies[agent_id] = new_policy
+       _, costs = optimizer._run_single_simulation(expected_seed)
+       actual_new_cost = costs[agent_id]
+
+       assert evaluation.mean_new_cost == actual_new_cost
+   ```
+
+3. **Bootstrap evaluation returns per-sample costs**
+   ```python
+   def test_bootstrap_returns_per_sample_costs():
+       evaluation = optimizer._evaluate_policy_pair(agent_id, old_policy, new_policy)
+
+       assert len(evaluation.sample_results) == num_bootstrap_samples
+       for sample in evaluation.sample_results:
+           assert sample.old_cost > 0
+           assert sample.new_cost > 0
+           assert sample.delta == sample.old_cost - sample.new_cost
+   ```
+
+4. **Policy evaluation record persistence**
+   ```python
+   def test_policy_evaluation_persisted():
+       # Run optimization
+       # Verify PolicyEvaluationRecord saved with all fields
+       records = repo.get_policy_evaluations(run_id, agent_id)
+       assert len(records) > 0
+       assert records[0].new_cost > 0
+       assert records[0].evaluation_mode in ("deterministic", "bootstrap")
+   ```
+
+5. **Charting uses new data source**
+   ```python
+   def test_chart_uses_policy_evaluations():
+       # Create experiment with policy_evaluations
+       chart_data = service.extract_chart_data(run_id, agent_filter="BANK_A")
+       assert len(chart_data.data_points) > 0
+       # Verify costs match policy_evaluations, not iterations table
+   ```
+
+### Integration Tests
+
+1. **End-to-end deterministic experiment**
+2. **End-to-end bootstrap experiment**
+3. **Backward compatibility with old databases**
+4. **Chart output matches expected format**
+
+---
 
 ## Related Documentation
 
 - `docs/reference/cli/commands/experiment.md` - Chart command documentation
-- `docs/reference/patterns-and-conventions.md` - Data persistence patterns
+- `docs/reference/patterns-and-conventions.md` - INV-1, INV-2, data persistence patterns
 
 ## Related Code
 
-- `api/payment_simulator/experiments/analysis/charting.py` - Current LLM prompt parsing workaround
-- `api/payment_simulator/experiments/runner/optimization.py` - Where evaluations happen
+- `api/payment_simulator/experiments/runner/optimization.py` - Main evaluation logic
+- `api/payment_simulator/ai_cash_mgmt/bootstrap/evaluator.py` - Bootstrap evaluation
 - `api/payment_simulator/experiments/persistence/repository.py` - Database operations
-- `api/payment_simulator/experiments/runner/verbose.py` - `BootstrapDeltaResult` dataclass (similar structure)
+- `api/payment_simulator/experiments/analysis/charting.py` - Chart generation
+
+---
 
 ## Notes
 
-### Known Issues Discovered During Investigation
+### Why Store Actual Costs Instead of Estimates?
 
-1. **LLM prompt costs differ from database costs**: The "Mean Cost" shown in LLM prompts (e.g., "$2,500") doesn't match the `costs_per_agent` values in the database (e.g., "$50"). The source of this discrepancy is unclear - possibly different cost calculations or scaling factors.
+The estimate `current_cost - mean_delta` could theoretically work, but:
 
-2. **Multiple rows per iteration**: The `experiment_iterations` table can have multiple rows for the same iteration number (possibly from different evaluation seeds). The charting code currently takes the first occurrence.
+1. **We already compute the actual costs** - discarding them is wasteful
+2. **Per-sample data is valuable** - for confidence intervals, outliers
+3. **Audit trail** - storing actual values provides verifiable records
+4. **Seeds enable reproducibility** - can re-run any sample to verify
+5. **Research validity** - published results should report measurements, not estimates
 
-3. **`accepted_changes` always False**: This field is set before optimization happens and is never updated. The workaround infers acceptance from cost improvement.
+### Why Two Tables?
 
-### Data Already Available in Memory
+`experiment_iterations` and `policy_evaluations` serve different purposes:
 
-The data needed for proper persistence already exists in `optimization.py`:
+- `experiment_iterations`: "What policy is active at iteration N?" (state tracking)
+- `policy_evaluations`: "What was proposed and what happened?" (evaluation audit)
 
-```python
-# In _should_accept_policy():
-# Returns: (should_accept, old_cost, new_cost, deltas, delta_sum)
-
-# In _record_iteration_history():
-# Creates SingleAgentIterationRecord with cost and was_accepted
-```
-
-The fix is straightforward: persist this data to a dedicated table at the time of evaluation.
-
-### Why Not Fix `experiment_iterations`?
-
-The `experiment_iterations` table has a different purpose - it tracks the CURRENT STATE at each iteration (what policy is active, what cost it achieves). The proposed `policy_evaluations` table tracks the EVALUATION PROCESS (what was proposed, what cost it achieved, why it was accepted/rejected).
-
-These are complementary:
-- `experiment_iterations`: "What policy is active at iteration N?"
-- `policy_evaluations`: "What policy was proposed at iteration N and what happened?"
-
-### Cost Discrepancy Investigation Needed
-
-Before implementing this feature, investigate why LLM prompt costs differ from database costs:
-
-1. Are they different metrics (total cost vs per-agent cost)?
-2. Is there a scaling factor applied for display?
-3. Which value is authoritative for analysis?
-
-This should be resolved so the new `policy_evaluations` table stores the correct, authoritative cost values.
+Both are needed for complete experiment analysis.
