@@ -23,6 +23,7 @@ from payment_simulator.experiments.persistence.repository import (
     ExperimentRecord,
     ExperimentRepository,
     IterationRecord,
+    PolicyEvaluationRecord,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "ExperimentRecord",
     "IterationRecord",
     "EventRecord",
+    "PolicyEvaluationRecord",
 ]
