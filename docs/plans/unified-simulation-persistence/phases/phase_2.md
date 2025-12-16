@@ -3,11 +3,13 @@
 **Status**: Pending
 **Started**:
 
+**Prerequisite**: Phase 1 must be complete (all tests pass, provider implemented).
+
 ---
 
 ## Objective
 
-Modify the experiment runner's `_run_simulation()` method to use `SimulationPersistenceProvider` instead of storing events as JSON blobs in `experiment_events`. This ensures experiments persist simulations identically to `payment-sim run --persist`.
+Modify the experiment runner's `_run_simulation()` method to use `SimulationPersistenceProvider` instead of storing events as JSON blobs in `experiment_events`.
 
 ---
 
@@ -19,51 +21,33 @@ Modify the experiment runner's `_run_simulation()` method to use `SimulationPers
 
 ---
 
-## Current State
+## Strict TDD Workflow
 
-In `api/payment_simulator/experiments/runner/optimization.py`, the `_run_simulation()` method (lines 561-582) currently does:
+**CRITICAL**: Follow this exact sequence. Do NOT skip steps or combine RED/GREEN phases.
 
-```python
-# Current: Stores events as JSON blob in experiment_events
-if self._repository and should_persist:
-    event = EventRecord(
-        event_type="simulation_run",
-        event_data={
-            "simulation_id": sim_id,
-            "events": all_events,  # ← JSON blob
-        },
-    )
-    self._repository.save_event(event)  # ← Goes to experiment_events
 ```
-
-This needs to change to:
-
-```python
-# New: Uses SimulationPersistenceProvider
-if self._simulation_persistence_provider and should_persist:
-    self._simulation_persistence_provider.persist_tick_events(sim_id, tick, tick_events)
-    # ... after simulation complete:
-    self._simulation_persistence_provider.persist_simulation_complete(sim_id, metrics)
+┌─────────────────────────────────────────────────────────────────┐
+│  Step 1: Write integration tests ONLY (no implementation)       │
+│  Step 2: Run tests → Verify they FAIL (RED)                     │
+│  Step 3: Modify experiment runner to pass tests (GREEN)         │
+│  Step 4: Refactor while keeping tests green (REFACTOR)          │
+│  Step 5: Verify existing tests still pass (regression)          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## TDD Steps
+## Step 2.1: Write Failing Tests (RED)
 
-### Step 2.1: Write Failing Tests (RED)
+**Action**: Create integration test file ONLY. Do NOT modify `optimization.py` yet.
 
 Create `api/tests/integration/test_experiment_simulation_persistence.py`:
 
-**Test Cases**:
-1. `test_experiment_with_persist_creates_simulation_record` - Verify simulations table populated
-2. `test_experiment_with_persist_writes_events_to_simulation_events` - Verify events in standard table
-3. `test_experiment_simulation_has_experiment_context` - Verify run_id and iteration stored
-4. `test_simulation_queryable_via_standard_queries` - Verify standard replay queries work
-5. `test_experiment_without_persist_no_simulation_tables` - Backward compatibility
-6. `test_multiple_simulations_per_experiment` - Multiple bootstrap samples persisted separately
-
 ```python
 """Integration tests for experiment simulation persistence.
+
+TDD Phase: RED - These tests define the expected behavior.
+The experiment runner has NOT been modified yet - tests MUST fail initially.
 
 These tests verify that experiments persist simulations to the standard
 simulation tables (simulations, simulation_events) when --persist-bootstrap
@@ -78,16 +62,16 @@ from typing import Any
 
 import pytest
 
-from payment_simulator.persistence.connection import DatabaseManager
-from payment_simulator.persistence.event_queries import get_simulation_events
-from payment_simulator.persistence.queries import get_simulation_summary
 
+class TestExperimentSimulationPersistenceIntegration:
+    """Integration tests for experiment → simulation table persistence.
 
-class TestExperimentSimulationPersistence:
-    """Tests for experiment simulation persistence integration."""
+    These tests will FAIL until optimization.py is modified to use
+    SimulationPersistenceProvider.
+    """
 
     @pytest.fixture
-    def experiment_config(self) -> dict[str, Any]:
+    def minimal_experiment_config(self) -> dict[str, Any]:
         """Minimal experiment configuration for testing."""
         return {
             "name": "test-experiment",
@@ -96,125 +80,144 @@ class TestExperimentSimulationPersistence:
                 "num_days": 1,
                 "rng_seed": 12345,
                 "agents": [
-                    {
-                        "id": "BANK_A",
-                        "opening_balance": 1000000,
-                        "unsecured_cap": 500000,
-                    },
-                    {
-                        "id": "BANK_B",
-                        "opening_balance": 1000000,
-                        "unsecured_cap": 500000,
-                    },
+                    {"id": "BANK_A", "opening_balance": 1000000, "unsecured_cap": 500000},
+                    {"id": "BANK_B", "opening_balance": 1000000, "unsecured_cap": 500000},
                 ],
-                "arrivals": [],  # No arrivals for simple test
+                "arrivals": [],
             },
-            "evaluation": {
-                "mode": "deterministic",
-                "ticks": 10,
-            },
+            "evaluation": {"mode": "deterministic", "ticks": 10},
             "optimized_agents": ["BANK_A"],
         }
 
     @pytest.fixture
-    def temp_db_path(self) -> Path:
+    def temp_db_path(self):
         """Create temporary database path."""
         with tempfile.TemporaryDirectory() as tmpdir:
             yield Path(tmpdir) / "test_experiment.db"
 
-    def test_experiment_with_persist_creates_simulation_record(
-        self, experiment_config: dict[str, Any], temp_db_path: Path
+    def test_experiment_simulation_creates_record_in_simulations_table(
+        self, minimal_experiment_config: dict[str, Any], temp_db_path: Path
     ) -> None:
-        """Experiments with persist_bootstrap should create simulation records."""
-        from payment_simulator.experiments.runner.optimization import (
-            OptimizationRunner,
-        )
+        """When persist_bootstrap=True, simulations table should have a record.
 
-        # Run experiment with persistence
+        This is the KEY test that verifies INV-11 compliance.
+        """
+        from payment_simulator.experiments.runner.optimization import OptimizationRunner
+        from payment_simulator.persistence.connection import DatabaseManager
+        from payment_simulator.persistence.queries import get_simulation_summary
+
         runner = OptimizationRunner(
-            config=experiment_config,
+            config=minimal_experiment_config,
             db_path=temp_db_path,
             persist_bootstrap=True,
         )
 
-        # Run initial simulation
-        result = runner._run_simulation(
-            seed=12345,
-            purpose="test_simulation",
-            persist=True,
-        )
+        result = runner._run_simulation(seed=12345, purpose="test", persist=True)
 
-        # Verify simulation record exists in standard table
+        # KEY ASSERTION: Simulation must be in simulations table
         with DatabaseManager(str(temp_db_path)) as db:
             summary = get_simulation_summary(db.conn, result.simulation_id)
-            assert summary is not None
+            assert summary is not None, (
+                f"Simulation {result.simulation_id} not found in simulations table. "
+                "This means SimulationPersistenceProvider is not being used."
+            )
             assert summary["simulation_id"] == result.simulation_id
 
-    def test_experiment_with_persist_writes_events_to_simulation_events(
-        self, experiment_config: dict[str, Any], temp_db_path: Path
+    def test_experiment_simulation_events_in_simulation_events_table(
+        self, minimal_experiment_config: dict[str, Any], temp_db_path: Path
     ) -> None:
-        """Events should be written to simulation_events table, not experiment_events."""
-        from payment_simulator.experiments.runner.optimization import (
-            OptimizationRunner,
-        )
+        """Events should be written to simulation_events table, NOT experiment_events."""
+        from payment_simulator.experiments.runner.optimization import OptimizationRunner
+        from payment_simulator.persistence.connection import DatabaseManager
+        from payment_simulator.persistence.event_queries import get_simulation_events
+
+        # Add an arrival to generate events
+        minimal_experiment_config["scenario"]["arrivals"] = [
+            {
+                "sender": "BANK_A",
+                "receiver": "BANK_B",
+                "amount": 100000,
+                "arrival_tick": 0,
+                "deadline_tick": 9,
+                "priority": 5,
+            }
+        ]
 
         runner = OptimizationRunner(
-            config=experiment_config,
+            config=minimal_experiment_config,
             db_path=temp_db_path,
             persist_bootstrap=True,
         )
 
-        result = runner._run_simulation(
-            seed=12345,
-            purpose="test_events",
-            persist=True,
-        )
+        result = runner._run_simulation(seed=12345, purpose="test_events", persist=True)
 
-        # Verify events in simulation_events table
         with DatabaseManager(str(temp_db_path)) as db:
-            events_result = get_simulation_events(
-                db.conn, result.simulation_id, limit=1000
+            # Events MUST be in simulation_events table
+            events_result = get_simulation_events(db.conn, result.simulation_id, limit=1000)
+            assert events_result["total"] > 0, (
+                "No events found in simulation_events table. "
+                "Events may be stored as JSON blob in experiment_events instead."
             )
-            # Should have at least some events (even with no arrivals, there may be system events)
-            assert events_result["total"] >= 0
 
-            # Events should NOT be in experiment_events as JSON blob
-            blob_count = db.conn.execute(
-                """
-                SELECT COUNT(*) FROM experiment_events
-                WHERE event_type = 'simulation_run'
-                AND json_extract_string(event_data, '$.simulation_id') = ?
-                """,
-                [result.simulation_id],
-            ).fetchone()[0]
-            assert blob_count == 0, "Events should not be stored as JSON blob"
-
-    def test_experiment_simulation_has_experiment_context(
-        self, experiment_config: dict[str, Any], temp_db_path: Path
+    def test_experiment_simulation_NOT_stored_as_json_blob(
+        self, minimal_experiment_config: dict[str, Any], temp_db_path: Path
     ) -> None:
-        """Simulation should store experiment run_id and iteration for cross-reference."""
-        from payment_simulator.experiments.runner.optimization import (
-            OptimizationRunner,
-        )
+        """Events should NOT be stored as JSON blob in experiment_events.
+
+        This tests that the OLD behavior (JSON blob) is NOT happening.
+        """
+        from payment_simulator.experiments.runner.optimization import OptimizationRunner
+        from payment_simulator.persistence.connection import DatabaseManager
 
         runner = OptimizationRunner(
-            config=experiment_config,
+            config=minimal_experiment_config,
             db_path=temp_db_path,
             persist_bootstrap=True,
         )
 
-        # Simulate context
+        result = runner._run_simulation(seed=12345, purpose="test_no_blob", persist=True)
+
+        with DatabaseManager(str(temp_db_path)) as db:
+            # Check experiment_events does NOT contain simulation_run with events blob
+            try:
+                blob_count = db.conn.execute(
+                    """
+                    SELECT COUNT(*) FROM experiment_events
+                    WHERE event_type = 'simulation_run'
+                    AND json_extract_string(event_data, '$.simulation_id') = ?
+                    """,
+                    [result.simulation_id],
+                ).fetchone()[0]
+            except Exception:
+                # Table may not exist if only simulation tables are used
+                blob_count = 0
+
+            assert blob_count == 0, (
+                "Found simulation events as JSON blob in experiment_events. "
+                "This is the OLD behavior - should use simulation_events table instead."
+            )
+
+    def test_experiment_context_stored_in_simulation_record(
+        self, minimal_experiment_config: dict[str, Any], temp_db_path: Path
+    ) -> None:
+        """Simulation record should include experiment_run_id and iteration."""
+        from payment_simulator.experiments.runner.optimization import OptimizationRunner
+        from payment_simulator.persistence.connection import DatabaseManager
+
+        runner = OptimizationRunner(
+            config=minimal_experiment_config,
+            db_path=temp_db_path,
+            persist_bootstrap=True,
+        )
+
+        # Set experiment context
         runner._run_id = "exp-run-test-001"
         runner._current_iteration = 3
 
         result = runner._run_simulation(
-            seed=12345,
-            purpose="test_context",
-            iteration=3,
-            persist=True,
+            seed=12345, purpose="test_context", iteration=3, persist=True
         )
 
-        # Verify experiment context stored
         with DatabaseManager(str(temp_db_path)) as db:
             row = db.conn.execute(
                 """
@@ -224,113 +227,99 @@ class TestExperimentSimulationPersistence:
                 [result.simulation_id],
             ).fetchone()
 
-            assert row is not None
-            assert row[0] == "exp-run-test-001"
-            assert row[1] == 3
+            assert row is not None, "Simulation record not found"
+            assert row[0] == "exp-run-test-001", f"Expected exp-run-test-001, got {row[0]}"
+            assert row[1] == 3, f"Expected iteration 3, got {row[1]}"
 
-    def test_simulation_queryable_via_standard_queries(
-        self, experiment_config: dict[str, Any], temp_db_path: Path
+    def test_backward_compatibility_no_persist_no_tables(
+        self, minimal_experiment_config: dict[str, Any], temp_db_path: Path
     ) -> None:
-        """Simulations should be queryable via standard persistence queries."""
-        from payment_simulator.experiments.runner.optimization import (
-            OptimizationRunner,
-        )
+        """When persist=False, no simulation records should be created."""
+        from payment_simulator.experiments.runner.optimization import OptimizationRunner
+        from payment_simulator.persistence.connection import DatabaseManager
+        from payment_simulator.persistence.queries import get_simulation_summary
 
         runner = OptimizationRunner(
-            config=experiment_config,
+            config=minimal_experiment_config,
+            db_path=temp_db_path,
+            persist_bootstrap=False,  # Persistence DISABLED
+        )
+
+        result = runner._run_simulation(seed=12345, purpose="test_no_persist", persist=False)
+
+        with DatabaseManager(str(temp_db_path)) as db:
+            summary = get_simulation_summary(db.conn, result.simulation_id)
+            assert summary is None, (
+                "Simulation record found when persist=False. "
+                "Should not persist when flag is disabled."
+            )
+
+    def test_replay_command_finds_experiment_simulation(
+        self, minimal_experiment_config: dict[str, Any], temp_db_path: Path
+    ) -> None:
+        """Simulations should be findable via standard replay queries."""
+        from payment_simulator.experiments.runner.optimization import OptimizationRunner
+        from payment_simulator.persistence.connection import DatabaseManager
+        from payment_simulator.persistence.event_queries import get_simulation_events
+        from payment_simulator.persistence.queries import get_simulation_summary
+
+        runner = OptimizationRunner(
+            config=minimal_experiment_config,
             db_path=temp_db_path,
             persist_bootstrap=True,
         )
 
-        result = runner._run_simulation(
-            seed=12345,
-            purpose="test_query",
-            persist=True,
-        )
+        result = runner._run_simulation(seed=12345, purpose="test_replay", persist=True)
 
-        # Standard queries should work
+        # Verify all replay-required queries work
         with DatabaseManager(str(temp_db_path)) as db:
-            # get_simulation_summary
+            # 1. Can find simulation summary
             summary = get_simulation_summary(db.conn, result.simulation_id)
             assert summary is not None
 
-            # get_simulation_events
+            # 2. Can query events
             events = get_simulation_events(db.conn, result.simulation_id)
             assert "events" in events
             assert "total" in events
-
-    def test_experiment_without_persist_no_simulation_tables(
-        self, experiment_config: dict[str, Any], temp_db_path: Path
-    ) -> None:
-        """Experiments without persist_bootstrap should not write to simulation tables."""
-        from payment_simulator.experiments.runner.optimization import (
-            OptimizationRunner,
-        )
-
-        runner = OptimizationRunner(
-            config=experiment_config,
-            db_path=temp_db_path,
-            persist_bootstrap=False,  # Persistence disabled
-        )
-
-        result = runner._run_simulation(
-            seed=12345,
-            purpose="test_no_persist",
-            persist=False,
-        )
-
-        # No simulation record should exist
-        with DatabaseManager(str(temp_db_path)) as db:
-            summary = get_simulation_summary(db.conn, result.simulation_id)
-            assert summary is None, "Should not persist when flag is False"
-
-    def test_multiple_simulations_per_experiment(
-        self, experiment_config: dict[str, Any], temp_db_path: Path
-    ) -> None:
-        """Multiple bootstrap simulations should each be persisted separately."""
-        from payment_simulator.experiments.runner.optimization import (
-            OptimizationRunner,
-        )
-
-        runner = OptimizationRunner(
-            config=experiment_config,
-            db_path=temp_db_path,
-            persist_bootstrap=True,
-        )
-
-        # Run multiple simulations (like bootstrap samples)
-        sim_ids = []
-        for i in range(3):
-            result = runner._run_simulation(
-                seed=12345 + i,
-                purpose=f"bootstrap_sample_{i}",
-                persist=True,
-            )
-            sim_ids.append(result.simulation_id)
-
-        # All should be persisted separately
-        with DatabaseManager(str(temp_db_path)) as db:
-            for sim_id in sim_ids:
-                summary = get_simulation_summary(db.conn, sim_id)
-                assert summary is not None, f"Simulation {sim_id} should be persisted"
-
-            # Count total simulations
-            count = db.conn.execute(
-                "SELECT COUNT(*) FROM simulations"
-            ).fetchone()[0]
-            assert count == 3
 ```
 
-### Step 2.2: Implement to Pass Tests (GREEN)
+---
 
-Modify `api/payment_simulator/experiments/runner/optimization.py`:
+## Step 2.2: Verify Tests Fail (RED)
 
-1. Add `SimulationPersistenceProvider` as optional dependency
-2. Initialize provider when `persist_bootstrap=True`
-3. Modify `_run_simulation()` to use provider instead of JSON blob
+**Action**: Run the integration tests and confirm they fail.
 
+```bash
+cd /home/user/SimCash/api
+uv run pytest tests/integration/test_experiment_simulation_persistence.py -v 2>&1 | head -80
+```
+
+**Expected Output**: Tests should fail with assertions like:
+```
+AssertionError: Simulation xxx not found in simulations table.
+This means SimulationPersistenceProvider is not being used.
+```
+
+**CHECKPOINT**: Do NOT proceed to Step 2.3 until you have confirmed tests fail.
+
+---
+
+## Step 2.3: Modify Experiment Runner (GREEN)
+
+**Action**: Now modify `optimization.py` with MINIMAL changes to pass tests.
+
+### Changes to `api/payment_simulator/experiments/runner/optimization.py`:
+
+**1. Add import at top:**
 ```python
-# In OptimizationRunner.__init__():
+from payment_simulator.persistence.simulation_persistence_provider import (
+    SimulationPersistenceProvider,
+    StandardSimulationPersistenceProvider,
+)
+```
+
+**2. Add provider attribute in `__init__`:**
+```python
 def __init__(
     self,
     config: ExperimentConfig | dict[str, Any],
@@ -338,157 +327,161 @@ def __init__(
     persist_bootstrap: bool = False,
     # ... other params
 ) -> None:
-    # ... existing init ...
+    # ... existing init code ...
 
-    # Initialize simulation persistence provider
+    # NEW: Initialize simulation persistence provider
     self._simulation_persistence_provider: SimulationPersistenceProvider | None = None
     if persist_bootstrap and db_path:
         from payment_simulator.persistence.connection import DatabaseManager
-        from payment_simulator.persistence.simulation_persistence_provider import (
-            StandardSimulationPersistenceProvider,
-        )
-        # Use same DatabaseManager as repository
+        # Create or reuse database manager
+        if not hasattr(self, '_db_manager') or self._db_manager is None:
+            self._db_manager = DatabaseManager(str(db_path))
         self._simulation_persistence_provider = StandardSimulationPersistenceProvider(
-            self._repository._db_manager  # or create new if needed
+            self._db_manager
         )
-
-
-# In _run_simulation():
-def _run_simulation(
-    self,
-    seed: int,
-    purpose: str,
-    iteration: int | None = None,
-    persist: bool | None = None,
-) -> SimulationResult:
-    # ... existing simulation execution ...
-
-    # NEW: Persist using SimulationPersistenceProvider
-    should_persist = persist if persist is not None else self._persist_bootstrap
-    if self._simulation_persistence_provider and should_persist:
-        # Persist simulation start
-        self._simulation_persistence_provider.persist_simulation_start(
-            simulation_id=sim_id,
-            config=ffi_config,
-            experiment_run_id=self._run_id,
-            experiment_iteration=iteration,
-        )
-
-        # Events were collected per-tick, persist them
-        # Note: may need to refactor to persist per-tick during execution
-        for tick, tick_events in enumerate(all_events_by_tick):
-            self._simulation_persistence_provider.persist_tick_events(
-                simulation_id=sim_id,
-                tick=tick,
-                events=tick_events,
-            )
-
-        # Persist completion
-        self._simulation_persistence_provider.persist_simulation_complete(
-            simulation_id=sim_id,
-            metrics={
-                "total_arrivals": metrics.get("total_arrivals", 0),
-                "total_settlements": metrics.get("total_settlements", 0),
-                "total_costs": total_cost,
-            },
-        )
-
-    # REMOVE: Old JSON blob persistence to experiment_events
-    # if self._repository and should_persist:
-    #     event = EventRecord(
-    #         event_type="simulation_run",
-    #         event_data={"simulation_id": sim_id, "events": all_events},
-    #     )
-    #     self._repository.save_event(event)
-
-    return SimulationResult(...)
 ```
 
-### Step 2.3: Refactor
+**3. Modify `_run_simulation()` to use provider:**
 
-- Ensure events are persisted per-tick during simulation (not batched at end)
-- Add type hints throughout
-- Handle database connection lifecycle properly
-- Ensure backward compatibility when `persist_bootstrap=False`
+Find the section that currently does:
+```python
+# OLD: Store as JSON blob
+if self._repository and should_persist:
+    event = EventRecord(
+        event_type="simulation_run",
+        event_data={"simulation_id": sim_id, "events": all_events},
+    )
+    self._repository.save_event(event)
+```
+
+Replace with:
+```python
+# NEW: Use SimulationPersistenceProvider
+should_persist = persist if persist is not None else self._persist_bootstrap
+if self._simulation_persistence_provider and should_persist:
+    # Persist simulation start
+    self._simulation_persistence_provider.persist_simulation_start(
+        simulation_id=sim_id,
+        config=ffi_config,
+        experiment_run_id=self._run_id if hasattr(self, '_run_id') else None,
+        experiment_iteration=iteration,
+    )
+
+    # Persist events per tick (need to track tick -> events mapping)
+    # If events are collected per-tick during loop, persist there
+    # Otherwise batch persist all events by tick
+    events_by_tick: dict[int, list[dict]] = {}
+    for event in all_events:
+        tick = event.get("tick", 0)
+        if tick not in events_by_tick:
+            events_by_tick[tick] = []
+        events_by_tick[tick].append(event)
+
+    for tick, tick_events in sorted(events_by_tick.items()):
+        self._simulation_persistence_provider.persist_tick_events(
+            simulation_id=sim_id,
+            tick=tick,
+            events=tick_events,
+        )
+
+    # Persist completion metrics
+    self._simulation_persistence_provider.persist_simulation_complete(
+        simulation_id=sim_id,
+        metrics={
+            "total_arrivals": metrics.get("total_arrivals", 0),
+            "total_settlements": metrics.get("total_settlements", 0),
+            "total_costs": total_cost,
+        },
+    )
+
+# REMOVE the old JSON blob persistence code
+```
 
 ---
 
-## Implementation Details
+## Step 2.4: Verify Tests Pass (GREEN)
 
-### Event Collection Strategy
+**Action**: Run integration tests - they should now pass.
 
-Current code collects all events at end:
-```python
-all_events: list[dict[str, Any]] = []
-for tick in range(total_ticks):
-    orch.tick()
-    tick_events = orch.get_tick_events(tick)
-    all_events.extend(tick_events)
+```bash
+cd /home/user/SimCash/api
+uv run pytest tests/integration/test_experiment_simulation_persistence.py -v
 ```
 
-Should be modified to persist per-tick:
-```python
-for tick in range(total_ticks):
-    orch.tick()
-    tick_events = orch.get_tick_events(tick)
+**Expected**: All 6 tests pass.
 
-    if self._simulation_persistence_provider and should_persist:
-        self._simulation_persistence_provider.persist_tick_events(
-            sim_id, tick, tick_events
-        )
+**CHECKPOINT**: Do NOT proceed to Step 2.5 until ALL tests pass.
 
-    # Still collect for return value / further processing
-    all_events.extend(tick_events)
+---
+
+## Step 2.5: Verify Regression (No Breaking Changes)
+
+**Action**: Run existing experiment tests to ensure backward compatibility.
+
+```bash
+cd /home/user/SimCash/api
+uv run pytest tests/ -k "experiment" -v --tb=short 2>&1 | tail -30
 ```
 
-### Database Manager Sharing
+**Expected**: All existing experiment tests still pass.
 
-The `ExperimentRepository` has its own database connection. For `SimulationPersistenceProvider` to use the same database file, we need to either:
+---
 
-1. Share the same `DatabaseManager` instance
-2. Create a new `DatabaseManager` pointing to the same file
+## Step 2.6: Refactor (REFACTOR)
 
-Option 1 is cleaner but requires exposing `_conn` from `ExperimentRepository`.
+**Action**: Clean up implementation while keeping all tests green.
 
-### Edge Cases to Handle
+Refactoring tasks:
+1. Move event grouping by tick into simulation loop (persist per-tick instead of batching)
+2. Add proper type hints
+3. Handle database manager lifecycle properly
+4. Add logging for persistence operations
 
-- **No database path**: When `db_path=None`, neither persistence should be active
-- **Repository exists but persistence disabled**: Only experiment-level persistence
-- **Simulation failure**: Handle partial persistence gracefully
+After each change:
+```bash
+cd /home/user/SimCash/api
+uv run pytest tests/integration/test_experiment_simulation_persistence.py -v
+uv run pytest tests/ -k "experiment" -v --tb=short
+```
 
 ---
 
 ## Files
 
-| File | Action |
-|------|--------|
-| `api/payment_simulator/experiments/runner/optimization.py` | MODIFY |
-| `api/tests/integration/test_experiment_simulation_persistence.py` | CREATE |
+| File | Action | TDD Phase |
+|------|--------|-----------|
+| `api/tests/integration/test_experiment_simulation_persistence.py` | CREATE | Step 2.1 (RED) |
+| `api/payment_simulator/experiments/runner/optimization.py` | MODIFY | Step 2.3 (GREEN) |
 
 ---
 
-## Verification
+## Verification Commands
 
 ```bash
-# Run integration tests
-cd /home/user/SimCash/api
+# RED phase - integration tests must fail
+uv run pytest tests/integration/test_experiment_simulation_persistence.py -v 2>&1 | grep -E "FAILED|AssertionError"
+
+# GREEN phase - integration tests pass
 uv run pytest tests/integration/test_experiment_simulation_persistence.py -v
 
-# Run existing experiment tests to verify backward compatibility
-uv run pytest tests/integration/ -k "experiment" -v
+# Regression check - existing tests still pass
+uv run pytest tests/ -k "experiment" -v --tb=short
 
-# Type check
-uv run mypy payment_simulator/experiments/runner/optimization.py
+# Full verification
+uv run pytest tests/integration/test_experiment_simulation_persistence.py tests/unit/test_simulation_persistence_provider.py -v
 ```
 
 ---
 
 ## Completion Criteria
 
-- [ ] All 6 test cases pass
-- [ ] Existing experiment tests still pass (backward compatibility)
-- [ ] Type check passes (mypy)
-- [ ] Events written to `simulation_events` table, not `experiment_events` JSON blob
-- [ ] Experiment context (run_id, iteration) stored in simulation record
-- [ ] Simulations queryable via standard `get_simulation_summary()` and `get_simulation_events()`
+- [ ] Step 2.1 complete: Integration test file created
+- [ ] Step 2.2 complete: Tests verified to FAIL (RED confirmed)
+- [ ] Step 2.3 complete: optimization.py modified
+- [ ] Step 2.4 complete: All integration tests PASS (GREEN confirmed)
+- [ ] Step 2.5 complete: Existing experiment tests still pass (no regression)
+- [ ] Step 2.6 complete: Code refactored, all tests still pass
+- [ ] Simulations written to `simulations` table
+- [ ] Events written to `simulation_events` table (NOT as JSON blob)
+- [ ] Experiment context (run_id, iteration) stored
 - [ ] INV-11 verified by tests
