@@ -1,7 +1,8 @@
 # Phase 4: Queries and Integration
 
-**Status**: Pending
-**Started**:
+**Status**: Complete
+**Started**: 2025-12-16
+**Completed**: 2025-12-16
 
 ---
 
@@ -268,13 +269,13 @@ cd /home/user/SimCash/api
 
 ## Completion Criteria
 
-- [ ] `get_policy_evaluations()` returns records with all extended stats
-- [ ] `get_all_policy_evaluations()` returns records with all extended stats
-- [ ] JSON fields (`cost_breakdown`, `agent_stats`, `confidence_interval_95`) deserialize correctly
-- [ ] Old records without extended stats load correctly (null handling)
-- [ ] End-to-end test passes for bootstrap experiment
-- [ ] End-to-end test passes for deterministic experiment
-- [ ] All test cases pass
-- [ ] Type check passes
-- [ ] Lint passes
-- [ ] No regression in existing charting functionality
+- [x] `get_policy_evaluations()` returns records with all extended stats
+- [x] `get_all_policy_evaluations()` returns records with all extended stats
+- [x] JSON fields (`cost_breakdown`, `agent_stats`, `confidence_interval_95`) deserialize correctly
+- [x] Old records without extended stats load correctly (null handling)
+- [x] End-to-end test passes for bootstrap experiment
+- [x] End-to-end test passes for deterministic experiment
+- [x] All test cases pass (82 total)
+- [x] Type check passes
+- [x] Lint passes
+- [x] No regression in existing charting functionality
