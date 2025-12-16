@@ -2837,3 +2837,409 @@ class TestDerivedStatistics:
         # At minimum, both should have valid CIs
         assert small_width > 0
         assert large_width > 0
+
+
+# =============================================================================
+# Phase 4: Extended Stats Queries and Integration Tests
+# =============================================================================
+
+
+class TestExtendedStatsQueries:
+    """Tests for querying extended statistics (Phase 4)."""
+
+    @pytest.fixture
+    def repo_with_extended_stats(self, tmp_path: Path) -> Any:
+        """Create repository with extended stats records."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRecord,
+            ExperimentRepository,
+            PolicyEvaluationRecord,
+        )
+
+        db_path = tmp_path / "test_extended_stats.db"
+        with ExperimentRepository(db_path) as repo:
+            # Create experiment
+            experiment = ExperimentRecord(
+                run_id="test-run",
+                experiment_name="test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "bootstrap"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at="2025-12-16T11:00:00",
+                num_iterations=1,
+                converged=True,
+                convergence_reason="stability",
+            )
+            repo.save_experiment(experiment)
+
+            # Save record with full extended stats
+            record = PolicyEvaluationRecord(
+                run_id="test-run",
+                iteration=0,
+                agent_id="BANK_A",
+                evaluation_mode="bootstrap",
+                proposed_policy={"type": "LiquidityAware", "threshold": 50000},
+                old_cost=10000,
+                new_cost=8000,
+                context_simulation_cost=9500,
+                accepted=True,
+                acceptance_reason="cost_improved",
+                delta_sum=100000,
+                num_samples=50,
+                sample_details=None,
+                scenario_seed=None,
+                timestamp="2025-12-16T10:00:00",
+                settlement_rate=0.94,
+                avg_delay=5.0,
+                cost_breakdown={
+                    "delay_cost": 3500,
+                    "overdraft_cost": 4000,
+                    "deadline_penalty": 500,
+                    "eod_penalty": 0,
+                },
+                cost_std_dev=450,
+                confidence_interval_95=[7100, 8900],
+                agent_stats={
+                    "BANK_A": {
+                        "cost": 8000,
+                        "settlement_rate": 0.94,
+                        "avg_delay": 5.0,
+                        "cost_breakdown": {
+                            "delay_cost": 3500,
+                            "overdraft_cost": 4000,
+                            "deadline_penalty": 500,
+                            "eod_penalty": 0,
+                        },
+                        "std_dev": 450,
+                        "ci_95_lower": 7100,
+                        "ci_95_upper": 8900,
+                    }
+                },
+            )
+            repo.save_policy_evaluation(record)
+
+            yield repo
+
+    def test_get_policy_evaluations_returns_extended_stats(
+        self, repo_with_extended_stats: Any
+    ) -> None:
+        """get_policy_evaluations should return extended stats fields."""
+        records = repo_with_extended_stats.get_policy_evaluations("test-run", "BANK_A")
+        assert len(records) > 0
+
+        record = records[0]
+        # Verify extended stats are present
+        assert record.settlement_rate is not None
+        assert record.avg_delay is not None
+        assert record.cost_breakdown is not None
+        assert record.agent_stats is not None
+        assert record.cost_std_dev is not None
+        assert record.confidence_interval_95 is not None
+
+    def test_cost_breakdown_deserialized_as_dict(
+        self, repo_with_extended_stats: Any
+    ) -> None:
+        """cost_breakdown should be deserialized as dict from JSON."""
+        records = repo_with_extended_stats.get_policy_evaluations("test-run", "BANK_A")
+        record = records[0]
+
+        assert isinstance(record.cost_breakdown, dict)
+        assert "delay_cost" in record.cost_breakdown
+        assert "overdraft_cost" in record.cost_breakdown
+        assert isinstance(record.cost_breakdown["delay_cost"], int)
+
+    def test_agent_stats_deserialized_as_dict(
+        self, repo_with_extended_stats: Any
+    ) -> None:
+        """agent_stats should be deserialized as nested dict from JSON."""
+        records = repo_with_extended_stats.get_policy_evaluations("test-run", "BANK_A")
+        record = records[0]
+
+        assert isinstance(record.agent_stats, dict)
+        assert "BANK_A" in record.agent_stats
+        assert isinstance(record.agent_stats["BANK_A"], dict)
+        assert "cost" in record.agent_stats["BANK_A"]
+
+    def test_confidence_interval_deserialized_as_list(
+        self, repo_with_extended_stats: Any
+    ) -> None:
+        """confidence_interval_95 should be deserialized as list from JSON."""
+        records = repo_with_extended_stats.get_policy_evaluations("test-run", "BANK_A")
+        record = records[0]
+
+        assert record.confidence_interval_95 is not None
+        assert isinstance(record.confidence_interval_95, list)
+        assert len(record.confidence_interval_95) == 2
+        assert all(isinstance(v, int) for v in record.confidence_interval_95)
+
+    def test_get_all_policy_evaluations_returns_extended_stats(
+        self, repo_with_extended_stats: Any
+    ) -> None:
+        """get_all_policy_evaluations should return extended stats."""
+        records = repo_with_extended_stats.get_all_policy_evaluations("test-run")
+        assert len(records) > 0
+
+        record = records[0]
+        assert record.settlement_rate is not None
+        assert record.avg_delay is not None
+        assert record.cost_breakdown is not None
+
+    def test_extended_stats_integer_values_preserved(
+        self, repo_with_extended_stats: Any
+    ) -> None:
+        """Extended stats with integer values should preserve types (INV-1)."""
+        records = repo_with_extended_stats.get_policy_evaluations("test-run", "BANK_A")
+        record = records[0]
+
+        # cost_std_dev is integer cents
+        assert isinstance(record.cost_std_dev, int)
+        assert record.cost_std_dev == 450
+
+        # confidence_interval_95 has integer bounds
+        assert all(isinstance(v, int) for v in record.confidence_interval_95)
+        assert record.confidence_interval_95 == [7100, 8900]
+
+
+class TestEndToEndExtendedStats:
+    """End-to-end tests for extended statistics (Phase 4)."""
+
+    def test_deterministic_mode_no_variance_stats(self, tmp_path: Path) -> None:
+        """Deterministic mode should have None for variance stats (N=1)."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRecord,
+            ExperimentRepository,
+            PolicyEvaluationRecord,
+        )
+
+        db_path = tmp_path / "test_det.db"
+        with ExperimentRepository(db_path) as repo:
+            experiment = ExperimentRecord(
+                run_id="det-run",
+                experiment_name="det_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "deterministic"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at="2025-12-16T11:00:00",
+                num_iterations=1,
+                converged=True,
+                convergence_reason="stability",
+            )
+            repo.save_experiment(experiment)
+
+            # Deterministic record - N=1, no variance stats
+            record = PolicyEvaluationRecord(
+                run_id="det-run",
+                iteration=0,
+                agent_id="BANK_A",
+                evaluation_mode="deterministic",
+                proposed_policy={"type": "Fifo"},
+                old_cost=10000,
+                new_cost=8000,
+                context_simulation_cost=9500,
+                accepted=True,
+                acceptance_reason="cost_improved",
+                delta_sum=2000,
+                num_samples=1,
+                sample_details=None,
+                scenario_seed=12345,
+                timestamp="2025-12-16T10:00:00",
+                settlement_rate=0.95,
+                avg_delay=4.5,
+                cost_breakdown={
+                    "delay_cost": 2000,
+                    "overdraft_cost": 6000,
+                    "deadline_penalty": 0,
+                    "eod_penalty": 0,
+                },
+                # N=1, no variance stats
+                cost_std_dev=None,
+                confidence_interval_95=None,
+                agent_stats={
+                    "BANK_A": {
+                        "cost": 8000,
+                        "std_dev": None,
+                        "ci_95_lower": None,
+                        "ci_95_upper": None,
+                    }
+                },
+            )
+            repo.save_policy_evaluation(record)
+
+            # Retrieve and verify
+            records = repo.get_all_policy_evaluations("det-run")
+            det_record = records[0]
+
+            # Should have basic metrics
+            assert det_record.settlement_rate is not None
+            assert det_record.avg_delay is not None
+            assert det_record.cost_breakdown is not None
+
+            # Should NOT have variance stats (N=1)
+            assert det_record.cost_std_dev is None
+            assert det_record.confidence_interval_95 is None
+
+    def test_bootstrap_mode_has_variance_stats(self, tmp_path: Path) -> None:
+        """Bootstrap mode should have variance stats (N>1)."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRecord,
+            ExperimentRepository,
+            PolicyEvaluationRecord,
+        )
+
+        db_path = tmp_path / "test_boot.db"
+        with ExperimentRepository(db_path) as repo:
+            experiment = ExperimentRecord(
+                run_id="boot-run",
+                experiment_name="boot_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "bootstrap"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at="2025-12-16T11:00:00",
+                num_iterations=1,
+                converged=True,
+                convergence_reason="stability",
+            )
+            repo.save_experiment(experiment)
+
+            # Bootstrap record - N>1, has variance stats
+            record = PolicyEvaluationRecord(
+                run_id="boot-run",
+                iteration=0,
+                agent_id="BANK_A",
+                evaluation_mode="bootstrap",
+                proposed_policy={"type": "LiquidityAware", "threshold": 50000},
+                old_cost=10000,
+                new_cost=8000,
+                context_simulation_cost=9500,
+                accepted=True,
+                acceptance_reason="cost_improved",
+                delta_sum=100000,
+                num_samples=50,
+                sample_details=None,
+                scenario_seed=None,
+                timestamp="2025-12-16T10:00:00",
+                settlement_rate=0.93,
+                avg_delay=5.2,
+                cost_breakdown={
+                    "delay_cost": 3000,
+                    "overdraft_cost": 5000,
+                    "deadline_penalty": 0,
+                    "eod_penalty": 0,
+                },
+                # N>1, has variance stats
+                cost_std_dev=550,
+                confidence_interval_95=[7200, 8800],
+                agent_stats={
+                    "BANK_A": {
+                        "cost": 8000,
+                        "std_dev": 550,
+                        "ci_95_lower": 7200,
+                        "ci_95_upper": 8800,
+                    }
+                },
+            )
+            repo.save_policy_evaluation(record)
+
+            # Retrieve and verify
+            records = repo.get_all_policy_evaluations("boot-run")
+            boot_record = records[0]
+
+            # Should have basic metrics
+            assert boot_record.settlement_rate is not None
+            assert boot_record.avg_delay is not None
+            assert boot_record.cost_breakdown is not None
+
+            # Should have variance stats
+            assert boot_record.cost_std_dev is not None
+            assert boot_record.cost_std_dev == 550
+            assert boot_record.confidence_interval_95 is not None
+            assert boot_record.confidence_interval_95 == [7200, 8800]
+
+    def test_mixed_modes_in_same_experiment(self, tmp_path: Path) -> None:
+        """Verify handling of mixed deterministic and bootstrap records."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRecord,
+            ExperimentRepository,
+            PolicyEvaluationRecord,
+        )
+
+        db_path = tmp_path / "test_mixed.db"
+        with ExperimentRepository(db_path) as repo:
+            experiment = ExperimentRecord(
+                run_id="mixed-run",
+                experiment_name="mixed_test",
+                experiment_type="castro",
+                config={"evaluation": {"mode": "bootstrap"}},
+                created_at="2025-12-16T10:00:00",
+                completed_at="2025-12-16T11:00:00",
+                num_iterations=2,
+                converged=True,
+                convergence_reason="stability",
+            )
+            repo.save_experiment(experiment)
+
+            # First record - deterministic
+            det_record = PolicyEvaluationRecord(
+                run_id="mixed-run",
+                iteration=0,
+                agent_id="BANK_A",
+                evaluation_mode="deterministic",
+                proposed_policy={"type": "Fifo"},
+                old_cost=10000,
+                new_cost=9000,
+                context_simulation_cost=10000,
+                accepted=True,
+                acceptance_reason="cost_improved",
+                delta_sum=1000,
+                num_samples=1,
+                sample_details=None,
+                scenario_seed=12345,
+                timestamp="2025-12-16T10:00:00",
+                settlement_rate=0.95,
+                avg_delay=4.5,
+                cost_breakdown={"delay_cost": 4000, "overdraft_cost": 5000},
+                cost_std_dev=None,
+                confidence_interval_95=None,
+                agent_stats={"BANK_A": {"cost": 9000}},
+            )
+            repo.save_policy_evaluation(det_record)
+
+            # Second record - bootstrap
+            boot_record = PolicyEvaluationRecord(
+                run_id="mixed-run",
+                iteration=1,
+                agent_id="BANK_A",
+                evaluation_mode="bootstrap",
+                proposed_policy={"type": "LiquidityAware"},
+                old_cost=9000,
+                new_cost=7500,
+                context_simulation_cost=9000,
+                accepted=True,
+                acceptance_reason="cost_improved",
+                delta_sum=75000,
+                num_samples=50,
+                sample_details=None,
+                scenario_seed=None,
+                timestamp="2025-12-16T10:01:00",
+                settlement_rate=0.96,
+                avg_delay=4.0,
+                cost_breakdown={"delay_cost": 3000, "overdraft_cost": 4500},
+                cost_std_dev=400,
+                confidence_interval_95=[6900, 8100],
+                agent_stats={"BANK_A": {"cost": 7500, "std_dev": 400}},
+            )
+            repo.save_policy_evaluation(boot_record)
+
+            # Retrieve all records
+            records = repo.get_all_policy_evaluations("mixed-run")
+            assert len(records) == 2
+
+            # Verify deterministic record
+            det = next(r for r in records if r.evaluation_mode == "deterministic")
+            assert det.cost_std_dev is None
+            assert det.confidence_interval_95 is None
+
+            # Verify bootstrap record
+            boot = next(r for r in records if r.evaluation_mode == "bootstrap")
+            assert boot.cost_std_dev == 400
+            assert boot.confidence_interval_95 == [6900, 8100]
