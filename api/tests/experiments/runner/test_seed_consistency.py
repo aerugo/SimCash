@@ -80,7 +80,7 @@ class TestSeedConsistencyInDeterministicMode:
         seeds_used: list[int] = []
 
         def mock_run_simulation_with_events(
-            seed: int, sample_idx: int
+            seed: int, sample_idx: int, is_primary: bool = False
         ) -> MagicMock:
             seeds_used.append(seed)
             # Return a mock enriched result
