@@ -494,6 +494,7 @@ class OptimizationLoop:
         iteration: int | None = None,
         sample_idx: int | None = None,
         persist: bool | None = None,
+        is_primary: bool = False,
     ) -> SimulationResult:
         """Run a single simulation and capture all output.
 
@@ -507,7 +508,11 @@ class OptimizationLoop:
             purpose: Purpose tag for simulation ID (e.g., "init", "eval", "bootstrap").
             iteration: Current iteration number (for logging/persistence).
             sample_idx: Bootstrap sample index (for logging/persistence).
-            persist: Override persist_bootstrap flag. If None, uses class default.
+            persist: Override persistence. If None, uses default based on is_primary.
+            is_primary: If True, this is a primary simulation (main scenario run)
+                that should persist by default when repository is present.
+                If False, this is a bootstrap sample that only persists
+                when persist=True explicitly (via --persist-bootstrap).
 
         Returns:
             SimulationResult with all simulation output.
@@ -580,12 +585,67 @@ class OptimizationLoop:
             settlement_rate = 1.0
             avg_delay = 0.0
 
-        # 6. Persist if flag set
-        should_persist = persist if persist is not None else self._persist_bootstrap
+        # 6. Persist if appropriate
+        # INV-11: Use SimulationPersistenceProvider for unified persistence
+        # Primary simulations persist by default; bootstrap samples only with flag
+        if persist is not None:
+            should_persist = persist
+        elif is_primary:
+            # Primary simulations persist by default when repository exists
+            should_persist = self._repository is not None
+        else:
+            # Bootstrap samples only persist with explicit --persist-bootstrap flag
+            should_persist = self._persist_bootstrap
         if self._repository and should_persist:
             from payment_simulator.experiments.persistence import EventRecord
 
-            event = EventRecord(
+            # Get ticks_per_day from FFI config (set by scenario config)
+            ticks_per_day = ffi_config.get("ticks_per_day", 100)
+
+            # Get SimulationPersistenceProvider from repository
+            sim_provider = self._repository.get_simulation_persistence_provider(
+                ticks_per_day=ticks_per_day
+            )
+
+            # 6a. Persist simulation start to simulations table
+            # IMPORTANT: Store the original scenario config (YAML format), NOT the FFI config.
+            # Replay expects YAML format with 'agents' and 'simulation' keys.
+            # FFI format has 'agent_configs' and 'ticks_per_day' at root - incompatible with replay.
+            scenario_config = self._load_scenario_config()
+            sim_provider.persist_simulation_start(
+                simulation_id=sim_id,
+                config=scenario_config,
+                experiment_run_id=self._run_id,
+                experiment_iteration=iteration,
+            )
+
+            # 6b. Persist all events to simulation_events table
+            # Group events by tick for proper persistence
+            events_by_tick: dict[int, list[dict[str, Any]]] = {}
+            for event in all_events:
+                tick = event.get("tick", 0)
+                if tick not in events_by_tick:
+                    events_by_tick[tick] = []
+                events_by_tick[tick].append(event)
+
+            # Persist events per tick
+            for tick, tick_events in sorted(events_by_tick.items()):
+                sim_provider.persist_tick_events(sim_id, tick, tick_events)
+
+            # 6c. Persist simulation complete with metrics
+            sim_provider.persist_simulation_complete(
+                simulation_id=sim_id,
+                metrics={
+                    "total_arrivals": metrics.get("total_arrivals", 0),
+                    "total_settlements": metrics.get("total_settlements", 0),
+                    "total_cost_cents": total_cost,
+                    "duration_seconds": 0.0,  # Duration not tracked in experiment runner
+                },
+            )
+
+            # 6d. Also save summary to experiment_events (WITHOUT full events array)
+            # This maintains backward compatibility with experiment replay
+            summary_event = EventRecord(
                 run_id=self._run_id,
                 iteration=iteration or 0,
                 event_type="simulation_run",
@@ -597,11 +657,11 @@ class OptimizationLoop:
                     "total_cost": total_cost,
                     "per_agent_costs": per_agent_costs,
                     "num_events": len(all_events),
-                    "events": all_events,  # Store full events for replay
+                    # Events now in simulation_events table, not here (INV-11)
                 },
                 timestamp=datetime.now().isoformat(),
             )
-            self._repository.save_event(event)
+            self._repository.save_event(summary_event)
 
         # 7. Return SimulationResult
         return SimulationResult(
@@ -1153,11 +1213,12 @@ class OptimizationLoop:
         # Run simulation using unified method
         # _run_simulation handles: ID generation, verbose logging, event capture,
         # cost extraction, and persistence
+        # This IS a primary simulation - persists by default when repository exists
         result = self._run_simulation(
             seed=self._config.master_seed,
             purpose="init",
             iteration=0,
-            persist=self._persist_bootstrap,
+            is_primary=True,
         )
 
         # Build transaction history from events (initial simulation specific)
@@ -1254,7 +1315,12 @@ class OptimizationLoop:
         return total_cost, per_agent_costs
 
     def _run_simulation_with_events(
-        self, seed: int, sample_idx: int, *, purpose: str | None = None
+        self,
+        seed: int,
+        sample_idx: int,
+        *,
+        purpose: str | None = None,
+        is_primary: bool = False,
     ) -> EnrichedEvaluationResult:
         """Run a simulation and capture events for LLM context.
 
@@ -1268,6 +1334,8 @@ class OptimizationLoop:
             purpose: Purpose tag for simulation ID. If None, derives from
                 evaluation mode ("eval" for deterministic, "bootstrap" for
                 bootstrap mode).
+            is_primary: If True, this is a primary simulation that should
+                persist by default. If False, only persists with --persist-bootstrap.
 
         Returns:
             EnrichedEvaluationResult with event trace and cost breakdown.
@@ -1282,7 +1350,7 @@ class OptimizationLoop:
             seed=seed,
             purpose=purpose,
             sample_idx=sample_idx,
-            persist=False,  # Bootstrap samples don't persist by default
+            is_primary=is_primary,
         )
 
         # Transform raw events to BootstrapEvent objects
@@ -1408,7 +1476,10 @@ class OptimizationLoop:
             # For multi-agent, this provides consistent baseline across all agents
             agent_id = self.optimized_agents[0]
             seed = self._seed_matrix.get_iteration_seed(iteration_idx, agent_id)
-            enriched = self._run_simulation_with_events(seed, sample_idx=0)
+            # This IS the primary simulation - should persist by default
+            enriched = self._run_simulation_with_events(
+                seed, sample_idx=0, is_primary=True
+            )
 
             # Store for LLM context
             self._current_enriched_results = [enriched]
@@ -1617,13 +1688,14 @@ class OptimizationLoop:
             old_cost = old_costs.get(agent_id, 0)
 
             # Evaluate new policy - use _run_simulation to get extended metrics
+            # This is a policy comparison simulation, NOT a primary simulation
             self._policies[agent_id] = new_policy
             new_sim_result = self._run_simulation(
                 seed=seed,
                 purpose="eval",
                 iteration=iteration_idx,
                 sample_idx=0,
-                persist=False,  # Don't persist evaluation simulations
+                is_primary=False,  # Policy comparison - only persists with --persist-bootstrap
             )
             new_cost = new_sim_result.per_agent_costs.get(agent_id, 0)
 

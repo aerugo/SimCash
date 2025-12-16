@@ -13,13 +13,19 @@ from .models import (
     TransactionRecord,
     TransactionStatus,
 )
+from .simulation_persistence_provider import (
+    SimulationPersistenceProvider,
+    StandardSimulationPersistenceProvider,
+)
 
 __all__ = [
     "CollateralActionType",
     "CollateralEventRecord",
     "DailyAgentMetricsRecord",
+    "SimulationPersistenceProvider",
     "SimulationRunRecord",
     "SimulationStatus",
+    "StandardSimulationPersistenceProvider",
     "TransactionRecord",
     "TransactionStatus",
 ]
