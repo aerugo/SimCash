@@ -335,6 +335,14 @@ class OptimizationLoop:
         # Track accepted changes per iteration
         self._accepted_changes: dict[str, bool] = {}
 
+        # Temporal mode tracking: previous iteration costs for comparison
+        # Used by deterministic-temporal mode to compare cost across iterations
+        self._previous_iteration_costs: dict[str, int] = {}
+
+        # Previous policies for revert capability in temporal mode
+        # If cost increases, we revert to the previous policy
+        self._previous_policies: dict[str, dict[str, Any]] = {}
+
         # Load scenario config once
         self._scenario_dict: dict[str, Any] | None = None
 
@@ -1461,10 +1469,14 @@ class OptimizationLoop:
 
         if eval_mode == "deterministic" or num_samples <= 1:
             # Single simulation - deterministic mode
-            # Use constant seed for reproducibility (same seed each iteration)
-            # This ensures policy changes are the ONLY variable affecting cost
+            # Use iteration seed for consistency with _evaluate_policy_pair
+            # (INV-9: Policy Evaluation Identity - displayed cost must match acceptance cost)
+            iteration_idx = self._current_iteration - 1  # 0-indexed
+            # Use first optimized agent for seed derivation in single-agent case
+            # For multi-agent, this provides consistent baseline across all agents
+            agent_id = self.optimized_agents[0]
+            seed = self._seed_matrix.get_iteration_seed(iteration_idx, agent_id)
             # This IS the primary simulation - should persist by default
-            seed = self._config.master_seed
             enriched = self._run_simulation_with_events(
                 seed, sample_idx=0, is_primary=True
             )
@@ -1838,10 +1850,18 @@ class OptimizationLoop:
         - Full iteration history with acceptance status
         - Parameter trajectory visualization
 
+        In temporal mode, uses cross-iteration comparison instead of within-iteration
+        paired evaluation. This is simpler and matches game-like learning.
+
         Args:
             agent_id: Agent to optimize.
             current_cost: Current cost for this agent in integer cents.
         """
+        # Handle temporal mode separately (simpler flow)
+        if self._config.evaluation.is_deterministic_temporal:
+            await self._optimize_agent_temporal(agent_id, current_cost)
+            return
+
         # Skip LLM optimization if no constraints (required for dynamic prompt)
         if self._constraints is None:
             return
@@ -2229,6 +2249,166 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                     stacklevel=2,
                 )
 
+    async def _optimize_agent_temporal(self, agent_id: str, current_cost: int) -> None:
+        """Optimize agent using temporal (cross-iteration) comparison.
+
+        Temporal mode compares cost_N vs cost_{N-1} instead of old_policy vs new_policy.
+        This is simpler and matches game-like learning where agents only see historical outcomes.
+
+        Flow:
+        1. Compare current_cost to previous iteration's cost
+        2. If cost increased (and not first iteration): Reject, revert to previous policy
+        3. If cost decreased or first iteration: Accept, generate new policy via LLM
+
+        This runs fewer simulations than pairwise mode (1 vs 3 per iteration).
+
+        Args:
+            agent_id: Agent to optimize.
+            current_cost: Current cost from _evaluate_policies() in integer cents.
+        """
+        # Get current policy
+        current_policy = self._policies.get(
+            agent_id, self._create_default_policy(agent_id)
+        )
+
+        # Step 1: Evaluate temporal acceptance (compare to previous iteration)
+        should_accept = self._evaluate_temporal_acceptance(agent_id, current_cost)
+
+        if not should_accept:
+            # Cost increased - reject and revert to previous policy
+            previous_policy = self._previous_policies.get(agent_id)
+            if previous_policy:
+                self._policies[agent_id] = previous_policy
+
+            # Record rejection in history
+            self._record_iteration_history(
+                agent_id=agent_id,
+                policy=current_policy,
+                cost=current_cost,
+                was_accepted=False,
+            )
+
+            # Log rejection if verbose
+            if self._verbose_logger and self._verbose_config.rejections:
+                from payment_simulator.experiments.runner.verbose import RejectionDetail
+
+                self._verbose_logger.log_rejection(
+                    RejectionDetail(
+                        agent_id=agent_id,
+                        proposed_policy=current_policy,
+                        rejection_reason="cost_increased_vs_previous_iteration",
+                        old_cost=self._previous_iteration_costs.get(agent_id, 0),
+                        new_cost=current_cost,
+                    )
+                )
+
+            # Don't generate new policy - just revert
+            self._accepted_changes[agent_id] = False
+            return
+
+        # Step 2: Store current policy before generating new one (for potential revert)
+        self._previous_policies[agent_id] = current_policy.copy()
+
+        # Step 3: Skip LLM if no constraints
+        if self._constraints is None:
+            self._accepted_changes[agent_id] = True
+            return
+
+        # Step 4: Lazy initialize LLM client
+        if self._llm_client is None:
+            from payment_simulator.experiments.runner.llm_client import (
+                ExperimentLLMClient,
+            )
+
+            self._llm_client = ExperimentLLMClient(self._config.llm)
+
+        if self._policy_optimizer is None:
+            self._policy_optimizer = PolicyOptimizer(
+                constraints=self._constraints,
+                max_retries=self._config.llm.max_retries,
+            )
+
+        # Build and inject dynamic system prompt
+        dynamic_prompt = self._policy_optimizer.get_system_prompt(
+            cost_rates=self._cost_rates,
+            customization=None,  # Temporal mode doesn't use agent customization
+        )
+        self._llm_client.set_system_prompt(dynamic_prompt)
+
+        try:
+            # Generate new policy via LLM
+            # Use simpler context for temporal mode
+            current_metrics = {
+                "total_cost_mean": current_cost,
+                "iteration": self._current_iteration,
+            }
+
+            opt_result = await self._policy_optimizer.optimize(
+                agent_id=agent_id,
+                current_policy=current_policy,
+                current_iteration=self._current_iteration,
+                current_metrics=current_metrics,
+                llm_client=self._llm_client,
+                llm_model=self._config.llm.model,
+                current_cost=float(current_cost),
+                iteration_history=self._agent_iteration_history.get(agent_id),
+                events=None,  # Temporal mode doesn't use event trace
+                best_seed_output=None,
+                worst_seed_output=None,
+                best_seed=None,
+                worst_seed=None,
+                best_seed_cost=None,
+                worst_seed_cost=None,
+                cost_breakdown=None,
+                cost_rates=self._cost_rates,
+                debug_callback=None,
+            )
+
+            new_policy = opt_result.new_policy
+
+            if new_policy is None:
+                # Validation failed - keep current policy
+                self._accepted_changes[agent_id] = True
+                return
+
+            # Save LLM interaction event for audit
+            self._save_llm_interaction_event(agent_id)
+
+            # Step 5: Accept the new policy
+            self._record_iteration_history(
+                agent_id=agent_id,
+                policy=new_policy,
+                cost=current_cost,
+                was_accepted=True,
+            )
+            self._policies[agent_id] = new_policy
+            self._accepted_changes[agent_id] = True
+
+            # Log policy change if verbose
+            if self._verbose_logger and self._verbose_config.policy:
+                self._verbose_logger.log_policy_change(
+                    agent_id=agent_id,
+                    old_policy=current_policy,
+                    new_policy=new_policy,
+                    old_cost=self._previous_iteration_costs.get(agent_id, current_cost),
+                    new_cost=current_cost,
+                    accepted=True,
+                )
+
+        except Exception as e:
+            # Log error but don't crash
+            error_msg = str(e)
+            self._save_llm_interaction_event(agent_id)
+
+            if self._verbose_logger and self._verbose_config.llm:
+                from rich.console import Console as RichConsole
+
+                console = RichConsole()
+                console.print(f"[red]LLM error for {agent_id}: {error_msg}[/red]")
+
+            # On error, keep current state
+            self._accepted_changes[agent_id] = True
+
     def _record_iteration_history(
         self,
         agent_id: str,
@@ -2385,6 +2565,47 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             evaluation.delta_sum,
             evaluation,
         )
+
+    def _evaluate_temporal_acceptance(
+        self,
+        agent_id: str,
+        current_cost: int,
+    ) -> bool:
+        """Evaluate policy acceptance using temporal comparison.
+
+        Compares current iteration cost to previous iteration cost.
+        First iteration always accepts (no baseline to compare).
+
+        This is used by deterministic-temporal mode, which compares cost
+        across iterations rather than old vs new policy within the same iteration.
+
+        Args:
+            agent_id: Agent being evaluated.
+            current_cost: Cost from current iteration (integer cents, INV-1).
+
+        Returns:
+            True if policy should be accepted, False to reject/revert.
+
+        Side effects:
+            Updates _previous_iteration_costs if accepted.
+        """
+        previous_cost = self._previous_iteration_costs.get(agent_id)
+
+        # First iteration: always accept (no baseline to compare)
+        if previous_cost is None:
+            self._previous_iteration_costs[agent_id] = current_cost
+            return True
+
+        # Compare: accept if cost decreased or stayed same
+        # Equal cost is accepted to allow exploration without penalty
+        accepted = current_cost <= previous_cost
+
+        # Update stored cost only if accepted
+        # If rejected, keep previous cost as baseline for next iteration
+        if accepted:
+            self._previous_iteration_costs[agent_id] = current_cost
+
+        return accepted
 
     def _evaluate_policy_with_seed(
         self, policy: dict[str, Any], agent_id: str, seed: int
