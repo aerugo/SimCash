@@ -1,47 +1,59 @@
 # Feature Request: Persist Policy Evaluation Metrics in Database
 
 **Date**: 2025-12-15
+**Updated**: 2025-12-15
 **Priority**: Medium
 **Affects**: `payment_simulator.experiments.runner.optimization`, `payment_simulator.experiments.persistence`, `payment_simulator.experiments.analysis.charting`
 
 ## Summary
 
-Store complete policy evaluation metrics (including proposed policy costs and acceptance status) directly in the database during experiment runs, eliminating the need to parse LLM prompts for chart generation.
+Store complete policy evaluation metrics (including proposed policy costs and acceptance status) directly in the database during experiment runs, providing accurate data for chart generation and analysis.
 
 ## Problem Statement
 
-Currently, the charting code (`charting.py`) has to parse iteration history from LLM user_prompts to get accurate data for bootstrap experiments. This is because:
+The current implementation has several data integrity issues that require workarounds:
 
-1. **`experiment_iterations` table stores incomplete data**: Only the CURRENT BEST policy cost is stored, not the PROPOSED policy cost
-2. **`accepted_changes` is always False**: Bug where the field is set before optimization happens
-3. **No dedicated table for evaluation metrics**: Bootstrap evaluation results (old_cost, new_cost, deltas) are only logged, not persisted
+1. **`accepted_changes` is always False**: Bug where the field is never set correctly
+2. **`experiment_iterations` stores only current best**: No record of proposed policies that were rejected
+3. **LLM prompts show different costs than database**: The "Mean Cost" in LLM prompts doesn't match `costs_per_agent` in the database (unclear scaling/calculation)
+4. **No dedicated table for evaluation metrics**: Bootstrap evaluation results (old_cost, new_cost, deltas) are only logged, not persisted
 
-### Current Behavior
+### Current Workaround
+
+The charting code now uses the `experiment_iterations` table directly and **infers acceptance from cost improvement**:
 
 ```python
-# In charting.py - current workaround parses LLM prompts!
-def _parse_iteration_history_from_llm_prompt(user_prompt: str) -> list[ParsedIterationData]:
-    """Parse iteration history from LLM user_prompt.
+# In charting.py - current workaround infers acceptance
+def _extract_from_iterations_table(self, ...):
+    previous_cost: float | None = None
 
-    Extracts cost and acceptance status from the Metrics Summary Table
-    in the LLM user_prompt...
-    """
-    # Regex parsing of markdown tables in prompts - fragile!
-    metrics_pattern = r"\|\s*(\d+)\s*\|\s*(⭐ BEST|✅ KEPT|❌ REJECTED)\s*\|\s*\$([0-9,]+)\s*\|"
+    for iteration in iterations:
+        cost_dollars = cost_cents / 100.0
+
+        # Infer acceptance from cost improvement
+        if previous_cost is None:
+            accepted = True  # First iteration
+        else:
+            # Accepted only if cost improved (decreased)
+            accepted = cost_dollars < previous_cost
+
+        # Update previous cost only when accepted
+        if accepted:
+            previous_cost = cost_dollars
 ```
 
-This approach is:
-- **Fragile**: Depends on prompt format not changing
-- **Indirect**: Data exists in memory during run but isn't persisted properly
-- **Inefficient**: Requires parsing large text prompts
-- **Limited**: Only works for bootstrap experiments with LLM events
+This approach:
+- **Works**: Produces reasonable charts showing convergence
+- **Loses information**: Cannot distinguish "rejected with same cost" from "rejected with higher cost"
+- **Assumes monotonic improvement**: All cost reductions are treated as acceptances
+- **No proposed policy data**: Only shows what was eventually accepted, not what was proposed
 
-### Why This Is a Problem
+### Why Proper Persistence Is Needed
 
-1. **Maintenance burden**: Any change to LLM prompt format can break chart generation
-2. **Data duplication**: Same data exists in multiple places (memory, logs, prompts)
-3. **Missing data for deterministic mode**: Deterministic experiments don't have LLM events, so charts can't show rejected policies
-4. **Audit trail gaps**: No structured record of what policies were proposed and why they were rejected
+1. **Audit trail**: No structured record of what policies were proposed and why they were rejected
+2. **Cost discrepancy**: LLM prompts show different costs than database - unclear which is authoritative for analysis
+3. **Bootstrap analysis**: Cannot analyze the distribution of bootstrap deltas or confidence in decisions
+4. **Replay**: Cannot reconstruct the exact decision-making process from the database alone
 
 ## Proposed Solution
 
@@ -267,21 +279,22 @@ payment-sim experiment evaluations exp2-20251215-100212-680ad2 \
 |-----------|--------|
 | `api/payment_simulator/experiments/persistence/repository.py` | Add `policy_evaluations` table, `save_policy_evaluation()`, `get_policy_evaluations()` |
 | `api/payment_simulator/experiments/persistence/models.py` | Add `PolicyEvaluationRecord` dataclass |
-| `api/payment_simulator/experiments/runner/optimization.py` | Add `_save_policy_evaluation()` call after each evaluation |
-| `api/payment_simulator/experiments/analysis/charting.py` | Remove LLM prompt parsing, use new data source |
+| `api/payment_simulator/experiments/runner/optimization.py` | Add `_save_policy_evaluation()` call after each evaluation; fix `accepted_changes` bug |
+| `api/payment_simulator/experiments/analysis/charting.py` | Use new data source when available, fall back to inferred acceptance |
 | `api/migrations/` | Database migration for new table |
 
 ### Migration Path
 
-1. **Phase 1 (Schema)**: Add `policy_evaluations` table with migration
-2. **Phase 2 (Persistence)**: Update `optimization.py` to persist evaluation records
-3. **Phase 3 (Charting)**: Refactor `charting.py` to use new data source, remove prompt parsing
-4. **Phase 4 (Cleanup)**: Remove `_parse_iteration_history_from_llm_prompt()` and `_extract_from_llm_events()`
+1. **Phase 1 (Investigation)**: Investigate cost discrepancy between LLM prompts and database
+2. **Phase 2 (Schema)**: Add `policy_evaluations` table with migration
+3. **Phase 3 (Persistence)**: Update `optimization.py` to persist evaluation records
+4. **Phase 4 (Charting)**: Refactor `charting.py` to use new data source instead of inferred acceptance
+5. **Phase 5 (Bug Fix)**: Fix `accepted_changes` field in `experiment_iterations` table
 
 ### Backward Compatibility
 
 - Old experiment databases won't have `policy_evaluations` table
-- Charting should fall back to current LLM prompt parsing for old data
+- Charting should fall back to current `experiment_iterations` table approach
 - Add version check or table existence check
 
 ```python
@@ -290,23 +303,21 @@ def extract_chart_data(self, run_id: str, ...) -> ChartData:
     if self._repo.has_policy_evaluations(run_id):
         return self._extract_from_evaluations(run_id, ...)
 
-    # Fall back to LLM prompt parsing for old experiments
-    if evaluation_mode == "bootstrap" and agent_filter:
-        return self._extract_from_llm_events(run_id, ...)
-
-    # Final fallback to iterations table
+    # Fall back to iterations table with inferred acceptance
+    # (current implementation)
     return self._extract_from_iterations_table(run_id, ...)
 ```
 
 ## Acceptance Criteria
 
+- [ ] Cost discrepancy between LLM prompts and database investigated and documented
 - [ ] `policy_evaluations` table created with migration
 - [ ] `PolicyEvaluationRecord` dataclass defined with all fields
 - [ ] `optimization.py` persists evaluation record after each `_should_accept_policy()` call
-- [ ] `charting.py` uses `policy_evaluations` for chart data extraction
-- [ ] LLM prompt parsing code removed from `charting.py`
+- [ ] `charting.py` uses `policy_evaluations` for chart data extraction (when available)
+- [ ] `accepted_changes` field bug fixed in `experiment_iterations`
 - [ ] Charts show identical output for new experiments
-- [ ] Old experiments (without `policy_evaluations`) still render correctly
+- [ ] Old experiments (without `policy_evaluations`) still render correctly using inferred acceptance
 - [ ] Tests verify correct persistence of proposed vs accepted costs
 
 ## Testing Requirements
@@ -339,19 +350,15 @@ def extract_chart_data(self, run_id: str, ...) -> ChartData:
 
 ## Notes
 
-### Current Workaround
+### Known Issues Discovered During Investigation
 
-The current implementation in `charting.py` parses iteration history from LLM user_prompts:
+1. **LLM prompt costs differ from database costs**: The "Mean Cost" shown in LLM prompts (e.g., "$2,500") doesn't match the `costs_per_agent` values in the database (e.g., "$50"). The source of this discrepancy is unclear - possibly different cost calculations or scaling factors.
 
-```python
-# Pattern to match metrics table rows in LLM prompt:
-# | 1 | ⭐ BEST | $39,840 | ...
-metrics_pattern = r"\|\s*(\d+)\s*\|\s*(⭐ BEST|✅ KEPT|❌ REJECTED)\s*\|\s*\$([0-9,]+)\s*\|"
-```
+2. **Multiple rows per iteration**: The `experiment_iterations` table can have multiple rows for the same iteration number (possibly from different evaluation seeds). The charting code currently takes the first occurrence.
 
-This works but is fragile and should be replaced with proper data persistence.
+3. **`accepted_changes` always False**: This field is set before optimization happens and is never updated. The workaround infers acceptance from cost improvement.
 
-### Data Already Available
+### Data Already Available in Memory
 
 The data needed for proper persistence already exists in `optimization.py`:
 
@@ -363,7 +370,7 @@ The data needed for proper persistence already exists in `optimization.py`:
 # Creates SingleAgentIterationRecord with cost and was_accepted
 ```
 
-The fix is straightforward: persist this data to a dedicated table instead of only to the LLM prompt context.
+The fix is straightforward: persist this data to a dedicated table at the time of evaluation.
 
 ### Why Not Fix `experiment_iterations`?
 
@@ -372,3 +379,13 @@ The `experiment_iterations` table has a different purpose - it tracks the CURREN
 These are complementary:
 - `experiment_iterations`: "What policy is active at iteration N?"
 - `policy_evaluations`: "What policy was proposed at iteration N and what happened?"
+
+### Cost Discrepancy Investigation Needed
+
+Before implementing this feature, investigate why LLM prompt costs differ from database costs:
+
+1. Are they different metrics (total cost vs per-agent cost)?
+2. Is there a scaling factor applied for display?
+3. Which value is authoritative for analysis?
+
+This should be resolved so the new `policy_evaluations` table stores the correct, authoritative cost values.
