@@ -2,13 +2,14 @@
 
 **Project**: Implement deterministic-temporal and deterministic-pairwise evaluation modes
 **Started**: 2025-12-16
+**Completed**: 2025-12-16
 **Branch**: claude/clarify-simcash-rtgs-dHZAS
 
 ---
 
 ## Session Log
 
-### 2025-12-16 - Initial Planning
+### 2025-12-16 - Implementation Complete
 
 **Context Review Completed**:
 - Read `docs/reference/patterns-and-conventions.md` - identified applicable invariants: INV-2, INV-9
@@ -19,37 +20,54 @@
 - INV-2: Determinism is Sacred - Both modes must be reproducible with same seed
 - INV-9: Policy Evaluation Identity - Seed used for display must match seed used for acceptance
 
-**Key Insights**:
-- `_evaluate_policies()` uses `master_seed` (constant across iterations)
-- `_evaluate_policy_pair()` uses `get_iteration_seed()` (varies per iteration)
-- This causes displayed cost ≠ acceptance decision cost
-- Solution: Always use iteration-varying seed for consistency
-
-**Completed**:
-- [x] Analyzed current state of optimization.py
-- [x] Identified the seed inconsistency bug
-- [x] Created development plan
-- [x] Created work notes
-
-**Next Steps**:
-1. Create Phase 1 detailed plan
-2. Write failing tests for seed consistency
-3. Fix seed inconsistency in `_evaluate_policies()`
+**All Phases Completed**:
+- [x] Phase 1: Fixed seed inconsistency bug
+- [x] Phase 2: Added evaluation mode parsing
+- [x] Phase 3: Implemented temporal evaluation logic
+- [x] Phase 4: Created integration tests
 
 ---
 
 ## Phase Progress
 
 ### Phase 1: Fix Seed Inconsistency
-**Status**: Pending
-**Started**:
-**Completed**:
+**Status**: Complete
+**Started**: 2025-12-16
+**Completed**: 2025-12-16
 
 #### Results
-- TBD
+- Fixed `_evaluate_policies()` to use `_seed_matrix.get_iteration_seed()` instead of `master_seed`
+- Created 7 unit tests in `test_seed_consistency.py`
 
-#### Notes
-- TBD
+### Phase 2: Add Evaluation Mode Parsing
+**Status**: Complete
+**Started**: 2025-12-16
+**Completed**: 2025-12-16
+
+#### Results
+- Added 4 valid modes: bootstrap, deterministic, deterministic-pairwise, deterministic-temporal
+- Added helper properties: is_bootstrap, is_deterministic, is_deterministic_pairwise, is_deterministic_temporal
+- Created 18 unit tests in `test_evaluation_modes.py`
+
+### Phase 3: Deterministic-Temporal Logic
+**Status**: Complete
+**Started**: 2025-12-16
+**Completed**: 2025-12-16
+
+#### Results
+- Added `_previous_iteration_costs` tracking dict
+- Added `_previous_policies` tracking dict for revert capability
+- Added `_evaluate_temporal_acceptance()` method
+- Created 8 unit tests in `test_temporal_evaluation.py`
+
+### Phase 4: Integration Tests
+**Status**: Complete
+**Started**: 2025-12-16
+**Completed**: 2025-12-16
+
+#### Results
+- Created 9 integration tests in `test_evaluation_modes_integration.py`
+- Tests verify mode initialization, determinism (INV-2), state tracking
 
 ---
 
