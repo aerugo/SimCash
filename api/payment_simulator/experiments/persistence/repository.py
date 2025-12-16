@@ -99,6 +99,51 @@ class EventRecord:
     timestamp: str
 
 
+@dataclass(frozen=True)
+class PolicyEvaluationRecord:
+    """Complete record of a policy evaluation.
+
+    All costs in integer cents (INV-1 compliance).
+
+    The interpretation of cost fields depends on evaluation_mode:
+    - "deterministic": old_cost/new_cost are from THE configured scenario
+    - "bootstrap": old_cost/new_cost are means across N resampled scenarios
+
+    Attributes:
+        run_id: Run identifier.
+        iteration: Iteration number (0-indexed).
+        agent_id: Agent being evaluated.
+        evaluation_mode: "deterministic" or "bootstrap".
+        proposed_policy: Proposed policy dict.
+        old_cost: Cost with old policy (actual, not estimate).
+        new_cost: Cost with new policy (actual, not estimate).
+        context_simulation_cost: Context simulation cost (for comparison/audit).
+        accepted: Whether the policy was accepted.
+        acceptance_reason: Reason for acceptance decision.
+        delta_sum: Sum of deltas across samples.
+        num_samples: Number of samples (1 for deterministic, N for bootstrap).
+        sample_details: Bootstrap per-sample details (None for deterministic).
+        scenario_seed: Seed for deterministic evaluation (None for bootstrap).
+        timestamp: ISO timestamp.
+    """
+
+    run_id: str
+    iteration: int
+    agent_id: str
+    evaluation_mode: str
+    proposed_policy: dict[str, Any]
+    old_cost: int
+    new_cost: int
+    context_simulation_cost: int
+    accepted: bool
+    acceptance_reason: str
+    delta_sum: int
+    num_samples: int
+    sample_details: list[dict[str, Any]] | None
+    scenario_seed: int | None
+    timestamp: str
+
+
 # =============================================================================
 # Repository Implementation
 # =============================================================================
@@ -179,6 +224,29 @@ class ExperimentRepository:
             )
         """)
 
+        # Create policy_evaluations table
+        # Natural primary key is (run_id, iteration, agent_id)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS policy_evaluations (
+                run_id VARCHAR NOT NULL,
+                iteration INTEGER NOT NULL,
+                agent_id VARCHAR NOT NULL,
+                evaluation_mode VARCHAR NOT NULL,
+                proposed_policy JSON NOT NULL,
+                old_cost INTEGER NOT NULL,
+                new_cost INTEGER NOT NULL,
+                context_simulation_cost INTEGER NOT NULL,
+                accepted BOOLEAN NOT NULL,
+                acceptance_reason VARCHAR NOT NULL,
+                delta_sum INTEGER NOT NULL,
+                num_samples INTEGER NOT NULL,
+                sample_details JSON,
+                scenario_seed INTEGER,
+                timestamp VARCHAR NOT NULL,
+                PRIMARY KEY (run_id, iteration, agent_id)
+            )
+        """)
+
         # Create indexes for performance
         self._conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_experiments_type
@@ -191,6 +259,14 @@ class ExperimentRepository:
         self._conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_events_run_iter
             ON experiment_events(run_id, iteration)
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_policy_evals_run_agent
+            ON policy_evaluations(run_id, agent_id)
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_policy_evals_mode
+            ON policy_evaluations(run_id, evaluation_mode)
         """)
 
     def close(self) -> None:
@@ -472,6 +548,169 @@ class ExperimentRepository:
             event_type=row[2],
             event_data=event_data,
             timestamp=row[4],
+        )
+
+    # =========================================================================
+    # Policy Evaluation Operations
+    # =========================================================================
+
+    def save_policy_evaluation(self, record: PolicyEvaluationRecord) -> None:
+        """Save or update a policy evaluation record.
+
+        Uses INSERT ... ON CONFLICT DO UPDATE for upsert based on
+        (run_id, iteration, agent_id) primary key.
+
+        Args:
+            record: PolicyEvaluationRecord to persist
+        """
+        proposed_policy_json = json.dumps(record.proposed_policy)
+        sample_details_json = (
+            json.dumps(record.sample_details)
+            if record.sample_details is not None
+            else None
+        )
+
+        # DuckDB INSERT with ON CONFLICT DO UPDATE for upsert
+        self._conn.execute(
+            """
+            INSERT INTO policy_evaluations (
+                run_id, iteration, agent_id, evaluation_mode,
+                proposed_policy, old_cost, new_cost, context_simulation_cost,
+                accepted, acceptance_reason, delta_sum, num_samples,
+                sample_details, scenario_seed, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (run_id, iteration, agent_id) DO UPDATE SET
+                evaluation_mode = EXCLUDED.evaluation_mode,
+                proposed_policy = EXCLUDED.proposed_policy,
+                old_cost = EXCLUDED.old_cost,
+                new_cost = EXCLUDED.new_cost,
+                context_simulation_cost = EXCLUDED.context_simulation_cost,
+                accepted = EXCLUDED.accepted,
+                acceptance_reason = EXCLUDED.acceptance_reason,
+                delta_sum = EXCLUDED.delta_sum,
+                num_samples = EXCLUDED.num_samples,
+                sample_details = EXCLUDED.sample_details,
+                scenario_seed = EXCLUDED.scenario_seed,
+                timestamp = EXCLUDED.timestamp
+            """,
+            [
+                record.run_id,
+                record.iteration,
+                record.agent_id,
+                record.evaluation_mode,
+                proposed_policy_json,
+                record.old_cost,
+                record.new_cost,
+                record.context_simulation_cost,
+                record.accepted,
+                record.acceptance_reason,
+                record.delta_sum,
+                record.num_samples,
+                sample_details_json,
+                record.scenario_seed,
+                record.timestamp,
+            ],
+        )
+
+    def get_policy_evaluations(
+        self, run_id: str, agent_id: str
+    ) -> list[PolicyEvaluationRecord]:
+        """Get policy evaluations for a specific agent.
+
+        Args:
+            run_id: Run identifier.
+            agent_id: Agent ID to filter by.
+
+        Returns:
+            List of PolicyEvaluationRecord ordered by iteration.
+        """
+        results = self._conn.execute(
+            """
+            SELECT run_id, iteration, agent_id, evaluation_mode,
+                   proposed_policy, old_cost, new_cost, context_simulation_cost,
+                   accepted, acceptance_reason, delta_sum, num_samples,
+                   sample_details, scenario_seed, timestamp
+            FROM policy_evaluations
+            WHERE run_id = ? AND agent_id = ?
+            ORDER BY iteration
+            """,
+            [run_id, agent_id],
+        ).fetchall()
+
+        return [self._row_to_policy_evaluation_record(row) for row in results]
+
+    def get_all_policy_evaluations(
+        self, run_id: str
+    ) -> list[PolicyEvaluationRecord]:
+        """Get all policy evaluations for a run.
+
+        Args:
+            run_id: Run identifier.
+
+        Returns:
+            List of PolicyEvaluationRecord ordered by iteration, agent_id.
+        """
+        results = self._conn.execute(
+            """
+            SELECT run_id, iteration, agent_id, evaluation_mode,
+                   proposed_policy, old_cost, new_cost, context_simulation_cost,
+                   accepted, acceptance_reason, delta_sum, num_samples,
+                   sample_details, scenario_seed, timestamp
+            FROM policy_evaluations
+            WHERE run_id = ?
+            ORDER BY iteration, agent_id
+            """,
+            [run_id],
+        ).fetchall()
+
+        return [self._row_to_policy_evaluation_record(row) for row in results]
+
+    def has_policy_evaluations(self, run_id: str) -> bool:
+        """Check if run has policy evaluation records.
+
+        Args:
+            run_id: Run identifier.
+
+        Returns:
+            True if policy evaluations exist for the run.
+        """
+        result = self._conn.execute(
+            """
+            SELECT COUNT(*) FROM policy_evaluations WHERE run_id = ?
+            """,
+            [run_id],
+        ).fetchone()
+
+        return result is not None and result[0] > 0
+
+    def _row_to_policy_evaluation_record(
+        self, row: tuple[Any, ...]
+    ) -> PolicyEvaluationRecord:
+        """Convert database row to PolicyEvaluationRecord."""
+        proposed_policy = row[4]
+        if isinstance(proposed_policy, str):
+            proposed_policy = json.loads(proposed_policy)
+
+        sample_details = row[12]
+        if sample_details is not None and isinstance(sample_details, str):
+            sample_details = json.loads(sample_details)
+
+        return PolicyEvaluationRecord(
+            run_id=row[0],
+            iteration=row[1],
+            agent_id=row[2],
+            evaluation_mode=row[3],
+            proposed_policy=proposed_policy,
+            old_cost=int(row[5]),
+            new_cost=int(row[6]),
+            context_simulation_cost=int(row[7]),
+            accepted=bool(row[8]),
+            acceptance_reason=row[9],
+            delta_sum=int(row[10]),
+            num_samples=int(row[11]),
+            sample_details=sample_details,
+            scenario_seed=row[13],
+            timestamp=row[14],
         )
 
     # =========================================================================
