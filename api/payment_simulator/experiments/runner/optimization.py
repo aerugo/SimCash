@@ -795,6 +795,64 @@ class OptimizationLoop:
         )
         self._repository.save_event(event)
 
+    def _save_policy_evaluation(
+        self,
+        agent_id: str,
+        evaluation_mode: str,
+        proposed_policy: dict[str, Any],
+        old_cost: int,
+        new_cost: int,
+        context_simulation_cost: int,
+        accepted: bool,
+        acceptance_reason: str,
+        delta_sum: int,
+        num_samples: int,
+        sample_details: list[dict[str, Any]] | None,
+        scenario_seed: int | None,
+    ) -> None:
+        """Save policy evaluation record to repository.
+
+        Persists the complete evaluation results including actual computed costs.
+        This enables accurate chart generation and experiment analysis.
+
+        Args:
+            agent_id: Agent that was evaluated.
+            evaluation_mode: "deterministic" or "bootstrap".
+            proposed_policy: The proposed policy that was evaluated.
+            old_cost: ACTUAL mean cost with old policy (from evaluation).
+            new_cost: ACTUAL mean cost with new policy (from evaluation).
+            context_simulation_cost: Cost from context simulation (for comparison).
+            accepted: Whether the policy was accepted.
+            acceptance_reason: Reason for acceptance/rejection.
+            delta_sum: Sum of deltas across samples.
+            num_samples: Number of samples in evaluation (1 for deterministic).
+            sample_details: Per-sample details for bootstrap mode (None for deterministic).
+            scenario_seed: Seed used for deterministic mode (None for bootstrap).
+        """
+        if self._repository is None:
+            return
+
+        from payment_simulator.experiments.persistence import PolicyEvaluationRecord
+
+        record = PolicyEvaluationRecord(
+            run_id=self._run_id,
+            iteration=self._current_iteration - 1,  # 0-indexed in storage
+            agent_id=agent_id,
+            evaluation_mode=evaluation_mode,
+            proposed_policy=proposed_policy,
+            old_cost=old_cost,
+            new_cost=new_cost,
+            context_simulation_cost=context_simulation_cost,
+            accepted=accepted,
+            acceptance_reason=acceptance_reason,
+            delta_sum=delta_sum,
+            num_samples=num_samples,
+            sample_details=sample_details,
+            scenario_seed=scenario_seed,
+            timestamp=datetime.now().isoformat(),
+        )
+        self._repository.save_policy_evaluation(record)
+
     def _save_llm_interaction_event(self, agent_id: str) -> None:
         """Save LLM interaction event for audit replay.
 
@@ -1481,7 +1539,7 @@ class OptimizationLoop:
         agent_id: str,
         old_policy: dict[str, Any],
         new_policy: dict[str, Any],
-    ) -> tuple[list[int], int]:
+    ) -> PolicyPairEvaluation:
         """Evaluate old vs new policy with paired bootstrap samples.
 
         Uses SeedMatrix to get agent-specific bootstrap seeds for the current
@@ -1496,9 +1554,7 @@ class OptimizationLoop:
             new_policy: Proposed new policy from LLM.
 
         Returns:
-            Tuple of (deltas, delta_sum) where:
-            - deltas: list of (old_cost - new_cost) per sample
-            - delta_sum: sum of deltas (positive = new is cheaper = improvement)
+            PolicyPairEvaluation with actual computed costs (not estimates).
         """
         # Use 0-indexed iteration for SeedMatrix
         iteration_idx = self._current_iteration - 1
@@ -1523,7 +1579,22 @@ class OptimizationLoop:
             self._policies[agent_id] = old_policy
 
             delta = old_cost - new_cost
-            return [delta], delta
+
+            # Return PolicyPairEvaluation with ACTUAL costs
+            return PolicyPairEvaluation(
+                sample_results=[
+                    SampleEvaluationResult(
+                        sample_index=0,
+                        seed=seed,
+                        old_cost=old_cost,
+                        new_cost=new_cost,
+                        delta=delta,
+                    )
+                ],
+                delta_sum=delta,
+                mean_old_cost=old_cost,
+                mean_new_cost=new_cost,
+            )
 
         # Real bootstrap mode: use pre-computed bootstrap samples
         # This is the correct bootstrap approach - resampling from historical data
@@ -1546,8 +1617,30 @@ class OptimizationLoop:
                     policy_a=old_policy,
                     policy_b=new_policy,
                 )
-                deltas = [d.delta for d in paired_deltas]
-                return deltas, sum(deltas)
+
+                # Build sample results with ACTUAL costs from bootstrap evaluation
+                sample_results = [
+                    SampleEvaluationResult(
+                        sample_index=pd.sample_idx,
+                        seed=pd.seed,
+                        old_cost=pd.cost_a,  # cost_a = old policy cost
+                        new_cost=pd.cost_b,  # cost_b = new policy cost
+                        delta=pd.delta,
+                    )
+                    for pd in paired_deltas
+                ]
+
+                n = len(paired_deltas)
+                delta_sum = sum(pd.delta for pd in paired_deltas)
+                mean_old_cost = sum(pd.cost_a for pd in paired_deltas) // n
+                mean_new_cost = sum(pd.cost_b for pd in paired_deltas) // n
+
+                return PolicyPairEvaluation(
+                    sample_results=sample_results,
+                    delta_sum=delta_sum,
+                    mean_old_cost=mean_old_cost,
+                    mean_new_cost=mean_new_cost,
+                )
 
         # No samples available - this is an error in bootstrap mode
         # Bootstrap samples should be created by _run_initial_simulation() at start
@@ -1794,18 +1887,48 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
 
             # Accept/reject based on paired bootstrap evaluation of new policy
             # This runs AFTER policy generation using agent-specific seeds
-            # Returns (should_accept, old_cost, new_cost, deltas, delta_sum)
+            # Returns (should_accept, old_cost, new_cost, deltas, delta_sum, evaluation)
             (
                 should_accept,
                 eval_old_cost,
                 eval_new_cost,
                 deltas,
                 delta_sum,
+                evaluation,
             ) = await self._should_accept_policy(
                 agent_id=agent_id,
                 old_policy=current_policy,
                 new_policy=new_policy,
                 current_cost=current_cost,
+            )
+
+            # Determine mode and mode-specific fields for persistence
+            is_deterministic = self._config.evaluation.mode == "deterministic"
+            evaluation_mode = "deterministic" if is_deterministic else "bootstrap"
+
+            # Persist policy evaluation with ACTUAL costs
+            self._save_policy_evaluation(
+                agent_id=agent_id,
+                evaluation_mode=evaluation_mode,
+                proposed_policy=new_policy,
+                old_cost=eval_old_cost,
+                new_cost=eval_new_cost,
+                context_simulation_cost=current_cost,
+                accepted=should_accept,
+                acceptance_reason="cost_improved" if should_accept else "cost_not_improved",
+                delta_sum=delta_sum,
+                num_samples=evaluation.num_samples,
+                sample_details=[
+                    {
+                        "index": s.sample_index,
+                        "seed": s.seed,
+                        "old_cost": s.old_cost,
+                        "new_cost": s.new_cost,
+                        "delta": s.delta,
+                    }
+                    for s in evaluation.sample_results
+                ] if not is_deterministic else None,
+                scenario_seed=evaluation.sample_results[0].seed if is_deterministic else None,
             )
 
             # Track delta history for progress monitoring
@@ -2026,7 +2149,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         old_policy: dict[str, Any],
         new_policy: dict[str, Any],
         current_cost: int,
-    ) -> tuple[bool, int, int, list[int], int]:
+    ) -> tuple[bool, int, int, list[int], int, PolicyPairEvaluation]:
         """Determine whether to accept a new policy using paired bootstrap evaluation.
 
         Uses SeedMatrix for agent-specific bootstrap seeds, ensuring:
@@ -2043,38 +2166,35 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             current_cost: Current cost for this agent (from context simulation).
 
         Returns:
-            Tuple of (should_accept, old_cost, new_cost, deltas, delta_sum) where:
+            Tuple of (should_accept, old_cost, new_cost, deltas, delta_sum, evaluation):
             - should_accept: True if delta_sum > 0 (new policy is cheaper)
-            - old_cost: Mean cost with old policy (for display)
-            - new_cost: Mean cost with new policy (for display)
+            - old_cost: ACTUAL mean cost with old policy (from evaluation)
+            - new_cost: ACTUAL mean cost with new policy (from evaluation)
             - deltas: List of per-sample (old_cost - new_cost) deltas
             - delta_sum: Sum of deltas (positive = improvement)
+            - evaluation: Full PolicyPairEvaluation for persistence
         """
-        # Use the new _evaluate_policy_pair which uses SeedMatrix
-        deltas, delta_sum = self._evaluate_policy_pair(
+        # Get full evaluation with ACTUAL costs (not estimates)
+        evaluation = self._evaluate_policy_pair(
             agent_id=agent_id,
             old_policy=old_policy,
             new_policy=new_policy,
         )
 
-        # Compute mean costs for display/logging
-        # Note: These are approximations based on deltas and current_cost
-        # For accurate display, we'd need to track costs during evaluation
-        num_samples = len(deltas)
-        mean_delta = delta_sum / num_samples if num_samples > 0 else 0
-
-        # Estimate old/new costs for display
-        # old_cost ≈ current_cost (from context simulation)
-        # new_cost ≈ old_cost - mean_delta
-        old_cost = current_cost
-        new_cost = current_cost - mean_delta
-
         # Accept if delta_sum > 0 (new policy is cheaper overall)
         # Note: Using delta_sum (not mean_delta) for acceptance
         # This means total improvement across all samples, not average
-        should_accept = delta_sum > 0
+        should_accept = evaluation.delta_sum > 0
 
-        return (should_accept, int(old_cost), int(new_cost), deltas, delta_sum)
+        # Return ACTUAL costs from evaluation, not estimates
+        return (
+            should_accept,
+            evaluation.mean_old_cost,  # ACTUAL, not current_cost
+            evaluation.mean_new_cost,  # ACTUAL, not estimate
+            evaluation.deltas,
+            evaluation.delta_sum,
+            evaluation,
+        )
 
     def _evaluate_policy_with_seed(
         self, policy: dict[str, Any], agent_id: str, seed: int
