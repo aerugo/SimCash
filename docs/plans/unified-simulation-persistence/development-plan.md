@@ -281,7 +281,7 @@ After implementation is complete, update the following:
 | Phase 2 | ✅ Complete | Experiment runner integration |
 | Phase 3 | ✅ Complete | Replay identity verification |
 | Phase 4 | ✅ Complete | Config format fix (store YAML, not FFI) |
-| Phase 5 | **In Progress** | Primary simulation persistence by default |
+| Phase 5 | ✅ Complete | Primary simulation persistence by default |
 
 ---
 
