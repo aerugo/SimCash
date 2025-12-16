@@ -1,8 +1,9 @@
 # Feature Request: Persist Policy Evaluation Metrics in Database
 
 **Date**: 2025-12-15
-**Updated**: 2025-12-15
-**Priority**: Medium
+**Updated**: 2025-12-16
+**Priority**: High
+**Blocking**: Paper charts require re-running experiments after implementation
 **Affects**: `payment_simulator.experiments.runner.optimization`, `payment_simulator.experiments.persistence`, `payment_simulator.experiments.analysis.charting`
 
 ## Summary
@@ -47,6 +48,17 @@ This approach:
 - **Loses information**: Cannot distinguish "rejected with same cost" from "rejected with higher cost"
 - **Assumes monotonic improvement**: All cost reductions are treated as acceptances
 - **No proposed policy data**: Only shows what was eventually accepted, not what was proposed
+
+### Manual Log Extraction Attempted (2025-12-16)
+
+Attempted to manually extract chart data from experiment logs for the paper. This proved unworkable:
+
+1. **Multiple LLM calls per iteration**: Each iteration has 3 LLM calls (bootstrap seeds), making it unclear which proposal to use
+2. **Multiple evaluations per iteration**: 3 evaluation events per iteration with different costs
+3. **Event ordering complexity**: Matching proposals to their evaluation costs requires understanding the exact event sequence
+4. **Data structure mismatch**: `parsed_policy` in `llm_interaction` events contains proposed parameters, but evaluation costs are in separate `evaluation` events with no direct linkage
+
+**Conclusion**: Manual chart generation from existing logs is too error-prone. Proper data persistence (this feature request) is required before generating accurate charts for the paper.
 
 ### Why Proper Persistence Is Needed
 
@@ -319,6 +331,13 @@ def extract_chart_data(self, run_id: str, ...) -> ChartData:
 - [ ] Charts show identical output for new experiments
 - [ ] Old experiments (without `policy_evaluations`) still render correctly using inferred acceptance
 - [ ] Tests verify correct persistence of proposed vs accepted costs
+
+## Post-Implementation Required
+
+After this feature is implemented:
+- [ ] Re-run all paper experiments (exp1, exp2, exp3) with new persistence
+- [ ] Generate updated charts using the new `policy_evaluations` data
+- [ ] Verify charts show both "All Policies" and "Accepted Policies" lines correctly
 
 ## Testing Requirements
 
