@@ -486,6 +486,7 @@ class OptimizationLoop:
         iteration: int | None = None,
         sample_idx: int | None = None,
         persist: bool | None = None,
+        is_primary: bool = False,
     ) -> SimulationResult:
         """Run a single simulation and capture all output.
 
@@ -499,7 +500,11 @@ class OptimizationLoop:
             purpose: Purpose tag for simulation ID (e.g., "init", "eval", "bootstrap").
             iteration: Current iteration number (for logging/persistence).
             sample_idx: Bootstrap sample index (for logging/persistence).
-            persist: Override persist_bootstrap flag. If None, uses class default.
+            persist: Override persistence. If None, uses default based on is_primary.
+            is_primary: If True, this is a primary simulation (main scenario run)
+                that should persist by default when repository is present.
+                If False, this is a bootstrap sample that only persists
+                when persist=True explicitly (via --persist-bootstrap).
 
         Returns:
             SimulationResult with all simulation output.
@@ -572,9 +577,17 @@ class OptimizationLoop:
             settlement_rate = 1.0
             avg_delay = 0.0
 
-        # 6. Persist if flag set
+        # 6. Persist if appropriate
         # INV-11: Use SimulationPersistenceProvider for unified persistence
-        should_persist = persist if persist is not None else self._persist_bootstrap
+        # Primary simulations persist by default; bootstrap samples only with flag
+        if persist is not None:
+            should_persist = persist
+        elif is_primary:
+            # Primary simulations persist by default when repository exists
+            should_persist = self._repository is not None
+        else:
+            # Bootstrap samples only persist with explicit --persist-bootstrap flag
+            should_persist = self._persist_bootstrap
         if self._repository and should_persist:
             from payment_simulator.experiments.persistence import EventRecord
 
@@ -1192,11 +1205,12 @@ class OptimizationLoop:
         # Run simulation using unified method
         # _run_simulation handles: ID generation, verbose logging, event capture,
         # cost extraction, and persistence
+        # This IS a primary simulation - persists by default when repository exists
         result = self._run_simulation(
             seed=self._config.master_seed,
             purpose="init",
             iteration=0,
-            persist=self._persist_bootstrap,
+            is_primary=True,
         )
 
         # Build transaction history from events (initial simulation specific)
@@ -1293,7 +1307,12 @@ class OptimizationLoop:
         return total_cost, per_agent_costs
 
     def _run_simulation_with_events(
-        self, seed: int, sample_idx: int, *, purpose: str | None = None
+        self,
+        seed: int,
+        sample_idx: int,
+        *,
+        purpose: str | None = None,
+        is_primary: bool = False,
     ) -> EnrichedEvaluationResult:
         """Run a simulation and capture events for LLM context.
 
@@ -1307,6 +1326,8 @@ class OptimizationLoop:
             purpose: Purpose tag for simulation ID. If None, derives from
                 evaluation mode ("eval" for deterministic, "bootstrap" for
                 bootstrap mode).
+            is_primary: If True, this is a primary simulation that should
+                persist by default. If False, only persists with --persist-bootstrap.
 
         Returns:
             EnrichedEvaluationResult with event trace and cost breakdown.
@@ -1321,7 +1342,7 @@ class OptimizationLoop:
             seed=seed,
             purpose=purpose,
             sample_idx=sample_idx,
-            persist=False,  # Bootstrap samples don't persist by default
+            is_primary=is_primary,
         )
 
         # Transform raw events to BootstrapEvent objects
@@ -1442,8 +1463,11 @@ class OptimizationLoop:
             # Single simulation - deterministic mode
             # Use constant seed for reproducibility (same seed each iteration)
             # This ensures policy changes are the ONLY variable affecting cost
+            # This IS the primary simulation - should persist by default
             seed = self._config.master_seed
-            enriched = self._run_simulation_with_events(seed, sample_idx=0)
+            enriched = self._run_simulation_with_events(
+                seed, sample_idx=0, is_primary=True
+            )
 
             # Store for LLM context
             self._current_enriched_results = [enriched]
@@ -1652,13 +1676,14 @@ class OptimizationLoop:
             old_cost = old_costs.get(agent_id, 0)
 
             # Evaluate new policy - use _run_simulation to get extended metrics
+            # This is a policy comparison simulation, NOT a primary simulation
             self._policies[agent_id] = new_policy
             new_sim_result = self._run_simulation(
                 seed=seed,
                 purpose="eval",
                 iteration=iteration_idx,
                 sample_idx=0,
-                persist=False,  # Don't persist evaluation simulations
+                is_primary=False,  # Policy comparison - only persists with --persist-bootstrap
             )
             new_cost = new_sim_result.per_agent_costs.get(agent_id, 0)
 
