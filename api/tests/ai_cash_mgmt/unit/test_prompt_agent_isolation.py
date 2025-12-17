@@ -528,14 +528,14 @@ class TestLSMEventIsolation:
 
 
 # =============================================================================
-# Phase 1: Balance Leakage Tests (INV-10: Agent Isolation)
+# Phase 1: Balance Leakage Tests (INV-11: Agent Isolation)
 # =============================================================================
 
 
 class TestRtgsBalanceIsolation:
     """Tests for RTGS settlement balance isolation.
 
-    Enforces INV-10: Agent Isolation - Receiver must not see sender's balance.
+    Enforces INV-11: Agent Isolation - Receiver must not see sender's balance.
     These tests verify that sender_balance_before/after are only shown to the sender.
     """
 
@@ -725,14 +725,14 @@ class TestRtgsBalanceIsolation:
 
 
 # =============================================================================
-# Phase 2: LSM Event Sanitization Tests (INV-10: Agent Isolation)
+# Phase 2: LSM Event Sanitization Tests (INV-11: Agent Isolation)
 # =============================================================================
 
 
 class TestLSMEventSanitization:
     """Tests for LSM event information sanitization.
 
-    Enforces INV-10: Agent Isolation - Counterparty-specific details hidden.
+    Enforces INV-11: Agent Isolation - Counterparty-specific details hidden.
     When agent participates in LSM, they should not see counterparty amounts.
     """
 
@@ -950,14 +950,14 @@ class TestLSMEventSanitization:
 
 
 # =============================================================================
-# Phase 3: Cost Breakdown Isolation Tests (INV-10: Agent Isolation)
+# Phase 3: Cost Breakdown Isolation Tests (INV-11: Agent Isolation)
 # =============================================================================
 
 
 class TestCostBreakdownIsolation:
     """Tests for cost breakdown isolation.
 
-    Enforces INV-10: Agent Isolation - Only own costs visible.
+    Enforces INV-11: Agent Isolation - Only own costs visible.
     Cost breakdown should reflect agent-specific costs, not system-wide aggregate.
     """
 

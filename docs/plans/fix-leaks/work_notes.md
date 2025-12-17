@@ -128,7 +128,7 @@
 ## Documentation Updates Required
 
 ### patterns-and-conventions.md Changes
-- [ ] Add INV-10: Agent Isolation invariant
+- [x] Added INV-11: Agent Isolation invariant (INV-10 was already taken)
 
 ### Other Documentation
-- [ ] Update api/CLAUDE.md if needed
+- [x] `api/CLAUDE.md` - No changes needed; references `patterns-and-conventions.md` for invariants
