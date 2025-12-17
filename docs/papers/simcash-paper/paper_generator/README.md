@@ -1,19 +1,35 @@
-# SimCash Paper v5 - Programmatic Generation
+# SimCash Paper - Programmatic Generation
 
 This directory contains a fully programmatic paper generation system that eliminates manual transcription errors by generating all tables, figures, and data-driven text directly from experiment databases.
 
 ## Quick Start
 
+This project uses [Astral UV](https://docs.astral.sh/uv/) for package management.
+
+### Initial Setup
+
+```bash
+cd docs/papers/simcash-paper/paper_generator
+
+# Install all dependencies (including payment-simulator from ../../../../api)
+uv sync --extra dev
+```
+
+### Generate the Paper
+
 **A `config.yaml` file is REQUIRED** for paper generation. The config explicitly maps experiment passes to specific run_ids, ensuring reproducible paper generation and preventing issues with database ordering or incomplete experiment runs.
 
 ```bash
-cd docs/papers/simcash-paper/v5
+cd docs/papers/simcash-paper/paper_generator
 
-# Generate paper.tex (config.yaml is required)
-python -m src.cli --config config.yaml --output-dir output/
+# Generate paper.tex and compile to PDF
+uv run python -m src.cli --config config.yaml --output-dir output/
+
+# Or skip PDF compilation (faster, .tex only)
+uv run python -m src.cli --config config.yaml --output-dir output/ --skip-pdf
 
 # Or via Python API
-python -c "
+uv run python -c "
 from pathlib import Path
 from src.config import load_config
 from src.paper_builder import build_paper
@@ -140,16 +156,16 @@ v5/
 ## Running Tests
 
 ```bash
-cd docs/papers/simcash-paper/v5
+cd docs/papers/simcash-paper/paper_generator
 
 # Run all tests
-/home/user/SimCash/api/.venv/bin/python -m pytest tests/ -v
+uv run pytest tests/ -v
 
 # Run specific test file
-/home/user/SimCash/api/.venv/bin/python -m pytest tests/test_real_data_integration.py -v
+uv run pytest tests/test_real_data_integration.py -v
 
 # Run with coverage
-/home/user/SimCash/api/.venv/bin/python -m pytest tests/ --cov=src
+uv run pytest tests/ --cov=src --cov-report=html
 ```
 
 ## Key Design Principles
@@ -213,15 +229,31 @@ def generate_newsection(provider: DataProvider) -> str:
 
 ## Type Safety
 
-Full type annotations throughout. Run mypy:
+Full type annotations throughout. Run type checking:
 
 ```bash
-/home/user/SimCash/api/.venv/bin/python -m mypy src/ --ignore-missing-imports
+cd docs/papers/simcash-paper/paper_generator
+
+# Type checking with mypy
+uv run mypy src/
+
+# Type checking with pyright (matches VS Code Pylance)
+uv run pyright src/
+
+# Linting with ruff
+uv run ruff check src/ tests/
 ```
 
 ## Dependencies
 
 - Python 3.11+
-- duckdb (for database queries)
-- pytest (for testing)
-- mypy, ruff (for linting)
+- [Astral UV](https://docs.astral.sh/uv/) for package management
+- duckdb (database queries)
+- matplotlib (chart generation)
+- pyyaml (config parsing)
+- payment-simulator (from ../../../../api, for experiment analysis)
+
+Dev dependencies:
+- pytest, pytest-cov (testing)
+- mypy, pyright (type checking)
+- ruff (linting and formatting)
