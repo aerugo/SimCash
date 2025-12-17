@@ -120,6 +120,30 @@
 - `test_exp2_different_costs_appear_in_paper`: Verifies generated paper shows different values
 - These tests ensure the v4 bug (identical costs) can NEVER recur
 
+### Phase 6: Chart Generation and Integration
+**Status**: Complete
+**Started**: 2025-12-17
+**Completed**: 2025-12-17
+
+#### Results
+- Created `src/charts/generators.py` with chart generation functions:
+  - `generate_convergence_chart()` - Uses SimCash's ExperimentChartService
+  - `generate_combined_convergence_chart()` - Custom matplotlib for both agents
+  - `generate_ci_width_chart()` - Bootstrap CI width comparison
+  - `generate_variance_evolution_chart()` - Bootstrap std dev over iterations
+  - `generate_sample_distribution_chart()` - Histogram of bootstrap samples
+  - `generate_all_paper_charts()` - Batch generation for all experiments/passes
+- Updated `src/sections/results.py` to include convergence figures
+- Updated `src/sections/appendices.py` to include:
+  - Convergence figures for all passes
+  - Bootstrap charts (CI width, variance, sample distribution)
+- Updated `src/paper_builder.py` to generate charts automatically
+- Updated CLI with `--skip-charts` flag
+- Added 16 new tests (134 total):
+  - 12 chart generator tests
+  - 4 figure include verification tests
+- All tests passing, mypy and ruff clean
+
 ---
 
 ## Key Decisions
