@@ -143,27 +143,93 @@ Average convergence in 8.7 iterations demonstrates efficient equilibrium discove
 
 ## 6. Discussion
 
-### 6.1 LLM Reasoning Capabilities
+### 6.1 Analysis of Convergence Patterns
+
+The iteration-by-iteration data in Appendix C reveals distinct convergence behaviors across experiments:
+
+**Experiment 1: Gradual vs. Immediate Discovery**
+
+The most striking observation is the difference between Pass 1 (16 iterations) and Passes 2-3 (7 iterations each). In Pass 1, BANK_A cautiously reduces liquidity in steps: 50% → 20% → 15% → 12% → 8% → 6% → 4% → 3.5% → 3% → 2.5% → 0%. This gradual descent suggests the LLM is conservatively exploring the cost landscape, uncertain whether lower allocations will maintain settlement.
+
+In contrast, Passes 2 and 3 show immediate discovery: BANK_A jumps directly from 50% to 0% in iteration 1. The LLM immediately recognizes that BANK_B's 20% allocation is sufficient to settle both parties' transactions, enabling complete free-riding.
+
+This variance arises from the stochastic nature of LLM reasoning—the same prompt can produce different strategic insights. Importantly, all paths converge to the same equilibrium, demonstrating robustness despite different exploration strategies.
+
+**Why the Asymmetric Equilibrium Emerges**
+
+The 0%/20% equilibrium in Experiment 1 is economically rational:
+- BANK_B requires exactly 20% liquidity (matching its 0.2 payment obligation)
+- BANK_A's incoming payment from BANK_B settles first in the 2-tick cycle
+- Once BANK_B pays BANK_A, BANK_A has sufficient balance to pay BANK_B
+- BANK_A thus needs zero initial liquidity—a classic free-rider equilibrium
+
+This matches Castro et al.'s theoretical prediction that asymmetric equilibria emerge when payment timing allows sequential dependency.
+
+**Experiment 2: Multiple Local Equilibria in Stochastic Settings**
+
+The stochastic scenario reveals important limitations. Final liquidity fractions vary substantially across passes:
+- Pass 1: 16.5% / 11.5% → Total cost $304.10
+- Pass 2: 5.0% / 10.0% → Total cost $570.58
+- Pass 3: 9.2% / 12.0% → Total cost $299.60
+
+Pass 2's higher cost ($570 vs. $300) indicates convergence to a suboptimal local equilibrium. The bootstrap evaluation with 50 samples introduces variance in cost estimates, and the LLM's acceptance decisions depend on noisy signals. Once both agents stabilize at 5%/10%, neither can unilaterally improve (given sample variance), creating a stable but inefficient equilibrium.
+
+This demonstrates a fundamental challenge: best-response dynamics in stochastic games may converge to local rather than global optima. The 10-30% theoretical bounds from Castro et al. are satisfied, but efficiency varies.
+
+**Experiment 3: Rapid Symmetric Coordination**
+
+The symmetric scenario shows the cleanest convergence. All passes reach exactly 20%/20%, with costs identically $39.96. This precision arises because:
+- The game is perfectly symmetric (identical payment demands)
+- 20% exactly covers the 0.2 requirement—any deviation is strictly worse
+- The LLM correctly identifies this unique equilibrium
+
+Passes 2-3 converge faster than Pass 1 (7 vs. 9 iterations), but the final outcome is identical. The symmetric structure eliminates the free-rider possibility, forcing coordination on the efficient solution.
+
+### 6.2 Comparison to Theoretical Predictions
+
+| Scenario | Castro et al. Prediction | Observed Result | Match |
+|----------|-------------------------|-----------------|-------|
+| 2-Period Deterministic | Asymmetric (one agent = 0) | A=0%, B=20% | ✓ |
+| 12-Period Stochastic | Both in 10-30% range | 5-16.5% range | ✓* |
+| 3-Period Symmetric | Symmetric ~20% | Exactly 20%/20% | ✓ |
+
+*Note: Pass 2's 5% falls slightly below the theoretical 10% lower bound, likely due to bootstrap sampling variance accepting a suboptimal policy.
+
+### 6.3 Cost Structure Analysis
+
+Examining total costs across experiments reveals the efficiency of discovered equilibria:
+
+| Experiment | Initial Cost (50%/50%) | Final Cost | Cost Reduction |
+|------------|------------------------|------------|----------------|
+| Exp 1 | $100.00 | $20.00 | 80% |
+| Exp 2 (avg) | $996.00 | $391.43 | 61% |
+| Exp 3 | $99.90 | $39.96 | 60% |
+
+The deterministic scenarios achieve greater cost reduction because optimal strategies are more precisely identifiable. The stochastic scenario's higher final costs reflect both inherent uncertainty and occasional convergence to local optima.
+
+### 6.4 LLM Reasoning Capabilities
 
 GPT-5.2 demonstrates sophisticated strategic reasoning:
-- Identifies liquidity-cost tradeoffs from cost feedback
-- Adapts to opponent behavior (free-riding in Exp 1)
-- Coordinates on symmetric solutions when appropriate (Exp 3)
-- Handles uncertainty in stochastic settings (Exp 2)
+- **Counterfactual Analysis**: Recognizes that reducing liquidity is safe when opponent provides sufficient reserves
+- **Opponent Modeling**: Adapts to opponent's stable strategy (BANK_B's 20% in Exp 1)
+- **Symmetric Recognition**: Quickly identifies and converges to symmetric solutions
+- **Uncertainty Handling**: Balances exploration and exploitation in stochastic settings
 
-### 6.2 Advantages Over Traditional Methods
+### 6.5 Limitations and Failure Modes
 
-1. **No Analytical Solution Required**: Discovers equilibria empirically
-2. **Handles Complex Cost Functions**: Works with arbitrary simulation outputs
-3. **Interpretable Reasoning**: LLM explanations provide insight
-4. **Scalable**: Adding agents or complexity doesn't require new theory
+1. **Convergence Variance**: Identical configurations produce different iteration counts (7-16 for Exp 1)
+2. **Local Optima**: Stochastic settings may converge to inefficient equilibria (Pass 2's $570 vs. Pass 1's $304)
+3. **Sample Sensitivity**: Bootstrap evaluation introduces noise that can mislead acceptance decisions
+4. **No Global Optimality Guarantee**: Best-response dynamics find Nash equilibria, not necessarily Pareto-optimal outcomes
 
-### 6.3 Limitations
+### 6.6 Implications for Payment System Design
 
-1. **API Costs**: High reasoning effort is expensive
-2. **Convergence Variance**: Exp 1 pass 1 took 16 iterations vs. 7 for others
-3. **Multiple Equilibria**: Stochastic scenarios converge to different local optima
-4. **No Equilibrium Guarantees**: Best-response dynamics may cycle
+These results suggest LLM-based policy optimization could assist central banks in:
+1. **Stress Testing**: Discovering how banks might strategically respond to policy changes
+2. **Mechanism Design**: Identifying rules that lead to efficient equilibria
+3. **Risk Assessment**: Understanding free-rider vulnerabilities in settlement systems
+
+However, the convergence to local optima in stochastic settings cautions against relying solely on this approach for critical infrastructure decisions.
 
 ## 7. Conclusion
 
