@@ -292,4 +292,4 @@ class TestGenerateBootstrapTable:
 
         # Should contain formatted values
         assert r"\$164.40" in table  # mean cost
-        assert "BANK_A" in table
+        assert r"BANK\_A" in table  # escaped underscore
