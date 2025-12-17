@@ -190,3 +190,48 @@ class TestDataProviderConsistency:
             for pass_num in [1, 2, 3]:
                 results = provider.get_iteration_results(exp_id, pass_num=pass_num)
                 assert len(results) > 0, f"{exp_id} pass {pass_num} should have results"
+
+
+class TestFigureIncludesInPaper:
+    """Verify figure includes appear in generated paper."""
+
+    def test_results_includes_convergence_figures(
+        self, generated_paper: str
+    ) -> None:
+        """Results section should include convergence chart figures."""
+        # Check for figure environments
+        assert r"\begin{figure}" in generated_paper
+        assert r"\includegraphics" in generated_paper
+
+        # Check for specific convergence charts
+        assert "exp1_pass1_combined.png" in generated_paper
+        assert "exp2_pass1_combined.png" in generated_paper
+        assert "exp3_pass1_combined.png" in generated_paper
+
+    def test_results_has_figure_labels(self, generated_paper: str) -> None:
+        """Results figures should have proper labels for cross-referencing."""
+        assert r"\label{fig:exp1_convergence}" in generated_paper
+        assert r"\label{fig:exp2_convergence}" in generated_paper
+        assert r"\label{fig:exp3_convergence}" in generated_paper
+
+    def test_appendix_includes_pass_figures(self, generated_paper: str) -> None:
+        """Appendices should include convergence figures for all passes."""
+        for exp_id in ["exp1", "exp2", "exp3"]:
+            for pass_num in [1, 2, 3]:
+                chart_path = f"{exp_id}_pass{pass_num}_combined.png"
+                assert chart_path in generated_paper, (
+                    f"Missing convergence chart: {chart_path}"
+                )
+
+    def test_appendix_includes_bootstrap_figures(self, generated_paper: str) -> None:
+        """Bootstrap appendix should include CI and variance charts."""
+        for exp_id in ["exp1", "exp2", "exp3"]:
+            for pass_num in [1, 2, 3]:
+                # Check for bootstrap chart types
+                ci_chart = f"{exp_id}_pass{pass_num}_ci_width.png"
+                var_chart = f"{exp_id}_pass{pass_num}_variance_evolution.png"
+                sample_chart = f"{exp_id}_pass{pass_num}_sample_distribution.png"
+
+                assert ci_chart in generated_paper, f"Missing CI width chart: {ci_chart}"
+                assert var_chart in generated_paper, f"Missing variance chart: {var_chart}"
+                assert sample_chart in generated_paper, f"Missing sample chart: {sample_chart}"

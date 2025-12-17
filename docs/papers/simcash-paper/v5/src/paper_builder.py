@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+from src.charts.generators import generate_all_paper_charts
 from src.data_provider import DatabaseDataProvider
 from src.sections import (
     generate_abstract,
@@ -146,6 +147,7 @@ def build_paper(
     data_dir: Path,
     output_dir: Path,
     sections: list[SectionGenerator] | None = None,
+    generate_charts: bool = True,
 ) -> Path:
     """Build complete paper from experiment databases.
 
@@ -156,6 +158,7 @@ def build_paper(
         data_dir: Directory containing exp{1,2,3}.db files
         output_dir: Directory for output files (created if needed)
         sections: Optional list of section generators
+        generate_charts: Whether to generate chart images (default: True)
 
     Returns:
         Path to generated .tex file
@@ -165,6 +168,14 @@ def build_paper(
         >>> tex_path = build_paper(Path("data/"), Path("output/"))
         >>> print(f"Paper generated at: {tex_path}")
     """
+    # Ensure output directory exists
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate charts if requested
+    if generate_charts:
+        charts_dir = output_dir / "charts"
+        generate_all_paper_charts(data_dir, charts_dir)
+
     # Create data provider
     provider = DatabaseDataProvider(data_dir)
 

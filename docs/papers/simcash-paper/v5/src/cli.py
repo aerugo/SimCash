@@ -21,7 +21,7 @@ def main() -> None:
 Example:
     python -m src.cli --data-dir data/ --output-dir output/
 
-This generates paper.tex from the experiment databases in data/.
+This generates paper.tex and all charts from the experiment databases in data/.
         """,
     )
 
@@ -36,13 +36,23 @@ This generates paper.tex from the experiment databases in data/.
         "--output-dir",
         type=Path,
         required=True,
-        help="Directory for generated paper.tex output",
+        help="Directory for generated paper.tex and charts/ output",
+    )
+
+    parser.add_argument(
+        "--skip-charts",
+        action="store_true",
+        help="Skip chart generation (use existing charts)",
     )
 
     args = parser.parse_args()
 
-    # Generate paper
-    tex_path = build_paper(args.data_dir, args.output_dir)
+    # Generate paper (with or without charts)
+    tex_path = build_paper(
+        args.data_dir,
+        args.output_dir,
+        generate_charts=not args.skip_charts,
+    )
 
     print(f"Generated: {tex_path}")
 
