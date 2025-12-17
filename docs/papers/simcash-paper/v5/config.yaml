@@ -1,0 +1,38 @@
+# Paper Generation Configuration
+# This file specifies exactly which experiment runs to use for paper generation.
+# This prevents ambiguity when databases contain multiple runs.
+
+# Database paths (relative to v5/ directory)
+databases:
+  exp1: data/exp1.db
+  exp2: data/exp2.db
+  exp3: data/exp3.db
+
+# Experiment passes - explicit run_ids for each pass
+# These are the runs used in the v4 paper analysis
+experiments:
+  exp1:
+    name: "2-Period Deterministic Nash Equilibrium"
+    passes:
+      1: "exp1-20251216-233551-55f475"  # 16 iterations, gradual free-rider
+      2: "exp1-20251217-004551-624d09"  # 7 iterations, immediate recognition
+      3: "exp1-20251217-011413-2cd7d6"  # 7 iterations
+
+  exp2:
+    name: "12-Period Stochastic LVTS-Style"
+    passes:
+      1: "exp2-20251217-000335-ea22b4"  # 9 iterations
+      2: "exp2-20251217-004554-22b7db"  # 7 iterations
+      3: "exp2-20251217-011415-de9091"  # 9 iterations
+
+  exp3:
+    name: "3-Period Symmetric Joint Liquidity"
+    passes:
+      1: "exp3-20251217-001932-4e849a"  # 9 iterations
+      2: "exp3-20251217-004556-87f166"  # 7 iterations
+      3: "exp3-20251217-011418-aaeebc"  # 7 iterations
+
+# Output configuration
+output:
+  paper_filename: paper.tex
+  charts_dir: charts
