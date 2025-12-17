@@ -4,24 +4,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.template import var
+
 if TYPE_CHECKING:
     from src.data_provider import DataProvider
 
 
-def generate_conclusion(provider: DataProvider) -> str:
-    """Generate the conclusion section.
+def generate_conclusion(provider: DataProvider | None = None) -> str:
+    """Generate the conclusion section template.
 
     Args:
-        provider: DataProvider instance for accessing experiment data
+        provider: DataProvider instance (unused, kept for API compatibility)
 
     Returns:
-        LaTeX string for the conclusion section
+        LaTeX string with {{variable}} placeholders
     """
-    # Get convergence iterations to summarize
-    exp1_conv = provider.get_convergence_iteration("exp1", pass_num=1)
-    exp2_conv = provider.get_convergence_iteration("exp2", pass_num=1)
-    exp3_conv = provider.get_convergence_iteration("exp3", pass_num=1)
-
     return rf"""
 \section{{Conclusion}}
 \label{{sec:conclusion}}
@@ -32,15 +29,15 @@ we demonstrated that reinforcement learning agents converge to game-theoreticall
 predicted equilibria:
 
 \begin{{enumerate}}
-    \item \textbf{{Asymmetric equilibrium}} ({exp1_conv} iterations): Free-rider behavior
+    \item \textbf{{Asymmetric equilibrium}} ({var('exp1_pass1_iterations')} iterations): Free-rider behavior
     emerges when agents face different cost structures, with one agent minimizing
     liquidity while depending on counterparty provision.
 
-    \item \textbf{{Robust learning}} ({exp2_conv} iterations): Agents learn effective
+    \item \textbf{{Robust learning}} ({var('exp2_pass1_iterations')} iterations): Agents learn effective
     strategies even under transaction stochasticity, as validated through bootstrap
     evaluation methodology.
 
-    \item \textbf{{Cooperative equilibrium}} ({exp3_conv} iterations): Symmetric cost
+    \item \textbf{{Cooperative equilibrium}} ({var('exp3_pass1_iterations')} iterations): Symmetric cost
     structures lead to balanced liquidity provision across participants.
 \end{{enumerate}}
 

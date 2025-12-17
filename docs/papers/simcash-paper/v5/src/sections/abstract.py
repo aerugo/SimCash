@@ -4,33 +4,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.template import var
+
 if TYPE_CHECKING:
     from src.data_provider import DataProvider
 
 
-def generate_abstract(provider: DataProvider) -> str:
-    """Generate the abstract section.
+def generate_abstract(provider: DataProvider | None = None) -> str:
+    """Generate the abstract section template.
 
     Args:
-        provider: DataProvider instance for accessing experiment data
+        provider: DataProvider instance (unused, kept for API compatibility)
 
     Returns:
-        LaTeX string for the abstract
+        LaTeX string with {{variable}} placeholders
     """
-    # Get aggregate statistics across all experiments
-    aggregate_stats = provider.get_aggregate_stats()
-
-    total_experiments = aggregate_stats["total_experiments"]
-    total_passes = aggregate_stats["total_passes"]
-    avg_iterations = aggregate_stats["overall_mean_iterations"]
-    convergence_rate = aggregate_stats["overall_convergence_rate"]
-
-    # Format convergence rate as percentage
-    convergence_pct = int(convergence_rate * 100)
-
-    # Calculate passes per experiment for the formula display
-    passes_per_exp = total_passes // total_experiments if total_experiments > 0 else 0
-
     return rf"""
 \begin{{abstract}}
 We present SimCash, a novel framework for discovering Nash equilibria in payment
@@ -41,8 +29,8 @@ Through experiments on three canonical scenarios from Castro et al., we demonstr
 that GPT-5.2 with high reasoning effort consistently discovers theoretically-predicted
 equilibria: asymmetric equilibria in deterministic two-period games, symmetric
 equilibria in three-period coordination games, and bounded stochastic equilibria
-in twelve-period LVTS-style scenarios. Our results across {total_passes} independent runs
-({passes_per_exp} passes $\times$ {total_experiments} experiments) show {convergence_pct}\% convergence success with an average
-of {avg_iterations:.1f} iterations to stability.
+in twelve-period LVTS-style scenarios. Our results across {var('total_passes')} independent runs
+({var('passes_per_experiment')} passes $\times$ {var('total_experiments')} experiments) show {var('overall_convergence_pct')}\% convergence success with an average
+of {var('overall_mean_iterations')} iterations to stability.
 \end{{abstract}}
 """

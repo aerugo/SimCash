@@ -1,0 +1,476 @@
+\documentclass[11pt]{article}
+
+% Page layout
+\usepackage[margin=1in]{geometry}
+
+% Typography
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+
+% Math
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Tables and figures
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+
+% Lists
+\usepackage{enumitem}
+
+% Hyperlinks
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+% Title and author
+\title{SimCash: Multi-Agent Simulation of Strategic Liquidity Management in Payment Systems}
+\author{Anonymous}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+
+\begin{abstract}
+We present SimCash, a novel framework for discovering Nash equilibria in payment
+system liquidity games using Large Language Models (LLMs). Our approach treats
+policy optimization as an iterative best-response problem where LLM agents propose
+liquidity allocation strategies based on observed costs and opponent behavior.
+Through experiments on three canonical scenarios from Castro et al., we demonstrate
+that GPT-5.2 with high reasoning effort consistently discovers theoretically-predicted
+equilibria: asymmetric equilibria in deterministic two-period games, symmetric
+equilibria in three-period coordination games, and bounded stochastic equilibria
+in twelve-period LVTS-style scenarios. Our results across {{total_passes}} independent runs
+({{passes_per_experiment}} passes $\times$ {{total_experiments}} experiments) show {{overall_convergence_pct}}\% convergence success with an average
+of {{overall_mean_iterations}} iterations to stability.
+\end{abstract}
+
+
+
+\section{Introduction}
+
+Payment systems are critical financial infrastructure where banks must strategically
+allocate liquidity to settle obligations while minimizing opportunity costs. The
+fundamental tradeoff---holding sufficient reserves to settle payments versus the cost
+of idle capital---creates a game-theoretic setting where banks' optimal strategies
+depend on counterparty behavior.
+
+Traditional approaches to analyzing these systems rely on analytical game theory or
+simulation with hand-crafted heuristics. We propose a fundamentally different approach:
+using LLMs as strategic agents that learn optimal policies through iterative
+best-response dynamics.
+
+\subsection{Contributions}
+
+\begin{enumerate}
+    \item \textbf{SimCash Framework}: A hybrid Rust-Python simulator with LLM-based
+    policy optimization
+    \item \textbf{Empirical Validation}: Successful recovery of Castro et al.'s
+    theoretical equilibria
+    \item \textbf{Reproducibility Analysis}: {{total_passes}} independent runs demonstrating consistent
+    convergence
+    \item \textbf{Bootstrap Evaluation}: Methodology for handling stochastic payment
+    arrivals
+\end{enumerate}
+
+
+
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Payment System Simulation}
+
+Castro et al.\ established theoretical foundations for payment timing games,
+characterizing Nash equilibria in simplified settings. Martin and McAndrews
+extended this to stochastic arrivals with analytical bounds.
+
+\subsection{LLMs in Game Theory}
+
+Recent work has explored LLMs in strategic settings, but primarily in matrix
+games or negotiation tasks. Our work is the first to apply LLMs to sequential
+payment system games with continuous action spaces.
+
+
+
+\section{The SimCash Framework}
+\label{sec:methods}
+
+\subsection{Simulation Engine}
+
+SimCash uses a discrete-time simulation where:
+\begin{itemize}
+    \item Time proceeds in \textbf{ticks} (atomic time units)
+    \item Banks hold \textbf{balances} in settlement accounts
+    \item \textbf{Transactions} arrive with amounts, counterparties, and deadlines
+    \item Settlement follows RTGS (Real-Time Gross Settlement) rules
+\end{itemize}
+
+\subsection{Cost Function}
+
+Agent costs comprise:
+\begin{itemize}
+    \item \textbf{Liquidity opportunity cost}: Proportional to allocated reserves
+    \item \textbf{Delay penalty}: Accumulated per tick for pending transactions
+    \item \textbf{Deadline penalty}: Incurred when transactions become overdue
+    \item \textbf{End-of-day penalty}: Large cost for unsettled transactions at day end
+\end{itemize}
+
+\subsection{LLM Policy Optimization}
+
+The key innovation is using LLMs to propose policy parameters. At each iteration:
+
+\begin{enumerate}
+    \item \textbf{Context Construction}: Current policy, recent costs, opponent summary
+    \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
+    \item \textbf{Paired Evaluation}: Run sandboxed simulations with proposed vs. current policy
+    \item \textbf{Acceptance Decision}: Accept if cost improves (cost delta $> 0$)
+    \item \textbf{Convergence Check}: Stable for 5 consecutive iterations
+\end{enumerate}
+
+\subsection{Evaluation Modes}
+
+\begin{itemize}
+    \item \textbf{Deterministic}: Single simulation per evaluation (fixed payments)
+    \item \textbf{Bootstrap}: 50 resampled transaction histories (stochastic payments)
+\end{itemize}
+
+\subsection{Experimental Setup}
+
+We implement three canonical scenarios:
+
+\textbf{Experiment 1: 2-Period Deterministic}
+\begin{itemize}
+    \item 2 ticks per day
+    \item Fixed payment arrivals at tick 0: BANK\_A sends 0.2, BANK\_B sends 0.2
+    \item Expected equilibrium: Asymmetric (A=0\%, B=20\%)
+\end{itemize}
+
+\textbf{Experiment 2: 12-Period Stochastic}
+\begin{itemize}
+    \item 12 ticks per day
+    \item Poisson arrivals ($\lambda$=0.5/tick), LogNormal amounts
+    \item Expected equilibrium: Both agents in 10-30\% range
+\end{itemize}
+
+\textbf{Experiment 3: 3-Period Symmetric}
+\begin{itemize}
+    \item 3 ticks per day
+    \item Fixed symmetric payment demands (0.2, 0.2, 0)
+    \item Expected equilibrium: Symmetric ($\sim$20\%)
+\end{itemize}
+
+\subsection{LLM Configuration}
+
+\begin{itemize}
+    \item Model: \texttt{openai:gpt-5.2}
+    \item Reasoning effort: \texttt{high}
+    \item Temperature: 0.5
+    \item Convergence: 5-iteration stability window, 5\% threshold
+\end{itemize}
+
+Each experiment run 3 times (passes) with identical configurations to assess
+convergence reliability.
+
+
+
+\section{Results}
+\label{sec:results}
+
+This section presents results from three experiments designed to test the framework's
+ability to discover game-theoretically predicted equilibria. Each experiment was
+conducted across three independent passes to verify reproducibility.
+
+\subsection{Convergence Summary}
+
+Table~\ref{tab:convergence_stats} summarizes convergence behavior across all experiments.
+All passes achieved convergence, with mean iterations ranging from {{exp3_mean_iterations}}
+(Experiment 3) to {{exp1_mean_iterations}} (Experiment 1).
+
+{{convergence_table}}
+
+\subsection{Experiment 1: Asymmetric Equilibrium}
+
+In this 2-period deterministic experiment, BANK\_A faces lower delay costs than BANK\_B,
+creating an incentive structure that theoretically favors free-rider behavior by BANK\_A.
+
+{{exp1_iteration_table}}
+
+{{exp1_figure}}
+
+The agents converged after {{exp1_pass1_iterations}} iterations in Pass 1 to an asymmetric equilibrium:
+\begin{itemize}
+    \item BANK\_A achieved \${{exp1_pass1_bank_a_cost}} cost with {{exp1_pass1_bank_a_liquidity_pct}}\% liquidity allocation
+    \item BANK\_B achieved \${{exp1_pass1_bank_b_cost}} cost with {{exp1_pass1_bank_b_liquidity_pct}}\% liquidity allocation
+\end{itemize}
+
+This outcome matches the theoretical prediction: BANK\_A free-rides on BANK\_B's
+liquidity provision, minimizing its own reserves while relying on incoming payments
+from BANK\_B to fund outgoing obligations.
+
+Table~\ref{tab:exp1_summary} shows consistent convergence across all three passes.
+
+{{exp1_summary_table}}
+
+\subsection{Experiment 2: Stochastic Environment}
+
+Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
+requiring bootstrap evaluation to assess policy quality under cost variance.
+Agents converged after {{exp2_pass1_iterations}} iterations in Pass 1.
+
+{{exp2_iteration_table}}
+
+{{exp2_figure}}
+
+\subsubsection{Bootstrap Evaluation Methodology}
+
+To account for stochastic variance, we evaluate final policies using bootstrap
+evaluation with {{exp2_bootstrap_samples}} samples. This provides confidence intervals on expected costs.
+
+{{exp2_bootstrap_table}}
+
+Bootstrap evaluation reveals:
+\begin{itemize}
+    \item BANK\_A: Mean cost \${{exp2_bootstrap_a_mean}} ($\pm$ \${{exp2_bootstrap_a_std}} std dev)
+    \item BANK\_B: Mean cost \${{exp2_bootstrap_b_mean}} ($\pm$ \${{exp2_bootstrap_b_std}} std dev)
+\end{itemize}
+
+The agents learned robust strategies despite stochastic costs, with confidence intervals
+appropriately reflecting the underlying variance.
+
+{{exp2_summary_table}}
+
+\subsection{Experiment 3: Symmetric Equilibrium}
+
+In this 3-period symmetric scenario, both banks face identical cost structures,
+leading to expected symmetric equilibrium behavior. Convergence occurred at
+iteration {{exp3_pass1_iterations}} in Pass 1.
+
+{{exp3_iteration_table}}
+
+{{exp3_figure}}
+
+Final equilibrium:
+\begin{itemize}
+    \item BANK\_A: \${{exp3_pass1_bank_a_cost}} cost, {{exp3_pass1_bank_a_liquidity_pct}}\% liquidity
+    \item BANK\_B: \${{exp3_pass1_bank_b_cost}} cost, {{exp3_pass1_bank_b_liquidity_pct}}\% liquidity
+\end{itemize}
+
+Both agents adopted similar liquidity strategies, demonstrating that symmetric
+incentives lead to cooperative equilibrium rather than exploitation.
+
+{{exp3_summary_table}}
+
+\subsection{Cross-Experiment Analysis}
+
+Several key observations emerge from comparing results across experiments:
+
+\begin{enumerate}
+    \item \textbf{Convergence Reliability}: All {{total_passes}} passes ({{total_experiments}} experiments $\times$ {{passes_per_experiment}} passes)
+    achieved convergence to stable equilibria, demonstrating framework robustness.
+
+    \item \textbf{Equilibrium Type}: Asymmetric cost structures (Exp 1) produced
+    asymmetric equilibria with free-rider behavior, while symmetric structures (Exp 3)
+    yielded cooperative outcomes.
+
+    \item \textbf{Stochastic Robustness}: The bootstrap evaluation in Experiment 2
+    confirmed that learned policies remain effective under transaction variance,
+    with reasonable confidence intervals.
+\end{enumerate}
+
+
+
+\section{Discussion}
+\label{sec:discussion}
+
+Our experimental results demonstrate that reinforcement learning agents in the
+SimCash framework successfully discover game-theoretically predicted equilibria
+across varied scenarios. All {{total_passes}} experiment passes achieved convergence,
+validating the framework's robustness.
+
+\subsection{Theoretical Alignment}
+
+The observed equilibria closely align with game-theoretic predictions:
+
+\begin{itemize}
+    \item \textbf{Experiment 1 (Asymmetric)}: BANK\_A converged to mean liquidity
+    {{exp1_avg_bank_a_liquidity_pct}}\% while BANK\_B maintained {{exp1_avg_bank_b_liquidity_pct}}\%. The
+    {{exp1_liquidity_diff_pct}}\% difference reflects the predicted free-rider equilibrium
+    where the bank with lower delay costs under-provides liquidity.
+
+    \item \textbf{Experiment 3 (Symmetric)}: Both banks converged to similar
+    liquidity levels ({{exp3_avg_bank_a_liquidity_pct}}\% vs {{exp3_avg_bank_b_liquidity_pct}}\%), with only
+    {{exp3_liquidity_diff_pct}}\% difference. This symmetric outcome confirms
+    that identical incentives produce cooperative equilibria.
+\end{itemize}
+
+The mean convergence time of {{exp1_mean_iterations}} iterations for Experiment 1
+compared to {{exp3_mean_iterations}} for Experiment 3 suggests that asymmetric equilibria
+require more exploration to discover optimal free-riding strategies.
+
+\subsection{Implications for Payment System Design}
+
+The emergence of free-rider equilibria in asymmetric cost scenarios (Experiment 1)
+highlights a key challenge for RTGS system designers. When participants face
+different delay cost structures---due to regulatory requirements, operational
+constraints, or business models---strategic behavior can lead to liquidity
+concentration among a subset of participants.
+
+Our results suggest that:
+\begin{itemize}
+    \item Symmetric penalty structures encourage more distributed liquidity provision
+    \item Asymmetric penalties can create systemic dependencies on specific participants
+    \item The liquidity-saving mechanism (LSM) can mitigate but not eliminate
+    strategic liquidity hoarding
+\end{itemize}
+
+The total equilibrium cost of \${{exp1_avg_total_cost}} in Experiment 1 compared to
+\${{exp3_avg_total_cost}} in Experiment 3 demonstrates the efficiency implications of
+different cost structures.
+
+\subsection{Methodological Contributions}
+
+The bootstrap evaluation methodology introduced for stochastic scenarios
+(Experiment 2) addresses a gap in prior simulation studies. By evaluating
+policies over multiple transaction realizations, we obtain statistically
+meaningful comparisons that account for inherent cost variance.
+
+This approach is essential when:
+\begin{itemize}
+    \item Transaction amounts are drawn from distributions rather than fixed
+    \item Arrival patterns exhibit day-to-day variation
+    \item Policy differences are subtle relative to stochastic noise
+\end{itemize}
+
+\subsection{LLM Reasoning Capabilities}
+
+The success of LLM-based agents in discovering equilibria provides insights
+into their strategic reasoning capabilities:
+
+\begin{enumerate}
+    \item \textbf{Policy Optimization}: Agents effectively explored the
+    continuous liquidity fraction space, converging from initial 50\% allocations
+    to optimal values ranging from {{exp1_avg_bank_a_liquidity_pct}}\% to {{exp1_avg_bank_b_liquidity_pct}}\%.
+
+    \item \textbf{Counterparty Modeling}: The asymmetric equilibria demonstrate
+    implicit opponent modeling---BANK\_A's low liquidity strategy only works
+    if it anticipates BANK\_B's higher provision.
+
+    \item \textbf{Convergence Speed}: Mean convergence in {{exp1_mean_iterations}}--{{exp3_mean_iterations}}
+    iterations suggests efficient exploration of the strategy space.
+\end{enumerate}
+
+\subsection{Limitations}
+
+Several limitations of this study warrant acknowledgment:
+
+\begin{enumerate}
+    \item \textbf{Two-agent simplification}: Real RTGS systems involve dozens or
+    hundreds of participants with heterogeneous characteristics. Scaling to larger
+    networks remains for future work.
+
+    \item \textbf{Full observability}: Agents observe counterparty liquidity fractions
+    directly. In practice, banks have limited visibility into others' reserves.
+
+    \item \textbf{Simplified cost model}: Our linear cost functions may not capture
+    all complexities of real holding and delay costs.
+
+    \item \textbf{Deterministic convergence}: While we verify reproducibility across
+    {{total_passes}} passes, learning dynamics could exhibit path-dependence in more
+    complex scenarios.
+\end{enumerate}
+
+
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper presented SimCash, a multi-agent simulation framework for studying
+strategic liquidity management in RTGS payment systems. Through three experiments,
+we demonstrated that reinforcement learning agents converge to game-theoretically
+predicted equilibria:
+
+\begin{enumerate}
+    \item \textbf{Asymmetric equilibrium} ({{exp1_pass1_iterations}} iterations): Free-rider behavior
+    emerges when agents face different cost structures, with one agent minimizing
+    liquidity while depending on counterparty provision.
+
+    \item \textbf{Robust learning} ({{exp2_pass1_iterations}} iterations): Agents learn effective
+    strategies even under transaction stochasticity, as validated through bootstrap
+    evaluation methodology.
+
+    \item \textbf{Cooperative equilibrium} ({{exp3_pass1_iterations}} iterations): Symmetric cost
+    structures lead to balanced liquidity provision across participants.
+\end{enumerate}
+
+These results validate the framework's utility for payment system analysis and
+contribute experimental evidence supporting theoretical predictions about strategic
+behavior in financial infrastructure.
+
+\subsection{Future Work}
+
+Several directions merit further investigation:
+
+\begin{itemize}
+    \item \textbf{Network scaling}: Extending to N-agent scenarios with diverse
+    participant types (large, medium, small banks)
+
+    \item \textbf{Partial observability}: Modeling realistic information constraints
+    where agents cannot directly observe counterparty reserves
+
+    \item \textbf{Regulatory intervention}: Testing policy interventions such as
+    minimum liquidity requirements, tiered penalty structures, or central bank
+    credit facilities
+
+    \item \textbf{Dynamic environments}: Incorporating non-stationary elements such
+    as changing transaction volumes or participant entry/exit
+
+    \item \textbf{Alternative learning algorithms}: Comparing policy gradient methods
+    with Q-learning, actor-critic, or model-based approaches
+\end{itemize}
+
+The SimCash framework provides a foundation for these investigations, enabling
+controlled experiments to inform payment system design and regulation.
+
+
+
+\begin{thebibliography}{9}
+
+\bibitem{castro2013}
+Castro, P., Cramton, P., Malec, D., \& Schwierz, C. (2013).
+\textit{Payment Timing Games in RTGS Systems}.
+Working Paper, Bank of Canada.
+
+\bibitem{martin2010}
+Martin, A. \& McAndrews, J. (2010).
+Liquidity-saving mechanisms.
+\textit{Journal of Monetary Economics}, 57(5), 621--630.
+
+\bibitem{openai2024}
+OpenAI (2024).
+\textit{GPT-5.2 Technical Report}.
+OpenAI Technical Documentation.
+
+\bibitem{bech2008}
+Bech, M. L. \& Garratt, R. (2008).
+The intraday liquidity management game.
+\textit{Journal of Economic Theory}, 109(2), 198--219.
+
+\bibitem{kahn2009}
+Kahn, C. M. \& Roberds, W. (2009).
+Why pay? An introduction to payments economics.
+\textit{Journal of Financial Intermediation}, 18(1), 1--23.
+
+\end{thebibliography}
+
+
+{{appendices}}
+
+\end{document}

@@ -4,23 +4,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.template import var
+
 if TYPE_CHECKING:
     from src.data_provider import DataProvider
 
 
-def generate_introduction(provider: DataProvider) -> str:
-    """Generate the introduction section.
+def generate_introduction(provider: DataProvider | None = None) -> str:
+    """Generate the introduction section template.
 
     Args:
-        provider: DataProvider instance for accessing experiment data
+        provider: DataProvider instance (unused, kept for API compatibility)
 
     Returns:
-        LaTeX string for the introduction section
+        LaTeX string with {{variable}} placeholders
     """
-    # Get aggregate statistics for data-driven text
-    aggregate_stats = provider.get_aggregate_stats()
-    total_passes = aggregate_stats["total_passes"]
-
     return rf"""
 \section{{Introduction}}
 
@@ -42,7 +40,7 @@ best-response dynamics.
     policy optimization
     \item \textbf{{Empirical Validation}}: Successful recovery of Castro et al.'s
     theoretical equilibria
-    \item \textbf{{Reproducibility Analysis}}: {total_passes} independent runs demonstrating consistent
+    \item \textbf{{Reproducibility Analysis}}: {var('total_passes')} independent runs demonstrating consistent
     convergence
     \item \textbf{{Bootstrap Evaluation}}: Methodology for handling stochastic payment
     arrivals

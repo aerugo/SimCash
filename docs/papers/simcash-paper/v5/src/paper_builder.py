@@ -3,6 +3,10 @@
 This module provides functions for generating the complete paper from
 experiment data via the DataProvider protocol.
 
+Generates two files:
+- paper_src.tex: LaTeX with {{variable}} placeholders visible
+- paper.tex: LaTeX with actual values substituted
+
 A config.yaml file is REQUIRED for paper generation to ensure reproducible
 run_id selection. The config explicitly maps experiment passes to specific
 run_ids, preventing issues with database ordering or incomplete runs.
@@ -12,7 +16,7 @@ Example:
     >>> from src.config import load_config
     >>> from src.paper_builder import build_paper
     >>> config = load_config(Path("config.yaml"))
-    >>> tex_path = build_paper(Path("data/"), Path("output/"), config=config)
+    >>> tex_path, src_path = build_paper(Path("data/"), Path("output/"), config=config)
 """
 
 from __future__ import annotations
@@ -33,15 +37,16 @@ from src.sections import (
     generate_related_work,
     generate_results,
 )
+from src.template import collect_template_context, render_template
 
 if TYPE_CHECKING:
     from src.data_provider import DataProvider
 
-# Type alias for section generator functions
-SectionGenerator = Callable[["DataProvider"], str]
+# Type alias for section generator functions (provider is optional now)
+SectionGenerator = Callable[["DataProvider | None"], str]
 
-# Default sections in paper order
-DEFAULT_SECTIONS: list[SectionGenerator] = [
+# Template sections (use {{placeholders}})
+TEMPLATE_SECTIONS: list[SectionGenerator] = [
     generate_abstract,
     generate_introduction,
     generate_related_work,
@@ -50,6 +55,10 @@ DEFAULT_SECTIONS: list[SectionGenerator] = [
     generate_discussion,
     generate_conclusion,
     generate_references,
+]
+
+# Data-driven sections (need provider for complex tables)
+DATA_SECTIONS: list[SectionGenerator] = [
     generate_appendices,
 ]
 
@@ -118,52 +127,72 @@ def wrap_document(
 def generate_paper(
     provider: DataProvider,
     output_dir: Path,
-    sections: list[SectionGenerator] | None = None,
-    filename: str = "paper.tex",
-) -> Path:
-    """Generate paper LaTeX file from data provider.
+) -> tuple[Path, Path]:
+    """Generate both paper files from data provider.
+
+    Generates:
+    - paper_src.tex: Template with {{variable}} placeholders visible
+    - paper.tex: Rendered with actual values substituted
 
     Args:
         provider: DataProvider instance for accessing experiment data
-        output_dir: Directory to write output file
-        sections: Optional list of section generators (defaults to all sections)
-        filename: Output filename (default: paper.tex)
+        output_dir: Directory to write output files
 
     Returns:
-        Path to generated .tex file
+        Tuple of (paper.tex path, paper_src.tex path)
     """
-    # Use default sections if not specified
-    if sections is None:
-        sections = DEFAULT_SECTIONS
+    # Collect template context from data
+    context = collect_template_context(provider)
 
-    # Generate all sections
-    section_contents = [section(provider) for section in sections]
-    body_content = "\n\n".join(section_contents)
+    # Generate template sections (with {{placeholders}})
+    template_contents = [section(None) for section in TEMPLATE_SECTIONS]
+
+    # Generate data-driven sections (appendices need provider)
+    data_contents = [section(provider) for section in DATA_SECTIONS]
+
+    # Add appendices content to context for rendering
+    appendices_template = "\n\n".join(data_contents)
+    context["appendices"] = appendices_template
+
+    # Combine template sections
+    body_template = "\n\n".join(template_contents)
+
+    # Add appendices placeholder to template
+    body_template += "\n\n{{appendices}}"
 
     # Wrap in document structure
-    full_document = wrap_document(body_content)
+    src_document = wrap_document(body_template)
+
+    # Render with values
+    rendered_document = render_template(src_document, context)
 
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write to file
-    tex_path = output_dir / filename
-    tex_path.write_text(full_document)
+    # Write both files
+    src_path = output_dir / "paper_src.tex"
+    tex_path = output_dir / "paper.tex"
 
-    return tex_path
+    src_path.write_text(src_document)
+    tex_path.write_text(rendered_document)
+
+    return tex_path, src_path
 
 
 def build_paper(
     data_dir: Path,
     output_dir: Path,
     config: dict,
-    sections: list[SectionGenerator] | None = None,
     generate_charts: bool = True,
-) -> Path:
+) -> tuple[Path, Path]:
     """Build complete paper from experiment databases.
 
     This is the main entry point for paper generation. It creates a
     DatabaseDataProvider from the data directory and generates the paper.
+
+    Generates two files:
+    - paper_src.tex: LaTeX with {{variable}} placeholders visible
+    - paper.tex: LaTeX with actual values substituted
 
     A config file is REQUIRED to ensure reproducible paper generation.
     The config explicitly maps experiment passes to specific run_ids.
@@ -172,11 +201,10 @@ def build_paper(
         data_dir: Directory containing exp{1,2,3}.db files
         output_dir: Directory for output files (created if needed)
         config: Paper config with explicit run_id mappings (required)
-        sections: Optional list of section generators
         generate_charts: Whether to generate chart images (default: True)
 
     Returns:
-        Path to generated .tex file
+        Tuple of (paper.tex path, paper_src.tex path)
 
     Raises:
         IncompleteExperimentError: If any experiment run in config is not completed
@@ -187,7 +215,7 @@ def build_paper(
         >>> from pathlib import Path
         >>> from src.config import load_config
         >>> config = load_config(Path("config.yaml"))
-        >>> tex_path = build_paper(Path("data/"), Path("output/"), config=config)
+        >>> tex_path, src_path = build_paper(Path("data/"), Path("output/"), config=config)
         >>> print(f"Paper generated at: {tex_path}")
     """
     from src.config import validate_runs_completed
@@ -208,5 +236,5 @@ def build_paper(
     # Create data provider with config for explicit run_id lookup
     provider = DatabaseDataProvider(data_dir, config=config)
 
-    # Generate paper
-    return generate_paper(provider, output_dir, sections)
+    # Generate both paper files
+    return generate_paper(provider, output_dir)

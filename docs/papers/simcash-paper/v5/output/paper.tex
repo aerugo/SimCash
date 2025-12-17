@@ -264,15 +264,15 @@ creating an incentive structure that theoretically favors free-rider behavior by
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{charts/exp1_pass1_combined.png}
-    \caption{Experiment 1: Convergence of both agents toward asymmetric equilibrium}
+    \caption{Experiment 1: Convergence visualization}
     \label{fig:exp1_convergence}
 \end{figure}
 
 
 The agents converged after 14 iterations in Pass 1 to an asymmetric equilibrium:
 \begin{itemize}
-    \item BANK\_A achieved \$0.00 cost with 0.0\% liquidity allocation
-    \item BANK\_B achieved \$25.10 cost with 15.1\% liquidity allocation
+    \item BANK\_A achieved \$0.00 cost with 0\% liquidity allocation
+    \item BANK\_B achieved \$25.10 cost with 15\% liquidity allocation
 \end{itemize}
 
 This outcome matches the theoretical prediction: BANK\_A free-rides on BANK\_B's
@@ -336,7 +336,7 @@ Agents converged after 7 iterations in Pass 1.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{charts/exp2_pass1_combined.png}
-    \caption{Experiment 2: Convergence under stochastic transaction amounts}
+    \caption{Experiment 2: Convergence visualization}
     \label{fig:exp2_convergence}
 \end{figure}
 
@@ -428,15 +428,15 @@ iteration 7 in Pass 1.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{charts/exp3_pass1_combined.png}
-    \caption{Experiment 3: Convergence to symmetric equilibrium}
+    \caption{Experiment 3: Convergence visualization}
     \label{fig:exp3_convergence}
 \end{figure}
 
 
 Final equilibrium:
 \begin{itemize}
-    \item BANK\_A: \$137.97 cost, 18.0\% liquidity
-    \item BANK\_B: \$129.99 cost, 10.0\% liquidity
+    \item BANK\_A: \$137.97 cost, 18\% liquidity
+    \item BANK\_B: \$129.99 cost, 10\% liquidity
 \end{itemize}
 
 Both agents adopted similar liquidity strategies, demonstrating that symmetric
@@ -492,13 +492,13 @@ The observed equilibria closely align with game-theoretic predictions:
 
 \begin{itemize}
     \item \textbf{Experiment 1 (Asymmetric)}: BANK\_A converged to mean liquidity
-    25.0\% while BANK\_B maintained 15.4\%. The
-    9.6\% difference reflects the predicted free-rider equilibrium
+    25\% while BANK\_B maintained 15\%. The
+    10\% difference reflects the predicted free-rider equilibrium
     where the bank with lower delay costs under-provides liquidity.
 
     \item \textbf{Experiment 3 (Symmetric)}: Both banks converged to similar
-    liquidity levels (12.3\% vs 3.3\%), with only
-    9.0\% difference. This symmetric outcome confirms
+    liquidity levels (12\% vs 3\%), with only
+    9\% difference. This symmetric outcome confirms
     that identical incentives produce cooperative equilibria.
 \end{itemize}
 
@@ -548,7 +548,7 @@ into their strategic reasoning capabilities:
 \begin{enumerate}
     \item \textbf{Policy Optimization}: Agents effectively explored the
     continuous liquidity fraction space, converging from initial 50\% allocations
-    to optimal values ranging from 25.0\% to 15.4\%.
+    to optimal values ranging from 25\% to 15\%.
 
     \item \textbf{Counterparty Modeling}: The asymmetric equilibria demonstrate
     implicit opponent modeling---BANK\_A's low liquidity strategy only works

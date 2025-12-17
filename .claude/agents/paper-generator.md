@@ -20,6 +20,7 @@ The main Claude should delegate to you when:
 - Adding new chart types or formatting helpers
 - Debugging LaTeX compilation errors
 - Understanding the paper generation architecture
+- Adding new template variables
 
 ## Project Location
 
@@ -29,6 +30,8 @@ docs/papers/simcash-paper/v5/
 │   ├── cli.py              # CLI entry point
 │   ├── paper_builder.py    # Main build orchestration
 │   ├── data_provider.py    # Data access layer (Protocol + DuckDB impl)
+│   ├── config.py           # Config loading and validation
+│   ├── template.py         # Template system ({{variable}} placeholders)
 │   ├── latex/
 │   │   ├── formatting.py   # Money, percent, CI formatting + escape_latex
 │   │   ├── tables.py       # Table generators (iteration, bootstrap, etc.)
@@ -36,16 +39,17 @@ docs/papers/simcash-paper/v5/
 │   ├── charts/
 │   │   └── generators.py   # Matplotlib + SimCash chart generation
 │   └── sections/
-│       ├── abstract.py
-│       ├── introduction.py
+│       ├── abstract.py     # Uses template variables
+│       ├── introduction.py # Uses template variables
 │       ├── related_work.py
 │       ├── methods.py
-│       ├── results.py      # Main results with tables and figures
-│       ├── discussion.py
-│       ├── conclusion.py
+│       ├── results.py      # Uses template variables for tables/figures
+│       ├── discussion.py   # Uses template variables
+│       ├── conclusion.py   # Uses template variables
 │       ├── references.py
-│       └── appendices.py
-├── tests/                  # 134 comprehensive tests
+│       └── appendices.py   # Data-driven (needs provider)
+├── config.yaml             # Required config with run_id mappings
+├── tests/                  # Comprehensive tests
 │   ├── test_data_provider.py
 │   ├── test_latex_formatting.py
 │   ├── test_sections.py
@@ -57,34 +61,47 @@ docs/papers/simcash-paper/v5/
 │   ├── exp2.db            # Stochastic (bootstrap evaluation)
 │   └── exp3.db            # Asymmetric parameters
 └── output/                # Generated output
-    ├── paper.tex
-    ├── paper.pdf
+    ├── paper_src.tex      # Template with {{placeholders}} visible
+    ├── paper.tex          # Rendered with actual values
+    ├── paper.pdf          # Compiled PDF
     └── charts/            # Generated PNG charts
 ```
+
+## Output Files
+
+The paper generation system produces **three files**:
+
+| File | Description |
+|------|-------------|
+| `paper_src.tex` | LaTeX with `{{variable}}` placeholders visible (for debugging/transparency) |
+| `paper.tex` | LaTeX with actual data values substituted |
+| `paper.pdf` | Compiled PDF from paper.tex |
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      CLI (cli.py)                           │
-│  python -m src.cli --data-dir data/ --output-dir output/    │
+│  python -m src.cli --config config.yaml --output-dir output/│
 └─────────────────────────┬───────────────────────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────────┐
 │                 Paper Builder (paper_builder.py)            │
-│  - Creates DataProvider                                     │
-│  - Orchestrates section generators                          │
-│  - Generates charts (optional)                              │
-│  - Wraps in LaTeX document structure                        │
+│  - Creates DataProvider from config                         │
+│  - Collects template context (all data values)              │
+│  - Generates template sections with {{placeholders}}        │
+│  - Renders paper.tex by substituting values                 │
+│  - Writes paper_src.tex (unrendered) + paper.tex (rendered) │
+│  - Compiles to PDF via pdflatex                             │
 └─────────────────────────┬───────────────────────────────────┘
                           │
-          ┌───────────────┼───────────────┐
-          │               │               │
-          ▼               ▼               ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────────┐
-│ DataProvider │ │   Sections   │ │ Chart Generators │
-│  (Protocol)  │ │  (generate_*)│ │   (matplotlib)   │
-└──────┬───────┘ └──────────────┘ └──────────────────┘
+          ┌───────────────┼───────────────┬──────────────────┐
+          │               │               │                  │
+          ▼               ▼               ▼                  ▼
+┌──────────────┐ ┌──────────────┐ ┌────────────────┐ ┌──────────────┐
+│ DataProvider │ │   Template   │ │    Sections    │ │    Charts    │
+│  (Protocol)  │ │   System     │ │  (generate_*)  │ │ (matplotlib) │
+└──────┬───────┘ └──────────────┘ └────────────────┘ └──────────────┘
        │
        ▼
 ┌──────────────────────────────────────────────────────┐
@@ -95,30 +112,100 @@ docs/papers/simcash-paper/v5/
 │  - get_pass_summary(exp_id, pass_num)                │
 │  - get_all_pass_summaries(exp_id)                    │
 │  - get_convergence_statistics(exp_id)                │
+│  - get_aggregate_stats()                             │
+│  - get_experiment_ids()                              │
 └──────────────────────────────────────────────────────┘
 ```
 
-## Critical Design Principles
+## Template System
 
-### 1. Data Access via DataProvider Protocol
+The paper uses a **template-based approach** where:
 
-**ALL data must flow through the DataProvider protocol**. Never query databases directly in section generators.
+1. Section generators output LaTeX with `{{variable}}` placeholders
+2. `template.py` collects all data values into a context dictionary
+3. `paper_src.tex` shows raw placeholders (for transparency)
+4. `paper.tex` has values substituted via `render_template()`
+
+### Using Template Variables in Sections
 
 ```python
-# GOOD: Section uses provider
-def generate_results(provider: DataProvider) -> str:
+from src.template import var
+
+def generate_abstract(provider: DataProvider | None = None) -> str:
+    """Generate the abstract section template."""
+    return rf"""
+\begin{{abstract}}
+Our results across {var('total_passes')} independent runs show
+{var('overall_convergence_pct')}\% convergence with an average
+of {var('overall_mean_iterations')} iterations.
+\end{{abstract}}
+"""
+```
+
+### Available Template Variables
+
+The `collect_template_context()` function in `template.py` generates these variables:
+
+**Aggregate Statistics:**
+- `total_experiments`, `total_passes`, `passes_per_experiment`
+- `overall_mean_iterations`, `overall_convergence_pct`, `total_converged`
+
+**Per-Experiment (prefix: exp1_, exp2_, exp3_):**
+- `{prefix}_num_passes`, `{prefix}_mean_iterations`
+- `{prefix}_min_iterations`, `{prefix}_max_iterations`
+- `{prefix}_convergence_pct`
+- `{prefix}_avg_bank_a_liquidity_pct`, `{prefix}_avg_bank_b_liquidity_pct`
+- `{prefix}_liquidity_diff_pct`
+- `{prefix}_avg_total_cost`
+
+**Per-Pass (prefix: exp1_pass1_, exp1_pass2_, etc.):**
+- `{prefix}_iterations`
+- `{prefix}_bank_a_cost`, `{prefix}_bank_b_cost`, `{prefix}_total_cost`
+- `{prefix}_bank_a_liquidity_pct`, `{prefix}_bank_b_liquidity_pct`
+
+**Tables and Figures:**
+- `convergence_table`
+- `{prefix}_iteration_table`, `{prefix}_summary_table`
+- `{prefix}_figure`
+- `exp2_bootstrap_table`, `exp2_bootstrap_samples`
+- `exp2_bootstrap_a_mean`, `exp2_bootstrap_a_std`
+- `exp2_bootstrap_b_mean`, `exp2_bootstrap_b_std`
+
+## Critical Design Principles
+
+### 1. Template Variables via `var()` Function
+
+**ALL inline data values must use template placeholders**:
+
+```python
+from src.template import var
+
+# GOOD: Uses template variable
+return f"Converged in {var('exp1_pass1_iterations')} iterations"
+
+# BAD: Hardcoded value
+return "Converged in 14 iterations"
+
+# BAD: Direct provider access in template sections
+return f"Converged in {provider.get_convergence_iteration('exp1', 1)} iterations"
+```
+
+### 2. Data Access via DataProvider Protocol
+
+**ALL data must flow through the DataProvider protocol**. Never query databases directly.
+
+```python
+# GOOD: Section uses provider (for appendices)
+def generate_appendices(provider: DataProvider) -> str:
     results = provider.get_iteration_results("exp1", pass_num=1)
     return f"Experiment 1 converged in {len(results)} iterations..."
 
-# BAD: Direct database access in section
+# BAD: Direct database access
 def generate_results(data_dir: Path) -> str:
     conn = duckdb.connect(str(data_dir / "exp1.db"))  # NO!
-    ...
 ```
 
-**Why?** Testability (mock providers), consistency, single source of truth.
-
-### 2. Strict Type Definitions
+### 3. Strict Type Definitions
 
 All data structures use TypedDict for clear contracts:
 
@@ -130,15 +217,15 @@ class AgentIterationResult(TypedDict):
     liquidity_fraction: float
     accepted: bool
 
-class BootstrapStats(TypedDict):
-    mean_cost: int         # Cents
-    std_dev: int           # Cents
-    ci_lower: int          # Cents
-    ci_upper: int          # Cents
-    num_samples: int
+class AggregateStats(TypedDict):
+    total_experiments: int
+    total_passes: int
+    overall_mean_iterations: float
+    overall_convergence_rate: float
+    total_converged: int
 ```
 
-### 3. Money is ALWAYS Integer Cents
+### 4. Money is ALWAYS Integer Cents
 
 **CRITICAL INVARIANT**: All monetary values are `int` representing cents.
 
@@ -151,26 +238,52 @@ format_money(16440)  # Returns r"\$164.40"
 cost: float = 164.40  # NO FLOATS FOR MONEY!
 ```
 
-### 4. LaTeX Special Character Escaping
+### 5. Config is Required
 
-Use `escape_latex()` for any dynamic text that may contain special characters:
+A `config.yaml` file with explicit run_id mappings is **required**:
 
-```python
-from src.latex.formatting import escape_latex
-
-# Agent IDs contain underscores
-escape_latex("BANK_A")  # Returns r"BANK\_A"
-
-# Other special characters
-escape_latex("100%")    # Returns r"100\%"
-escape_latex("A & B")   # Returns r"A \& B"
+```yaml
+experiments:
+  exp1:
+    passes:
+      1: "exp1-20251216-233551-55f475"
+      2: "exp1-20251217-004551-624d09"
+      3: "exp1-20251217-011413-2cd7d6"
+  exp2:
+    passes:
+      1: "exp2-20251217-000335-ea22b4"
+      # ...
 ```
-
-**Where to apply**: Agent IDs in tables, any user-provided text, filenames.
 
 ## Common Tasks
 
-### Adding a New Section
+### Adding a New Template Variable
+
+1. **Add to `collect_template_context()` in `template.py`**:
+
+```python
+def collect_template_context(provider: DataProvider) -> dict[str, str]:
+    ctx: dict[str, str] = {}
+    # ... existing variables ...
+
+    # Add new variable
+    ctx["new_metric"] = f"{some_value:.2f}"
+
+    return ctx
+```
+
+2. **Use in section via `var()`**:
+
+```python
+from src.template import var
+
+def generate_results(provider: DataProvider | None = None) -> str:
+    return rf"""
+The new metric is {var('new_metric')}.
+"""
+```
+
+### Adding a New Section (Template-Based)
 
 1. **Create section file**: `src/sections/new_section.py`
 
@@ -179,40 +292,34 @@ escape_latex("A & B")   # Returns r"A \& B"
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from src.template import var
+
 if TYPE_CHECKING:
     from src.data_provider import DataProvider
 
 
-def generate_new_section(provider: DataProvider) -> str:
-    """Generate the new section.
+def generate_new_section(provider: DataProvider | None = None) -> str:
+    """Generate the new section template.
 
     Args:
-        provider: DataProvider instance for accessing experiment data
+        provider: DataProvider instance (unused for template sections)
 
     Returns:
-        LaTeX string for the section
+        LaTeX string with {{variable}} placeholders
     """
-    # Fetch data via provider
-    data = provider.get_some_data("exp1", pass_num=1)
+    return rf"""
+\section{{New Section Title}}
 
-    return r"""
-\section{New Section Title}
-
-Your LaTeX content here with data: {data}
-""".format(data=data)
+Results across {var('total_passes')} passes show convergence.
+"""
 ```
 
 2. **Export in `__init__.py`**: Add to `src/sections/__init__.py`
 
-```python
-from src.sections.new_section import generate_new_section
-```
-
-3. **Add to paper builder** (if not using default order):
+3. **Add to TEMPLATE_SECTIONS** in `paper_builder.py`:
 
 ```python
-# In paper_builder.py DEFAULT_SECTIONS list
-DEFAULT_SECTIONS: list[SectionGenerator] = [
+TEMPLATE_SECTIONS: list[SectionGenerator] = [
     generate_abstract,
     generate_introduction,
     # ...
@@ -222,13 +329,6 @@ DEFAULT_SECTIONS: list[SectionGenerator] = [
 ```
 
 4. **Write tests**: `tests/test_sections.py`
-
-```python
-def test_generate_new_section(mock_provider):
-    """Test new section generation."""
-    result = generate_new_section(mock_provider)
-    assert r"\section{New Section Title}" in result
-```
 
 ### Adding a New Data Query to DataProvider
 
@@ -240,15 +340,7 @@ class DataProvider(Protocol):
     # ... existing methods ...
 
     def get_new_metric(self, exp_id: str, pass_num: int) -> NewMetricType:
-        """Get the new metric for analysis.
-
-        Args:
-            exp_id: Experiment identifier
-            pass_num: Pass number
-
-        Returns:
-            NewMetricType with the metric data
-        """
+        """Get the new metric for analysis."""
         ...
 ```
 
@@ -256,198 +348,20 @@ class DataProvider(Protocol):
 
 ```python
 class DatabaseDataProvider:
-    # ... existing methods ...
-
     def get_new_metric(self, exp_id: str, pass_num: int) -> NewMetricType:
-        """Get new metric from database."""
         run_id = self.get_run_id(exp_id, pass_num)
         conn = self._get_connection(exp_id)
-
-        result = conn.execute(
-            """
-            SELECT column1, column2
-            FROM policy_evaluations
-            WHERE run_id = ?
-            """,
-            [run_id],
-        ).fetchall()
-
-        return NewMetricType(
-            field1=result[0][0],
-            field2=result[0][1],
-        )
+        result = conn.execute("SELECT ...", [run_id]).fetchone()
+        return NewMetricType(field1=result[0])
 ```
 
-3. **Add TypedDict** for return type (if complex):
+3. **Add to template context** in `template.py`:
 
 ```python
-class NewMetricType(TypedDict):
-    field1: int
-    field2: float
-```
-
-4. **Write tests** in `tests/test_data_provider.py`
-
-### Adding a New Table Generator
-
-1. **Add to `src/latex/tables.py`**:
-
-```python
-def generate_new_table(
-    data: list[SomeType],
-    caption: str,
-    label: str,
-) -> str:
-    """Generate a new table.
-
-    Args:
-        data: List of data items
-        caption: Table caption
-        label: LaTeX label for referencing
-
-    Returns:
-        Complete LaTeX table string
-    """
-    rows = []
-    for item in data:
-        row = format_table_row([
-            escape_latex(item["name"]),  # Escape special chars!
-            format_money(item["cost"]),
-            format_percent(item["rate"]),
-        ])
-        rows.append(row)
-
-    return rf"""
-\begin{{table}}[H]
-\centering
-\caption{{{caption}}}
-\label{{{label}}}
-\begin{{tabular}}{{lrr}}
-\toprule
-Name & Cost & Rate \\
-\midrule
-{chr(10).join(rows)}
-\bottomrule
-\end{{tabular}}
-\end{{table}}
-"""
-```
-
-2. **Write tests** in `tests/test_latex_formatting.py`
-
-### Adding a New Chart Type
-
-1. **Add to `src/charts/generators.py`**:
-
-```python
-def generate_new_chart(
-    db_path: Path,
-    exp_id: str,
-    pass_num: int,
-    output_path: Path,
-) -> Path:
-    """Generate new chart type.
-
-    Args:
-        db_path: Path to experiment database
-        exp_id: Experiment identifier
-        pass_num: Pass number
-        output_path: Where to save the chart
-
-    Returns:
-        Path to generated chart
-    """
-    # Fetch data
-    conn = duckdb.connect(str(db_path), read_only=True)
-    # ... query data ...
-
-    # Create figure
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(x_data, y_data, color=COLORS["bank_a"])
-    ax.set_xlabel("X Label")
-    ax.set_ylabel("Y Label")
-    ax.set_title("Chart Title")
-
-    # Save
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-
-    return output_path
-```
-
-2. **Add to `generate_all_paper_charts()`**:
-
-```python
-def generate_all_paper_charts(data_dir: Path, output_dir: Path) -> list[Path]:
-    charts = []
-    # ... existing charts ...
-
-    # New chart
-    new_chart = generate_new_chart(
-        db_path=data_dir / f"{exp_id}.db",
-        exp_id=exp_id,
-        pass_num=pass_num,
-        output_path=output_dir / f"{exp_id}_pass{pass_num}_new.png",
-    )
-    charts.append(new_chart)
-
-    return charts
-```
-
-3. **Include in section**:
-
-```python
-from src.latex.figures import include_figure
-
-figure = include_figure(
-    path=f"charts/{exp_id}_pass{pass_num}_new.png",
-    caption="New Chart Description",
-    label=f"fig:{exp_id}_new",
-    width=0.8,
-)
-```
-
-### Debugging LaTeX Compilation Errors
-
-**Common Issues:**
-
-1. **"Missing $ inserted"**: Unescaped underscore in text
-   - Fix: Use `escape_latex()` for agent IDs and dynamic text
-
-2. **"Undefined control sequence"**: Missing package or typo
-   - Check: `wrap_document()` in `paper_builder.py` has all needed `\usepackage`
-
-3. **"File not found"**: Missing chart or wrong path
-   - Check: Chart paths use flat naming: `charts/exp1_pass1_combined.png`
-   - NOT nested: `charts/exp1/pass1/combined.png`
-
-4. **"Overfull hbox"**: Content too wide
-   - Fix: Use `\resizebox` or adjust column widths
-
-**Compilation Commands:**
-
-```bash
-cd docs/papers/simcash-paper/v5/output
-pdflatex -interaction=nonstopmode paper.tex  # First pass
-pdflatex -interaction=nonstopmode paper.tex  # Resolve cross-refs
+ctx["new_metric"] = f"{provider.get_new_metric('exp1', 1)['field1']:.2f}"
 ```
 
 ## Testing Strategy
-
-### Test Hierarchy
-
-```
-tests/
-├── test_data_provider.py        # DataProvider queries
-├── test_latex_formatting.py     # Formatting helpers + tables
-├── test_figures.py              # Figure includes
-├── test_sections.py             # Section generators
-├── test_paper_builder.py        # Full paper assembly
-├── test_chart_generators.py     # Chart generation
-├── test_cli.py                  # CLI interface
-└── test_real_data_integration.py # End-to-end with real data
-```
 
 ### Running Tests
 
@@ -458,15 +372,12 @@ cd docs/papers/simcash-paper/v5
 python -m pytest tests/ -q
 
 # Run specific test file
-python -m pytest tests/test_latex_formatting.py -v
-
-# Run with coverage
-python -m pytest tests/ --cov=src --cov-report=html
+python -m pytest tests/test_sections.py -v
 ```
 
 ### Mock DataProvider Pattern
 
-Tests use mock providers to avoid database dependencies:
+Tests use mock providers with the new methods:
 
 ```python
 @pytest.fixture
@@ -474,26 +385,47 @@ def mock_provider():
     """Create mock DataProvider for testing."""
     provider = Mock(spec=DataProvider)
 
-    # Configure return values
-    provider.get_iteration_results.return_value = [
-        AgentIterationResult(
-            iteration=1,
-            agent_id="BANK_A",
-            cost=16440,  # Cents!
-            liquidity_fraction=0.35,
-            accepted=True,
-        ),
-    ]
+    provider.get_experiment_ids.return_value = ["exp1", "exp2", "exp3"]
+    provider.get_aggregate_stats.return_value = {
+        "total_experiments": 3,
+        "total_passes": 9,
+        "overall_mean_iterations": 6.7,
+        "overall_convergence_rate": 1.0,
+        "total_converged": 9,
+    }
+    provider.get_iteration_results.return_value = [...]
 
     return provider
-
-
-def test_section_uses_provider(mock_provider):
-    result = generate_results(mock_provider)
-    mock_provider.get_iteration_results.assert_called_once()
 ```
 
 ## Quick Reference
+
+### CLI Usage
+
+```bash
+# Generate paper_src.tex, paper.tex, and paper.pdf
+python -m src.cli --config config.yaml --output-dir output/
+
+# Skip PDF compilation
+python -m src.cli --config config.yaml --output-dir output/ --skip-pdf
+
+# Skip chart generation
+python -m src.cli --config config.yaml --output-dir output/ --skip-charts
+```
+
+### Key Functions
+
+| Function | Purpose |
+|----------|---------|
+| `build_paper()` | Main entry point - returns (tex_path, src_path) |
+| `generate_paper()` | Generate both paper files |
+| `collect_template_context()` | Gather all data values for substitution |
+| `render_template()` | Substitute {{variables}} with values |
+| `var('name')` | Create a template placeholder |
+| `wrap_document()` | Add LaTeX preamble and structure |
+| `escape_latex()` | Escape special characters |
+| `format_money()` | Format cents as `\$X.XX` |
+| `compile_pdf()` | Run pdflatex twice for cross-refs |
 
 ### File Paths
 
@@ -501,54 +433,36 @@ def test_section_uses_provider(mock_provider):
 |------|------|
 | CLI entry point | `src/cli.py` |
 | Paper assembly | `src/paper_builder.py` |
+| Template system | `src/template.py` |
 | Data access | `src/data_provider.py` |
+| Config handling | `src/config.py` |
 | LaTeX formatting | `src/latex/formatting.py` |
-| Table generators | `src/latex/tables.py` |
-| Chart generators | `src/charts/generators.py` |
 | Section generators | `src/sections/*.py` |
-| Tests | `tests/test_*.py` |
-
-### Key Functions
-
-| Function | Purpose |
-|----------|---------|
-| `build_paper()` | Main entry point - generates entire paper |
-| `generate_paper()` | Assemble sections into LaTeX |
-| `wrap_document()` | Add LaTeX preamble and structure |
-| `escape_latex()` | Escape special characters |
-| `format_money()` | Format cents as `\$X.XX` |
-| `format_percent()` | Format decimal as `XX.X\%` |
-| `format_ci()` | Format confidence interval |
-| `include_figure()` | Generate figure include |
-| `generate_all_paper_charts()` | Generate all PNG charts |
-
-### Chart Naming Convention
-
-Charts use flat naming in `output/charts/`:
-```
-{exp_id}_pass{pass_num}_{type}.png
-
-Examples:
-exp1_pass1_combined.png      # Cost vs liquidity, both agents
-exp1_pass1_bankA.png         # BANK_A convergence
-exp2_pass1_ci_width.png      # Bootstrap CI width evolution
-exp3_pass2_variance_evolution.png  # Variance over iterations
-```
 
 ## Anti-Patterns to Avoid
 
-### 1. Direct Database Access in Sections
+### 1. Hardcoded Values in Template Sections
 ```python
 # BAD
-def generate_results(data_dir: Path) -> str:
-    conn = duckdb.connect(...)  # NO!
+return "Experiment converged in 8 iterations..."
 
 # GOOD
-def generate_results(provider: DataProvider) -> str:
-    data = provider.get_iteration_results(...)
+return f"Experiment converged in {var('exp1_pass1_iterations')} iterations..."
 ```
 
-### 2. Float Money
+### 2. Direct Provider Access in Template Sections
+```python
+# BAD - template sections shouldn't call provider
+def generate_results(provider):
+    iters = provider.get_convergence_iteration("exp1", 1)
+    return f"Converged in {iters} iterations"
+
+# GOOD - use template variable
+def generate_results(provider=None):
+    return f"Converged in {var('exp1_pass1_iterations')} iterations"
+```
+
+### 3. Float Money
 ```python
 # BAD
 cost = 164.40  # Float dollars
@@ -557,43 +471,14 @@ cost = 164.40  # Float dollars
 cost = 16440  # Integer cents
 ```
 
-### 3. Unescaped Text in LaTeX
+### 4. Missing Template Variable
 ```python
-# BAD
-row = f"{agent_id} & {cost}"  # BANK_A breaks LaTeX!
+# BAD - using undefined variable
+return f"Value is {var('undefined_variable')}"
+# Results in: "Value is {{MISSING:undefined_variable}}"
 
-# GOOD
-row = f"{escape_latex(agent_id)} & {format_money(cost)}"
+# GOOD - ensure variable exists in collect_template_context()
 ```
-
-### 4. Nested Chart Paths
-```python
-# BAD - LaTeX expects flat paths
-output_path = output_dir / exp_id / f"pass{pass_num}" / "chart.png"
-
-# GOOD - Flat naming
-output_path = output_dir / f"{exp_id}_pass{pass_num}_chart.png"
-```
-
-### 5. Hardcoded Values in Sections
-```python
-# BAD
-return "Experiment converged in 8 iterations..."
-
-# GOOD
-iterations = provider.get_convergence_iteration("exp1", 1)
-return f"Experiment converged in {iterations} iterations..."
-```
-
-## Your Response Format
-
-When helping with paper generation tasks:
-
-1. **Identify the layer**: Is this data access, formatting, section content, or charts?
-2. **Follow the patterns**: Use DataProvider, escape text, integer cents
-3. **Provide complete code**: Working implementations, not pseudocode
-4. **Include tests**: Every change should have corresponding tests
-5. **Verify compilation**: Test that LaTeX compiles successfully
 
 ---
 
