@@ -1,0 +1,94 @@
+# Experiment 3: Three-Period Dummy Example
+#
+# - P^A = P^B = [0.2, 0.2, 0] - symmetric, deterministic payment demands
+# - Joint learning of initial liquidity and payment timing
+# - Uses liquidity_pool mode (direct balance)
+#
+
+name: exp3
+description: "Three-Period Dummy - Joint Liquidity & Timing"
+
+# Scenario configuration (relative to this file's directory)
+scenario: ./exp3_joint.yaml
+
+# Evaluation settings
+# Use deterministic mode since the scenario has fixed payments
+evaluation:
+  mode: deterministic
+  num_samples: 50  # For statistical rigor
+  ticks: 3
+
+# Convergence criteria
+convergence:
+  max_iterations: 25
+  stability_threshold: 0.05
+  stability_window: 5
+
+# LLM configuration
+llm:
+  model: "openai:gpt-5.2"  # always use gpt-5.2 with high reasoning
+  temperature: 0.5
+  max_retries: 3
+  timeout_seconds: 900
+  reasoning_effort: "high"
+
+# Experiment customization - guides LLM without giving away answer
+prompt_customization:
+  all: |
+    This scenario tests a fundamental tradeoff in payment systems:
+    - Allocating liquidity from the pool allows you to settle payments
+    - But allocated liquidity has an opportunity cost
+
+    The KEY DECISION in this scenario is: What fraction of the liquidity pool
+    should be allocated at the START of the day?
+
+    IMPORTANT: Focus your optimization on the `initial_liquidity_fraction` parameter.
+    The payment_tree should remain a simple Release action - the real optimization
+    is in how much liquidity to commit upfront.
+
+    With a hard liquidity constraint (no overdraft allowed), you must have
+    sufficient balance to settle each payment. Incoming payments from the
+    counterparty provide liquidity that can be recycled for your outgoing payments.
+
+# Policy constraints
+policy_constraints:
+  allowed_parameters:
+    - name: initial_liquidity_fraction
+      param_type: float
+      min_value: 0.0
+      max_value: 1.0
+      description: "Fraction of liquidity_pool to allocate at simulation start. Value between 0.0 and 1.0."
+
+  allowed_fields:
+    # Time context
+    - system_tick_in_day
+    # Agent liquidity state (balance = allocated liquidity from pool)
+    - balance
+    # Queue state (for timing decisions)
+    - queue1_total_value
+    - outgoing_queue_size
+    # Transaction context
+    - ticks_to_deadline
+
+  allowed_actions:
+    payment_tree:
+      - Release
+      - Hold
+    bank_tree:
+      - NoAction
+    # Note: strategic_collateral_tree not used in liquidity_pool mode
+    # Allocation happens at simulation start via liquidity_allocation_fraction
+
+# Agents to optimize
+optimized_agents:
+  - BANK_A
+  - BANK_B
+
+# Output settings
+output:
+  directory: results
+  database: exp3.db
+  verbose: true
+
+# Master seed for reproducibility
+master_seed: 42
