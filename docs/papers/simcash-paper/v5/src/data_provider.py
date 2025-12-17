@@ -63,6 +63,46 @@ class BootstrapStats(TypedDict):
     num_samples: int
 
 
+class PassSummary(TypedDict):
+    """Summary of results for one experiment pass.
+
+    Attributes:
+        pass_num: Pass number (1, 2, or 3)
+        iterations: Number of iterations to convergence
+        bank_a_liquidity: Final liquidity fraction for BANK_A (0.0 to 1.0)
+        bank_b_liquidity: Final liquidity fraction for BANK_B (0.0 to 1.0)
+        bank_a_cost: Final cost for BANK_A in cents
+        bank_b_cost: Final cost for BANK_B in cents
+        total_cost: Combined final cost in cents
+    """
+
+    pass_num: int
+    iterations: int
+    bank_a_liquidity: float
+    bank_b_liquidity: float
+    bank_a_cost: int
+    bank_b_cost: int
+    total_cost: int
+
+
+class ConvergenceStats(TypedDict):
+    """Aggregate convergence statistics across experiments.
+
+    Attributes:
+        exp_id: Experiment identifier
+        mean_iterations: Average iterations across passes
+        min_iterations: Minimum iterations
+        max_iterations: Maximum iterations
+        convergence_rate: Fraction of passes that converged (0.0 to 1.0)
+    """
+
+    exp_id: str
+    mean_iterations: float
+    min_iterations: int
+    max_iterations: int
+    convergence_rate: float
+
+
 @runtime_checkable
 class DataProvider(Protocol):
     """Protocol for accessing experiment data.
@@ -140,6 +180,51 @@ class DataProvider(Protocol):
 
         Returns:
             Run ID string (e.g., "exp1-20251217-001234-abc123")
+        """
+        ...
+
+    def get_pass_summary(self, exp_id: str, pass_num: int) -> PassSummary:
+        """Get summary of results for one experiment pass.
+
+        Args:
+            exp_id: Experiment identifier
+            pass_num: Pass number
+
+        Returns:
+            PassSummary with final iteration stats
+        """
+        ...
+
+    def get_all_pass_summaries(self, exp_id: str) -> list[PassSummary]:
+        """Get summaries for all passes of an experiment.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            List of PassSummary for each pass
+        """
+        ...
+
+    def get_convergence_statistics(self, exp_id: str) -> ConvergenceStats:
+        """Get aggregate convergence statistics across all passes.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            ConvergenceStats with mean, min, max iterations and rate
+        """
+        ...
+
+    def get_num_passes(self, exp_id: str) -> int:
+        """Get the number of passes for an experiment.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            Number of passes (typically 3)
         """
         ...
 
@@ -374,3 +459,97 @@ class DatabaseDataProvider:
             raise ValueError(f"No iterations found for {exp_id} pass {pass_num}")
 
         return result[0]
+
+    def get_num_passes(self, exp_id: str) -> int:
+        """Get the number of passes for an experiment.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            Number of passes
+        """
+        conn = self._get_connection(exp_id)
+        result = conn.execute(
+            """
+            SELECT COUNT(DISTINCT run_id)
+            FROM policy_evaluations
+            """
+        ).fetchone()
+
+        if result is None:
+            return 0
+        return result[0]
+
+    def get_pass_summary(self, exp_id: str, pass_num: int) -> PassSummary:
+        """Get summary of results for one experiment pass.
+
+        Args:
+            exp_id: Experiment identifier
+            pass_num: Pass number
+
+        Returns:
+            PassSummary with final iteration stats
+        """
+        # Get final iteration results
+        final_iter = self.get_convergence_iteration(exp_id, pass_num)
+        results = self.get_iteration_results(exp_id, pass_num)
+
+        # Filter to final iteration
+        final_results = [r for r in results if r["iteration"] == final_iter]
+
+        # Get per-agent values
+        bank_a = next((r for r in final_results if r["agent_id"] == "BANK_A"), None)
+        bank_b = next((r for r in final_results if r["agent_id"] == "BANK_B"), None)
+
+        if bank_a is None or bank_b is None:
+            raise ValueError(f"Missing agent data for {exp_id} pass {pass_num}")
+
+        return PassSummary(
+            pass_num=pass_num,
+            iterations=final_iter,
+            bank_a_liquidity=bank_a["liquidity_fraction"],
+            bank_b_liquidity=bank_b["liquidity_fraction"],
+            bank_a_cost=bank_a["cost"],
+            bank_b_cost=bank_b["cost"],
+            total_cost=bank_a["cost"] + bank_b["cost"],
+        )
+
+    def get_all_pass_summaries(self, exp_id: str) -> list[PassSummary]:
+        """Get summaries for all passes of an experiment.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            List of PassSummary for each pass
+        """
+        num_passes = self.get_num_passes(exp_id)
+        return [self.get_pass_summary(exp_id, p + 1) for p in range(num_passes)]
+
+    def get_convergence_statistics(self, exp_id: str) -> ConvergenceStats:
+        """Get aggregate convergence statistics across all passes.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            ConvergenceStats with mean, min, max iterations and rate
+        """
+        summaries = self.get_all_pass_summaries(exp_id)
+
+        if not summaries:
+            raise ValueError(f"No passes found for {exp_id}")
+
+        iterations = [s["iterations"] for s in summaries]
+
+        # All passes converged (we don't track non-convergence currently)
+        convergence_rate = 1.0
+
+        return ConvergenceStats(
+            exp_id=exp_id,
+            mean_iterations=sum(iterations) / len(iterations),
+            min_iterations=min(iterations),
+            max_iterations=max(iterations),
+            convergence_rate=convergence_rate,
+        )

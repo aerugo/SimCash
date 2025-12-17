@@ -23,12 +23,18 @@ if TYPE_CHECKING:
 @pytest.fixture
 def mock_provider() -> MagicMock:
     """Create mock DataProvider with realistic test data."""
-    provider = MagicMock(spec=["get_iteration_results", "get_final_bootstrap_stats",
-                               "get_convergence_iteration", "get_run_id"])
+    provider = MagicMock(spec=[
+        "get_iteration_results", "get_final_bootstrap_stats",
+        "get_convergence_iteration", "get_run_id",
+        "get_all_pass_summaries", "get_pass_summary",
+        "get_convergence_statistics", "get_num_passes"
+    ])
 
     provider.get_iteration_results.return_value = [
         {"iteration": 1, "agent_id": "BANK_A", "cost": 5000, "liquidity_fraction": 0.3, "accepted": True},
         {"iteration": 1, "agent_id": "BANK_B", "cost": 3000, "liquidity_fraction": 0.2, "accepted": True},
+        {"iteration": 2, "agent_id": "BANK_A", "cost": 0, "liquidity_fraction": 0.0, "accepted": True},
+        {"iteration": 2, "agent_id": "BANK_B", "cost": 5000, "liquidity_fraction": 0.33, "accepted": True},
     ]
 
     provider.get_final_bootstrap_stats.return_value = {
@@ -36,8 +42,31 @@ def mock_provider() -> MagicMock:
         "BANK_B": {"mean_cost": 13349, "std_dev": 800, "ci_lower": 11800, "ci_upper": 14900, "num_samples": 50},
     }
 
-    provider.get_convergence_iteration.return_value = 3
+    provider.get_convergence_iteration.return_value = 2
     provider.get_run_id.return_value = "exp1-20251215-abc123"
+
+    # Mock pass summaries
+    provider.get_all_pass_summaries.return_value = [
+        {"pass_num": 1, "iterations": 2, "bank_a_liquidity": 0.0, "bank_b_liquidity": 0.33,
+         "bank_a_cost": 0, "bank_b_cost": 5000, "total_cost": 5000},
+        {"pass_num": 2, "iterations": 3, "bank_a_liquidity": 0.05, "bank_b_liquidity": 0.30,
+         "bank_a_cost": 100, "bank_b_cost": 4500, "total_cost": 4600},
+        {"pass_num": 3, "iterations": 2, "bank_a_liquidity": 0.02, "bank_b_liquidity": 0.35,
+         "bank_a_cost": 50, "bank_b_cost": 5200, "total_cost": 5250},
+    ]
+
+    provider.get_pass_summary.return_value = {
+        "pass_num": 1, "iterations": 2, "bank_a_liquidity": 0.0, "bank_b_liquidity": 0.33,
+        "bank_a_cost": 0, "bank_b_cost": 5000, "total_cost": 5000
+    }
+
+    # Mock convergence statistics
+    provider.get_convergence_statistics.return_value = {
+        "exp_id": "exp1", "mean_iterations": 2.3, "min_iterations": 2,
+        "max_iterations": 3, "convergence_rate": 1.0
+    }
+
+    provider.get_num_passes.return_value = 3
 
     return provider
 

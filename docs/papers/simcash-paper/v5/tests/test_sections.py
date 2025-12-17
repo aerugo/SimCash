@@ -23,8 +23,12 @@ if TYPE_CHECKING:
 @pytest.fixture
 def mock_provider() -> MagicMock:
     """Create mock DataProvider with realistic test data."""
-    provider = MagicMock(spec=["get_iteration_results", "get_final_bootstrap_stats",
-                               "get_convergence_iteration", "get_run_id"])
+    provider = MagicMock(spec=[
+        "get_iteration_results", "get_final_bootstrap_stats",
+        "get_convergence_iteration", "get_run_id",
+        "get_all_pass_summaries", "get_pass_summary",
+        "get_convergence_statistics", "get_num_passes"
+    ])
 
     # Mock exp1 data (asymmetric equilibrium)
     provider.get_iteration_results.return_value = [
@@ -43,6 +47,29 @@ def mock_provider() -> MagicMock:
 
     provider.get_convergence_iteration.return_value = 3
     provider.get_run_id.return_value = "exp1-20251215-abc123"
+
+    # Mock pass summaries
+    provider.get_all_pass_summaries.return_value = [
+        {"pass_num": 1, "iterations": 3, "bank_a_liquidity": 0.0, "bank_b_liquidity": 0.33,
+         "bank_a_cost": 0, "bank_b_cost": 5000, "total_cost": 5000},
+        {"pass_num": 2, "iterations": 4, "bank_a_liquidity": 0.05, "bank_b_liquidity": 0.30,
+         "bank_a_cost": 100, "bank_b_cost": 4500, "total_cost": 4600},
+        {"pass_num": 3, "iterations": 3, "bank_a_liquidity": 0.02, "bank_b_liquidity": 0.35,
+         "bank_a_cost": 50, "bank_b_cost": 5200, "total_cost": 5250},
+    ]
+
+    provider.get_pass_summary.return_value = {
+        "pass_num": 1, "iterations": 3, "bank_a_liquidity": 0.0, "bank_b_liquidity": 0.33,
+        "bank_a_cost": 0, "bank_b_cost": 5000, "total_cost": 5000
+    }
+
+    # Mock convergence statistics
+    provider.get_convergence_statistics.return_value = {
+        "exp_id": "exp1", "mean_iterations": 3.3, "min_iterations": 3,
+        "max_iterations": 4, "convergence_rate": 1.0
+    }
+
+    provider.get_num_passes.return_value = 3
 
     return provider
 
@@ -371,22 +398,30 @@ class TestDataDrivenContent:
         """Results section should reflect provider data changes."""
         from src.sections.results import generate_results
 
-        # Create two providers with different data
-        provider1 = MagicMock()
-        provider1.get_iteration_results.return_value = [
-            {"iteration": 1, "agent_id": "BANK_A", "cost": 10000, "liquidity_fraction": 0.5, "accepted": True},
-            {"iteration": 1, "agent_id": "BANK_B", "cost": 8000, "liquidity_fraction": 0.4, "accepted": True},
-        ]
-        provider1.get_final_bootstrap_stats.return_value = {}
-        provider1.get_convergence_iteration.return_value = 1
+        # Helper to create a mock provider with given data
+        def create_provider(cost_a: int, cost_b: int, liq_a: float, liq_b: float) -> MagicMock:
+            provider = MagicMock()
+            provider.get_iteration_results.return_value = [
+                {"iteration": 1, "agent_id": "BANK_A", "cost": cost_a, "liquidity_fraction": liq_a, "accepted": True},
+                {"iteration": 1, "agent_id": "BANK_B", "cost": cost_b, "liquidity_fraction": liq_b, "accepted": True},
+            ]
+            provider.get_final_bootstrap_stats.return_value = {
+                "BANK_A": {"mean_cost": cost_a, "std_dev": 100, "ci_lower": cost_a - 200, "ci_upper": cost_a + 200, "num_samples": 50},
+                "BANK_B": {"mean_cost": cost_b, "std_dev": 100, "ci_lower": cost_b - 200, "ci_upper": cost_b + 200, "num_samples": 50},
+            }
+            provider.get_convergence_iteration.return_value = 1
+            provider.get_all_pass_summaries.return_value = [
+                {"pass_num": 1, "iterations": 1, "bank_a_liquidity": liq_a, "bank_b_liquidity": liq_b,
+                 "bank_a_cost": cost_a, "bank_b_cost": cost_b, "total_cost": cost_a + cost_b},
+            ]
+            provider.get_convergence_statistics.return_value = {
+                "exp_id": "exp1", "mean_iterations": 1.0, "min_iterations": 1,
+                "max_iterations": 1, "convergence_rate": 1.0
+            }
+            return provider
 
-        provider2 = MagicMock()
-        provider2.get_iteration_results.return_value = [
-            {"iteration": 1, "agent_id": "BANK_A", "cost": 50000, "liquidity_fraction": 0.9, "accepted": True},
-            {"iteration": 1, "agent_id": "BANK_B", "cost": 45000, "liquidity_fraction": 0.85, "accepted": True},
-        ]
-        provider2.get_final_bootstrap_stats.return_value = {}
-        provider2.get_convergence_iteration.return_value = 1
+        provider1 = create_provider(10000, 8000, 0.5, 0.4)
+        provider2 = create_provider(50000, 45000, 0.9, 0.85)
 
         result1 = generate_results(provider1)
         result2 = generate_results(provider2)
@@ -398,22 +433,31 @@ class TestDataDrivenContent:
         """Appendices should reflect provider data changes."""
         from src.sections.appendices import generate_appendices
 
-        # Create two providers with different data
-        provider1 = MagicMock()
-        provider1.get_iteration_results.return_value = [
-            {"iteration": 1, "agent_id": "BANK_A", "cost": 1000, "liquidity_fraction": 0.1, "accepted": True},
-        ]
-        provider1.get_final_bootstrap_stats.return_value = {
-            "BANK_A": {"mean_cost": 1000, "std_dev": 100, "ci_lower": 800, "ci_upper": 1200, "num_samples": 10},
-        }
+        # Helper to create a mock provider with given data
+        def create_provider(cost: int, liq: float) -> MagicMock:
+            provider = MagicMock()
+            provider.get_iteration_results.return_value = [
+                {"iteration": 1, "agent_id": "BANK_A", "cost": cost, "liquidity_fraction": liq, "accepted": True},
+                {"iteration": 1, "agent_id": "BANK_B", "cost": cost, "liquidity_fraction": liq, "accepted": True},
+            ]
+            provider.get_final_bootstrap_stats.return_value = {
+                "BANK_A": {"mean_cost": cost, "std_dev": 100, "ci_lower": cost - 200, "ci_upper": cost + 200, "num_samples": 50},
+                "BANK_B": {"mean_cost": cost, "std_dev": 100, "ci_lower": cost - 200, "ci_upper": cost + 200, "num_samples": 50},
+            }
+            provider.get_convergence_iteration.return_value = 1
+            provider.get_all_pass_summaries.return_value = [
+                {"pass_num": 1, "iterations": 1, "bank_a_liquidity": liq, "bank_b_liquidity": liq,
+                 "bank_a_cost": cost, "bank_b_cost": cost, "total_cost": cost * 2},
+            ]
+            provider.get_convergence_statistics.return_value = {
+                "exp_id": "exp1", "mean_iterations": 1.0, "min_iterations": 1,
+                "max_iterations": 1, "convergence_rate": 1.0
+            }
+            provider.get_num_passes.return_value = 1
+            return provider
 
-        provider2 = MagicMock()
-        provider2.get_iteration_results.return_value = [
-            {"iteration": 1, "agent_id": "BANK_A", "cost": 99999, "liquidity_fraction": 0.99, "accepted": True},
-        ]
-        provider2.get_final_bootstrap_stats.return_value = {
-            "BANK_A": {"mean_cost": 99999, "std_dev": 5000, "ci_lower": 90000, "ci_upper": 110000, "num_samples": 50},
-        }
+        provider1 = create_provider(1000, 0.1)
+        provider2 = create_provider(99999, 0.99)
 
         result1 = generate_appendices(provider1)
         result2 = generate_appendices(provider2)
