@@ -110,11 +110,43 @@ The asymmetric outcome emerges because BANK_A discovers that allocating 0% liqui
 
 | Pass | BANK_A | BANK_B | Iterations | 95% CI (BANK_A) | 95% CI (BANK_B) |
 |------|--------|--------|------------|-----------------|-----------------|
-| 1    | 16.5%  | 11.5%  | 9          | [$1.64, $1.64]  | [$1.13, $1.41]  |
-| 2    | 5.0%   | 10.0%  | 7          | [$0.49, $0.82]  | [$0.73, $2.71]  |
-| 3    | 9.2%   | 12.0%  | 9          | [$0.91, $0.93]  | [$1.18, $1.39]  |
+| 1    | 16.5%  | 11.5%  | 9          | [$1.64, $1.64]  | [$1.11, $1.51]  |
+| 2    | 5.0%   | 10.0%  | 7          | [$0.78, $0.85]  | [$1.99, $1.99]  |
+| 3    | 9.2%   | 12.0%  | 9          | [$0.93, $0.95]  | [$1.37, $1.47]  |
 
 **Finding**: All passes converged with both agents in the 5-17% range, consistent with the theoretical 10-30% bounds. The variation across passes reflects the stochastic nature of the scenario—multiple equilibria exist within the feasible region.
+
+#### 5.2.1 Bootstrap Evaluation Methodology
+
+Each policy proposal in Experiment 2 is evaluated using 50 bootstrap samples with different random seeds. This produces a distribution of costs rather than a single point estimate, enabling:
+
+1. **Confidence intervals**: 95% CIs quantify cost uncertainty under varying transaction realizations
+2. **Acceptance decisions**: Proposals are accepted only if the improvement is statistically significant
+3. **Risk assessment**: Sample variance reveals tail risk from unlucky scenarios
+
+**Table: Final Iteration Bootstrap Statistics**
+
+| Pass | Agent | Mean Cost | Std Dev | 95% CI | CI Width |
+|------|-------|-----------|---------|--------|----------|
+| 1 | BANK_A | $164.40 | $0.00 | [$164.40, $164.40] | $0.00 |
+| 1 | BANK_B | $130.85 | $69.51 | [$110.99, $150.72] | $39.73 |
+| 2 | BANK_A | $81.44 | $12.45 | [$77.88, $85.00] | $7.12 |
+| 2 | BANK_B | $199.20 | $0.00 | [$199.20, $199.20] | $0.00 |
+| 3 | BANK_A | $93.99 | $2.77 | [$93.19, $94.78] | $1.59 |
+| 3 | BANK_B | $141.99 | $18.09 | [$136.82, $147.17] | $10.35 |
+
+**Observation**: The asymmetric standard deviations reveal an important phenomenon: some agent-policy combinations experience high variance while others are deterministic. In Pass 1, BANK_B's $69.51 standard deviation indicates significant sensitivity to transaction timing, while BANK_A's zero variance suggests its policy produces consistent costs across all scenarios.
+
+#### 5.2.2 Sample Distribution Analysis
+
+Examining the 50 individual samples from Pass 1's final iteration reveals a highly skewed distribution:
+
+**BANK_B Bootstrap Samples (Pass 1, Iteration 7):**
+- 44 of 50 samples: ~$110 (modal outcome)
+- 2 samples: $118-$173 (mild tail)
+- 4 samples: $225-$515 (severe tail)
+
+The modal cost of $110 represents the typical scenario where transactions settle efficiently. The tail events ($225-$515) occur when unfavorable payment timing creates liquidity shortfalls, triggering delay penalties. This "fat tail" risk is invisible in deterministic evaluation but captured by bootstrap sampling.
 
 Bootstrap evaluation with 50 samples provides confidence intervals, capturing the inherent uncertainty in stochastic payment systems.
 
@@ -212,6 +244,15 @@ BANK_A gradually reduces liquidity from 50% to 16.5% over 9 iterations (50% → 
 ![BANK_B Convergence](charts/pass1/exp2_bankB.png)
 
 BANK_B converges from 50% to 11.5% following a similar pattern (50% → 15% → 13% → 12% → 11.5%). The final allocation is lower than BANK_A's, reflecting different optimal strategies under stochastic payment arrivals.
+
+**Bootstrap Sample Evolution**: The variance in BANK_B's cost estimates decreases as policy stabilizes, but remains significant:
+- Iteration 1: Std Dev = $9.63, CI Width = $5.51
+- Iteration 4: Std Dev = $47.44, CI Width = $27.12
+- Iteration 7: Std Dev = $69.51, CI Width = $39.73
+
+Interestingly, variance *increases* as BANK_B reduces liquidity—lower reserves create more exposure to unfavorable payment timing. The LLM must decide whether marginally lower mean costs justify higher tail risk.
+
+**Rejection Example**: At iterations 5-7, BANK_B's policy proposals were rejected. Iteration 5 proposed a change that increased mean cost from $126.95 to $130.56 while also doubling variance ($47.44 → $80.30). The wider 95% CI ([$107.61, $153.52] vs [$113.39, $140.51]) reflects the increased tail risk. The framework correctly rejected these proposals despite exploring lower liquidity levels—demonstrating how the statistical acceptance criterion prevents both cost increases and excessive risk-taking.
 
 **Key Insight**: Stochastic settings require more iterations and produce noisier convergence paths. The bootstrap evaluation introduces variance that can occasionally accept suboptimal policies (as seen in Pass 2's higher-cost equilibrium). However, the method still finds stable equilibria within the theoretical 10-30% bounds.
 
