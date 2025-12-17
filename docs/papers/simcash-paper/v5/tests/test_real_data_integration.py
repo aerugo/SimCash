@@ -22,14 +22,25 @@ def data_dir() -> Path:
 
 
 @pytest.fixture
-def provider(data_dir: Path):
-    """Create DatabaseDataProvider with real data."""
+def config_path() -> Path:
+    """Path to config file."""
+    return Path(__file__).parent.parent / "config.yaml"
+
+
+@pytest.fixture
+def provider(data_dir: Path, config_path: Path):
+    """Create DatabaseDataProvider with real data and config."""
+    from src.config import load_config
     from src.data_provider import DatabaseDataProvider
 
     if not data_dir.exists():
         pytest.skip("Data directory not available")
 
-    return DatabaseDataProvider(data_dir)
+    if not config_path.exists():
+        pytest.skip("Config file not available")
+
+    config = load_config(config_path)
+    return DatabaseDataProvider(data_dir, config=config)
 
 
 @pytest.fixture

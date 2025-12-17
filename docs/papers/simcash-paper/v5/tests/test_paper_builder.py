@@ -27,7 +27,8 @@ def mock_provider() -> MagicMock:
         "get_iteration_results", "get_final_bootstrap_stats",
         "get_convergence_iteration", "get_run_id",
         "get_all_pass_summaries", "get_pass_summary",
-        "get_convergence_statistics", "get_num_passes"
+        "get_convergence_statistics", "get_num_passes",
+        "get_experiment_ids", "get_aggregate_stats"
     ])
 
     provider.get_iteration_results.return_value = [
@@ -60,13 +61,25 @@ def mock_provider() -> MagicMock:
         "bank_a_cost": 0, "bank_b_cost": 5000, "total_cost": 5000
     }
 
-    # Mock convergence statistics
+    # Mock convergence statistics (now includes num_passes)
     provider.get_convergence_statistics.return_value = {
         "exp_id": "exp1", "mean_iterations": 2.3, "min_iterations": 2,
-        "max_iterations": 3, "convergence_rate": 1.0
+        "max_iterations": 3, "convergence_rate": 1.0, "num_passes": 3
     }
 
     provider.get_num_passes.return_value = 3
+
+    # Mock experiment IDs
+    provider.get_experiment_ids.return_value = ["exp1", "exp2", "exp3"]
+
+    # Mock aggregate statistics
+    provider.get_aggregate_stats.return_value = {
+        "total_experiments": 3,
+        "total_passes": 9,
+        "overall_mean_iterations": 6.7,
+        "overall_convergence_rate": 1.0,
+        "total_converged": 9
+    }
 
     return provider
 
@@ -257,31 +270,41 @@ class TestBuildPaper:
 
     def test_build_paper_from_data_dir(self, tmp_output_dir: Path) -> None:
         """build_paper should create paper from data directory."""
+        from src.config import load_config
         from src.paper_builder import build_paper
 
-        # Use actual data directory
+        # Use actual data directory and config
         data_dir = Path("data")
+        config_path = Path("config.yaml")
 
         # Skip if data doesn't exist
         if not data_dir.exists():
             pytest.skip("Data directory not available")
+        if not config_path.exists():
+            pytest.skip("Config file not available")
 
-        tex_path = build_paper(data_dir, tmp_output_dir)
+        config = load_config(config_path)
+        tex_path = build_paper(data_dir, tmp_output_dir, config=config, generate_charts=False)
 
         assert tex_path.exists()
         assert tex_path.suffix == ".tex"
 
     def test_build_paper_creates_output_dir_if_needed(self, tmp_path: Path) -> None:
         """build_paper should create output directory if it doesn't exist."""
+        from src.config import load_config
         from src.paper_builder import build_paper
 
         data_dir = Path("data")
+        config_path = Path("config.yaml")
         output_dir = tmp_path / "new_output"
 
         if not data_dir.exists():
             pytest.skip("Data directory not available")
+        if not config_path.exists():
+            pytest.skip("Config file not available")
 
-        tex_path = build_paper(data_dir, output_dir)
+        config = load_config(config_path)
+        tex_path = build_paper(data_dir, output_dir, config=config, generate_charts=False)
 
         assert output_dir.exists()
         assert tex_path.exists()

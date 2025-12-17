@@ -29,6 +29,12 @@ def generate_results(provider: DataProvider) -> str:
     Returns:
         LaTeX string for the results section
     """
+    # Get aggregate statistics for data-driven text
+    aggregate_stats = provider.get_aggregate_stats()
+    total_experiments = aggregate_stats["total_experiments"]
+    total_passes = aggregate_stats["total_passes"]
+    passes_per_exp = total_passes // total_experiments if total_experiments > 0 else 0
+
     # Get all pass summaries for each experiment
     exp1_summaries = provider.get_all_pass_summaries("exp1")
     exp2_summaries = provider.get_all_pass_summaries("exp2")
@@ -252,7 +258,7 @@ incentives lead to cooperative equilibrium rather than exploitation.
 Several key observations emerge from comparing results across experiments:
 
 \begin{{enumerate}}
-    \item \textbf{{Convergence Reliability}}: All 9 passes (3 experiments $\times$ 3 passes)
+    \item \textbf{{Convergence Reliability}}: All {total_passes} passes ({total_experiments} experiments $\times$ {passes_per_exp} passes)
     achieved convergence to stable equilibria, demonstrating framework robustness.
 
     \item \textbf{{Equilibrium Type}}: Asymmetric cost structures (Exp 1) produced

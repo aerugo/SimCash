@@ -139,10 +139,14 @@ class TestDataProviderProtocol:
 
     def test_database_provider_implements_protocol(self) -> None:
         """DatabaseDataProvider must implement DataProvider protocol."""
+        from src.config import load_config
         from src.data_provider import DatabaseDataProvider, DataProvider
 
-        # Create instance with test data directory
-        provider = DatabaseDataProvider(Path("data/"))
+        # Load config (required for DatabaseDataProvider)
+        config = load_config(Path("config.yaml"))
+
+        # Create instance with test data directory and config
+        provider = DatabaseDataProvider(Path("data/"), config=config)
 
         # Check protocol compliance via isinstance (requires @runtime_checkable)
         assert isinstance(provider, DataProvider), (
@@ -160,10 +164,12 @@ class TestDatabaseDataProviderQueries:
 
     @pytest.fixture
     def provider(self) -> "DatabaseDataProvider":
-        """Create provider with actual data directory."""
+        """Create provider with actual data directory and config."""
+        from src.config import load_config
         from src.data_provider import DatabaseDataProvider
 
-        return DatabaseDataProvider(Path("data/"))
+        config = load_config(Path("config.yaml"))
+        return DatabaseDataProvider(Path("data/"), config=config)
 
     # -------------------------------------------------------------------------
     # Experiment 1 Tests: Asymmetric Equilibrium
