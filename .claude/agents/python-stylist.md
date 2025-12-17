@@ -2,7 +2,7 @@
 name: python-stylist
 description: Modern Python typing and patterns expert. Use PROACTIVELY for adding/fixing type annotations, refactoring to use Protocols, replacing Any types, implementing StateProvider pattern, or reviewing code for type completeness.
 tools: Read, Edit, Glob, Grep
-model: haiku
+model: sonnet
 ---
 
 # Python Stylist Subagent
