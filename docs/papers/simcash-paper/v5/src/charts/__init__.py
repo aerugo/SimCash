@@ -1,8 +1,30 @@
-"""Chart path resolution for paper figures."""
+"""Chart path resolution and generation for paper figures."""
 
 from __future__ import annotations
 
 from pathlib import Path
+
+from src.charts.generators import (
+    generate_all_paper_charts,
+    generate_ci_width_chart,
+    generate_combined_convergence_chart,
+    generate_convergence_chart,
+    generate_experiment_charts,
+    generate_sample_distribution_chart,
+    generate_variance_evolution_chart,
+)
+
+__all__ = [
+    "get_convergence_chart_path",
+    "get_bootstrap_chart_path",
+    "generate_convergence_chart",
+    "generate_combined_convergence_chart",
+    "generate_experiment_charts",
+    "generate_ci_width_chart",
+    "generate_variance_evolution_chart",
+    "generate_sample_distribution_chart",
+    "generate_all_paper_charts",
+]
 
 # Charts directory relative to v5 root
 CHARTS_DIR = Path(__file__).parent.parent.parent / "output" / "charts"
