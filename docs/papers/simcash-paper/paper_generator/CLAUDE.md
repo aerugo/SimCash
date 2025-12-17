@@ -540,32 +540,82 @@ pdflatex -interaction=nonstopmode paper.tex  # Resolve cross-refs
 
 ## Development Commands
 
+This project uses [Astral UV](https://docs.astral.sh/uv/) for package management.
+
+### Initial Setup
+
+```bash
+cd docs/papers/simcash-paper/paper_generator
+
+# Install all dependencies (including payment-simulator from ../../../api)
+uv sync --extra dev
+
+# This creates a .venv/ with all dependencies installed
+```
+
+### After Code Changes
+
+```bash
+# After changing Python code in src/: No rebuild needed
+
+# After changing payment-simulator (api/): Re-sync to pick up changes
+uv sync --extra dev
+```
+
+### Running the Paper Generator
+
 ```bash
 cd docs/papers/simcash-paper/paper_generator
 
 # Generate paper (config.yaml is required)
-python -m src.cli --config config.yaml --output-dir output/
+uv run python -m src.cli --config config.yaml --output-dir output/
 
 # Generate without charts (faster)
-python -m src.cli --config config.yaml --output-dir output/ --skip-charts
+uv run python -m src.cli --config config.yaml --output-dir output/ --skip-charts
 
 # Generate .tex only (no PDF compilation)
-python -m src.cli --config config.yaml --output-dir output/ --skip-pdf
+uv run python -m src.cli --config config.yaml --output-dir output/ --skip-pdf
+```
+
+### Testing & Linting
+
+```bash
+cd docs/papers/simcash-paper/paper_generator
 
 # Run all tests
-/home/user/SimCash/api/.venv/bin/python -m pytest tests/ -v
+uv run pytest tests/ -v
 
 # Run specific test file
-/home/user/SimCash/api/.venv/bin/python -m pytest tests/test_latex_formatting.py -v
+uv run pytest tests/test_latex_formatting.py -v
 
 # Run with coverage
-/home/user/SimCash/api/.venv/bin/python -m pytest tests/ --cov=src
+uv run pytest tests/ --cov=src --cov-report=html
 
-# Type checking
-/home/user/SimCash/api/.venv/bin/python -m mypy src/ --ignore-missing-imports
+# Type checking with mypy
+uv run mypy src/
 
-# Or with pyright (matches VS Code Pylance)
-/home/user/SimCash/api/.venv/bin/python -m pyright src/
+# Type checking with pyright (matches VS Code Pylance)
+uv run pyright src/
+
+# Linting with ruff
+uv run ruff check src/ tests/
+
+# Format code
+uv run ruff format src/ tests/
+```
+
+### Alternative: Using the Activated Virtual Environment
+
+If you prefer to activate the virtual environment:
+
+```bash
+cd docs/papers/simcash-paper/paper_generator
+source .venv/bin/activate
+
+# Then run commands directly
+python -m src.cli --config config.yaml --output-dir output/
+pytest tests/ -v
+mypy src/
 ```
 
 ---
