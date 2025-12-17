@@ -7,6 +7,7 @@ A config.yaml file is REQUIRED. The config explicitly maps experiment passes
 to specific run_ids, ensuring reproducible paper generation.
 
 By default, the CLI generates paper.tex and compiles it to PDF using pdflatex.
+It also generates paper_data.txt with all computed values in plain text.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ import subprocess
 from pathlib import Path
 
 from src.config import load_config
+from src.data_provider import DatabaseDataProvider
+from src.data_summary import generate_data_summary
 from src.paper_builder import build_paper
 
 
@@ -112,6 +115,12 @@ must be completed before paper generation.
     )
 
     print(f"Generated: {tex_path}")
+
+    # Generate data summary (plain text with all values)
+    provider = DatabaseDataProvider(data_dir, config=config)
+    data_path = args.output_dir / "paper_data.txt"
+    generate_data_summary(provider, data_path)
+    print(f"Generated: {data_path}")
 
     # Compile PDF unless skipped
     if not args.skip_pdf:

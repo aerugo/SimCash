@@ -1,0 +1,193 @@
+SimCash Paper - Data Summary
+Generated from experiment databases
+All monetary values in cents unless noted
+
+======================================================================
+AGGREGATE STATISTICS (used in Abstract, Introduction)
+======================================================================
+Total experiments:        3
+Total passes:             9
+Overall mean iterations:  6.7
+Overall convergence rate: 100%
+Total converged passes:   9
+
+======================================================================
+PER-EXPERIMENT CONVERGENCE STATISTICS
+======================================================================
+
+--- EXP1 ---
+Number of passes:    3
+Mean iterations:     8.0
+Min iterations:      5
+Max iterations:      14
+Convergence rate:    100%
+
+--- EXP2 ---
+Number of passes:    3
+Mean iterations:     6.3
+Min iterations:      5
+Max iterations:      7
+Convergence rate:    100%
+
+--- EXP3 ---
+Number of passes:    3
+Mean iterations:     5.7
+Min iterations:      5
+Max iterations:      7
+Convergence rate:    100%
+
+======================================================================
+PER-PASS SUMMARIES (used in Results tables)
+======================================================================
+
+--- EXP1 - Pass Summaries ---
+Pass   Iters  A Liq    B Liq    A Cost       B Cost       Total       
+----------------------------------------------------------------------
+1      14     0.00     0.15     0            2,510        2,510       
+2      5      0.75     0.16     7,500        2,600        10,100      
+3      5      0.00     0.15     0            2,510        2,510       
+----------------------------------------------------------------------
+AVG    8.0    0.25     0.15     2,500        2,540        5,040       
+
+--- EXP2 - Pass Summaries ---
+Pass   Iters  A Liq    B Liq    A Cost       B Cost       Total       
+----------------------------------------------------------------------
+1      7      0.17     0.11     16,440       13,085       29,525      
+2      5      0.08     0.20     8,144        19,920       28,064      
+3      7      0.09     0.14     9,399        14,199       23,598      
+----------------------------------------------------------------------
+AVG    6.3    0.11     0.15     11,327       15,734       27,062      
+
+--- EXP3 - Pass Summaries ---
+Pass   Iters  A Liq    B Liq    A Cost       B Cost       Total       
+----------------------------------------------------------------------
+1      7      0.18     0.10     13,797       12,999       26,796      
+2      5      0.00     0.00     12,000       12,000       24,000      
+3      5      0.19     0.00     13,899       12,000       25,899      
+----------------------------------------------------------------------
+AVG    5.7    0.12     0.03     13,232       12,333       25,565      
+
+======================================================================
+FINAL ITERATION DETAILS (used in Results)
+======================================================================
+
+--- EXP1 Pass 1 ---
+Run ID: exp1-20251216-233551-55f475
+Converged at iteration: 14
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.0000       0               $0.00       
+BANK_B     0.1510       2,510           $25.10      
+
+--- EXP1 Pass 2 ---
+Run ID: exp1-20251217-004551-624d09
+Converged at iteration: 5
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.7500       7,500           $75.00      
+BANK_B     0.1600       2,600           $26.00      
+
+--- EXP1 Pass 3 ---
+Run ID: exp1-20251217-011413-2cd7d6
+Converged at iteration: 5
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.0000       0               $0.00       
+BANK_B     0.1510       2,510           $25.10      
+
+--- EXP2 Pass 1 ---
+Run ID: exp2-20251217-000335-ea22b4
+Converged at iteration: 7
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.1650       16,440          $164.40     
+BANK_B     0.1100       13,085          $130.85     
+
+--- EXP2 Pass 2 ---
+Run ID: exp2-20251217-004554-22b7db
+Converged at iteration: 5
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.0800       8,144           $81.44      
+BANK_B     0.2000       19,920          $199.20     
+
+--- EXP2 Pass 3 ---
+Run ID: exp2-20251217-011415-de9091
+Converged at iteration: 7
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.0940       9,399           $93.99      
+BANK_B     0.1400       14,199          $141.99     
+
+--- EXP3 Pass 1 ---
+Run ID: exp3-20251217-001932-4e849a
+Converged at iteration: 7
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.1800       13,797          $137.97     
+BANK_B     0.1000       12,999          $129.99     
+
+--- EXP3 Pass 2 ---
+Run ID: exp3-20251217-004556-87f166
+Converged at iteration: 5
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.0000       12,000          $120.00     
+BANK_B     0.0000       12,000          $120.00     
+
+--- EXP3 Pass 3 ---
+Run ID: exp3-20251217-011418-aaeebc
+Converged at iteration: 5
+
+Agent      Liquidity    Cost (cents)    Cost ($)    
+--------------------------------------------------
+BANK_A     0.1900       13,899          $138.99     
+BANK_B     0.0000       12,000          $120.00     
+
+======================================================================
+BOOTSTRAP STATISTICS (Exp2/Exp3 - stochastic)
+======================================================================
+
+--- EXP2 Pass 1 Bootstrap Stats ---
+Agent      Mean         Std Dev      95% CI Lower   95% CI Upper   Samples 
+----------------------------------------------------------------------
+BANK_A     16,440       0            16,440         16,440         50      
+BANK_B     13,085       6,951        11,099         15,072         50      
+
+--- EXP2 Pass 2 Bootstrap Stats ---
+Agent      Mean         Std Dev      95% CI Lower   95% CI Upper   Samples 
+----------------------------------------------------------------------
+BANK_A     8,144        1,245        7,788          8,500          50      
+BANK_B     19,920       0            19,920         19,920         50      
+
+--- EXP2 Pass 3 Bootstrap Stats ---
+Agent      Mean         Std Dev      95% CI Lower   95% CI Upper   Samples 
+----------------------------------------------------------------------
+BANK_A     9,399        277          9,319          9,478          50      
+BANK_B     14,199       1,809        13,682         14,717         50      
+
+--- EXP3 Pass 1 Bootstrap Stats ---
+Agent      Mean         Std Dev      95% CI Lower   95% CI Upper   Samples 
+----------------------------------------------------------------------
+BANK_A     13,797       0            13,797         13,797         1       
+BANK_B     12,999       0            12,999         12,999         1       
+
+--- EXP3 Pass 2 Bootstrap Stats ---
+Agent      Mean         Std Dev      95% CI Lower   95% CI Upper   Samples 
+----------------------------------------------------------------------
+BANK_A     12,000       0            12,000         12,000         1       
+BANK_B     12,000       0            12,000         12,000         1       
+
+--- EXP3 Pass 3 Bootstrap Stats ---
+Agent      Mean         Std Dev      95% CI Lower   95% CI Upper   Samples 
+----------------------------------------------------------------------
+BANK_A     13,899       0            13,899         13,899         1       
+BANK_B     12,000       0            12,000         12,000         1       
