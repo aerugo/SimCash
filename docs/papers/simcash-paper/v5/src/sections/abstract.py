@@ -17,29 +17,27 @@ def generate_abstract(provider: DataProvider) -> str:
     Returns:
         LaTeX string for the abstract
     """
-    # Get convergence data to summarize results
-    exp1_convergence = provider.get_convergence_iteration("exp1", pass_num=1)
-    exp2_convergence = provider.get_convergence_iteration("exp2", pass_num=1)
-    exp3_convergence = provider.get_convergence_iteration("exp3", pass_num=1)
+    # Get convergence statistics across all experiments
+    exp1_stats = provider.get_convergence_statistics("exp1")
+    exp2_stats = provider.get_convergence_statistics("exp2")
+    exp3_stats = provider.get_convergence_statistics("exp3")
+
+    # Calculate overall average iterations
+    all_iterations = [exp1_stats["mean_iterations"], exp2_stats["mean_iterations"], exp3_stats["mean_iterations"]]
+    avg_iterations = sum(all_iterations) / len(all_iterations)
 
     return rf"""
 \begin{{abstract}}
-This paper presents SimCash, a multi-agent simulation framework for studying
-strategic liquidity management in real-time gross settlement (RTGS) payment systems.
-We employ reinforcement learning agents that adaptively adjust their intraday
-liquidity reserves based on observed costs and counterparty behavior.
-
-Through three experiments, we demonstrate that agents converge to game-theoretically
-predicted equilibria. In asymmetric scenarios, agents achieve convergence within
-{exp1_convergence} iterations, discovering free-rider equilibria where one bank provides
-liquidity while others minimize reserves. In stochastic environments requiring bootstrap
-evaluation ({exp2_convergence} iterations to convergence), agents exhibit robust learning
-despite cost variance. Symmetric scenarios with identical penalty structures lead to
-cooperative equilibria ({exp3_convergence} iterations).
-
-Our results validate the simulation framework's ability to reproduce theoretical
-predictions and provide insights into emergent strategic behavior in payment systems.
-The framework enables exploration of regulatory interventions and mechanism design
-for financial stability.
+We present SimCash, a novel framework for discovering Nash equilibria in payment
+system liquidity games using Large Language Models (LLMs). Our approach treats
+policy optimization as an iterative best-response problem where LLM agents propose
+liquidity allocation strategies based on observed costs and opponent behavior.
+Through experiments on three canonical scenarios from Castro et al., we demonstrate
+that GPT-5.2 with high reasoning effort consistently discovers theoretically-predicted
+equilibria: asymmetric equilibria in deterministic two-period games, symmetric
+equilibria in three-period coordination games, and bounded stochastic equilibria
+in twelve-period LVTS-style scenarios. Our results across 9 independent runs
+(3 passes $\times$ 3 experiments) show 100\% convergence success with an average
+of {avg_iterations:.1f} iterations to stability.
 \end{{abstract}}
 """

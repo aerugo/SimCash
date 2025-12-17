@@ -1,7 +1,10 @@
 """CLI for programmatic paper generation.
 
 Usage:
-    python -m src.cli --data-dir data/ --output-dir output/
+    python -m src.cli --config config.yaml --output-dir output/
+
+A config.yaml file is REQUIRED. The config explicitly maps experiment passes
+to specific run_ids, ensuring reproducible paper generation.
 """
 
 from __future__ import annotations
@@ -9,6 +12,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from src.config import load_config
 from src.paper_builder import build_paper
 
 
@@ -19,17 +23,19 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example:
-    python -m src.cli --data-dir data/ --output-dir output/
+    python -m src.cli --config config.yaml --output-dir output/
 
-This generates paper.tex and all charts from the experiment databases in data/.
+The config file specifies explicit run_ids for each experiment pass,
+ensuring reproducible paper generation. All referenced experiment runs
+must be completed before paper generation.
         """,
     )
 
     parser.add_argument(
-        "--data-dir",
+        "--config",
         type=Path,
         required=True,
-        help="Directory containing exp{1,2,3}.db database files",
+        help="Path to config.yaml with explicit run_id mappings (required)",
     )
 
     parser.add_argument(
@@ -47,10 +53,17 @@ This generates paper.tex and all charts from the experiment databases in data/.
 
     args = parser.parse_args()
 
+    # Load config (required)
+    config = load_config(args.config)
+
+    # Data dir is relative to config file location
+    data_dir = args.config.parent / "data"
+
     # Generate paper (with or without charts)
     tex_path = build_paper(
-        args.data_dir,
+        data_dir,
         args.output_dir,
+        config=config,
         generate_charts=not args.skip_charts,
     )
 

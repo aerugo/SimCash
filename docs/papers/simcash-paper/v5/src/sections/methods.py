@@ -17,82 +17,86 @@ def generate_methods(provider: DataProvider) -> str:
     Returns:
         LaTeX string for the methods section
     """
+    # Provider not used for static methods text
+    _ = provider
+
     return r"""
-\section{Framework and Methods}
+\section{The SimCash Framework}
 \label{sec:methods}
 
-This section describes the SimCash simulation framework, including the payment
-system model, cost structure, and reinforcement learning approach.
+\subsection{Simulation Engine}
 
-\subsection{Payment System Model}
-
-We model an RTGS system with $N$ banks (agents) processing payments over discrete
-time steps (ticks). Each bank $i$ maintains:
+SimCash uses a discrete-time simulation where:
 \begin{itemize}
-    \item \textbf{Balance} $b_i(t)$: Current settlement account balance
-    \item \textbf{Liquidity fraction} $\lambda_i \in [0,1]$: Proportion of assets
-    held as liquid reserves
-    \item \textbf{Payment queue} $Q_i(t)$: Pending outgoing payments awaiting settlement
+    \item Time proceeds in \textbf{ticks} (atomic time units)
+    \item Banks hold \textbf{balances} in settlement accounts
+    \item \textbf{Transactions} arrive with amounts, counterparties, and deadlines
+    \item Settlement follows RTGS (Real-Time Gross Settlement) rules
 \end{itemize}
 
-Payments arrive according to configurable arrival processes with specified amount
-distributions. Each payment has a deadline; payments settled after their deadline
-incur increased costs.
+\subsection{Cost Function}
 
-\subsection{Cost Structure}
-
-Bank $i$'s total cost comprises several components:
-
-\begin{equation}
-C_i = C_i^{hold} + C_i^{delay} + C_i^{deadline} + C_i^{EOD}
-\end{equation}
-
-where:
+Agent costs comprise:
 \begin{itemize}
-    \item $C_i^{hold}$: Opportunity cost of holding liquid reserves
-    \item $C_i^{delay}$: Per-tick delay cost for queued payments
-    \item $C_i^{deadline}$: Penalty when payments become overdue
-    \item $C_i^{EOD}$: End-of-day penalty for unsettled payments
+    \item \textbf{Liquidity opportunity cost}: Proportional to allocated reserves
+    \item \textbf{Delay penalty}: Accumulated per tick for pending transactions
+    \item \textbf{Deadline penalty}: Incurred when transactions become overdue
+    \item \textbf{End-of-day penalty}: Large cost for unsettled transactions at day end
 \end{itemize}
 
-The specific parameterization varies by experiment to create different strategic
-incentives (asymmetric vs. symmetric).
+\subsection{LLM Policy Optimization}
 
-\subsection{Settlement Mechanisms}
-
-The simulation supports two settlement modes:
-\begin{enumerate}
-    \item \textbf{RTGS}: Immediate gross settlement when sender has sufficient balance
-    \item \textbf{LSM}: Liquidity-saving mechanism that identifies bilateral and
-    multilateral netting opportunities to reduce liquidity requirements
-\end{enumerate}
-
-\subsection{Reinforcement Learning Agents}
-
-Each agent learns a policy $\pi_i(\lambda | s)$ mapping observations to liquidity
-fraction choices. We use a policy gradient approach where agents:
+The key innovation is using LLMs to propose policy parameters. At each iteration:
 
 \begin{enumerate}
-    \item Observe end-of-period costs and counterparty behavior
-    \item Update policy parameters via gradient descent on expected cost
-    \item Propose new liquidity fractions for the next iteration
+    \item \textbf{Context Construction}: Current policy, recent costs, opponent summary
+    \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
+    \item \textbf{Paired Evaluation}: Run sandboxed simulations with proposed vs. current policy
+    \item \textbf{Acceptance Decision}: Accept if cost improves (cost delta $> 0$)
+    \item \textbf{Convergence Check}: Stable for 5 consecutive iterations
 \end{enumerate}
 
-The learning process continues until policy changes fall below a convergence
-threshold or a maximum iteration count is reached.
+\subsection{Evaluation Modes}
 
-\subsection{Experimental Design}
+\begin{itemize}
+    \item \textbf{Deterministic}: Single simulation per evaluation (fixed payments)
+    \item \textbf{Bootstrap}: 50 resampled transaction histories (stochastic payments)
+\end{itemize}
 
-We conduct three experiments with varying parameters:
+\subsection{Experimental Setup}
 
-\begin{description}
-    \item[Experiment 1 (Asymmetric)] Different delay costs create incentive for
-    free-riding behavior
-    \item[Experiment 2 (Stochastic)] Transaction amounts drawn from distributions
-    require bootstrap evaluation
-    \item[Experiment 3 (Symmetric)] Identical cost structures encourage cooperative
-    equilibrium
-\end{description}
+We implement three canonical scenarios:
 
-Each experiment runs multiple passes to verify reproducibility of convergence.
+\textbf{Experiment 1: 2-Period Deterministic}
+\begin{itemize}
+    \item 2 ticks per day
+    \item Fixed payment arrivals at tick 0: BANK\_A sends 0.2, BANK\_B sends 0.2
+    \item Expected equilibrium: Asymmetric (A=0\%, B=20\%)
+\end{itemize}
+
+\textbf{Experiment 2: 12-Period Stochastic}
+\begin{itemize}
+    \item 12 ticks per day
+    \item Poisson arrivals ($\lambda$=0.5/tick), LogNormal amounts
+    \item Expected equilibrium: Both agents in 10-30\% range
+\end{itemize}
+
+\textbf{Experiment 3: 3-Period Symmetric}
+\begin{itemize}
+    \item 3 ticks per day
+    \item Fixed symmetric payment demands (0.2, 0.2, 0)
+    \item Expected equilibrium: Symmetric ($\sim$20\%)
+\end{itemize}
+
+\subsection{LLM Configuration}
+
+\begin{itemize}
+    \item Model: \texttt{openai:gpt-5.2}
+    \item Reasoning effort: \texttt{high}
+    \item Temperature: 0.5
+    \item Convergence: 5-iteration stability window, 5\% threshold
+\end{itemize}
+
+Each experiment run 3 times (passes) with identical configurations to assess
+convergence reliability.
 """

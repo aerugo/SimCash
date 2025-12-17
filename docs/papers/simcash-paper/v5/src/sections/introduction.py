@@ -17,51 +17,33 @@ def generate_introduction(provider: DataProvider) -> str:
     Returns:
         LaTeX string for the introduction section
     """
+    # Provider not used for static introduction text, but kept for consistency
+    _ = provider
+
     return r"""
 \section{Introduction}
 
-Real-time gross settlement (RTGS) systems form the backbone of modern financial
-infrastructure, processing trillions of dollars in interbank payments daily.
-Banks participating in these systems face a fundamental tension: holding sufficient
-liquidity reserves ensures timely settlement but incurs opportunity costs, while
-minimizing reserves risks settlement delays and penalty fees.
+Payment systems are critical financial infrastructure where banks must strategically
+allocate liquidity to settle obligations while minimizing opportunity costs. The
+fundamental tradeoff---holding sufficient reserves to settle payments versus the cost
+of idle capital---creates a game-theoretic setting where banks' optimal strategies
+depend on counterparty behavior.
 
-This strategic interdependence creates a complex multi-agent environment where each
-bank's optimal liquidity strategy depends on the behavior of others. Game-theoretic
-analysis predicts various equilibria depending on system parameters, but validating
-these predictions empirically has remained challenging due to the opacity of real-world
-payment systems and the difficulty of conducting controlled experiments.
-
-We address this gap by developing SimCash, a multi-agent simulation framework that
-models RTGS payment dynamics with reinforcement learning agents. Our framework enables
-controlled experiments to study how strategic agents learn to manage liquidity under
-various cost structures and information conditions.
+Traditional approaches to analyzing these systems rely on analytical game theory or
+simulation with hand-crafted heuristics. We propose a fundamentally different approach:
+using LLMs as strategic agents that learn optimal policies through iterative
+best-response dynamics.
 
 \subsection{Contributions}
 
-This paper makes the following contributions:
-
 \begin{enumerate}
-    \item \textbf{Simulation Framework}: We present SimCash, an open-source payment
-    system simulator with configurable cost structures, transaction patterns, and
-    settlement mechanisms including liquidity-saving mechanisms (LSM).
-
-    \item \textbf{Learning Agents}: We implement adaptive agents using policy gradient
-    methods that learn liquidity strategies through repeated interaction, demonstrating
-    convergence to game-theoretic equilibria.
-
-    \item \textbf{Experimental Validation}: Through three experiments with varying
-    asymmetry and stochasticity, we show that learned strategies match theoretical
-    predictions, including free-rider equilibria and cooperative outcomes.
-
-    \item \textbf{Methodological Contribution}: We introduce bootstrap evaluation
-    for stochastic scenarios, enabling statistically rigorous comparison of agent
-    strategies under cost variance.
+    \item \textbf{SimCash Framework}: A hybrid Rust-Python simulator with LLM-based
+    policy optimization
+    \item \textbf{Empirical Validation}: Successful recovery of Castro et al.'s
+    theoretical equilibria
+    \item \textbf{Reproducibility Analysis}: 9 independent runs demonstrating consistent
+    convergence
+    \item \textbf{Bootstrap Evaluation}: Methodology for handling stochastic payment
+    arrivals
 \end{enumerate}
-
-The remainder of this paper is organized as follows: Section~\ref{sec:methods}
-describes the simulation framework and learning algorithm. Section~\ref{sec:results}
-presents experimental results across three scenarios. Section~\ref{sec:discussion}
-discusses implications and limitations. Section~\ref{sec:conclusion} concludes
-with directions for future work.
 """

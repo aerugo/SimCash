@@ -4,19 +4,59 @@ This directory contains a fully programmatic paper generation system that elimin
 
 ## Quick Start
 
+**A `config.yaml` file is REQUIRED** for paper generation. The config explicitly maps experiment passes to specific run_ids, ensuring reproducible paper generation and preventing issues with database ordering or incomplete experiment runs.
+
 ```bash
 cd docs/papers/simcash-paper/v5
 
-# Generate paper.tex
-python -m src.cli --data-dir data/ --output-dir output/
+# Generate paper.tex (config.yaml is required)
+python -m src.cli --config config.yaml --output-dir output/
 
 # Or via Python API
 python -c "
 from pathlib import Path
+from src.config import load_config
 from src.paper_builder import build_paper
-build_paper(Path('data/'), Path('output/'))
+config = load_config(Path('config.yaml'))
+build_paper(Path('data/'), Path('output/'), config=config)
 "
 ```
+
+## Config File
+
+The `config.yaml` file specifies:
+- Database paths for each experiment
+- Explicit run_id mappings for each experiment pass
+- Output configuration
+
+Example:
+```yaml
+databases:
+  exp1: data/exp1.db
+  exp2: data/exp2.db
+  exp3: data/exp3.db
+
+experiments:
+  exp1:
+    name: "2-Period Deterministic Nash Equilibrium"
+    passes:
+      1: "exp1-20251216-233551-55f475"
+      2: "exp1-20251217-004551-624d09"
+      3: "exp1-20251217-011413-2cd7d6"
+  # ... etc
+
+output:
+  paper_filename: paper.tex
+  charts_dir: charts
+```
+
+### Validation
+
+Before paper generation, the system validates that:
+1. All run_ids in the config exist in the database
+2. All referenced experiment runs have completed (have a `completed_at` timestamp)
+
+If validation fails, you'll see a clear error message listing which runs are incomplete or missing.
 
 ## Architecture
 
@@ -58,14 +98,18 @@ build_paper(Path('data/'), Path('output/'))
 
 ```
 v5/
-├── data/                    # Experiment databases (gitignored)
+├── config.yaml              # REQUIRED: Run_id mappings for reproducibility
+├── data/                    # Experiment databases
 │   ├── exp1.db
 │   ├── exp2.db
 │   └── exp3.db
-├── output/                  # Generated files (gitignored)
-│   └── paper.tex
+├── output/                  # Generated files
+│   ├── paper.tex
+│   ├── paper.pdf
+│   └── charts/              # Generated charts
 ├── src/                     # Python source
 │   ├── cli.py               # CLI entry point
+│   ├── config.py            # Config loader and validation
 │   ├── paper_builder.py     # Main composition logic
 │   ├── data_provider.py     # DataProvider protocol + DB implementation
 │   ├── sections/            # Section generators
@@ -80,15 +124,16 @@ v5/
 │   │   ├── formatting.py    # format_money, format_percent
 │   │   ├── tables.py        # Table generators
 │   │   └── figures.py       # Figure inclusion
-│   └── charts/              # Chart path resolution
-│       └── __init__.py
-└── tests/                   # Test suite (118 tests)
+│   └── charts/              # Chart generators
+│       └── generators.py
+└── tests/                   # Test suite
     ├── test_data_provider.py
     ├── test_latex_formatting.py
     ├── test_sections.py
     ├── test_paper_builder.py
     ├── test_figures.py
     ├── test_real_data_integration.py
+    ├── test_config.py
     └── test_cli.py
 ```
 
