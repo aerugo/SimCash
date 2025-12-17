@@ -55,6 +55,17 @@
 - Exp2 agents correctly return DIFFERENT costs (bug fix verified)
 - Database values differ from v4 paper (may need to regenerate experiments or paper was reporting incorrectly)
 
+### Phase 2: LaTeX Components
+**Status**: Complete
+**Started**: 2025-12-17
+**Completed**: 2025-12-17
+
+#### Results
+- Created `src/latex/formatting.py` with format_money, format_percent, format_ci, format_table_row
+- Created `src/latex/tables.py` with generate_iteration_table, generate_bootstrap_table
+- 20 new tests (49 total), all passing
+- mypy and ruff pass with no issues
+
 ---
 
 ## Key Decisions
