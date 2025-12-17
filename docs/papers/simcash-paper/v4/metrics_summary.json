@@ -1,0 +1,224 @@
+{
+  "exp1": {
+    "pass1": {
+      "run_id": "exp1-20251216-233551-55f475",
+      "num_iterations": 16,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_A": {
+          "final_cost_cents": 0,
+          "final_cost_dollars": 0.0,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.0
+        },
+        "BANK_B": {
+          "final_cost_cents": 2000,
+          "final_cost_dollars": 20.0,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        }
+      }
+    },
+    "pass2": {
+      "run_id": "exp1-20251217-004551-624d09",
+      "num_iterations": 7,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_A": {
+          "final_cost_cents": 0,
+          "final_cost_dollars": 0.0,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.0
+        },
+        "BANK_B": {
+          "final_cost_cents": 2000,
+          "final_cost_dollars": 20.0,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        }
+      }
+    },
+    "pass3": {
+      "run_id": "exp1-20251217-011413-2cd7d6",
+      "num_iterations": 7,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_A": {
+          "final_cost_cents": 0,
+          "final_cost_dollars": 0.0,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.0
+        },
+        "BANK_B": {
+          "final_cost_cents": 2000,
+          "final_cost_dollars": 20.0,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        }
+      }
+    }
+  },
+  "exp2": {
+    "pass1": {
+      "run_id": "exp2-20251217-000335-ea22b4",
+      "num_iterations": 9,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_A": {
+          "final_cost_cents": 15205,
+          "final_cost_dollars": 152.05,
+          "settlement_rate": null,
+          "confidence_interval_95": [
+            16440,
+            16440
+          ],
+          "initial_liquidity_fraction": 0.165
+        },
+        "BANK_B": {
+          "final_cost_cents": 15205,
+          "final_cost_dollars": 152.05,
+          "settlement_rate": null,
+          "confidence_interval_95": [
+            11339,
+            14051
+          ],
+          "initial_liquidity_fraction": 0.115
+        }
+      }
+    },
+    "pass2": {
+      "run_id": "exp2-20251217-004554-22b7db",
+      "num_iterations": 7,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_A": {
+          "final_cost_cents": 28529,
+          "final_cost_dollars": 285.29,
+          "settlement_rate": null,
+          "confidence_interval_95": [
+            4894,
+            8222
+          ],
+          "initial_liquidity_fraction": 0.05
+        },
+        "BANK_B": {
+          "final_cost_cents": 28529,
+          "final_cost_dollars": 285.29,
+          "settlement_rate": null,
+          "confidence_interval_95": [
+            7336,
+            27086
+          ],
+          "initial_liquidity_fraction": 0.1
+        }
+      }
+    },
+    "pass3": {
+      "run_id": "exp2-20251217-011415-de9091",
+      "num_iterations": 9,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_A": {
+          "final_cost_cents": 14980,
+          "final_cost_dollars": 149.8,
+          "settlement_rate": null,
+          "confidence_interval_95": [
+            9127,
+            9286
+          ],
+          "initial_liquidity_fraction": 0.092
+        },
+        "BANK_B": {
+          "final_cost_cents": 14980,
+          "final_cost_dollars": 149.8,
+          "settlement_rate": null,
+          "confidence_interval_95": [
+            11761,
+            13893
+          ],
+          "initial_liquidity_fraction": 0.12
+        }
+      }
+    }
+  },
+  "exp3": {
+    "pass1": {
+      "run_id": "exp3-20251217-001932-4e849a",
+      "num_iterations": 9,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_A": {
+          "final_cost_cents": 1998,
+          "final_cost_dollars": 19.98,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        },
+        "BANK_B": {
+          "final_cost_cents": 1998,
+          "final_cost_dollars": 19.98,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        }
+      }
+    },
+    "pass2": {
+      "run_id": "exp3-20251217-004556-87f166",
+      "num_iterations": 7,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_B": {
+          "final_cost_cents": 1998,
+          "final_cost_dollars": 19.98,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        },
+        "BANK_A": {
+          "final_cost_cents": 1998,
+          "final_cost_dollars": 19.98,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        }
+      }
+    },
+    "pass3": {
+      "run_id": "exp3-20251217-011418-aaeebc",
+      "num_iterations": 7,
+      "converged": true,
+      "convergence_reason": "Stability achieved (5 consecutive stable iterations)",
+      "agents": {
+        "BANK_A": {
+          "final_cost_cents": 1998,
+          "final_cost_dollars": 19.98,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        },
+        "BANK_B": {
+          "final_cost_cents": 1998,
+          "final_cost_dollars": 19.98,
+          "settlement_rate": 1.0,
+          "confidence_interval_95": null,
+          "initial_liquidity_fraction": 0.2
+        }
+      }
+    }
+  }
+}
