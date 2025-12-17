@@ -562,26 +562,37 @@ class DatabaseDataProvider:
     def get_pass_summary(self, exp_id: str, pass_num: int) -> PassSummary:
         """Get summary of results for one experiment pass.
 
+        Returns the FINAL ACCEPTED state for each agent, not the final proposed
+        values which may have been rejected.
+
         Args:
             exp_id: Experiment identifier
             pass_num: Pass number
 
         Returns:
-            PassSummary with final iteration stats
+            PassSummary with final accepted state for each agent
         """
-        # Get final iteration results
+        # Get total iterations for context
         final_iter = self.get_convergence_iteration(exp_id, pass_num)
         results = self.get_iteration_results(exp_id, pass_num)
 
-        # Filter to final iteration
-        final_results = [r for r in results if r["iteration"] == final_iter]
+        # Find the last ACCEPTED policy for each agent
+        # This is the actual final state, not just the last proposal
+        bank_a_accepted = [
+            r for r in results if r["agent_id"] == "BANK_A" and r["accepted"]
+        ]
+        bank_b_accepted = [
+            r for r in results if r["agent_id"] == "BANK_B" and r["accepted"]
+        ]
 
-        # Get per-agent values
-        bank_a = next((r for r in final_results if r["agent_id"] == "BANK_A"), None)
-        bank_b = next((r for r in final_results if r["agent_id"] == "BANK_B"), None)
+        if not bank_a_accepted or not bank_b_accepted:
+            raise ValueError(
+                f"No accepted policies found for {exp_id} pass {pass_num}"
+            )
 
-        if bank_a is None or bank_b is None:
-            raise ValueError(f"Missing agent data for {exp_id} pass {pass_num}")
+        # Get the last accepted iteration for each agent
+        bank_a = max(bank_a_accepted, key=lambda r: r["iteration"])
+        bank_b = max(bank_b_accepted, key=lambda r: r["iteration"])
 
         return PassSummary(
             pass_num=pass_num,
