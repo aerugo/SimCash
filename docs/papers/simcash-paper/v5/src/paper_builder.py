@@ -3,10 +3,16 @@
 This module provides functions for generating the complete paper from
 experiment data via the DataProvider protocol.
 
+A config.yaml file is REQUIRED for paper generation to ensure reproducible
+run_id selection. The config explicitly maps experiment passes to specific
+run_ids, preventing issues with database ordering or incomplete runs.
+
 Example:
     >>> from pathlib import Path
+    >>> from src.config import load_config
     >>> from src.paper_builder import build_paper
-    >>> tex_path = build_paper(Path("data/"), Path("output/"))
+    >>> config = load_config(Path("config.yaml"))
+    >>> tex_path = build_paper(Path("data/"), Path("output/"), config=config)
 """
 
 from __future__ import annotations
@@ -150,22 +156,24 @@ def generate_paper(
 def build_paper(
     data_dir: Path,
     output_dir: Path,
+    config: dict,
     sections: list[SectionGenerator] | None = None,
     generate_charts: bool = True,
-    config: dict | None = None,
 ) -> Path:
     """Build complete paper from experiment databases.
 
     This is the main entry point for paper generation. It creates a
     DatabaseDataProvider from the data directory and generates the paper.
 
+    A config file is REQUIRED to ensure reproducible paper generation.
+    The config explicitly maps experiment passes to specific run_ids.
+
     Args:
         data_dir: Directory containing exp{1,2,3}.db files
         output_dir: Directory for output files (created if needed)
+        config: Paper config with explicit run_id mappings (required)
         sections: Optional list of section generators
         generate_charts: Whether to generate chart images (default: True)
-        config: Optional paper config with explicit run_id mappings.
-                When provided, ensures reproducible paper generation.
 
     Returns:
         Path to generated .tex file
@@ -178,17 +186,16 @@ def build_paper(
     Example:
         >>> from pathlib import Path
         >>> from src.config import load_config
-        >>> config = load_config()
+        >>> config = load_config(Path("config.yaml"))
         >>> tex_path = build_paper(Path("data/"), Path("output/"), config=config)
         >>> print(f"Paper generated at: {tex_path}")
     """
-    # Validate all experiment runs are completed when using config
-    if config is not None:
-        from src.config import validate_runs_completed
+    from src.config import validate_runs_completed
 
-        # base_dir is parent of data_dir (data_dir is v5/data, base_dir is v5)
-        base_dir = data_dir.parent
-        validate_runs_completed(config, base_dir)
+    # Validate all experiment runs are completed
+    # base_dir is parent of data_dir (data_dir is v5/data, base_dir is v5)
+    base_dir = data_dir.parent
+    validate_runs_completed(config, base_dir)
 
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -196,7 +203,7 @@ def build_paper(
     # Generate charts if requested
     if generate_charts:
         charts_dir = output_dir / "charts"
-        generate_all_paper_charts(data_dir, charts_dir, config=config)
+        generate_all_paper_charts(data_dir, charts_dir, config)
 
     # Create data provider with config for explicit run_id lookup
     provider = DatabaseDataProvider(data_dir, config=config)

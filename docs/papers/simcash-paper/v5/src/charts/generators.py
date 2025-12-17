@@ -44,57 +44,28 @@ def _get_run_id_for_pass(
     db_path: Path,
     exp_id: str,
     pass_num: int,
-    config: dict | None = None,
+    config: dict,
 ) -> str:
-    """Get run_id for a specific experiment pass.
-
-    If config is provided, uses explicit run_id from config.
-    Otherwise falls back to inferring from database (selecting runs
-    that have data, ordered by created_at).
+    """Get run_id for a specific experiment pass from config.
 
     Args:
-        db_path: Path to experiment database
+        db_path: Path to experiment database (unused, kept for API compatibility)
         exp_id: Experiment identifier (exp1, exp2, exp3)
         pass_num: Pass number (1, 2, or 3)
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         Run ID string
 
     Raises:
-        ValueError: If pass not found
         KeyError: If exp_id or pass_num not in config
     """
-    if config is not None:
-        # Use explicit run_id from config
-        from src.config import get_run_id as config_get_run_id
+    # db_path kept for API compatibility but not used
+    _ = db_path
 
-        return config_get_run_id(config, exp_id, pass_num)
+    from src.config import get_run_id as config_get_run_id
 
-    # Fallback: infer from database (only runs with data)
-    conn = duckdb.connect(str(db_path), read_only=True)
-    try:
-        result = conn.execute(
-            """
-            SELECT DISTINCT pe.run_id
-            FROM policy_evaluations pe
-            JOIN experiments e ON pe.run_id = e.run_id
-            WHERE e.experiment_name = ?
-            ORDER BY e.created_at
-            """,
-            [exp_id],
-        ).fetchall()
-
-        run_ids = [r[0] for r in result]
-
-        if pass_num < 1 or pass_num > len(run_ids):
-            raise ValueError(
-                f"Pass {pass_num} not found for {exp_id}. Available: 1-{len(run_ids)}"
-            )
-
-        return run_ids[pass_num - 1]
-    finally:
-        conn.close()
+    return config_get_run_id(config, exp_id, pass_num)
 
 
 def generate_convergence_chart(
@@ -103,7 +74,7 @@ def generate_convergence_chart(
     pass_num: int,
     agent_id: str,
     output_path: Path,
-    config: dict | None = None,
+    config: dict,
 ) -> Path:
     """Generate convergence chart for a single agent.
 
@@ -115,7 +86,7 @@ def generate_convergence_chart(
         pass_num: Pass number (1, 2, or 3)
         agent_id: Agent to chart ("BANK_A" or "BANK_B")
         output_path: Where to save the chart
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         Path to generated chart
@@ -142,7 +113,7 @@ def generate_combined_convergence_chart(
     exp_id: str,
     pass_num: int,
     output_path: Path,
-    config: dict | None = None,
+    config: dict,
 ) -> Path:
     """Generate combined convergence chart showing both agents.
 
@@ -153,7 +124,7 @@ def generate_combined_convergence_chart(
         exp_id: Experiment identifier
         pass_num: Pass number
         output_path: Where to save the chart
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         Path to generated chart
@@ -224,7 +195,7 @@ def generate_experiment_charts(
     exp_id: str,
     pass_num: int,
     output_dir: Path,
-    config: dict | None = None,
+    config: dict,
 ) -> dict[str, Path]:
     """Generate all charts for an experiment pass.
 
@@ -236,7 +207,7 @@ def generate_experiment_charts(
         exp_id: Experiment identifier
         pass_num: Pass number
         output_dir: Directory for output files (flat structure)
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         Dict mapping chart type to path
@@ -285,7 +256,7 @@ def _get_bootstrap_data(
     db_path: Path,
     exp_id: str,
     pass_num: int,
-    config: dict | None = None,
+    config: dict,
 ) -> list[dict[str, Any]]:
     """Get bootstrap evaluation data from policy_evaluations table.
 
@@ -293,7 +264,7 @@ def _get_bootstrap_data(
         db_path: Path to database
         exp_id: Experiment identifier
         pass_num: Pass number
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         List of evaluation records with bootstrap stats
@@ -342,7 +313,7 @@ def generate_ci_width_chart(
     exp_id: str,
     pass_num: int,
     output_path: Path,
-    config: dict | None = None,
+    config: dict,
 ) -> Path:
     """Generate chart comparing confidence interval widths across iterations.
 
@@ -353,7 +324,7 @@ def generate_ci_width_chart(
         exp_id: Experiment identifier
         pass_num: Pass number
         output_path: Where to save chart
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         Path to generated chart
@@ -426,7 +397,7 @@ def generate_variance_evolution_chart(
     exp_id: str,
     pass_num: int,
     output_path: Path,
-    config: dict | None = None,
+    config: dict,
 ) -> Path:
     """Generate chart showing cost variance (std dev) over iterations.
 
@@ -435,7 +406,7 @@ def generate_variance_evolution_chart(
         exp_id: Experiment identifier
         pass_num: Pass number
         output_path: Where to save chart
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         Path to generated chart
@@ -495,7 +466,7 @@ def generate_sample_distribution_chart(
     exp_id: str,
     pass_num: int,
     output_path: Path,
-    config: dict | None = None,
+    config: dict,
 ) -> Path:
     """Generate histogram of sample distribution for final iteration.
 
@@ -506,7 +477,7 @@ def generate_sample_distribution_chart(
         exp_id: Experiment identifier
         pass_num: Pass number
         output_path: Where to save chart
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         Path to generated chart
@@ -578,7 +549,7 @@ def generate_sample_distribution_chart(
 def generate_all_paper_charts(
     data_dir: Path,
     output_dir: Path,
-    config: dict | None = None,
+    config: dict,
 ) -> dict[str, dict[int, dict[str, Path]]]:
     """Generate all charts needed for the paper.
 
@@ -597,7 +568,7 @@ def generate_all_paper_charts(
     Args:
         data_dir: Directory containing exp{1,2,3}.db
         output_dir: Directory for output charts
-        config: Optional paper config with explicit run_id mappings
+        config: Paper config with explicit run_id mappings (required)
 
     Returns:
         Nested dict: {exp_id: {pass_num: {chart_type: path}}}
@@ -606,13 +577,9 @@ def generate_all_paper_charts(
 
     result: dict[str, dict[int, dict[str, Path]]] = {}
 
-    # Determine experiments and passes from config or default
-    if config is not None:
-        from src.config import get_experiment_ids, get_pass_numbers
+    from src.config import get_experiment_ids, get_pass_numbers
 
-        exp_ids = get_experiment_ids(config)
-    else:
-        exp_ids = ["exp1", "exp2", "exp3"]
+    exp_ids = get_experiment_ids(config)
 
     for exp_id in exp_ids:
         db_path = data_dir / f"{exp_id}.db"
@@ -620,13 +587,7 @@ def generate_all_paper_charts(
             continue
 
         result[exp_id] = {}
-
-        if config is not None:
-            from src.config import get_pass_numbers
-
-            pass_nums = get_pass_numbers(config, exp_id)
-        else:
-            pass_nums = [1, 2, 3]
+        pass_nums = get_pass_numbers(config, exp_id)
 
         for pass_num in pass_nums:
             try:

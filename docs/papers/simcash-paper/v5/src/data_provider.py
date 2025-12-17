@@ -6,8 +6,13 @@ for accessing experiment data from DuckDB databases.
 All paper values must flow through this interface to ensure consistency.
 This is the single source of truth for experiment data.
 
+A config.yaml file is REQUIRED for DatabaseDataProvider to ensure reproducible
+run_id selection. The config explicitly maps experiment passes to specific run_ids.
+
 Example:
-    >>> provider = DatabaseDataProvider(Path("data/"))
+    >>> from src.config import load_config
+    >>> config = load_config(Path("config.yaml"))
+    >>> provider = DatabaseDataProvider(Path("data/"), config=config)
     >>> results = provider.get_iteration_results("exp1", pass_num=1)
     >>> for r in results:
     ...     print(f"Iter {r['iteration']}: {r['agent_id']} cost={r['cost']} cents")
@@ -235,13 +240,13 @@ class DatabaseDataProvider:
     Reads experiment data from {exp_id}.db files in the data directory.
     Each database contains a policy_evaluations table with iteration results.
 
-    When a config is provided, run_ids are looked up from the config file
-    instead of being inferred from database ordering. This ensures reproducible
-    paper generation.
+    A config file is REQUIRED. Run_ids are looked up from the config file
+    which explicitly maps experiment passes to specific run_ids. This ensures
+    reproducible paper generation and prevents issues with database ordering.
 
     Example:
         >>> from src.config import load_config
-        >>> config = load_config()
+        >>> config = load_config(Path("config.yaml"))
         >>> provider = DatabaseDataProvider(Path("data/"), config=config)
         >>> results = provider.get_iteration_results("exp1", pass_num=1)
         >>> assert results[0]["cost"] >= 0  # Cost in cents
@@ -250,15 +255,15 @@ class DatabaseDataProvider:
     def __init__(
         self,
         data_dir: Path,
-        config: dict | None = None,
+        config: dict,
     ) -> None:
         """Initialize with directory containing exp{1,2,3}.db files.
 
+        A config file is REQUIRED to ensure reproducible run_id selection.
+
         Args:
             data_dir: Path to directory with database files
-            config: Optional paper config with explicit run_id mappings.
-                    If provided, run_ids are looked up from config instead
-                    of being inferred from database.
+            config: Paper config with explicit run_id mappings (required)
         """
         self._data_dir = data_dir
         self._config = config
@@ -290,11 +295,7 @@ class DatabaseDataProvider:
         return duckdb.connect(str(db_path), read_only=True)
 
     def get_run_id(self, exp_id: str, pass_num: int) -> str:
-        """Get run_id for experiment pass (cached).
-
-        If config was provided, uses explicit run_id from config.
-        Otherwise falls back to inferring from database (selecting runs
-        that have data, ordered by created_at).
+        """Get run_id for experiment pass from config (cached).
 
         Args:
             exp_id: Experiment identifier
@@ -304,40 +305,15 @@ class DatabaseDataProvider:
             Run ID string
 
         Raises:
-            ValueError: If pass_num exceeds available passes
             KeyError: If exp_id or pass_num not in config
         """
         cache_key = (exp_id, pass_num)
         if cache_key not in self._run_id_cache:
-            if self._config is not None:
-                # Use explicit run_id from config
-                from src.config import get_run_id as config_get_run_id
+            from src.config import get_run_id as config_get_run_id
 
-                self._run_id_cache[cache_key] = config_get_run_id(
-                    self._config, exp_id, pass_num
-                )
-            else:
-                # Fallback: infer from database (only runs with data)
-                conn = self._get_connection(exp_id)
-                result = conn.execute(
-                    """
-                    SELECT DISTINCT pe.run_id
-                    FROM policy_evaluations pe
-                    JOIN experiments e ON pe.run_id = e.run_id
-                    WHERE e.experiment_name = ?
-                    ORDER BY e.created_at
-                    """,
-                    [exp_id],
-                ).fetchall()
-
-                run_ids = [r[0] for r in result]
-                if pass_num < 1 or pass_num > len(run_ids):
-                    raise ValueError(
-                        f"Pass {pass_num} not found for {exp_id}. "
-                        f"Available passes: 1-{len(run_ids)}"
-                    )
-
-                self._run_id_cache[cache_key] = run_ids[pass_num - 1]
+            self._run_id_cache[cache_key] = config_get_run_id(
+                self._config, exp_id, pass_num
+            )
 
         return self._run_id_cache[cache_key]
 

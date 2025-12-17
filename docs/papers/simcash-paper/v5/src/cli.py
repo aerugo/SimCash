@@ -1,8 +1,10 @@
 """CLI for programmatic paper generation.
 
 Usage:
-    python -m src.cli --data-dir data/ --output-dir output/
     python -m src.cli --config config.yaml --output-dir output/
+
+A config.yaml file is REQUIRED. The config explicitly maps experiment passes
+to specific run_ids, ensuring reproducible paper generation.
 """
 
 from __future__ import annotations
@@ -20,28 +22,20 @@ def main() -> None:
         description="Generate SimCash paper from experiment databases",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-    # Using config file (recommended):
+Example:
     python -m src.cli --config config.yaml --output-dir output/
 
-    # Legacy mode (infers run_ids from database):
-    python -m src.cli --data-dir data/ --output-dir output/
-
 The config file specifies explicit run_ids for each experiment pass,
-ensuring reproducible paper generation regardless of database contents.
+ensuring reproducible paper generation. All referenced experiment runs
+must be completed before paper generation.
         """,
     )
 
     parser.add_argument(
         "--config",
         type=Path,
-        help="Path to config.yaml with explicit run_id mappings (recommended)",
-    )
-
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        help="Directory containing exp{1,2,3}.db database files (legacy mode)",
+        required=True,
+        help="Path to config.yaml with explicit run_id mappings (required)",
     )
 
     parser.add_argument(
@@ -59,23 +53,18 @@ ensuring reproducible paper generation regardless of database contents.
 
     args = parser.parse_args()
 
-    # Determine data_dir and config
-    config = None
-    if args.config:
-        config = load_config(args.config)
-        # Data dir is relative to config file location
-        data_dir = args.config.parent / "data"
-    elif args.data_dir:
-        data_dir = args.data_dir
-    else:
-        parser.error("Either --config or --data-dir must be specified")
+    # Load config (required)
+    config = load_config(args.config)
+
+    # Data dir is relative to config file location
+    data_dir = args.config.parent / "data"
 
     # Generate paper (with or without charts)
     tex_path = build_paper(
         data_dir,
         args.output_dir,
-        generate_charts=not args.skip_charts,
         config=config,
+        generate_charts=not args.skip_charts,
     )
 
     print(f"Generated: {tex_path}")
