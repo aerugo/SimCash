@@ -141,6 +141,62 @@ This scenario tests the LLM's ability to coordinate on a symmetric solution when
 
 Average convergence in 8.7 iterations demonstrates efficient equilibrium discovery across diverse scenarios.
 
+### 5.5 Representative Convergence Examples
+
+This section presents convergence charts for three representative experiments that best illustrate the method's behavior. Each figure shows per-agent cost and policy evolution.
+
+#### Example 1: Gradual Free-Rider Discovery (Exp1 Pass 1)
+
+This 16-iteration run demonstrates the LLM's exploratory approach to discovering the asymmetric equilibrium.
+
+**Figure 1a: BANK_A Cost & Policy Evolution (Exp1 Pass 1)**
+![BANK_A Convergence](charts/pass1/exp1_bankA.png)
+
+BANK_A gradually reduces its liquidity allocation from 50% through intermediate values (20%, 15%, 12%, 8%, 6%, 4%, 3.5%, 3%, 2.5%) before reaching 0% at iteration 10. Each reduction is validated by observing that settlement still succeeds due to BANK_B's liquidity provision. The cost drops from $50 to $0 as liquidity opportunity cost is eliminated.
+
+**Figure 1b: BANK_B Cost & Policy Evolution (Exp1 Pass 1)**
+![BANK_B Convergence](charts/pass1/exp1_bankB.png)
+
+BANK_B converges quickly to 20% by iteration 2 and remains stable. Unlike BANK_A, BANK_B cannot reduce further because it must maintain sufficient liquidity to initiate settlement. The $20 cost represents the irreducible liquidity opportunity cost for the "liquidity provider" role.
+
+**Key Insight**: The asymmetric convergence paths—BANK_A exploring while BANK_B stabilizes early—demonstrate how best-response dynamics naturally discover the free-rider equilibrium.
+
+---
+
+#### Example 2: Immediate Equilibrium Recognition (Exp1 Pass 2)
+
+In contrast to Pass 1, this run shows the LLM immediately recognizing the optimal strategy.
+
+**Figure 2a: BANK_A Cost & Policy Evolution (Exp1 Pass 2)**
+![BANK_A Convergence](charts/pass2/exp1_bankA.png)
+
+BANK_A jumps directly from 50% to 0% in iteration 1, demonstrating that the LLM can sometimes immediately identify the free-riding opportunity. The remaining iterations confirm stability.
+
+**Figure 2b: BANK_B Cost & Policy Evolution (Exp1 Pass 2)**
+![BANK_B Convergence](charts/pass2/exp1_bankB.png)
+
+BANK_B similarly converges to 20% in iteration 1. Both agents reach equilibrium simultaneously, with no further policy changes needed.
+
+**Key Insight**: The variance between Pass 1 (16 iterations) and Pass 2 (7 iterations) arises from LLM reasoning stochasticity. Both paths reach the same equilibrium, demonstrating robustness.
+
+---
+
+#### Example 3: Symmetric Coordination (Exp3 Pass 1)
+
+This example shows how agents coordinate on a symmetric solution when neither can exploit the other.
+
+**Figure 3a: BANK_A Cost & Policy Evolution (Exp3 Pass 1)**
+![BANK_A Convergence](charts/pass1/exp3_bankA.png)
+
+BANK_A reduces from 50% to 25% to 23% to 20.5% to exactly 20%, converging in 4 iterations. The gradual approach suggests uncertainty about the minimum viable liquidity level.
+
+**Figure 3b: BANK_B Cost & Policy Evolution (Exp3 Pass 1)**
+![BANK_B Convergence](charts/pass1/exp3_bankB.png)
+
+BANK_B follows a similar trajectory (50% → 30% → 20%), converging to 20% by iteration 2. Both agents independently discover that 20% is the minimum liquidity required for reliable settlement.
+
+**Key Insight**: In symmetric games, both agents converge to identical policies. The 20% allocation exactly matches the payment obligation (0.2), demonstrating the LLM's ability to identify the efficient symmetric equilibrium.
+
 ## 6. Discussion
 
 ### 6.1 Analysis of Convergence Patterns
