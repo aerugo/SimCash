@@ -187,6 +187,56 @@ extraction(optimization_path, S, A) == extraction(bootstrap_path, S, A)
 
 **Related**: INV-9 (Policy Evaluation Identity) solves the same problem for policy parameters.
 
+### INV-11: Agent Isolation (LLM Prompts)
+
+**Rule**: An LLM optimizing Agent X may ONLY see information belonging to Agent X. Counterparty information is strictly forbidden in LLM prompts.
+
+**What Agent X MAY see**:
+- Outgoing transactions FROM Agent X (amounts, recipients, timing)
+- Incoming liquidity events TO Agent X (amount only, no sender balance)
+- Agent X's own policy and state changes
+- Agent X's own cost breakdown (not system-wide aggregate)
+
+**What Agent X must NEVER see**:
+- Any other agent's balance (before/after settlement)
+- Counterparty's specific amounts in LSM offsets
+- Net positions revealing other agents' liquidity stress
+- System-wide cost aggregates that reveal market conditions
+
+```python
+# ✅ CORRECT - Only show balance to sender
+def _format_settlement_event(self, event: BootstrapEvent) -> str:
+    sender = event.details.get("sender")
+    if sender == self._agent_id:  # Only if WE are the sender
+        # Show our balance change
+        ...
+
+# ❌ WRONG - Shows sender balance to everyone
+def _format_settlement_event(self, event: BootstrapEvent) -> str:
+    # Balance shown unconditionally - LEAKS information!
+    balance_before = event.details.get("sender_balance_before")
+    ...
+```
+
+**Where it applies**:
+- `context_builder.py._format_settlement_event()` - Settlement balance display
+- `context_builder.py._format_lsm_bilateral()` - LSM bilateral offset formatting
+- `context_builder.py._format_lsm_cycle()` - LSM cycle settlement formatting
+- `event_filter.py.filter_events_for_agent()` - Event filtering (which events to show)
+
+**Two-Layer Enforcement**:
+1. **Filtering Layer**: `filter_events_for_agent()` decides WHICH events to include
+2. **Formatting Layer**: `_format_*` methods decide WHAT fields to show within included events
+
+Both layers must enforce isolation. Filtering alone is insufficient—even events relevant to an agent may contain counterparty data that must be redacted.
+
+**Rationale**: Payment policy optimization involves LLMs making decisions for individual banks. If Bank A's LLM can see Bank B's liquidity position, it could exploit this information unfairly. This creates competitive information asymmetry that wouldn't exist in real interbank systems.
+
+**Related Files**:
+- `api/payment_simulator/ai_cash_mgmt/bootstrap/context_builder.py` - Event formatting
+- `api/payment_simulator/ai_cash_mgmt/prompts/event_filter.py` - Event filtering
+- `api/tests/ai_cash_mgmt/unit/test_prompt_agent_isolation.py` - Isolation tests
+
 ---
 
 ## Architectural Patterns

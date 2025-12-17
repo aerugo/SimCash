@@ -292,7 +292,7 @@ class EnrichedBootstrapContextBuilder:
     def _format_event_details(self, event: BootstrapEvent) -> str:
         """Format event details for readability.
 
-        CRITICAL: This method enforces INV-10 (Agent Isolation) by sanitizing
+        CRITICAL: This method enforces INV-11 (Agent Isolation) by sanitizing
         event details to hide counterparty-specific information.
 
         Args:
@@ -334,7 +334,7 @@ class EnrichedBootstrapContextBuilder:
     def _format_settlement_event(self, event: BootstrapEvent) -> str:
         """Format settlement event with balance changes.
 
-        CRITICAL: Enforces INV-10 (Agent Isolation) - only shows balance
+        CRITICAL: Enforces INV-11 (Agent Isolation) - only shows balance
         to the sender, NOT to the receiver. This prevents information
         leakage about counterparty's liquidity position.
 
@@ -358,7 +358,7 @@ class EnrichedBootstrapContextBuilder:
         result = ", ".join(parts)
 
         # CRITICAL FIX: Only show balance to sender, not receiver
-        # This enforces INV-10 (Agent Isolation)
+        # This enforces INV-11 (Agent Isolation)
         sender = d.get("sender")
         if sender == self._agent_id:
             balance_before = d.get("sender_balance_before")
@@ -373,7 +373,7 @@ class EnrichedBootstrapContextBuilder:
     def _format_lsm_bilateral(self, event: BootstrapEvent) -> str:
         """Format LSM bilateral offset with agent isolation.
 
-        CRITICAL: Enforces INV-10 (Agent Isolation) - only shows the
+        CRITICAL: Enforces INV-11 (Agent Isolation) - only shows the
         viewing agent's side of the offset. Counterparty's specific
         amount is hidden to prevent information leakage.
 
@@ -407,7 +407,7 @@ class EnrichedBootstrapContextBuilder:
     def _format_lsm_cycle(self, event: BootstrapEvent) -> str:
         """Format LSM cycle settlement with agent isolation.
 
-        CRITICAL: Enforces INV-10 (Agent Isolation) - shows participation
+        CRITICAL: Enforces INV-11 (Agent Isolation) - shows participation
         and total value saved, but hides individual transaction amounts
         and net positions which would reveal counterparty liquidity stress.
 

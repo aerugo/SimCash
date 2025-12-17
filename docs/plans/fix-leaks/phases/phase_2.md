@@ -14,7 +14,7 @@ Ensure that LSM bilateral and cycle events only show information relevant to the
 
 ## Invariants Enforced in This Phase
 
-- **INV-10** (NEW): Agent Isolation - Agent X must not see Agent Y's transaction amounts or net positions
+- **INV-11** (NEW): Agent Isolation - Agent X must not see Agent Y's transaction amounts or net positions
 
 ---
 
@@ -34,7 +34,7 @@ Add tests to `api/tests/ai_cash_mgmt/unit/test_prompt_agent_isolation.py`:
 class TestLSMEventSanitization:
     """Tests for LSM event information sanitization.
 
-    Enforces INV-10: Agent Isolation - Counterparty details hidden.
+    Enforces INV-11: Agent Isolation - Counterparty details hidden.
     """
 
     def test_lsm_bilateral_hides_counterparty_amount(self) -> None:
@@ -84,7 +84,7 @@ def _format_event_details(self, event: BootstrapEvent) -> str:
     """Format event details for readability.
 
     CRITICAL: LSM events are sanitized to hide counterparty-specific data.
-    This enforces INV-10: Agent Isolation.
+    This enforces INV-11: Agent Isolation.
     """
     # Handle settlement events specially to show balance changes
     if event.event_type == "RtgsImmediateSettlement":
@@ -215,4 +215,4 @@ uv run python -m ruff check payment_simulator/ai_cash_mgmt/bootstrap/context_bui
 - [ ] All existing tests still pass
 - [ ] Type check passes
 - [ ] Lint passes
-- [ ] INV-10 (Agent Isolation) verified for LSM events
+- [ ] INV-11 (Agent Isolation) verified for LSM events

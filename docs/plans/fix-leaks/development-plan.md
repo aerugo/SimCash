@@ -15,7 +15,7 @@ Fix critical information leakage vulnerabilities in the LLM-based payment policy
 
 ### NEW Invariant to Introduce
 
-- **NEW INV-10**: Agent Isolation - An LLM optimizing for Agent X may ONLY see:
+- **NEW INV-11**: Agent Isolation - An LLM optimizing for Agent X may ONLY see:
   - Outgoing transactions FROM Agent X
   - Incoming liquidity events TO Agent X (amount only, no sender balance)
   - Agent X's own policy and state changes
@@ -155,14 +155,14 @@ Two different event formatters exist with inconsistent behavior:
 - Full optimization loop with multi-agent scenario verifying isolation
 
 ### Identity/Invariant Tests
-- New tests in `test_prompt_agent_isolation.py` enforcing INV-10 (Agent Isolation)
+- New tests in `test_prompt_agent_isolation.py` enforcing INV-11 (Agent Isolation)
 
 ## Documentation Updates
 
 After implementation is complete, update the following:
 
-- [ ] `docs/reference/patterns-and-conventions.md` - Add INV-10: Agent Isolation invariant
-- [ ] Update `api/CLAUDE.md` if needed for agent isolation guidance
+- [x] `docs/reference/patterns-and-conventions.md` - Added INV-11: Agent Isolation invariant (INV-10 was already taken)
+- [x] `api/CLAUDE.md` - No changes needed; references `patterns-and-conventions.md` for invariants
 
 ## Progress Tracking
 

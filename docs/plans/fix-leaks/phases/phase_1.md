@@ -15,7 +15,7 @@ Ensure that when Agent A receives a payment from Agent B, Agent A cannot see Age
 ## Invariants Enforced in This Phase
 
 - **INV-1**: Money is ALWAYS i64 - Balance values remain integer cents in events
-- **INV-10** (NEW): Agent Isolation - Receiver must not see sender's balance
+- **INV-11** (NEW): Agent Isolation - Receiver must not see sender's balance
 
 ---
 
@@ -34,7 +34,7 @@ Create tests in `api/tests/ai_cash_mgmt/unit/test_prompt_agent_isolation.py`:
 class TestRtgsBalanceIsolation:
     """Tests for RTGS settlement balance isolation.
 
-    Enforces INV-10: Agent Isolation - Receiver must not see sender's balance.
+    Enforces INV-11: Agent Isolation - Receiver must not see sender's balance.
     """
 
     def test_rtgs_settlement_receiver_cannot_see_sender_balance(self) -> None:
@@ -81,7 +81,7 @@ def _format_settlement_event(self, event: BootstrapEvent) -> str:
     """Format settlement event with balance changes.
 
     CRITICAL: Only shows balance to sender, not receiver.
-    This enforces INV-10: Agent Isolation.
+    This enforces INV-11: Agent Isolation.
     """
     d = event.details
     parts = []
@@ -97,7 +97,7 @@ def _format_settlement_event(self, event: BootstrapEvent) -> str:
     result = ", ".join(parts)
 
     # CRITICAL FIX: Only show balance to sender, not receiver
-    # This enforces INV-10 (Agent Isolation)
+    # This enforces INV-11 (Agent Isolation)
     sender = d.get("sender")
     if sender == self._agent_id:  # Only if viewing agent is sender
         balance_before = d.get("sender_balance_before")
@@ -135,7 +135,7 @@ if balance_before is not None and balance_after is not None:
 ### Fixed Code
 
 ```python
-# CRITICAL: Only show balance to sender (INV-10: Agent Isolation)
+# CRITICAL: Only show balance to sender (INV-11: Agent Isolation)
 sender = d.get("sender")
 if sender == self._agent_id:
     balance_before = d.get("sender_balance_before")
@@ -190,4 +190,4 @@ uv run python -m ruff check payment_simulator/ai_cash_mgmt/bootstrap/context_bui
 - [ ] All existing tests still pass
 - [ ] Type check passes
 - [ ] Lint passes
-- [ ] INV-10 (Agent Isolation) verified for balance information
+- [ ] INV-11 (Agent Isolation) verified for balance information

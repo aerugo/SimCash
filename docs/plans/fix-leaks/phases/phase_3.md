@@ -15,7 +15,7 @@ Ensure that the cost breakdown shown to each agent reflects only their own costs
 ## Invariants Enforced in This Phase
 
 - **INV-1**: Money is ALWAYS i64 - Cost values remain integer cents
-- **INV-10** (NEW): Agent Isolation - Agent X must not see system-wide cost patterns
+- **INV-11** (NEW): Agent Isolation - Agent X must not see system-wide cost patterns
 
 ---
 
@@ -33,7 +33,7 @@ Add tests to `api/tests/ai_cash_mgmt/unit/test_prompt_agent_isolation.py`:
 class TestCostBreakdownIsolation:
     """Tests for cost breakdown isolation.
 
-    Enforces INV-10: Agent Isolation - Only own costs visible.
+    Enforces INV-11: Agent Isolation - Only own costs visible.
     """
 
     def test_cost_breakdown_is_per_agent(self) -> None:
@@ -181,4 +181,4 @@ uv run python -m ruff check payment_simulator/experiments/runner/optimization.py
 - [ ] All existing tests still pass
 - [ ] Type check passes
 - [ ] Lint passes
-- [ ] INV-10 (Agent Isolation) verified for cost breakdown
+- [ ] INV-11 (Agent Isolation) verified for cost breakdown
