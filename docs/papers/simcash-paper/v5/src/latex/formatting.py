@@ -15,6 +15,41 @@ from __future__ import annotations
 from typing import Any
 
 
+def escape_latex(text: str) -> str:
+    r"""Escape LaTeX special characters in text.
+
+    Escapes characters that have special meaning in LaTeX:
+    - _ (underscore) -> \_
+    - & (ampersand) -> \&
+    - % (percent) -> \%
+    - # (hash) -> \#
+    - $ (dollar) -> \$
+
+    Args:
+        text: Plain text string
+
+    Returns:
+        LaTeX-safe string with special characters escaped
+
+    Example:
+        >>> escape_latex("BANK_A")
+        'BANK\\_A'
+        >>> escape_latex("100%")
+        '100\\%'
+    """
+    # Order matters - escape backslash first if needed
+    replacements = [
+        ("_", r"\_"),
+        ("&", r"\&"),
+        ("%", r"\%"),
+        ("#", r"\#"),
+    ]
+    result = text
+    for old, new in replacements:
+        result = result.replace(old, new)
+    return result
+
+
 def format_money(cents: int) -> str:
     r"""Format cents as LaTeX dollars string.
 

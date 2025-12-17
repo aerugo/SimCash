@@ -17,7 +17,7 @@ from src.data_provider import (
     ConvergenceStats,
     PassSummary,
 )
-from src.latex.formatting import format_ci, format_money, format_percent, format_table_row
+from src.latex.formatting import escape_latex, format_ci, format_money, format_percent, format_table_row
 
 
 def generate_iteration_table(
@@ -63,7 +63,7 @@ def generate_iteration_table(
         for r in sorted(iterations[iteration], key=lambda x: x["agent_id"]):
             row = format_table_row([
                 str(r["iteration"]),
-                r["agent_id"],
+                escape_latex(r["agent_id"]),
                 format_money(r["cost"]),
                 format_percent(r["liquidity_fraction"]),
                 "Yes" if r["accepted"] else "No",
@@ -121,7 +121,7 @@ def generate_bootstrap_table(
     for agent_id in sorted(stats.keys()):
         s = stats[agent_id]
         row = format_table_row([
-            agent_id,
+            escape_latex(agent_id),
             format_money(s["mean_cost"]),
             format_money(s["std_dev"]),
             format_ci(s["ci_lower"], s["ci_upper"]),
