@@ -43,6 +43,9 @@ COLORS = {
 def _get_run_id_for_pass(db_path: Path, exp_id: str, pass_num: int) -> str:
     """Get run_id for a specific experiment pass.
 
+    Only considers runs that have actual data in policy_evaluations table.
+    This filters out empty/failed test runs.
+
     Args:
         db_path: Path to experiment database
         exp_id: Experiment identifier (exp1, exp2, exp3)
@@ -56,11 +59,14 @@ def _get_run_id_for_pass(db_path: Path, exp_id: str, pass_num: int) -> str:
     """
     conn = duckdb.connect(str(db_path), read_only=True)
     try:
+        # Only get runs that have data in policy_evaluations
         result = conn.execute(
             """
-            SELECT run_id FROM experiments
-            WHERE experiment_name = ?
-            ORDER BY created_at
+            SELECT DISTINCT pe.run_id
+            FROM policy_evaluations pe
+            JOIN experiments e ON pe.run_id = e.run_id
+            WHERE e.experiment_name = ?
+            ORDER BY e.created_at
             """,
             [exp_id],
         ).fetchall()
@@ -342,7 +348,12 @@ def generate_ci_width_chart(
         for d in agent_data:
             if d["ci_95"]:
                 ci = d["ci_95"]
-                width = (ci.get("upper", 0) - ci.get("lower", 0)) / 100  # To dollars
+                # CI is stored as [lower, upper] list
+                if isinstance(ci, list) and len(ci) == 2:
+                    width = (ci[1] - ci[0]) / 100  # To dollars
+                else:
+                    # Fallback for dict format
+                    width = (ci.get("upper", 0) - ci.get("lower", 0)) / 100
                 iterations.append(d["iteration"])
                 ci_widths.append(width)
 
