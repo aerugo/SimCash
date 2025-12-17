@@ -525,3 +525,556 @@ class TestLSMEventIsolation:
         assert "55555" not in formatted, (
             "CRITICAL VIOLATION: BANK_D-E-F LSM cycle leaked to BANK_A!"
         )
+
+
+# =============================================================================
+# Phase 1: Balance Leakage Tests (INV-11: Agent Isolation)
+# =============================================================================
+
+
+class TestRtgsBalanceIsolation:
+    """Tests for RTGS settlement balance isolation.
+
+    Enforces INV-11: Agent Isolation - Receiver must not see sender's balance.
+    These tests verify that sender_balance_before/after are only shown to the sender.
+    """
+
+    def test_rtgs_settlement_receiver_cannot_see_sender_balance(self) -> None:
+        """Receiver must NOT see sender's balance_before/balance_after.
+
+        When BANK_B sends to BANK_A, BANK_A should see:
+        - The payment amount
+        - The sender identity
+        But NOT:
+        - sender_balance_before
+        - sender_balance_after
+
+        This is the PRIMARY test for balance leakage.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="RtgsImmediateSettlement",
+                details={
+                    "sender": "BANK_B",  # BANK_B is sending
+                    "receiver": "BANK_A",  # BANK_A is receiving
+                    "amount": 50000,
+                    "tx_id": "tx_b_pays_a",
+                    "sender_balance_before": 1000000,  # $10,000.00
+                    "sender_balance_after": 950000,  # $9,500.00
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=5000,
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            event_trace=tuple(events),
+        )
+
+        # Build context for BANK_A (the RECEIVER)
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        formatted = builder.format_event_trace_for_llm(result)
+
+        # BANK_A should see the transaction exists
+        assert "tx_b_pays_a" in formatted, "Transaction should be visible to receiver"
+
+        # CRITICAL: BANK_A must NOT see BANK_B's balance
+        assert "1000000" not in formatted and "10,000" not in formatted, (
+            "CRITICAL VIOLATION: sender_balance_before leaked to receiver!"
+        )
+        assert "950000" not in formatted and "9,500" not in formatted, (
+            "CRITICAL VIOLATION: sender_balance_after leaked to receiver!"
+        )
+
+    def test_rtgs_settlement_sender_can_see_own_balance(self) -> None:
+        """Sender MUST see their own balance_before/balance_after.
+
+        When BANK_A sends payment, BANK_A should see their balance change.
+        This ensures we don't over-restrict and hide data from the sender.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="RtgsImmediateSettlement",
+                details={
+                    "sender": "BANK_A",  # BANK_A is sending
+                    "receiver": "BANK_B",  # BANK_B is receiving
+                    "amount": 50000,
+                    "tx_id": "tx_a_pays_b",
+                    "sender_balance_before": 2000000,  # $20,000.00
+                    "sender_balance_after": 1950000,  # $19,500.00
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=5000,
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            event_trace=tuple(events),
+        )
+
+        # Build context for BANK_A (the SENDER)
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        formatted = builder.format_event_trace_for_llm(result)
+
+        # BANK_A should see the transaction
+        assert "tx_a_pays_b" in formatted, "Transaction should be visible to sender"
+
+        # BANK_A SHOULD see their own balance change
+        # Balance might be formatted as 20,000 or 2000000 depending on formatter
+        has_balance_info = (
+            "20,000" in formatted
+            or "2000000" in formatted
+            or "19,500" in formatted
+            or "1950000" in formatted
+        )
+        assert has_balance_info, (
+            "Sender should see their own balance change"
+        )
+
+    def test_rtgs_settlement_balance_fields_hidden_with_unique_markers(self) -> None:
+        """Verify specific balance field values are not leaked using unique markers.
+
+        Uses highly unique marker values to ensure detection of any leakage.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        # Use highly unique marker values that wouldn't appear naturally
+        marker_before = 123456789
+        marker_after = 987654321
+
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="RtgsImmediateSettlement",
+                details={
+                    "sender": "BANK_B",
+                    "receiver": "BANK_A",
+                    "amount": 50000,
+                    "tx_id": "tx_marker_test",
+                    "sender_balance_before": marker_before,
+                    "sender_balance_after": marker_after,
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=5000,
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            event_trace=tuple(events),
+        )
+
+        # Build context for BANK_A (receiver)
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        formatted = builder.format_event_trace_for_llm(result)
+
+        # Marker values should NOT appear anywhere in the output
+        assert str(marker_before) not in formatted, (
+            f"CRITICAL: Balance marker {marker_before} leaked!"
+        )
+        assert str(marker_after) not in formatted, (
+            f"CRITICAL: Balance marker {marker_after} leaked!"
+        )
+        # Also check for formatted versions
+        assert "1,234,567.89" not in formatted
+        assert "9,876,543.21" not in formatted
+
+
+# =============================================================================
+# Phase 2: LSM Event Sanitization Tests (INV-11: Agent Isolation)
+# =============================================================================
+
+
+class TestLSMEventSanitization:
+    """Tests for LSM event information sanitization.
+
+    Enforces INV-11: Agent Isolation - Counterparty-specific details hidden.
+    When agent participates in LSM, they should not see counterparty amounts.
+    """
+
+    def test_lsm_bilateral_hides_counterparty_amount(self) -> None:
+        """Bilateral offset must hide counterparty's amount.
+
+        When BANK_A and BANK_B offset:
+        - BANK_A may see they participated
+        - BANK_A should NOT see BANK_B's specific amount
+
+        We use unique marker values to detect leakage.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        # Unique markers
+        bank_a_amount = 80000  # $800
+        bank_b_amount = 67890  # $678.90 - unique marker
+
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="LsmBilateralOffset",
+                details={
+                    "agent_a": "BANK_A",
+                    "agent_b": "BANK_B",
+                    "amount_a": bank_a_amount,
+                    "amount_b": bank_b_amount,
+                    "tx_ids": ["tx_bilateral_1", "tx_bilateral_2"],
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=5000,
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            event_trace=tuple(events),
+        )
+
+        # Build context for BANK_A
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        formatted = builder.format_event_trace_for_llm(result)
+
+        # BANK_B's amount should NOT be visible
+        assert str(bank_b_amount) not in formatted and "678.90" not in formatted, (
+            "CRITICAL VIOLATION: Counterparty's bilateral amount leaked!"
+        )
+
+    def test_lsm_cycle_hides_all_tx_amounts(self) -> None:
+        """Cycle settlement must hide individual transaction amounts.
+
+        When viewing LSM cycle, individual tx_amounts array should not be exposed.
+        Only total value (if shown) should be visible.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        # Unique marker amounts
+        amounts = [111111, 222222, 333333]  # Unique values
+
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="LsmCycleSettlement",
+                details={
+                    "agents": ["BANK_A", "BANK_B", "BANK_C"],
+                    "tx_ids": ["tx1", "tx2", "tx3"],
+                    "tx_amounts": amounts,
+                    "total_value": sum(amounts),
+                    "net_positions": [50000, -30000, -20000],
+                    "max_net_outflow": 50000,
+                    "max_net_outflow_agent": "BANK_A",
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=5000,
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            event_trace=tuple(events),
+        )
+
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        formatted = builder.format_event_trace_for_llm(result)
+
+        # Individual transaction amounts should NOT be visible
+        for amount in amounts:
+            assert str(amount) not in formatted, (
+                f"CRITICAL: Individual tx amount {amount} leaked in cycle event!"
+            )
+
+    def test_lsm_cycle_hides_net_positions(self) -> None:
+        """Cycle settlement must hide net positions array.
+
+        Net positions reveal liquidity stress of other participants.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        # Unique marker net positions
+        net_positions = [54321, -98765, 44444]
+
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="LsmCycleSettlement",
+                details={
+                    "agents": ["BANK_A", "BANK_B", "BANK_C"],
+                    "tx_ids": ["tx1", "tx2", "tx3"],
+                    "tx_amounts": [100000, 100000, 100000],
+                    "total_value": 300000,
+                    "net_positions": net_positions,
+                    "max_net_outflow": 98765,
+                    "max_net_outflow_agent": "BANK_B",
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=5000,
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            event_trace=tuple(events),
+        )
+
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        formatted = builder.format_event_trace_for_llm(result)
+
+        # Net positions should NOT be visible
+        for pos in net_positions:
+            # Check both positive and absolute values
+            assert str(abs(pos)) not in formatted, (
+                f"CRITICAL: Net position {pos} leaked in cycle event!"
+            )
+
+    def test_lsm_shows_participation_info(self) -> None:
+        """Agent should know they participated in LSM settlement.
+
+        While hiding specific amounts, agent should see confirmation of settlement.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="LsmCycleSettlement",
+                details={
+                    "agents": ["BANK_A", "BANK_B", "BANK_C"],
+                    "total_value": 300000,
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=5000,
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            ),
+            event_trace=tuple(events),
+        )
+
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        formatted = builder.format_event_trace_for_llm(result)
+
+        # Agent should see SOMETHING about LSM (event is included)
+        assert "LSM" in formatted or "Cycle" in formatted or "LsmCycle" in formatted, (
+            "Agent should see they participated in LSM settlement"
+        )
+
+
+# =============================================================================
+# Phase 3: Cost Breakdown Isolation Tests (INV-11: Agent Isolation)
+# =============================================================================
+
+
+class TestCostBreakdownIsolation:
+    """Tests for cost breakdown isolation.
+
+    Enforces INV-11: Agent Isolation - Only own costs visible.
+    Cost breakdown should reflect agent-specific costs, not system-wide aggregate.
+    """
+
+    def test_context_builder_uses_per_agent_costs(self) -> None:
+        """AgentSimulationContext should use per-agent costs when available.
+
+        When per_agent_costs is provided, the context should use agent-specific
+        costs rather than total_cost.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        # Create result with different total vs per-agent costs
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="Arrival",
+                details={
+                    "sender_id": "BANK_A",
+                    "receiver_id": "BANK_B",
+                    "amount": 10000,
+                    "tx_id": "tx1",
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=100000,  # System-wide total: $1,000
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=50000,
+                overdraft_cost=50000,
+                deadline_penalty=0,
+                eod_penalty=0,
+            ),
+            event_trace=tuple(events),
+            per_agent_costs={
+                "BANK_A": 30000,  # BANK_A's cost: $300
+                "BANK_B": 70000,  # BANK_B's cost: $700
+            },
+        )
+
+        # Build context for BANK_A
+        builder = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        context = builder.build_agent_context()
+
+        # Context should use BANK_A's per-agent cost, not total
+        assert context.best_seed_cost == 30000, (
+            f"Expected BANK_A's cost (30000), got {context.best_seed_cost}"
+        )
+
+    def test_different_agents_get_different_costs_from_same_result(self) -> None:
+        """Different agents must see different costs from the same result.
+
+        When building context for BANK_A vs BANK_B from the same
+        EnrichedEvaluationResult, they should see their respective costs.
+        """
+        from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
+            EnrichedBootstrapContextBuilder,
+        )
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            BootstrapEvent,
+            CostBreakdown,
+            EnrichedEvaluationResult,
+        )
+
+        events = [
+            BootstrapEvent(
+                tick=1,
+                event_type="Arrival",
+                details={
+                    "sender_id": "BANK_A",
+                    "receiver_id": "BANK_B",
+                    "amount": 10000,
+                    "tx_id": "tx1",
+                },
+            ),
+        ]
+
+        result = EnrichedEvaluationResult(
+            sample_idx=0,
+            seed=12345,
+            total_cost=100000,
+            settlement_rate=0.9,
+            avg_delay=1.5,
+            cost_breakdown=CostBreakdown(
+                delay_cost=50000,
+                overdraft_cost=50000,
+                deadline_penalty=0,
+                eod_penalty=0,
+            ),
+            event_trace=tuple(events),
+            per_agent_costs={
+                "BANK_A": 25000,  # BANK_A's cost
+                "BANK_B": 75000,  # BANK_B's cost
+            },
+        )
+
+        # Build context for both agents
+        builder_a = EnrichedBootstrapContextBuilder([result], "BANK_A")
+        context_a = builder_a.build_agent_context()
+
+        builder_b = EnrichedBootstrapContextBuilder([result], "BANK_B")
+        context_b = builder_b.build_agent_context()
+
+        # Costs should differ
+        assert context_a.best_seed_cost != context_b.best_seed_cost, (
+            "Different agents should see different costs!"
+        )
+        assert context_a.best_seed_cost == 25000, "BANK_A should see 25000"
+        assert context_b.best_seed_cost == 75000, "BANK_B should see 75000"
