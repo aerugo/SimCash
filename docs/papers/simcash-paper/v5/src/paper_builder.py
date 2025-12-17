@@ -152,6 +152,7 @@ def build_paper(
     output_dir: Path,
     sections: list[SectionGenerator] | None = None,
     generate_charts: bool = True,
+    config: dict | None = None,
 ) -> Path:
     """Build complete paper from experiment databases.
 
@@ -163,13 +164,17 @@ def build_paper(
         output_dir: Directory for output files (created if needed)
         sections: Optional list of section generators
         generate_charts: Whether to generate chart images (default: True)
+        config: Optional paper config with explicit run_id mappings.
+                When provided, ensures reproducible paper generation.
 
     Returns:
         Path to generated .tex file
 
     Example:
         >>> from pathlib import Path
-        >>> tex_path = build_paper(Path("data/"), Path("output/"))
+        >>> from src.config import load_config
+        >>> config = load_config()
+        >>> tex_path = build_paper(Path("data/"), Path("output/"), config=config)
         >>> print(f"Paper generated at: {tex_path}")
     """
     # Ensure output directory exists
@@ -178,10 +183,10 @@ def build_paper(
     # Generate charts if requested
     if generate_charts:
         charts_dir = output_dir / "charts"
-        generate_all_paper_charts(data_dir, charts_dir)
+        generate_all_paper_charts(data_dir, charts_dir, config=config)
 
-    # Create data provider
-    provider = DatabaseDataProvider(data_dir)
+    # Create data provider with config for explicit run_id lookup
+    provider = DatabaseDataProvider(data_dir, config=config)
 
     # Generate paper
     return generate_paper(provider, output_dir, sections)
