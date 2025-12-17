@@ -17,11 +17,12 @@ def generate_introduction(provider: DataProvider) -> str:
     Returns:
         LaTeX string for the introduction section
     """
-    # Provider not used for static introduction text, but kept for consistency
-    _ = provider
+    # Get aggregate statistics for data-driven text
+    aggregate_stats = provider.get_aggregate_stats()
+    total_passes = aggregate_stats["total_passes"]
 
-    return r"""
-\section{Introduction}
+    return rf"""
+\section{{Introduction}}
 
 Payment systems are critical financial infrastructure where banks must strategically
 allocate liquidity to settle obligations while minimizing opportunity costs. The
@@ -34,16 +35,16 @@ simulation with hand-crafted heuristics. We propose a fundamentally different ap
 using LLMs as strategic agents that learn optimal policies through iterative
 best-response dynamics.
 
-\subsection{Contributions}
+\subsection{{Contributions}}
 
-\begin{enumerate}
-    \item \textbf{SimCash Framework}: A hybrid Rust-Python simulator with LLM-based
+\begin{{enumerate}}
+    \item \textbf{{SimCash Framework}}: A hybrid Rust-Python simulator with LLM-based
     policy optimization
-    \item \textbf{Empirical Validation}: Successful recovery of Castro et al.'s
+    \item \textbf{{Empirical Validation}}: Successful recovery of Castro et al.'s
     theoretical equilibria
-    \item \textbf{Reproducibility Analysis}: 9 independent runs demonstrating consistent
+    \item \textbf{{Reproducibility Analysis}}: {total_passes} independent runs demonstrating consistent
     convergence
-    \item \textbf{Bootstrap Evaluation}: Methodology for handling stochastic payment
+    \item \textbf{{Bootstrap Evaluation}}: Methodology for handling stochastic payment
     arrivals
-\end{enumerate}
+\end{{enumerate}}
 """

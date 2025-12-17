@@ -19,9 +19,12 @@ def generate_discussion(provider: DataProvider) -> str:
     Returns:
         LaTeX string for the discussion section
     """
+    # Get aggregate statistics
+    aggregate_stats = provider.get_aggregate_stats()
+    total_passes = aggregate_stats["total_passes"]
+
     # Get data for analysis
     exp1_summaries = provider.get_all_pass_summaries("exp1")
-    exp2_summaries = provider.get_all_pass_summaries("exp2")
     exp3_summaries = provider.get_all_pass_summaries("exp3")
 
     # Calculate mean final values across passes
@@ -35,12 +38,7 @@ def generate_discussion(provider: DataProvider) -> str:
 
     # Get convergence stats
     exp1_conv = provider.get_convergence_statistics("exp1")
-    exp2_conv = provider.get_convergence_statistics("exp2")
     exp3_conv = provider.get_convergence_statistics("exp3")
-
-    # Calculate total passes and convergence
-    total_passes = len(exp1_summaries) + len(exp2_summaries) + len(exp3_summaries)
-    total_converged = total_passes  # All converged in our experiments
 
     # Format values for inline use
     exp1_a_liq_fmt = format_percent(exp1_mean_a_liq)

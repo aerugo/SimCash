@@ -27,8 +27,9 @@ class TestCLI:
             [
                 "/home/user/SimCash/api/.venv/bin/python",
                 "-m", "src.cli",
-                "--data-dir", str(v5_dir / "data"),
+                "--config", str(v5_dir / "config.yaml"),
                 "--output-dir", str(tmp_path),
+                "--skip-charts",  # Skip charts for faster tests
             ],
             capture_output=True,
             text=True,
@@ -44,8 +45,9 @@ class TestCLI:
             [
                 "/home/user/SimCash/api/.venv/bin/python",
                 "-m", "src.cli",
-                "--data-dir", str(v5_dir / "data"),
+                "--config", str(v5_dir / "config.yaml"),
                 "--output-dir", str(tmp_path),
+                "--skip-charts",
             ],
             capture_output=True,
             text=True,
@@ -67,8 +69,9 @@ class TestCLI:
             [
                 "/home/user/SimCash/api/.venv/bin/python",
                 "-m", "src.cli",
-                "--data-dir", str(v5_dir / "data"),
+                "--config", str(v5_dir / "config.yaml"),
                 "--output-dir", str(new_output),
+                "--skip-charts",
             ],
             capture_output=True,
             text=True,
@@ -93,5 +96,5 @@ class TestCLI:
         )
 
         assert result.returncode == 0
-        assert "--data-dir" in result.stdout
+        assert "--config" in result.stdout
         assert "--output-dir" in result.stdout
