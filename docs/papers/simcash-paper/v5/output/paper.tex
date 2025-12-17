@@ -40,73 +40,46 @@
 
 
 \begin{abstract}
-This paper presents SimCash, a multi-agent simulation framework for studying
-strategic liquidity management in real-time gross settlement (RTGS) payment systems.
-We employ reinforcement learning agents that adaptively adjust their intraday
-liquidity reserves based on observed costs and counterparty behavior.
-
-Through three experiments, we demonstrate that agents converge to game-theoretically
-predicted equilibria. In asymmetric scenarios, agents achieve convergence within
-14 iterations, discovering free-rider equilibria where one bank provides
-liquidity while others minimize reserves. In stochastic environments requiring bootstrap
-evaluation (7 iterations to convergence), agents exhibit robust learning
-despite cost variance. Symmetric scenarios with identical penalty structures lead to
-cooperative equilibria (7 iterations).
-
-Our results validate the simulation framework's ability to reproduce theoretical
-predictions and provide insights into emergent strategic behavior in payment systems.
-The framework enables exploration of regulatory interventions and mechanism design
-for financial stability.
+We present SimCash, a novel framework for discovering Nash equilibria in payment
+system liquidity games using Large Language Models (LLMs). Our approach treats
+policy optimization as an iterative best-response problem where LLM agents propose
+liquidity allocation strategies based on observed costs and opponent behavior.
+Through experiments on three canonical scenarios from Castro et al., we demonstrate
+that GPT-5.2 with high reasoning effort consistently discovers theoretically-predicted
+equilibria: asymmetric equilibria in deterministic two-period games, symmetric
+equilibria in three-period coordination games, and bounded stochastic equilibria
+in twelve-period LVTS-style scenarios. Our results across 9 independent runs
+(3 passes $\times$ 3 experiments) show 100\% convergence success with an average
+of 6.7 iterations to stability.
 \end{abstract}
 
 
 
 \section{Introduction}
 
-Real-time gross settlement (RTGS) systems form the backbone of modern financial
-infrastructure, processing trillions of dollars in interbank payments daily.
-Banks participating in these systems face a fundamental tension: holding sufficient
-liquidity reserves ensures timely settlement but incurs opportunity costs, while
-minimizing reserves risks settlement delays and penalty fees.
+Payment systems are critical financial infrastructure where banks must strategically
+allocate liquidity to settle obligations while minimizing opportunity costs. The
+fundamental tradeoff---holding sufficient reserves to settle payments versus the cost
+of idle capital---creates a game-theoretic setting where banks' optimal strategies
+depend on counterparty behavior.
 
-This strategic interdependence creates a complex multi-agent environment where each
-bank's optimal liquidity strategy depends on the behavior of others. Game-theoretic
-analysis predicts various equilibria depending on system parameters, but validating
-these predictions empirically has remained challenging due to the opacity of real-world
-payment systems and the difficulty of conducting controlled experiments.
-
-We address this gap by developing SimCash, a multi-agent simulation framework that
-models RTGS payment dynamics with reinforcement learning agents. Our framework enables
-controlled experiments to study how strategic agents learn to manage liquidity under
-various cost structures and information conditions.
+Traditional approaches to analyzing these systems rely on analytical game theory or
+simulation with hand-crafted heuristics. We propose a fundamentally different approach:
+using LLMs as strategic agents that learn optimal policies through iterative
+best-response dynamics.
 
 \subsection{Contributions}
 
-This paper makes the following contributions:
-
 \begin{enumerate}
-    \item \textbf{Simulation Framework}: We present SimCash, an open-source payment
-    system simulator with configurable cost structures, transaction patterns, and
-    settlement mechanisms including liquidity-saving mechanisms (LSM).
-
-    \item \textbf{Learning Agents}: We implement adaptive agents using policy gradient
-    methods that learn liquidity strategies through repeated interaction, demonstrating
-    convergence to game-theoretic equilibria.
-
-    \item \textbf{Experimental Validation}: Through three experiments with varying
-    asymmetry and stochasticity, we show that learned strategies match theoretical
-    predictions, including free-rider equilibria and cooperative outcomes.
-
-    \item \textbf{Methodological Contribution}: We introduce bootstrap evaluation
-    for stochastic scenarios, enabling statistically rigorous comparison of agent
-    strategies under cost variance.
+    \item \textbf{SimCash Framework}: A hybrid Rust-Python simulator with LLM-based
+    policy optimization
+    \item \textbf{Empirical Validation}: Successful recovery of Castro et al.'s
+    theoretical equilibria
+    \item \textbf{Reproducibility Analysis}: 9 independent runs demonstrating consistent
+    convergence
+    \item \textbf{Bootstrap Evaluation}: Methodology for handling stochastic payment
+    arrivals
 \end{enumerate}
-
-The remainder of this paper is organized as follows: Section~\ref{sec:methods}
-describes the simulation framework and learning algorithm. Section~\ref{sec:results}
-presents experimental results across three scenarios. Section~\ref{sec:discussion}
-discusses implications and limitations. Section~\ref{sec:conclusion} concludes
-with directions for future work.
 
 
 
@@ -116,124 +89,95 @@ with directions for future work.
 \subsection{Payment System Simulation}
 
 Castro et al.\ established theoretical foundations for payment timing games,
-characterizing Nash equilibria in simplified settings with deterministic payment
-arrivals \cite{castro2013}. Their analysis of two-period games predicts asymmetric
-equilibria where one bank can free-ride on another's liquidity provision when
-payment timing creates sequential dependencies.
-
-Martin and McAndrews extended this framework to stochastic arrivals with
-analytical bounds on equilibrium liquidity levels \cite{martin2010}. Their work
-on liquidity-saving mechanisms (LSM) demonstrated how multilateral netting can
-reduce aggregate liquidity requirements while preserving settlement finality.
-
-Simulation-based approaches have modeled RTGS dynamics with fixed or rule-based
-agent behavior, but typically lack the adaptive learning that characterizes
-real strategic interactions between banks.
+characterizing Nash equilibria in simplified settings. Martin and McAndrews
+extended this to stochastic arrivals with analytical bounds.
 
 \subsection{LLMs in Game Theory}
 
-Recent work has explored Large Language Models in strategic settings, primarily
-in matrix games, negotiation tasks, and auction mechanisms. Studies have shown
-that LLMs can exhibit sophisticated strategic reasoning, including recognizing
-dominant strategies, anticipating opponent behavior, and converging to Nash
-equilibria in repeated games.
-
-However, prior work has focused on discrete action spaces and single-shot or
-short-horizon interactions. Our work is the first to apply LLMs to sequential
-payment system games with continuous action spaces (liquidity fractions) and
-multi-day time horizons.
-
-\subsection{Multi-Agent Reinforcement Learning}
-
-Multi-agent reinforcement learning (MARL) provides theoretical foundations for
-understanding convergence in competitive and cooperative settings. Independent
-learners using policy gradient methods can converge to Nash equilibria in
-certain game classes, though convergence guarantees are weaker than in single-agent
-settings.
-
-Our framework applies these principles to a novel domain---interbank payment
-systems---where the strategic complexity arises from the interaction between
-liquidity costs, settlement timing, and counterparty dependencies.
+Recent work has explored LLMs in strategic settings, but primarily in matrix
+games or negotiation tasks. Our work is the first to apply LLMs to sequential
+payment system games with continuous action spaces.
 
 
 
-\section{Framework and Methods}
+\section{The SimCash Framework}
 \label{sec:methods}
 
-This section describes the SimCash simulation framework, including the payment
-system model, cost structure, and reinforcement learning approach.
+\subsection{Simulation Engine}
 
-\subsection{Payment System Model}
-
-We model an RTGS system with $N$ banks (agents) processing payments over discrete
-time steps (ticks). Each bank $i$ maintains:
+SimCash uses a discrete-time simulation where:
 \begin{itemize}
-    \item \textbf{Balance} $b_i(t)$: Current settlement account balance
-    \item \textbf{Liquidity fraction} $\lambda_i \in [0,1]$: Proportion of assets
-    held as liquid reserves
-    \item \textbf{Payment queue} $Q_i(t)$: Pending outgoing payments awaiting settlement
+    \item Time proceeds in \textbf{ticks} (atomic time units)
+    \item Banks hold \textbf{balances} in settlement accounts
+    \item \textbf{Transactions} arrive with amounts, counterparties, and deadlines
+    \item Settlement follows RTGS (Real-Time Gross Settlement) rules
 \end{itemize}
 
-Payments arrive according to configurable arrival processes with specified amount
-distributions. Each payment has a deadline; payments settled after their deadline
-incur increased costs.
+\subsection{Cost Function}
 
-\subsection{Cost Structure}
-
-Bank $i$'s total cost comprises several components:
-
-\begin{equation}
-C_i = C_i^{hold} + C_i^{delay} + C_i^{deadline} + C_i^{EOD}
-\end{equation}
-
-where:
+Agent costs comprise:
 \begin{itemize}
-    \item $C_i^{hold}$: Opportunity cost of holding liquid reserves
-    \item $C_i^{delay}$: Per-tick delay cost for queued payments
-    \item $C_i^{deadline}$: Penalty when payments become overdue
-    \item $C_i^{EOD}$: End-of-day penalty for unsettled payments
+    \item \textbf{Liquidity opportunity cost}: Proportional to allocated reserves
+    \item \textbf{Delay penalty}: Accumulated per tick for pending transactions
+    \item \textbf{Deadline penalty}: Incurred when transactions become overdue
+    \item \textbf{End-of-day penalty}: Large cost for unsettled transactions at day end
 \end{itemize}
 
-The specific parameterization varies by experiment to create different strategic
-incentives (asymmetric vs. symmetric).
+\subsection{LLM Policy Optimization}
 
-\subsection{Settlement Mechanisms}
-
-The simulation supports two settlement modes:
-\begin{enumerate}
-    \item \textbf{RTGS}: Immediate gross settlement when sender has sufficient balance
-    \item \textbf{LSM}: Liquidity-saving mechanism that identifies bilateral and
-    multilateral netting opportunities to reduce liquidity requirements
-\end{enumerate}
-
-\subsection{Reinforcement Learning Agents}
-
-Each agent learns a policy $\pi_i(\lambda | s)$ mapping observations to liquidity
-fraction choices. We use a policy gradient approach where agents:
+The key innovation is using LLMs to propose policy parameters. At each iteration:
 
 \begin{enumerate}
-    \item Observe end-of-period costs and counterparty behavior
-    \item Update policy parameters via gradient descent on expected cost
-    \item Propose new liquidity fractions for the next iteration
+    \item \textbf{Context Construction}: Current policy, recent costs, opponent summary
+    \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
+    \item \textbf{Paired Evaluation}: Run sandboxed simulations with proposed vs. current policy
+    \item \textbf{Acceptance Decision}: Accept if cost improves (cost delta $> 0$)
+    \item \textbf{Convergence Check}: Stable for 5 consecutive iterations
 \end{enumerate}
 
-The learning process continues until policy changes fall below a convergence
-threshold or a maximum iteration count is reached.
+\subsection{Evaluation Modes}
 
-\subsection{Experimental Design}
+\begin{itemize}
+    \item \textbf{Deterministic}: Single simulation per evaluation (fixed payments)
+    \item \textbf{Bootstrap}: 50 resampled transaction histories (stochastic payments)
+\end{itemize}
 
-We conduct three experiments with varying parameters:
+\subsection{Experimental Setup}
 
-\begin{description}
-    \item[Experiment 1 (Asymmetric)] Different delay costs create incentive for
-    free-riding behavior
-    \item[Experiment 2 (Stochastic)] Transaction amounts drawn from distributions
-    require bootstrap evaluation
-    \item[Experiment 3 (Symmetric)] Identical cost structures encourage cooperative
-    equilibrium
-\end{description}
+We implement three canonical scenarios:
 
-Each experiment runs multiple passes to verify reproducibility of convergence.
+\textbf{Experiment 1: 2-Period Deterministic}
+\begin{itemize}
+    \item 2 ticks per day
+    \item Fixed payment arrivals at tick 0: BANK\_A sends 0.2, BANK\_B sends 0.2
+    \item Expected equilibrium: Asymmetric (A=0\%, B=20\%)
+\end{itemize}
+
+\textbf{Experiment 2: 12-Period Stochastic}
+\begin{itemize}
+    \item 12 ticks per day
+    \item Poisson arrivals ($\lambda$=0.5/tick), LogNormal amounts
+    \item Expected equilibrium: Both agents in 10-30\% range
+\end{itemize}
+
+\textbf{Experiment 3: 3-Period Symmetric}
+\begin{itemize}
+    \item 3 ticks per day
+    \item Fixed symmetric payment demands (0.2, 0.2, 0)
+    \item Expected equilibrium: Symmetric ($\sim$20\%)
+\end{itemize}
+
+\subsection{LLM Configuration}
+
+\begin{itemize}
+    \item Model: \texttt{openai:gpt-5.2}
+    \item Reasoning effort: \texttt{high}
+    \item Temperature: 0.5
+    \item Convergence: 5-iteration stability window, 5\% threshold
+\end{itemize}
+
+Each experiment run 3 times (passes) with identical configurations to assess
+convergence reliability.
 
 
 
