@@ -197,6 +197,24 @@ BANK_B follows a similar trajectory (50% → 30% → 20%), converging to 20% by 
 
 **Key Insight**: In symmetric games, both agents converge to identical policies. The 20% allocation exactly matches the payment obligation (0.2), demonstrating the LLM's ability to identify the efficient symmetric equilibrium.
 
+---
+
+#### Example 4: Stochastic Optimization with Bootstrap Evaluation (Exp2 Pass 1)
+
+This example demonstrates policy optimization under uncertainty, using bootstrap sampling to evaluate proposed changes.
+
+**Figure 4a: BANK_A Cost & Policy Evolution (Exp2 Pass 1)**
+![BANK_A Convergence](charts/pass1/exp2_bankA.png)
+
+BANK_A gradually reduces liquidity from 50% to 16.5% over 9 iterations (50% → 30% → 20% → 19% → 18% → 17.5% → 17% → 16.5%). Each step is smaller than in the deterministic cases, reflecting caution under uncertainty. The bootstrap evaluation with 50 samples provides noisy cost estimates, requiring conservative updates.
+
+**Figure 4b: BANK_B Cost & Policy Evolution (Exp2 Pass 1)**
+![BANK_B Convergence](charts/pass1/exp2_bankB.png)
+
+BANK_B converges from 50% to 11.5% following a similar pattern (50% → 15% → 13% → 12% → 11.5%). The final allocation is lower than BANK_A's, reflecting different optimal strategies under stochastic payment arrivals.
+
+**Key Insight**: Stochastic settings require more iterations and produce noisier convergence paths. The bootstrap evaluation introduces variance that can occasionally accept suboptimal policies (as seen in Pass 2's higher-cost equilibrium). However, the method still finds stable equilibria within the theoretical 10-30% bounds.
+
 ## 6. Discussion
 
 ### 6.1 Analysis of Convergence Patterns
