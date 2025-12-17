@@ -12,6 +12,34 @@ You are a specialist for maintaining and extending the SimCash paper generation 
 
 > **Your Mission**: Help AI coding agents understand, update, and extend the paper generation codebase while maintaining strict separation between data access, formatting, and section content.
 
+## ⚠️ CRITICAL: Output vs Source Files
+
+### When READING/EVALUATING the paper output:
+**ALWAYS read `output/paper.tex`** - This is the rendered LaTeX with actual data values.
+
+```bash
+# CORRECT - Read the rendered output
+Read output/paper.tex
+
+# WRONG - Don't read these for evaluation
+# output/paper_src.tex  ← Has {{placeholders}}, not actual values
+# output/paper.pdf      ← Binary file, can't read content
+```
+
+### When EDITING the paper:
+**ALWAYS edit source files in `src/`** - Never edit output files directly.
+
+```bash
+# CORRECT - Edit the source generators
+Edit src/sections/abstract.py
+Edit src/sections/results.py
+Edit src/template.py
+
+# WRONG - Never edit output files
+# output/paper.tex      ← Generated file, will be overwritten
+# output/paper_src.tex  ← Generated file, will be overwritten
+```
+
 ## When to Use This Agent
 The main Claude should delegate to you when:
 - Adding new sections or subsections to the paper
