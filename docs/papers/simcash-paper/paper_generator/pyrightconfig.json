@@ -1,6 +1,6 @@
 {
-  "include": ["payment_simulator"],
-  "exclude": ["**/node_modules", "**/__pycache__", "build", "dist"],
+  "include": ["src", "tests"],
+  "exclude": ["**/node_modules", "**/__pycache__", ".venv", "build", "dist"],
   "venvPath": ".",
   "venv": ".venv",
   "pythonVersion": "3.11",
@@ -15,12 +15,5 @@
   "reportUnnecessaryTypeIgnoreComment": "warning",
   "reportUnusedImport": "warning",
   "reportUnusedVariable": "warning",
-  "stubPath": "typings",
-  "extraPaths": ["."],
-  "executionEnvironments": [
-    {
-      "root": "payment_simulator",
-      "extraPaths": ["."]
-    }
-  ]
+  "extraPaths": ["."]
 }
