@@ -135,11 +135,17 @@ Each policy proposal in Experiment 2 is evaluated using 50 bootstrap samples wit
 | 3 | BANK_A | $93.99 | $2.77 | [$93.19, $94.78] | $1.59 |
 | 3 | BANK_B | $141.99 | $18.09 | [$136.82, $147.17] | $10.35 |
 
+**Figure 5: Confidence Interval Width Comparison Across Passes**
+![CI Width Comparison](charts/bootstrap/ci_width_comparison.png)
+
 **Observation**: The asymmetric standard deviations reveal an important phenomenon: some agent-policy combinations experience high variance while others are deterministic. In Pass 1, BANK_B's $69.51 standard deviation indicates significant sensitivity to transaction timing, while BANK_A's zero variance suggests its policy produces consistent costs across all scenarios.
 
 #### 5.2.2 Sample Distribution Analysis
 
 Examining the 50 individual samples from Pass 1's final iteration reveals a highly skewed distribution:
+
+**Figure 6: Bootstrap Sample Distribution (BANK_B, Pass 1, Iteration 7)**
+![Sample Distribution](charts/bootstrap/sample_distribution_histogram.png)
 
 **BANK_B Bootstrap Samples (Pass 1, Iteration 7):**
 - 44 of 50 samples: ~$110 (modal outcome)
@@ -147,6 +153,11 @@ Examining the 50 individual samples from Pass 1's final iteration reveals a high
 - 4 samples: $225-$515 (severe tail)
 
 The modal cost of $110 represents the typical scenario where transactions settle efficiently. The tail events ($225-$515) occur when unfavorable payment timing creates liquidity shortfalls, triggering delay penalties. This "fat tail" risk is invisible in deterministic evaluation but captured by bootstrap sampling.
+
+**Figure 7: Variance Evolution Across Iterations (BANK_B, Pass 1)**
+![Variance Evolution](charts/bootstrap/variance_evolution.png)
+
+The left panel shows mean cost with 95% confidence bands widening as iterations progress. The right panel demonstrates how standard deviation increases from $9.63 at iteration 1 to $69.51 at iteration 7—risk grows as BANK_B reduces its liquidity buffer.
 
 Bootstrap evaluation with 50 samples provides confidence intervals, capturing the inherent uncertainty in stochastic payment systems.
 
