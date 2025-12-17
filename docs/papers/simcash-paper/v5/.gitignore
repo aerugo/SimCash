@@ -1,0 +1,10 @@
+# Generated output
+output/
+
+# Experiment databases (too large)
+data/*.db
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
