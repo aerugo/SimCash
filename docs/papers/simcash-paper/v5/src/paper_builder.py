@@ -170,6 +170,11 @@ def build_paper(
     Returns:
         Path to generated .tex file
 
+    Raises:
+        IncompleteExperimentError: If any experiment run in config is not completed
+        FileNotFoundError: If database files don't exist
+        ValueError: If run_ids in config don't exist in database
+
     Example:
         >>> from pathlib import Path
         >>> from src.config import load_config
@@ -177,6 +182,14 @@ def build_paper(
         >>> tex_path = build_paper(Path("data/"), Path("output/"), config=config)
         >>> print(f"Paper generated at: {tex_path}")
     """
+    # Validate all experiment runs are completed when using config
+    if config is not None:
+        from src.config import validate_runs_completed
+
+        # base_dir is parent of data_dir (data_dir is v5/data, base_dir is v5)
+        base_dir = data_dir.parent
+        validate_runs_completed(config, base_dir)
+
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
 

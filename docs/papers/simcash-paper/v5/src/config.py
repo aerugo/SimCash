@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TypedDict
 
+import duckdb
 import yaml
 
 
@@ -130,3 +131,70 @@ def get_pass_numbers(config: PaperConfig, exp_id: str) -> list[int]:
         List of pass numbers (e.g., [1, 2, 3])
     """
     return list(config["experiments"][exp_id]["passes"].keys())
+
+
+class IncompleteExperimentError(Exception):
+    """Raised when an experiment run referenced in config is not completed."""
+
+    pass
+
+
+def validate_runs_completed(config: PaperConfig, base_dir: Path) -> None:
+    """Validate that all experiment runs in config have completed status.
+
+    Checks each run_id in the config against the database to ensure
+    it has a completed_at timestamp set.
+
+    Args:
+        config: Loaded paper configuration
+        base_dir: Base directory containing database files (v5/ directory)
+
+    Raises:
+        IncompleteExperimentError: If any run_id is not completed
+        FileNotFoundError: If a database file doesn't exist
+        ValueError: If a run_id doesn't exist in the database
+    """
+    incomplete_runs: list[str] = []
+
+    for exp_id in get_experiment_ids(config):
+        db_path = get_db_path(config, exp_id, base_dir)
+
+        if not db_path.exists():
+            raise FileNotFoundError(f"Database not found: {db_path}")
+
+        conn = duckdb.connect(str(db_path), read_only=True)
+        try:
+            for pass_num in get_pass_numbers(config, exp_id):
+                run_id = get_run_id(config, exp_id, pass_num)
+
+                result = conn.execute(
+                    """
+                    SELECT completed_at
+                    FROM experiments
+                    WHERE run_id = ?
+                    """,
+                    [run_id],
+                ).fetchone()
+
+                if result is None:
+                    raise ValueError(
+                        f"Run {run_id} not found in database {db_path}. "
+                        f"Check that the run_id in config.yaml is correct."
+                    )
+
+                completed_at = result[0]
+                if completed_at is None:
+                    incomplete_runs.append(
+                        f"  - {exp_id} pass {pass_num}: {run_id}"
+                    )
+        finally:
+            conn.close()
+
+    if incomplete_runs:
+        runs_list = "\n".join(incomplete_runs)
+        raise IncompleteExperimentError(
+            f"Cannot generate paper: the following experiment runs are not completed:\n"
+            f"{runs_list}\n\n"
+            f"Please wait for all experiments to complete before generating the paper, "
+            f"or update config.yaml to reference completed runs."
+        )
