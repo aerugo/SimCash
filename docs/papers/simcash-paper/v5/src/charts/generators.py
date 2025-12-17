@@ -203,13 +203,14 @@ def generate_experiment_charts(
 ) -> dict[str, Path]:
     """Generate all charts for an experiment pass.
 
-    Creates BANK_A, BANK_B, and combined charts.
+    Creates BANK_A, BANK_B, and combined charts with flat naming scheme.
+    Files are named: {exp_id}_pass{pass_num}_{type}.png
 
     Args:
         db_path: Path to experiment database
         exp_id: Experiment identifier
         pass_num: Pass number
-        output_dir: Directory for output files
+        output_dir: Directory for output files (flat structure)
 
     Returns:
         Dict mapping chart type to path
@@ -218,7 +219,7 @@ def generate_experiment_charts(
 
     paths: dict[str, Path] = {}
 
-    # Individual agent charts
+    # Individual agent charts with flat naming
     paths["BANK_A"] = generate_convergence_chart(
         db_path=db_path,
         exp_id=exp_id,
@@ -537,7 +538,16 @@ def generate_all_paper_charts(
     """Generate all charts needed for the paper.
 
     Creates convergence charts for all experiments and passes,
-    plus bootstrap analysis charts for exp2.
+    plus bootstrap analysis charts for all experiments/passes.
+
+    Chart files are generated with flat naming scheme to match
+    what the LaTeX section generators expect:
+    - {exp_id}_pass{pass_num}_combined.png
+    - {exp_id}_pass{pass_num}_bankA.png
+    - {exp_id}_pass{pass_num}_bankB.png
+    - {exp_id}_pass{pass_num}_ci_width.png
+    - {exp_id}_pass{pass_num}_variance_evolution.png
+    - {exp_id}_pass{pass_num}_sample_distribution.png
 
     Args:
         data_dir: Directory containing exp{1,2,3}.db
@@ -559,44 +569,39 @@ def generate_all_paper_charts(
 
         for pass_num in [1, 2, 3]:
             try:
-                exp_output = output_dir / exp_id / f"pass{pass_num}"
+                # Generate convergence charts with flat naming (directly in output_dir)
                 paths = generate_experiment_charts(
                     db_path=db_path,
                     exp_id=exp_id,
                     pass_num=pass_num,
-                    output_dir=exp_output,
+                    output_dir=output_dir,  # Flat structure
                 )
                 result[exp_id][pass_num] = paths
+
+                # Generate bootstrap charts for ALL experiments and passes
+                paths["ci_width"] = generate_ci_width_chart(
+                    db_path=db_path,
+                    exp_id=exp_id,
+                    pass_num=pass_num,
+                    output_path=output_dir / f"{exp_id}_pass{pass_num}_ci_width.png",
+                )
+
+                paths["variance"] = generate_variance_evolution_chart(
+                    db_path=db_path,
+                    exp_id=exp_id,
+                    pass_num=pass_num,
+                    output_path=output_dir / f"{exp_id}_pass{pass_num}_variance_evolution.png",
+                )
+
+                paths["distribution"] = generate_sample_distribution_chart(
+                    db_path=db_path,
+                    exp_id=exp_id,
+                    pass_num=pass_num,
+                    output_path=output_dir / f"{exp_id}_pass{pass_num}_sample_distribution.png",
+                )
+
             except ValueError:
                 # Pass doesn't exist, skip
                 continue
-
-    # Bootstrap charts for exp2
-    if "exp2" in result and 1 in result["exp2"]:
-        bootstrap_dir = output_dir / "bootstrap"
-        bootstrap_dir.mkdir(parents=True, exist_ok=True)
-
-        db_path = data_dir / "exp2.db"
-
-        result["exp2"][1]["ci_width"] = generate_ci_width_chart(
-            db_path=db_path,
-            exp_id="exp2",
-            pass_num=1,
-            output_path=bootstrap_dir / "ci_width_comparison.png",
-        )
-
-        result["exp2"][1]["variance"] = generate_variance_evolution_chart(
-            db_path=db_path,
-            exp_id="exp2",
-            pass_num=1,
-            output_path=bootstrap_dir / "variance_evolution.png",
-        )
-
-        result["exp2"][1]["distribution"] = generate_sample_distribution_chart(
-            db_path=db_path,
-            exp_id="exp2",
-            pass_num=1,
-            output_path=bootstrap_dir / "sample_distribution.png",
-        )
 
     return result
