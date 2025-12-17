@@ -48,6 +48,8 @@ Thumbs.db
 *.db.wal
 *.duckdb
 *.duckdb.wal
+# Exception: allow .db files in docs/papers/ for paper generation
+!docs/papers/**/*.db
 test_data/
 api/test_databases/
 

@@ -1,3 +1,2 @@
-# Database files are not tracked in git (too large)
-# Copy from api/results/ before building paper
-*.db
+# Database files ARE tracked for reproducibility
+# These contain experiment results for paper generation
