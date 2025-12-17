@@ -410,6 +410,23 @@ This appendix presents the complete cost and policy evolution for each iteration
 | 5 | $19.98 | 20.0% | $19.98 | 20.0% | $39.96 |
 | 6 | $19.98 | 20.0% | $19.98 | 20.0% | $39.96 |
 
+## Appendix D: LLM Prompt Information Isolation Audit
+
+A critical requirement for valid Nash equilibrium discovery is that agents cannot observe each other's private information (policies, costs). We conducted a systematic audit of the LLM prompts provided to both agents during Experiment 1, Pass 1, Iteration 1.
+
+**Key Findings:**
+
+| Information Type | Visibility | Assessment |
+|------------------|------------|------------|
+| Policy parameters (`initial_liquidity_fraction`) | PRIVATE | ✓ Correctly isolated |
+| Cost breakdowns | PRIVATE | ✓ Correctly isolated |
+| Transaction arrivals | SHARED | Acceptable (realistic) |
+| Balance trajectories | SHARED | ⚠️ More than necessary |
+
+**Conclusion**: The core game-theoretic requirement is satisfied—agents cannot see each other's policy parameters. The shared simulation output includes balance changes which provide more visibility than a pure private-information game, but this does not enable policy inference and is consistent with real RTGS observability.
+
+See `appendix_d_prompt_audit.md` for the complete audit report with prompt excerpts.
+
 ## References
 
 1. Castro, P., Cramton, P., Malec, D., & Schwierz, C. (2013). *Payment Timing Games in RTGS Systems*. Working Paper.
