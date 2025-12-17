@@ -99,6 +99,7 @@ class ConvergenceStats(TypedDict):
         min_iterations: Minimum iterations
         max_iterations: Maximum iterations
         convergence_rate: Fraction of passes that converged (0.0 to 1.0)
+        num_passes: Number of passes in this experiment
     """
 
     exp_id: str
@@ -106,6 +107,25 @@ class ConvergenceStats(TypedDict):
     min_iterations: int
     max_iterations: int
     convergence_rate: float
+    num_passes: int
+
+
+class AggregateStats(TypedDict):
+    """Aggregate statistics across all experiments.
+
+    Attributes:
+        total_experiments: Number of experiments
+        total_passes: Total number of passes across all experiments
+        overall_mean_iterations: Mean iterations across all passes
+        overall_convergence_rate: Fraction of all passes that converged
+        total_converged: Number of passes that converged
+    """
+
+    total_experiments: int
+    total_passes: int
+    overall_mean_iterations: float
+    overall_convergence_rate: float
+    total_converged: int
 
 
 @runtime_checkable
@@ -230,6 +250,22 @@ class DataProvider(Protocol):
 
         Returns:
             Number of passes (typically 3)
+        """
+        ...
+
+    def get_experiment_ids(self) -> list[str]:
+        """Get list of all experiment identifiers.
+
+        Returns:
+            List of experiment IDs (e.g., ["exp1", "exp2", "exp3"])
+        """
+        ...
+
+    def get_aggregate_stats(self) -> AggregateStats:
+        """Get aggregate statistics across all experiments.
+
+        Returns:
+            AggregateStats with total passes, mean iterations, convergence rate
         """
         ...
 
@@ -465,25 +501,63 @@ class DatabaseDataProvider:
         return result[0]
 
     def get_num_passes(self, exp_id: str) -> int:
-        """Get the number of passes for an experiment.
+        """Get the number of passes for an experiment from config.
 
         Args:
             exp_id: Experiment identifier
 
         Returns:
-            Number of passes
+            Number of passes defined in config
         """
-        conn = self._get_connection(exp_id)
-        result = conn.execute(
-            """
-            SELECT COUNT(DISTINCT run_id)
-            FROM policy_evaluations
-            """
-        ).fetchone()
+        from src.config import get_pass_numbers
 
-        if result is None:
-            return 0
-        return result[0]
+        return len(get_pass_numbers(self._config, exp_id))
+
+    def get_experiment_ids(self) -> list[str]:
+        """Get list of all experiment identifiers from config.
+
+        Returns:
+            List of experiment IDs (e.g., ["exp1", "exp2", "exp3"])
+        """
+        from src.config import get_experiment_ids as config_get_experiment_ids
+
+        return config_get_experiment_ids(self._config)
+
+    def get_aggregate_stats(self) -> AggregateStats:
+        """Get aggregate statistics across all experiments.
+
+        Returns:
+            AggregateStats with total passes, mean iterations, convergence rate
+        """
+        exp_ids = self.get_experiment_ids()
+        all_convergence_stats = [
+            self.get_convergence_statistics(exp_id) for exp_id in exp_ids
+        ]
+
+        total_experiments = len(exp_ids)
+        total_passes = sum(stats["num_passes"] for stats in all_convergence_stats)
+
+        # Calculate overall mean iterations (weighted by passes)
+        total_iterations = sum(
+            stats["mean_iterations"] * stats["num_passes"]
+            for stats in all_convergence_stats
+        )
+        overall_mean_iterations = total_iterations / total_passes if total_passes > 0 else 0.0
+
+        # Calculate overall convergence rate
+        total_converged = sum(
+            int(stats["convergence_rate"] * stats["num_passes"])
+            for stats in all_convergence_stats
+        )
+        overall_convergence_rate = total_converged / total_passes if total_passes > 0 else 0.0
+
+        return AggregateStats(
+            total_experiments=total_experiments,
+            total_passes=total_passes,
+            overall_mean_iterations=overall_mean_iterations,
+            overall_convergence_rate=overall_convergence_rate,
+            total_converged=total_converged,
+        )
 
     def get_pass_summary(self, exp_id: str, pass_num: int) -> PassSummary:
         """Get summary of results for one experiment pass.
@@ -556,4 +630,5 @@ class DatabaseDataProvider:
             min_iterations=min(iterations),
             max_iterations=max(iterations),
             convergence_rate=convergence_rate,
+            num_passes=len(summaries),
         )

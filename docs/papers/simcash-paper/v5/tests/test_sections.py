@@ -27,7 +27,8 @@ def mock_provider() -> MagicMock:
         "get_iteration_results", "get_final_bootstrap_stats",
         "get_convergence_iteration", "get_run_id",
         "get_all_pass_summaries", "get_pass_summary",
-        "get_convergence_statistics", "get_num_passes"
+        "get_convergence_statistics", "get_num_passes",
+        "get_experiment_ids", "get_aggregate_stats"
     ])
 
     # Mock exp1 data (asymmetric equilibrium)
@@ -63,13 +64,25 @@ def mock_provider() -> MagicMock:
         "bank_a_cost": 0, "bank_b_cost": 5000, "total_cost": 5000
     }
 
-    # Mock convergence statistics
+    # Mock convergence statistics (now includes num_passes)
     provider.get_convergence_statistics.return_value = {
         "exp_id": "exp1", "mean_iterations": 3.3, "min_iterations": 3,
-        "max_iterations": 4, "convergence_rate": 1.0
+        "max_iterations": 4, "convergence_rate": 1.0, "num_passes": 3
     }
 
     provider.get_num_passes.return_value = 3
+
+    # Mock experiment IDs
+    provider.get_experiment_ids.return_value = ["exp1", "exp2", "exp3"]
+
+    # Mock aggregate statistics
+    provider.get_aggregate_stats.return_value = {
+        "total_experiments": 3,
+        "total_passes": 9,
+        "overall_mean_iterations": 6.7,
+        "overall_convergence_rate": 1.0,
+        "total_converged": 9
+    }
 
     return provider
 
@@ -416,7 +429,14 @@ class TestDataDrivenContent:
             ]
             provider.get_convergence_statistics.return_value = {
                 "exp_id": "exp1", "mean_iterations": 1.0, "min_iterations": 1,
-                "max_iterations": 1, "convergence_rate": 1.0
+                "max_iterations": 1, "convergence_rate": 1.0, "num_passes": 1
+            }
+            provider.get_aggregate_stats.return_value = {
+                "total_experiments": 3,
+                "total_passes": 9,
+                "overall_mean_iterations": 6.7,
+                "overall_convergence_rate": 1.0,
+                "total_converged": 9
             }
             return provider
 
