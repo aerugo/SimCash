@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.latex.figures import include_figure
 from src.latex.formatting import format_money, format_percent
 from src.latex.tables import generate_iteration_table
 
 if TYPE_CHECKING:
     from src.data_provider import DataProvider
+
+# Chart paths relative to output directory
+CHARTS_DIR = "charts"
 
 
 def generate_results(provider: DataProvider) -> str:
@@ -63,6 +67,28 @@ def generate_results(provider: DataProvider) -> str:
     exp3_b_cost = format_money(exp3_bank_b["cost"]) if exp3_bank_b else "N/A"
     exp3_b_liq = format_percent(exp3_bank_b["liquidity_fraction"]) if exp3_bank_b else "N/A"
 
+    # Generate figure includes for each experiment
+    exp1_fig = include_figure(
+        path=f"{CHARTS_DIR}/exp1_pass1_combined.png",
+        caption="Experiment 1: Convergence of both agents toward asymmetric equilibrium",
+        label="fig:exp1_convergence",
+        width=0.9,
+    )
+
+    exp2_fig = include_figure(
+        path=f"{CHARTS_DIR}/exp2_pass1_combined.png",
+        caption="Experiment 2: Convergence under stochastic transaction amounts",
+        label="fig:exp2_convergence",
+        width=0.9,
+    )
+
+    exp3_fig = include_figure(
+        path=f"{CHARTS_DIR}/exp3_pass1_combined.png",
+        caption="Experiment 3: Convergence to symmetric equilibrium",
+        label="fig:exp3_convergence",
+        width=0.9,
+    )
+
     return rf"""
 \section{{Results}}
 \label{{sec:results}}
@@ -76,6 +102,8 @@ In this experiment, BANK\_A faces lower delay costs than BANK\_B, creating an in
 structure that theoretically favors free-rider behavior by BANK\_A.
 
 {exp1_table}
+
+{exp1_fig}
 
 The agents converged after {exp1_convergence} iterations to an asymmetric equilibrium:
 \begin{{itemize}}
@@ -93,6 +121,8 @@ Experiment 2 introduces transaction amount variability, requiring bootstrap eval
 to assess policy quality under cost variance. Agents converged after {exp2_convergence}
 iterations.
 
+{exp2_fig}
+
 Bootstrap evaluation with 50 samples reveals:
 \begin{{itemize}}
     \item BANK\_A: Mean cost {exp2_a_mean}
@@ -106,6 +136,8 @@ appropriately reflecting the underlying variance.
 
 With identical cost structures for both banks, we expect symmetric equilibrium behavior.
 Convergence occurred at iteration {exp3_convergence}.
+
+{exp3_fig}
 
 Final equilibrium:
 \begin{{itemize}}
