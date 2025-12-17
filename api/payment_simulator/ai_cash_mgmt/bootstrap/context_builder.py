@@ -292,15 +292,25 @@ class EnrichedBootstrapContextBuilder:
     def _format_event_details(self, event: BootstrapEvent) -> str:
         """Format event details for readability.
 
+        CRITICAL: This method enforces INV-11 (Agent Isolation) by sanitizing
+        event details to hide counterparty-specific information.
+
         Args:
             event: Event whose details to format.
 
         Returns:
             Compact string representation of event details.
         """
-        # Handle settlement events specially to show balance changes
+        # Handle settlement events specially - enforces balance isolation
         if event.event_type == "RtgsImmediateSettlement":
             return self._format_settlement_event(event)
+
+        # Handle LSM events specially - enforces counterparty isolation
+        if event.event_type == "LsmBilateralOffset":
+            return self._format_lsm_bilateral(event)
+
+        if event.event_type == "LsmCycleSettlement":
+            return self._format_lsm_cycle(event)
 
         # Format key fields that are most informative
         key_fields = ["tx_id", "action", "amount", "cost", "agent_id", "sender_id"]
@@ -324,11 +334,15 @@ class EnrichedBootstrapContextBuilder:
     def _format_settlement_event(self, event: BootstrapEvent) -> str:
         """Format settlement event with balance changes.
 
+        CRITICAL: Enforces INV-11 (Agent Isolation) - only shows balance
+        to the sender, NOT to the receiver. This prevents information
+        leakage about counterparty's liquidity position.
+
         Args:
             event: Settlement event to format.
 
         Returns:
-            Formatted string with balance change information.
+            Formatted string with balance change information (sender only).
         """
         d = event.details
         parts = []
@@ -343,12 +357,75 @@ class EnrichedBootstrapContextBuilder:
 
         result = ", ".join(parts)
 
-        # Add balance change if available
-        balance_before = d.get("sender_balance_before")
-        balance_after = d.get("sender_balance_after")
-        if balance_before is not None and balance_after is not None:
-            before_fmt = f"${balance_before / 100:,.2f}"
-            after_fmt = f"${balance_after / 100:,.2f}"
-            result += f"\n  Balance: {before_fmt} → {after_fmt}"
+        # CRITICAL FIX: Only show balance to sender, not receiver
+        # This enforces INV-11 (Agent Isolation)
+        sender = d.get("sender")
+        if sender == self._agent_id:
+            balance_before = d.get("sender_balance_before")
+            balance_after = d.get("sender_balance_after")
+            if balance_before is not None and balance_after is not None:
+                before_fmt = f"${balance_before / 100:,.2f}"
+                after_fmt = f"${balance_after / 100:,.2f}"
+                result += f"\n  Balance: {before_fmt} → {after_fmt}"
 
         return result
+
+    def _format_lsm_bilateral(self, event: BootstrapEvent) -> str:
+        """Format LSM bilateral offset with agent isolation.
+
+        CRITICAL: Enforces INV-11 (Agent Isolation) - only shows the
+        viewing agent's side of the offset. Counterparty's specific
+        amount is hidden to prevent information leakage.
+
+        Args:
+            event: LSM bilateral offset event.
+
+        Returns:
+            Sanitized string showing only agent's own position.
+        """
+        d = event.details
+        agent_a = d.get("agent_a")
+        agent_b = d.get("agent_b")
+        amount_a = d.get("amount_a", 0)
+        amount_b = d.get("amount_b", 0)
+
+        # Determine which side is the viewing agent
+        if self._agent_id == agent_a:
+            own_amount = amount_a
+            counterparty = agent_b
+        elif self._agent_id == agent_b:
+            own_amount = amount_b
+            counterparty = agent_a
+        else:
+            # Shouldn't happen if filtering works, but safe fallback
+            return f"LSM Bilateral: {agent_a} <-> {agent_b}"
+
+        # Only show own amount, not counterparty's
+        own_fmt = f"${own_amount / 100:,.2f}"
+        return f"Bilateral offset with {counterparty}: Your payment {own_fmt} settled"
+
+    def _format_lsm_cycle(self, event: BootstrapEvent) -> str:
+        """Format LSM cycle settlement with agent isolation.
+
+        CRITICAL: Enforces INV-11 (Agent Isolation) - shows participation
+        and total value saved, but hides individual transaction amounts
+        and net positions which would reveal counterparty liquidity stress.
+
+        Args:
+            event: LSM cycle settlement event.
+
+        Returns:
+            Sanitized string showing participation without counterparty details.
+        """
+        d = event.details
+        agents = d.get("agents", [])
+        total_value = d.get("total_value", 0)
+
+        # Show participation and total, but NOT:
+        # - tx_amounts (individual transaction sizes)
+        # - net_positions (liquidity stress indicators)
+        # - max_net_outflow_agent (identifies struggling bank)
+        total_fmt = f"${total_value / 100:,.2f}"
+        num_participants = len(agents)
+
+        return f"LSM Cycle: {num_participants} participants, Total: {total_fmt}"
