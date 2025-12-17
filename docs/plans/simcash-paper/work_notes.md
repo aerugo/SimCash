@@ -99,6 +99,27 @@
 - Successfully generates ~29KB paper.tex with all sections
 - Real data shows: Exp1 converges at 14 iterations, Exp2/Exp3 at 7 iterations
 
+### Phase 5: Wrap-Up and Integration
+**Status**: Complete
+**Started**: 2025-12-17
+**Completed**: 2025-12-17
+
+#### Results
+- Created `src/latex/figures.py` with `include_figure()` helper
+- Created `src/charts/__init__.py` with chart path resolution
+- Created `src/cli.py` with argparse-based CLI
+- Added 24 new tests (118 total):
+  - 10 figure/chart tests
+  - 10 real data integration tests (including critical bug fix verification)
+  - 4 CLI tests
+- Created comprehensive README.md documentation
+- All tests passing, mypy and ruff clean
+
+#### Critical Bug Fix Verification
+- `test_exp2_agents_have_different_costs_in_database`: Verifies DB has different values
+- `test_exp2_different_costs_appear_in_paper`: Verifies generated paper shows different values
+- These tests ensure the v4 bug (identical costs) can NEVER recur
+
 ---
 
 ## Key Decisions
@@ -143,4 +164,4 @@
 - [ ] Add INV-N: Paper Generation Identity (values must come from queries)
 
 ### Other Documentation
-- [ ] `docs/papers/simcash-paper/README.md` - Add v5 build instructions
+- [x] `docs/papers/simcash-paper/v5/README.md` - Build instructions and architecture
