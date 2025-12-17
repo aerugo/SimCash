@@ -5,6 +5,13 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Virtual environment (created by uv sync)
+.venv/
+
+# Coverage reports
+htmlcov/
+.coverage
+
 # LaTeX auxiliary files (but NOT .tex and .pdf)
 *.aux
 *.log
