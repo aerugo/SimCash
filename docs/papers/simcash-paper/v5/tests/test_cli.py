@@ -30,6 +30,7 @@ class TestCLI:
                 "--config", str(v5_dir / "config.yaml"),
                 "--output-dir", str(tmp_path),
                 "--skip-charts",  # Skip charts for faster tests
+                "--skip-pdf",  # Skip PDF compilation in tests
             ],
             capture_output=True,
             text=True,
@@ -48,6 +49,7 @@ class TestCLI:
                 "--config", str(v5_dir / "config.yaml"),
                 "--output-dir", str(tmp_path),
                 "--skip-charts",
+                "--skip-pdf",
             ],
             capture_output=True,
             text=True,
@@ -72,6 +74,7 @@ class TestCLI:
                 "--config", str(v5_dir / "config.yaml"),
                 "--output-dir", str(new_output),
                 "--skip-charts",
+                "--skip-pdf",
             ],
             capture_output=True,
             text=True,

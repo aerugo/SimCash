@@ -5,15 +5,53 @@ Usage:
 
 A config.yaml file is REQUIRED. The config explicitly maps experiment passes
 to specific run_ids, ensuring reproducible paper generation.
+
+By default, the CLI generates paper.tex and compiles it to PDF using pdflatex.
 """
 
 from __future__ import annotations
 
 import argparse
+import subprocess
 from pathlib import Path
 
 from src.config import load_config
 from src.paper_builder import build_paper
+
+
+def compile_pdf(tex_path: Path) -> Path | None:
+    """Compile LaTeX file to PDF using pdflatex.
+
+    Runs pdflatex twice to resolve cross-references.
+
+    Args:
+        tex_path: Path to .tex file
+
+    Returns:
+        Path to generated PDF, or None if compilation failed
+    """
+    output_dir = tex_path.parent
+    pdf_path = tex_path.with_suffix(".pdf")
+
+    # Run pdflatex twice to resolve references
+    for pass_num in range(2):
+        result = subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", tex_path.name],
+            cwd=output_dir,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"pdflatex pass {pass_num + 1} failed:")
+            # Show last 20 lines of output for debugging
+            lines = result.stdout.split("\n")
+            for line in lines[-20:]:
+                print(f"  {line}")
+            return None
+
+    if pdf_path.exists():
+        return pdf_path
+    return None
 
 
 def main() -> None:
@@ -51,6 +89,12 @@ must be completed before paper generation.
         help="Skip chart generation (use existing charts)",
     )
 
+    parser.add_argument(
+        "--skip-pdf",
+        action="store_true",
+        help="Skip PDF compilation (generate .tex only)",
+    )
+
     args = parser.parse_args()
 
     # Load config (required)
@@ -68,6 +112,14 @@ must be completed before paper generation.
     )
 
     print(f"Generated: {tex_path}")
+
+    # Compile PDF unless skipped
+    if not args.skip_pdf:
+        pdf_path = compile_pdf(tex_path)
+        if pdf_path:
+            print(f"Compiled:  {pdf_path}")
+        else:
+            print("PDF compilation failed (see errors above)")
 
 
 if __name__ == "__main__":
