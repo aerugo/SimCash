@@ -141,8 +141,8 @@ class SystemPromptBuilder:
         # Section 5: Cost structure and objectives
         sections.append(_build_cost_objectives())
 
-        # Section 6: Policy tree architecture
-        sections.append(_build_policy_architecture())
+        # Section 6: Policy tree architecture (filtered by constraints)
+        sections.append(_build_policy_architecture(self._constraints))
 
         # Section 7: Optimization process explanation
         sections.append(_build_optimization_process())
@@ -161,8 +161,8 @@ class SystemPromptBuilder:
         # Section 10: Injected cost schema
         sections.append(get_filtered_cost_schema(cost_rates=self._cost_rates))
 
-        # Section 11: Common errors to avoid
-        sections.append(_build_common_errors())
+        # Section 11: Common errors to avoid (filtered by constraints)
+        sections.append(_build_common_errors(self._constraints))
 
         # Section 12: Final instructions
         sections.append(_build_final_instructions())
@@ -318,9 +318,56 @@ Actions have delayed consequences:
 """
 
 
-def _build_policy_architecture() -> str:
-    """Build the policy tree architecture explanation."""
-    return """
+def _build_policy_architecture(constraints: ScenarioConstraints) -> str:
+    """Build the policy tree architecture explanation.
+
+    Only lists tree types that have allowed actions in the constraints.
+
+    Args:
+        constraints: Scenario constraints defining what's allowed.
+
+    Returns:
+        Formatted policy architecture section.
+    """
+    # Build tree type descriptions based on allowed actions
+    tree_descriptions: list[str] = []
+    allowed = constraints.allowed_actions
+
+    if allowed.get("payment_tree"):
+        tree_descriptions.append(
+            "- **payment_tree**: Decides what to do with each transaction"
+        )
+    if allowed.get("bank_tree"):
+        tree_descriptions.append(
+            "- **bank_tree**: Bank-level decisions (once per tick)"
+        )
+    if allowed.get("strategic_collateral_tree"):
+        tree_descriptions.append(
+            "- **strategic_collateral_tree**: Collateral management"
+        )
+    if allowed.get("end_of_tick_collateral_tree"):
+        tree_descriptions.append(
+            "- **end_of_tick_collateral_tree**: End-of-tick collateral adjustments"
+        )
+
+    tree_list = "\n".join(tree_descriptions) if tree_descriptions else "- (No trees configured)"
+
+    # Build evaluation flow based on enabled trees
+    flow_steps: list[str] = []
+    step_num = 1
+    if allowed.get("bank_tree"):
+        flow_steps.append(f"{step_num}. Bank tree evaluates first (sets context like release budgets)")
+        step_num += 1
+    if allowed.get("strategic_collateral_tree") or allowed.get("end_of_tick_collateral_tree"):
+        flow_steps.append(f"{step_num}. Collateral trees manage liquidity positions")
+        step_num += 1
+    if allowed.get("payment_tree"):
+        flow_steps.append(f"{step_num}. Payment tree evaluates for each pending transaction")
+        step_num += 1
+
+    flow_list = "\n".join(flow_steps) if flow_steps else "1. (Configure trees in scenario)"
+
+    return f"""
 ## Policy Tree Architecture
 
 Agent behavior is governed by a **policy tree**: a decision structure where:
@@ -329,30 +376,25 @@ Agent behavior is governed by a **policy tree**: a decision structure where:
 
 ### Tree Structure
 ```json
-{
+{{
   "type": "condition",
   "node_id": "unique_id",
-  "condition": {
+  "condition": {{
     "op": "<=",
-    "left": {"field": "ticks_to_deadline"},
-    "right": {"param": "urgency_threshold"}
-  },
-  "on_true": {...},   // Subtree if condition is true
-  "on_false": {...}   // Subtree if condition is false
-}
+    "left": {{"field": "ticks_to_deadline"}},
+    "right": {{"param": "urgency_threshold"}}
+  }},
+  "on_true": {{...}},   // Subtree if condition is true
+  "on_false": {{...}}   // Subtree if condition is false
+}}
 ```
 
 ### Tree Types
 Different trees handle different decision types:
-- **payment_tree**: Decides what to do with each transaction
-- **bank_tree**: Bank-level decisions (once per tick)
-- **strategic_collateral_tree**: Collateral management
-- **end_of_tick_collateral_tree**: End-of-tick collateral adjustments
+{tree_list}
 
 ### Evaluation Flow
-1. Bank tree evaluates first (sets context like release budgets)
-2. Collateral trees manage liquidity positions
-3. Payment tree evaluates for each pending transaction
+{flow_list}
 """
 
 
@@ -404,12 +446,24 @@ BEFORE generating ANY policy, verify you will satisfy ALL of these:
 """
 
 
-def _build_common_errors() -> str:
-    """Build the common errors section."""
-    return """
-## Common Errors to Avoid
+def _build_common_errors(constraints: ScenarioConstraints) -> str:
+    """Build the common errors section.
 
-### ERROR 1: UNDEFINED PARAMETER
+    Only includes error examples for tree types that are enabled.
+
+    Args:
+        constraints: Scenario constraints defining what's allowed.
+
+    Returns:
+        Formatted common errors section.
+    """
+    errors: list[str] = []
+
+    errors.append("## Common Errors to Avoid")
+    errors.append("")
+
+    # ERROR 1: Always relevant
+    errors.append("""### ERROR 1: UNDEFINED PARAMETER
 ```json
 // WRONG:
 "parameters": {},
@@ -418,8 +472,11 @@ def _build_common_errors() -> str:
 // FIX - Add "threshold" to parameters:
 "parameters": {"threshold": 5.0},
 "condition": {"right": {"param": "threshold"}}
-```
+```""")
 
+    # ERROR 2: Only show if strategic_collateral_tree is enabled
+    if constraints.allowed_actions.get("strategic_collateral_tree"):
+        errors.append("""
 ### ERROR 2: WRONG ACTION FOR TREE
 ```json
 // WRONG in strategic_collateral_tree:
@@ -428,8 +485,23 @@ def _build_common_errors() -> str:
 
 // FIX in strategic_collateral_tree:
 {"action": "HoldCollateral"}  // Correct collateral action
-```
+```""")
+    elif constraints.allowed_actions.get("payment_tree"):
+        # Show a payment_tree-relevant error instead
+        errors.append("""
+### ERROR 2: WRONG ACTION FOR TREE
+```json
+// WRONG in payment_tree:
+{"action": "HoldCollateral"}  // HoldCollateral is COLLATERAL-only!
+{"action": "NoAction"}        // NoAction is BANK-only!
 
+// FIX in payment_tree:
+{"action": "Hold"}     // Correct payment action
+{"action": "Release"}  // Correct payment action
+```""")
+
+    # ERROR 3: Always relevant
+    errors.append("""
 ### ERROR 3: RAW ARITHMETIC (Missing compute wrapper)
 ```json
 // WRONG:
@@ -437,8 +509,10 @@ def _build_common_errors() -> str:
 
 // FIX - Wrap in "compute":
 "right": {"compute": {"op": "*", "left": {"value": 2}, "right": {"field": "X"}}}
-```
+```""")
 
+    # ERROR 4: Always relevant
+    errors.append("""
 ### ERROR 4: MISSING NODE_ID
 ```json
 // WRONG:
@@ -446,12 +520,16 @@ def _build_common_errors() -> str:
 
 // FIX - Add unique node_id:
 {"type": "action", "node_id": "A1_release", "action": "Release"}
-```
+```""")
 
+    # ERROR 5: Always relevant
+    errors.append("""
 ### ERROR 5: INVALID FIELD REFERENCE
 Only use fields listed in the ALLOWED FIELDS section.
 Do not invent field names that don't exist in the simulation.
-"""
+""")
+
+    return "\n".join(errors)
 
 
 def _build_final_instructions() -> str:

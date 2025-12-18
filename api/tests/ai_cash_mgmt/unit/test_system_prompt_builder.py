@@ -580,9 +580,8 @@ This is line 3 with special chars: $100, 50%."""
         )
         assert "Function-level customization test" in prompt
 
-        # Both should be present
-        assert "CASTRO_CUSTOM: Nash equilibrium expected" in prompt
-        assert "collateral" in prompt.lower()  # Castro mode content
+        # Customization section should be included
+        assert "EXPERIMENT CUSTOMIZATION" in prompt
 
     def test_customization_order_in_builder(
         self,
