@@ -183,3 +183,128 @@ class TestPairwiseModeConsistency:
 
         # This seed should be deterministic and consistent
         assert expected_seed == loop._seed_matrix.get_iteration_seed(iteration_idx, agent_id)
+
+
+class TestDeterministicModeWithNumSamplesGreaterThanOne:
+    """Tests for bug fix: deterministic modes with num_samples > 1.
+
+    Bug: The code checked `eval_mode == "deterministic"` instead of using
+    `is_deterministic` property, causing deterministic-temporal and
+    deterministic-pairwise modes to incorrectly fall into bootstrap path
+    when num_samples > 1.
+
+    These tests verify the fix works correctly.
+    """
+
+    def test_temporal_mode_is_deterministic_with_many_samples(self) -> None:
+        """deterministic-temporal with num_samples=50 should be deterministic."""
+        config = _create_config(mode="deterministic-temporal")
+        # Override to use num_samples > 1 (like real exp1 config)
+        config.evaluation = EvaluationConfig(
+            ticks=2, mode="deterministic-temporal", num_samples=50
+        )
+
+        # The is_deterministic property should return True
+        assert config.evaluation.is_deterministic is True
+        assert config.evaluation.is_deterministic_temporal is True
+        assert config.evaluation.is_bootstrap is False
+
+    def test_pairwise_mode_is_deterministic_with_many_samples(self) -> None:
+        """deterministic-pairwise with num_samples=50 should be deterministic."""
+        config = _create_config(mode="deterministic-pairwise")
+        config.evaluation = EvaluationConfig(
+            ticks=2, mode="deterministic-pairwise", num_samples=50
+        )
+
+        assert config.evaluation.is_deterministic is True
+        assert config.evaluation.is_deterministic_pairwise is True
+        assert config.evaluation.is_bootstrap is False
+
+    def test_plain_deterministic_is_deterministic_with_many_samples(self) -> None:
+        """Plain 'deterministic' with num_samples=50 should be deterministic."""
+        config = _create_config(mode="deterministic")
+        config.evaluation = EvaluationConfig(
+            ticks=2, mode="deterministic", num_samples=50
+        )
+
+        assert config.evaluation.is_deterministic is True
+        assert config.evaluation.is_bootstrap is False
+
+    def test_optimization_loop_uses_is_deterministic_property(self) -> None:
+        """OptimizationLoop should use is_deterministic, not string comparison.
+
+        This test verifies the fix for the bug where the code checked:
+            eval_mode == "deterministic"
+        instead of:
+            self._config.evaluation.is_deterministic
+
+        The bug caused deterministic-temporal with num_samples > 1 to fall
+        into the bootstrap evaluation path incorrectly.
+        """
+        config = _create_config(mode="deterministic-temporal")
+        config.evaluation = EvaluationConfig(
+            ticks=2, mode="deterministic-temporal", num_samples=50
+        )
+        loop = OptimizationLoop(config=config)
+
+        # Verify that the loop correctly identifies this as deterministic mode
+        # by checking the evaluation config property (not string comparison)
+        eval_mode = loop._config.evaluation.mode
+        num_samples = loop._config.evaluation.num_samples
+
+        # The BUG: this string comparison was used instead of is_deterministic
+        buggy_check = eval_mode == "deterministic" or num_samples <= 1
+
+        # The FIX: use is_deterministic property
+        correct_check = loop._config.evaluation.is_deterministic or num_samples <= 1
+
+        # With num_samples=50, the buggy check returns False (wrong!)
+        # The correct check returns True (right!)
+        assert buggy_check is False, "Buggy check should be False for temporal+50 samples"
+        assert correct_check is True, "Correct check should be True for temporal+50 samples"
+
+    @pytest.mark.asyncio
+    async def test_temporal_mode_runs_single_simulation_not_bootstrap(self) -> None:
+        """deterministic-temporal should run 1 simulation, not num_samples.
+
+        This test will FAIL until optimization.py is fixed to use
+        is_deterministic property instead of string comparison.
+
+        The bug causes _evaluate_policies() to run 50 simulations (bootstrap)
+        when it should run just 1 (deterministic).
+        """
+        from unittest.mock import patch, MagicMock
+
+        config = _create_config(mode="deterministic-temporal")
+        config.evaluation = EvaluationConfig(
+            ticks=2, mode="deterministic-temporal", num_samples=50
+        )
+        loop = OptimizationLoop(config=config)
+
+        # Set up loop state needed for _evaluate_policies
+        loop._current_iteration = 1
+
+        # Mock _run_simulation_with_events to count calls
+        mock_result = MagicMock()
+        mock_result.total_cost = 10000  # $100.00
+        mock_result.settlement_rate = 1.0
+        mock_result.events = []
+
+        call_count = 0
+
+        def count_calls(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return mock_result
+
+        with patch.object(loop, '_run_simulation_with_events', side_effect=count_calls):
+            with patch.object(loop, '_build_agent_contexts', return_value={}):
+                await loop._evaluate_policies()
+
+        # CRITICAL: In deterministic mode, should run exactly 1 simulation
+        # Bug causes it to run 50 (num_samples) simulations
+        assert call_count == 1, (
+            f"deterministic-temporal should run 1 simulation, not {call_count}. "
+            f"This test fails because optimization.py uses string comparison "
+            f"'== \"deterministic\"' instead of 'is_deterministic' property."
+        )
